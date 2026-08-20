@@ -26,7 +26,7 @@ async function verifyAccess(credential, fetchImpl) {
 
 export function makeGoogleDriveConnection({
   store, clientId = null, fetchImpl = globalThis.fetch, now = Date.now,
-  browserAvailable = true, localSyncAvailable = async () => false,
+  browserAvailable = true, localSyncAvailable = async () => false, desktopRoute = null,
 } = {}) {
   if (!store || typeof store.get !== 'function' || typeof store.setVerified !== 'function') {
     throw new TypeError('Google Drive workspace credential store is required');
@@ -61,26 +61,31 @@ export function makeGoogleDriveConnection({
       const publicState = (await store.describe())[PROVIDER] ?? null;
       const connected = publicState?.connected === true;
       const connecting = pending != null;
-      const localSync = await Promise.resolve().then(() => localSyncAvailable()).catch(() => false);
-      return {
-        state: connected ? 'connected' : localSync ? 'ready' : clientId ? 'needs_connection'
-          : availableBrowser ? 'needs_connection' : 'unavailable',
-        reason: connected ? 'verified_drive_connection'
-          : connecting ? 'oauth_in_progress'
-          : localSync ? 'local_sync_available'
-          : clientId ? 'oauth_not_connected'
-            : availableBrowser ? 'oauth_client_missing' : 'no_available_route',
-        userSafeSummary: connected
-          ? 'Google Drive 전용 연결을 사용할 수 있어요.'
-          : connecting
-            ? 'Google 계정 연결 화면에서 사용자 확인을 기다리고 있어요.'
-          : localSync
+      const desktop = desktopRoute ? await desktopRoute.inspect() : null;
+      const localSync = desktop?.state === 'ready'
+        || await Promise.resolve().then(() => localSyncAvailable()).catch(() => false);
+      const state = connected ? 'connected'
+        : localSync ? 'ready'
+          : desktop?.state ?? (clientId ? 'needs_connection'
+            : availableBrowser ? 'needs_connection' : 'unavailable');
+      const reason = connected ? 'verified_drive_connection'
+        : connecting ? 'oauth_in_progress'
+          : desktop?.reason ?? (localSync ? 'local_sync_available'
+            : clientId ? 'oauth_not_connected'
+              : availableBrowser ? 'oauth_client_missing' : 'no_available_route');
+      const userSafeSummary = connected
+        ? 'Google Drive 전용 연결을 사용할 수 있어요.'
+        : connecting
+          ? 'Google 계정 연결 화면에서 사용자 확인을 기다리고 있어요.'
+          : desktop?.userSafeSummary ?? (localSync
             ? 'Finder에 연결된 Google Drive의 일반 파일을 찾고 읽고 저장할 수 있어요.'
-          : clientId
-            ? 'Google 계정 연결을 시작할 수 있어요.'
-            : availableBrowser
-              ? '전용 연결 준비가 필요하고, 지금은 T5 브라우저 로그인을 사용할 수 있어요.'
-              : 'Google Drive 전용 연결 준비가 필요해요.',
+            : clientId
+              ? 'Google 계정 연결을 시작할 수 있어요.'
+              : availableBrowser
+                ? '전용 연결 준비가 필요하고, 지금은 T5 브라우저 로그인을 사용할 수 있어요.'
+                : 'Google Drive 전용 연결 준비가 필요해요.');
+      return {
+        state, reason, userSafeSummary,
         capabilities: {
           search: connected || localSync, read: connected || localSync,
           create: connected || localSync, update: connected || localSync,
@@ -96,9 +101,9 @@ export function makeGoogleDriveConnection({
             kind: 'browser', label: 'T5 브라우저', state: 'ready', canStart: true,
             startUrl: 'https://drive.google.com/',
           }] : []),
-          ...(localSync ? [{
+          ...(desktop?.routes ?? (localSync ? [{
             kind: 'local_sync', label: 'Finder의 Google Drive', state: 'ready', canStart: false,
-          }] : []),
+          }] : [])),
         ],
         actions: connected ? [{
           id: 'disconnect', label: '연결 해제', kind: 'disconnect',
@@ -106,7 +111,7 @@ export function makeGoogleDriveConnection({
         }] : connecting ? [{
           id: 'cancel', label: '연결 취소', kind: 'cancel',
           endpoint: '/connections/google-workspace/cancel',
-        }] : clientId ? [{
+        }] : desktop?.actions?.length ? desktop.actions : clientId ? [{
           id: 'connect', label: 'Google 계정 연결', kind: 'oauth',
           startEndpoint: '/connections/google-workspace/start',
           awaitEndpoint: '/connections/google-workspace/await',
@@ -173,6 +178,12 @@ export function makeGoogleDriveConnection({
       return { connected: true, provider: PROVIDER };
     },
     credential,
+    async performAction(actionId) {
+      if (!desktopRoute || typeof desktopRoute.perform !== 'function') {
+        throw Object.assign(new Error('Google Drive 사용자 행동을 시작할 수 없어요.'), { status: 409 });
+      }
+      return desktopRoute.perform(actionId);
+    },
     async cancelPending() {
       if (!pending) return {
         cancelled: false, provider: PROVIDER, userSafeSummary: '진행 중인 Google 연결이 없어요.',

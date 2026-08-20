@@ -11,9 +11,10 @@ test('제품 Google OAuth 설정은 공개 Desktop client ID만 담고 설치 �
 
   assert.equal(config.schema, 't5.google-oauth-client.v1');
   assert.equal(config.projectId, 'gpao-t5');
+  assert.equal(config.officialApiEnabled, false);
   assert.match(config.clientId, /^[A-Za-z0-9._-]+\.apps\.googleusercontent\.com$/u);
   assert.doesNotMatch(configText, /client_secret|GOCSPX-|refresh_token|access_token/iu);
-  assert.match(start, /bundledGoogleOAuthClientId/u);
-  assert.match(start, /T5_GOOGLE_OAUTH_CLIENT_ID[\s\S]*bundledGoogleOAuthClientId/u);
+  assert.match(start, /bundledGoogleOAuthConfig/u);
+  assert.match(start, /officialApiEnabled/u);
   assert.match(packaging, /'config'/u);
 });

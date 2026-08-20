@@ -216,7 +216,7 @@ test('대화 상태 다시 준비는 계정 연결 대기도 즉시 취소하고
     modelFactory: () => ({ async respond() {
       turn += 1;
       return turn === 1
-        ? { text: '', toolCalls: [{ id: 'start-notion', name: 'connection', args: { action: 'start', id: 'notion' } }] }
+        ? { text: '', toolCalls: [{ id: 'start-notion', name: 'connection', args: { action: 'start', id: 'notion', actionId: null } }] }
         : { text: 'Notion 연결 화면을 준비했어요.', toolCalls: [] };
     } }),
   });

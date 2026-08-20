@@ -22,17 +22,17 @@ test('모델은 사용자의 표현을 규칙으로 분류하지 않고 연결 �
   const tool = makeConnectionTool({ doctor: { async inspect() { inspected += 1; return report; } } });
   assert.equal(tool.name, 'connection');
   assert.match(tool.description, /connect|link|연결|account data/i);
-  const listed = await tool.execute({ action: 'list', id: null });
+  const listed = await tool.execute({ action: 'list', id: null, actionId: null });
   assert.equal(listed.state, 'listed');
   assert.equal(listed.connections[0].id, 'google-workspace');
-  const detail = await tool.execute({ action: 'inspect', id: 'google-workspace' });
+  const detail = await tool.execute({ action: 'inspect', id: 'google-workspace', actionId: null });
   assert.equal(detail.state, 'inspected');
   assert.equal(detail.connection.routes[0].startUrl, 'https://drive.google.com/');
   assert.equal(inspected, 2);
-  await assert.rejects(() => tool.execute({ action: 'inspect', id: 'missing' }), /not found/u);
+  await assert.rejects(() => tool.execute({ action: 'inspect', id: 'missing', actionId: null }), /not found/u);
 });
 
-test('연결 도구는 설치나 자격 입력을 꾸미지 않고 조회·사용자 동의 시작만 제공한다', () => {
+test('연결 도구는 조회·사용자 행동·OAuth 시작을 구분하고 자격 입력은 받지 않는다', () => {
   const tool = makeConnectionTool({
     doctor: { inspect: async () => report },
     startConnection: async (id) => ({
@@ -41,8 +41,8 @@ test('연결 도구는 설치나 자격 입력을 꾸미지 않고 조회·사�
       awaitEndpoint: '/connections/google-workspace/await',
     }),
   });
-  assert.deepEqual(tool.parameters.properties.action.enum, ['list', 'inspect', 'start']);
-  assert.doesNotMatch(JSON.stringify(tool.parameters), /connector_connect|oauth_start|install/u);
+  assert.deepEqual(tool.parameters.properties.action.enum, ['list', 'inspect', 'perform', 'start']);
+  assert.doesNotMatch(JSON.stringify(tool.parameters), /connector_connect|oauth_start|password|token/u);
 });
 
 test('연결 시작은 등록된 서비스의 사용자 동의 handoff만 반환하고 자격을 받지 않는다', async () => {
@@ -54,10 +54,27 @@ test('연결 시작은 등록된 서비스의 사용자 동의 handoff만 반환
       awaitEndpoint: '/connections/google-workspace/await',
     }),
   });
-  const started = await tool.execute({ action: 'start', id: 'google-workspace' });
+  const started = await tool.execute({ action: 'start', id: 'google-workspace', actionId: null });
   assert.equal(started.state, 'user_authorization_required');
   assert.equal(started.connection.id, 'google-workspace');
   assert.match(started.authorizeUrl, /^https:\/\/accounts\.google\.com/u);
   assert.equal(started.awaitEndpoint, '/connections/google-workspace/await');
   assert.doesNotMatch(JSON.stringify(started), /access_token|refresh_token|client_secret/u);
+});
+
+test('목록에 있는 사용자 행동은 모델 대신 설치·로그인 화면만 시작한다', async () => {
+  const calls = [];
+  const tool = makeConnectionTool({
+    doctor: { inspect: async () => report },
+    performConnection: async (id, actionId) => {
+      calls.push({ id, actionId });
+      return { performed: true, userSafeSummary: 'Google Drive 앱을 열었어요.' };
+    },
+  });
+  const performed = await tool.execute({
+    action: 'perform', id: 'google-workspace', actionId: 'open_drive_desktop',
+  });
+  assert.equal(performed.state, 'user_action_started');
+  assert.equal(performed.performed, true);
+  assert.deepEqual(calls, [{ id: 'google-workspace', actionId: 'open_drive_desktop' }]);
 });

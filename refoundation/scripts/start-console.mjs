@@ -21,6 +21,7 @@ import {
 } from '../src/workspace-connection-baseline.js';
 import { WorkspaceCredentialStore } from '../src/workspace-credential-store.js';
 import { makeGoogleDriveConnection } from '../src/google-drive-connection.js';
+import { makeGoogleDriveDesktop } from '../src/google-drive-desktop.js';
 import { makeGoogleDriveApi } from '../src/google-drive-api.js';
 import { makeGoogleDriveTool } from '../src/google-drive-tool.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
@@ -32,14 +33,14 @@ function option(name) {
   return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
-async function bundledGoogleOAuthClientId() {
+async function bundledGoogleOAuthConfig() {
   try {
     const config = JSON.parse(await readFile(new URL('../config/google-oauth.json', import.meta.url), 'utf8'));
     if (config?.schema !== 't5.google-oauth-client.v1'
       || !/^[A-Za-z0-9._-]+\.apps\.googleusercontent\.com$/u.test(config.clientId ?? '')) {
       throw new Error('bundled Google OAuth client config is invalid');
     }
-    return config.clientId;
+    return config;
   } catch (error) {
     if (error?.code === 'ENOENT') return null;
     throw error;
@@ -66,12 +67,17 @@ const persistentBrowserHost = makePersistentBrowserHost({
   root: browserRoot, binary: DEFAULT_AGENT_BROWSER_BINARY,
 });
 const workspaceCredentialStore = new WorkspaceCredentialStore(join(stateDir, 'connections'));
+const bundledGoogleOAuth = await bundledGoogleOAuthConfig();
 const googleOAuthClientId = process.env.T5_GOOGLE_OAUTH_CLIENT_ID
-  ?? await bundledGoogleOAuthClientId();
+  ?? (bundledGoogleOAuth?.officialApiEnabled ? bundledGoogleOAuth.clientId : null);
+const googleDriveDesktop = makeGoogleDriveDesktop({
+  userHome: computerEnvironment.userHome, platform: computerEnvironment.platform,
+});
 const googleDriveConnection = makeGoogleDriveConnection({
   store: workspaceCredentialStore,
   clientId: googleOAuthClientId,
-  browserAvailable: true,
+  browserAvailable: false,
+  desktopRoute: googleDriveDesktop,
   localSyncAvailable: () => googleSyncAvailable(
     computerEnvironment.userHome, computerEnvironment.platform,
   ),

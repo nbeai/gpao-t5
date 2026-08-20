@@ -100,3 +100,43 @@ test('설정의 범용 OAuth 연결·완료·해제 endpoint는 등록된 업무
     await rm(room, { recursive: true, force: true });
   }
 });
+
+test('설정의 사용자 행동 endpoint는 현재 연결 진실에 남아 있는 exact action만 실행한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-workspace-user-action-'));
+  const calls = [];
+  const service = {
+    id: 'google-workspace', label: 'Google Workspace', category: 'workspace',
+    inspect: async () => ({
+      state: 'needs_connection', userSafeSummary: '설치 필요', capabilities: {}, routes: [],
+      actions: [{
+        id: 'install_drive_desktop', label: 'Google Drive 설치하기', kind: 'user_action',
+        endpoint: '/connections/google-workspace/action',
+      }],
+    }),
+    async performAction(actionId) {
+      calls.push(actionId);
+      return { performed: true, userSafeSummary: 'Google 공식 설치 안내를 열었어요.' };
+    },
+  };
+  const server = makeConsoleServer({
+    stateDir: join(room, 'state'), workspace: room, workspaceConnectionServices: [service],
+    modelFactory: () => ({ respond: async () => ({ text: '네', toolCalls: [] }) }),
+    modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject); server.listen(0, '127.0.0.1', resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const post = (actionId) => fetch(`${base}/connections/google-workspace/action`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ actionId }),
+  });
+  try {
+    assert.equal((await post('install_drive_desktop')).status, 200);
+    assert.equal((await post('stale-action')).status, 409);
+    assert.deepEqual(calls, ['install_drive_desktop']);
+  } finally {
+    server.closeWakeStreams(); await server.closeMessengers(); await server.closeWorkspaceConnections();
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});

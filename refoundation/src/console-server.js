@@ -730,6 +730,7 @@ export function makeConsoleServer({
       }));
       offeredTools.unshift(makeConnectionTool({
         doctor: connectionDoctor, startConnection: startConnectionForTool,
+        performConnection: performConnectionAction,
       }));
       const result = await runAgent({
         request: modelRequest,
@@ -1094,6 +1095,18 @@ export function makeConsoleServer({
       authorizeUrl: authorizeUrl.href,
       awaitEndpoint: `/connections/${service.id}/await`,
     };
+  }
+  async function performConnectionAction(id, actionId) {
+    const service = connectionServices.get(id);
+    if (!service || typeof service.performAction !== 'function') {
+      throw new Error('connection action is unavailable');
+    }
+    const current = await service.inspect();
+    const action = current.actions?.find((candidate) => (
+      candidate.id === actionId && candidate.kind === 'user_action'
+    ));
+    if (!action) throw Object.assign(new Error('connection action is no longer available'), { status: 409 });
+    return service.performAction(actionId);
   }
   queueMicrotask(async () => {
     try {
@@ -1643,7 +1656,7 @@ export function makeConsoleServer({
         json(res, 200, { entries: memory.events }); return;
       }
       const workspaceConnectionAction = req.method === 'POST' && url.pathname.match(
-        /^\/connections\/([a-z0-9-]+)\/(start|await|cancel|disconnect)$/u,
+        /^\/connections\/([a-z0-9-]+)\/(start|await|action|cancel|disconnect)$/u,
       );
       if (workspaceConnectionAction) {
         const [, id, action] = workspaceConnectionAction;
@@ -1671,6 +1684,10 @@ export function makeConsoleServer({
             },
           });
           json(res, 200, connected); return;
+        }
+        if (action === 'action') {
+          const input = await body(req);
+          json(res, 200, await performConnectionAction(id, String(input.actionId ?? ''))); return;
         }
         if (action === 'cancel') {
           if (typeof service.cancelPending !== 'function') {

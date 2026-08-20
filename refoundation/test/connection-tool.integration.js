@@ -26,7 +26,7 @@ for (const request of [
     assert.ok(connection);
     assert.equal(input.tools.some((tool) => tool.name === 'connector_connect'), false);
     if (turn === 1) return {
-      text: '', toolCalls: [{ id: 'connection-truth', name: 'connection', args: { action: 'list', id: null } }],
+      text: '', toolCalls: [{ id: 'connection-truth', name: 'connection', args: { action: 'list', id: null, actionId: null } }],
     };
     const receipt = JSON.parse(input.messages.at(-1).content);
     assert.equal(receipt.requestedCall.name, 'connection');
@@ -116,7 +116,7 @@ test('연결 진실의 준비된 브라우저 경로는 기존 로그인 handoff
     modelFactory: () => ({ async respond(input) {
       turn += 1;
       if (turn === 1) return { text: '', toolCalls: [{
-        id: 'inspect-google', name: 'connection', args: { action: 'inspect', id: 'google-workspace' },
+        id: 'inspect-google', name: 'connection', args: { action: 'inspect', id: 'google-workspace', actionId: null },
       }] };
       if (turn === 2) {
         const connection = JSON.parse(input.messages.at(-1).content).result.connection;
@@ -175,7 +175,7 @@ test('자연어 계정 연결은 connection start 뒤 대화 내 OAuth handoff�
     modelFactory: () => ({ async respond(input) {
       turn += 1;
       if (turn === 1) return { text: '', toolCalls: [{
-        id: 'start-notion', name: 'connection', args: { action: 'start', id: 'notion' },
+        id: 'start-notion', name: 'connection', args: { action: 'start', id: 'notion', actionId: null },
       }] };
       const receipt = JSON.parse(input.messages.at(-1).content);
       assert.equal(receipt.result.state, 'user_authorization_required');
@@ -248,7 +248,7 @@ test('대화 안 계정 연결은 사용자가 즉시 취소할 수 있고 같�
     modelFactory: () => ({ async respond(input) {
       calls += 1;
       if (calls % 2 === 1) return { text: '', toolCalls: [{
-        id: `start-${calls}`, name: 'connection', args: { action: 'start', id: 'notion' },
+        id: `start-${calls}`, name: 'connection', args: { action: 'start', id: 'notion', actionId: null },
       }] };
       return { text: 'Notion 연결 화면을 준비했어요.', toolCalls: [] };
     } }),
@@ -272,6 +272,58 @@ test('대화 안 계정 연결은 사용자가 즉시 취소할 수 있고 같�
     const restarted = await post(base, '/turn', { sessionId: session.id, text: '다시 노션 연결해줘' });
     assert.equal(restarted.status, 200);
     assert.notEqual(restarted.body.connectionHandoff?.handoffId, first.body.runId);
+  } finally {
+    server.closeWakeStreams(); await server.closeMessengers(); await server.closeWorkspaceConnections();
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('자연어 Google 연결 요청은 현재 상태의 설치·로그인 사용자 행동 하나만 시작한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-google-desktop-onboarding-'));
+  const actions = [];
+  const service = {
+    id: 'google-workspace', label: 'Google Workspace', category: 'workspace',
+    inspect: async () => ({
+      state: 'needs_connection', reason: 'drive_desktop_not_installed',
+      userSafeSummary: 'Google Drive 앱을 설치하면 사용할 수 있어요.', capabilities: {},
+      routes: [{ kind: 'local_sync', state: 'needs_connection', canStart: true }],
+      actions: [{
+        id: 'install_drive_desktop', label: 'Google Drive 설치하기', kind: 'user_action',
+        endpoint: '/connections/google-workspace/action',
+      }],
+    }),
+    async performAction(actionId) {
+      actions.push(actionId);
+      return { performed: true, actionId, userSafeSummary: 'Google 공식 설치 안내를 열었어요.' };
+    },
+  };
+  let turn = 0;
+  const server = makeConsoleServer({
+    stateDir: join(room, 'state'), workspace: room, workspaceConnectionServices: [service],
+    modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
+    modelFactory: () => ({ async respond(input) {
+      turn += 1;
+      if (turn === 1) return { text: '', toolCalls: [{
+        id: 'install-google-drive', name: 'connection', args: {
+          action: 'perform', id: 'google-workspace', actionId: 'install_drive_desktop',
+        },
+      }] };
+      const receipt = JSON.parse(input.messages.at(-1).content);
+      assert.equal(receipt.result.state, 'user_action_started');
+      return { text: 'Google 공식 설치 안내를 열었어요. 설치 뒤 다시 확인해 주세요.', toolCalls: [] };
+    } }),
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject); server.listen(0, '127.0.0.1', resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const result = await post(base, '/turn', { sessionId: session.id, text: '구글 드라이브 연결해줘' });
+    assert.equal(result.status, 200);
+    assert.match(result.body.reply, /설치 안내/u);
+    assert.deepEqual(actions, ['install_drive_desktop']);
   } finally {
     server.closeWakeStreams(); await server.closeMessengers(); await server.closeWorkspaceConnections();
     await new Promise((resolve) => server.close(resolve));

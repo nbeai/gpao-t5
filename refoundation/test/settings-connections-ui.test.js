@@ -41,3 +41,11 @@ test('메신저 설정은 provider capability로 비밀 필드를 만들고 연�
   assert.match(html, /#mcResult:empty, #msgResult:empty \{ display:none; \}/u);
   assert.match(html, /response\.ok/u);
 });
+
+test('연결 설정은 설치·로그인 사용자 행동을 내부 용어 없이 실행하고 상태를 다시 확인한다', async () => {
+  const html = await readFile(resolve(root, 'src/surface/web/index.html'), 'utf8');
+  assert.match(html, /action\.kind === 'user_action'/u);
+  assert.match(html, /필요한 화면을 열고 있어요/u);
+  assert.match(html, /JSON\.stringify\(\{ actionId: action\.id \}\)/u);
+  assert.match(html, /performed\.data\?\.userSafeSummary/u);
+});
