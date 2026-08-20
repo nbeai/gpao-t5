@@ -45,4 +45,11 @@ export class SessionActivityStore {
   list() {
     return [...this.bySession.values()].map(clone);
   }
+
+  reset(sessionId) {
+    const key = String(sessionId ?? '');
+    const current = this.bySession.get(key);
+    this.bySession.delete(key);
+    return clone(current ?? null);
+  }
 }

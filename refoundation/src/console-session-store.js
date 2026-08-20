@@ -15,6 +15,13 @@ function sessionOrigin(value) {
   return { channel, chatId };
 }
 
+function continuationSource(value) {
+  if (value == null) return null;
+  const id = String(value);
+  if (!/^[0-9a-f-]{36}$/iu.test(id)) throw new TypeError('continuation source must be a session id');
+  return id;
+}
+
 export class ConsoleSessionStore {
   constructor(directory) {
     if (!directory) throw new TypeError('console state directory is required');
@@ -48,7 +55,7 @@ export class ConsoleSessionStore {
     return next;
   }
 
-  async create({ origin = null } = {}) {
+  async create({ origin = null, continuationOf = null } = {}) {
     return this.serialize(async () => {
       const state = await this.read();
       const now = Date.now();
@@ -56,6 +63,7 @@ export class ConsoleSessionStore {
         id: randomUUID(), title: '새 대화', manualTitle: false,
         createdAt: now, updatedAt: now, order: state.nextOrder++, transcript: [], pinned: false,
         origin: sessionOrigin(origin),
+        continuationOf: continuationSource(continuationOf),
       };
       state.sessions.push(session);
       await this.write(state);
@@ -83,6 +91,7 @@ export class ConsoleSessionStore {
           pinned: Boolean(session.pinned), archivedAt: session.archivedAt ?? null,
           deletedAt: session.deletedAt ?? null, turns: session.transcript.length,
           origin: clone(session.origin ?? null),
+          continuationOf: session.continuationOf ?? null,
           lastResultKind: lastAssistant?.result?.kind ?? null,
         };
       });

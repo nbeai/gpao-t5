@@ -2027,6 +2027,20 @@ async function sessionAction(path, body) {
   return out;
 }
 
+async function recoverConversation(sessionId, mode, recoveryId = null) {
+  const response = await fetch('/sessions/recover', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sessionId, mode, recoveryId }),
+  });
+  const result = await response.json().catch(() => ({}));
+  toast(result.userSafeSummary ?? result.error ?? '대화 상태를 다시 준비하지 못했어요.');
+  if (!response.ok) return result;
+  if (result.newSessionId) await selectSession(result.newSessionId);
+  else if (sessionId === currentSessionId) await 대화다시그리기();
+  await loadSessions();
+  return result;
+}
+
 function closeSessMenu() {
   document.querySelectorAll('.sessmenu').forEach((m) => m.remove());
   document.querySelectorAll('.sess.menu-open').forEach((x) => x.classList.remove('menu-open'));
@@ -2051,6 +2065,9 @@ function openSessMenu(item, s, anchor) {
       await sessionAction('/sessions/meta', { sessionId: s.id, title: next });
     });
     add(s.pinned ? '즐겨찾기에서 빼기' : '즐겨찾기에 넣기', () => sessionAction('/sessions/meta', { sessionId: s.id, pinned: !s.pinned }));
+    menu.appendChild(el('sep'));
+    add('이 대화 상태 다시 준비', () => recoverConversation(s.id, 'reset'));
+    add('새 대화에서 이어가기', () => recoverConversation(s.id, 'continue'));
     add(s.archivedAt ? '목록으로 되돌리기' : '숨기기', () => sessionAction('/sessions/archive', { sessionId: s.id, archived: !s.archivedAt }));
     menu.appendChild(el('sep'));
     // 지우기는 휴지통으로 간다 — 무엇이 사라지고 무엇이 복구되는지는 서버 문구가 말한다(P2-3 계약).
@@ -2266,6 +2283,7 @@ async function newSession() {
 // 자리까지 숨기므로, 전부 과거로 그리면 방금 열린 입력창이 사라진다.
 async function 대화투영(s) {
   const active = s.activePendingIds || [];
+  const activeRecoveryIds = s.activeRecoveryIds || [];
   const 마지막 = (s.transcript || []).map((e, i) => (e.role === 'assistant' ? i : -1)).filter((i) => i >= 0).at(-1);
   wrap.innerHTML = '';
   (s.transcript || []).forEach((e, i) => {
@@ -2273,7 +2291,9 @@ async function 대화투영(s) {
       const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', e.text));
       renderMessageAttachments(box, e.attachments);
     }
-    else if (e.role === 'assistant') renderResult(e.result, projectionOptions(i, 마지막, active));
+    else if (e.role === 'assistant') renderResult(e.result, {
+      ...projectionOptions(i, 마지막, active), activeRecoveryIds,
+    });
   });
   renderSessionActivity(s.activity ?? sessionActivityById.get(s.id));
   return s;
@@ -2483,6 +2503,27 @@ async function turn(payload) {
   return res.json();
 }
 
+function renderConversationRecovery(box, result, { historical, activeRecoveryIds = [] } = {}) {
+  const recovery = result?.recovery;
+  if (historical || recovery?.kind !== 'repeated_no_progress'
+    || !activeRecoveryIds.includes(recovery.recoveryId)) return;
+  const card = el('suggest conversation-recovery');
+  card.appendChild(el('sug-t', '같은 자리에서 진행되지 않고 있어요'));
+  card.appendChild(el('sug-line', '대화 내용은 지우지 않고, 막힌 진행 상태만 다시 준비할 수 있어요.'));
+  const actions = el('btns');
+  const reset = document.createElement('button'); reset.className = 'act primary';
+  reset.textContent = '이 대화 상태 다시 준비';
+  const continued = document.createElement('button'); continued.className = 'act no';
+  continued.textContent = '새 대화에서 이어가기';
+  const run = async (mode) => {
+    reset.disabled = true; continued.disabled = true;
+    await recoverConversation(currentSessionId, mode, recovery.recoveryId);
+  };
+  reset.onclick = () => run('reset');
+  continued.onclick = () => run('continue');
+  actions.append(reset, continued); card.appendChild(actions); box.appendChild(card);
+}
+
 function renderResult(r, opts = {}) {
   const { historical, activePendingIds } = opts;
   renderSelfState(r.selfStateSummary);
@@ -2493,7 +2534,7 @@ function renderResult(r, opts = {}) {
     const box = turnBox(); box.appendChild(el('who', 'GPAO-T5'));
     const message = el('msg bot error');
     message.textContent = `${r.reply ?? '이번 작업을 끝내지 못했어요.'}${r.nextSafeAction ? `\n\n다음: ${r.nextSafeAction}` : ''}`;
-    box.appendChild(message); return;
+    box.appendChild(message); renderConversationRecovery(box, r, opts); return;
   }
 
   if (r.kind === 'approval') {
@@ -2572,6 +2613,7 @@ function renderResult(r, opts = {}) {
     renderMarkdownInto(bot, 답문);
     box.appendChild(bot);
   }
+  renderConversationRecovery(box, r, opts);
   if (!historical && r.browserHandoff?.active) {
     const handoff = el('suggest browser-handoff');
     handoff.appendChild(el('sug-t', '로그인 창을 열었어요'));

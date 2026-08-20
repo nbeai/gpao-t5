@@ -45,6 +45,9 @@ import {
 } from './progress-language.js';
 import { SessionActivityStore } from './session-activity-store.js';
 import { userSafeTurnFailure } from './turn-failure.js';
+import {
+  recoveryEvidenceForTurn, repeatedNoProgressSignal,
+} from './conversation-recovery.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -111,6 +114,17 @@ function historyFrom(session) {
       return [{ role: 'assistant', content: entry.result.reply }];
     }
     return [];
+  });
+}
+
+function activeSessionRecoveryIds(session) {
+  const resolved = new Set((session?.transcript ?? []).flatMap((entry) => (
+    entry?.role === 'system_event' && entry.event?.kind === 'session_recovered'
+      ? (entry.event.recoveryIds ?? []).map(String) : []
+  )));
+  return (session?.transcript ?? []).flatMap((entry) => {
+    const id = entry?.role === 'assistant' ? entry.result?.recovery?.recoveryId : null;
+    return id && !resolved.has(String(id)) ? [String(id)] : [];
   });
 }
 
@@ -219,6 +233,81 @@ export function makeConsoleServer({
       try { await driver.close?.(); } catch { /* already closed */ }
     }));
     browserDrivers.clear();
+  }
+
+  async function recoverSession({ sessionId, mode, recoveryId = null }) {
+    if (!['reset', 'continue'].includes(mode)) {
+      throw Object.assign(new Error('지원하지 않는 대화 회복 방식이에요.'), { status: 400 });
+    }
+    const session = await sessions.load(sessionId);
+    if (!session) throw Object.assign(new Error('대화를 찾지 못했어요.'), { status: 404 });
+    const activeRecoveryIds = activeSessionRecoveryIds(session);
+    if (recoveryId != null && !activeRecoveryIds.includes(String(recoveryId))) {
+      throw Object.assign(new Error('이미 정리된 회복 요청이에요.'), { status: 409 });
+    }
+    const resolvedRecoveryIds = recoveryId == null ? activeRecoveryIds : [String(recoveryId)];
+    const recoveryRun = await runLedger.start({
+      sessionId, request: 'conversation recovery',
+      metadata: { trigger: 'user_recovery', mode },
+    });
+    try {
+      running.get(sessionId)?.abort();
+      let discardedStreams = 0;
+      for (const [streamId, pending] of pendingStreams) {
+        if (pending.sessionId === sessionId) {
+          pendingStreams.delete(streamId); discardedStreams += 1;
+        }
+      }
+      for (const [processId, pending] of pendingProcessWakes) {
+        if (pending.ownerId === sessionId) pendingProcessWakes.delete(processId);
+      }
+      await processes.stopOwner(sessionId, 'user_recovered');
+      const browser = browserDrivers.get(sessionId);
+      let browserHandoffCancelled = false;
+      if (typeof browser?.cancelUserLogin === 'function') {
+        browserHandoffCancelled = Boolean(await browser.cancelUserLogin().catch(() => null));
+      }
+      const withdrawnApprovalIds = await authority.withdrawActive(sessionId);
+      const clearedActivity = sessionActivities.reset(sessionId);
+      for (let attempt = 0; attempt < 20 && running.has(sessionId); attempt += 1) {
+        await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+      }
+      await sessions.append(sessionId, {
+        role: 'system_event', runId: recoveryRun.runId,
+        event: {
+          kind: 'session_recovered', mode, recoveryIds: resolvedRecoveryIds,
+          previousRunStillStopping: running.has(sessionId),
+        },
+      });
+      let newSession = null;
+      if (mode === 'continue') {
+        newSession = await sessions.create({ continuationOf: sessionId });
+        await sessions.append(newSession.id, {
+          role: 'system_event', runId: recoveryRun.runId,
+          event: { kind: 'continued_from_session', sourceSessionId: sessionId },
+        });
+      }
+      const facts = {
+        mode, discardedStreams, withdrawnApprovals: withdrawnApprovalIds.length,
+        activityCleared: Boolean(clearedActivity), browserHandoffCancelled,
+        previousRunStillStopping: running.has(sessionId),
+        continued: Boolean(newSession),
+      };
+      await recoveryRun.append({ type: 'conversation_recovered', stepId: 'recovery', payload: facts });
+      await recoveryRun.finish('completed', facts);
+      return {
+        ok: true, ready: !running.has(sessionId), mode,
+        ...(newSession ? { newSessionId: newSession.id } : {}),
+        userSafeSummary: newSession
+          ? '새 대화를 준비했어요. 이전 대화는 그대로 보관했어요.'
+          : running.has(sessionId)
+            ? '하던 작업을 멈추고 있어요. 새 대화는 바로 사용할 수 있어요.'
+            : '이 대화의 진행 상태를 다시 준비했어요.',
+      };
+    } catch (error) {
+      await recoveryRun.finish('failed', { error: error?.message ?? String(error) }).catch(() => {});
+      throw error;
+    }
   }
 
   function browserObservationRegistry(sessionId) {
@@ -723,6 +812,15 @@ export function makeConsoleServer({
         ...(options.trigger && options.trigger !== 'user' ? { trigger: options.trigger } : {}),
         selfStateSummary: selfState(connection, workspace, browserReady),
       };
+      const recoveryEvidence = recoveryEvidenceForTurn({
+        userText: text, reply: surfaceResult.reply, kind: surfaceResult.kind,
+        failureCode: surfaceResult.failureCode ?? null, receipts: result.receipts,
+      });
+      surfaceResult.recoveryEvidence = recoveryEvidence;
+      const recovery = repeatedNoProgressSignal({
+        session, currentUserText: text, currentResult: surfaceResult, evidence: recoveryEvidence,
+      });
+      if (recovery) surfaceResult.recovery = { ...recovery, recoveryId: run.runId };
       await sessions.append(sessionId, { role: 'assistant', result: surfaceResult });
       surfacePersisted = true;
       await run.append({ type: 'surface_persisted', payload: { role: 'assistant' } });
@@ -731,12 +829,33 @@ export function makeConsoleServer({
       finishActivity('completed');
       return { kind: 'reply', surfaceResult, result, runId: run.runId };
     } catch (error) {
+      if (controller.signal.aborted) {
+        if (!runFinished) {
+          await run.finish('cancelled', { reason: 'user_recovered_or_cancelled' }).catch(() => {});
+          runFinished = true;
+        }
+        finishActivity('cancelled');
+        return {
+          kind: 'cancelled', runId: run.runId,
+          result: { status: 'cancelled', answer: null, receipts: [], modelTurns: null },
+          surfaceResult: { kind: 'cancelled', runId: run.runId },
+        };
+      }
       const connection = await Promise.resolve().then(() => status()).catch(() => null);
       const failure = userSafeTurnFailure(error, connection);
       const failureSurface = {
         kind: 'error', reply: failure.text, nextSafeAction: failure.nextSafeAction,
         failureCode: failure.code, runId: run.runId,
       };
+      const recoveryEvidence = recoveryEvidenceForTurn({
+        userText: text, reply: failureSurface.reply, kind: failureSurface.kind,
+        failureCode: failureSurface.failureCode, receipts: [],
+      });
+      failureSurface.recoveryEvidence = recoveryEvidence;
+      const recovery = repeatedNoProgressSignal({
+        session, currentUserText: text, currentResult: failureSurface, evidence: recoveryEvidence,
+      });
+      if (recovery) failureSurface.recovery = { ...recovery, recoveryId: run.runId };
       if (!surfacePersisted) {
         await sessions.append(sessionId, { role: 'assistant', result: failureSurface }).catch(() => {});
         surfacePersisted = true;
@@ -1173,14 +1292,22 @@ export function makeConsoleServer({
         const session = await sessions.create();
         json(res, 200, { id: session.id, title: session.title }); return;
       }
+      if (req.method === 'POST' && url.pathname === '/sessions/recover') {
+        const input = await body(req);
+        json(res, 200, await recoverSession({
+          sessionId: input.sessionId, mode: input.mode, recoveryId: input.recoveryId ?? null,
+        })); return;
+      }
       if (req.method === 'GET' && url.pathname.startsWith('/sessions/')) {
         const session = await sessions.load(decodeURIComponent(url.pathname.slice('/sessions/'.length)));
         if (!session) { json(res, 404, { error: '세션을 찾지 못했어요.' }); return; }
         json(res, 200, {
           id: session.id, title: session.title, origin: session.origin ?? null,
+          continuationOf: session.continuationOf ?? null,
           transcript: session.transcript,
           activity: sessionActivities.get(session.id),
           activePendingIds: (await authority.listActive(session.id)).map((item) => item.pendingId),
+          activeRecoveryIds: activeSessionRecoveryIds(session),
         }); return;
       }
       if (req.method === 'POST' && url.pathname === '/sessions/meta') {

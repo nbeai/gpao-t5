@@ -167,4 +167,16 @@ export class AuthorityStore {
     const digest = callDigest(toolName, args);
     return (await this.listActive(sessionId)).find((item) => item.callDigest === digest) ?? null;
   }
+
+  async withdrawActive(sessionId, reason = 'session_recovered') {
+    const active = await this.listActive(sessionId);
+    for (const item of active) {
+      await this.serialize(item.pendingId, async () => {
+        const current = await this.read(item.pendingId);
+        if (current.status !== 'pending' && current.status !== 'approved') return;
+        await this.append(item.pendingId, { type: 'withdrawn', payload: { reason: String(reason) } });
+      });
+    }
+    return active.map((item) => item.pendingId);
+  }
 }

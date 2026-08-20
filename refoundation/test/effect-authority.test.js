@@ -74,6 +74,31 @@ test('거절된 효과는 같은 pending ID로 실행할 수 없다', async () =
   }
 });
 
+test('대화 회복은 승인 전·승인 후 미소비 요청을 모두 철회한다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-authority-withdraw-'));
+  try {
+    const store = new AuthorityStore(root);
+    const proposal = (sessionId) => store.propose({
+      sessionId, toolName: 'exec', args: { command: 'pay', cwd: null, effect: {
+        kind: 'payment', summary: '결제', targets: ['merchant'], reversible: false,
+        backupAvailable: false, recipientNew: true, approvalToken: null,
+      } },
+    });
+    const pending = await proposal('session-recovery');
+    const approved = await proposal('session-recovery');
+    await store.approve(approved.pendingId);
+    assert.equal((await store.listActive('session-recovery')).length, 2);
+    assert.deepEqual(new Set(await store.withdrawActive('session-recovery')), new Set([
+      pending.pendingId, approved.pendingId,
+    ]));
+    assert.equal((await store.listActive('session-recovery')).length, 0);
+    assert.equal((await store.read(pending.pendingId)).status, 'withdrawn');
+    assert.equal((await store.read(approved.pendingId)).status, 'withdrawn');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('명백한 파괴·외부 전송을 observe로 낮춰 선언하면 preflight가 거부한다', () => {
   assert.equal(effectDeclarationMismatch("rm -f '/tmp/a'", { kind: 'observe' }), 'destructive_required');
   assert.equal(effectDeclarationMismatch("find /tmp/x -type f -delete", { kind: 'local_change' }), 'destructive_required');
