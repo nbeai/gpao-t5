@@ -1,0 +1,31 @@
+{
+  "schema": "t5.u2-console-work-lifecycle-live.v1",
+  "recordedAt": "2026-08-20T21:22:09+09:00",
+  "commitUnderTest": "a03d7075",
+  "workspace": "isolated-private-tmp",
+  "liveModel": "stored-chatgpt-oauth",
+  "longWork": {
+    "progressTextAtThreeSeconds": "요청을 이해하고 있어요… · 3초",
+    "semanticStopButtonVisible": true,
+    "stopResult": {
+      "title": "이번 작업을 끝내지 못했어요",
+      "reason": "멈췄어요.",
+      "lateMarkerPresent": false
+    }
+  },
+  "failure": {
+    "fixtureCredentialWasReal": false,
+    "title": "이번 작업을 끝내지 못했어요",
+    "reason": "OpenAI · gpt-5.6-terra 연결을 인증하지 못했어요.",
+    "nextAction": "설정에서 해당 모델 연결을 다시 확인해 주세요."
+  },
+  "loading": {
+    "delayedSessionSkeletons": 3,
+    "normalSessionSkeletons": 0,
+    "normalSessionRows": 2
+  },
+  "verification": {
+    "refoundationCheck": { "passed": 359, "failed": 0 },
+    "integration": { "passed": 68, "failed": 0 }
+  }
+}
