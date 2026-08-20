@@ -1,0 +1,187 @@
+{
+  "schema": "t5.social-link-baseline.v1",
+  "platforms": ["x", "threads", "facebook", "instagram", "youtube", "tiktok"],
+  "requiredBusinessDomains": ["food", "beauty", "retail", "education", "local-service", "creator"],
+  "cases": [
+    {
+      "caseId": "x-official-post-live",
+      "platform": "x",
+      "referenceType": "live_reference",
+      "scenario": "canonical_post",
+      "businessDomain": "creator",
+      "inputUrl": "https://x.com/XDevelopers/status/1228393702244134912",
+      "expected": {"state":"identified","contentType":"post","contentId":"1228393702244134912","canonicalUrl":"https://x.com/XDevelopers/status/1228393702244134912"},
+      "groundTruth": {"authority":"official_documentation","referenceUrl":"https://docs.x.com/x-api/posts/lookup/quickstart","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "x-twitter-alias-fixture",
+      "platform": "x",
+      "referenceType": "format_fixture",
+      "scenario": "host_alias",
+      "businessDomain": "retail",
+      "inputUrl": "https://twitter.com/XDevelopers/status/1228393702244134912?ref_src=twsrc%5Etfw",
+      "expected": {"state":"identified","contentType":"post","contentId":"1228393702244134912","canonicalUrl":"https://x.com/XDevelopers/status/1228393702244134912"},
+      "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://docs.x.com/x-for-websites/oembed-api","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "x-profile-not-content",
+      "platform": "x",
+      "referenceType": "format_fixture",
+      "scenario": "profile_not_content",
+      "businessDomain": "local-service",
+      "inputUrl": "https://x.com/XDevelopers",
+      "expected": {"state":"not_content","contentType":"profile","contentId":null,"canonicalUrl":null},
+      "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://docs.x.com/x-api/users/lookup/introduction","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "threads-post-format",
+      "platform": "threads",
+      "referenceType": "format_fixture",
+      "scenario": "canonical_post",
+      "businessDomain": "beauty",
+      "inputUrl": "https://www.threads.com/@sample_shop/post/DFixture123",
+      "expected": {"state":"identified","contentType":"post","contentId":"DFixture123","canonicalUrl":"https://www.threads.com/@sample_shop/post/DFixture123"},
+      "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://developers.facebook.com/docs/threads/threads-media","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "threads-net-alias",
+      "platform": "threads",
+      "referenceType": "format_fixture",
+      "scenario": "host_alias",
+      "businessDomain": "education",
+      "inputUrl": "https://www.threads.net/@sample_school/post/DFixture456?xmt=AQGfixture",
+      "expected": {"state":"identified","contentType":"post","contentId":"DFixture456","canonicalUrl":"https://www.threads.com/@sample_school/post/DFixture456"},
+      "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://developers.facebook.com/docs/threads/threads-media","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "threads-profile-live-gap",
+      "platform": "threads",
+      "referenceType": "live_reference",
+      "scenario": "profile_not_content",
+      "businessDomain": "creator",
+      "inputUrl": "https://www.threads.com/@threads",
+      "expected": {"state":"not_content","contentType":"profile","contentId":null,"canonicalUrl":null},
+      "groundTruth": {"authority":"manual_public_observation","referenceUrl":"https://www.threads.com/@threads","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "facebook-post-format",
+      "platform": "facebook",
+      "referenceType": "format_fixture",
+      "scenario": "canonical_post",
+      "businessDomain": "food",
+      "inputUrl": "https://www.facebook.com/sample.cafe/posts/123456789012345",
+      "expected": {"state":"identified","contentType":"post","contentId":"123456789012345","canonicalUrl":"https://www.facebook.com/sample.cafe/posts/123456789012345"},
+      "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://www.facebook.com/help/642707099175171/","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "facebook-watch-redirect",
+      "platform": "facebook",
+      "referenceType": "format_fixture",
+      "scenario": "short_redirect",
+      "businessDomain": "retail",
+      "inputUrl": "https://fb.watch/Fixture42/",
+      "expected": {"state":"redirect_required","contentType":"video","contentId":null,"canonicalUrl":null},
+      "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://developers.facebook.com/docs/plugins/embedded-video-player/","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "facebook-business-post-live",
+      "platform": "facebook",
+      "referenceType": "live_reference",
+      "scenario": "canonical_post",
+      "businessDomain": "food",
+      "inputUrl": "https://www.facebook.com/ZUSCoffeeMY/posts/were-changing-our-operating-hours-would-you-like-your-coffee-from1-7am-11pm2-8am/887379952660846/",
+      "expected": {"state":"identified","contentType":"post","contentId":"887379952660846","canonicalUrl":"https://www.facebook.com/ZUSCoffeeMY/posts/887379952660846"},
+      "groundTruth": {"authority":"manual_public_observation","referenceUrl":"https://www.facebook.com/ZUSCoffeeMY/posts/were-changing-our-operating-hours-would-you-like-your-coffee-from1-7am-11pm2-8am/887379952660846/","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "instagram-post-format",
+      "platform": "instagram",
+      "referenceType": "format_fixture",
+      "scenario": "image_post",
+      "businessDomain": "beauty",
+      "inputUrl": "https://www.instagram.com/p/CFixture123/?utm_source=ig_web_copy_link",
+      "expected": {"state":"identified","contentType":"image","contentId":"CFixture123","canonicalUrl":"https://www.instagram.com/p/CFixture123/"},
+      "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/oembed/","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "instagram-reel-format",
+      "platform": "instagram",
+      "referenceType": "format_fixture",
+      "scenario": "short_video",
+      "businessDomain": "local-service",
+      "inputUrl": "https://www.instagram.com/reel/CFixture456/",
+      "expected": {"state":"identified","contentType":"short_video","contentId":"CFixture456","canonicalUrl":"https://www.instagram.com/reel/CFixture456/"},
+      "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/oembed/","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "instagram-profile-live-gap",
+      "platform": "instagram",
+      "referenceType": "live_reference",
+      "scenario": "profile_not_content",
+      "businessDomain": "retail",
+      "inputUrl": "https://www.instagram.com/instagram/",
+      "expected": {"state":"not_content","contentType":"profile","contentId":null,"canonicalUrl":null},
+      "groundTruth": {"authority":"manual_public_observation","referenceUrl":"https://www.instagram.com/instagram/","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "youtube-official-video-live",
+      "platform": "youtube",
+      "referenceType": "live_reference",
+      "scenario": "canonical_video",
+      "businessDomain": "education",
+      "inputUrl": "https://www.youtube.com/watch?v=M7lc1UVf-VE",
+      "expected": {"state":"identified","contentType":"video","contentId":"M7lc1UVf-VE","canonicalUrl":"https://www.youtube.com/watch?v=M7lc1UVf-VE"},
+      "groundTruth": {"authority":"official_documentation","referenceUrl":"https://developers.google.com/youtube/iframe_api_reference","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "youtube-short-host-alias",
+      "platform": "youtube",
+      "referenceType": "format_fixture",
+      "scenario": "host_alias",
+      "businessDomain": "creator",
+      "inputUrl": "https://youtu.be/M7lc1UVf-VE?t=10",
+      "expected": {"state":"identified","contentType":"video","contentId":"M7lc1UVf-VE","canonicalUrl":"https://www.youtube.com/watch?v=M7lc1UVf-VE"},
+      "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://support.google.com/youtube/answer/57741","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "youtube-shorts-format",
+      "platform": "youtube",
+      "referenceType": "format_fixture",
+      "scenario": "short_video",
+      "businessDomain": "food",
+      "inputUrl": "https://www.youtube.com/shorts/M7lc1UVf-VE?feature=share",
+      "expected": {"state":"identified","contentType":"short_video","contentId":"M7lc1UVf-VE","canonicalUrl":"https://www.youtube.com/watch?v=M7lc1UVf-VE"},
+      "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://support.google.com/youtube/answer/10059070","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "tiktok-official-video-live",
+      "platform": "tiktok",
+      "referenceType": "live_reference",
+      "scenario": "short_video",
+      "businessDomain": "creator",
+      "inputUrl": "https://www.tiktok.com/@scout2015/video/6718335390845095173",
+      "expected": {"state":"identified","contentType":"short_video","contentId":"6718335390845095173","canonicalUrl":"https://www.tiktok.com/@scout2015/video/6718335390845095173"},
+      "groundTruth": {"authority":"official_documentation","referenceUrl":"https://developers.tiktok.com/doc/embed-videos","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "tiktok-mobile-short-redirect",
+      "platform": "tiktok",
+      "referenceType": "format_fixture",
+      "scenario": "short_redirect",
+      "businessDomain": "beauty",
+      "inputUrl": "https://vm.tiktok.com/ZMFixture42/",
+      "expected": {"state":"redirect_required","contentType":"short_video","contentId":null,"canonicalUrl":null},
+      "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://developers.tiktok.com/doc/embed-videos","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "tiktok-profile-not-content",
+      "platform": "tiktok",
+      "referenceType": "format_fixture",
+      "scenario": "profile_not_content",
+      "businessDomain": "local-service",
+      "inputUrl": "https://www.tiktok.com/@sample_shop",
+      "expected": {"state":"not_content","contentType":"profile","contentId":null,"canonicalUrl":null},
+      "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://developers.tiktok.com/doc/display-api-get-started","observedAt":"2026-08-21T00:00:00Z"}
+    }
+  ]
+}

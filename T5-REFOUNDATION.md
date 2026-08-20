@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `R9-X5-E3 SAFE CAPABILITY LIFECYCLE — COMPLETE` (첫 검증·교체·복원 순환 완성)
+현재 Gate: `U1-G0 SOCIAL LINK REALITY BASELINE — IN PROGRESS` (6개 플랫폼 실제 링크 정답선)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -1584,6 +1584,41 @@ Non-goals:
 - 이미 존재하는 후보에 대해 `발견·준비→사용→결과 증거→실제 비교→제안→별도 적용→복원` 순환 완료
 - 반복 Episode에서 text-only Skill 후보 초안을 스스로 작성하는 Learning 시작점은 아직 미완료
 - background curator·자동 stale/archive·Skill patch/merge는 실제 반복 수요와 후보 생성 증거가 열 때만 후속
+
+## U1-G0 — Social Link Reality Baseline
+
+상태: `IN PROGRESS` — 한국의 자영업자·소상공인이 SNS 콘텐츠의 실제 의미와 고객 반응을 이해하도록
+돕기 전에, X·Threads·Facebook·Instagram·YouTube·TikTok 링크의 identity·관측 가능 범위·실패 경계를
+사람이 확인한 정답선으로 고정한다.
+
+사용자 완료 문장:
+
+> 사장님이 공개 SNS 링크 하나를 보내면 T5가 어느 플랫폼의 어떤 콘텐츠인지 정확히 알아보고, 실제로
+> 확인할 수 있는 본문·자막·음성·화면·댓글·지표와 확인하지 못한 부분을 구분해 분석 준비 상태를 말한다.
+
+이번 Gate의 최소 변경:
+
+- 플랫폼 6개 × URL 변형·텍스트·이미지·영상·댓글·로그인벽·삭제·제한·cross-post 사례 baseline
+- 불변 `format_fixture`와 변동 가능한 `live_reference`를 분리하고 ground-truth 출처·관측 시각 보존
+- candidate implementation이 반환할 platform·contentId·canonical URL·content type·coverage 판정기
+- 실제로 보지 못한 text·caption·metrics·comments·subtitle·audio·frames·OCR를 관측으로 승격하지 않음
+- 한국 사장님 업종 분포와 여섯 플랫폼 live reference coverage가 부족하면 Gate를 완료로 올리지 않음
+- 현재 T5 `web_read`·browser·attachment의 실제 baseline을 측정하고 첫 source adapter 순서를 증거로 결정
+
+Non-goals:
+
+- SNS crawler·firehose·keyword listening, API key·cookie 수집, CAPTCHA·약관 우회
+- yt-dlp·FFmpeg·STT·OCR·vision 설치, sentiment·사업 분석, watchlist·automation
+- 플랫폼 이름 정규식으로 사용자 목적·분석 의미 판단, synthetic URL을 실제 공개 콘텐츠로 주장
+
+완료 Gate:
+
+- 각 플랫폼 identity·redirect·not-content 경계와 실제 공개 reference 최소 기준 충족
+- URL 변형은 같은 stable content identity, profile·feed URL은 Post로 오인 0
+- login·removed·restricted·dynamic 상태를 empty·no reaction으로 꾸미지 않음
+- 판정 행동을 제거하면 반대시험이 빨개지고, live reference 변동은 fixture 정답을 조용히 바꾸지 않음
+- 현재 T5 baseline의 성공·실패·미측정 범위와 U1-G1 첫 adapter 순서 확정
+- 기존 전체 회귀 유지
 
 ## 현재 다음 한 작업
 

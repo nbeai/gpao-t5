@@ -1,0 +1,37 @@
+{
+  "schema": "t5.social-link-research.v1",
+  "recordedAt": "2026-08-21T03:00:00+09:00",
+  "gate": "U1-G0",
+  "productGoal": "one exact public SNS link becomes observed social reality with explicit coverage before business analysis",
+  "sourcesStudied": [
+    {"name":"OpenClaw X and web search","url":"https://github.com/openclaw/openclaw/blob/main/docs/tools/web.md","adopt":["discovery versus exact lookup","per-turn tool exposure","citation-aware source boundary"]},
+    {"name":"OpenClaw media understanding","url":"https://github.com/openclaw/openclaw/blob/main/docs/nodes/media-understanding.md","adopt":["ordered provider and CLI fallback","size and timeout gates","original media preservation"]},
+    {"name":"Hermes X search","url":"https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/x-search.md","adopt":["x_search versus exact xurl","degraded when narrowed search lacks citations","credential-gated tool visibility"]},
+    {"name":"last30days","url":"https://github.com/qpec/last30days-skill","adopt":["two-phase source discovery","YouTube transcript before title-only synthesis","history cache"],"reject":["personal browser cookie extraction","fixed engagement score as final judgment"]},
+    {"name":"4CAT","url":"https://github.com/digitalmethodsinitiative/4cat","adopt":["datasource and processor separation","portable dataset","source-specific support status"]},
+    {"name":"Zeeschuimer","url":"https://github.com/digitalmethodsinitiative/zeeschuimer","adopt":["explicit local capture","platform limitation reporting"],"defer":["browser traffic interception extension"]},
+    {"name":"yt-dlp","url":"https://github.com/yt-dlp/yt-dlp","candidate":"managed CLI after G0","requiredBoundary":["ignore user config","no cookie extraction","subtitle first","bounded media"]},
+    {"name":"whisper.cpp","url":"https://github.com/ggml-org/whisper.cpp","candidate":"A/B against provider STT after subtitle miss"},
+    {"name":"PySceneDetect","url":"https://www.scenedetect.com/docs/latest/","defer":"only after uniform frame sampling misses user goals"},
+    {"name":"PaddleOCR","url":"https://github.com/PaddlePaddle/PaddleOCR","defer":"benchmark Korean OCR value against platform-native and vision paths"},
+    {"name":"4CAT and Brandwatch coverage","url":"https://social-media-management-help.brandwatch.com/en/articles/12767982-sources-for-listen-mentions","adopt":["coverage is a data contract","owned and targeted sources differ from broad public coverage"]}
+  ],
+  "baseline": {
+    "platforms": ["x","threads","facebook","instagram","youtube","tiktok"],
+    "identityCases": 18,
+    "businessDomains": ["food","beauty","retail","education","local-service","creator"],
+    "liveIdentifiedContent": ["x","facebook","youtube","tiktok"],
+    "missingLiveIdentifiedContent": ["threads","instagram"],
+    "ready": false
+  },
+  "currentT5LiveReadMeasurement": {
+    "attempted": true,
+    "executed": false,
+    "reason": "external execution approval review timed out twice; no product result was inferred"
+  },
+  "decisions": {
+    "buildNow": ["baseline schema","identity and coverage assessor","ground-truth provenance"],
+    "doNotBuildYet": ["crawler","topic listening","media download","STT","OCR","sentiment","watchlist","automation"],
+    "completionBlockedBy": ["real public Threads content references","real public Instagram content references","current T5 live observation baseline"]
+  }
+}
