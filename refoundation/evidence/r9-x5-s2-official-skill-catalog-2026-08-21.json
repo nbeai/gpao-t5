@@ -1,0 +1,15 @@
+{
+  "schema": "t5.r9-official-skill-catalog.v1",
+  "ownerSource": "2026-08-19 OpenClaw-Hermes common-area T5 rewrites",
+  "groups": {
+    "minimumDefault": ["file-discovery", "document-data", "nano-pdf", "diagrams"],
+    "environmentDetected": ["notion", "blogwatcher", "xurl", "apple-notes", "apple-reminders", "obsidian"],
+    "developerSelected": ["github-workflow", "python-debugpy", "node-inspect-debugger", "spike"],
+    "restrictedSelected": ["himalaya-email", "openhue", "songsee"]
+  },
+  "draftDigestsPreserved": 15,
+  "defaultActiveCount": 4,
+  "restrictedDefaultActiveCount": 0,
+  "actualModelManagedReuse": true,
+  "passed": true
+}

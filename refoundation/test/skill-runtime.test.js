@@ -6,8 +6,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { loadSkillSnapshot, makeSkillTool } from '../src/skill-runtime.js';
+import { loadSkillPolicyCatalog } from '../src/skill-policy-catalog.js';
 
 const bundledSkills = join(dirname(fileURLToPath(import.meta.url)), '..', 'skills');
+const skillPackages = join(dirname(fileURLToPath(import.meta.url)), '..', 'skill-packages');
+const skillCatalogFile = join(dirname(fileURLToPath(import.meta.url)), '..', 'config', 'skill-catalog.json');
 
 async function writeSkill(root, name, description, body = 'PRIVATE PROCEDURE') {
   const directory = join(root, name);
@@ -95,4 +98,25 @@ test('bundled file-discovery는 특정 명령이 아니라 해석·전환·검�
   assert.match(viewed.content, /verify that it exists/i);
   assert.match(viewed.content, /stop.*scope was checked/is);
   assert.doesNotMatch(viewed.content, /비아이5|BEAI5/i);
+});
+
+test('공식 초안은 네 개 기본과 분류된 on-demand package로 나뉘고 본문은 그대로다', async () => {
+  const bundled = await loadSkillSnapshot({ directory: bundledSkills });
+  assert.deepEqual(bundled.skills.map((skill) => skill.name), [
+    'diagrams', 'document-data', 'file-discovery', 'nano-pdf',
+  ]);
+  const packages = await loadSkillSnapshot({ directory: skillPackages });
+  const names = packages.skills.map((skill) => skill.name);
+  for (const name of [
+    'apple-notes', 'apple-reminders', 'blogwatcher', 'github-workflow', 'himalaya-email',
+    'node-inspect-debugger', 'notion', 'obsidian', 'openhue', 'python-debugpy', 'songsee', 'spike', 'xurl',
+  ]) assert.ok(names.includes(name), `${name} is an official package`);
+  const catalog = await loadSkillPolicyCatalog(skillCatalogFile);
+  assert.equal(catalog.byName.get('notion').selection, 'environment_detected');
+  assert.equal(catalog.byName.get('github-workflow').selection, 'developer_selected');
+  assert.equal(catalog.byName.get('himalaya-email').prepare, 'explicit_only');
+  const tool = makeSkillTool({ snapshot: packages });
+  const viewed = await tool.execute({ action: 'view', name: 'himalaya-email' });
+  assert.match(viewed.content, /already configured Himalaya CLI/);
+  assert.match(viewed.content, /new-recipient approval boundary/);
 });

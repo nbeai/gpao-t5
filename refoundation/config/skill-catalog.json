@@ -1,0 +1,23 @@
+{
+  "schema": "t5.skill-catalog.v1",
+  "entries": [
+    {"name":"file-discovery","selection":"minimum_default","activeByDefault":true,"prepare":"bundled"},
+    {"name":"document-data","selection":"minimum_default","activeByDefault":true,"prepare":"bundled"},
+    {"name":"nano-pdf","selection":"minimum_default","activeByDefault":true,"prepare":"bundled"},
+    {"name":"diagrams","selection":"minimum_default","activeByDefault":true,"prepare":"bundled"},
+    {"name":"customer-inquiry-triage","selection":"official_on_demand","activeByDefault":false,"prepare":"managed"},
+    {"name":"notion","selection":"environment_detected","activeByDefault":false,"prepare":"managed","requirements":{"connection":"notion"}},
+    {"name":"blogwatcher","selection":"environment_detected","activeByDefault":false,"prepare":"managed","requirements":{"route":"network"}},
+    {"name":"xurl","selection":"environment_detected","activeByDefault":false,"prepare":"managed","requirements":{"route":"network"}},
+    {"name":"apple-notes","selection":"environment_detected","activeByDefault":false,"prepare":"managed","requirements":{"platform":"darwin"}},
+    {"name":"apple-reminders","selection":"environment_detected","activeByDefault":false,"prepare":"managed","requirements":{"platform":"darwin"}},
+    {"name":"obsidian","selection":"environment_detected","activeByDefault":false,"prepare":"managed","requirements":{"route":"local_vault"}},
+    {"name":"github-workflow","selection":"developer_selected","activeByDefault":false,"prepare":"managed"},
+    {"name":"python-debugpy","selection":"developer_selected","activeByDefault":false,"prepare":"managed"},
+    {"name":"node-inspect-debugger","selection":"developer_selected","activeByDefault":false,"prepare":"managed"},
+    {"name":"spike","selection":"developer_selected","activeByDefault":false,"prepare":"managed"},
+    {"name":"himalaya-email","selection":"restricted_selected","activeByDefault":false,"prepare":"explicit_only","requirements":{"command":"himalaya","configuredAccount":true}},
+    {"name":"openhue","selection":"restricted_selected","activeByDefault":false,"prepare":"explicit_only","requirements":{"authorizedRoute":true,"physicalEffect":true}},
+    {"name":"songsee","selection":"restricted_selected","activeByDefault":false,"prepare":"explicit_only","requirements":{"mediaOrNetworkRoute":true}}
+  ]
+}

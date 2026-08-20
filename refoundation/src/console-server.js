@@ -17,6 +17,7 @@ import { AuthorityStore, boundaryForEffect, effectDeclarationMismatch } from './
 import { compareEffectObservations, observeDeclaredEffect } from './effect-observation.js';
 import { loadSkillSnapshot, makeSkillTool, mergeSkillSnapshots } from './skill-runtime.js';
 import { ManagedSkillStore, makeSkillAcquisitionTool } from './managed-skill-store.js';
+import { loadSkillPolicyCatalog } from './skill-policy-catalog.js';
 import { ConversationLedger } from './conversation-ledger.js';
 import { projectHistoricalConversationEntries } from './conversation-projection.js';
 import { makeConversationRecallTool } from './conversation-recall-tool.js';
@@ -60,6 +61,7 @@ const repositoryRoot = resolve(here, '..', '..');
 const legacyUiRoot = resolve(repositoryRoot, 'src', 'surface', 'web');
 const bundledSkillsRoot = resolve(repositoryRoot, 'refoundation', 'skills');
 const bundledSkillPackagesRoot = resolve(repositoryRoot, 'refoundation', 'skill-packages');
+const bundledSkillCatalogFile = resolve(repositoryRoot, 'refoundation', 'config', 'skill-catalog.json');
 const bundledCapabilitiesRoot = resolve(repositoryRoot, 'refoundation', 'capabilities');
 const bundledDocumentCli = resolve(repositoryRoot, 'refoundation', 'bin', 't5-document.mjs');
 const founderManifestoPath = resolve(
@@ -176,6 +178,7 @@ export function makeConsoleServer({
   processRegistry,
   skillsRoot = bundledSkillsRoot,
   skillPackagesRoot = bundledSkillPackagesRoot,
+  skillCatalogFile = bundledSkillCatalogFile,
   managedSkillsRoot,
   capabilitiesRoot = bundledCapabilitiesRoot,
   skillCatalogMode = 'on-demand',
@@ -256,9 +259,9 @@ export function makeConsoleServer({
   let capabilityCoordinator = null;
   const managedRoot = managedSkillsRoot ?? join(stateDir, 'managed-skills');
   const skillPackageSnapshotPromise = loadSkillSnapshot({ directory: skillPackagesRoot });
-  const managedSkillStorePromise = skillPackageSnapshotPromise.then((catalogSnapshot) => (
-    new ManagedSkillStore({ root: managedRoot, catalogSnapshot })
-  ));
+  const skillPolicyCatalogPromise = loadSkillPolicyCatalog(skillCatalogFile);
+  const managedSkillStorePromise = Promise.all([skillPackageSnapshotPromise, skillPolicyCatalogPromise])
+    .then(([catalogSnapshot, policyCatalog]) => new ManagedSkillStore({ root: managedRoot, catalogSnapshot, policyCatalog }));
 
   async function browserDriver(sessionId) {
     if (typeof browserDriverFactory !== 'function') return null;

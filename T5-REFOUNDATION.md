@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `R9-X5-S1 MANAGED PROCEDURAL ACQUISITION — COMPLETE` (text-only 방법 준비·제거·복원·재사용)
+현재 Gate: `R9-X5-S2 OFFICIAL SKILL CATALOG — COMPLETE` (오너 초안 분류·기본 최소화·필요시 준비)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -1364,6 +1364,19 @@ Non-goals / honest boundary:
 - 제거·복원과 mode·digest·lifecycle 원장
 - 임의 URL·script·symlink·root 이탈 실행 0
 - 기존 X1~X4·전체 기능 회귀 유지
+
+### R9-X5-S2 — Official Skill Catalog Classification
+
+- 2026-08-19 오너 요청으로 비교군 공통 영역을 T5 방식으로 재작성한 15개 초안을 공식 재료로 확정
+- 내용 재작성·삭제 없이 SHA-256 15/15 보존; 존재 확인용 “전부 bundled” 시험을 제품 분류 시험으로 교체
+- 최소 기본 4: `file-discovery·document-data·nano-pdf·diagrams`
+- 환경 감지형 6: `notion·blogwatcher·xurl·apple-notes·apple-reminders·obsidian`
+- 개발자 선택형 4: `github-workflow·python-debugpy·node-inspect-debugger·spike`
+- 매우 제한적 선택형 3: `himalaya-email·openhue·songsee`; 기본 활성 0, 일반 install은 explicit selection에서 정지
+- 기본 root에는 네 개만 남고 나머지 공식 초안은 trusted `skill-packages`에서 필요시 managed 준비
+- 기존 `customer-inquiry-triage`는 `official_on_demand`로 같은 lifecycle 사용
+- 실제 `gpt-5.5` 준비 1회·새 Session `skill search→view`·재설치 0 유지
+- 증거: `refoundation/evidence/r9-x5-s2-official-skill-catalog-2026-08-21.json`
 
 ## 현재 다음 한 작업
 
