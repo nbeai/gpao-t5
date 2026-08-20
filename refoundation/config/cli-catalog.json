@@ -5,6 +5,8 @@
       "id": "jq",
       "title": "jq JSON processor",
       "command": "jq",
+      "exposure": "path",
+      "verifyTimeoutMs": 5000,
       "description": "JSON 자료를 정확하게 찾고 변환하는 검증된 단일 실행 파일",
       "officialSource": "https://github.com/jqlang/jq",
       "license": {
@@ -18,28 +20,62 @@
           "assets": {
             "darwin-arm64": {
               "url": "https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-macos-arm64",
-              "sha256": "2d75340ba57a4b4b4c8708a21c2dc8e958a48aaa8bba13b27f77f6e4c0eca07e"
+              "sha256": "2d75340ba57a4b4b4c8708a21c2dc8e958a48aaa8bba13b27f77f6e4c0eca07e",
+              "bytes": 841504
             },
             "darwin-x64": {
               "url": "https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-macos-amd64",
-              "sha256": "e94b266e3c26690550006abe63152b782280f4e14374accdf04cbde844f00bc0"
+              "sha256": "e94b266e3c26690550006abe63152b782280f4e14374accdf04cbde844f00bc0",
+              "bytes": 871768
             },
             "linux-arm64": {
               "url": "https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-linux-arm64",
-              "sha256": "8b85c817833814ddca00a144c33705546355afccf0cf39b188f3cdb48b852309"
+              "sha256": "8b85c817833814ddca00a144c33705546355afccf0cf39b188f3cdb48b852309",
+              "bytes": 1797688
             },
             "linux-x64": {
               "url": "https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-linux-amd64",
-              "sha256": "b1c22172dd303f3be49e935aa56aa48a8b7a46e0bc838b4997d3bb451495870f"
+              "sha256": "b1c22172dd303f3be49e935aa56aa48a8b7a46e0bc838b4997d3bb451495870f",
+              "bytes": 2267912
             },
             "win32-arm64": {
               "url": "https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-windows-arm64.exe",
-              "sha256": "083b5377392bc57cf27052b6d20a2d927770683bca844632901ff38b4b7b0ac7"
+              "sha256": "083b5377392bc57cf27052b6d20a2d927770683bca844632901ff38b4b7b0ac7",
+              "bytes": 973312
             },
             "win32-x64": {
               "url": "https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-windows-amd64.exe",
-              "sha256": "a6fc67fedaf9128a3309a1e2ebb8b986aeccf70122ee46d2cb4849e423f0c627"
+              "sha256": "a6fc67fedaf9128a3309a1e2ebb8b986aeccf70122ee46d2cb4849e423f0c627",
+              "bytes": 1035264
             }
+          }
+        }
+      }
+    },
+    {
+      "id": "yt-dlp",
+      "title": "yt-dlp public video metadata and captions",
+      "command": "yt-dlp",
+      "exposure": "tool_only",
+      "toolSurface": "video_text",
+      "verifyTimeoutMs": 20000,
+      "description": "공개 영상의 자막 존재·언어를 확인하고 미디어 없이 검증된 자막만 읽는 전용 실행 기반",
+      "officialSource": "https://github.com/yt-dlp/yt-dlp",
+      "license": {
+        "spdx": "Unlicense",
+        "url": "https://github.com/yt-dlp/yt-dlp/blob/2026.08.19/LICENSE"
+      },
+      "defaultVersion": "2026.08.19",
+      "versions": {
+        "2026.08.19": {
+          "releaseUrl": "https://github.com/yt-dlp/yt-dlp/releases/tag/2026.08.19",
+          "assets": {
+            "darwin-arm64": {"url":"https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp_macos","sha256":"0f192b7ec147ab6288885d6351d9ab67367640029b4377576ef46dd79cf7b202","bytes":37146048},
+            "darwin-x64": {"url":"https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp_macos","sha256":"0f192b7ec147ab6288885d6351d9ab67367640029b4377576ef46dd79cf7b202","bytes":37146048},
+            "linux-arm64": {"url":"https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp_linux_aarch64","sha256":"b16e4dab368a816cd05d477d698a605a6ae87ccee1c8ffd38fa21d7254141fcc","bytes":40167448},
+            "linux-x64": {"url":"https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp_linux","sha256":"58162f9bfdc27458ea47bfcb311cf47028f17d8154a8bf7d689861d46399230a","bytes":40446224},
+            "win32-arm64": {"url":"https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp_arm64.exe","sha256":"05b438997bafc3affdfda9d041353c9d73e04dc842207254b655b0887c4445b0","bytes":21159286},
+            "win32-x64": {"url":"https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp.exe","sha256":"66674953fe251b89f4d08c5f0e35e0728679bd67ab3d7d05c0562af101dd3e7a","bytes":17840399}
           }
         }
       }

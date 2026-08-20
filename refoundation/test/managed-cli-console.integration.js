@@ -26,9 +26,10 @@ test('필요한 CLI를 검증해 준비하고 같은 Run 즉시 사용한 뒤 �
   await writeFile(catalogFile, JSON.stringify({
     schema: 't5.cli-catalog.v1', packages: [{
       id: 'json-tool', title: 'JSON Tool', command: 'json-tool', description: 'fixture',
+      exposure: 'path', verifyTimeoutMs: 5000,
       officialSource: 'https://example.test/json-tool', license: { spdx: 'MIT', url: 'https://example.test/license' },
       defaultVersion: '1.0.0', versions: { '1.0.0': { releaseUrl: 'https://example.test/releases/1.0.0', assets: {
-        [`${process.platform}-${process.arch}`]: { url: 'https://example.test/json-tool-1.0.0', sha256 },
+        [`${process.platform}-${process.arch}`]: { url: 'https://example.test/json-tool-1.0.0', sha256, bytes: bytes.length },
       } } },
     }],
   }));

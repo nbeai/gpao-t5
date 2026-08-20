@@ -12,18 +12,20 @@ import { loadCliCatalog, ManagedCliStore, makeCliAcquisitionTool } from '../src/
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const officialCatalogFile = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'config', 'cli-catalog.json');
 
-function fixtureCatalog(bytes, versions = ['1.0.0']) {
+function fixtureCatalog(bytes, versions = ['1.0.0'], exposure = 'path') {
   const bytesFor = (version) => bytes instanceof Map ? bytes.get(version) : bytes;
   return {
     schema: 't5.cli-catalog.v1',
     packages: [{
       id: 'json-tool', title: 'JSON Tool', command: 'json-tool', description: 'fixture',
+      exposure, ...(exposure === 'tool_only' ? { toolSurface: 'video_text' } : {}),
+      verifyTimeoutMs: 5000,
       officialSource: 'https://example.test/json-tool',
       license: { spdx: 'MIT', url: 'https://example.test/license' },
       defaultVersion: versions.at(-1),
       versions: Object.fromEntries(versions.map((version) => [version, {
         releaseUrl: `https://example.test/releases/${version}`,
-        assets: { 'darwin-arm64': { url: `https://example.test/${version}/json-tool`, sha256: sha256(bytesFor(version)) } },
+        assets: { 'darwin-arm64': { url: `https://example.test/${version}/json-tool`, sha256: sha256(bytesFor(version)), bytes: bytesFor(version).length } },
       }])),
     }],
   };
@@ -41,13 +43,41 @@ test('catalog는 정확한 플랫폼 자산·HTTPS·SHA와 중복 없는 command
   await assert.rejects(() => loadCliCatalog(unsafe), /HTTPS/u);
 });
 
-test('공식 jq 후보는 보안 수정판 1.8.2와 여섯 플랫폼 checksum을 정확히 고정한다', async () => {
+test('공식 jq와 yt-dlp 후보는 exact bytes·checksum·노출 경계를 여섯 플랫폼에 고정한다', async () => {
   const catalog = await loadCliCatalog(officialCatalogFile); const entry = catalog.byId.get('jq');
   assert.equal(entry.defaultVersion, '1.8.2'); assert.equal(entry.license.spdx, 'MIT');
   assert.deepEqual(Object.keys(entry.versions['1.8.2'].assets).sort(), [
     'darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64', 'win32-arm64', 'win32-x64',
   ]);
   assert.equal(catalog.asset('jq', '1.8.2', 'darwin', 'arm64').sha256, '2d75340ba57a4b4b4c8708a21c2dc8e958a48aaa8bba13b27f77f6e4c0eca07e');
+  assert.equal(catalog.asset('jq', '1.8.2', 'darwin', 'arm64').bytes, 841504);
+  const yt = catalog.byId.get('yt-dlp');
+  assert.equal(yt.defaultVersion, '2026.08.19'); assert.equal(yt.license.spdx, 'Unlicense');
+  assert.equal(yt.exposure, 'tool_only'); assert.equal(yt.toolSurface, 'video_text');
+  assert.equal(yt.verifyTimeoutMs, 20000); assert.equal(entry.verifyTimeoutMs, 5000);
+  assert.deepEqual(Object.keys(yt.versions['2026.08.19'].assets).sort(), [
+    'darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64', 'win32-arm64', 'win32-x64',
+  ]);
+  assert.equal(catalog.asset('yt-dlp', '2026.08.19', 'darwin', 'arm64').bytes, 37146048);
+});
+
+test('tool-only CLI는 일반 PATH와 공개 managedPath에 나타나지 않고 전용 surface만 가리킨다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-managed-cli-tool-only-'));
+  const bytes = Buffer.from('restricted binary');
+  try {
+    const catalog = await loadCliCatalog(fixtureCatalog(bytes, ['1.0.0'], 'tool_only'));
+    const store = new ManagedCliStore({
+      root: room, catalog, platform: 'darwin', architecture: 'arm64',
+      fetchImpl: async () => new Response(bytes, { headers: { 'content-length': String(bytes.length) } }),
+      verifyExecutable: async () => ({ version: '1.0.0' }),
+    });
+    const installed = await store.install('json-tool');
+    assert.equal(installed.managedPath, undefined);
+    assert.equal(installed.availableThrough, 'video_text');
+    assert.match(store.binaryPath('json-tool'), /private-bin\/json-tool$/u);
+    assert.doesNotMatch(store.prependPath('/usr/bin'), /private-bin/u);
+    assert.deepEqual(await store.attributeCommand({ steps: [{ executable: store.binaryPath('json-tool') }] }), []);
+  } finally { await rm(room, { recursive: true, force: true }); }
 });
 
 test('검증된 binary만 0700 managed bin에 원자 설치되고 제거·복원된다', async () => {
@@ -59,7 +89,7 @@ test('검증된 binary만 0700 managed bin에 원자 설치되고 제거·복원
     const store = new ManagedCliStore({
       root: room, catalog, platform: 'darwin', architecture: 'arm64',
       fetchImpl: async (url) => { calls.push(url); return new Response(bytes, { status: 200, headers: { 'content-length': String(bytes.length) } }); },
-      verifyExecutable: async ({ path, expectedVersion }) => { calls.push([path, expectedVersion]); return { version: expectedVersion }; },
+      verifyExecutable: async ({ path, expectedVersion, timeoutMs }) => { calls.push([path, expectedVersion, timeoutMs]); return { version: expectedVersion }; },
     });
     const installed = await store.install('json-tool');
     assert.equal(installed.state, 'installed');
@@ -68,6 +98,7 @@ test('검증된 binary만 0700 managed bin에 원자 설치되고 제거·복원
     assert.equal(await readFile(join(room, 'bin/json-tool'), 'utf8'), bytes.toString());
     assert.equal((await store.install('json-tool')).state, 'already_installed');
     assert.equal(calls.filter((item) => typeof item === 'string').length, 1);
+    assert.equal(calls.find(Array.isArray)[2], 5000);
     assert.equal((await store.remove('json-tool')).recoverable, true);
     await assert.rejects(() => access(join(room, 'bin/json-tool')));
     assert.equal((await store.restore('json-tool')).state, 'restored');
@@ -79,7 +110,7 @@ test('검증된 binary만 0700 managed bin에 원자 설치되고 제거·복원
 test('hash 불일치·과대 응답·중단 download는 실행 또는 활성 파일을 남기지 않는다', async () => {
   for (const kind of ['hash', 'large', 'network']) {
     const room = await mkdtemp(join(tmpdir(), `t5-managed-cli-${kind}-`));
-    const expected = Buffer.from('expected'); const actual = Buffer.from('different');
+    const expected = Buffer.from('expected'); const actual = Buffer.from('differen');
     let executed = 0;
     try {
       const store = new ManagedCliStore({

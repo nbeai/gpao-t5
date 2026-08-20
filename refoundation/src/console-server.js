@@ -18,6 +18,7 @@ import { compareEffectObservations, observeDeclaredEffect } from './effect-obser
 import { loadSkillSnapshot, makeSkillTool, mergeSkillSnapshots } from './skill-runtime.js';
 import { ManagedSkillStore, makeSkillAcquisitionTool } from './managed-skill-store.js';
 import { loadCliCatalog, ManagedCliStore, makeCliAcquisitionTool } from './managed-cli-store.js';
+import { makeYouTubeCaptionTool } from './youtube-caption-tool.js';
 import { makeCapabilityEvidenceTool } from './capability-outcome-evidence.js';
 import { makeCapabilityComparisonTool } from './capability-comparison.js';
 import { CapabilityLifecycleLedger, makeCapabilityLifecycleTool } from './capability-lifecycle.js';
@@ -189,6 +190,8 @@ export function makeConsoleServer({
   managedCliRoot,
   cliFetchImpl,
   cliVerifyExecutable,
+  videoTextRoot,
+  videoTextRunProcess,
   capabilitiesRoot = bundledCapabilitiesRoot,
   skillCatalogMode = 'on-demand',
   conversationProjection = 'historical-tool-receipt-v1',
@@ -766,6 +769,11 @@ export function makeConsoleServer({
         authorizeEffect: (args) => effectPreflight({
           toolName: 'cli_prepare', args, ownerId: sessionId,
         }),
+      }));
+      offeredTools.unshift(makeYouTubeCaptionTool({
+        store: managedCliStore,
+        root: join(videoTextRoot ?? join(stateDir, 'video-text'), sessionId),
+        ...(videoTextRunProcess ? { runProcess: videoTextRunProcess } : {}),
       }));
       offeredTools.unshift(makeCapabilityEvidenceTool({ runLedger }));
       offeredTools.unshift(makeCapabilityComparisonTool({ runLedger }));

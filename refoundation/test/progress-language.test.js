@@ -13,6 +13,7 @@ test('진행 언어는 판단을 말하지 않고 실제 작업 단계에 맞는
   const starts = [
     ['web_search', {}, '웹에서 관련 자료를 찾고 있어요'],
     ['web_read', {}, '선택한 자료를 자세히 읽고 있어요'],
+    ['video_text', { action: 'read' }, '영상의 실제 자막을 확인하고 있어요'],
     ['browser', { action: 'navigate' }, '요청한 페이지를 열고 있어요'],
     ['browser', { action: 'snapshot' }, '페이지 내용을 살펴보고 있어요'],
     ['browser', { action: 'download' }, '파일을 내려받고 있어요'],
@@ -38,6 +39,7 @@ test('진행 언어는 판단을 말하지 않고 실제 작업 단계에 맞는
 
   assert.equal(toolCompletedProgressText('web_search', {}), '찾은 자료들을 비교하고 있어요');
   assert.equal(toolCompletedProgressText('web_read', {}), '읽은 내용을 요청과 맞춰보고 있어요');
+  assert.equal(toolCompletedProgressText('video_text', {}), '확인한 자막 범위를 요청과 맞춰보고 있어요');
   assert.equal(toolCompletedProgressText('browser', {}), '화면에서 확인한 내용을 정리하고 있어요');
   assert.equal(toolCompletedProgressText('attachment', {}), '파일에서 확인한 내용을 정리하고 있어요');
   assert.equal(toolCompletedProgressText('exec', {}), '컴퓨터 작업 결과를 다시 확인하고 있어요');
@@ -45,7 +47,7 @@ test('진행 언어는 판단을 말하지 않고 실제 작업 단계에 맞는
   const publicTexts = [
     modelProgressText(1), modelProgressText(2), safeProgressText('secret-token'),
     ...starts.map(([name, args]) => toolProgressText(name, args)),
-    ...['web_search', 'web_read', 'browser', 'attachment', 'exec']
+    ...['web_search', 'web_read', 'video_text', 'browser', 'attachment', 'exec']
       .map((name) => toolCompletedProgressText(name, {})),
   ];
   for (const text of publicTexts) assert.doesNotMatch(text, /판단/u);

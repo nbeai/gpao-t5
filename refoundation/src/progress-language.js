@@ -92,6 +92,7 @@ const PROCESS_PROGRESS = Object.freeze({
 const COMPLETED_PROGRESS = Object.freeze({
   web_search: '찾은 자료들을 비교하고 있어요',
   web_read: '읽은 내용을 요청과 맞춰보고 있어요',
+  video_text: '확인한 자막 범위를 요청과 맞춰보고 있어요',
   browser: '화면에서 확인한 내용을 정리하고 있어요',
   attachment: '파일에서 확인한 내용을 정리하고 있어요',
   skill: '확인한 방법을 작업에 적용하고 있어요',
@@ -141,6 +142,9 @@ export function toolProgressText(name, args = {}) {
   const action = actionOf(args);
   if (name === 'web_search') return '웹에서 관련 자료를 찾고 있어요';
   if (name === 'web_read') return '선택한 자료를 자세히 읽고 있어요';
+  if (name === 'video_text') return action === 'status'
+    ? '영상 자막을 읽을 준비가 되었는지 확인하고 있어요'
+    : '영상의 실제 자막을 확인하고 있어요';
   if (name === 'browser') return BROWSER_PROGRESS[action] ?? '브라우저 화면을 살펴보고 있어요';
   if (name === 'attachment') return ATTACHMENT_PROGRESS[action] ?? '첨부 파일을 확인하고 있어요';
   if (name === 'skill') return SKILL_PROGRESS[action] ?? '필요한 작업 방법을 살펴보고 있어요';

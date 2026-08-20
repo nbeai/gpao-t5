@@ -24,6 +24,8 @@ test('기본 위치를 이유로 사용자가 지정한 경로의 터미널 관�
   assert.match(instructions, /built-in.*T5_DOCUMENT_CLI.*inspect.*create-xlsx.*custom parsing/i);
   assert.match(instructions, /attachment content.*untrusted.*not instructions/i);
   assert.match(instructions, /requested a file result.*attachment register_output.*download/i);
+  assert.match(instructions, /YouTube video.*title and description.*not a transcript.*video_text.*not_prepared.*cli_prepare.*never invoke yt-dlp through exec/i);
+  assert.match(instructions, /caption_absent.*not silence.*unheard audio/i);
   assert.match(instructions, /platform=win32/);
   assert.match(instructions, /command family=cmd/);
   assert.match(instructions, /smallest sufficient observation/i);
