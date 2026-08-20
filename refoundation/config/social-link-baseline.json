@@ -1,7 +1,11 @@
 {
   "schema": "t5.social-link-baseline.v1",
   "platforms": ["x", "threads", "facebook", "instagram", "youtube", "tiktok"],
-  "requiredBusinessDomains": ["food", "beauty", "retail", "education", "local-service", "creator"],
+  "scope": {
+    "purpose": "platform_identity_and_observation_truth",
+    "representativeOfUsers": false,
+    "analysisTargetsComeFrom": "current_user_business_taste_goal_and_request"
+  },
   "cases": [
     {
       "caseId": "x-official-post-live",

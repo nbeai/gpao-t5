@@ -15,6 +15,10 @@ export async function loadSocialLinkBaseline(input) {
   const raw = typeof input === 'string' ? JSON.parse(await readFile(input, 'utf8')) : clone(input);
   if (raw?.schema !== 't5.social-link-baseline.v1' || !Array.isArray(raw.cases)) throw new Error('invalid social baseline schema');
   if (!Array.isArray(raw.platforms) || raw.platforms.length !== PLATFORMS.size || raw.platforms.some((item) => !PLATFORMS.has(item))) throw new Error('social baseline platform list is incomplete');
+  if (raw.scope?.purpose !== 'platform_identity_and_observation_truth' || raw.scope?.representativeOfUsers !== false
+    || raw.scope?.analysisTargetsComeFrom !== 'current_user_business_taste_goal_and_request') {
+    throw new Error('social baseline must not claim to represent user interests');
+  }
   const ids = new Set(); const urls = new Set();
   for (const item of raw.cases) {
     item.caseId = requiredText(item.caseId, 'caseId'); if (ids.has(item.caseId)) throw new Error('duplicate social baseline caseId'); ids.add(item.caseId);
@@ -31,7 +35,7 @@ export async function loadSocialLinkBaseline(input) {
     item.groundTruth.observedAt = date(item.groundTruth.observedAt);
     if (item.referenceType === 'live_reference' && !['official_documentation', 'manual_public_observation'].includes(item.groundTruth.authority)) throw new Error('live reference requires observed public ground truth');
   }
-  return Object.freeze({ schema: raw.schema, platforms: Object.freeze([...raw.platforms]), requiredBusinessDomains: Object.freeze([...(raw.requiredBusinessDomains ?? [])]), cases: Object.freeze(raw.cases.map(Object.freeze)) });
+  return Object.freeze({ schema: raw.schema, platforms: Object.freeze([...raw.platforms]), scope: Object.freeze({ ...raw.scope }), cases: Object.freeze(raw.cases.map(Object.freeze)) });
 }
 
 export function socialBaselineReadiness(baseline) {
@@ -49,11 +53,10 @@ export function socialBaselineReadiness(baseline) {
     if (!row.states.has('not_content') && !row.states.has('redirect_required')) gaps.push(`${platform}: no boundary case`);
     if (row.liveIdentifiedContent < 1) gaps.push(`${platform}: no live identified content reference`);
   }
-  for (const domain of baseline.requiredBusinessDomains) if (!domains.has(domain)) gaps.push(`business domain missing: ${domain}`);
   return {
     schema: 't5.social-link-baseline-readiness.v1', ready: gaps.length === 0,
     cases: baseline.cases.length, byPlatform: Object.fromEntries(Object.entries(byPlatform).map(([key, row]) => [key, { ...row, states: [...row.states].sort() }])),
-    businessDomains: [...domains].sort(), gaps,
+    sampledContextTags: [...domains].sort(), userRepresentativenessClaimed: false, gaps,
   };
 }
 

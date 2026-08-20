@@ -19,7 +19,9 @@
   "baseline": {
     "platforms": ["x","threads","facebook","instagram","youtube","tiktok"],
     "identityCases": 18,
-    "businessDomains": ["food","beauty","retail","education","local-service","creator"],
+    "sampledContextTagsOnly": ["food","beauty","retail","education","local-service","creator"],
+    "representativeOfUsers": false,
+    "analysisTargetsComeFrom": "current user business, taste, goal, context, and request",
     "liveIdentifiedContent": ["x","facebook","youtube","tiktok"],
     "missingLiveIdentifiedContent": ["threads","instagram"],
     "ready": false
@@ -31,7 +33,7 @@
   },
   "decisions": {
     "buildNow": ["baseline schema","identity and coverage assessor","ground-truth provenance"],
-    "doNotBuildYet": ["crawler","topic listening","media download","STT","OCR","sentiment","watchlist","automation"],
+    "doNotBuildYet": ["fixed business persona","universal interest taxonomy","crawler","topic listening","media download","STT","OCR","sentiment","watchlist","automation"],
     "completionBlockedBy": ["real public Threads content references","real public Instagram content references","current T5 live observation baseline"]
   }
 }

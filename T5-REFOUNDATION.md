@@ -1602,7 +1602,9 @@ Non-goals:
 - 불변 `format_fixture`와 변동 가능한 `live_reference`를 분리하고 ground-truth 출처·관측 시각 보존
 - candidate implementation이 반환할 platform·contentId·canonical URL·content type·coverage 판정기
 - 실제로 보지 못한 text·caption·metrics·comments·subtitle·audio·frames·OCR를 관측으로 승격하지 않음
-- 한국 사장님 업종 분포와 여섯 플랫폼 live reference coverage가 부족하면 Gate를 완료로 올리지 않음
+- 기준선 사례는 플랫폼 관측 정확성만 검증하며 어떤 업종·취향·목표의 사용자를 대표한다고 주장하지 않음
+- 실제 분석 source·관점·중요도는 현재 사용자의 사업·취향·목표·요청에서 모델이 매번 선택
+- 여섯 플랫폼 live reference coverage가 부족하면 Gate를 완료로 올리지 않음
 - 현재 T5 `web_read`·browser·attachment의 실제 baseline을 측정하고 첫 source adapter 순서를 증거로 결정
 
 Non-goals:
@@ -1610,6 +1612,7 @@ Non-goals:
 - SNS crawler·firehose·keyword listening, API key·cookie 수집, CAPTCHA·약관 우회
 - yt-dlp·FFmpeg·STT·OCR·vision 설치, sentiment·사업 분석, watchlist·automation
 - 플랫폼 이름 정규식으로 사용자 목적·분석 의미 판단, synthetic URL을 실제 공개 콘텐츠로 주장
+- 고정 업종 persona·보편적인 사장 관심사·하나의 성공 콘텐츠 공식을 runtime에 내장
 
 완료 Gate:
 
