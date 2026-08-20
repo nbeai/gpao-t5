@@ -1,0 +1,18 @@
+{
+  "schema": "t5.r9-capability-discovery-baseline.v1",
+  "model": {
+    "provider": "chatgpt_oauth",
+    "modelId": "gpt-5.5"
+  },
+  "cases": 3,
+  "observed": {
+    "connectionListUsed": 3,
+    "unknownConnectionInspectFailed": 1,
+    "urlReadReachedLoginBoundary": 1,
+    "officialAsanaCandidateFound": 0,
+    "connectionHandoffStarted": 0,
+    "falseAsanaExecution": 0
+  },
+  "commonGap": "The model accurately knows that no registered Asana connection exists, but T5 has no trusted pre-install capability catalog from which it can discover the official Asana V2 MCP route and its product-registration blocker.",
+  "passedAsBaseline": true
+}

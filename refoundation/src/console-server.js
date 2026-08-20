@@ -51,11 +51,13 @@ import {
 import { makeConnectionDoctor } from './connection-truth.js';
 import { makeConnectionTool } from './connection-tool.js';
 import { CapabilityHandoffLedger } from './capability-handoff-ledger.js';
+import { loadCapabilityCatalog, makeCapabilityCatalogTool } from './capability-catalog.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
 const legacyUiRoot = resolve(repositoryRoot, 'src', 'surface', 'web');
 const bundledSkillsRoot = resolve(repositoryRoot, 'refoundation', 'skills');
+const bundledCapabilitiesRoot = resolve(repositoryRoot, 'refoundation', 'capabilities');
 const bundledDocumentCli = resolve(repositoryRoot, 'refoundation', 'bin', 't5-document.mjs');
 function attachmentSurface(record) {
   return {
@@ -174,6 +176,7 @@ export function makeConsoleServer({
   revealPath,
   processRegistry,
   skillsRoot = bundledSkillsRoot,
+  capabilitiesRoot = bundledCapabilitiesRoot,
   skillCatalogMode = 'on-demand',
   conversationProjection = 'historical-tool-receipt-v1',
   largeToolOutputMode = 'recoverable',
@@ -711,6 +714,7 @@ export function makeConsoleServer({
         env: { T5_DOCUMENT_CLI: documentCli },
       });
       const skillSnapshot = await loadSkillSnapshot({ directory: skillsRoot });
+      const capabilitySnapshot = await loadCapabilityCatalog({ directory: capabilitiesRoot });
       const offeredTools = [...terminal.tools];
       offeredTools.unshift(makeAttachmentTool({
         store: attachments, sessionId, workspace, runId: run.runId,
@@ -752,6 +756,11 @@ export function makeConsoleServer({
       }
       if (skillSnapshot.skills.length) {
         offeredTools.unshift(makeSkillTool({ snapshot: skillSnapshot, catalogMode: skillCatalogMode }));
+      }
+      if (capabilitySnapshot.entries.length) {
+        offeredTools.unshift(makeCapabilityCatalogTool({
+          snapshot: capabilitySnapshot, connectionDoctor,
+        }));
       }
       for (const service of connectionServices.values()) {
         if (typeof service.makeTool !== 'function') continue;

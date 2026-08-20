@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `R9-X1 GOAL-PRESERVING CAPABILITY HANDOFF — COMPLETE` (연결 준비 뒤 원래 목적 재개)
+현재 Gate: `R9-X2 TRUSTED CAPABILITY DISCOVERY — COMPLETE` (미장착 능력 후보와 실제 blocker 발견)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -1179,6 +1179,64 @@ Non-goals:
   → readiness 뒤 resume Run 1회 → 새 capability read 1회 → 원래 목적 완료
 - 실제 답: `거래처 A 견적 확인`, `오늘 17:00`; Run 2, runtime error 0
 - 증거: `refoundation/evidence/r9-x1-capability-handoff-live-2026-08-20.json`
+
+## R9-X2 — Trusted Capability Discovery
+
+상태: `COMPLETE` — 실제 ChatGPT OAuth 모델에게 Asana 연결 목적을 세 표현으로 요청했다. 기존 T5는
+등록된 연결이 없다는 사실과 URL 로그인벽을 정확히 확인하고 거짓 실행 없이 멈췄지만, 공식 Asana V2 MCP
+후보와 T5 제품 등록이 먼저 필요하다는 blocker는 발견하지 못했다.
+
+사용자 완료 문장:
+
+> T5가 아직 장착하지 않은 능력이 필요한 목적을 받으면, 검증된 후보 정본에서 실제 방법과 현재 준비
+> 가능 여부를 찾아 설명한다. 연결할 수 없는 후보는 없는 기능처럼 숨기거나 지금 연결할 수 있는 것처럼
+> 꾸미지 않고, 사용자 준비·T5 제품 준비·제공자 승인 중 무엇이 부족한지 구분한다.
+
+실패 원본:
+
+- 실제 `gpt-5.5` 3 Session: connection list 3회, unknown inspect 실패 1회, Asana URL 로그인벽 1회
+- 세 경우 모두 Asana 실제 실행·handoff 0으로 진실성은 지켰지만, 공식 연결 후보 발견 0
+- 증거: `refoundation/evidence/r9-x2-capability-discovery-baseline-2026-08-20.json`
+
+이번 Gate의 최소 변경:
+
+- bundled·검토된 manifest 한 root만 후보 정본으로 사용; 원격 설치·사용자 manifest는 열지 않음
+- 후보마다 공식 출처·연결 종류·capability·현재 blocker·사용자 시작 가능 여부를 작은 metadata로 보존
+- 모델이 목적 문장으로 `search`하고 exact id로 `inspect`; runtime 자연어 keyword router는 만들지 않음
+- 현재 `connection` 진실과 같은 id가 있으면 실제 connected·ready 상태가 후보 metadata를 이김
+- 후보 발견은 설치·연결 성공이 아니며, `canStart:false`이면 handoff와 외부 실행 0
+- 후보가 여러 개면 모델이 사용자 목적·현재 환경·blocker를 비교하고 필요한 때만 한 문장으로 상의
+
+Non-goals:
+
+- MCP client·OAuth·Connector 설치와 실제 외부 계정 연결
+- Skill·CLI·Plugin 자동 다운로드, 임의 코드 실행, 원격 Marketplace
+- 서비스별 intent 정규식, 모든 SaaS 목록, 제공자 정책 우회
+- 후보를 모델 prompt에 전부 preload하거나 설정 화면을 카탈로그 관리 UI로 확장
+
+완료 Gate:
+
+- 표현·URL·업무 목적이 다른 Asana 요청 3개에서 같은 official candidate와 blocker 발견
+- Asana의 deprecated V1 주소를 추천하지 않고 V2 제품 사전 등록 필요를 정확히 보존
+- Figma처럼 T5가 아직 제공자 승인 대상이 아닌 후보를 사용자 로그인 문제로 오인하지 않음
+- 현재 연결된 항목과 설치 전 후보를 동일 상태로 표시하지 않음
+- 잘못된 manifest·root 이탈 symlink·중복 id·비 HTTPS 출처를 후보로 투영하지 않음
+- 미장착 후보 검색 중 model이 terminal·web을 반복하지 않고, 외부 실행·handoff 0
+- 기존 R9-X1·Terminal·Web·Memory·Attachment·Messenger 전체 회귀 유지
+
+실제 성립한 결과:
+
+- `refoundation/capabilities/*/capability.json` 한 root의 64KB 이하 HTTPS official manifest만 로드
+- id·folder·schema·capability·route·preparation을 검증하고 root 이탈 symlink·비 HTTPS·잘못된 manifest 제외
+- `capability_catalog search·inspect·list`는 고정 schema만 preload하고 후보 metadata는 호출 뒤에만 제공
+- 현재 connection과 같은 id가 있으면 실제 `connected·ready·needs_*` 상태가 설치 전 후보보다 우선
+- bundled 첫 후보 3개: Asana `product_registration_required`, Figma `provider_approval_required`,
+  Airtable `generic_mcp_runtime_required`; 모두 `canStart:false`, handoff·외부 실행 0
+- Asana는 폐기된 V1 `/sse`가 아니라 공식 V2 `https://mcp.asana.com/v2/mcp`와 사전 등록 필요를 보존
+- 실제 `gpt-5.5` 같은 세 표현 재실행: candidate search 3, inspect 2, terminal 0, handoff 0,
+  세 답 모두 official candidate와 T5 제품 준비 blocker를 정확히 설명
+- URL 사례는 실제 주소 관측 1회를 추가했지만 반복 추적 없이 정지; runtime error·거짓 실행 0
+- 증거: `refoundation/evidence/r9-x2-capability-discovery-live-2026-08-20.json`
 
 ## 현재 다음 한 작업
 

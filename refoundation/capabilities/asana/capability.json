@@ -1,0 +1,17 @@
+{
+  "schema": "t5.capability-manifest.v1",
+  "id": "asana",
+  "label": "Asana",
+  "category": "project_management",
+  "description": "Asana 프로젝트, 작업, 담당자, 마감일을 읽고 관리하는 공식 MCP 후보",
+  "terms": ["아사나", "asana", "app.asana.com", "프로젝트", "작업", "할 일", "마감일", "담당자"],
+  "capabilities": { "search": true, "read": true, "create": true, "update": true },
+  "route": {
+    "kind": "remote_mcp",
+    "endpoint": "https://mcp.asana.com/v2/mcp",
+    "sourceUrl": "https://developers.asana.com/docs/integrating-with-asanas-mcp-server",
+    "preparation": "product_registration_required",
+    "canStart": false,
+    "userSafeSummary": "Asana 공식 V2 연결 후보가 있지만 T5 제품용 MCP 앱 등록이 먼저 필요해요. 사용자가 로그인만 해서 시작할 수 있는 상태는 아니에요."
+  }
+}

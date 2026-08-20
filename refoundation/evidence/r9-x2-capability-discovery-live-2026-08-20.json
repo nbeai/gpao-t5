@@ -1,0 +1,29 @@
+{
+  "schema": "t5.r9-capability-discovery-live.v1",
+  "model": {
+    "provider": "chatgpt_oauth",
+    "modelId": "gpt-5.5"
+  },
+  "samePromptsAsBaseline": 3,
+  "observed": {
+    "connectionListUsed": 3,
+    "officialAsanaCandidateFound": 3,
+    "candidateSearchCalls": 3,
+    "candidateInspectCalls": 2,
+    "directUrlReadCalls": 1,
+    "terminalCalls": 0,
+    "connectionHandoffStarted": 0,
+    "falseAsanaExecution": 0
+  },
+  "checks": {
+    "brandExpressionFound": true,
+    "workPurposeExpressionFound": true,
+    "urlExpressionFound": true,
+    "currentConnectionSeparatedFromCandidate": true,
+    "productRegistrationBlockerPreserved": true,
+    "deprecatedAsanaV1NotRecommended": true,
+    "noFalseStart": true,
+    "noRuntimeErrors": true
+  },
+  "passed": true
+}
