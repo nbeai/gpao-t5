@@ -104,6 +104,51 @@ test('자막 absent는 파일과 audio 관측 없이 정직하게 멈춘다', as
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 
+test('자막 GET의 일시 실패만 부분 파일을 지우고 한 번 재시도하며 영구 실패는 멈춘다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-youtube-caption-retry-'));
+  let calls = 0;
+  try {
+    const tool = makeYouTubeCaptionTool({ root: room, store: installedStore, runProcess: async ({ cwd }) => {
+      calls += 1;
+      if (calls === 1) return { code: 0, stdout: `${JSON.stringify({ en: [{ ext: 'json3' }] })}\n{}\n`, stderr: '' };
+      if (calls === 2) { await writeFile(join(cwd, 'partial.part'), 'partial'); return { code: 1, stdout: '', stderr: 'HTTP Error 503: Service Unavailable' }; }
+      await assert.rejects(() => access(join(cwd, 'partial.part')));
+      await writeFile(join(cwd, 'M7lc1UVf-VE.en.json3'), json3(['recovered caption']));
+      return { code: 0, stdout: '', stderr: '' };
+    } });
+    assert.equal((await tool.execute({ action: 'read', url: video, language: 'en', maxChars: 1000 })).state, 'caption_read');
+    assert.equal(calls, 3);
+
+    const permanent = makeYouTubeCaptionTool({ root: room, store: installedStore, runProcess: async () => {
+      calls += 1;
+      if (calls === 4) return { code: 0, stdout: `${JSON.stringify({ en: [{ ext: 'json3' }] })}\n{}\n`, stderr: '' };
+      return { code: 1, stdout: '', stderr: 'Unsupported subtitle format' };
+    } });
+    const stopped = await permanent.execute({ action: 'read', url: video, language: 'en', maxChars: 1000 });
+    assert.equal(stopped.state, 'source_failed'); assert.equal(stopped.reason, 'caption_fetch_failed');
+    assert.equal(calls, 5);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('automatic 자막이 계속 실패하면 manual 대체 언어를 사실로 돌려주고 몰래 전환하지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-youtube-caption-source-switch-'));
+  let calls = 0;
+  try {
+    const tool = makeYouTubeCaptionTool({ root: room, store: installedStore, runProcess: async () => {
+      calls += 1;
+      if (calls === 1) return {
+        code: 0, stdout: `${JSON.stringify({ en: [{ ext: 'json3' }] })}\n${JSON.stringify({ ko: [{ ext: 'json3' }] })}\n`, stderr: '',
+      };
+      return { code: 1, stdout: '', stderr: 'HTTP Error 503: Service Unavailable' };
+    } });
+    const result = await tool.execute({ action: 'read', url: video, language: 'ko', maxChars: 1000 });
+    assert.equal(result.state, 'source_failed'); assert.equal(result.fetchRetried, true);
+    assert.equal(result.failedSource, 'automatic'); assert.equal(result.failedLanguage, 'ko');
+    assert.deepEqual(result.availableManualLanguages, ['en']);
+    assert.equal(result.caption, undefined); assert.equal(calls, 3);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
 test('과대·추가 media·깨진 JSON3는 결과로 승격하지 않고 temporary를 정리한다', async () => {
   for (const kind of ['large', 'media', 'json']) {
     const room = await mkdtemp(join(tmpdir(), `t5-youtube-caption-${kind}-`));

@@ -23,6 +23,8 @@
     "userConfig": false,
     "arbitraryArguments": false,
     "temporaryOutputCleanup": true,
+    "transientCaptionFetchRetry": 1,
+    "automaticFailureSwitchesByModel": true,
     "captionTrust": "untrusted_external",
     "instructionAuthority": "none"
   },
@@ -34,6 +36,15 @@
     "execution": {"mediaDownloaded":false,"cookiesUsed":false,"userConfigIgnored":true,"javascriptRuntime":"bundled_node","runtimeWarning":false},
     "lifecycle": {"remove":"removed","restore":"restored","activeVersion":"2026.08.19"},
     "temporaryEntriesAfterRun": 0
+  },
+  "additionalLiveBoundaries": {
+    "shortLink": {"input":"youtu.be/M7lc1UVf-VE","sameVideoId":true,"manualEnglish":"caption_read"},
+    "automaticKorean": {
+      "trackListed": true,
+      "directFetchObservedOnce": true,
+      "restrictedToolRepeatedResult": "source_failed after one transient retry",
+      "productDecision": "do not claim reliable Korean automatic captions; return manual language alternatives for model-selected translation"
+    }
   },
   "fixtureJourney": {
     "firstRunTools": ["video_text:not_prepared","cli_prepare:install","video_text:caption_read"],

@@ -69,6 +69,15 @@ async function ensureSafeRoot(root) {
   await mkdir(root, { recursive: true, mode: 0o700 }); await chmod(root, 0o700);
 }
 
+async function clearTemporaryWork(work) {
+  for (const entry of await readdir(work)) await rm(join(work, entry), { recursive: true, force: true });
+}
+
+function transientCaptionFailure(result) {
+  return /(?:HTTP Error\s+(?:408|425|429|5\d\d)|timed?\s*out|timeout|connection|network|temporar|service unavailable|unable to download)/iu
+    .test(`${result?.stdout ?? ''}\n${result?.stderr ?? ''}`);
+}
+
 function trackObjects(stdout) {
   const rows = String(stdout ?? '').split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
   if (rows.length < 2) throw new Error('caption track response is invalid');
@@ -179,7 +188,7 @@ export function makeYouTubeCaptionTool({
       const work = await mkdtemp(join(root, 'caption-')); await chmod(work, 0o700);
       const binary = store.binaryPath('yt-dlp');
       const baseArgs = [
-        '--ignore-config', '--no-playlist', '--skip-download',
+        '--ignore-config', '--no-playlist', '--skip-download', '--no-progress',
         '--js-runtimes', `node:${javascriptRuntime}`,
       ];
       try {
@@ -205,14 +214,26 @@ export function makeYouTubeCaptionTool({
           ...executionFacts(probe.stderr), observed: ['identity', 'captionTrack'], missing: ['captionText', 'audio', 'frames', 'ocr'],
         };
         const writeFlag = selected.source === 'manual' ? '--write-subs' : '--write-auto-subs';
-        const fetched = await runProcess({
+        const fetchInput = {
           path: binary, cwd: work, signal: context.signal,
           args: [
             ...baseArgs, '--no-overwrites', writeFlag, '--sub-langs', selected.language,
             '--sub-format', 'json3', '--output', join(work, '%(id)s.%(ext)s'), identity.canonicalUrl,
           ],
-        });
-        if (fetched?.code !== 0) throw new Error('caption source fetch failed');
+        };
+        let fetched = await runProcess(fetchInput);
+        let fetchRetried = false;
+        if (fetched?.code !== 0 && transientCaptionFailure(fetched)) {
+          await clearTemporaryWork(work); fetchRetried = true; fetched = await runProcess(fetchInput);
+        }
+        if (fetched?.code !== 0) return {
+          state: 'source_failed', video: identity, reason: 'caption_fetch_failed', fetchRetried,
+          failedSource: selected.source, failedLanguage: selected.language,
+          availableManualLanguages: Object.keys(manual).sort().slice(0, 50),
+          availableAutomaticLanguages: Object.keys(automatic).sort().slice(0, 50),
+          ...executionFacts(`${probe.stderr ?? ''}\n${fetched?.stderr ?? ''}`),
+          observed: ['identity', 'captionTrack'], missing: ['captionText', 'audio', 'frames', 'ocr'],
+        };
         const entries = await readdir(work, { withFileTypes: true });
         if (entries.length !== 1 || !entries[0].isFile() || !entries[0].name.startsWith(`${identity.videoId}.`)
           || !entries[0].name.endsWith('.json3')) throw new Error('unexpected caption source output');
@@ -232,6 +253,7 @@ export function makeYouTubeCaptionTool({
           },
           capability: { kind: 'cli', id: 'yt-dlp', version: revision.version, digest: revision.digest },
           execution: executionFacts(`${probe.stderr ?? ''}\n${fetched.stderr ?? ''}`),
+          fetchRetried,
           observed: content.cues ? ['identity', 'captionTrack', 'captionText'] : ['identity', 'captionTrack'],
           missing: content.cues ? ['audio', 'frames', 'ocr'] : ['captionText', 'audio', 'frames', 'ocr'],
         };
