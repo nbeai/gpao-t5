@@ -4,7 +4,12 @@ const KEYCHAIN_SERVICE = 'kr.co.gpao.t5.workspace';
 
 function runSecurity(file, args, { input = '' } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(file, args, { stdio: ['pipe', 'pipe', 'pipe'], env: { PATH: '/usr/bin:/bin' } });
+    // `security ... -w` opens /dev/tty when it shares the console process session, even with a
+    // piped stdin. A separate session makes it consume the pipe, keeping the secret out of argv
+    // and preventing a desktop connection flow from waiting forever on an invisible prompt.
+    const child = spawn(file, args, {
+      stdio: ['pipe', 'pipe', 'pipe'], env: { PATH: '/usr/bin:/bin' }, detached: true,
+    });
     const stdout = [];
     const stderr = [];
     let bytes = 0;

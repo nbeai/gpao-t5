@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
+import { readFile } from 'node:fs/promises';
 
 test('macOS Keychain adapter는 비밀을 argv에 넣지 않고 stdin으로 저장한다', async () => {
   const calls = [];
@@ -29,4 +30,10 @@ test('macOS Keychain adapter는 비밀을 argv에 넣지 않고 stdin으로 저�
 
 test('아직 안전한 OS 자격 저장소가 없는 플랫폼은 파일 평문으로 조용히 낮추지 않는다', () => {
   assert.throws(() => makePlatformSecretStore({ platform: 'win32' }), /secure credential store/u);
+});
+
+test('macOS security는 보이지 않는 TTY prompt 대신 stdin을 읽도록 별도 process session에서 실행된다', async () => {
+  const source = await readFile(new URL('../src/platform-secret-store.js', import.meta.url), 'utf8');
+  assert.match(source, /detached:\s*true/u);
+  assert.doesNotMatch(source, /-w',\s*serialized|'-w',\s*serialized/u);
 });
