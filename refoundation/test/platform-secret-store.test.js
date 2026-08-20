@@ -6,6 +6,7 @@ import { readFile } from 'node:fs/promises';
 
 test('macOS Keychain adapter는 비밀을 argv에 넣지 않고 stdin으로 저장한다', async () => {
   const calls = [];
+  const passwordCalls = [];
   let stored = null;
   const run = async (file, args, { input } = {}) => {
     calls.push({ file, args: [...args], input });
@@ -17,13 +18,20 @@ test('macOS Keychain adapter는 비밀을 argv에 넣지 않고 stdin으로 저�
     if (args[0] === 'delete-generic-password') { stored = null; return { exitCode: 0, stdout: '', stderr: '' }; }
     throw new Error('unexpected command');
   };
-  const store = makePlatformSecretStore({ platform: 'darwin', run });
+  const runPassword = async (file, args, options) => {
+    passwordCalls.push({ file, args: [...args], input: options?.input });
+    return run(file, args, options);
+  };
+  const store = makePlatformSecretStore({ platform: 'darwin', run, runPassword });
   await store.set('notion', { accessToken: 'ACCESS-SECRET', refreshToken: 'REFRESH-SECRET' });
-  assert.equal(calls[0].file, '/usr/bin/security');
-  assert.equal(calls[0].args.at(-1), '-w');
-  assert.doesNotMatch(calls[0].args.join(' '), /ACCESS-SECRET|REFRESH-SECRET/u);
-  assert.match(calls[0].input, /ACCESS-SECRET/);
+  assert.equal(passwordCalls.length, 1);
+  assert.equal(passwordCalls[0].file, '/usr/bin/security');
+  assert.equal(passwordCalls[0].args.at(-1), '-w');
+  assert.doesNotMatch(passwordCalls[0].args.join(' '), /ACCESS-SECRET|REFRESH-SECRET/u);
+  assert.match(passwordCalls[0].input, /ACCESS-SECRET/);
   assert.equal((await store.get('notion')).refreshToken, 'REFRESH-SECRET');
+  assert.equal(calls.some((call) => call.args[0] === 'find-generic-password'), true);
+  assert.equal(passwordCalls.some((call) => call.args[0] === 'find-generic-password'), false);
   await store.clear('notion');
   assert.equal(await store.get('notion'), null);
 });

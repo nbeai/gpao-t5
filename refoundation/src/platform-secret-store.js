@@ -72,7 +72,7 @@ export function makePlatformSecretStore({
   return {
     async get(name) {
       const account = safeName(name);
-      const result = await passwordCommand([
+      const result = await command([
         'find-generic-password', '-a', account, '-s', KEYCHAIN_SERVICE, '-w',
       ]);
       if (result.exitCode === 44) return null;
@@ -84,7 +84,7 @@ export function makePlatformSecretStore({
       const account = safeName(name);
       const serialized = JSON.stringify(value);
       if (!serialized || Buffer.byteLength(serialized) > 512 * 1024) throw new TypeError('workspace secret is too large');
-      const result = await command([
+      const result = await passwordCommand([
         'add-generic-password', '-a', account, '-s', KEYCHAIN_SERVICE,
         '-l', `GPAO-T5 ${account}`, '-U', '-w',
       ], { input: `${serialized}\n` });
