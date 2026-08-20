@@ -78,3 +78,18 @@ test('목록에 있는 사용자 행동은 모델 대신 설치·로그인 화�
   assert.equal(performed.performed, true);
   assert.deepEqual(calls, [{ id: 'google-workspace', actionId: 'open_drive_desktop' }]);
 });
+
+test('이미 다른 대화가 같은 OAuth를 준비 중이면 새 인증창 없이 독립 handoff만 합류한다', async () => {
+  const tool = makeConnectionTool({
+    doctor: { inspect: async () => report },
+    startConnection: async (id) => ({
+      connection: { id, label: 'Google Workspace' }, joinedExisting: true,
+      handoffMode: 'user_action', checkEndpoint: `/connections/${id}/check`,
+      cancelEndpoint: `/connections/${id}/cancel`,
+    }),
+  });
+  const joined = await tool.execute({ action: 'start', id: 'google-workspace', actionId: null });
+  assert.equal(joined.state, 'user_action_started');
+  assert.equal(joined.joinedExisting, true);
+  assert.equal(joined.authorizeUrl, undefined);
+});

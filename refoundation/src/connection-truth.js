@@ -47,10 +47,11 @@ function safeActions(value) {
     const kind = String(action?.kind ?? '').trim();
     const endpoints = ['endpoint', 'startEndpoint', 'awaitEndpoint'].flatMap((key) => {
       const path = action?.[key] == null ? null : String(action[key]);
-      return path && /^\/connections\/[a-z0-9-]+\/(?:start|await|disconnect)$/u.test(path)
+      return path && /^\/connections\/[a-z0-9-]+\/(?:start|await|action|check|cancel|disconnect)$/u.test(path)
         ? [[key, path]] : [];
     });
-    if (!/^[a-z][a-z0-9_-]{0,63}$/u.test(id) || !label || !['oauth', 'disconnect'].includes(kind)) return [];
+    if (!/^[a-z][a-z0-9_-]{0,63}$/u.test(id) || !label
+      || !['oauth', 'user_action', 'cancel', 'disconnect'].includes(kind)) return [];
     return [{ id, label, kind, ...Object.fromEntries(endpoints) }];
   });
 }

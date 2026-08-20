@@ -12,10 +12,15 @@ test('자연어로 시작한 계정 연결은 대화 안에서 사용자 동의�
   assert.match(html, /connectionHandoff/u);
   assert.match(html, /계정 연결 계속하기/u);
   assert.match(html, /연결 취소/u);
-  assert.match(html, /awaitEndpoint\.replace/u);
+  assert.match(html, /awaitEndpoint\?\.replace/u);
   assert.match(html, /열린 화면에서 계정을 선택하고 허용/u);
   assert.match(html, /activeConnectionHandoffIds/u);
+  assert.match(html, /handoff\.mode === 'user_action'/u);
+  assert.match(html, /지금 상태 확인/u);
+  assert.match(html, /원래 부탁을 자동으로 이어갈게요/u);
+  assert.match(html, /handoff\.checkEndpoint/u);
   assert.match(server, /connection_completed/u);
+  assert.match(server, /connectionResumeClaimId/u);
   assert.match(server, /connection_cancelled/u);
   assert.doesNotMatch(html, /access_token|refresh_token|client_secret/u);
 });

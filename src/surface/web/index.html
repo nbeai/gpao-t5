@@ -2751,16 +2751,21 @@ function renderConnectionHandoff(box, result, { historical, activeConnectionHand
   const handoff = result?.connectionHandoff;
   if (historical || !handoff?.active || !activeConnectionHandoffIds.includes(handoff.handoffId)) return;
   const card = el('suggest connection-handoff');
-  card.appendChild(el('sug-t', `${handoff.label || '업무공간'} 계정 연결`));
-  card.appendChild(el('sug-line', '계정 연결은 열린 서비스 화면에서만 진행돼요. 비밀번호나 인증코드는 대화에 입력하지 마세요.'));
+  card.appendChild(el('sug-t', handoff.mode === 'user_action'
+    ? `${handoff.label || '업무공간'} 준비 중` : `${handoff.label || '업무공간'} 계정 연결`));
+  card.appendChild(el('sug-line', handoff.mode === 'user_action'
+    ? '열린 앱이나 설정에서 준비를 마치면 T5가 확인한 뒤 원래 부탁을 자동으로 이어갈게요.'
+    : '계정 연결은 열린 서비스 화면에서만 진행돼요. 비밀번호나 인증코드는 대화에 입력하지 마세요.'));
   const status = el('sug-line');
   const button = document.createElement('button'); button.className = 'act primary';
-  button.textContent = '계정 연결 계속하기';
+  button.textContent = handoff.mode === 'user_action' ? '지금 상태 확인' : '계정 연결 계속하기';
   const cancel = document.createElement('button'); cancel.className = 'act no';
   cancel.textContent = '연결 취소';
   cancel.onclick = async () => {
     button.disabled = true; cancel.disabled = true;
-    const cancelled = await endpointJson(handoff.awaitEndpoint.replace(/\/await$/u, '/cancel'), {
+    const cancelEndpoint = handoff.mode === 'user_action' ? handoff.cancelEndpoint
+      : handoff.awaitEndpoint?.replace(/\/await$/u, '/cancel');
+    const cancelled = await endpointJson(cancelEndpoint, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sessionId: currentSessionId, handoffId: handoff.handoffId }),
     });
@@ -2772,6 +2777,19 @@ function renderConnectionHandoff(box, result, { historical, activeConnectionHand
   };
   button.onclick = async () => {
     button.disabled = true; cancel.disabled = true;
+    if (handoff.mode === 'user_action') {
+      const checked = await endpointJson(handoff.checkEndpoint, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId: currentSessionId, handoffId: handoff.handoffId }),
+      });
+      status.textContent = checked.ok
+        ? (checked.data?.userSafeSummary ?? '현재 준비 상태를 확인했어요.')
+        : endpointError(checked, '준비 상태를 확인하지 못했어요.');
+      if (checked.ok && checked.data?.completed) {
+        await 대화다시그리기(); await loadSessions(); return;
+      }
+      button.disabled = false; cancel.disabled = false; return;
+    }
     let authorize;
     try { authorize = new URL(handoff.authorizeUrl); } catch { authorize = null; }
     if (!authorize || authorize.protocol !== 'https:' || !/^\/connections\/[a-z0-9-]+\/await$/u.test(handoff.awaitEndpoint ?? '')) {

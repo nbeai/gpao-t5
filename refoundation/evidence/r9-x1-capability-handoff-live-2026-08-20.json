@@ -1,0 +1,26 @@
+{
+  "schema": "t5.r9-capability-handoff-live.v1",
+  "model": {
+    "provider": "chatgpt_oauth",
+    "modelId": "gpt-5.5"
+  },
+  "userRequest": "내 회의 업무공간을 연결해서 오늘 해야 할 가장 중요한 일을 확인해줘. 연결 준비가 필요하면 시작하고, 끝나면 내가 다시 말하지 않아도 이어서 알려줘.",
+  "checks": {
+    "initialHandoff": true,
+    "preparationStartedOnce": true,
+    "waitingUsedNoModelWake": true,
+    "readinessResumedOnce": true,
+    "capabilityReadOnce": true,
+    "originalGoalCompleted": true,
+    "noRuntimeErrors": true
+  },
+  "counts": {
+    "runs": 2,
+    "resumeRuns": 1,
+    "preparationStarts": 1,
+    "workspaceReads": 1,
+    "runtimeErrors": 0
+  },
+  "finalReply": "오늘 가장 중요한 일은 거래처 A 견적 확인입니다. 마감은 오늘 17:00입니다.",
+  "passed": true
+}

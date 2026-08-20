@@ -50,6 +50,7 @@ import {
 } from './conversation-recovery.js';
 import { makeConnectionDoctor } from './connection-truth.js';
 import { makeConnectionTool } from './connection-tool.js';
+import { CapabilityHandoffLedger } from './capability-handoff-ledger.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -132,7 +133,9 @@ function activeSessionRecoveryIds(session) {
 
 function activeSessionConnectionHandoffIds(session) {
   const completed = new Set((session?.transcript ?? []).flatMap((entry) => (
-    entry?.role === 'system_event' && ['connection_completed', 'connection_cancelled'].includes(entry.event?.kind)
+    entry?.role === 'system_event' && [
+      'connection_completed', 'connection_cancelled', 'connection_wait_expired',
+    ].includes(entry.event?.kind)
       ? [String(entry.event.handoffId ?? '')]
       : entry?.role === 'system_event' && entry.event?.kind === 'session_recovered'
         ? (entry.event.connectionHandoffIds ?? []).map(String) : []
@@ -140,6 +143,13 @@ function activeSessionConnectionHandoffIds(session) {
   return (session?.transcript ?? []).flatMap((entry) => {
     const id = entry?.role === 'assistant' ? entry.result?.connectionHandoff?.handoffId : null;
     return id && !completed.has(String(id)) ? [String(id)] : [];
+  });
+}
+
+function sessionConnectionHandoffs(session) {
+  return (session?.transcript ?? []).flatMap((entry) => {
+    const handoff = entry?.role === 'assistant' ? entry.result?.connectionHandoff : null;
+    return handoff?.handoffId ? [structuredClone(handoff)] : [];
   });
 }
 
@@ -180,6 +190,8 @@ export function makeConsoleServer({
   browserHost,
   workspaceConnectionInspectors = [],
   workspaceConnectionServices = [],
+  connectionPollIntervalMs = 2_000,
+  connectionPollTimeoutMs = 10 * 60_000,
   processYieldMs = 1000,
   documentCli = bundledDocumentCli,
   attachmentStore,
@@ -204,6 +216,10 @@ export function makeConsoleServer({
   if (!['off', 'pre-checkpoint-v0'].includes(memoryFlushMode)) {
     throw new TypeError('unsupported memory flush mode');
   }
+  if (!Number.isInteger(connectionPollIntervalMs) || connectionPollIntervalMs < 5
+    || connectionPollIntervalMs > 60_000) throw new TypeError('invalid connection poll interval');
+  if (!Number.isInteger(connectionPollTimeoutMs) || connectionPollTimeoutMs < connectionPollIntervalMs
+    || connectionPollTimeoutMs > 60 * 60_000) throw new TypeError('invalid connection poll timeout');
   // A browser tab can outlive this server process during development, an app restart, or a
   // computer restart. Give every process lifetime a public, non-secret identity so the page can
   // distinguish a reconnect from a connection to the same runtime.
@@ -211,6 +227,7 @@ export function makeConsoleServer({
   const sessions = new ConsoleSessionStore(stateDir);
   const conversations = new ConversationLedger(join(stateDir, 'conversations'));
   const memories = new MemoryLedger(join(stateDir, 'memory'));
+  const capabilityHandoffs = new CapabilityHandoffLedger(join(stateDir, 'capability-handoffs'));
   const runLedger = new RunLedger(join(stateDir, 'runs'));
   const authority = new AuthorityStore(join(stateDir, 'authority'));
   const attachments = attachmentStore ?? new AttachmentStore(join(stateDir, 'attachments'));
@@ -223,6 +240,10 @@ export function makeConsoleServer({
   const pendingStreams = new Map();
   const running = new Map();
   const pendingProcessWakes = new Map();
+  const connectionWatchers = new Map();
+  const connectionResumeTimers = new Map();
+  const connectionResumeInFlight = new Set();
+  const connectionResumeTasks = new Set();
   const wakeSubscribers = new Set();
   const measurementRuns = new Map();
   const sessionActivities = new SessionActivityStore();
@@ -293,9 +314,33 @@ export function makeConsoleServer({
       let connectionHandoffsCancelled = 0;
       for (const handoff of activeConnectionHandoffs) {
         const service = connectionServices.get(String(handoff.connectionId ?? ''));
-        if (typeof service?.cancelPending === 'function') {
+        let sharedPreparationCancelled = false;
+        if (handoff.mode !== 'user_action' && typeof service?.cancelPending === 'function') {
           const cancelled = await service.cancelPending().catch(() => null);
-          if (cancelled?.cancelled) connectionHandoffsCancelled += 1;
+          if (cancelled?.cancelled) {
+            connectionHandoffsCancelled += 1; sharedPreparationCancelled = true;
+          }
+        }
+        await capabilityHandoffs.ensure();
+        const currentState = await capabilityHandoffs.read();
+        const affected = sharedPreparationCancelled
+          ? currentState.handoffs.filter((entry) => (
+            entry.connectionId === String(handoff.connectionId)
+            && ['waiting', 'readiness_observed', 'completion_recorded'].includes(entry.state)
+          ))
+          : currentState.handoffs.filter((entry) => (
+            entry.handoffId === String(handoff.handoffId)
+            && ['waiting', 'readiness_observed', 'completion_recorded'].includes(entry.state)
+          ));
+        for (const current of affected) {
+          await capabilityHandoffs.cancel(current.handoffId);
+          clearConnectionResumeTimer(current.handoffId);
+          if (current.sessionId !== sessionId) await appendConnectionSessionEvent(
+            current.sessionId, 'connection_cancelled', {
+              handoffId: current.handoffId, connectionId: current.connectionId,
+              reason: 'shared_preparation_cancelled',
+            },
+          );
         }
       }
       const withdrawnApprovalIds = await authority.withdrawActive(sessionId);
@@ -730,7 +775,7 @@ export function makeConsoleServer({
       }));
       offeredTools.unshift(makeConnectionTool({
         doctor: connectionDoctor, startConnection: startConnectionForTool,
-        performConnection: performConnectionAction,
+        performConnection: (id, actionId) => performConnectionAction(id, actionId, { sessionId }),
       }));
       const result = await runAgent({
         request: modelRequest,
@@ -831,17 +876,26 @@ export function makeConsoleServer({
       } : null;
       const connectionHandoffReceipt = [...result.receipts].reverse().find((receipt) => (
         receipt.requestedCall?.name === 'connection'
-        && receipt.requestedCall?.args?.action === 'start'
+        && ['start', 'perform'].includes(receipt.requestedCall?.args?.action)
         && receipt.outcome === 'succeeded'
-        && receipt.result?.state === 'user_authorization_required'
+        && ['user_authorization_required', 'user_action_started'].includes(receipt.result?.state)
       ));
-      const connectionHandoff = connectionHandoffReceipt ? {
-        active: true, handoffId: run.runId,
-        connectionId: connectionHandoffReceipt.result.connection?.id,
-        label: connectionHandoffReceipt.result.connection?.label,
-        authorizeUrl: connectionHandoffReceipt.result.authorizeUrl,
-        awaitEndpoint: connectionHandoffReceipt.result.awaitEndpoint,
-      } : null;
+      const connectionHandoff = connectionHandoffReceipt ? (() => {
+        const mode = connectionHandoffReceipt.result.handoffMode
+          ?? (connectionHandoffReceipt.requestedCall.args.action === 'start' ? 'oauth' : 'user_action');
+        return {
+          active: true, mode, handoffId: run.runId,
+          connectionId: connectionHandoffReceipt.result.connection?.id,
+          label: connectionHandoffReceipt.result.connection?.label,
+          ...(mode === 'oauth' ? {
+            authorizeUrl: connectionHandoffReceipt.result.authorizeUrl,
+            awaitEndpoint: connectionHandoffReceipt.result.awaitEndpoint,
+          } : {
+            checkEndpoint: connectionHandoffReceipt.result.checkEndpoint,
+            cancelEndpoint: connectionHandoffReceipt.result.cancelEndpoint,
+          }),
+        };
+      })() : null;
       const surfaceResult = approvalReceipt ? (() => {
         const { effect, pendingId, command, toolName } = approvalReceipt.result;
         return {
@@ -888,6 +942,14 @@ export function makeConsoleServer({
       await run.finish('completed', { modelTurns: result.modelTurns, receiptCount: result.receipts.length });
       runFinished = true;
       finishActivity('completed');
+      if (connectionHandoff) {
+        await capabilityHandoffs.start({
+          handoffId: connectionHandoff.handoffId, sessionId,
+          connectionId: connectionHandoff.connectionId, mode: connectionHandoff.mode,
+          originRunId: run.runId,
+        });
+        watchConnection(connectionHandoff.connectionId);
+      }
       return { kind: 'reply', surfaceResult, result, runId: run.runId };
     } catch (error) {
       if (controller.signal.aborted) {
@@ -1080,6 +1142,18 @@ export function makeConsoleServer({
   async function startConnectionForTool(id) {
     const service = connectionServices.get(id);
     if (!service || typeof service.start !== 'function') throw new Error('connection start is unavailable');
+    await capabilityHandoffs.ensure();
+    const alreadyWaiting = (await capabilityHandoffs.read()).handoffs.some((handoff) => (
+      handoff.connectionId === id
+      && ['waiting', 'readiness_observed', 'completion_recorded', 'resume_claimed'].includes(handoff.state)
+    ));
+    if (alreadyWaiting) return {
+      connection: { id: service.id, label: service.label },
+      joinedExisting: true, handoffMode: 'user_action',
+      checkEndpoint: `/connections/${service.id}/check`,
+      cancelEndpoint: `/connections/${service.id}/cancel`,
+      userSafeSummary: '이미 같은 연결을 준비하고 있어요. 준비되면 이 대화의 부탁도 이어갈게요.',
+    };
     const current = await service.inspect();
     if (!current.actions?.some((action) => action.kind === 'oauth')) {
       throw new Error(current.state === 'connected' ? 'connection is already active' : 'connection start is unavailable');
@@ -1096,7 +1170,7 @@ export function makeConsoleServer({
       awaitEndpoint: `/connections/${service.id}/await`,
     };
   }
-  async function performConnectionAction(id, actionId) {
+  async function performConnectionAction(id, actionId, { sessionId = null } = {}) {
     const service = connectionServices.get(id);
     if (!service || typeof service.performAction !== 'function') {
       throw new Error('connection action is unavailable');
@@ -1106,7 +1180,23 @@ export function makeConsoleServer({
       candidate.id === actionId && candidate.kind === 'user_action'
     ));
     if (!action) throw Object.assign(new Error('connection action is no longer available'), { status: 409 });
-    return service.performAction(actionId);
+    await capabilityHandoffs.ensure();
+    const alreadyWaiting = (await capabilityHandoffs.read()).handoffs.some((handoff) => (
+      handoff.connectionId === id
+      && ['waiting', 'readiness_observed', 'completion_recorded', 'resume_claimed'].includes(handoff.state)
+    ));
+    const performed = alreadyWaiting ? {
+      performed: false, joinedExisting: true,
+      userSafeSummary: sessionId
+        ? '이미 같은 연결을 준비하고 있어요. 준비되면 이 대화의 부탁도 이어갈게요.'
+        : '이미 같은 연결을 준비하고 있어요.',
+    } : await service.performAction(actionId);
+    return {
+      ...performed,
+      connection: { id: service.id, label: service.label },
+      checkEndpoint: `/connections/${service.id}/check`,
+      cancelEndpoint: `/connections/${service.id}/cancel`,
+    };
   }
   queueMicrotask(async () => {
     try {
@@ -1128,6 +1218,197 @@ export function makeConsoleServer({
   }
 
   function broadcastWake(payload) { broadcastEvent('managed_process_wake', payload); }
+
+  function clearConnectionWatcher(connectionId) {
+    const watcher = connectionWatchers.get(String(connectionId));
+    if (!watcher) return;
+    clearTimeout(watcher); connectionWatchers.delete(String(connectionId));
+  }
+
+  function clearConnectionResumeTimer(handoffId) {
+    const timer = connectionResumeTimers.get(String(handoffId));
+    if (!timer) return;
+    clearTimeout(timer); connectionResumeTimers.delete(String(handoffId));
+  }
+
+  async function appendConnectionSessionEvent(sessionId, kind, payload) {
+    const session = await sessions.load(sessionId);
+    if (!session) return false;
+    const exists = (session.transcript ?? []).some((entry) => (
+      entry?.role === 'system_event' && entry.event?.kind === kind
+      && String(entry.event?.handoffId ?? '') === String(payload.handoffId ?? '')
+    ));
+    if (exists) return false;
+    await sessions.append(sessionId, { role: 'system_event', event: { kind, ...payload } });
+    return true;
+  }
+
+  function scheduleConnectionResume(handoffId, delay = 0) {
+    const id = String(handoffId);
+    if (connectionResumeTimers.has(id) || connectionResumeInFlight.has(id)) return;
+    const timer = setTimeout(() => {
+      connectionResumeTimers.delete(id);
+      const task = resumeConnectionGoal(id).catch((error) => onError?.(error));
+      connectionResumeTasks.add(task);
+      task.finally(() => connectionResumeTasks.delete(task));
+    }, delay);
+    timer.unref?.(); connectionResumeTimers.set(id, timer);
+  }
+
+  async function completedResumeRun(handoff) {
+    if (!handoff.claimId) return null;
+    const runs = await runLedger.list({ sessionId: handoff.sessionId });
+    return runs.find((run) => run.metadata?.connectionResumeClaimId === handoff.claimId) ?? null;
+  }
+
+  async function resumeConnectionGoal(handoffId) {
+    const id = String(handoffId);
+    if (connectionResumeInFlight.has(id)) return false;
+    await capabilityHandoffs.ensure();
+    let handoff = (await capabilityHandoffs.read()).handoffs.find((entry) => entry.handoffId === id);
+    if (!handoff || ['resumed', 'cancelled', 'needs_attention'].includes(handoff.state)) return false;
+    if (!['completion_recorded', 'resume_claimed'].includes(handoff.state)) return false;
+    if (running.has(handoff.sessionId)) {
+      scheduleConnectionResume(id, connectionPollIntervalMs); return false;
+    }
+    connectionResumeInFlight.add(id);
+    try {
+      if (handoff.state === 'completion_recorded') {
+        await authority.withdrawActive(handoff.sessionId, 'capability_resume');
+        handoff = await capabilityHandoffs.claimResume(id);
+      }
+      const previous = await completedResumeRun(handoff);
+      if (previous?.status === 'completed'
+        && previous.events.some((event) => event.type === 'surface_persisted')) {
+        await capabilityHandoffs.markResumed(id, previous.runId);
+        await appendConnectionSessionEvent(handoff.sessionId, 'connection_resumed', {
+          handoffId: id, connectionId: handoff.connectionId, runId: previous.runId,
+        });
+        return true;
+      }
+      if (previous && ['interrupted', 'failed', 'cancelled'].includes(previous.status)) {
+        await capabilityHandoffs.needsAttention(id, 'resume_interrupted', previous.runId);
+        await appendConnectionSessionEvent(handoff.sessionId, 'connection_resume_needs_attention', {
+          handoffId: id, connectionId: handoff.connectionId, runId: previous.runId,
+        });
+        return false;
+      }
+      const completed = await executeTurn(handoff.sessionId, [
+        'capability preparation completed',
+        `connectionId: ${handoff.connectionId}`,
+        `connectionState: ${handoff.connectionState}`,
+        'Continue the unfinished user goal from this conversation now.',
+        'Inspect current connection truth before acting and use only capabilities that are actually ready.',
+        'Treat every effect and authority boundary as current; never replay an old approval or tool call.',
+        'Do not ask the user to repeat the original request.',
+      ].join('\n'), () => {}, {
+        trigger: 'connection_ready',
+        metadata: {
+          handoffId: id, connectionId: handoff.connectionId,
+          connectionState: handoff.connectionState,
+          connectionResumeClaimId: handoff.claimId,
+        },
+        inputEntry: { role: 'system_event', event: {
+          kind: 'connection_ready', handoffId: id,
+          connectionId: handoff.connectionId, connectionState: handoff.connectionState,
+        } },
+      });
+      if (completed.kind !== 'reply') {
+        await capabilityHandoffs.needsAttention(id, 'resume_did_not_complete', completed.runId);
+        return false;
+      }
+      await capabilityHandoffs.markResumed(id, completed.runId);
+      await appendConnectionSessionEvent(handoff.sessionId, 'connection_resumed', {
+        handoffId: id, connectionId: handoff.connectionId, runId: completed.runId,
+      });
+      broadcastEvent('connection_wake', {
+        sessionId: handoff.sessionId, handoffId: id, connectionId: handoff.connectionId,
+        runId: completed.runId,
+        reply: completed.surfaceResult?.reply ?? completed.result?.answer ?? null,
+      });
+      return true;
+    } catch (error) {
+      const runId = error?.surfaceResult?.runId ?? null;
+      await capabilityHandoffs.needsAttention(id, 'resume_failed', runId).catch(() => {});
+      throw error;
+    } finally { connectionResumeInFlight.delete(id); }
+  }
+
+  async function recordConnectionReady(handoff, connectionState) {
+    let current = await capabilityHandoffs.observeReady(handoff.handoffId, connectionState);
+    if (current.state === 'readiness_observed') {
+      current = await capabilityHandoffs.recordCompletion(handoff.handoffId);
+    }
+    await appendConnectionSessionEvent(handoff.sessionId, 'connection_completed', {
+      handoffId: handoff.handoffId, connectionId: handoff.connectionId, connectionState,
+    });
+    scheduleConnectionResume(current.handoffId);
+  }
+
+  async function inspectWaitingConnection(connectionId) {
+    connectionWatchers.delete(String(connectionId));
+    await capabilityHandoffs.ensure();
+    const state = await capabilityHandoffs.read();
+    const waiting = state.handoffs.filter((handoff) => (
+      handoff.connectionId === connectionId && handoff.state === 'waiting'
+    ));
+    if (!waiting.length) return;
+    const now = Date.now();
+    const active = [];
+    for (const handoff of waiting) {
+      if (now - Date.parse(handoff.startedAt) >= connectionPollTimeoutMs) {
+        await capabilityHandoffs.needsAttention(handoff.handoffId, 'readiness_timeout');
+        await appendConnectionSessionEvent(handoff.sessionId, 'connection_wait_expired', {
+          handoffId: handoff.handoffId, connectionId,
+        });
+      } else active.push(handoff);
+    }
+    if (!active.length) return;
+    const service = connectionServices.get(connectionId);
+    let truth = null;
+    try { truth = await service?.inspect?.(); } catch { /* bounded polling keeps waiting */ }
+    if (truth && ['connected', 'ready'].includes(truth.state)) {
+      for (const handoff of active) await recordConnectionReady(handoff, truth.state);
+      return;
+    }
+    watchConnection(connectionId);
+  }
+
+  function watchConnection(connectionId) {
+    const id = String(connectionId ?? '');
+    if (!connectionServices.has(id) || connectionWatchers.has(id)) return;
+    const timer = setTimeout(() => {
+      inspectWaitingConnection(id).catch((error) => onError?.(error));
+    }, connectionPollIntervalMs);
+    timer.unref?.(); connectionWatchers.set(id, timer);
+  }
+
+  queueMicrotask(async () => {
+    try {
+      await capabilityHandoffs.ensure();
+      const summaries = [...await sessions.list(), ...await sessions.list({ archived: true })];
+      for (const summary of summaries) {
+        const session = await sessions.load(summary.id);
+        for (const surface of sessionConnectionHandoffs(session)) {
+          await capabilityHandoffs.start({
+            handoffId: surface.handoffId, sessionId: summary.id,
+            connectionId: surface.connectionId, mode: surface.mode ?? 'oauth',
+            originRunId: surface.handoffId,
+          });
+        }
+      }
+      for (const handoff of (await capabilityHandoffs.read()).handoffs) {
+        if (handoff.state === 'waiting') watchConnection(handoff.connectionId);
+        else if (['completion_recorded', 'resume_claimed'].includes(handoff.state)) {
+          await appendConnectionSessionEvent(handoff.sessionId, 'connection_completed', {
+            handoffId: handoff.handoffId, connectionId: handoff.connectionId,
+            connectionState: handoff.connectionState,
+          });
+          scheduleConnectionResume(handoff.handoffId);
+        }
+      }
+    } catch (error) { onError?.(error); }
+  });
 
   async function attemptProcessWake(event) {
     if (running.has(event.ownerId)) {
@@ -1656,7 +1937,7 @@ export function makeConsoleServer({
         json(res, 200, { entries: memory.events }); return;
       }
       const workspaceConnectionAction = req.method === 'POST' && url.pathname.match(
-        /^\/connections\/([a-z0-9-]+)\/(start|await|action|cancel|disconnect)$/u,
+        /^\/connections\/([a-z0-9-]+)\/(start|await|action|check|cancel|disconnect)$/u,
       );
       if (workspaceConnectionAction) {
         const [, id, action] = workspaceConnectionAction;
@@ -1677,22 +1958,43 @@ export function makeConsoleServer({
             }
           }
           const connected = await service.awaitConnection();
-          if (session) await sessions.append(session.id, {
-            role: 'system_event',
-            event: {
-              kind: 'connection_completed', handoffId: String(input.handoffId), connectionId: id,
-            },
-          });
+          if (session) {
+            await capabilityHandoffs.ensure();
+            const handoff = (await capabilityHandoffs.read()).handoffs
+              .find((entry) => entry.handoffId === String(input.handoffId));
+            if (!handoff) throw Object.assign(new Error('연결 준비 원장을 찾지 못했어요.'), { status: 409 });
+            const truth = await service.inspect();
+            if (!['connected', 'ready'].includes(truth.state)) {
+              throw Object.assign(new Error('연결 완료 상태를 다시 확인하지 못했어요.'), { status: 409 });
+            }
+            await recordConnectionReady(handoff, truth.state);
+          }
           json(res, 200, connected); return;
         }
         if (action === 'action') {
           const input = await body(req);
           json(res, 200, await performConnectionAction(id, String(input.actionId ?? ''))); return;
         }
-        if (action === 'cancel') {
-          if (typeof service.cancelPending !== 'function') {
-            json(res, 409, { error: '취소할 연결 준비가 없어요.' }); return;
+        if (action === 'check') {
+          const input = await body(req);
+          const session = await sessions.load(input.sessionId);
+          if (!session || !activeSessionConnectionHandoffIds(session).includes(String(input.handoffId ?? ''))) {
+            json(res, 409, { error: '이미 끝났거나 다른 대화의 준비 요청이에요.' }); return;
           }
+          await capabilityHandoffs.ensure();
+          const handoff = (await capabilityHandoffs.read()).handoffs
+            .find((entry) => entry.handoffId === String(input.handoffId));
+          if (!handoff || handoff.connectionId !== id || handoff.sessionId !== session.id) {
+            json(res, 409, { error: '준비 요청의 연결 상태를 확인하지 못했어요.' }); return;
+          }
+          const truth = await service.inspect();
+          const completed = ['connected', 'ready'].includes(truth.state);
+          if (completed) await recordConnectionReady(handoff, truth.state);
+          json(res, 200, {
+            completed, state: truth.state, userSafeSummary: truth.userSafeSummary,
+          }); return;
+        }
+        if (action === 'cancel') {
           const input = await body(req);
           let session = null;
           if (input.sessionId != null || input.handoffId != null) {
@@ -1701,12 +2003,29 @@ export function makeConsoleServer({
               json(res, 409, { error: '이미 끝났거나 다른 대화의 연결 요청이에요.' }); return;
             }
           }
-          const cancelled = await service.cancelPending();
-          if (session) await sessions.append(session.id, {
-            role: 'system_event', event: {
-              kind: 'connection_cancelled', handoffId: String(input.handoffId), connectionId: id,
-            },
-          });
+          await capabilityHandoffs.ensure();
+          const handoff = session ? (await capabilityHandoffs.read()).handoffs
+            .find((entry) => entry.handoffId === String(input.handoffId ?? '')) : null;
+          const cancelled = handoff?.mode === 'user_action'
+            ? { cancelled: true, userSafeSummary: '준비를 기다리지 않고 여기서 멈췄어요.' }
+            : typeof service.cancelPending === 'function'
+              ? await service.cancelPending()
+              : { cancelled: false, userSafeSummary: '취소할 연결 준비가 없어요.' };
+          const affected = cancelled.cancelled && handoff?.mode === 'oauth'
+            ? (await capabilityHandoffs.read()).handoffs.filter((candidate) => (
+              candidate.connectionId === id
+              && ['waiting', 'readiness_observed', 'completion_recorded'].includes(candidate.state)
+            ))
+            : cancelled.cancelled && handoff ? [handoff] : [];
+          for (const candidate of affected) {
+            await capabilityHandoffs.cancel(candidate.handoffId);
+            clearConnectionResumeTimer(candidate.handoffId);
+            await appendConnectionSessionEvent(candidate.sessionId, 'connection_cancelled', {
+              handoffId: candidate.handoffId, connectionId: id,
+              reason: candidate.handoffId === handoff?.handoffId
+                ? 'user_cancelled' : 'shared_preparation_cancelled',
+            });
+          }
           json(res, cancelled.cancelled ? 200 : 409, cancelled); return;
         }
         if (typeof service.disconnect !== 'function') { json(res, 409, { error: '이 연결은 해제할 수 없어요.' }); return; }
@@ -1733,6 +2052,7 @@ export function makeConsoleServer({
   server.managedProcesses = processes;
   server.conversationLedger = conversations;
   server.memoryLedger = memories;
+  server.capabilityHandoffLedger = capabilityHandoffs;
   server.attachmentStore = attachments;
   server.messengerGateway = messenger;
   server.messengerStateStore = messengerState;
@@ -1750,6 +2070,10 @@ export function makeConsoleServer({
   server.closeMessengers = () => messenger.stop();
   server.closeBrowsers = closeBrowserDrivers;
   server.closeWorkspaceConnections = async () => {
+    for (const timer of connectionWatchers.values()) clearTimeout(timer);
+    for (const timer of connectionResumeTimers.values()) clearTimeout(timer);
+    connectionWatchers.clear(); connectionResumeTimers.clear();
+    await Promise.allSettled([...connectionResumeTasks]);
     await Promise.all([...connectionServices.values()].map(async (service) => {
       await service.close?.();
     }));

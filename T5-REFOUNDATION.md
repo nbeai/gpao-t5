@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `R8-A1 UNIFIED ATTACHMENT HAND — COMPLETE` (격리 첨부 fixture·실제 OAuth, macOS 레인)
+현재 Gate: `R9-X1 GOAL-PRESERVING CAPABILITY HANDOFF — COMPLETE` (연결 준비 뒤 원래 목적 재개)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -1107,8 +1107,78 @@ Foundation closeout 분류:
 - 수요 대기: remote backend, 더 큰 규모의 SQLite FTS5, existing user-profile import,
   app/MCP,
   channels, automation service,
-  multi-agent — 현재 foundation 완료를 이유로 자동 개방하지 않음
+multi-agent — 현재 foundation 완료를 이유로 자동 개방하지 않음
 - 증거: `refoundation/evidence/foundation-closeout-audit.json`
+
+## R9-X1 — Goal-Preserving Capability Handoff
+
+상태: `COMPLETE` — 실제 사용자 Google·Notion 연결 실패에서, 연결 방법을 찾고 시작하는 기능은 섰지만
+사용자 준비가 끝난 뒤 원래 부탁을 자동으로 이어가지 못하는 공통 단절을 확인했다. 비교군 대조는
+`refoundation/evidence/r9-x0-capability-loop-comparison-2026-08-20.json`에 있다.
+
+사용자 완료 문장:
+
+> T5가 목적 수행 중 설치·로그인·계정 연결 같은 사용자 준비가 필요하면 그 대화에서 한 번만 넘겨주고,
+> 사용자가 준비를 마친 사실을 실제로 확인한 뒤 원래 부탁을 다시 말하게 하지 않고 자동으로 이어서 끝낸다.
+
+이미 선 실제 증거:
+
+- `connection`은 모델이 자연어 목적에서 현재 연결·경로·capability·action을 직접 조회하며 표현 사전이 없음
+- OAuth와 Google Drive 데스크톱 설치·로그인 화면을 비밀 입력 없이 시작하고, Session별 handoff·취소가 있음
+- managed process 완료는 system event를 canonical Conversation에 넣고 같은 Session을 모델이 자동 재개함
+- 같은 무진전 연결 결과가 반복되면 대화 내용을 지우지 않는 Recovery가 열림
+
+현재 가장 큰 미달:
+
+- OAuth 완료는 `connection_completed`를 기록하고 카드만 닫으며 원래 사용자 목적의 model wake가 없음
+- 설치·로컬 앱 로그인 `user_action`은 화면을 연 뒤 handoff 자체가 끝나, 완료 상태를 이어서 확인하지 않음
+- 사용자가 다른 대화로 이동하거나 T5를 재시작하면 준비 중인 로컬 연결을 이어서 관찰하는 계약이 없음
+
+이번 Gate의 최소 변경:
+
+- `connection start·perform`을 같은 Session-scoped capability handoff로 투영
+- handoff별 append-only 상태를 `waiting → readiness_observed → completion_recorded → resume_claimed → resumed`로 분리
+- 연결 inspector의 `connected·ready` 실측만 완료로 인정하고, 안정된 handoffId로 빠진 상태 전이만 이어감
+- 완료 event 뒤 기존 wake와 같은 경계로 모델을 호출해 canonical 원장의 원래 목적을 재검토·재개
+- 자동 재개는 과거 tool call replay가 아니며, 기존 pending·approved 권한을 철회하고 현재 현실·권한을 다시 판정
+- 현재 Session이 다른 작업 중이면 끼어들지 않고 대기하며, 다른 Session은 계속 사용 가능
+- 저비용 inspector만 제한 간격·최대 시간으로 호출하고, 실제 상태 변화 전 model call은 0
+- 서버 재시작 뒤 handoff 원장을 읽어 미관측·미claim 단계만 복원; crash-ambiguous effect는 자동 replay하지 않고 재관측 경계에서 정지
+- 같은 연결을 기다리는 여러 Session은 handoff를 각각 가지며, 한 readiness 사실 뒤 Session별 최대 한 번 재개
+- 사용자는 연결 준비·대기·완료·재개 상태를 대화 카드와 Session activity에서 이해
+
+Non-goals:
+
+- T5 코어 자기 수정, 원격 Skill marketplace, 임의 패키지 자동 설치
+- Google·Notion·Calendar 전용 intent 분기 또는 자연어 표현 사전
+- 새 vendor connector, 새 Channel, Automation, Multi-agent
+- 외부 정책·제품 검증·CAPTCHA 우회, 비밀값의 모델 입력
+- 연결되지 않은 상태를 모델 추측이나 열린 창만으로 성공 처리
+
+완료 Gate:
+
+- OAuth 완료와 로컬 앱 준비 완료가 각각 원래 목적을 정확히 한 번 재개
+- 연결 전 실제 실행 0, 연결 뒤 capability tool 또는 기존 손으로 사용자 목적 달성
+- 다른 대화 사용·같은 대화 재진입·서버 재시작에서 준비 상태와 재개 결과 지속
+- 오래된 승인 재사용 0; 재개 Run의 모든 외부 효과는 현재 권한 경계를 새로 통과
+- 준비 관측은 bounded interval·timeout·cancel을 가지며 `needs_attention`을 성공으로 승격하지 않고 반복 모델 호출 0
+- 같은 연결을 기다리는 두 Session은 한 준비 완료 뒤 서로의 목적·권한을 섞지 않고 각각 최대 한 번 재개
+- 기존 Terminal·Web·Memory·Attachment·Messenger·권한·Recovery 전체 회귀 유지
+
+실제 성립한 결과:
+
+- append-only 0600 Capability Handoff 원장에 `waiting → readiness_observed → completion_recorded
+  → resume_claimed → resumed`를 분리하고 안정된 handoffId·Session·connection·origin Run을 결속
+- 준비 대기는 연결별 저비용 inspector 하나만 bounded poll하며 timeout·cancel 뒤 model call 0
+- 같은 연결을 기다리는 두 Session은 준비 행동을 한 번만 시작하고 독립 handoff로 각각 한 번 재개
+- 재개 직전 기존 pending·approved 권한을 `capability_resume`으로 철회하고 현재 효과 경계를 다시 판정
+- crash 뒤 completed Run은 원장만 마감하고, interrupted·failed·cancelled Run은 자동 replay 없이
+  `needs_attention`으로 정지
+- fixture 종단 7/7: OAuth, 로컬 앱+서버 재시작, bounded timeout, 다중 Session, crash ambiguity, 원장 불변식
+- 실제 ChatGPT OAuth `gpt-5.5`: 자연어 1회 → 준비 행동 1회 → 대기 중 model wake 0
+  → readiness 뒤 resume Run 1회 → 새 capability read 1회 → 원래 목적 완료
+- 실제 답: `거래처 A 견적 확인`, `오늘 17:00`; Run 2, runtime error 0
+- 증거: `refoundation/evidence/r9-x1-capability-handoff-live-2026-08-20.json`
 
 ## 현재 다음 한 작업
 

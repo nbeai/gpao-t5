@@ -45,6 +45,29 @@ test('검사가 끝나지 않는 연결 하나가 전체 연결 상태 확인을
   assert.equal(report.connections[0].reason, 'check_timeout');
 });
 
+test('설치·로그인 사용자 행동과 취소 endpoint는 비밀 없이 연결 진실에 남는다', async () => {
+  const doctor = makeConnectionDoctor({ inspectors: [{
+    id: 'workspace-app', label: '업무 앱', category: 'workspace',
+    inspect: async () => ({
+      state: 'needs_connection', userSafeSummary: '앱 준비가 필요해요.', capabilities: {}, routes: [],
+      actions: [{
+        id: 'open_app', label: '업무 앱 열기', kind: 'user_action',
+        endpoint: '/connections/workspace-app/action', token: 'NEVER',
+      }, {
+        id: 'cancel', label: '준비 취소', kind: 'cancel',
+        endpoint: '/connections/workspace-app/cancel',
+      }],
+    }),
+  }] });
+  const actions = (await doctor.inspect()).connections[0].actions;
+  assert.deepEqual(actions.map(({ id, kind, endpoint }) => ({ id, kind, endpoint })), [{
+    id: 'open_app', kind: 'user_action', endpoint: '/connections/workspace-app/action',
+  }, {
+    id: 'cancel', kind: 'cancel', endpoint: '/connections/workspace-app/cancel',
+  }]);
+  assert.doesNotMatch(JSON.stringify(actions), /NEVER|token/u);
+});
+
 test('검사 정의의 중복 id와 내부 기술 상태는 사용자 연결 진실로 승격하지 않는다', async () => {
   assert.throws(() => makeConnectionDoctor({ inspectors: [
     { id: 'same', label: 'A', category: 'workspace', inspect: async () => ({ state: 'connected' }) },

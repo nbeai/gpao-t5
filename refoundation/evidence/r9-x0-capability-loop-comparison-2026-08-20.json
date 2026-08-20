@@ -1,0 +1,113 @@
+{
+  "schema": "t5.capability-loop-comparison.v1",
+  "observedAt": "2026-08-20T23:30:00+09:00",
+  "t5Revision": "cd718db1",
+  "comparators": [
+    {
+      "name": "OpenClaw",
+      "revision": "584e750c167d0c412fcb0692560be8a7122b5bfc",
+      "sources": [
+        "docs/plugins/adding-capabilities.md",
+        "docs/tools/skills.md",
+        "src/agents/mcp-connection-resolver.ts",
+        "src/agents/tools-effective-mcp-inventory.ts"
+      ],
+      "adopt": [
+        "core capability contract and vendor implementation are separate",
+        "effective tool inventory exposes incompatible or quarantined entries instead of silently hiding them",
+        "requester-scoped connection material is ephemeral, redacted, bounded, and fail-closed"
+      ],
+      "doNotCopy": [
+        "one new capability expanding through core registry, config, SDK, plugin, docs, and many feature consumers before one user journey proves demand",
+        "large preinstalled capability surface as the default model context"
+      ]
+    },
+    {
+      "name": "Hermes",
+      "revision": "e2c4793efa59dc5db2d8e1fc578f70bdc8c095e0",
+      "sources": [
+        "apps/desktop/src/lib/mcp-directory.ts",
+        "apps/desktop/src/store/mcp-setup.ts",
+        "hermes_cli/mcp_security.py",
+        "hermes_cli/skills_hub.py"
+      ],
+      "adopt": [
+        "catalog manifests are the single source of suggestible integrations",
+        "setup waits are scoped to the originating session and do not block other chats",
+        "a new user message can decline a parked setup instead of leaving the agent hung",
+        "untrusted local MCP entries are checked both when saved and before spawn"
+      ],
+      "doNotCopy": [
+        "static keyword-to-service directory",
+        "agent-editable skills without a separate trust and promotion boundary"
+      ]
+    },
+    {
+      "name": "Codex",
+      "revision": "official-docs-2026-08-20",
+      "sources": [
+        "https://learn.chatgpt.com/docs/skills-and-plugins",
+        "https://learn.chatgpt.com/docs/extend/mcp",
+        "https://learn.chatgpt.com/docs/build-skills",
+        "https://learn.chatgpt.com/docs/build-plugins"
+      ],
+      "adopt": [
+        "skill means reusable method and supporting resources",
+        "plugin can bundle skills and MCP-backed connected tools",
+        "a composable CLI remains a valid capability instead of requiring a new first-class tool"
+      ],
+      "doNotCopy": [
+        "developer-facing setup language as the general-user product surface"
+      ]
+    },
+    {
+      "name": "Claude Code",
+      "revision": "official-docs-2026-08-20",
+      "sources": [
+        "https://docs.anthropic.com/en/docs/mcp",
+        "https://docs.anthropic.com/en/docs/claude-code/cli-usage"
+      ],
+      "adopt": [
+        "MCP is a standard boundary for external tools and data",
+        "remote OAuth is user-controlled and its stored authorization can be cleared",
+        "connection scope and permission are explicit"
+      ],
+      "doNotCopy": [
+        "requiring a general user to edit JSON, environment variables, or run MCP commands"
+      ]
+    }
+  ],
+  "t5CurrentTruth": {
+    "alreadyPresent": [
+      "model-directed terminal and browser hands",
+      "on-demand read-only bundled skill catalog",
+      "connection truth with registered inspectors, routes, capabilities, and actions",
+      "OAuth and local-app user handoff surfaces",
+      "append-only conversation, Run, Receipt, authority, recovery, and managed-process wake"
+    ],
+    "largestObservedGap": [
+      "a completed connection only closes its card; it does not resume the original user goal",
+      "a local install or login action has no durable session-scoped completion handoff",
+      "connection facts are registered service by service and are not yet a general capability inventory",
+      "bundled skills can be read but no trusted acquisition or promotion path exists"
+    ]
+  },
+  "nextGate": {
+    "id": "R9-X1",
+    "name": "Goal-Preserving Capability Handoff",
+    "firstChange": "reuse connection truth and the existing wake path behind an append-only handoff state machine so verified preparation completion resumes each original conversation at most once without replaying stale authority",
+    "requiredBoundaries": [
+      "automatic resume is a fresh model wake, not replay of an old tool call",
+      "waiting, readiness_observed, completion_recorded, resume_claimed, and resumed are distinct durable states",
+      "runtime inspectors poll with bounded interval and timeout while model calls remain zero until state changes",
+      "multiple sessions may wait on one connection but retain independent handoff, goal, and authority scope"
+    ],
+    "nonGoals": [
+      "remote skill marketplace",
+      "arbitrary package installation",
+      "self-modifying T5 core",
+      "static intent or keyword router",
+      "new vendor connector"
+    ]
+  }
+}

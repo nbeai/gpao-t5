@@ -21,7 +21,11 @@ export function makeConnectionTool({ doctor, startConnection, performConnection 
       if (action === 'start') {
         if (typeof startConnection !== 'function') throw new Error('connection start is unavailable');
         const started = await startConnection(String(id ?? ''));
-        return { state: 'user_authorization_required', ...started };
+        return {
+          state: started.handoffMode === 'user_action'
+            ? 'user_action_started' : 'user_authorization_required',
+          ...started,
+        };
       }
       if (action === 'perform') {
         if (typeof performConnection !== 'function') throw new Error('connection action is unavailable');
