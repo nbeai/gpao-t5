@@ -1,0 +1,8 @@
+{
+  "schema": "t5.r9-shared-remote-mcp-runtime.v1",
+  "shared": ["tool_schema_validation", "annotations", "streamable_http", "tool_list", "tool_call", "effect_authority", "bounded_result"],
+  "notionSpecificPreserved": ["oauth_claims", "workspace_identity", "cli_file_route", "file_upload_boundary"],
+  "focusedChecks": { "passed": 12, "failed": 0 },
+  "actualNotionAccountToolCall": "not_run",
+  "passed": true
+}

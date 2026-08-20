@@ -52,7 +52,7 @@ test('목록에 없는 Notion 도구와 비정상 schema는 remote call 전에 �
       async callTool() { throw new Error('must not call'); }, async close() {},
     }),
   });
-  await assert.rejects(() => invalid.listTools(), /invalid Notion MCP tool/u);
+  await assert.rejects(() => invalid.listTools(), /invalid Remote MCP tool/u);
   let calls = 0;
   const unknown = makeNotionMcpRuntime({
     credential: async () => ({ accessToken: 'ACCESS' }),

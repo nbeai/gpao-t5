@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `R9-X4 GENERIC REMOTE MCP — COMPLETE` (후보 발견·사용자 OAuth·동적 도구·목적 재개)
+현재 Gate: `R9-X4-R1 SHARED REMOTE MCP RUNTIME — COMPLETE` (Notion·Linear 공통 도구·권한 경계)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -1319,6 +1319,14 @@ Non-goals / honest boundary:
 - 후보 발견→연결→X1 resume→목적 완료 fixture·실제 모델
 - write·destructive 권한은 기존 R2 경계를 재사용
 - 기존 X1~X3·Notion·Google·Terminal·Web·Memory·Attachment·Messenger 회귀 유지
+
+### R9-X4-R1 — Shared Remote MCP Runtime
+
+- Notion의 별도 dynamic tool runtime·tool wrapper를 `remote-mcp-runtime`·`remote-mcp-tool`로 교체
+- Notion 고유 OAuth claims·workspace identity 검증·CLI file route·upload 불가 문구는 유지
+- Linear와 Notion이 같은 schema validation·annotations·read/write/destructive authority·bounded result 사용
+- 집중 12/12; 실제 Notion 계정 tool call은 자동 시험하지 않아 미확인으로 유지
+- 증거: `refoundation/evidence/r9-x4-r1-shared-remote-mcp-runtime-2026-08-21.json`
 
 ## 현재 다음 한 작업
 
