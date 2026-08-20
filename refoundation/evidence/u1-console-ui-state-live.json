@@ -1,0 +1,31 @@
+{
+  "schema": "t5.u1-console-ui-state-live.v1",
+  "recordedAt": "2026-08-20T21:08:32+09:00",
+  "commitUnderTest": "a0b2643f",
+  "userAccountUsed": false,
+  "stateRoot": "isolated-private-tmp",
+  "checks": {
+    "longContent": {
+      "viewportWidth": 1280,
+      "pageScrollWidth": 1280,
+      "messageOverflowCount": 0
+    },
+    "themePersistence": {
+      "selected": "dark",
+      "afterReload": "dark"
+    },
+    "sessionSelection": {
+      "selected": { "checkboxes": 1, "selectionBarVisible": true },
+      "afterConversationEntry": { "checkboxes": 0, "selectionBarVisible": false },
+      "afterSettingsEntry": {
+        "checkboxes": 0,
+        "selectionBarVisible": false,
+        "settingsVisible": true
+      }
+    }
+  },
+  "verification": {
+    "refoundationCheck": { "passed": 355, "failed": 0 },
+    "integration": { "passed": 67, "failed": 0 }
+  }
+}
