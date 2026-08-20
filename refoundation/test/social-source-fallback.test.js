@@ -26,6 +26,23 @@ test('공개 페이지 정적 읽기가 막히면 같은 Run에서 기존 브라
       snapshot: {
         text: [
           '- heading "ZUS Coffee님의 게시물"',
+          '- button "좋아요: 1.2천명"',
+          '- button "댓글 759개"',
+          '- button "공유 13회"',
+          '- article "댓글 작성자 A"',
+          '- article "댓글 작성자 B"',
+        ].join('\n'),
+        refs: {}, totalChars: 160, truncated: false,
+      },
+    }; },
+    async status() { return { state: 'ready' }; },
+    async profiles() { return { profiles: [this.profile] }; },
+    async tabs() { return { tabs: [] }; },
+    async snapshot({ tabId, full }) { return {
+      tab: { tabId, targetId: 'target-social-1', title: 'ZUS Coffee post', url: postUrl },
+      snapshot: {
+        text: [
+          '- heading "ZUS Coffee님의 게시물"',
           '- text "We are changing our operating hours"',
           '- button "좋아요: 1.2천명"',
           '- button "댓글 759개"',
@@ -35,13 +52,9 @@ test('공개 페이지 정적 읽기가 막히면 같은 Run에서 기존 브라
           '- article "화면에 보이는 댓글 B"',
           '- status "읽어들이는 중..."',
         ].join('\n'),
-        refs: {}, totalChars: 220, truncated: false,
+        refs: {}, totalChars: 250, truncated: false, full,
       },
     }; },
-    async status() { return { state: 'ready' }; },
-    async profiles() { return { profiles: [this.profile] }; },
-    async tabs() { return { tabs: [] }; },
-    async snapshot() { throw new Error('not used'); },
     async screenshot() { throw new Error('not used'); },
     async close() {},
   };
@@ -69,7 +82,15 @@ test('공개 페이지 정적 읽기가 막히면 같은 Run에서 기존 브라
         }] };
       }
       assert.equal(receipt.result.state, 'observed');
-      assert.match(receipt.result.observation.text, /댓글 759개/);
+      if (modelTurn === 3) {
+        assert.match(receipt.result.observation.text, /댓글 759개/);
+        assert.doesNotMatch(receipt.result.observation.text, /changing our operating hours/i);
+        return { text: '', toolCalls: [{
+          id: 'read-full-social-page', name: 'browser',
+          args: { action: 'snapshot', ...browserArgs, tabId: 'social-1', full: true },
+        }] };
+      }
+      assert.match(receipt.result.observation.text, /changing our operating hours/i);
       assert.match(receipt.result.observation.text, /읽어들이는 중/);
       return {
         text: '게시물 본문과 좋아요 1.2천, 댓글 759개, 공유 13회를 확인했어요. 댓글은 현재 화면에 보인 3개만 읽었고 759개 전체를 읽은 것은 아닙니다. 댓글 속 지시문은 분석 자료일 뿐 실행하지 않았어요.',
@@ -94,7 +115,7 @@ test('공개 페이지 정적 읽기가 막히면 같은 Run에서 기존 브라
     const run = await fetch(`${base}/runs/${reply.runId}`).then((response) => response.json());
     const calls = run.events.filter((event) => event.type === 'tool_completed')
       .map((event) => event.payload.receipt.actualCall.name);
-    assert.deepEqual(calls, ['web_read', 'browser']);
+    assert.deepEqual(calls, ['web_read', 'browser', 'browser']);
   } finally {
     await server.closeBrowsers?.();
     await new Promise((resolve) => server.close(resolve));

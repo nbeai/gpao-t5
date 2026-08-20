@@ -28,6 +28,12 @@
     "missing": ["all 759 comments", "complete reply threads", "media pixels", "audio", "frames", "ocr"],
     "boundary": "snapshot contained both a login banner and already-visible public content, plus loading statuses; login was not required and visible comments are a subset"
   },
+  "t5AgentBrowserMeasurement": {
+    "environment": "isolated temporary HOME and browser profile, public page, no account credentials",
+    "compact": {"chars":2095,"metricsObserved":true,"postTextObserved":false,"commentBodiesObserved":false},
+    "full": {"chars":8832,"metricsObserved":true,"postTextObserved":true,"commentBodiesObserved":true,"loadingStatusesPresent":true},
+    "decision": "navigate once, then full snapshot once on the same tab only when the user goal needs omitted text"
+  },
   "decision": {
     "newFacebookAdapterRequired": false,
     "smallestChange": "let the model switch once from static observation to the existing Browser Hand, preserve visible-subset coverage, and avoid login when requested public content is already visible",
@@ -36,7 +42,7 @@
   },
   "verification": {
     "countertest": "red before console instruction change",
-    "fixtureJourney": "web_read blocked -> browser observed -> answer separates total count from visible comments",
+    "fixtureJourney": "web_read blocked -> compact browser observation -> full snapshot on same tab -> answer separates total count from visible comments",
     "actualConsoleModel": "pending"
   }
 }
