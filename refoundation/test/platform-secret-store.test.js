@@ -32,8 +32,10 @@ test('아직 안전한 OS 자격 저장소가 없는 플랫폼은 파일 평문�
   assert.throws(() => makePlatformSecretStore({ platform: 'win32' }), /secure credential store/u);
 });
 
-test('macOS security는 보이지 않는 TTY prompt 대신 stdin을 읽도록 별도 process session에서 실행된다', async () => {
+test('macOS security 저장은 비밀을 argv에 넣지 않고 node-pty의 숨은 prompt 두 단계를 사용한다', async () => {
   const source = await readFile(new URL('../src/platform-secret-store.js', import.meta.url), 'utf8');
-  assert.match(source, /detached:\s*true/u);
+  assert.match(source, /pty\.spawn/u);
+  assert.match(source, /password data for new item/u);
+  assert.match(source, /retype password for new item/u);
   assert.doesNotMatch(source, /-w',\s*serialized|'-w',\s*serialized/u);
 });
