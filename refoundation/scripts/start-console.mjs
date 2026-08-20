@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-import { chmod, mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -16,7 +16,9 @@ import { makeConsoleServer } from '../src/console-server.js';
 import { resolveConsoleWorkspace } from '../src/console-config.js';
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
 import { makePersistentBrowserHost } from '../src/persistent-browser-host.js';
-import { workspaceConnectionBaselineInspectors } from '../src/workspace-connection-baseline.js';
+import {
+  googleSyncAvailable, workspaceConnectionBaselineInspectors,
+} from '../src/workspace-connection-baseline.js';
 import { WorkspaceCredentialStore } from '../src/workspace-credential-store.js';
 import { makeGoogleDriveConnection } from '../src/google-drive-connection.js';
 import { makeGoogleDriveApi } from '../src/google-drive-api.js';
@@ -28,6 +30,20 @@ import { makeNotionCliInspector } from '../src/notion-cli-inspector.js';
 function option(name) {
   const index = process.argv.indexOf(name);
   return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+async function bundledGoogleOAuthClientId() {
+  try {
+    const config = JSON.parse(await readFile(new URL('../config/google-oauth.json', import.meta.url), 'utf8'));
+    if (config?.schema !== 't5.google-oauth-client.v1'
+      || !/^[A-Za-z0-9._-]+\.apps\.googleusercontent\.com$/u.test(config.clientId ?? '')) {
+      throw new Error('bundled Google OAuth client config is invalid');
+    }
+    return config.clientId;
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
 }
 
 const port = Number(option('--port') ?? process.env.T5_REFOUNDATION_CONSOLE_PORT ?? 4174);
@@ -50,10 +66,15 @@ const persistentBrowserHost = makePersistentBrowserHost({
   root: browserRoot, binary: DEFAULT_AGENT_BROWSER_BINARY,
 });
 const workspaceCredentialStore = new WorkspaceCredentialStore(join(stateDir, 'connections'));
+const googleOAuthClientId = process.env.T5_GOOGLE_OAUTH_CLIENT_ID
+  ?? await bundledGoogleOAuthClientId();
 const googleDriveConnection = makeGoogleDriveConnection({
   store: workspaceCredentialStore,
-  clientId: process.env.T5_GOOGLE_OAUTH_CLIENT_ID ?? null,
+  clientId: googleOAuthClientId,
   browserAvailable: true,
+  localSyncAvailable: () => googleSyncAvailable(
+    computerEnvironment.userHome, computerEnvironment.platform,
+  ),
 });
 const googleDriveApi = makeGoogleDriveApi({ credential: () => googleDriveConnection.credential() });
 const googleDriveService = {

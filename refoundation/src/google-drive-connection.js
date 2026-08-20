@@ -26,7 +26,7 @@ async function verifyAccess(credential, fetchImpl) {
 
 export function makeGoogleDriveConnection({
   store, clientId = null, fetchImpl = globalThis.fetch, now = Date.now,
-  browserAvailable = true,
+  browserAvailable = true, localSyncAvailable = async () => false,
 } = {}) {
   if (!store || typeof store.get !== 'function' || typeof store.setVerified !== 'function') {
     throw new TypeError('Google Drive workspace credential store is required');
@@ -61,25 +61,30 @@ export function makeGoogleDriveConnection({
       const publicState = (await store.describe())[PROVIDER] ?? null;
       const connected = publicState?.connected === true;
       const connecting = pending != null;
+      const localSync = await Promise.resolve().then(() => localSyncAvailable()).catch(() => false);
       return {
-        state: connected ? 'connected' : clientId ? 'needs_connection'
+        state: connected ? 'connected' : localSync ? 'ready' : clientId ? 'needs_connection'
           : availableBrowser ? 'needs_connection' : 'unavailable',
         reason: connected ? 'verified_drive_connection'
           : connecting ? 'oauth_in_progress'
+          : localSync ? 'local_sync_available'
           : clientId ? 'oauth_not_connected'
             : availableBrowser ? 'oauth_client_missing' : 'no_available_route',
         userSafeSummary: connected
           ? 'Google Drive 전용 연결을 사용할 수 있어요.'
           : connecting
             ? 'Google 계정 연결 화면에서 사용자 확인을 기다리고 있어요.'
+          : localSync
+            ? 'Finder에 연결된 Google Drive의 일반 파일을 찾고 읽고 저장할 수 있어요.'
           : clientId
             ? 'Google 계정 연결을 시작할 수 있어요.'
             : availableBrowser
               ? '전용 연결 준비가 필요하고, 지금은 T5 브라우저 로그인을 사용할 수 있어요.'
               : 'Google Drive 전용 연결 준비가 필요해요.',
         capabilities: {
-          search: connected, read: connected, create: connected,
-          update: connected, download: connected, upload: connected,
+          search: connected || localSync, read: connected || localSync,
+          create: connected || localSync, update: connected || localSync,
+          download: connected || localSync, upload: connected || localSync,
         },
         routes: [
           {
@@ -90,6 +95,9 @@ export function makeGoogleDriveConnection({
           ...(availableBrowser ? [{
             kind: 'browser', label: 'T5 브라우저', state: 'ready', canStart: true,
             startUrl: 'https://drive.google.com/',
+          }] : []),
+          ...(localSync ? [{
+            kind: 'local_sync', label: 'Finder의 Google Drive', state: 'ready', canStart: false,
           }] : []),
         ],
         actions: connected ? [{

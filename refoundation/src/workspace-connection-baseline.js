@@ -6,7 +6,7 @@ async function directory(path) {
   catch (error) { if (error?.code === 'ENOENT') return false; throw error; }
 }
 
-async function googleSyncAvailable(userHome, platform) {
+export async function googleSyncAvailable(userHome, platform) {
   const direct = [join(userHome, 'Google Drive')];
   if (platform === 'darwin') {
     const cloudStorage = join(userHome, 'Library', 'CloudStorage');

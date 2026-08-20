@@ -109,3 +109,20 @@ test('동시에 들어온 Google 연결 시작도 callback을 하나만 연다',
     assert.equal((await connection.start()).authorizeUrl.includes('accounts.google.com'), true);
   } finally { connection.close(); await rm(room, { recursive: true, force: true }); }
 });
+
+test('Finder에 로그인된 Google Drive가 있으면 공식 API 미연결과 별개로 일반 파일 경로를 사용 가능으로 올린다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-google-local-sync-'));
+  const connection = makeGoogleDriveConnection({
+    store: new WorkspaceCredentialStore(room), clientId: 'desktop-client',
+    localSyncAvailable: async () => true,
+  });
+  try {
+    const truth = await connection.inspect();
+    assert.equal(truth.state, 'ready');
+    assert.equal(truth.reason, 'local_sync_available');
+    assert.equal(truth.capabilities.read, true);
+    assert.equal(truth.capabilities.upload, true);
+    assert.equal(truth.routes.some((route) => route.kind === 'local_sync' && route.state === 'ready'), true);
+    assert.equal(truth.actions[0].kind, 'oauth');
+  } finally { connection.close(); await rm(room, { recursive: true, force: true }); }
+});
