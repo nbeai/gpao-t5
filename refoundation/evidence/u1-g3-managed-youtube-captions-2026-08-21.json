@@ -1,0 +1,46 @@
+{
+  "schema": "t5.managed-youtube-captions-evidence.v1",
+  "recordedAt": "2026-08-21T05:10:00+09:00",
+  "gate": "U1-G3",
+  "userGoal": "read actual public YouTube caption text without media, cookies, user config, or raw yt-dlp exposure",
+  "catalog": {
+    "id": "yt-dlp",
+    "version": "2026.08.19",
+    "license": "Unlicense",
+    "exposure": "tool_only",
+    "toolSurface": "video_text",
+    "platformAssets": 6,
+    "macosArm64": {"bytes":37146048,"sha256":"0f192b7ec147ab6288885d6351d9ab67367640029b4377576ef46dd79cf7b202"},
+    "verifyTimeoutMs": 20000,
+    "generalPathExposed": false
+  },
+  "runtimeContract": {
+    "fixedArguments": ["--ignore-config","--no-playlist","--skip-download","--js-runtimes","node:<bundled exact path>","--sub-format","json3"],
+    "manualBeforeAutomatic": true,
+    "requestedLanguageMayNotSilentlyChange": true,
+    "mediaDownload": false,
+    "cookies": false,
+    "userConfig": false,
+    "arbitraryArguments": false,
+    "temporaryOutputCleanup": true,
+    "captionTrust": "untrusted_external",
+    "instructionAuthority": "none"
+  },
+  "isolatedRealAssetQualification": {
+    "installed": {"state":"installed","version":"2026.08.19","hashMatched":true,"availableThrough":"video_text","managedPathExposed":false},
+    "path": {"privateBin":true,"inTerminalPath":false},
+    "captionPresent": {"state":"caption_read","source":"manual","language":"en","bytes":65976,"events":466,"cues":466,"textTruncatedAtRequestedLimit":true},
+    "captionAbsent": {"state":"caption_absent","captionFileCount":0,"audioObserved":false,"framesObserved":false},
+    "execution": {"mediaDownloaded":false,"cookiesUsed":false,"userConfigIgnored":true,"javascriptRuntime":"bundled_node","runtimeWarning":false},
+    "lifecycle": {"remove":"removed","restore":"restored","activeVersion":"2026.08.19"},
+    "temporaryEntriesAfterRun": 0
+  },
+  "fixtureJourney": {
+    "firstRunTools": ["video_text:not_prepared","cli_prepare:install","video_text:caption_read"],
+    "newSessionTools": ["video_text:caption_read"],
+    "downloads": 1,
+    "rawExecYtDlp": 0,
+    "tests": {"passed":418,"failed":0,"legacyImports":0}
+  },
+  "actualConsoleModel": "pending explicit approval for new real-state CLI installation and external model usage"
+}
