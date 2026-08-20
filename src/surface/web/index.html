@@ -382,6 +382,27 @@
   .tb-card.focus { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-glow); }
   .tb-empty { font-size:var(--fs-sm); color:var(--muted); padding:var(--sp-4) var(--sp-1); }
 
+  /* 설정 연결 카드 — 브라우저 기본 form 모양에 맡기면 어두운 테마에서 흰 input만 뜨고,
+     좁은 창에서는 기본 최소폭이 패널 밖으로 밀린다. 기존 색·간격만 써서 한 열로 읽게 한다. */
+  #modelConnect, #msgConnect { cursor:default; }
+  .connection-fields { display:grid; grid-template-columns:1fr; gap:var(--sp-2); margin:var(--sp-2) 0; }
+  .connection-fields input, .connection-fields select { box-sizing:border-box; width:100%; min-width:0;
+    border:1px solid var(--line-strong); border-radius:var(--r-sm); background:var(--surface); color:var(--fg);
+    padding:var(--sp-2) var(--sp-3); font:inherit; font-size:var(--fs-sm); }
+  .connection-fields input:focus, .connection-fields select:focus { outline:2px solid var(--accent-glow);
+    border-color:var(--accent); }
+  .connection-actions { display:flex; flex-wrap:wrap; gap:var(--sp-2); align-items:center; margin-top:var(--sp-2); }
+  .connection-button { border:1px solid var(--line-strong); border-radius:var(--r-sm); background:var(--surface);
+    color:var(--fg); padding:var(--sp-2) var(--sp-3); font:inherit; font-size:var(--fs-sm); cursor:pointer; }
+  .connection-button.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  .connection-button:disabled { opacity:.45; cursor:not-allowed; }
+  .connection-alt { border-top:1px solid var(--line); padding-top:var(--sp-3); margin-top:var(--sp-3); }
+  .connection-alt .tb-hint { display:inline-block; margin:0 0 0 var(--sp-2); background:transparent; padding:0; color:var(--muted); }
+  .connection-row { display:flex; align-items:center; gap:var(--sp-2); margin:var(--sp-2) 0; }
+  .connection-row .connection-label { flex:1; min-width:0; overflow-wrap:anywhere; font-size:var(--fs-sm); }
+  #mcResult, #msgResult { min-height:1.4em; overflow-wrap:anywhere; font-size:var(--fs-xs); color:var(--muted); }
+  #mcResult:empty, #msgResult:empty { display:none; }
+
   @media (max-width:720px) {
     #side { position:fixed; z-index:20; transform:translateX(-100%);
       transition:transform var(--dur-normal) var(--ease-out); box-shadow:var(--sh-lg); }
@@ -396,7 +417,13 @@
     #log { padding:var(--sp-5) var(--sp-3); }
     #state, #search { padding-left:var(--sp-3); padding-right:var(--sp-3); }
     .statusrow .hint { display:none; }
-    #tbpanel { width:100%; border-left:none; }
+    #tbpanel, #setpanel { width:100%; border-left:none; }
+  }
+  @media (max-width:420px) {
+    .tb-head { padding:var(--sp-4) var(--sp-3) var(--sp-3); }
+    .tb-body { padding-left:var(--sp-3); padding-right:var(--sp-3); }
+    .connection-actions .connection-button { flex:1 1 100%; }
+    .connection-alt .tb-hint { display:block; margin:var(--sp-2) 0 0; }
   }
   /* 조각 C — 세션 제목 차수. `.sess .t` 는 flex:1 + ellipsis 라 뒤가 잘린다.
      차수는 **잘리면 안 되는 부분**이므로 `.age` 처럼 flex:none 으로 따로 세운다.
@@ -659,6 +686,9 @@ async function endpointJson(url, options) {
 function endpointError(result, fallback) {
   return result?.data?.error ?? result?.data?.userSafeSummary ?? fallback;
 }
+const MODEL_PROVIDER_LABEL = {
+  openai: 'OpenAI', anthropic: 'Claude', gemini: 'Gemini', chatgpt_oauth: 'ChatGPT 계정',
+};
 
 // ── 모델 연결 (P-RT-4 → P-ONB-2) ── 칩 패널에서 키를 연결한다. 서버가 "확실한 무효만 거절"을
 //   보장한다: 확인된 것은 검증됨으로, 도달 못 한 것은 저장하되 "모델 확인 필요"로 표시한다.
@@ -670,16 +700,18 @@ async function renderModelConnect(target) {
     box.innerHTML = `
       <b>모델 연결</b>
       <div id="mcStatus" style="margin:4px 0;"></div>
-      <div style="display:flex; flex-wrap:wrap; gap:4px; margin:4px 0;">
+      <div class="connection-fields">
         <select id="mcProvider" aria-label="API 제공자"></select>
-        <input id="mcKey" type="password" placeholder="API 키" autocomplete="off">
-        <input id="mcModel" type="text" placeholder="모델(비우면 기본)">
-        <button id="mcConnect">연결</button>
-        <button id="mcDisconnect">해제</button>
+        <input id="mcKey" type="password" placeholder="API 키" aria-label="API 키" autocomplete="off">
+        <input id="mcModel" type="text" placeholder="모델(비우면 기본)" aria-label="모델 이름">
       </div>
-      <div style="margin:4px 0;">
-        <button id="mcChatgpt">ChatGPT 계정으로 연결</button>
-        <span style="opacity:.7; font-size:11px;">API 키 대신 계정 연결을 선택할 수 있어요.</span>
+      <div class="connection-actions">
+        <button id="mcConnect" class="connection-button primary">API 키로 연결</button>
+        <button id="mcDisconnect" class="connection-button">현재 연결 해제</button>
+      </div>
+      <div class="connection-alt">
+        <button id="mcChatgpt" class="connection-button primary">ChatGPT 계정으로 연결</button>
+        <span class="tb-hint">API 키 대신 계정 연결을 선택할 수 있어요.</span>
       </div>
       <div id="mcList" style="margin:4px 0;"></div>
       <div id="mcResult"></div>`;
@@ -699,6 +731,7 @@ async function renderModelConnect(target) {
         ? ([rep.userSafeSummary, rep.nextSafeAction].filter(Boolean).join(' ') || '연결됐어요.')
         : endpointError(result, '연결하지 못했어요. 키와 제공자를 확인해 주세요.');
       if (result.ok && result.data?.connected) box.querySelector('#mcKey').value = ''; // 성공한 키는 화면에 남기지 않는다
+      refreshApiConnectState();
       await refreshModelConnect();
     };
     box.querySelector('#mcChatgpt').onclick = async () => {
@@ -742,8 +775,18 @@ async function renderModelConnect(target) {
     option.dataset.defaultModel = provider.defaultModel ?? '';
     select.appendChild(option);
   }
+  const refreshModelPlaceholder = () => {
+    const defaultModel = select.selectedOptions[0]?.dataset.defaultModel;
+    box.querySelector('#mcModel').placeholder = defaultModel ? `모델 (기본: ${defaultModel})` : '모델(비우면 기본)';
+  };
   select.disabled = !providerResult.ok || !apiProviders.length;
-  box.querySelector('#mcConnect').disabled = select.disabled;
+  const refreshApiConnectState = () => {
+    box.querySelector('#mcConnect').disabled = select.disabled || !box.querySelector('#mcKey').value.trim();
+  };
+  box.querySelector('#mcKey').oninput = refreshApiConnectState;
+  select.onchange = () => { refreshModelPlaceholder(); refreshApiConnectState(); };
+  refreshModelPlaceholder();
+  refreshApiConnectState();
   box.querySelector('#mcChatgpt').hidden = !oauthAvailable;
   if (!providerResult.ok) box.querySelector('#mcResult').textContent = endpointError(providerResult, '연결 방법을 불러오지 못했어요.');
   await refreshModelConnect();
@@ -762,8 +805,7 @@ async function renderConnectionList() {
   if (list.length < 2) { box.innerHTML = ''; return; } // 하나뿐이면 상태 줄로 충분(안티 대시보드)
   box.innerHTML = '<div style="opacity:.7; font-size:11px; margin-bottom:2px;">쓸 모델 고르기</div>';
   for (const c of list) {
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex; align-items:center; gap:6px; margin:2px 0;';
+    const row = document.createElement('div'); row.className = 'connection-row';
     const radio = document.createElement('input');
     radio.type = 'radio'; radio.name = 'mcActive'; radio.checked = !!c.active;
     radio.onchange = async () => {
@@ -774,9 +816,10 @@ async function renderConnectionList() {
       await refreshModelConnect();
     };
     const label = document.createElement('span');
+    label.className = 'connection-label';
     label.textContent = `${c.label ?? c.provider ?? c.modelId ?? '모델 연결'}${c.keyMasked ? ` · ${c.keyMasked}` : ''}${c.unofficial ? ' · 공식 지원 아님' : ''}`;
     const del = document.createElement('button');
-    del.textContent = '해제'; del.style.cssText = 'font-size:11px; padding:1px 6px;';
+    del.textContent = '해제'; del.className = 'connection-button';
     del.onclick = async () => {
       const result = await endpointJson('/model/connections/remove', {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: c.id }),
@@ -795,12 +838,13 @@ async function refreshModelConnect() {
   await renderConnectionList();
   const el = document.getElementById('mcStatus');
   if (!el) return;
+  document.getElementById('mcDisconnect').disabled = !result.ok || !st?.connected;
   if (!result.ok) { el.textContent = endpointError(result, '모델 연결 상태를 불러오지 못했어요.'); return; }
   if (!st?.connected) { el.textContent = '연결된 모델 없음 — 모델 하나를 연결하면 대화를 시작할 수 있어요'; return; }
   const src = st.source
     ? ({ user: '화면에서 연결', saved: '저장된 연결', env: '환경 설정', chatgpt_oauth: 'ChatGPT 계정' }[st.source] ?? st.source)
     : null;
-  el.textContent = `${st.provider} · ${st.modelId}${st.keyMasked ? ` · ${st.keyMasked}` : ''}${src ? ` (${src})` : ''}`
+  el.textContent = `${MODEL_PROVIDER_LABEL[st.provider] ?? st.provider} · ${st.modelId}${st.keyMasked ? ` · ${st.keyMasked}` : ''}${src ? ` (${src})` : ''}`
     + (st.unofficial ? ' · 공식 지원 아님' : '');
 }
 
@@ -1174,6 +1218,7 @@ function renderMessengerFields(box, provider) {
       input.type = field.type === 'password' || field.secret ? 'password' : (field.type ?? 'text');
       input.placeholder = field.placeholder ?? field.label ?? name;
       input.autocomplete = 'off';
+      input.setAttribute('aria-label', field.label ?? name);
     }
     input.required = field.required !== false;
     host.appendChild(input);
@@ -1181,7 +1226,7 @@ function renderMessengerFields(box, provider) {
   box.querySelector('#msgToken').placeholder = provider?.tokenPlaceholder ?? '봇 토큰';
 }
 
-async function refreshMessengerStatus(box, target, providers) {
+async function refreshMessengerStatus(box, target) {
   const result = await endpointJson('/channels');
   const selected = box.querySelector('#msgProvider').value;
   const channels = Array.isArray(result.data?.channels) ? result.data.channels : [];
@@ -1192,9 +1237,7 @@ async function refreshMessengerStatus(box, target, providers) {
   box.querySelector('#msgDisconnectBtn').disabled = !current?.connected;
   const old = document.getElementById('pendingSenders');
   if (old) old.remove();
-  if (result.ok && current?.connected && selected === 'telegram') await renderPendingSenders(target);
-  const provider = providers.find((candidate) => (candidate.id ?? candidate.provider) === selected);
-  if (provider) renderMessengerFields(box, provider);
+  if (result.ok && current?.connected && selected === 'telegram') await renderPendingSenders(target, false);
 }
 
 async function renderMessengerConnect(target) {
@@ -1205,12 +1248,14 @@ async function renderMessengerConnect(target) {
     <div class="tb-name">메신저 연결</div>
     <div class="tb-hint">쓰는 메신저를 고르고 봇 토큰을 연결하면 같은 T5와 대화할 수 있어요.</div>
     <div id="msgStatus" class="tb-hint"></div>
-    <div style="display:flex; flex-wrap:wrap; gap:4px; margin:6px 0;">
+    <div class="connection-fields">
       <select id="msgProvider" aria-label="메신저"></select>
-      <input id="msgToken" type="password" placeholder="봇 토큰" autocomplete="off">
-      <span id="msgFields" style="display:contents;"></span>
-      <button id="msgConnectBtn">연결</button>
-      <button id="msgDisconnectBtn">해제</button>
+      <input id="msgToken" type="password" placeholder="봇 토큰" aria-label="봇 토큰" autocomplete="off">
+      <span id="msgFields" class="connection-fields" style="margin:0;"></span>
+    </div>
+    <div class="connection-actions">
+      <button id="msgConnectBtn" class="connection-button primary">연결</button>
+      <button id="msgDisconnectBtn" class="connection-button">해제</button>
     </div>
     <div id="msgResult" class="tb-hint"></div>`;
   target.appendChild(box);
@@ -1222,12 +1267,20 @@ async function renderMessengerConnect(target) {
     select.appendChild(option);
   }
   select.disabled = !providerResult.ok || !providers.length;
-  box.querySelector('#msgConnectBtn').disabled = select.disabled;
+  const refreshMessengerConnectState = () => {
+    const requiredMissing = [...box.querySelectorAll('[data-channel-field][required]')].some((input) => !input.value.trim());
+    box.querySelector('#msgConnectBtn').disabled = select.disabled || !box.querySelector('#msgToken').value.trim() || requiredMissing;
+  };
+  box.querySelector('#msgToken').oninput = refreshMessengerConnectState;
+  box.querySelector('#msgFields').addEventListener('input', refreshMessengerConnectState);
+  box.querySelector('#msgFields').addEventListener('change', refreshMessengerConnectState);
+  refreshMessengerConnectState();
   if (!providerResult.ok) box.querySelector('#msgResult').textContent = endpointError(providerResult, '연결할 메신저를 불러오지 못했어요.');
   select.onchange = async () => {
     const provider = providers.find((candidate) => (candidate.id ?? candidate.provider) === select.value);
     renderMessengerFields(box, provider);
-    await refreshMessengerStatus(box, target, providers);
+    refreshMessengerConnectState();
+    await refreshMessengerStatus(box, target);
   };
   box.querySelector('#msgConnectBtn').onclick = async () => {
     const fields = {};
@@ -1244,7 +1297,8 @@ async function renderMessengerConnect(target) {
       box.querySelector('#msgToken').value = '';
       for (const input of box.querySelectorAll('[data-channel-field]')) if (input.type === 'password') input.value = '';
     }
-    await refreshMessengerStatus(box, target, providers);
+    refreshMessengerConnectState();
+    await refreshMessengerStatus(box, target);
   };
   box.querySelector('#msgDisconnectBtn').onclick = async () => {
     const result = await endpointJson('/channels/disconnect', {
@@ -1253,10 +1307,11 @@ async function renderMessengerConnect(target) {
     box.querySelector('#msgResult').textContent = result.ok
       ? (result.data?.userSafeSummary ?? '연결을 해제했어요.')
       : endpointError(result, '연결을 해제하지 못했어요.');
-    await refreshMessengerStatus(box, target, providers);
+    await refreshMessengerStatus(box, target);
   };
   if (providers[0]) renderMessengerFields(box, providers[0]);
-  await refreshMessengerStatus(box, target, providers);
+  refreshMessengerConnectState();
+  await refreshMessengerStatus(box, target);
 }
 
 // ── 설정 허브 (Pre-P-OP-7 UX Closure) ── 새 관리 콘솔이 아니라 **이미 있는 기능의 정리**다.
@@ -1518,7 +1573,7 @@ async function renderInvalidDeclared() {
 // P5-1: 모르는 사람이 메신저로 말을 걸면 **여기서 허용**한다. 이게 없으면 처음 연결한 사용자가
 // 자기 id 를 알아낼 방법이 없어 허용목록을 만들 수 없다(닭과 달걀). 내용은 저장하지 않는다 —
 // 누가 언제 몇 번 말을 걸었는지만.
-async function renderPendingSenders(target = tbBody) {
+async function renderPendingSenders(target = tbBody, prepend = true) {
   let data;
   try { data = await (await fetch('/channels/allowlist?channel=telegram')).json(); } catch { return; }
   const pending = data.pending ?? [];
@@ -1537,7 +1592,7 @@ async function renderPendingSenders(target = tbBody) {
           body: JSON.stringify({ channel: 'telegram', userId: p.userId, username: p.username }),
         })).json();
         if (out.userSafeSummary) toast(out.userSafeSummary);
-        await renderPendingSenders(target);
+        await renderPendingSenders(target, prepend);
       };
       row.appendChild(btn);
       box.appendChild(row);
@@ -1553,7 +1608,7 @@ async function renderPendingSenders(target = tbBody) {
         body: JSON.stringify({ channel: 'telegram', revoke: a.userId ?? a.username }),
       })).json();
       if (out.userSafeSummary) toast(out.userSafeSummary);
-      await renderPendingSenders(target);
+      await renderPendingSenders(target, prepend);
     };
     row.appendChild(btn);
     box.appendChild(row);
@@ -1561,7 +1616,8 @@ async function renderPendingSenders(target = tbBody) {
   const old = document.getElementById('pendingSenders');
   if (old) old.remove();
   box.id = 'pendingSenders';
-  target.prepend(box);
+  if (prepend) target.prepend(box);
+  else target.appendChild(box);
 }
 
 function renderToolbox(q, focusId) {

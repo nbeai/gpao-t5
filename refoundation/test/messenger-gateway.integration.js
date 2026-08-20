@@ -44,6 +44,10 @@ async function telegramFixture() {
       response.end(JSON.stringify({ ok: true, result: { message_id: 900, chat: { id: body.chat_id }, text: body.text } }));
       return;
     }
+    if (method === 'sendChatAction') {
+      response.end(JSON.stringify({ ok: true, result: true }));
+      return;
+    }
     response.statusCode = 404;
     response.end(JSON.stringify({ ok: false }));
   });
@@ -59,11 +63,12 @@ async function telegramFixture() {
   };
 }
 
-function update(id, { chatId = 555, userId = 42, text = '안녕' } = {}) {
+function update(id, { chatId = 555, userId = 42, text = '안녕', threadId = null } = {}) {
   return {
     update_id: id,
     message: {
       message_id: id, text,
+      ...(threadId == null ? {} : { message_thread_id: threadId }),
       chat: { id: chatId, type: 'private' },
       from: { id: userId, username: 'owner' },
     },
@@ -128,6 +133,8 @@ test('텔레그램 long polling은 inbound→같은 chat session→outbound repl
     assert.equal(inbound[0].sessionId, 'session-1');
     const sent = fixture.calls.find((call) => call.method === 'sendMessage');
     assert.deepEqual(sent.body, { chat_id: '555', text: '답: 안녕' });
+    assert.ok(fixture.calls.findIndex((call) => call.method === 'sendChatAction')
+      < fixture.calls.findIndex((call) => call.method === 'sendMessage'));
 
     fixture.updates.push(update(11, { text: '두 번째' }));
     const restarted = gateway();
@@ -143,6 +150,68 @@ test('텔레그램 long polling은 inbound→같은 chat session→outbound repl
     fixture.updates.push({ update_id: 13, message: { sticker: {}, chat: { id: 555, type: 'private' } } });
     assert.deepEqual(await restarted.pollOnce(), { received: 0, accepted: 0, replied: 0, offset: 14 });
     assert.equal((await stat(state.file)).mode & 0o777, 0o600);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('모델·도구 작업 동안 Telegram typing을 즉시·주기 갱신하고 답장 후 멈춘다', async () => {
+  const fixture = await telegramFixture();
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-typing-'));
+  const gateway = makeMessengerGateway({
+    credentialStore: new MessengerCredentialStore(room),
+    stateStore: new MessengerStateStore(room),
+    providerFactory: ({ token }) => makeTelegramMessengerProvider({
+      token, apiBase: fixture.base, pollTimeoutSeconds: 0,
+      typingIntervalMs: 10, typingTtlMs: 500,
+    }),
+    createSession: async () => 'session-topic',
+    authorizeInbound: async () => true,
+    onInbound: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 45));
+      return '긴 작업 답장';
+    },
+  });
+  try {
+    await gateway.connect({ provider: 'telegram', token: TOKEN });
+    fixture.updates.push(update(30, { chatId: -1001, threadId: 42, text: '긴 일' }));
+    assert.deepEqual(await gateway.pollOnce(), { received: 1, accepted: 1, replied: 1, offset: 31 });
+    const actionsAtReply = fixture.calls.filter((call) => call.method === 'sendChatAction');
+    assert.ok(actionsAtReply.length >= 2, `typing calls: ${actionsAtReply.length}`);
+    assert.ok(actionsAtReply.every((call) => call.body.message_thread_id === 42));
+    const reply = fixture.calls.find((call) => call.method === 'sendMessage');
+    assert.equal(reply.body.message_thread_id, 42);
+    const count = actionsAtReply.length;
+    await new Promise((resolve) => setTimeout(resolve, 35));
+    assert.equal(fixture.calls.filter((call) => call.method === 'sendChatAction').length, count);
+    assert.equal((await new MessengerStateStore(room).session('telegram', '-1001:topic:42')), 'session-topic');
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('긴 Telegram 답은 surrogate를 깨뜨리지 않고 4000자 이하 조각으로 같은 topic에 전송한다', async () => {
+  const fixture = await telegramFixture();
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-chunks-'));
+  const longReply = `${'가'.repeat(3999)}😊${'나'.repeat(4100)}`;
+  const gateway = makeMessengerGateway({
+    credentialStore: new MessengerCredentialStore(room),
+    stateStore: new MessengerStateStore(room),
+    providerFactory: ({ token }) => makeTelegramMessengerProvider({
+      token, apiBase: fixture.base, pollTimeoutSeconds: 0,
+    }),
+    createSession: async () => 'chunk-session', authorizeInbound: async () => true,
+    onInbound: async () => longReply,
+  });
+  try {
+    await gateway.connect({ provider: 'telegram', token: TOKEN });
+    fixture.updates.push(update(40, { chatId: -2002, threadId: 7, text: '긴 답' }));
+    assert.equal((await gateway.pollOnce()).replied, 1);
+    const sent = fixture.calls.filter((call) => call.method === 'sendMessage');
+    assert.equal(sent.length, 3);
+    assert.ok(sent.every((call) => call.body.text.length <= 4000));
+    assert.ok(sent.every((call) => call.body.message_thread_id === 7));
+    assert.equal(sent.map((call) => call.body.text).join(''), longReply);
   } finally {
     await fixture.close();
   }
@@ -206,7 +275,7 @@ test('허용목록은 메시지 내용 없이 대기 발신자를 남기고 승�
   assert.doesNotMatch(JSON.stringify(pending), /secret message/u);
   await state.allow('telegram', { userId: '42', username: 'Owner', label: '오너' });
   assert.equal(await state.isAllowed('telegram', { provider: 'telegram', userId: '42' }), true);
-  assert.equal(await state.isAllowed('telegram', { provider: 'telegram', username: '@owner' }), true);
+  assert.equal(await state.isAllowed('telegram', { provider: 'telegram', username: '@owner' }), false);
   assert.equal((await new MessengerStateStore(room).listAllowed('telegram'))[0].label, '오너');
   await state.revoke('telegram', '42');
   assert.equal(await state.isAllowed('telegram', stranger), false);

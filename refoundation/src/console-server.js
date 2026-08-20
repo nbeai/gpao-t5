@@ -729,7 +729,9 @@ export function makeConsoleServer({
     credentialStore: messengerCredentials,
     stateStore: messengerState,
     ...(messengerProviderFactory ? { providerFactory: messengerProviderFactory } : {}),
-    createSession: async () => sessions.create(),
+    createSession: async ({ origin } = {}) => sessions.create({
+      origin: origin ? { channel: origin.provider, chatId: origin.chatId } : null,
+    }),
     authorizeInbound: async (message) => {
       const allowed = await messengerState.isAllowed(message.provider, message);
       if (!allowed) await messengerState.notePending(message.provider, message);
@@ -751,9 +753,18 @@ export function makeConsoleServer({
     },
     log: (...values) => onError?.(new Error(values.map(String).join(' '))),
   });
-  queueMicrotask(() => messenger.start().catch((error) => {
-    if (error?.message !== 'messenger_not_connected') onError?.(error);
-  }));
+  queueMicrotask(async () => {
+    try {
+      for (const binding of await messengerState.listBindings()) {
+        await sessions.setOrigin(binding.sessionId, {
+          channel: binding.provider, chatId: binding.chatId,
+        });
+      }
+      await messenger.start();
+    } catch (error) {
+      if (error?.message !== 'messenger_not_connected') onError?.(error);
+    }
+  });
 
   function broadcastWake(payload) {
     for (const response of wakeSubscribers) {
@@ -1038,7 +1049,8 @@ export function makeConsoleServer({
         const session = await sessions.load(decodeURIComponent(url.pathname.slice('/sessions/'.length)));
         if (!session) { json(res, 404, { error: '세션을 찾지 못했어요.' }); return; }
         json(res, 200, {
-          id: session.id, title: session.title, transcript: session.transcript,
+          id: session.id, title: session.title, origin: session.origin ?? null,
+          transcript: session.transcript,
           activePendingIds: (await authority.listActive(session.id)).map((item) => item.pendingId),
         }); return;
       }

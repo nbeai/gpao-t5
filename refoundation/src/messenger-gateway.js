@@ -5,6 +5,12 @@ import { makeTelegramMessengerProvider } from './telegram-messenger-provider.js'
 
 const AVAILABLE_PROVIDERS = Object.freeze(['telegram']);
 const bindingKey = (provider, chatId) => `${provider}:${chatId}`;
+const numericUserId = (value) => {
+  const id = String(value ?? '').trim();
+  return /^\d+$/u.test(id) && BigInt(id) > 0n ? id : null;
+};
+const conversationId = (message) => message.threadId == null
+  ? message.chatId : `${message.chatId}:topic:${message.threadId}`;
 
 export class MessengerStateStore {
   constructor(directory) {
@@ -57,6 +63,17 @@ export class MessengerStateStore {
 
   async session(provider, chatId) { return (await this.read()).bindings[bindingKey(provider, chatId)] ?? null; }
 
+  async listBindings() {
+    return Object.entries((await this.read()).bindings).map(([key, sessionId]) => {
+      const split = key.indexOf(':');
+      return {
+        provider: split < 0 ? key : key.slice(0, split),
+        chatId: split < 0 ? '' : key.slice(split + 1),
+        sessionId,
+      };
+    });
+  }
+
   async bind(provider, chatId, sessionId) {
     return this.serialize(async () => {
       const state = await this.read();
@@ -68,11 +85,9 @@ export class MessengerStateStore {
   }
 
   async isAllowed(provider, { userId, username } = {}) {
-    const normalized = String(username ?? '').replace(/^@/, '').toLowerCase();
-    return ((await this.read()).allowed[provider] ?? []).some((entry) => (
-      (userId != null && entry.userId === String(userId))
-      || (normalized && String(entry.username ?? '').replace(/^@/, '').toLowerCase() === normalized)
-    ));
+    const id = numericUserId(userId);
+    if (!id) return false;
+    return ((await this.read()).allowed[provider] ?? []).some((entry) => entry.userId === id);
   }
 
   async notePending(provider, { userId, username } = {}) {
@@ -106,14 +121,13 @@ export class MessengerStateStore {
   }
 
   async allow(provider, { userId, username, label } = {}) {
-    if (userId == null && !username) throw new TypeError('messenger sender identity is required');
+    const id = numericUserId(userId);
+    if (!id) throw new TypeError('messenger sender requires a positive numeric user id');
     return this.serialize(async () => {
       const state = await this.read();
       state.allowed[provider] ??= [];
-      const id = userId == null ? null : String(userId);
       const normalized = String(username ?? '').replace(/^@/, '');
-      const match = (entry) => (id && entry.userId === id)
-        || (normalized && String(entry.username ?? '').toLowerCase() === normalized.toLowerCase());
+      const match = (entry) => entry.userId === id;
       state.allowed[provider] = state.allowed[provider].filter((entry) => !match(entry));
       state.allowed[provider].push({
         userId: id, username: normalized || null, label: String(label ?? '').trim() || null,
@@ -128,11 +142,8 @@ export class MessengerStateStore {
   async revoke(provider, identity) {
     return this.serialize(async () => {
       const state = await this.read();
-      const value = String(identity ?? '').replace(/^@/, '').toLowerCase();
-      state.allowed[provider] = (state.allowed[provider] ?? []).filter((entry) => (
-        entry.userId !== String(identity ?? '')
-        && String(entry.username ?? '').replace(/^@/, '').toLowerCase() !== value
-      ));
+      const id = numericUserId(identity);
+      state.allowed[provider] = (state.allowed[provider] ?? []).filter((entry) => entry.userId !== id);
       await this.write(state);
       return structuredClone(state.allowed[provider]);
     });
@@ -179,14 +190,15 @@ export function makeMessengerGateway({
   }
 
   async function sessionFor(message) {
-    const existing = await stateStore.session(message.provider, message.chatId);
+    const scopedChatId = conversationId(message);
+    const existing = await stateStore.session(message.provider, scopedChatId);
     if (existing) return existing;
     const created = await createSession({
-      origin: { provider: message.provider, chatId: message.chatId },
+      origin: { provider: message.provider, chatId: scopedChatId },
     });
     const id = typeof created === 'string' ? created : created?.id;
     if (!id) throw new Error('messenger_session_creation_failed');
-    return stateStore.bind(message.provider, message.chatId, id);
+    return stateStore.bind(message.provider, scopedChatId, id);
   }
 
   async function pollOnce({ provider = 'telegram', signal } = {}) {
@@ -211,11 +223,21 @@ export function makeMessengerGateway({
           }
           accepted += 1;
           const sessionId = await sessionFor(update.message);
-          const reply = await onInbound({ ...update.message, sessionId });
-          const text = typeof reply === 'string' ? reply : reply?.text;
-          if (String(text ?? '').trim()) {
-            await runtime.sendReply({ chatId: update.message.chatId, text, signal });
-            replied += 1;
+          const typing = runtime.startTyping?.({
+            chatId: update.message.chatId, threadId: update.message.threadId,
+          }) ?? { stop() {} };
+          try {
+            const reply = await onInbound({ ...update.message, sessionId });
+            const text = typeof reply === 'string' ? reply : reply?.text;
+            if (String(text ?? '').trim()) {
+              await runtime.sendReply({
+                chatId: update.message.chatId, threadId: update.message.threadId,
+                text, signal,
+              });
+              replied += 1;
+            }
+          } finally {
+            typing.stop();
           }
         } catch (error) {
           log('messenger_inbound_failed', { provider, code: error?.code ?? error?.message ?? 'unknown' });

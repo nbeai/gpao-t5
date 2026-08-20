@@ -29,5 +29,6 @@ test('메신저 설정은 provider capability로 비밀 필드를 만들고 연�
   assert.match(html, /endpointJson\('\/channels\/connect'/u);
   assert.match(html, /endpointJson\('\/channels\/disconnect'/u);
   assert.match(html, /renderPendingSenders/u);
+  assert.match(html, /#mcResult:empty, #msgResult:empty \{ display:none; \}/u);
   assert.match(html, /response\.ok/u);
 });

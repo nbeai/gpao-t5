@@ -4,6 +4,17 @@ import { join } from 'node:path';
 
 function clone(value) { return value == null ? value : structuredClone(value); }
 
+function sessionOrigin(value) {
+  if (value == null) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new TypeError('session origin must be an object');
+  }
+  const channel = String(value.channel ?? '').trim();
+  const chatId = String(value.chatId ?? '').trim();
+  if (!channel || !chatId) throw new TypeError('session origin requires channel and chatId');
+  return { channel, chatId };
+}
+
 export class ConsoleSessionStore {
   constructor(directory) {
     if (!directory) throw new TypeError('console state directory is required');
@@ -37,13 +48,14 @@ export class ConsoleSessionStore {
     return next;
   }
 
-  async create() {
+  async create({ origin = null } = {}) {
     return this.serialize(async () => {
       const state = await this.read();
       const now = Date.now();
       const session = {
         id: randomUUID(), title: '새 대화', manualTitle: false,
         createdAt: now, updatedAt: now, order: state.nextOrder++, transcript: [], pinned: false,
+        origin: sessionOrigin(origin),
       };
       state.sessions.push(session);
       await this.write(state);
@@ -67,6 +79,7 @@ export class ConsoleSessionStore {
         id: session.id, title: session.title, createdAt: session.createdAt, updatedAt: session.updatedAt,
         pinned: Boolean(session.pinned), archivedAt: session.archivedAt ?? null,
         deletedAt: session.deletedAt ?? null, turns: session.transcript.length,
+        origin: clone(session.origin ?? null),
       }));
   }
 
@@ -97,6 +110,20 @@ export class ConsoleSessionStore {
       if (typeof fields.pinned === 'boolean') session.pinned = fields.pinned;
       session.updatedAt = Date.now();
       await this.write(state);
+      return clone(session);
+    });
+  }
+
+  async setOrigin(id, origin) {
+    const normalized = sessionOrigin(origin);
+    return this.serialize(async () => {
+      const state = await this.read();
+      const session = state.sessions.find((candidate) => candidate.id === id);
+      if (!session) return null;
+      if (!session.origin) {
+        session.origin = normalized;
+        await this.write(state);
+      }
       return clone(session);
     });
   }
