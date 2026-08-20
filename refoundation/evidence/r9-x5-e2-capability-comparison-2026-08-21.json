@@ -1,0 +1,50 @@
+{
+  "schema": "t5.gate-evidence.v1",
+  "gate": "R9-X5-E2",
+  "recordedAt": "2026-08-21T01:28:00+09:00",
+  "contract": {
+    "selection": "exact_run_ids_chosen_by_model",
+    "runtimeValidation": ["baseline_does_not_use_capability", "every_candidate_uses_exact_capability", "disjoint_arms", "bounded_20_per_arm"],
+    "facts": ["terminal_status", "duration_distribution", "model_turn_distribution", "tool_calls", "failed_calls", "not_executed_calls"],
+    "notMeasured": ["same_purpose", "answer_correctness", "quality", "user_satisfaction", "winner"],
+    "lifecycleChanges": 0
+  },
+  "actualModelQualification": {
+    "provider": "chatgpt_oauth",
+    "model": "gpt-5.5",
+    "baseline": {
+      "sessionId": "49a181f6-5104-4d0e-9ea9-69fe570de86e",
+      "runId": "061c75a9-bdc1-42e6-bf8b-4d24759cf443",
+      "capabilityUsed": false,
+      "answer": { "count": 0, "total": 0 },
+      "durationMs": 17394,
+      "modelTurns": 4,
+      "toolCalls": 3,
+      "failedToolCalls": 1
+    },
+    "candidate": {
+      "sessionId": "177d4ef1-4c49-486b-97f1-0d7a1952dbea",
+      "runId": "5b4f257a-8f35-4643-95e9-571c2abd6eac",
+      "capability": { "kind": "cli", "id": "jq", "version": "1.8.2" },
+      "answer": { "count": 2, "total": 100000 },
+      "durationMs": 23447,
+      "modelTurns": 5,
+      "toolCalls": 4,
+      "failedToolCalls": 0
+    },
+    "comparison": {
+      "sessionId": "ba4b0201-6fe7-432e-b5dd-f46d1fb517d2",
+      "runId": "0a42721b-9f25-414c-a284-f72c63f0d21b",
+      "toolSequence": ["session_search:search", "session_search:read", "session_search:read", "capability_compare:compare"],
+      "userProvidedRunIds": false,
+      "distinguishedOutcomeAndEfficiency": true,
+      "attributedDifferenceToMethodNotBinaryMagic": true,
+      "lifecycleChanges": 0
+    }
+  },
+  "regression": {
+    "refoundationCheck": { "passed": 397, "failed": 0 },
+    "legacyImports": 0
+  },
+  "unverified": ["repeatability beyond one paired sample", "user satisfaction", "lifecycle recommendation", "promotion or retirement"]
+}

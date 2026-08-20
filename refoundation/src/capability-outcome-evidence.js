@@ -35,6 +35,11 @@ function observations(receipt) {
   return found;
 }
 
+export function capabilityObservationsForRun(run) {
+  return (run?.events ?? []).filter((event) => event.type === 'tool_completed')
+    .flatMap((event) => observations(event.payload?.receipt));
+}
+
 function runFacts(run, receipts, refs) {
   const terminal = terminalPayload(run);
   return {
@@ -54,7 +59,7 @@ export function deriveCapabilityOutcomeEvidence(runs = []) {
   const byKey = new Map();
   for (const run of runs) {
     const receipts = (run.events ?? []).filter((event) => event.type === 'tool_completed').map((event) => event.payload?.receipt).filter(Boolean);
-    const refs = receipts.flatMap(observations);
+    const refs = capabilityObservationsForRun(run);
     const grouped = new Map();
     for (const ref of refs) {
       const key = `${ref.kind}:${ref.id}`; if (!grouped.has(key)) grouped.set(key, []); grouped.get(key).push(ref);

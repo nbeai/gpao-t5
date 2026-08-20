@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `R9-X5-E1 CAPABILITY OUTCOME EVIDENCE — COMPLETE` (사용·결과·비용 사실 결속)
+현재 Gate: `R9-X5-E2 CAPABILITY COMPARISON — COMPLETE` (baseline·후보 사실 비교)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -1480,11 +1480,60 @@ Non-goals:
 - 전체 회귀 394/394, legacy import 0
 - 증거: `refoundation/evidence/r9-x5-e1-capability-outcome-evidence-2026-08-21.json`
 
+## R9-X5-E2 — Capability Comparison
+
+상태: `COMPLETE` — 모델이 같은 사용자 목적의 비교 대상으로 고른 baseline Run과 능력 사용 Run을,
+런타임이 결과를 꾸미지 않고 완료·실패·시간·왕복·도구 호출 사실로 나란히 제공한다.
+
+사용자 완료 문장:
+
+> 사용자가 “새 방법이 예전보다 실제로 나아졌니?”라고 물으면 T5가 비교 가능한 과거 작업을 찾아
+> 결과·시간·실패·수고를 대조한다. 목적이나 자료가 달라 확실히 비교할 수 없으면 그 한계를 먼저 말한다.
+
+이번 Gate의 최소 변경:
+
+- 모델이 고른 exact baseline·candidate Run ID만 비교하고 runtime intent·유사도 규칙은 만들지 않음
+- candidate Run은 요청한 capability id·version 사용 영수증이 있어야 입장
+- baseline Run에 같은 capability가 사용됐으면 baseline으로 받지 않음
+- 각 arm의 sample·terminal status·duration·model turns·tool calls·failed/not-executed calls를 집계
+- 평균 하나로 숨기지 않고 min·median·max와 개별 Run facts를 함께 제공
+- same purpose·answer correctness·quality·user satisfaction·winner는 미측정으로 명시
+- 비교는 read-only이며 개선·교체·비활성·제거 lifecycle 변경 0
+
+Non-goals:
+
+- 자연어 정규식으로 같은 목적 판정, 자동 A/B 사용자 실험, 자동 승자·점수·추천
+- 서로 다른 자료·권한·모델·환경의 차이를 보정했다고 주장
+- Skill 수정·CLI update·능력 비활성·삭제·승격; 이는 E3 경계
+
+완료 Gate:
+
+- candidate에 capability 사용 증거가 없거나 baseline이 같은 capability를 쓰면 비교 거부
+- failed·cancelled·interrupted와 null duration을 성공·0으로 바꾸지 않음
+- 표본 1개와 목적 동일성 미확인을 숨기지 않음
+- 같은 실제 과업의 baseline·candidate가 같은 결과이면 비용 차이만 말하고 품질 우위를 주장하지 않음
+- 실제 일반 사용자 질문에서 모델이 비교 사실과 한계를 함께 답하고 lifecycle 변경 0
+- 기존 X1~X5-E1·전체 기능 회귀 유지
+
+실제 성립한 결과:
+
+- exact Run ID 두 arm만 읽고 baseline의 capability 미사용·candidate의 exact id 사용을 실행 전에 검증
+- completed·failed·cancelled·interrupted·null duration을 보존하고 duration·model turns는 min·median·max 제공
+- 비교 report는 same purpose·correctness·quality·satisfaction·winner 미측정과 lifecycle change 0을 명시
+- 실제 `gpt-5.5` 같은 파일·같은 합계 목적: system jq baseline은 `0건·0`, managed jq 후보는 `2건·100,000`
+- baseline 17.394초·모델 4·tool 3·실패 1, 후보 23.447초·모델 5·tool 4·실패 0
+- 새 Session 자연어 한 번: session search→두 대화 read→exact Run comparison; 내부 Run ID를 사용자가 제공하지 않음
+- 모델은 후보의 사용자 결과가 더 정확하지만 더 느렸고, 원인은 binary 자체가 아니라 schema 확인 방법이라고 구분
+- 비교·답변 Run에서 install·remove·restore·rollback·Skill 수정 등 lifecycle change 0
+- 전체 회귀 397/397, legacy import 0
+- 증거: `refoundation/evidence/r9-x5-e2-capability-comparison-2026-08-21.json`
+
 ## 현재 다음 한 작업
 
 Web Hand W0~W6, Document Data Hand D1, Unified Attachment Hand A1까지 완료되어 1차 완성에 도달했다.
-다음 한 작업은 같은 목적에서 반복 실패·사용자 교정·대체 방법이 관측될 때만 X5-E2 비교 개선 후보를
-여는 것이다. 아직 한 방법의 completed Run만으로 더 낫다거나 폐기 가능하다고 판정하지 않는다. 그 밖의
+다음 한 작업은 X5-E3에서 모델의 비교 결론을 candidate·tested·recommended 상태로 원장에 남기고,
+실제 capability 변경은 별도 현재 권한·복원 경계를 다시 통과하게 만드는 마지막 lifecycle 단계다. 아직
+비교 답만으로 자동 승격·비활성·삭제하지 않는다. 그 밖의
 능력은 기능 목록에서 자동으로 고르지 않는다. 실제 콘솔 사용에서
 사용자 과업이 실패하거나 불편하면 해당 Run·Receipt를 읽고 모델·손·방법·권한·UI 중 공통 원인을 확정한 뒤
 그 한 축만 연다. 실제 사업자 계정이 준비되기 전에는 Naver 실계정 자격을 완료로 주장하지 않는다.

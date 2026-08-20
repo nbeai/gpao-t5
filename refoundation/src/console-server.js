@@ -19,6 +19,7 @@ import { loadSkillSnapshot, makeSkillTool, mergeSkillSnapshots } from './skill-r
 import { ManagedSkillStore, makeSkillAcquisitionTool } from './managed-skill-store.js';
 import { loadCliCatalog, ManagedCliStore, makeCliAcquisitionTool } from './managed-cli-store.js';
 import { makeCapabilityEvidenceTool } from './capability-outcome-evidence.js';
+import { makeCapabilityComparisonTool } from './capability-comparison.js';
 import { loadSkillPolicyCatalog } from './skill-policy-catalog.js';
 import { ConversationLedger } from './conversation-ledger.js';
 import { projectHistoricalConversationEntries } from './conversation-projection.js';
@@ -765,6 +766,7 @@ export function makeConsoleServer({
         }),
       }));
       offeredTools.unshift(makeCapabilityEvidenceTool({ runLedger }));
+      offeredTools.unshift(makeCapabilityComparisonTool({ runLedger }));
       if (capabilitySnapshot.entries.length) {
         offeredTools.unshift(makeCapabilityCatalogTool({
           snapshot: capabilitySnapshot, connectionDoctor,
