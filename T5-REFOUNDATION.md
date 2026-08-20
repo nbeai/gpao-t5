@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `R9-X2 TRUSTED CAPABILITY DISCOVERY — COMPLETE` (미장착 능력 후보와 실제 blocker 발견)
+현재 Gate: `R9-X3 CAPABILITY COORDINATOR BOUNDARY — COMPLETE` (서버와 능력 조율 책임 분리)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -1237,6 +1237,48 @@ Non-goals:
   세 답 모두 official candidate와 T5 제품 준비 blocker를 정확히 설명
 - URL 사례는 실제 주소 관측 1회를 추가했지만 반복 추적 없이 정지; runtime error·거짓 실행 0
 - 증거: `refoundation/evidence/r9-x2-capability-discovery-live-2026-08-20.json`
+
+## R9-X3 — Capability Coordinator Boundary
+
+상태: `COMPLETE` — X1의 사용자 종단은 성립했지만 readiness poll·timeout·다중 Session·resume claim·
+crash 판정·취소 전파·재시작 복원이 `console-server.js`에 집중됐다. X4에서 새 연결을 추가하기 전에
+Capability 조율을 독립 state provider로 분리한다.
+
+사용자 완료 문장:
+
+> 기존 연결 준비·자동 재개·취소·재시작 경험은 그대로 유지되면서, 앞으로 새로운 연결을 추가해도
+> Console Server에 서비스별 상태 조율을 덧붙이지 않는다.
+
+최소 변경:
+
+- `CapabilityHandoffCoordinator`가 poll·timeout·claim·resume·crash·shared cancel·restart recovery 소유
+- `CapabilityHandoffLedger`는 append-only 사실 원장 역할 유지
+- Console Server는 HTTP·SSE·Session surface와 `executeResume` callback 배선만 소유
+- Connection Service는 provider별 inspect·start·await·cancel·tool 생성만 소유
+- 상태 schema·사용자 문구·endpoint·Run metadata·기존 실제 모델 결과는 변경하지 않음
+
+Non-goals:
+
+- 새 Connector·MCP·Skill·CLI, 새 사용자 기능과 설정 화면
+- handoff 원장 migration·schema 변경, agent loop 재작성
+- X1의 권한·crash 의미 완화, 테스트 삭제로 구조 초록 만들기
+
+완료 Gate:
+
+- Console Server에서 watcher·timer·resume state machine 제거를 구조 시험으로 고정
+- X1 원장·OAuth·로컬 준비·timeout·다중 Session·restart·crash ambiguity 전부 동일 통과
+- 실제 `gpt-5.5` X1 원래 목적 자동 재개와 X2 candidate 발견 결과 유지
+- 전체 회귀·legacy import 0
+
+실제 성립한 결과:
+
+- `console-server.js` 2,091→1,861줄; 상태 조율 285줄 제거, callback·배선 55줄만 추가
+- `capability-handoff-coordinator.js` 277줄이 poll·timeout·다중 Session·claim·crash·cancel·recovery 소유
+- `CapabilityHandoffLedger` schema·endpoint·Session surface·Run metadata 변경 0
+- 구조 반대시험이 server 안 watcher·timer·resume state machine 재유입을 차단
+- X1 집중 14/14, 실제 `gpt-5.5` 7/7 유지: Run 2, wake 1, capability read 1, 원래 목적 완료
+- X2 실제 `gpt-5.5` 3표현 유지: official candidate 3/3, blocker 3/3, handoff·거짓 실행 0
+- 증거: `refoundation/evidence/r9-x3-capability-coordinator-boundary-2026-08-20.json`
 
 ## 현재 다음 한 작업
 

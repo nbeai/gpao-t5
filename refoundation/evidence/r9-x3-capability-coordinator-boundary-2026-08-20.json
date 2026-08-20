@@ -1,0 +1,27 @@
+{
+  "schema": "t5.r9-capability-coordinator-boundary.v1",
+  "before": {
+    "revision": "6b8d7051",
+    "consoleServerLines": 2091,
+    "coordinatorModule": false
+  },
+  "after": {
+    "consoleServerLines": 1861,
+    "coordinatorLines": 277,
+    "consoleServerRemovedLines": 285,
+    "consoleServerAddedWiringLines": 55
+  },
+  "ownership": {
+    "coordinator": ["poll", "timeout", "multi_session", "resume_claim", "crash_classification", "shared_cancel", "restart_recovery"],
+    "consoleServer": ["http", "sse", "session_surface", "execute_resume_callback"],
+    "ledger": ["append_only_handoff_facts"],
+    "connectionService": ["inspect", "start", "await", "cancel", "tool_factory"]
+  },
+  "checks": {
+    "structureBoundary": true,
+    "x1FocusedRegression": true,
+    "x1ActualModel": true,
+    "x2ActualModel": true
+  },
+  "passed": true
+}
