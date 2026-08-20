@@ -1,0 +1,41 @@
+{
+  "schema": "t5.social-source-fallback-evidence.v1",
+  "recordedAt": "2026-08-21T03:25:00+09:00",
+  "gate": "U1-G1",
+  "userGoal": "read one exact public social post and distinguish observed content and reactions from unseen coverage",
+  "case": {
+    "platform": "facebook",
+    "caseId": "facebook-business-post-live",
+    "publicLoginState": "not_authenticated"
+  },
+  "currentWebRead": {
+    "state": "blocked",
+    "status": 400,
+    "identityObserved": false,
+    "observed": []
+  },
+  "existingBrowserHand": {
+    "state": "observed",
+    "title": "ZUS Coffee - We're changing our operating hours! Would you... | Facebook",
+    "observed": ["identity", "text", "metrics", "comments"],
+    "facts": {
+      "postText": "operating hours options",
+      "reactions": "1.2천",
+      "commentCount": 759,
+      "shareCount": 13,
+      "visibleCommentsPresent": true
+    },
+    "missing": ["all 759 comments", "complete reply threads", "media pixels", "audio", "frames", "ocr"],
+    "boundary": "snapshot still contained loading statuses; visible comments are a subset"
+  },
+  "decision": {
+    "newFacebookAdapterRequired": false,
+    "smallestChange": "let the model switch once from static observation to the existing Browser Hand and preserve visible-subset coverage",
+    "runtimePlatformRule": false
+  },
+  "verification": {
+    "countertest": "red before console instruction change",
+    "fixtureJourney": "web_read blocked -> browser observed -> answer separates total count from visible comments",
+    "actualConsoleModel": "pending"
+  }
+}

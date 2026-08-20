@@ -48,6 +48,16 @@ test('macOS 환경은 사용자에게 같은 파일명이 분해형일 수 있�
   assert.match(instructions, /visually identical.*different.*code points/i);
 });
 
+test('정확한 공개 페이지의 정적 관측이 막히면 기존 브라우저 손으로 한 번 전환하고 보이는 범위만 사용한다', () => {
+  const instructions = consoleInstructions('/Users/example', {
+    platform: 'darwin', architecture: 'arm64', commandFamily: 'posix', commandProgram: '/bin/zsh',
+  });
+  assert.match(instructions, /exact public page.*blocked.*empty.*browser.*once/i);
+  assert.match(instructions, /visible.*subset.*not.*complete dataset/i);
+  assert.match(instructions, /do not repeat.*same static request/i);
+  assert.doesNotMatch(instructions, /facebook.*special|instagram.*special/i);
+});
+
 test('browser upload 권한은 현재 요청의 완전한 절대경로 토큰에만 결속된다', () => {
   const path = '/Users/example/My Files/report.pdf';
   assert.equal(requestContainsExactPath(`이 파일을 올려줘: ${path}`, path), true);
