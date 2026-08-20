@@ -226,16 +226,27 @@ export function makeMessengerGateway({
           const typing = runtime.startTyping?.({
             chatId: update.message.chatId, threadId: update.message.threadId,
           }) ?? { stop() {} };
+          const progress = runtime.createProgress?.({
+            chatId: update.message.chatId, threadId: update.message.threadId,
+          }) ?? null;
           try {
-            const reply = await onInbound({ ...update.message, sessionId });
+            const reply = await onInbound({ ...update.message, sessionId }, {
+              progress: (text) => progress?.update(text),
+            });
             const text = typeof reply === 'string' ? reply : reply?.text;
             if (String(text ?? '').trim()) {
-              await runtime.sendReply({
-                chatId: update.message.chatId, threadId: update.message.threadId,
-                text, signal,
-              });
+              if (progress) await progress.finalize(text, { signal });
+              else {
+                await runtime.sendReply({
+                  chatId: update.message.chatId, threadId: update.message.threadId,
+                  text, signal,
+                });
+              }
               replied += 1;
             }
+          } catch (error) {
+            await progress?.fail();
+            throw error;
           } finally {
             typing.stop();
           }

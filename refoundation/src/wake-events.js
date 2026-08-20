@@ -19,6 +19,12 @@ function installWakeEvents() {
     notice.addEventListener('click', () => location.reload());
     tray.append(notice);
   });
+  stream.addEventListener('messenger_progress', (event) => {
+    let payload;
+    try { payload = JSON.parse(event.data); } catch { return; }
+    if (!payload?.sessionId || !payload?.text) return;
+    dispatchEvent(new CustomEvent('t5:messenger-progress', { detail: payload }));
+  });
   addEventListener('beforeunload', () => stream.close(), { once: true });
 }
 

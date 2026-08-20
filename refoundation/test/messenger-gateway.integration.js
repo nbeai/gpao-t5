@@ -44,6 +44,12 @@ async function telegramFixture() {
       response.end(JSON.stringify({ ok: true, result: { message_id: 900, chat: { id: body.chat_id }, text: body.text } }));
       return;
     }
+    if (method === 'editMessageText') {
+      response.end(JSON.stringify({ ok: true, result: {
+        message_id: body.message_id, chat: { id: body.chat_id }, text: body.text,
+      } }));
+      return;
+    }
     if (method === 'sendChatAction') {
       response.end(JSON.stringify({ ok: true, result: true }));
       return;
@@ -132,7 +138,7 @@ test('텔레그램 long polling은 inbound→같은 chat session→outbound repl
     assert.deepEqual(await first.pollOnce(), { received: 1, accepted: 1, replied: 1, offset: 11 });
     assert.equal(inbound[0].sessionId, 'session-1');
     const sent = fixture.calls.find((call) => call.method === 'sendMessage');
-    assert.deepEqual(sent.body, { chat_id: '555', text: '답: 안녕' });
+    assert.deepEqual(sent.body, { chat_id: '555', text: '답: 안녕', parse_mode: 'HTML' });
     assert.ok(fixture.calls.findIndex((call) => call.method === 'sendChatAction')
       < fixture.calls.findIndex((call) => call.method === 'sendMessage'));
 
@@ -150,6 +156,40 @@ test('텔레그램 long polling은 inbound→같은 chat session→outbound repl
     fixture.updates.push({ update_id: 13, message: { sticker: {}, chat: { id: 555, type: 'private' } } });
     assert.deepEqual(await restarted.pollOnce(), { received: 0, accepted: 0, replied: 0, offset: 14 });
     assert.equal((await stat(state.file)).mode & 0o777, 0o600);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('Telegram 진행 말풍선 하나를 상태로 수정하고 최종 Markdown을 HTML 답변으로 바꾸어 남긴다', async () => {
+  const fixture = await telegramFixture();
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-progress-'));
+  const gateway = makeMessengerGateway({
+    credentialStore: new MessengerCredentialStore(room),
+    stateStore: new MessengerStateStore(room),
+    providerFactory: ({ token }) => makeTelegramMessengerProvider({
+      token, apiBase: fixture.base, pollTimeoutSeconds: 0, typingIntervalMs: 10,
+    }),
+    createSession: async () => 'progress-session', authorizeInbound: async () => true,
+    onInbound: async (_message, { progress }) => {
+      await progress('판단하고 있어요');
+      await progress('웹에서 후보를 찾고 있어요');
+      return '서울은 **흐림**이고 `24°C`예요.';
+    },
+  });
+  try {
+    await gateway.connect({ provider: 'telegram', token: TOKEN });
+    fixture.updates.push(update(35, { text: '날씨' }));
+    assert.equal((await gateway.pollOnce()).replied, 1);
+    const sent = fixture.calls.filter((call) => call.method === 'sendMessage');
+    const edits = fixture.calls.filter((call) => call.method === 'editMessageText');
+    assert.equal(sent.length, 1, '진행 말풍선은 하나만 생성한다');
+    assert.equal(sent[0].body.text, '판단하고 있어요…');
+    assert.equal(edits[0].body.text, '웹에서 후보를 찾고 있어요…');
+    assert.match(edits.at(-1).body.text, /<b>흐림<\/b>/u);
+    assert.match(edits.at(-1).body.text, /<code>24°C<\/code>/u);
+    assert.doesNotMatch(edits.at(-1).body.text, /\*\*/u);
+    assert.equal(edits.at(-1).body.parse_mode, 'HTML');
   } finally {
     await fixture.close();
   }

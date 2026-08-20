@@ -46,6 +46,18 @@ const repositoryRoot = resolve(here, '..', '..');
 const legacyUiRoot = resolve(repositoryRoot, 'src', 'surface', 'web');
 const bundledSkillsRoot = resolve(repositoryRoot, 'refoundation', 'skills');
 const bundledDocumentCli = resolve(repositoryRoot, 'refoundation', 'bin', 't5-document.mjs');
+const SAFE_PROGRESS_TEXT = new Set([
+  '판단하고 있어요', '브라우저 화면을 관측하고 있어요', '첨부 파일을 확인하고 있어요',
+  '웹에서 후보를 찾고 있어요', '선택한 페이지를 읽고 있어요', '필요한 방법을 확인하고 있어요',
+  '이전 결과를 다시 확인하고 있어요', '기억을 확인하고 있어요', '이전 대화를 찾고 있어요',
+  '터미널을 사용하고 있어요', '웹 관측 결과를 확인하고 있어요',
+  '첨부 파일 결과를 확인하고 있어요', '터미널 결과를 확인하고 있어요',
+]);
+
+function safeProgressText(value) {
+  const text = String(value ?? '');
+  return SAFE_PROGRESS_TEXT.has(text) ? text : '작업하고 있어요';
+}
 
 function attachmentSurface(record) {
   return {
@@ -737,19 +749,38 @@ export function makeConsoleServer({
       if (!allowed) await messengerState.notePending(message.provider, message);
       return allowed;
     },
-    onInbound: async (message) => {
-      const completed = await executeTurn(message.sessionId, message.text, () => {}, {
-        trigger: 'messenger',
-        metadata: {
-          provider: message.provider, chatId: message.chatId,
-          userId: message.userId, username: message.username,
-        },
-        inputEntry: {
-          role: 'user', text: message.text, channel: message.provider,
-          channelMeta: { chatId: message.chatId, userId: message.userId, username: message.username },
-        },
-      });
-      return completed.surfaceResult?.reply ?? completed.result?.answer ?? null;
+    onInbound: async (message, { progress } = {}) => {
+      const notify = (type, payload) => {
+        if (!['trace_status', 'tool_progress'].includes(type)) return;
+        const text = safeProgressText(payload?.text);
+        progress?.(text);
+        broadcastEvent('messenger_progress', { sessionId: message.sessionId, text, done: false });
+      };
+      try {
+        const completed = await executeTurn(message.sessionId, message.text, notify, {
+          trigger: 'messenger',
+          metadata: {
+            provider: message.provider, chatId: message.chatId, threadId: message.threadId,
+            userId: message.userId, username: message.username,
+          },
+          inputEntry: {
+            role: 'user', text: message.text, channel: message.provider,
+            channelMeta: {
+              chatId: message.chatId, threadId: message.threadId,
+              userId: message.userId, username: message.username,
+            },
+          },
+        });
+        broadcastEvent('messenger_progress', {
+          sessionId: message.sessionId, text: '답변을 준비했어요', done: true,
+        });
+        return completed.surfaceResult?.reply ?? completed.result?.answer ?? null;
+      } catch (error) {
+        broadcastEvent('messenger_progress', {
+          sessionId: message.sessionId, text: '작업을 완료하지 못했어요', done: true,
+        });
+        throw error;
+      }
     },
     log: (...values) => onError?.(new Error(values.map(String).join(' '))),
   });
@@ -766,11 +797,13 @@ export function makeConsoleServer({
     }
   });
 
-  function broadcastWake(payload) {
+  function broadcastEvent(type, payload) {
     for (const response of wakeSubscribers) {
-      response.write(`event: managed_process_wake\ndata: ${JSON.stringify(payload)}\n\n`);
+      response.write(`event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`);
     }
   }
+
+  function broadcastWake(payload) { broadcastEvent('managed_process_wake', payload); }
 
   async function attemptProcessWake(event) {
     if (running.has(event.ownerId)) {

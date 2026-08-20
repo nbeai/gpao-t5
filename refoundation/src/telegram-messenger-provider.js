@@ -17,6 +17,39 @@ export function splitTelegramText(value, limit = TELEGRAM_TEXT_LIMIT) {
   return chunks;
 }
 
+const escapeHtml = (text) => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+export function telegramMarkdownToHtml(value) {
+  const parts = String(value ?? '').split(/```(?:[a-zA-Z0-9_-]*\n)?/u);
+  return parts.map((part, index) => {
+    if (index % 2 === 1) return `<pre>${escapeHtml(part.replace(/\n$/u, ''))}</pre>`;
+    return part.split('\n').map((sourceLine) => {
+      let line = sourceLine;
+      const heading = line.match(/^\s{0,3}#{1,6}\s+(.*)$/u);
+      if (heading) line = `**${heading[1]}**`;
+      line = line.replace(/^(\s*)[-*•]\s+/u, '$1· ');
+      let text = escapeHtml(line);
+      text = text.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/gu, '<a href="$2">$1</a>');
+      text = text.replace(/`([^`]+)`/gu, '<code>$1</code>');
+      text = text.replace(/\*\*([^*]+)\*\*/gu, '<b>$1</b>');
+      text = text.replace(/(^|[^*])\*([^*\n]+)\*(?=[^*]|$)/gu, '$1<i>$2</i>');
+      return text;
+    }).join('\n');
+  }).join('').trim();
+}
+
+export function stripMarkdownForTelegram(value) {
+  return String(value ?? '')
+    .replace(/```(?:[a-zA-Z0-9_-]*\n)?/gu, '')
+    .replace(/^\s{0,3}#{1,6}\s+/gmu, '')
+    .replace(/^(\s*)[-*•]\s+/gmu, '$1· ')
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/gu, '$1 ($2)')
+    .replace(/`([^`]+)`/gu, '$1')
+    .replace(/\*\*([^*]+)\*\*/gu, '$1')
+    .replace(/(^|[^*])\*([^*\n]+)\*(?=[^*]|$)/gu, '$1$2')
+    .trim();
+}
+
 export class TelegramMessengerError extends Error {
   constructor(code, { status = null, retriable = false } = {}) {
     super(code);
@@ -158,6 +191,77 @@ export function makeTelegramMessengerProvider({
       };
     },
 
+    createProgress({ chatId, threadId } = {}) {
+      let messageId = null;
+      let lastText = null;
+      let stopped = false;
+      let queue = Promise.resolve();
+      const thread = threadId != null && String(threadId) !== '1'
+        ? { message_thread_id: Number(threadId) } : {};
+      const update = (value) => {
+        const text = String(value ?? '').trim();
+        if (!text || text === lastText || stopped) return queue;
+        lastText = text;
+        queue = queue.then(async () => {
+          try {
+            if (messageId == null) {
+              const result = await call('sendMessage', {
+                chat_id: String(chatId), text: `${text}…`, ...thread,
+              }, undefined, 8_000);
+              messageId = result?.message_id == null ? null : String(result.message_id);
+            } else {
+              await call('editMessageText', {
+                chat_id: String(chatId), message_id: Number(messageId), text: `${text}…`, ...thread,
+              }, undefined, 8_000);
+            }
+          } catch { /* 진행 표시 실패가 본 답을 막지 않는다 */ }
+        });
+        return queue;
+      };
+      const formattedCall = async (method, base, source) => {
+        try {
+          return await call(method, {
+            ...base, text: telegramMarkdownToHtml(source), parse_mode: 'HTML', ...thread,
+          });
+        } catch (error) {
+          if (error?.status !== 400) throw error;
+          return call(method, { ...base, text: stripMarkdownForTelegram(source), ...thread });
+        }
+      };
+      return {
+        update,
+        async finalize(value, { signal } = {}) {
+          const chunks = splitTelegramText(value);
+          if (!chunks.length) { stopped = true; return { sent: false, messageIds: [] }; }
+          await queue;
+          const messageIds = [];
+          if (messageId != null) {
+            const edited = await formattedCall('editMessageText', {
+              chat_id: String(chatId), message_id: Number(messageId),
+            }, chunks.shift());
+            messageIds.push(String(edited?.message_id ?? messageId));
+          }
+          for (const chunk of chunks) {
+            const sent = await formattedCall('sendMessage', { chat_id: String(chatId) }, chunk, signal);
+            if (sent?.message_id != null) messageIds.push(String(sent.message_id));
+          }
+          stopped = true;
+          return { sent: true, provider: 'telegram', chatId: String(chatId), messageIds };
+        },
+        async fail(text = '작업을 완료하지 못했어요.') {
+          await queue;
+          if (messageId != null) {
+            try {
+              await call('editMessageText', {
+                chat_id: String(chatId), message_id: Number(messageId), text, ...thread,
+              }, undefined, 8_000);
+            } catch { /* 실패 안내도 best effort */ }
+          }
+          stopped = true;
+        },
+      };
+    },
+
     async sendReply({ chatId, threadId, text, signal } = {}) {
       if (!chatId) throw new TypeError('telegram reply chat is required');
       if (!String(text ?? '').trim()) throw new TypeError('telegram reply text is required');
@@ -166,11 +270,21 @@ export function makeTelegramMessengerProvider({
       for (const chunk of chunks) {
         let result;
         try {
-          result = await call('sendMessage', {
-            chat_id: String(chatId), text: chunk,
+          const base = {
+            chat_id: String(chatId),
             ...(threadId != null && String(threadId) !== '1'
               ? { message_thread_id: Number(threadId) } : {}),
-          }, signal);
+          };
+          try {
+            result = await call('sendMessage', {
+              ...base, text: telegramMarkdownToHtml(chunk), parse_mode: 'HTML',
+            }, signal);
+          } catch (formatError) {
+            if (formatError?.status !== 400) throw formatError;
+            result = await call('sendMessage', {
+              ...base, text: stripMarkdownForTelegram(chunk),
+            }, signal);
+          }
         } catch (error) {
           error.deliveryState = messageIds.length ? 'partial' : 'not_confirmed';
           error.deliveredMessageIds = [...messageIds];
