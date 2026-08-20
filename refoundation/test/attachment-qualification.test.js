@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   ATTACHMENT_QUALIFICATION_TURNS, assessAttachmentQualification,
 } from '../src/attachment-qualification.js';
+import { DOCUMENT_DATA_TURNS } from '../src/document-data-qualification.js';
 
 function passingInput() {
   const inputIds = ['img-1', 'xlsx-1', 'pdf-1', 'note-1'];
@@ -47,6 +48,21 @@ test('A1은 첨부→이해→결과 다운로드→재시작을 잇는 인간�
   for (const turn of ATTACHMENT_QUALIFICATION_TURNS) {
     assert.doesNotMatch(turn.prompt('/tmp/source', '/tmp/output.xlsx'), /attachmentId|ToolReceipt|storedPath/);
   }
+});
+
+test('A1 문서 생성·재검산 handoff는 이미 선 D1 사용자 방법을 그대로 보존한다', () => {
+  const output = '/tmp/output.xlsx';
+  const documentCreate = DOCUMENT_DATA_TURNS.find((turn) => turn.id === 'create-combined-workbook')
+    .prompt('/tmp/sources', output);
+  const documentReconcile = DOCUMENT_DATA_TURNS.find((turn) => turn.id === 'reopen-and-reconcile')
+    .prompt('/tmp/sources', output);
+  const attachmentCreate = ATTACHMENT_QUALIFICATION_TURNS
+    .find((turn) => turn.id === 'create-downloadable-result').prompt('/tmp/sources', output);
+  const attachmentReconcile = ATTACHMENT_QUALIFICATION_TURNS
+    .find((turn) => turn.id === 'restart-continuity').prompt('/tmp/sources', output);
+
+  assert.ok(attachmentCreate.includes(documentCreate));
+  assert.ok(attachmentReconcile.includes(documentReconcile));
 });
 
 test('A1 판정은 원본·Run 연결·문서 진실·다운로드 hash·재시작의 논리곱이다', () => {

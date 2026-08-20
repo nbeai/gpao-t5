@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-import { mkdir } from 'node:fs/promises';
+import { chmod, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -25,6 +25,8 @@ const workspace = resolveConsoleWorkspace(process.env, homedir());
 const computerEnvironment = discoverComputerEnvironment({ userHome: homedir() });
 const connectionFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
+const portFile = process.env.T5_REFOUNDATION_PORT_FILE
+  ? resolve(process.env.T5_REFOUNDATION_PORT_FILE) : null;
 await Promise.all([mkdir(stateDir, { recursive: true }), mkdir(workspace, { recursive: true })]);
 
 const access = makeConsoleModelAccess({ connectionFile, stateDir });
@@ -49,6 +51,15 @@ await new Promise((resolveListen, reject) => {
   server.listen(port, '127.0.0.1', resolveListen);
 });
 const url = `http://127.0.0.1:${server.address().port}`;
+if (portFile) {
+  await mkdir(resolve(portFile, '..'), { recursive: true, mode: 0o700 });
+  const temporary = `${portFile}.${process.pid}.tmp`;
+  await writeFile(temporary, `${JSON.stringify({ port: server.address().port, pid: process.pid })}\n`, {
+    encoding: 'utf8', mode: 0o600,
+  });
+  await chmod(temporary, 0o600);
+  await rename(temporary, portFile);
+}
 console.log(`T5 재창립 콘솔 준비됨 → ${url}`);
 console.log(`작업 공간 → ${workspace}`);
 
@@ -61,7 +72,10 @@ const stop = async () => {
   server.closeWakeStreams();
   await server.closeBrowsers();
   await server.managedProcesses.stopAll('runtime_shutdown');
-  server.close(() => process.exit(0));
+  server.close(async () => {
+    if (portFile) await rm(portFile, { force: true }).catch(() => {});
+    process.exit(0);
+  });
 };
 process.once('SIGINT', stop);
 process.once('SIGTERM', stop);

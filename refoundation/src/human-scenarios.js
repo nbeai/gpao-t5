@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { chmod, mkdir, readFile, readdir, stat, utimes, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, readdir, realpath, stat, utimes, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 
 export const HUMAN_SCENARIOS = Object.freeze([
@@ -89,7 +90,7 @@ async function materializeFiles(home) {
   return { folder, originals: Object.keys(files) };
 }
 
-async function materializePersonal(home, room) {
+async function materializePersonal(home, room, { protectedHomes = [homedir()] } = {}) {
   const bin = join(room, 'fake-bin');
   const state = join(home, '.fake-notification-state');
   await mkdir(bin, { recursive: true });
@@ -97,10 +98,16 @@ async function materializePersonal(home, room) {
   await writeFile(launchctl, [
     '#!/bin/sh',
     'case "$1" in',
-    `  bootstrap) printf 'loaded\\n' > '${state}'; exit 0 ;;`,
-    `  bootout) rm -f '${state}'; exit 0 ;;`,
+    `  bootstrap) printf '%s\\n' "$3" > '${state}'; exit 0 ;;`,
+    `  load) printf '%s\\n' "$2" > '${state}'; exit 0 ;;`,
+    `  bootout|unload) rm -f '${state}'; exit 0 ;;`,
     '  enable) exit 0 ;;',
-    `  print) if [ -e '${state}' ]; then printf 'state = waiting\\n'; exit 0; else printf 'service not found\\n' >&2; exit 3; fi ;;`,
+    `  list) if [ -e '${state}' ]; then basename "$(cat '${state}')" .plist; fi; exit 0 ;;`,
+    '  print) case "$2" in',
+    `    gui/*/*) if [ -e '${state}' ]; then printf 'state = waiting\\n'; exit 0; else printf 'service not found\\n' >&2; exit 3; fi ;;`,
+    `    gui/*) printf 'domain = gui\\n'; exit 0 ;;`,
+    `    *) if [ -e '${state}' ]; then printf 'state = waiting\\n'; exit 0; else printf 'service not found\\n' >&2; exit 3; fi ;;`,
+    '  esac ;;',
     '  *) exit 0 ;;',
     'esac',
   ].join('\n'), 'utf8');
@@ -111,26 +118,67 @@ async function materializePersonal(home, room) {
   const crontab = join(bin, 'crontab');
   await writeFile(crontab, '#!/bin/sh\nexit 0\n', 'utf8');
   await chmod(crontab, 0o755);
+  const dscl = join(bin, 'dscl');
+  await writeFile(dscl, [
+    '#!/bin/sh',
+    'case "$*" in',
+    '  *NFSHomeDirectory*) printf "NFSHomeDirectory: %s\\n" "$T5_SCENARIO_HOME" ;;',
+    '  *) printf "fixture directory service has no such record\\n" >&2; exit 1 ;;',
+    'esac',
+  ].join('\n'), 'utf8');
+  await chmod(dscl, 0o755);
+  const id = join(bin, 'id');
+  await writeFile(id, [
+    '#!/bin/sh',
+    'case "${1:-}" in',
+    '  -u) printf "%s\\n" "$T5_SCENARIO_UID" ;;',
+    '  -un|-nu) printf "t5-fixture\\n" ;;',
+    '  *) printf "uid=%s(t5-fixture) gid=%s(t5-fixture)\\n" "$T5_SCENARIO_UID" "$T5_SCENARIO_GID" ;;',
+    'esac',
+  ].join('\n'), 'utf8');
+  await chmod(id, 0o755);
+  for (const name of ['whoami', 'logname']) {
+    const identity = join(bin, name);
+    await writeFile(identity, '#!/bin/sh\nprintf "t5-fixture\\n"\n', 'utf8');
+    await chmod(identity, 0o755);
+  }
+  const blockedHomes = [...new Set(protectedHomes
+    .filter((path) => typeof path === 'string' && path && path !== home))];
+  const canonicalRoom = await realpath(room);
+  const sandboxProfile = join(room, 'personal-fixture.sb');
+  await writeFile(sandboxProfile, [
+    '(version 1)',
+    '(allow default)',
+    '(deny file-write*)',
+    `(allow file-write* (subpath ${JSON.stringify(canonicalRoom)}) (literal "/dev/null"))`,
+    ...blockedHomes.map((path) => `(deny file-read* (subpath ${JSON.stringify(path)}))`),
+  ].join('\n'), 'utf8');
+  const scenarioTmp = join(room, 'tmp');
+  await mkdir(scenarioTmp, { recursive: true });
   const wrapper = join(room, 'safe-shell');
   const js = [
     '#!/usr/bin/env node',
-    "const {spawnSync}=require('node:child_process');",
+    "const {existsSync}=require('node:fs'); const {spawnSync}=require('node:child_process');",
     `const bin=${JSON.stringify(bin)};`,
+    `const scenarioHome=${JSON.stringify(home)};`,
+    `const scenarioTmp=${JSON.stringify(scenarioTmp)};`,
+    `const sandboxProfile=${JSON.stringify(sandboxProfile)};`,
     "const args=process.argv.slice(2); let command=String(args.at(-1)||''); args[0]='-c';",
-    "for (const name of ['launchctl','osascript','crontab']) {",
-    "  for (const prefix of ['/bin/','/usr/bin/','/usr/sbin/']) command=command.replaceAll(prefix+name, bin+'/'+name);",
+    "for (const name of ['launchctl','osascript','crontab','dscl','id','whoami','logname']) {",
+    "  for (const prefix of ['/usr/sbin/','/usr/bin/','/bin/']) command=command.replaceAll(prefix+name, bin+'/'+name);",
     "  command=command.replace(new RegExp('(?<![\\\\w/.-])'+name+'(?=\\\\s|$)','g'), bin+'/'+name);",
     "}",
-    "args[args.length-1]=command; const out=spawnSync('/bin/zsh',args,{stdio:'inherit',env:{...process.env,PATH:bin+':'+process.env.PATH}}); process.exit(out.status??1);",
+    "if (process.platform!=='darwin'||!existsSync('/usr/bin/sandbox-exec')) { process.stderr.write('T5_SCENARIO_KERNEL_SANDBOX_REQUIRED\\n'); process.exit(125); }",
+    "args[args.length-1]=command; const env={...process.env,HOME:scenarioHome,USER:'t5-fixture',LOGNAME:'t5-fixture',TMPDIR:scenarioTmp,T5_SCENARIO_HOME:scenarioHome,T5_SCENARIO_UID:String(process.getuid?.()??501),T5_SCENARIO_GID:String(process.getgid?.()??20),PATH:bin+':'+process.env.PATH}; const out=spawnSync('/usr/bin/sandbox-exec',['-f',sandboxProfile,'/bin/zsh',...args],{stdio:'inherit',env}); process.exit(out.status??1);",
   ].join('\n');
   await writeFile(wrapper, js, 'utf8');
   await chmod(wrapper, 0o755);
   return { bin, state, shellProgram: wrapper };
 }
 
-export async function materializeHumanScenario(definition, home, room) {
+export async function materializeHumanScenario(definition, home, room, options = {}) {
   if (definition.kind === 'files') return materializeFiles(home);
-  if (definition.kind === 'personal') return materializePersonal(home, room);
+  if (definition.kind === 'personal') return materializePersonal(home, room, options);
   return {};
 }
 
@@ -218,8 +266,11 @@ export function assessHumanScenario({ definition, turns, fixture, observations }
       reminderCancelled: !observations[7].notificationConfigured,
       recalledCancelledWork: /알림|스트레칭/u.test(answer(10)) && /취소|없/u.test(answer(10)),
       didNotRecreate: !observations.at(-1).notificationConfigured,
-      keptOnlyUsefulMemory: finalMemory.some((item) => /커피|샷/u.test(item.content))
-        && !finalMemory.some((item) => /알림|LaunchAgent|스트레칭/u.test(item.content)),
+      keptOnlyUsefulMemory: finalMemory.some((item) => (
+        /커피|샷|coffee|espresso|extra\s+shot/iu.test(item.content)
+      )) && !finalMemory.some((item) => (
+        /알림|LaunchAgent|스트레칭|reminder|notification|stretch/iu.test(item.content)
+      )),
       finalPreferenceOnly: /샷/u.test(answer(11)) && !/LaunchAgent|plist|session_search/u.test(answer(11)),
     };
   }

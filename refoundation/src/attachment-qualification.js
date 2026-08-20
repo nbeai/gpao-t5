@@ -1,3 +1,9 @@
+import { DOCUMENT_DATA_TURNS } from './document-data-qualification.js';
+
+function documentPrompt(id, sourceDirectory, outputPath) {
+  return DOCUMENT_DATA_TURNS.find((turn) => turn.id === id).prompt(sourceDirectory, outputPath);
+}
+
 export const ATTACHMENT_QUALIFICATION_TURNS = Object.freeze([
   {
     id: 'image-attachment', attachmentGroup: 'image',
@@ -13,11 +19,18 @@ export const ATTACHMENT_QUALIFICATION_TURNS = Object.freeze([
   },
   {
     id: 'create-downloadable-result',
-    prompt: (_sourceDirectory, outputPath) => `좋아. 원본은 수정하지 말고 ${outputPath}에 통합내역·고객별요약 시트가 있는 새 XLSX를 만들어줘. 각 행에 파일·시트·셀 또는 PDF 페이지 출처를 남기고 합계는 수식과 결과를 함께 넣어. 고객 미확인 배송비까지 포함한 전체 5건·68,300원의 전체 합계 수식과 결과도 반드시 넣어. 다시 열어 검산한 뒤 내가 이 콘솔에서 바로 다운로드할 수 있게 준비해줘.`,
+    prompt: (sourceDirectory, outputPath) => [
+      documentPrompt('create-combined-workbook', sourceDirectory, outputPath),
+      '고객별요약에는 고객별 항목 수·수량·금액을 넣고, 고객 미확인 배송비까지 포함한 전체 5건·68,300원의 전체 합계 수식과 결과도 반드시 남겨줘.',
+      '만든 파일은 내가 이 콘솔에서 바로 다운로드할 수 있게 준비해줘.',
+    ].join(' '),
   },
   {
     id: 'restart-continuity', restartBefore: true,
-    prompt: () => '콘솔이 재시작됐어. 앞서 받은 원본 첨부들과 만든 결과 파일이 이어지는지 확인하고, 결과 XLSX의 항목 수·합계·미확인 행을 다시 확인해줘.',
+    prompt: (sourceDirectory, outputPath) => [
+      '콘솔이 재시작됐어. 앞서 받은 원본 첨부들과 만든 결과 파일이 이어지는지 먼저 확인해줘.',
+      documentPrompt('reopen-and-reconcile', sourceDirectory, outputPath),
+    ].join(' '),
   },
   {
     id: 'final-summary',

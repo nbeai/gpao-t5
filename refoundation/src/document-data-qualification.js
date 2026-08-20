@@ -281,10 +281,12 @@ export function assessDocumentDataQualification({
       && detailRows.filter((row) => firstValue(row, ['고객']) === '새봄상사').length === 1,
     unownedFeePreserved: Boolean(unidentified)
       && /배송비|Delivery Fee/i.test(String(firstValue(unidentified, ['품목']) ?? ''))
-      && /확인\s*필요|미확인/.test(String(firstValue(unidentified, ['검토상태', '확인상태', '통합상태', '상태']) ?? '')),
+      && /확인\s*필요|미확인|공란[\s\S]*(?:귀속|배정|연결|붙이)[\s\S]*(?:않|안|보류)/.test(
+        String(firstValue(unidentified, ['검토상태', '확인상태', '통합상태', '상태']) ?? ''),
+      ),
     rowSourcesTraceable: sourceTexts.filter((value) => (
       /\.xlsx.*(?:![A-Z]+\d+|[A-Z]+\d+:[A-Z]+\d+)/i.test(value)
-      || /\.pdf.*(?:page\s*1|p\.?\s*1)/i.test(value)
+      || /\.pdf.*(?:page\s*1|페이지\s*1|1\s*페이지|p\.?\s*1)/i.test(value)
     )).length === 5,
     exactDetailTotal: detailAmounts.every((value) => value != null)
       && detailAmounts.reduce((sum, value) => sum + value, 0) === 68_300,

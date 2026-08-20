@@ -55,6 +55,8 @@
     "refoundation:qualify:document-data": "node refoundation/scripts/run-document-data-qualification.mjs",
     "refoundation:qualify:attachments": "node refoundation/scripts/run-attachment-qualification.mjs",
     "refoundation:qualify:restart-hygiene": "node refoundation/scripts/run-incomplete-tool-restart-qualification.mjs",
+    "refoundation:package:macos": "node refoundation/scripts/build-macos-installer.mjs",
+    "refoundation:verify:macos": "node refoundation/scripts/verify-macos-installer.mjs",
     "gate": "node scripts/gate.mjs",
     "live:charter": "node scripts/live/charter.mjs",
     "audit:docs": "node scripts/audit-docs.mjs",

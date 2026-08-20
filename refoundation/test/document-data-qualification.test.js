@@ -120,6 +120,26 @@ test('공백 없는 유효한 업무 헤더와 고객 미확인 표현도 같은
   assert.equal(assessDocumentDataQualification(input).passed, true);
 });
 
+test('고객 공란을 임의 귀속하지 않았다는 검토 상태도 미확인 보존으로 판정한다', () => {
+  const input = passingInput();
+  const detail = input.outputObservation.workbook.sheets[0].cells;
+  detail.find((cell) => cell.address === 'H6').value = '고객 공란: 임의 귀속하지 않음';
+  detail.find((cell) => cell.address === 'H6').text = '고객 공란: 임의 귀속하지 않음';
+  assert.equal(assessDocumentDataQualification(input).passed, true);
+});
+
+test('PDF 출처의 한국어 페이지 표현도 추적 가능한 원본 위치로 판정한다', () => {
+  for (const page of ['페이지 1', '1페이지']) {
+    const input = passingInput();
+    const detail = input.outputObservation.workbook.sheets[0].cells;
+    for (const address of ['G5', 'G6']) {
+      detail.find((cell) => cell.address === address).value = `b.pdf / ${page}`;
+      detail.find((cell) => cell.address === address).text = `b.pdf / ${page}`;
+    }
+    assert.equal(assessDocumentDataQualification(input).passed, true, page);
+  }
+});
+
 test('그럴듯한 답만 있어도 누락·억지 귀속·틀린 합계·미검산·원본 변경은 실패다', () => {
   for (const mutate of [
     (input) => { input.turns[0].receipts = []; },
