@@ -1,0 +1,64 @@
+{
+  "schema": "t5.video-text-baseline-evidence.v1",
+  "recordedAt": "2026-08-21T04:20:00+09:00",
+  "gate": "U1-G2",
+  "userGoal": "distinguish actual public video captions from page text and from unobserved audio or frames",
+  "baseline": {
+    "platform": "youtube",
+    "cases": 6,
+    "manualCaptionLive": 2,
+    "automaticCaptionAvailable": 2,
+    "captionAbsentLive": 1,
+    "urlFixtures": ["youtu.be", "youtube.com/shorts"],
+    "notContentBoundary": "channel",
+    "representativeOfUsers": false,
+    "ready": true
+  },
+  "currentT5": {
+    "installedCandidates": {"yt-dlp":false,"ffmpeg":false,"whisper":false},
+    "webRead": {
+      "captionPresentVideo": {"identity":true,"pageText":"partial_dynamic","captionTrack":false,"captionText":false},
+      "rawPageFact": "captionTracks and transcript endpoint existed but current projection did not expose them"
+    },
+    "browserHand": {
+      "captionPresentVideosMeasured": 3,
+      "reportedCaptionUnavailable": 3,
+      "captionTextObserved": 0,
+      "conclusion": "browser player surface cannot establish public caption availability in this environment"
+    }
+  },
+  "candidate": {
+    "id": "yt-dlp",
+    "version": "2026.08.19",
+    "officialRelease": "https://github.com/yt-dlp/yt-dlp/releases/tag/2026.08.19",
+    "macosAsset": {
+      "name": "yt-dlp_macos",
+      "bytes": 37146048,
+      "sha256": "0f192b7ec147ab6288885d6351d9ab67367640029b4377576ef46dd79cf7b202"
+    },
+    "captionTracks": {
+      "M7lc1UVf-VE": {"manualLanguages":1,"automaticLanguages":157,"manualEnglish":true,"automaticKorean":true},
+      "qp0HIF3SfI4": {"manualLanguages":49,"automaticLanguages":49,"manualEnglish":true,"automaticKorean":true},
+      "aqz-KE-bpKQ": {"state":"absent"}
+    },
+    "subtitleOnlyResult": {
+      "M7lc1UVf-VE": {"format":"json3","bytes":65976,"events":466,"mediaDownloaded":false},
+      "aqz-KE-bpKQ": {"files":0,"reportedAbsent":true,"mediaDownloaded":false}
+    },
+    "warning": "yt-dlp reported that future complete extraction may require a supported JavaScript runtime; current caption-only measurements succeeded without one"
+  },
+  "decision": {
+    "newCapabilityNeeded": true,
+    "chosenCandidate": "managed yt-dlp subtitle-only path",
+    "notYetInstalled": true,
+    "requiredBeforeActivation": [
+      "trusted platform asset size and SHA-256",
+      "no user config or cookies",
+      "skip media download",
+      "bounded managed subtitle output",
+      "manual before automatic when the requested language permits",
+      "caption absence remains missing, never inferred audio"
+    ],
+    "deferred": ["FFmpeg","STT","OCR","frame extraction","other social video platforms"]
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "schema": "t5.video-text-baseline.v1",
+  "platform": "youtube",
+  "scope": {
+    "purpose": "video_identity_and_caption_truth",
+    "representativeOfUsers": false,
+    "analysisTargetsComeFrom": "current_user_business_taste_goal_and_request"
+  },
+  "cases": [
+    {
+      "caseId": "youtube-manual-caption-live",
+      "referenceType": "live_reference",
+      "inputUrl": "https://www.youtube.com/watch?v=M7lc1UVf-VE",
+      "expected": {
+        "state": "identified",
+        "contentType": "video",
+        "videoId": "M7lc1UVf-VE",
+        "canonicalUrl": "https://www.youtube.com/watch?v=M7lc1UVf-VE",
+        "caption": {"state":"available","sources":["manual","automatic"],"preferredSource":"manual","language":"en"}
+      },
+      "groundTruth": {"authority":"manual_public_measurement","observedAt":"2026-08-21T04:00:00+09:00"}
+    },
+    {
+      "caseId": "youtube-multilingual-caption-live",
+      "referenceType": "live_reference",
+      "inputUrl": "https://www.youtube.com/watch?v=qp0HIF3SfI4",
+      "expected": {
+        "state": "identified",
+        "contentType": "video",
+        "videoId": "qp0HIF3SfI4",
+        "canonicalUrl": "https://www.youtube.com/watch?v=qp0HIF3SfI4",
+        "caption": {"state":"available","sources":["manual","automatic"],"preferredSource":"manual","language":"en"}
+      },
+      "groundTruth": {"authority":"manual_public_measurement","observedAt":"2026-08-21T04:00:00+09:00"}
+    },
+    {
+      "caseId": "youtube-caption-absent-live",
+      "referenceType": "live_reference",
+      "inputUrl": "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+      "expected": {
+        "state": "identified",
+        "contentType": "video",
+        "videoId": "aqz-KE-bpKQ",
+        "canonicalUrl": "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+        "caption": {"state":"absent","sources":[],"preferredSource":null,"language":null}
+      },
+      "groundTruth": {"authority":"manual_public_measurement","observedAt":"2026-08-21T04:00:00+09:00"}
+    },
+    {
+      "caseId": "youtube-short-link-format",
+      "referenceType": "format_fixture",
+      "inputUrl": "https://youtu.be/M7lc1UVf-VE",
+      "expected": {
+        "state": "identified",
+        "contentType": "video",
+        "videoId": "M7lc1UVf-VE",
+        "canonicalUrl": "https://www.youtube.com/watch?v=M7lc1UVf-VE",
+        "caption": {"state":"not_measured","sources":[],"preferredSource":null,"language":null}
+      },
+      "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://support.google.com/youtube/answer/57741","observedAt":"2026-08-21T04:00:00+09:00"}
+    },
+    {
+      "caseId": "youtube-shorts-url-format",
+      "referenceType": "format_fixture",
+      "inputUrl": "https://www.youtube.com/shorts/M7lc1UVf-VE",
+      "expected": {
+        "state": "identified",
+        "contentType": "short_video",
+        "videoId": "M7lc1UVf-VE",
+        "canonicalUrl": "https://www.youtube.com/watch?v=M7lc1UVf-VE",
+        "caption": {"state":"not_measured","sources":[],"preferredSource":null,"language":null}
+      },
+      "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://support.google.com/youtube/answer/10059070","observedAt":"2026-08-21T04:00:00+09:00"}
+    },
+    {
+      "caseId": "youtube-channel-not-content",
+      "referenceType": "format_fixture",
+      "inputUrl": "https://www.youtube.com/@GoogleDevelopers",
+      "expected": {
+        "state": "not_content",
+        "contentType": "profile",
+        "videoId": null,
+        "canonicalUrl": null,
+        "caption": {"state":"not_applicable","sources":[],"preferredSource":null,"language":null}
+      },
+      "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://developers.google.com/youtube/v3/docs/channels","observedAt":"2026-08-21T04:00:00+09:00"}
+    }
+  ]
+}

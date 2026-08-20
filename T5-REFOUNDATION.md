@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `U1-G2 VIDEO TEXT REALITY BASELINE — IN PROGRESS` (자막 우선 영상 관측 정답선)
+현재 Gate: `U1-G3 SAFE MANAGED YOUTUBE CAPTIONS — IN PROGRESS` (자막 전용 검증 능력)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -1680,7 +1680,7 @@ Non-goals:
 
 ## U1-G2 — Video Text Reality Baseline
 
-상태: `IN PROGRESS` — 영상의 의미를 제목·페이지 문구만으로 추측하지 않기 위해, 현재 T5가 공개 YouTube
+상태: `COMPLETE` — 영상의 의미를 제목·페이지 문구만으로 추측하지 않기 위해, 현재 T5가 공개 YouTube
 영상에서 실제 자막을 얻을 수 있는지와 자막이 없을 때의 정지 경계를 먼저 고정한다.
 
 사용자 완료 문장:
@@ -1714,11 +1714,56 @@ Non-goals:
 - 자막이 있는 영상은 실제 자막으로, 없는 영상은 정직한 missing으로 판정
 - 새 CLI 필요 여부를 실측 근거로 결정하고 기존 전체 회귀 유지
 
+완료 증거:
+
+- manual·automatic·absent·youtu.be·Shorts·channel 경계 6개 기준선과 coverage 판정기
+- 현재 `web_read`는 공개 HTML의 caption track을 투영하지 못하고 Browser Hand는 자막 있는 영상 3개를
+  모두 `자막 사용 불가`로 표시
+- 공식 `yt-dlp 2026.08.19` 임시 검증: manual·automatic 언어 구분, 미디어 0으로 JSON3 65,976 bytes·
+  466 events 생성, 자막 absent 영상은 파일 0·부재 보고
+- 공식 macOS 자산 SHA-256 일치; 37MiB로 기존 managed CLI 16MiB 상한을 넘고 JavaScript runtime 경고가
+  있어 아직 설치·활성화하지 않음
+- 증거: `refoundation/evidence/u1-g2-video-text-baseline-2026-08-21.json`
+
+## U1-G3 — Safe Managed YouTube Captions
+
+상태: `IN PROGRESS` — 검증된 `yt-dlp`를 시스템 전역이나 사용자 설정에 설치하지 않고 T5 managed 영역에
+준비해, 공개 YouTube에서 필요한 자막만 받고 원문·언어·source·범위를 모델에 제공한다.
+
+사용자 완료 문장:
+
+> 사장님이 공개 YouTube 영상을 보내면 T5가 자막이 있으면 실제 자막을 읽어 요청한 관점으로 정리하고,
+> 자막이 없으면 없다고 말한다. 영상이나 계정 정보를 몰래 가져오지 않고 다음 대화에서도 다시 설치하지 않는다.
+
+이번 Gate의 최소 변경:
+
+- trusted CLI catalog에 공식 yt-dlp exact version·asset bytes·SHA-256·license·platform 현실 추가
+- package별 bounded size를 두되 기존 jq 상한과 신뢰 범위를 넓히지 않음
+- `--ignore-config --no-playlist --skip-download`; cookie·브라우저 profile·media format 선택 금지
+- manual caption 우선, 요청 언어가 없을 때 automatic fallback; JSON3만 managed temporary output에 생성
+- caption file의 language·source·bytes·hash·events·truncation Receipt, 원문은 필요한 bounded 구간만 모델에 제공
+- 첫 Run 준비·사용, 새 Session 재설치 0, remove·restore는 기존 managed CLI lifecycle 재사용
+
+Non-goals:
+
+- 영상·음원 다운로드, FFmpeg·Deno·Node JS runtime·STT·OCR·프레임 추출
+- YouTube 로그인·cookie·사용자 browser config, playlist/channel 일괄 수집, 다른 SNS 영상
+- 자동 요약 관점·sentiment·성공 공식·watchlist·automation
+
+완료 Gate:
+
+- hash·size·version 불일치와 과대·중단에서 실행·활성·자막 파일 0
+- caption-present는 실제 JSON3, caption-absent는 파일 0·정직한 missing
+- 사용자 설정·cookie·media bytes 접근 0, temporary subtitle cleanup
+- 실제 콘솔 모델이 첫 Run에 준비·자막 사용, 새 Session에 재설치 없이 재사용
+- 기존 전체 회귀 유지
+
 ## 현재 다음 한 작업
 
 Web Hand W0~W6, Document Data Hand D1, Unified Attachment Hand A1까지 완료되어 1차 완성에 도달했다.
-다음 한 작업은 U1-G2의 실제 YouTube 자막 상태 기준선과 현재 T5 관측 baseline이다. SNS 대상과 분석 관점은
-현재 사용자의 사업·취향·목표·요청에서 매번 정하며 고정 persona를 만들지 않는다. 그 밖의
+다음 한 작업은 U1-G3에서 managed CLI의 package별 size 경계와 yt-dlp subtitle-only 실행 계약을 반대시험으로
+고정하는 것이다. SNS 대상과 분석 관점은 현재 사용자의 사업·취향·목표·요청에서 매번 정하며 고정 persona를
+만들지 않는다. 그 밖의
 능력은 기능 목록에서 자동으로 고르지 않는다. 실제 콘솔 사용에서
 사용자 과업이 실패하거나 불편하면 해당 Run·Receipt를 읽고 모델·손·방법·권한·UI 중 공통 원인을 확정한 뒤
 그 한 축만 연다. 실제 사업자 계정이 준비되기 전에는 Naver 실계정 자격을 완료로 주장하지 않는다.
