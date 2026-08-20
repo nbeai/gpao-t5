@@ -1,0 +1,35 @@
+{
+  "schema": "t5.u5-visual-reference-live.v1",
+  "recordedAt": "2026-08-20T21:41:05+09:00",
+  "commitUnderTest": "9e49d784",
+  "runId": "2f92fa24-7432-4cab-8aa8-38dc45cfb2c4",
+  "workspace": "isolated-private-tmp",
+  "liveModel": "stored-chatgpt-oauth",
+  "status": "completed",
+  "durationMs": 211817,
+  "externalWrites": 0,
+  "calls": {
+    "model": 20,
+    "tools": 22,
+    "webSearch": 3,
+    "webRead": 8,
+    "browserNavigate": 7,
+    "browserScreenshot": 4
+  },
+  "surface": {
+    "verifiedSourceLinks": 3,
+    "loadedManagedPreviews": 3,
+    "references": [
+      { "title": "Intercom — AI-powered Inbox", "imagePixels": "2400x1458" },
+      { "title": "Zapier — Copilot in Zap editor", "imagePixels": "4800x12174" },
+      { "title": "OpenAI — Ask ChatGPT sidebar on Atlas", "imagePixels": "4800x11236" }
+    ],
+    "eachIncludesRelevanceNote": true,
+    "textOnlyResult": false
+  },
+  "verification": {
+    "refoundationCheck": { "passed": 366, "failed": 0 },
+    "integration": { "passed": 68, "failed": 0 }
+  },
+  "observedShortfall": "3 final references required 20 model calls and 22 tool calls; optimize only after repeated evidence"
+}
