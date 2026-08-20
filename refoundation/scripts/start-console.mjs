@@ -23,6 +23,7 @@ import { makeGoogleDriveApi } from '../src/google-drive-api.js';
 import { makeGoogleDriveTool } from '../src/google-drive-tool.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 import { makeNotionMcpConnection } from '../src/notion-mcp-connection.js';
+import { makeNotionCliInspector } from '../src/notion-cli-inspector.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -68,6 +69,7 @@ const googleDriveService = {
 const notionConnection = makeNotionMcpConnection({
   secretStore: makePlatformSecretStore({ platform: computerEnvironment.platform }),
   browserAvailable: true,
+  cliInspect: makeNotionCliInspector(),
 });
 const server = makeConsoleServer({
   stateDir,

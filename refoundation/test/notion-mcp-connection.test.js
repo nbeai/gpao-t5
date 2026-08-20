@@ -132,3 +132,22 @@ test('동시에 들어온 Notion 연결 시작은 callback 포트를 열기 전�
     assert.equal(rejected.reason.reason, 'oauth_in_progress');
   } finally { await connection.close(); }
 });
+
+test('인증된 공식 Notion CLI는 원격 MCP와 별도로 파일 작업 가능한 실제 경로로 보고한다', async () => {
+  const connection = makeNotionMcpConnection({
+    secretStore: memorySecrets(),
+    cliInspect: async () => ({
+      installed: true, authenticated: true, state: 'ready', reason: 'notion_cli_authenticated',
+    }),
+  });
+  try {
+    const truth = await connection.inspect();
+    assert.equal(truth.state, 'ready');
+    assert.equal(truth.reason, 'notion_cli_authenticated');
+    assert.equal(truth.capabilities.upload, true);
+    assert.equal(truth.capabilities.download, true);
+    assert.equal(truth.routes.find((route) => route.kind === 'authenticated_cli')?.state, 'ready');
+    assert.equal(truth.routes.find((route) => route.kind === 'remote_mcp')?.state, 'needs_connection');
+    assert.equal(truth.actions[0].label, 'Notion 계정 연결');
+  } finally { await connection.close(); }
+});

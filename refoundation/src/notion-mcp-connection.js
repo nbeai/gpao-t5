@@ -37,6 +37,9 @@ function workspaceFromSelf(result) {
 export function makeNotionMcpConnection({
   secretStore, fetchImpl = globalThis.fetch, now = Date.now, callbackPort = 1456,
   runtimeFactory = makeNotionMcpRuntime, browserAvailable = true,
+  cliInspect = async () => ({
+    installed: false, authenticated: false, state: 'unavailable', reason: 'notion_cli_not_inspected',
+  }),
 } = {}) {
   if (!secretStore || typeof secretStore.get !== 'function' || typeof secretStore.set !== 'function') {
     throw new TypeError('Notion secure credential store is required');
@@ -91,20 +94,33 @@ export function makeNotionMcpConnection({
       const availableBrowser = options.browserAvailable ?? browserAvailable;
       const current = await bundle();
       const connected = Boolean(current?.tokens?.accessToken || current?.tokens?.refreshToken);
+      const cli = await Promise.resolve().then(() => cliInspect()).catch(() => ({
+        installed: false, authenticated: false, state: 'needs_attention', reason: 'notion_cli_check_failed',
+      }));
+      const cliReady = cli.authenticated === true;
       const capabilities = connected
         ? capabilitiesFromTools((current.tools ?? []).map((name) => ({ name })))
         : { search: false, read: false, create: false, update: false, download: false, upload: false };
+      if (cliReady) Object.assign(capabilities, {
+        search: true, read: true, create: true, update: true, download: true, upload: true,
+      });
       return {
-        state: connected ? 'connected' : 'needs_connection',
-        reason: connected ? 'verified_notion_mcp' : 'remote_mcp_not_connected',
+        state: connected ? 'connected' : cliReady ? 'ready' : 'needs_connection',
+        reason: connected ? 'verified_notion_mcp' : cliReady ? 'notion_cli_authenticated' : 'remote_mcp_not_connected',
         userSafeSummary: connected
           ? `${current.workspace?.name ?? 'Notion 업무공간'}에 연결되어 있어요.`
-          : 'Notion 원격 연결을 시작할 수 있어요.',
+          : cliReady
+            ? '컴퓨터에 연결된 Notion 계정으로 페이지와 파일 작업을 할 수 있어요.'
+            : 'Notion 원격 연결을 시작할 수 있어요.',
         capabilities,
         routes: [
           {
             kind: 'remote_mcp', label: 'Notion 원격 연결',
             state: connected ? 'connected' : 'needs_connection', canStart: !connected,
+          },
+          {
+            kind: 'authenticated_cli', label: '컴퓨터의 Notion 연결',
+            state: cli.state, canStart: cli.installed === true && !cliReady,
           },
           ...(availableBrowser ? [{
             kind: 'browser', label: 'T5 브라우저', state: 'ready', canStart: true,
