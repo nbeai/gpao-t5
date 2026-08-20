@@ -1,5 +1,6 @@
 import { appendFile, chmod, mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 import { EFFECT_SCHEMA } from './exec-tool.js';
 import { makeSkillTool } from './skill-runtime.js';
 
@@ -17,6 +18,7 @@ export class ManagedSkillStore {
     if (!metadata || typeof content !== 'string' || !policy) throw new Error('trusted skill package not found'); return { metadata, content, policy }; }
   async append(type, payload) { await this.ensure(); await appendFile(this.ledger, `${JSON.stringify({ schema: 't5.skill-lifecycle.v1', type, recordedAt: new Date().toISOString(), ...payload })}\n`, { mode: 0o600 }); await chmod(this.ledger, 0o600); }
   async installedNames() { await this.ensure(); return (await readdir(this.active, { withFileTypes: true })).filter((e) => e.isDirectory()).map((e) => e.name).sort(); }
+  async activeRevision(name) { if (!(await this.installedNames()).includes(name)) return { active: false, version: null, digest: null }; const content = await readFile(join(this.active, name, 'SKILL.md')); return { active: true, version: null, digest: createHash('sha256').update(content).digest('hex') }; }
   async install(name) { return this.serialize(async () => { await this.ensure(); const { metadata, content, policy } = this.entry(name);
     if (policy.prepare === 'explicit_only') return { state: 'explicit_selection_required', ...metadata, policy };
     if (policy.prepare !== 'managed') throw new Error('skill package is not managed');
@@ -32,6 +34,7 @@ export class ManagedSkillStore {
     const candidates = (await readdir(this.trash)).filter((entry) => entry.startsWith(`${name}-`)).sort().reverse();
     if (!candidates.length) throw new Error('removed managed skill not found'); await rename(join(this.trash, candidates[0]), join(this.active, name));
     await this.append('restored', { name, trashName: candidates[0] }); return { state: 'restored', name }; }); }
+  async restoreExact(name, revision) { return this.serialize(async () => { await this.ensure(); if ((await this.installedNames()).includes(name)) throw new Error('managed skill is already installed'); const candidates = (await readdir(this.trash)).filter((entry) => entry.startsWith(`${name}-`)).sort().reverse(); for (const candidate of candidates) { let content; try { content = await readFile(join(this.trash, candidate, 'SKILL.md')); } catch { continue; } const digest = createHash('sha256').update(content).digest('hex'); if (digest !== revision?.digest) continue; await rename(join(this.trash, candidate), join(this.active, name)); await this.append('restored', { name, digest, trashName: candidate }); return { state: 'restored', name, digest }; } throw new Error('exact removed managed skill not found'); }); }
 }
 
 export function makeSkillAcquisitionTool({ store, catalogSnapshot, authorizeEffect } = {}) {

@@ -24,7 +24,10 @@ test('검증된 text-only 방법은 T5 관리 root에 0600 설치되고 제거·
     assert.equal(merged.skills[0].name, 'customer-inquiry-triage');
     assert.equal((await store.remove('customer-inquiry-triage')).recoverable, true);
     assert.deepEqual(await store.installedNames(), []);
-    await store.restore('customer-inquiry-triage'); assert.deepEqual(await store.installedNames(), ['customer-inquiry-triage']);
+    const revision = store.entry('customer-inquiry-triage').metadata.contentDigest;
+    await assert.rejects(() => store.restoreExact('customer-inquiry-triage', { digest: 'f'.repeat(64) }), /exact removed/u);
+    await store.restoreExact('customer-inquiry-triage', { digest: revision }); assert.deepEqual(await store.installedNames(), ['customer-inquiry-triage']);
+    assert.equal((await store.activeRevision('customer-inquiry-triage')).digest, revision);
     const restricted = await store.install('himalaya-email');
     assert.equal(restricted.state, 'explicit_selection_required');
     assert.equal(restricted.policy.selection, 'restricted_selected');

@@ -20,6 +20,7 @@ import { ManagedSkillStore, makeSkillAcquisitionTool } from './managed-skill-sto
 import { loadCliCatalog, ManagedCliStore, makeCliAcquisitionTool } from './managed-cli-store.js';
 import { makeCapabilityEvidenceTool } from './capability-outcome-evidence.js';
 import { makeCapabilityComparisonTool } from './capability-comparison.js';
+import { CapabilityLifecycleLedger, makeCapabilityLifecycleTool } from './capability-lifecycle.js';
 import { loadSkillPolicyCatalog } from './skill-policy-catalog.js';
 import { ConversationLedger } from './conversation-ledger.js';
 import { projectHistoricalConversationEntries } from './conversation-projection.js';
@@ -239,6 +240,7 @@ export function makeConsoleServer({
   const conversations = new ConversationLedger(join(stateDir, 'conversations'));
   const memories = new MemoryLedger(join(stateDir, 'memory'));
   const capabilityHandoffs = new CapabilityHandoffLedger(join(stateDir, 'capability-handoffs'));
+  const capabilityLifecycle = new CapabilityLifecycleLedger(join(stateDir, 'capability-lifecycle'));
   const runLedger = new RunLedger(join(stateDir, 'runs'));
   const authority = new AuthorityStore(join(stateDir, 'authority'));
   const attachments = attachmentStore ?? new AttachmentStore(join(stateDir, 'attachments'));
@@ -767,6 +769,12 @@ export function makeConsoleServer({
       }));
       offeredTools.unshift(makeCapabilityEvidenceTool({ runLedger }));
       offeredTools.unshift(makeCapabilityComparisonTool({ runLedger }));
+      offeredTools.unshift(makeCapabilityLifecycleTool({
+        ledger: capabilityLifecycle, runLedger, currentRunId: run.runId,
+        currentRunOrigin: options.trigger ?? 'user',
+        stores: { cli: managedCliStore, skill: managedSkillStore },
+        authorizeEffect: (args) => effectPreflight({ toolName: 'capability_lifecycle', args, ownerId: sessionId }),
+      }));
       if (capabilitySnapshot.entries.length) {
         offeredTools.unshift(makeCapabilityCatalogTool({
           snapshot: capabilitySnapshot, connectionDoctor,
@@ -1895,6 +1903,7 @@ export function makeConsoleServer({
   server.conversationLedger = conversations;
   server.memoryLedger = memories;
   server.capabilityHandoffLedger = capabilityHandoffs;
+  server.capabilityLifecycleLedger = capabilityLifecycle;
   server.attachmentStore = attachments;
   server.messengerGateway = messenger;
   server.messengerStateStore = messengerState;

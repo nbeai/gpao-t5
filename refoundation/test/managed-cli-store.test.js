@@ -128,6 +128,9 @@ test('업데이트 뒤 이전 검증본으로 rollback하고 PATH는 T5 managed 
     assert.equal((await store.status('json-tool')).activeVersion, '2.0.0');
     assert.equal((await store.rollback('json-tool')).version, '1.0.0');
     assert.equal(await readFile(join(room, 'bin/json-tool'), 'utf8'), 'one');
+    await store.rollbackTo('json-tool', { version: '2.0.0', digest: sha256(versions.get('2.0.0')) });
+    assert.equal((await store.activeRevision('json-tool')).version, '2.0.0');
+    await assert.rejects(() => store.rollbackTo('json-tool', { version: '1.0.0', digest: 'f'.repeat(64) }), /not trusted/u);
     assert.equal(store.prependPath('/usr/bin'), `${join(room, 'bin')}:/usr/bin`);
   } finally { await rm(room, { recursive: true, force: true }); }
 });

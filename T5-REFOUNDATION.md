@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `R9-X5-E2 CAPABILITY COMPARISON — COMPLETE` (baseline·후보 사실 비교)
+현재 Gate: `R9-X5-E3 SAFE CAPABILITY LIFECYCLE — COMPLETE` (첫 검증·교체·복원 순환 완성)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -1528,12 +1528,69 @@ Non-goals:
 - 전체 회귀 397/397, legacy import 0
 - 증거: `refoundation/evidence/r9-x5-e2-capability-comparison-2026-08-21.json`
 
+## R9-X5-E3 — Safe Capability Lifecycle
+
+상태: `COMPLETE` — E2 비교를 근거로 모델이 작성한 제안과 실제 능력 변경을 분리하고, 변경은 다음
+사용자 Run에서만 가역적으로 적용하며 archive 뒤 exact restore를 보존한다.
+
+사용자 완료 문장:
+
+> T5가 더 나은 방법을 발견해도 몰래 바꾸지 않는다. 무엇을 왜 바꾸려는지 근거와 불확실성을 먼저
+> 남기고, 사용자가 이어서 원할 때 안전하게 적용한다. 마음에 들지 않으면 이전 상태로 되돌린다.
+
+최소 계약:
+
+- exact E2 baseline·candidate가 다시 검증된 proposal만 candidate→tested로 기록
+- tested proposal만 recommended; 비교 근거·모델 rationale·unknowns를 append-only 0600 원장에 지속
+- recommend Run과 apply Run이 같으면 실행 전 거부; 한 응답의 제안→즉시 변경 금지
+- apply는 현재 reversible local effect·권한 경계를 다시 통과
+- lifecycle action은 keep·archive·restore·rollback뿐; hard delete·core edit 없음
+- archive는 managed Skill·CLI의 기존 trash lifecycle 사용, restore는 같은 proposal의 exact inverse
+- bundled·user-authored·출처 불명 capability는 managed store 밖이면 변경 불가
+
+Non-goals:
+
+- 반복 경험에서 Skill 후보 자동 작성, 자동 A/B, 자동 추천·archive, inactivity timer·background curator
+- Skill body patch·merge, CLI 자동 update, Connector 교체, Core 자기 수정
+- 한 번의 성공·실패·미사용만으로 stale·retired 판정
+
+완료 Gate:
+
+- proposal 없이 변경 0, tested 없이 recommend 0, 같은 Run apply 0
+- apply 실패 시 lifecycle 성공 상태 0, archive 뒤 복원 가능
+- keep recommendation은 파일 변경 0, archive는 hard delete 0
+- restart 뒤 proposal·상태·근거 복원, 비밀·사용자 경로 없음
+- 실제 모델이 E2 비교에서 proposal→recommend까지만 하고, 다음 사용자 Run에서 apply
+- 전체 회귀 유지; 후보 자동 생성은 별도 Learning 후속으로 정직하게 남김
+
+실제 성립한 결과:
+
+- 0600 append-only lifecycle 원장에 candidate_created→tested→recommended→applied/archived/restored 지속
+- proposal은 exact E2 두 arm을 다시 검증하고 rationale·unknowns·source Run을 결속
+- recommend와 apply가 같은 Run이면 실행 전 거부; apply·restore는 reversible local effect를 다시 요구
+- apply·restore는 `trigger:user`인 새 사용자 요청 Run만 허용; wake·automation·recovery·system Run은 거부
+- hard delete action 0; managed Skill·CLI archive는 기존 trash, restore는 exact proposal inverse 사용
+- store·method 존재→실제 변경→active revision 재관측→expected 일치 뒤에만 lifecycle 성공 사건 기록
+- proposal은 current·candidate·rollback exact version·digest와 비교 Run IDs를 보존; rollback은 그 revision만 허용
+- 격리 종단: archive→managed remove→archived, 다음 Run restore→active; 호출 순서·복구 결과 일치
+- 실제 `gpt-5.5` 최종 proposal Run: search·read→propose→recommend, current/candidate jq 1.8.2 exact SHA 결속, 변경 0
+- 다음 `trigger:user` apply Run: keep→post-inspect expected/observed revision 일치 뒤 active `unchanged`
+- applied 원장: sourceRunOrigin `user`, version 1.8.2, digest `2d7534…ca07e`, 파일 변경 false
+- 전체 회귀 400/400, legacy import 0
+- 증거: `refoundation/evidence/r9-x5-e3-safe-capability-lifecycle-2026-08-21.json`
+
+현재 완료 의미:
+
+- 이미 존재하는 후보에 대해 `발견·준비→사용→결과 증거→실제 비교→제안→별도 적용→복원` 순환 완료
+- 반복 Episode에서 text-only Skill 후보 초안을 스스로 작성하는 Learning 시작점은 아직 미완료
+- background curator·자동 stale/archive·Skill patch/merge는 실제 반복 수요와 후보 생성 증거가 열 때만 후속
+
 ## 현재 다음 한 작업
 
 Web Hand W0~W6, Document Data Hand D1, Unified Attachment Hand A1까지 완료되어 1차 완성에 도달했다.
-다음 한 작업은 X5-E3에서 모델의 비교 결론을 candidate·tested·recommended 상태로 원장에 남기고,
-실제 capability 변경은 별도 현재 권한·복원 경계를 다시 통과하게 만드는 마지막 lifecycle 단계다. 아직
-비교 답만으로 자동 승격·비활성·삭제하지 않는다. 그 밖의
+다음 한 작업은 실제 반복 업무·사용자 교정에서 재사용 가능한 text-only Skill 후보가 자연스럽게 발생하는
+사례를 관측할 때 Learning 후보 작성 Gate를 여는 것이다. 현재 lifecycle 완료를 후보 자동 생성 완료로
+확대하지 않는다. 그 밖의
 능력은 기능 목록에서 자동으로 고르지 않는다. 실제 콘솔 사용에서
 사용자 과업이 실패하거나 불편하면 해당 Run·Receipt를 읽고 모델·손·방법·권한·UI 중 공통 원인을 확정한 뒤
 그 한 축만 연다. 실제 사업자 계정이 준비되기 전에는 Naver 실계정 자격을 완료로 주장하지 않는다.

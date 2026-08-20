@@ -22,6 +22,7 @@ test('진행 언어는 판단을 말하지 않고 실제 작업 단계에 맞는
     ['cli_prepare', { action: 'install' }, '검증된 컴퓨터 도구를 준비하고 있어요'],
     ['capability_evidence', { action: 'inspect' }, '이 능력이 실제로 쓰인 결과를 살펴보고 있어요'],
     ['capability_compare', { action: 'compare' }, '이전 방법과 새 방법의 실제 결과를 비교하고 있어요'],
+    ['capability_lifecycle', { action: 'apply' }, '확인된 제안을 안전하게 적용하고 있어요'],
     ['memory', { action: 'list' }, '기억해 둔 내용을 확인하고 있어요'],
     ['memory', { action: 'replace' }, '기억할 내용을 정리하고 있어요'],
     ['session_search', { action: 'search' }, '지난 대화에서 관련 내용을 찾고 있어요'],

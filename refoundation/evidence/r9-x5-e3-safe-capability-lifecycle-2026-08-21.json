@@ -1,0 +1,57 @@
+{
+  "schema": "t5.gate-evidence.v1",
+  "gate": "R9-X5-E3",
+  "recordedAt": "2026-08-21T01:55:00+09:00",
+  "contract": {
+    "states": ["candidate", "tested", "recommended", "active", "archived"],
+    "separation": "recommend_and_apply_require_different_runs_and_apply_requires_user_origin",
+    "actions": ["keep", "archive", "restore", "rollback"],
+    "hardDelete": false,
+    "applyAuthority": "current_user_request_and_reversible_local_effect",
+    "truthOrder": ["store_and_method_exist", "mutation_succeeds", "post_state_observed", "exact_revision_matches", "lifecycle_event_appended"],
+    "revisionBinding": ["current_version_digest", "candidate_version_digest", "rollback_version_digest", "comparison_run_ids"],
+    "coreMutation": false
+  },
+  "fixtureQualification": {
+    "comparisonRevalidated": true,
+    "proposalWithoutEvidenceRejected": true,
+    "sameRunApplyRejected": true,
+    "nonUserRunApplyRejected": true,
+    "missingStoreMethodCannotAdvanceState": true,
+    "postStateMismatchCannotAdvanceState": true,
+    "archiveRecoverable": true,
+    "restoreExactInverse": true,
+    "hardDeleteActions": 0
+  },
+  "actualModelQualification": {
+    "provider": "chatgpt_oauth",
+    "model": "gpt-5.5",
+    "proposal": {
+      "proposalId": "3720147d-d557-4861-9dba-45be45c93195",
+      "sessionId": "f174710c-4205-4a80-9f53-280e9e822d18",
+      "runId": "02de39ae-0aa0-427c-a387-f12e00cb8432",
+      "toolSequence": ["session_search:search", "session_search:read", "capability_lifecycle:propose", "capability_lifecycle:recommend"],
+      "state": "recommended",
+      "currentRevision": { "version": "1.8.2", "digest": "2d75340ba57a4b4b4c8708a21c2dc8e958a48aaa8bba13b27f77f6e4c0eca07e" },
+      "candidateRevision": { "version": "1.8.2", "digest": "2d75340ba57a4b4b4c8708a21c2dc8e958a48aaa8bba13b27f77f6e4c0eca07e" },
+      "rollbackRevision": null,
+      "lifecycleChanges": 0
+    },
+    "application": {
+      "runId": "01b5aacd-2c7d-414a-bdca-9f42e7cd37ac",
+      "sourceRunOrigin": "user",
+      "action": "keep",
+      "state": "active",
+      "result": "unchanged",
+      "managedCli": { "id": "jq", "version": "1.8.2", "bytes": 841504, "sha256": "2d75340ba57a4b4b4c8708a21c2dc8e958a48aaa8bba13b27f77f6e4c0eca07e" },
+      "fileChanged": false,
+      "expectedRevisionMatchedObserved": true
+    }
+  },
+  "regression": {
+    "refoundationCheck": { "passed": 400, "failed": 0 },
+    "legacyImports": 0
+  },
+  "complete": "existing_candidate_discovery_to_safe_application_and_restore",
+  "notComplete": ["experience_to_new_skill_draft", "background curator", "automatic staleness", "automatic patch or merge"]
+}

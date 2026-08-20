@@ -4,6 +4,13 @@ function used(run, kind, id) {
   return capabilityObservationsForRun(run).some((item) => item.relation === 'used' && item.kind === kind && item.id === id);
 }
 
+function revisions(runs, kind, id) {
+  const values = runs.flatMap((run) => capabilityObservationsForRun(run))
+    .filter((item) => item.relation === 'used' && item.kind === kind && item.id === id)
+    .map((item) => ({ version: item.version ?? null, digest: item.digest ?? null }));
+  return [...new Map(values.map((item) => [`${item.version}:${item.digest}`, item])).values()];
+}
+
 function terminalPayload(run) {
   return [...(run.events ?? [])].reverse().find((event) => /^run_(?:completed|cancelled|failed)$/u.test(event.type))?.payload ?? {};
 }
@@ -47,11 +54,13 @@ export function compareCapabilityRuns({ kind, id, baselineRuns = [], candidateRu
   if (baselineRuns.length > 20 || candidateRuns.length > 20) throw new Error('comparison arm is too large');
   const baselineIds = new Set(baselineRuns.map((run) => run.runId));
   if (candidateRuns.some((run) => baselineIds.has(run.runId))) throw new Error('comparison arms must not share a Run');
-  if (baselineRuns.some((run) => used(run, kind, id))) throw new Error('baseline Run must not use the compared capability');
   if (candidateRuns.some((run) => !used(run, kind, id))) throw new Error('every candidate Run must contain observed capability use');
+  const baselineRevisions = revisions(baselineRuns, kind, id); const candidateRevisions = revisions(candidateRuns, kind, id);
+  if (candidateRevisions.length !== 1) throw new Error('candidate Runs must use one exact capability revision');
+  if (baselineRevisions.some((baseline) => candidateRevisions.some((candidate) => baseline.version === candidate.version && baseline.digest === candidate.digest))) throw new Error('baseline must not use the same capability revision');
   return {
     schema: 't5.capability-comparison.v1', capability: { kind, id },
-    baseline: arm(baselineRuns), candidate: arm(candidateRuns),
+    baseline: { ...arm(baselineRuns), revisions: baselineRevisions }, candidate: { ...arm(candidateRuns), revisions: candidateRevisions },
     comparisonBoundary: {
       selectedByModel: true, samePurposeVerified: false, answerCorrectnessMeasured: false,
       qualityMeasured: false, userSatisfactionMeasured: false, lifecycleChanges: 0,

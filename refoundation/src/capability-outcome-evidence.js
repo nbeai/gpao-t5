@@ -8,20 +8,20 @@ function duration(run) {
   return Number.isFinite(value) && value >= 0 ? value : null;
 }
 
-function capabilityRef(kind, id, version = null) {
+function capabilityRef(kind, id, version = null, digest = null) {
   if (!['cli', 'skill'].includes(kind) || !id) return null;
-  return { kind, id: String(id), ...(version ? { version: String(version) } : {}) };
+  return { kind, id: String(id), ...(version ? { version: String(version) } : {}), ...(digest ? { digest: String(digest) } : {}) };
 }
 
 function observations(receipt) {
   const found = [];
   for (const item of receipt?.result?.capabilitiesUsed ?? []) {
-    const ref = capabilityRef(item.kind, item.id, item.version ?? item.digest);
+    const ref = capabilityRef(item.kind, item.id, item.version ?? null, item.digest ?? null);
     if (ref) found.push({ ...ref, relation: 'used' });
   }
   const name = receipt?.requestedCall?.name; const action = receipt?.requestedCall?.args?.action;
   if (receipt?.outcome === 'succeeded' && name === 'skill' && action === 'view') {
-    const ref = capabilityRef('skill', receipt.result?.name, receipt.result?.contentDigest);
+    const ref = capabilityRef('skill', receipt.result?.name, null, receipt.result?.contentDigest);
     if (ref) found.push({ ...ref, relation: 'used' });
   }
   if (receipt?.outcome === 'succeeded' && name === 'capability_prepare' && ['install', 'restore'].includes(action)) {
@@ -66,7 +66,7 @@ export function deriveCapabilityOutcomeEvidence(runs = []) {
     }
     for (const [key, runRefs] of grouped) {
       const first = runRefs[0]; if (!byKey.has(key)) byKey.set(key, { kind: first.kind, id: first.id, versions: new Set(), runs: [] });
-      const entry = byKey.get(key); for (const ref of runRefs) if (ref.version) entry.versions.add(ref.version);
+      const entry = byKey.get(key); for (const ref of runRefs) if (ref.version || ref.digest) entry.versions.add(ref.version ?? ref.digest);
       entry.runs.push(runFacts(run, receipts, runRefs));
     }
   }
