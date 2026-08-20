@@ -1,0 +1,54 @@
+{
+  "schema": "t5.macos-pkg-release-closeout.v1",
+  "recordedAt": "2026-08-21T02:06:00+09:00",
+  "product": "GPAO-T5",
+  "version": "0.1.2",
+  "sourceCommit": "6427050fdc2824955f8bf83831526e8b0a751ad8",
+  "sourceDirty": false,
+  "prePackage": {
+    "humanScenarios": { "scenarios": 3, "turns": 41, "passed": true, "firstAttemptOnly": true },
+    "refoundationCheck": { "passed": 400, "failed": 0 },
+    "legacyImports": 0
+  },
+  "payload": {
+    "architectures": ["arm64", "x86_64"],
+    "nodeVersion": "v24.14.0",
+    "officialNodeChecksumsVerified": true,
+    "capabilityRoots": ["skills", "skill-packages", "capabilities", "config/skill-catalog.json", "config/cli-catalog.json"],
+    "packagedConsoleHealth": true,
+    "packagedConsoleUi": true,
+    "documentCli": true,
+    "browserCli": true,
+    "privatePemFiles": 0,
+    "credentials": 0,
+    "tests": 0,
+    "evidence": 0,
+    "legacyRuntime": 0,
+    "npmAuditVulnerabilities": 0
+  },
+  "discardedAttempt": {
+    "sourceCommit": "37fa320662ef31a0995fa01f3d1ba61c8bd63682",
+    "distributed": false,
+    "reason": "skill-packages and capabilities roots were absent, so packaged console startup failed"
+  },
+  "signing": {
+    "application": "Developer ID Application: Project Beai Co.,Ltd (5WC35NK3LA)",
+    "installer": "Developer ID Installer: Project Beai Co.,Ltd (5WC35NK3LA)",
+    "trustedTimestamp": true,
+    "temporaryBuildKeychain": true
+  },
+  "notarization": {
+    "submissionId": "d029955c-f833-4707-b2a6-ab8393cedcc8",
+    "status": "Accepted",
+    "stapled": true,
+    "staplerValidated": true,
+    "gatekeeper": "accepted",
+    "gatekeeperSource": "Notarized Developer ID"
+  },
+  "package": {
+    "path": "dist/GPAO-T5-0.1.2-universal.pkg",
+    "bytes": 144014354,
+    "sha256": "74e2766325232875cb0764f8702ed1b358757b8ccac817ce16e273ea583c09de"
+  },
+  "remainingRealWorldCheck": "team member installs and launches this exact SHA-256 package on another Mac"
+}
