@@ -14,6 +14,10 @@ test('재창립 정본은 제품·진행·작업 규율로 분리된다', () => 
   const map = readFileSync(resolve(root, 'T5-REFOUNDATION.md'), 'utf8');
   const agents = readFileSync(resolve(root, 'AGENTS.md'), 'utf8');
   assert.match(product, /사용자는 T5를 배우지 않는다/);
+  assert.match(product, /필요한 능력을 스스로 구성하는 지능/);
+  assert.match(product, /개선·교체·비활성·제거/);
+  assert.match(product, /Core와 사용자별로 성장하는\s*Capability Layer를 분리/);
+  assert.match(product, /필요한 능력만 갖추고 개선·정리하는 적응성/);
   assert.match(map, /현재 Gate: `R9-X5-C1 SAFE MANAGED CLI ACQUISITION — COMPLETE`/);
   assert.match(map, /상태: `FIRST_COMPLETE`/);
   assert.match(map, /Unified Attachment Hand A1까지 완료되어 1차 완성/);
