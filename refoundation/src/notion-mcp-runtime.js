@@ -1,16 +1,24 @@
-import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
+import { Client, SSEClientTransport, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 
 import { NOTION_MCP_URL } from './notion-mcp-oauth.js';
 
 async function defaultClientFactory({ token, onUnauthorized }) {
-  const client = new Client({ name: 'gpao-t5', version: '0.1.1' }, { capabilities: {} });
-  const transport = new StreamableHTTPClientTransport(new URL(NOTION_MCP_URL), {
-    authProvider: {
-      token,
-      ...(onUnauthorized ? { onUnauthorized } : {}),
-    },
-  });
-  await client.connect(transport);
+  const authProvider = { token, ...(onUnauthorized ? { onUnauthorized } : {}) };
+  let client = new Client({ name: 'gpao-t5', version: '0.1.1' }, { capabilities: {} });
+  try {
+    await client.connect(new StreamableHTTPClientTransport(new URL(NOTION_MCP_URL), { authProvider }));
+  } catch (streamableError) {
+    await client.close().catch(() => {});
+    client = new Client({ name: 'gpao-t5', version: '0.1.1' }, { capabilities: {} });
+    try {
+      await client.connect(new SSEClientTransport(new URL('https://mcp.notion.com/sse'), { authProvider }));
+    } catch (sseError) {
+      await client.close().catch(() => {});
+      throw Object.assign(new Error('Notion 원격 연결을 열지 못했어요.'), {
+        cause: sseError, streamableCause: streamableError,
+      });
+    }
+  }
   return {
     listTools: (...args) => client.listTools(...args),
     callTool: (...args) => client.callTool(...args),

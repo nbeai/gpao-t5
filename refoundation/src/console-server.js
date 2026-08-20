@@ -130,6 +130,17 @@ function activeSessionRecoveryIds(session) {
   });
 }
 
+function activeSessionConnectionHandoffIds(session) {
+  const completed = new Set((session?.transcript ?? []).flatMap((entry) => (
+    entry?.role === 'system_event' && entry.event?.kind === 'connection_completed'
+      ? [String(entry.event.handoffId ?? '')] : []
+  )));
+  return (session?.transcript ?? []).flatMap((entry) => {
+    const id = entry?.role === 'assistant' ? entry.result?.connectionHandoff?.handoffId : null;
+    return id && !completed.has(String(id)) ? [String(id)] : [];
+  });
+}
+
 function selfState(status, workspace, browserReady = false) {
   const searchReady = (status?.connections ?? []).some((connection) => connection.kind === 'api_key');
   return {
@@ -699,7 +710,9 @@ export function makeConsoleServer({
       offeredTools.unshift(makeSessionSearchTool({
         ledger: conversations, sessions, currentSessionId: sessionId,
       }));
-      offeredTools.unshift(makeConnectionTool({ doctor: connectionDoctor }));
+      offeredTools.unshift(makeConnectionTool({
+        doctor: connectionDoctor, startConnection: startConnectionForTool,
+      }));
       const result = await runAgent({
         request: modelRequest,
         requestAttachments: imageInputs,
@@ -797,6 +810,19 @@ export function makeConsoleServer({
         canReveal: browserHandoffReceipt.result?.handoff?.canReveal === true,
         provider: 'browser',
       } : null;
+      const connectionHandoffReceipt = [...result.receipts].reverse().find((receipt) => (
+        receipt.requestedCall?.name === 'connection'
+        && receipt.requestedCall?.args?.action === 'start'
+        && receipt.outcome === 'succeeded'
+        && receipt.result?.state === 'user_authorization_required'
+      ));
+      const connectionHandoff = connectionHandoffReceipt ? {
+        active: true, handoffId: run.runId,
+        connectionId: connectionHandoffReceipt.result.connection?.id,
+        label: connectionHandoffReceipt.result.connection?.label,
+        authorizeUrl: connectionHandoffReceipt.result.authorizeUrl,
+        awaitEndpoint: connectionHandoffReceipt.result.awaitEndpoint,
+      } : null;
       const surfaceResult = approvalReceipt ? (() => {
         const { effect, pendingId, command, toolName } = approvalReceipt.result;
         return {
@@ -823,6 +849,7 @@ export function makeConsoleServer({
         reply: result.answer,
         runId: run.runId,
         ...(browserHandoff ? { browserHandoff } : {}),
+        ...(connectionHandoff ? { connectionHandoff } : {}),
         ...(outputArtifacts.length ? { artifacts: outputArtifacts } : {}),
         ...(options.trigger && options.trigger !== 'user' ? { trigger: options.trigger } : {}),
         selfStateSummary: selfState(connection, workspace, browserReady),
@@ -1031,6 +1058,25 @@ export function makeConsoleServer({
     })),
     ...workspaceConnectionInspectors,
   ] });
+  async function startConnectionForTool(id) {
+    const service = connectionServices.get(id);
+    if (!service || typeof service.start !== 'function') throw new Error('connection start is unavailable');
+    const current = await service.inspect();
+    if (!current.actions?.some((action) => action.kind === 'oauth')) {
+      throw new Error(current.state === 'connected' ? 'connection is already active' : 'connection start is unavailable');
+    }
+    const started = await service.start();
+    const authorizeUrl = new URL(String(started.authorizeUrl ?? ''));
+    if (authorizeUrl.protocol !== 'https:' || authorizeUrl.username || authorizeUrl.password) {
+      await service.close?.();
+      throw new Error('connection authorization URL is invalid');
+    }
+    return {
+      connection: { id: service.id, label: service.label },
+      authorizeUrl: authorizeUrl.href,
+      awaitEndpoint: `/connections/${service.id}/await`,
+    };
+  }
   queueMicrotask(async () => {
     try {
       for (const binding of await messengerState.listBindings()) {
@@ -1387,6 +1433,7 @@ export function makeConsoleServer({
           activity: sessionActivities.get(session.id),
           activePendingIds: (await authority.listActive(session.id)).map((item) => item.pendingId),
           activeRecoveryIds: activeSessionRecoveryIds(session),
+          activeConnectionHandoffIds: activeSessionConnectionHandoffIds(session),
         }); return;
       }
       if (req.method === 'POST' && url.pathname === '/sessions/meta') {
@@ -1590,7 +1637,22 @@ export function makeConsoleServer({
         }
         if (action === 'await') {
           if (typeof service.awaitConnection !== 'function') { json(res, 409, { error: '진행 중인 연결이 없어요.' }); return; }
-          json(res, 200, await service.awaitConnection()); return;
+          const input = await body(req);
+          let session = null;
+          if (input.sessionId != null || input.handoffId != null) {
+            session = await sessions.load(input.sessionId);
+            if (!session || !activeSessionConnectionHandoffIds(session).includes(String(input.handoffId ?? ''))) {
+              json(res, 409, { error: '이미 끝났거나 다른 대화의 연결 요청이에요.' }); return;
+            }
+          }
+          const connected = await service.awaitConnection();
+          if (session) await sessions.append(session.id, {
+            role: 'system_event',
+            event: {
+              kind: 'connection_completed', handoffId: String(input.handoffId), connectionId: id,
+            },
+          });
+          json(res, 200, connected); return;
         }
         if (typeof service.disconnect !== 'function') { json(res, 409, { error: '이 연결은 해제할 수 없어요.' }); return; }
         json(res, 200, await service.disconnect()); return;

@@ -2360,6 +2360,7 @@ async function newSession() {
 async function 대화투영(s) {
   const active = s.activePendingIds || [];
   const activeRecoveryIds = s.activeRecoveryIds || [];
+  const activeConnectionHandoffIds = s.activeConnectionHandoffIds || [];
   const 마지막 = (s.transcript || []).map((e, i) => (e.role === 'assistant' ? i : -1)).filter((i) => i >= 0).at(-1);
   wrap.innerHTML = '';
   (s.transcript || []).forEach((e, i) => {
@@ -2368,7 +2369,7 @@ async function 대화투영(s) {
       renderMessageAttachments(box, e.attachments);
     }
     else if (e.role === 'assistant') renderResult(e.result, {
-      ...projectionOptions(i, 마지막, active), activeRecoveryIds,
+      ...projectionOptions(i, 마지막, active), activeRecoveryIds, activeConnectionHandoffIds,
     });
   });
   renderSessionActivity(s.activity ?? sessionActivityById.get(s.id));
@@ -2600,6 +2601,40 @@ function renderConversationRecovery(box, result, { historical, activeRecoveryIds
   actions.append(reset, continued); card.appendChild(actions); box.appendChild(card);
 }
 
+function renderConnectionHandoff(box, result, { historical, activeConnectionHandoffIds = [] } = {}) {
+  const handoff = result?.connectionHandoff;
+  if (historical || !handoff?.active || !activeConnectionHandoffIds.includes(handoff.handoffId)) return;
+  const card = el('suggest connection-handoff');
+  card.appendChild(el('sug-t', `${handoff.label || '업무공간'} 계정 연결`));
+  card.appendChild(el('sug-line', '계정 연결은 열린 서비스 화면에서만 진행돼요. 비밀번호나 인증코드는 대화에 입력하지 마세요.'));
+  const status = el('sug-line');
+  const button = document.createElement('button'); button.className = 'act primary';
+  button.textContent = '계정 연결 계속하기';
+  button.onclick = async () => {
+    button.disabled = true;
+    let authorize;
+    try { authorize = new URL(handoff.authorizeUrl); } catch { authorize = null; }
+    if (!authorize || authorize.protocol !== 'https:' || !/^\/connections\/[a-z0-9-]+\/await$/u.test(handoff.awaitEndpoint ?? '')) {
+      status.textContent = '연결 주소를 확인하지 못했어요. 다시 연결을 요청해 주세요.'; return;
+    }
+    const popup = window.open('about:blank', '_blank');
+    if (popup) { popup.opener = null; popup.location.href = authorize.href; }
+    else window.open(authorize.href, '_blank', 'noopener');
+    status.textContent = '열린 화면에서 계정을 선택하고 허용해 주세요…';
+    const finished = await endpointJson(handoff.awaitEndpoint, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: currentSessionId, handoffId: handoff.handoffId }),
+    });
+    status.textContent = finished.ok
+      ? (finished.data?.userSafeSummary ?? '계정을 연결했어요.')
+      : endpointError(finished, '계정 연결을 완료하지 못했어요.');
+    if (finished.ok) {
+      toast(status.textContent); await 대화다시그리기(); await loadSessions();
+    } else button.disabled = false;
+  };
+  card.append(button, status); box.appendChild(card);
+}
+
 function renderResult(r, opts = {}) {
   const { historical, activePendingIds } = opts;
   renderSelfState(r.selfStateSummary);
@@ -2690,6 +2725,7 @@ function renderResult(r, opts = {}) {
     box.appendChild(bot);
   }
   renderConversationRecovery(box, r, opts);
+  renderConnectionHandoff(box, r, opts);
   if (!historical && r.browserHandoff?.active) {
     const handoff = el('suggest browser-handoff');
     handoff.appendChild(el('sug-t', '로그인 창을 열었어요'));

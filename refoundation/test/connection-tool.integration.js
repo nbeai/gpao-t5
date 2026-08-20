@@ -144,3 +144,64 @@ test('연결 진실의 준비된 브라우저 경로는 기존 로그인 handoff
     await rm(room, { recursive: true, force: true });
   }
 });
+
+test('자연어 계정 연결은 connection start 뒤 대화 내 OAuth handoff로 지속되고 완료 시 닫힌다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-connection-oauth-handoff-'));
+  let connected = false;
+  const service = {
+    id: 'notion', label: 'Notion', category: 'workspace',
+    inspect: async () => ({
+      state: connected ? 'connected' : 'needs_connection',
+      userSafeSummary: connected ? '연결됨' : '연결 필요', capabilities: {}, routes: [],
+      actions: connected ? [] : [{
+        id: 'connect', label: 'Notion 계정 연결', kind: 'oauth',
+        startEndpoint: '/connections/notion/start', awaitEndpoint: '/connections/notion/await',
+      }],
+    }),
+    async start() { return { authorizeUrl: 'https://notion.example/authorize?state=public' }; },
+    async awaitConnection() { connected = true; return { connected: true, userSafeSummary: 'Notion을 연결했어요.' }; },
+  };
+  let turn = 0;
+  const server = makeConsoleServer({
+    stateDir: join(room, 'state'), workspace: room, workspaceConnectionServices: [service],
+    modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
+    modelFactory: () => ({ async respond(input) {
+      turn += 1;
+      if (turn === 1) return { text: '', toolCalls: [{
+        id: 'start-notion', name: 'connection', args: { action: 'start', id: 'notion' },
+      }] };
+      const receipt = JSON.parse(input.messages.at(-1).content);
+      assert.equal(receipt.result.state, 'user_authorization_required');
+      return { text: 'Notion 계정 연결 화면에서 허용해 주세요.', toolCalls: [] };
+    } }),
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject); server.listen(0, '127.0.0.1', resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const answer = await fetch(`${base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: '노션을 T5하고 연결해줘' }),
+    }).then((response) => response.json());
+    assert.equal(answer.connectionHandoff?.connectionId, 'notion');
+    assert.equal(answer.connectionHandoff?.handoffId, answer.runId);
+    let detail = await fetch(`${base}/sessions/${session.id}`).then((response) => response.json());
+    assert.deepEqual(detail.activeConnectionHandoffIds, [answer.runId]);
+    const completed = await fetch(`${base}/connections/notion/await`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, handoffId: answer.runId }),
+    }).then((response) => response.json());
+    assert.equal(completed.connected, true);
+    detail = await fetch(`${base}/sessions/${session.id}`).then((response) => response.json());
+    assert.deepEqual(detail.activeConnectionHandoffIds, []);
+    assert.equal(detail.transcript.some((entry) => (
+      entry.role === 'system_event' && entry.event?.kind === 'connection_completed'
+    )), true);
+  } finally {
+    server.closeWakeStreams(); await server.closeMessengers(); await server.closeWorkspaceConnections();
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});

@@ -32,8 +32,32 @@ test('모델은 사용자의 표현을 규칙으로 분류하지 않고 연결 �
   await assert.rejects(() => tool.execute({ action: 'inspect', id: 'missing' }), /not found/u);
 });
 
-test('연결 도구는 연결 실행을 꾸미지 않고 조회 두 행동만 제공한다', () => {
-  const tool = makeConnectionTool({ doctor: { inspect: async () => report } });
-  assert.deepEqual(tool.parameters.properties.action.enum, ['list', 'inspect']);
+test('연결 도구는 설치나 자격 입력을 꾸미지 않고 조회·사용자 동의 시작만 제공한다', () => {
+  const tool = makeConnectionTool({
+    doctor: { inspect: async () => report },
+    startConnection: async (id) => ({
+      connection: { id, label: 'Google Workspace' },
+      authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth?state=public',
+      awaitEndpoint: '/connections/google-workspace/await',
+    }),
+  });
+  assert.deepEqual(tool.parameters.properties.action.enum, ['list', 'inspect', 'start']);
   assert.doesNotMatch(JSON.stringify(tool.parameters), /connector_connect|oauth_start|install/u);
+});
+
+test('연결 시작은 등록된 서비스의 사용자 동의 handoff만 반환하고 자격을 받지 않는다', async () => {
+  const tool = makeConnectionTool({
+    doctor: { inspect: async () => report },
+    startConnection: async (id) => ({
+      connection: { id, label: 'Google Workspace' },
+      authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth?state=public',
+      awaitEndpoint: '/connections/google-workspace/await',
+    }),
+  });
+  const started = await tool.execute({ action: 'start', id: 'google-workspace' });
+  assert.equal(started.state, 'user_authorization_required');
+  assert.equal(started.connection.id, 'google-workspace');
+  assert.match(started.authorizeUrl, /^https:\/\/accounts\.google\.com/u);
+  assert.equal(started.awaitEndpoint, '/connections/google-workspace/await');
+  assert.doesNotMatch(JSON.stringify(started), /access_token|refresh_token|client_secret/u);
 });
