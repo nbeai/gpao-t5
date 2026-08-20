@@ -51,6 +51,7 @@
     "newSessionTools": ["video_text:caption_read"],
     "downloads": 1,
     "rawExecYtDlp": 0,
+    "automaticFailureJourney": ["video_text:automatic source_failed after one retry","video_text:manual en caption_read","Korean answer with actual source language preserved"],
     "tests": {"passed":418,"failed":0,"legacyImports":0}
   },
   "actualConsoleModel": "pending explicit approval for new real-state CLI installation and external model usage"

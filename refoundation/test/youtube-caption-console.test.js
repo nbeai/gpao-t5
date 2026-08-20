@@ -44,6 +44,17 @@ test('첫 Run은 tool-only 자막 능력을 준비해 즉시 쓰고 새 Session�
       const userText = input.messages.findLast((message) => message.role === 'user')?.content ?? '';
       const receipt = input.messages.at(-1).role === 'tool' ? JSON.parse(input.messages.at(-1).content) : null;
       const videoText = { action: 'read', url: videoUrl, language: 'en', maxChars: 10_000 };
+      if (userText.includes('한국어 전환')) {
+        if (turn === 1) return { text: '', toolCalls: [{ id: 'korean-auto', name: 'video_text', args: { ...videoText, language: 'ko' } }] };
+        if (turn === 2) {
+          assert.equal(receipt.result.state, 'source_failed'); assert.equal(receipt.result.failedSource, 'automatic');
+          assert.deepEqual(receipt.result.availableManualLanguages, ['en']);
+          return { text: '', toolCalls: [{ id: 'manual-fallback', name: 'video_text', args: videoText }] };
+        }
+        assert.equal(receipt.result.state, 'caption_read'); assert.equal(receipt.result.caption.source, 'manual');
+        assert.equal(receipt.result.caption.language, 'en');
+        return { text: '한국어 automatic 자막은 실패해 반복하지 않았고, 영어 manual 원문을 읽어 한국어로 정리했어요.', toolCalls: [] };
+      }
       if (userText.includes('새 대화')) {
         if (turn === 1) return { text: '', toolCalls: [{ id: 'reuse-caption', name: 'video_text', args: videoText }] };
         assert.equal(receipt.result.state, 'caption_read');
@@ -78,8 +89,9 @@ test('첫 Run은 tool-only 자막 능력을 준비해 즉시 쓰고 새 Session�
     videoTextRunProcess: async ({ args, cwd }) => {
       sourceCalls.push([...args]);
       if (args.includes('--print')) return {
-        code: 0, stdout: `${JSON.stringify({ en: [{ ext: 'json3' }] })}\n${JSON.stringify({ en: [{ ext: 'json3' }] })}\n`, stderr: '',
+        code: 0, stdout: `${JSON.stringify({ en: [{ ext: 'json3' }] })}\n${JSON.stringify({ ko: [{ ext: 'json3' }] })}\n`, stderr: '',
       };
+      if (args.includes('--write-auto-subs')) return { code: 1, stdout: '', stderr: 'HTTP Error 503: Service Unavailable' };
       await writeFile(join(cwd, 'M7lc1UVf-VE.en.json3'), captionJson(), { mode: 0o600 });
       return { code: 0, stdout: '', stderr: '' };
     },
@@ -106,7 +118,17 @@ test('첫 Run은 tool-only 자막 능력을 준비해 즉시 쓰고 새 Session�
     assert.match(secondReply.reply, /재설치 없이/); assert.equal(downloads, 1);
     const secondRun = await fetch(`${base}/runs/${secondReply.runId}`).then((response) => response.json());
     assert.deepEqual(secondRun.events.filter((event) => event.type === 'tool_completed').map((event) => event.payload.receipt.actualCall.name), ['video_text']);
-    assert.equal(sourceCalls.length, 4);
+    const third = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const thirdReply = await fetch(`${base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: third.id, text: `한국어 전환 테스트: 이 영상의 실제 내용을 한국어로 정리해줘: ${videoUrl}` }),
+    }).then((response) => response.json());
+    assert.match(thirdReply.reply, /automatic 자막은 실패해 반복하지 않았/); assert.match(thirdReply.reply, /영어 manual 원문/);
+    const thirdRun = await fetch(`${base}/runs/${thirdReply.runId}`).then((response) => response.json());
+    assert.deepEqual(thirdRun.events.filter((event) => event.type === 'tool_completed').map((event) => event.payload.receipt.actualCall.name), [
+      'video_text', 'video_text',
+    ]);
+    assert.equal(sourceCalls.length, 9);
     assert.ok(sourceCalls.every((args) => args.includes('--ignore-config') && args.includes('--skip-download')));
     assert.ok(sourceCalls.every((args) => args.includes('--js-runtimes') && args.some((arg) => arg.startsWith('node:'))));
     assert.ok(sourceCalls.every((args) => !args.some((arg) => /cookie/i.test(arg))));
