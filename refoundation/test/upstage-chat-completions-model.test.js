@@ -81,3 +81,13 @@ test('Upstage 오류가 API 키를 되비춰도 공개 오류에서는 가린다
     (error) => error.status === 401 && !String(error).includes(secret),
   );
 });
+
+test('Upstage Chat 이미지 입력 미지원은 식별 가능한 능력 오류로 멈춘다', async () => {
+  const model = makeUpstageChatCompletionsModel({ apiKey: 'upstage-secret' });
+  await assert.rejects(model.respond({ messages: [{
+    role: 'user', content: '설명해줘', modelAttachments: [{
+      type: 'input_image', detail: 'auto', image_url: 'data:image/png;base64,AAAA',
+    }],
+  }] }), (error) => error.reason === 'image_input_unsupported'
+    && error.provider === 'upstage' && error.modelId === 'solar-pro4');
+});

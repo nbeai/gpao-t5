@@ -403,7 +403,7 @@ test('콘솔 취소는 실행 중인 자식 프로세스 트리를 실제로 끝
   }
 });
 
-test('모델 호출 실패도 답으로 꾸미지 않고 run_failed 사실로 남는다', async () => {
+test('모델 호출 실패는 run_failed 원문과 다시 볼 사용자용 실패 안내를 함께 남긴다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-console-failed-run-'));
   const stateDir = join(room, 'state');
   const workspace = join(room, 'workspace');
@@ -432,7 +432,10 @@ test('모델 호출 실패도 답으로 꾸미지 않고 run_failed 사실로 �
     assert.equal(run.events.at(-1).type, 'run_failed');
     assert.equal(run.events.at(-1).payload.error, 'provider exploded');
     const session = await fetch(`${base}/sessions/${created.id}`).then((item) => item.json());
-    assert.equal(session.transcript.length, 1);
+    assert.equal(session.transcript.length, 2);
+    assert.equal(session.transcript[1].result.kind, 'error');
+    assert.match(session.transcript[1].result.reply, /요청을 처리하는 중/u);
+    assert.doesNotMatch(JSON.stringify(session.transcript[1]), /provider exploded/u);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await rm(room, { recursive: true, force: true });

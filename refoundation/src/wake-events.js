@@ -25,6 +25,12 @@ function installWakeEvents() {
     if (!payload?.sessionId || !payload?.text) return;
     dispatchEvent(new CustomEvent('t5:messenger-progress', { detail: payload }));
   });
+  stream.addEventListener('session_activity', (event) => {
+    let payload;
+    try { payload = JSON.parse(event.data); } catch { return; }
+    if (!payload?.sessionId || !payload?.runId) return;
+    dispatchEvent(new CustomEvent('t5:session-activity', { detail: payload }));
+  });
   addEventListener('beforeunload', () => stream.close(), { once: true });
 }
 

@@ -4,10 +4,13 @@ const DEFAULT_ENDPOINT = 'https://api.upstage.ai/v1/chat/completions';
 const DEFAULT_MODEL = 'solar-pro4';
 
 export class UpstageChatCompletionsError extends Error {
-  constructor(message, { status = null } = {}) {
+  constructor(message, { status = null, reason = null, provider = 'upstage', modelId = null } = {}) {
     super(message);
     this.name = 'UpstageChatCompletionsError';
     this.status = status;
+    this.reason = reason;
+    this.provider = provider;
+    this.modelId = modelId;
   }
 }
 
@@ -29,13 +32,15 @@ function toolPart(call) {
   };
 }
 
-function initialMessages(messages = [], instructions = '') {
+function initialMessages(messages = [], instructions = '', model = DEFAULT_MODEL) {
   const out = [];
   if (instructions) out.push({ role: 'system', content: instructions });
   for (const message of messages) {
     if (message?.role === 'user') {
       if ((message.modelAttachments?.length ?? 0) > 0) {
-        throw new TypeError('Upstage Chat attachment input is not enabled');
+        throw new UpstageChatCompletionsError('Upstage Chat attachment input is not enabled', {
+          reason: 'image_input_unsupported', modelId: model,
+        });
       }
       out.push({ role: 'user', content: String(message.content ?? '') });
       continue;
@@ -113,7 +118,7 @@ export function makeUpstageChatCompletionsModel({
     id: model,
     async respond({ messages = [], tools = [], signal, onContextReceipt } = {}) {
       if (!started) {
-        history.push(...initialMessages(messages, instructions));
+        history.push(...initialMessages(messages, instructions, model));
         for (const message of messages) {
           if (message?.role === 'tool' && message.toolCallId) returnedResults.add(message.toolCallId);
         }

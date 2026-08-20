@@ -75,12 +75,17 @@ export class ConsoleSessionStore {
       if (archived) return Boolean(session.archivedAt) && !session.deletedAt;
       return !session.archivedAt && !session.deletedAt;
     }).sort((left, right) => (right.updatedAt - left.updatedAt) || (right.order - left.order))
-      .map((session) => ({
-        id: session.id, title: session.title, createdAt: session.createdAt, updatedAt: session.updatedAt,
-        pinned: Boolean(session.pinned), archivedAt: session.archivedAt ?? null,
-        deletedAt: session.deletedAt ?? null, turns: session.transcript.length,
-        origin: clone(session.origin ?? null),
-      }));
+      .map((session) => {
+        const lastAssistant = [...session.transcript].reverse()
+          .find((entry) => entry?.role === 'assistant');
+        return {
+          id: session.id, title: session.title, createdAt: session.createdAt, updatedAt: session.updatedAt,
+          pinned: Boolean(session.pinned), archivedAt: session.archivedAt ?? null,
+          deletedAt: session.deletedAt ?? null, turns: session.transcript.length,
+          origin: clone(session.origin ?? null),
+          lastResultKind: lastAssistant?.result?.kind ?? null,
+        };
+      });
   }
 
   async append(id, entry) {

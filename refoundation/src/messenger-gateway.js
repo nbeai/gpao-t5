@@ -245,7 +245,11 @@ export function makeMessengerGateway({
               replied += 1;
             }
           } catch (error) {
-            await progress?.fail();
+            const failure = error?.surfaceResult;
+            const failureText = failure?.reply
+              ? `${failure.reply}${failure.nextSafeAction ? `\n\n${failure.nextSafeAction}` : ''}`
+              : undefined;
+            await progress?.fail(failureText);
             throw error;
           } finally {
             typing.stop();

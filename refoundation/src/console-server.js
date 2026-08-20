@@ -43,6 +43,8 @@ import { makeMessengerGateway, MessengerStateStore } from './messenger-gateway.j
 import {
   modelProgressText, safeProgressText, toolCompletedProgressText, toolProgressText,
 } from './progress-language.js';
+import { SessionActivityStore } from './session-activity-store.js';
+import { userSafeTurnFailure } from './turn-failure.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -187,6 +189,7 @@ export function makeConsoleServer({
   const pendingProcessWakes = new Map();
   const wakeSubscribers = new Set();
   const measurementRuns = new Map();
+  const sessionActivities = new SessionActivityStore();
   const pendingSurfaceMetrics = new Map();
   const webReadTool = makeWebReadTool(webReadOptions);
   const webSearchTool = makeWebSearchTool({ providers: webSearchProviders });
@@ -313,6 +316,24 @@ export function makeConsoleServer({
       trigger: options.trigger ?? 'user',
       ...(options.metadata ?? {}),
     } });
+    const initialActivity = sessionActivities.start({
+      sessionId, runId: run.runId, text: modelProgressText(1), phase: 'starting',
+    });
+    broadcastEvent('session_activity', { ...initialActivity, done: false });
+    const publishProgress = (type, value, phase) => {
+      const progressText = safeProgressText(value);
+      const activity = sessionActivities.update({
+        sessionId, runId: run.runId, text: progressText, phase,
+      });
+      emit(type, { text: progressText });
+      if (activity) broadcastEvent('session_activity', { ...activity, done: false });
+    };
+    const finishActivity = (activityStatus) => {
+      const activity = sessionActivities.finish({
+        sessionId, runId: run.runId, status: activityStatus,
+      });
+      if (activity) broadcastEvent('session_activity', { ...activity, done: true });
+    };
     if (attachmentIds.length) {
       const messageId = `${run.runId}:user`;
       await attachments.link({ sessionId, attachmentIds, messageId, runId: run.runId });
@@ -335,6 +356,7 @@ export function makeConsoleServer({
     const controller = new AbortController();
     running.set(sessionId, controller);
     let runFinished = false;
+    let surfacePersisted = false;
     try {
       if (conversationCheckpointMode === 'in-place-v0') {
         const plan = planConversationCheckpoint({
@@ -572,7 +594,7 @@ export function makeConsoleServer({
             await run.append({
               type: 'model_started', stepId: `model-${event.turn}`, payload: { turn: event.turn },
             });
-            emit('trace_status', { text: modelProgressText(event.turn) });
+            publishProgress('trace_status', modelProgressText(event.turn), 'model');
           } else if (event.type === 'model_context') {
             await run.append({
               type: 'model_context_built', stepId: `model-${event.turn}`,
@@ -592,6 +614,9 @@ export function makeConsoleServer({
                   ? { toolCalls: structuredClone(event.response.toolCalls) } : {}),
               },
             });
+            if (!event.response.toolCalls.length && String(event.response.text ?? '').trim()) {
+              publishProgress('trace_status', '이제 거의 다 됐어요', 'finalizing');
+            }
           } else if (event.type === 'tool_start') {
             await run.append({
               type: 'tool_started', stepId: `tool-${event.toolCallId || `${event.turn}-${event.name}`}`,
@@ -599,7 +624,7 @@ export function makeConsoleServer({
                 turn: event.turn, toolCallId: event.toolCallId, name: event.name, args: event.args,
               },
             });
-            emit('tool_progress', { text: toolProgressText(event.name, event.args) });
+            publishProgress('tool_progress', toolProgressText(event.name, event.args), 'tool');
           } else if (event.type === 'tool_end') {
             if (event.receipt.result?.effectObservation?.changed === true) {
               for (const target of event.receipt.result.effectObservation.declared?.targets ?? []) {
@@ -619,17 +644,16 @@ export function makeConsoleServer({
                 name: event.receipt.requestedCall.name, content: JSON.stringify(event.receipt),
               },
             });
-            emit('trace_status', {
-              text: toolCompletedProgressText(
-                event.name, event.receipt?.requestedCall?.args ?? {},
-              ),
-            });
+            publishProgress('trace_status', toolCompletedProgressText(
+              event.name, event.receipt?.requestedCall?.args ?? {},
+            ), 'reviewing');
           }
         },
       });
       if (result.status === 'cancelled') {
         await run.finish('cancelled', { modelTurns: result.modelTurns, receiptCount: result.receipts.length });
         runFinished = true;
+        finishActivity('cancelled');
         return { kind: 'cancelled', result, runId: run.runId };
       }
       if (result.status !== 'completed' || !String(result.answer ?? '').trim()) {
@@ -675,15 +699,32 @@ export function makeConsoleServer({
         selfStateSummary: selfState(connection, workspace, browserReady),
       };
       await sessions.append(sessionId, { role: 'assistant', result: surfaceResult });
+      surfacePersisted = true;
       await run.append({ type: 'surface_persisted', payload: { role: 'assistant' } });
       await run.finish('completed', { modelTurns: result.modelTurns, receiptCount: result.receipts.length });
       runFinished = true;
+      finishActivity('completed');
       return { kind: 'reply', surfaceResult, result, runId: run.runId };
     } catch (error) {
+      const connection = await Promise.resolve().then(() => status()).catch(() => null);
+      const failure = userSafeTurnFailure(error, connection);
+      const failureSurface = {
+        kind: 'error', reply: failure.text, nextSafeAction: failure.nextSafeAction,
+        failureCode: failure.code, runId: run.runId,
+      };
+      if (!surfacePersisted) {
+        await sessions.append(sessionId, { role: 'assistant', result: failureSurface }).catch(() => {});
+        surfacePersisted = true;
+        await run.append({
+          type: 'surface_persisted', payload: { role: 'assistant', kind: 'error' },
+        }).catch(() => {});
+      }
       if (!runFinished) {
         await run.finish('failed', { error: error?.message ?? String(error) }).catch(() => {});
         runFinished = true;
       }
+      finishActivity('failed');
+      if (error && typeof error === 'object') error.surfaceResult = failureSurface;
       throw error;
     } finally {
       running.delete(sessionId);
@@ -757,8 +798,10 @@ export function makeConsoleServer({
         });
         return completed.surfaceResult?.reply ?? completed.result?.answer ?? null;
       } catch (error) {
+        const failure = error?.surfaceResult;
         broadcastEvent('messenger_progress', {
-          sessionId: message.sessionId, text: '작업을 완료하지 못했어요', done: true,
+          sessionId: message.sessionId,
+          text: failure?.reply ?? '요청을 처리하는 중 문제가 생겼어요.', done: true,
         });
         throw error;
       }
@@ -1030,10 +1073,13 @@ export function makeConsoleServer({
         json(res, 200, { state: 'skipped' }); return;
       }
       if (req.method === 'GET' && url.pathname === '/sessions') {
-        json(res, 200, { sessions: await sessions.list({
+        const listed = await sessions.list({
           archived: url.searchParams.get('archived') === '1',
           deleted: url.searchParams.get('deleted') === '1',
-        }) }); return;
+        });
+        json(res, 200, { sessions: listed.map((session) => ({
+          ...session, activity: sessionActivities.get(session.id),
+        })) }); return;
       }
       if (req.method === 'GET' && url.pathname === '/runs') {
         const runs = await runLedger.list({ sessionId: url.searchParams.get('sessionId') ?? undefined });
@@ -1066,6 +1112,7 @@ export function makeConsoleServer({
         json(res, 200, {
           id: session.id, title: session.title, origin: session.origin ?? null,
           transcript: session.transcript,
+          activity: sessionActivities.get(session.id),
           activePendingIds: (await authority.listActive(session.id)).map((item) => item.pendingId),
         }); return;
       }
@@ -1136,7 +1183,15 @@ export function makeConsoleServer({
           emit('complete', { kind: completed.kind });
         } catch (error) {
           onError?.(error);
-          emit('recoverable_error', { text: '모델 또는 터미널 작업을 완료하지 못했어요.' });
+          const failure = error?.surfaceResult ?? {
+            kind: 'error', ...userSafeTurnFailure(
+              error, await Promise.resolve().then(() => status()).catch(() => null),
+            ),
+          };
+          emit('recoverable_error', {
+            text: failure.reply ?? failure.text,
+            nextSafeAction: failure.nextSafeAction,
+          });
           emit('complete', { kind: 'error' });
         }
         res.end(); return;

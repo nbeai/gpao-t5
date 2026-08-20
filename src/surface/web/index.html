@@ -109,6 +109,9 @@
     transform:translateY(-50%); width:2px; height:1.05em; border-radius:1px; background:var(--accent); }
   .sess .t { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--fg); }
   .sess .age { color:var(--faint); font-size:var(--fs-xs); flex:none; }
+  .sess .sess-status { flex:none; border-radius:999px; padding:1px 6px; font-size:10px; font-weight:600; }
+  .sess .sess-status.running { color:var(--accent); background:var(--accent-subtle); }
+  .sess .sess-status.error { color:var(--danger); background:var(--danger-subtle); }
   /* P2-4a 목록 정리: 평소엔 조용히 있다가 마우스를 올리면 나타난다(설정판처럼 무겁지 않게) */
   .sess .pin { flex:none; font-size:12px; opacity:.85; }
   .sess .origin { flex:none; font-size:12px; opacity:.9; }
@@ -224,6 +227,8 @@
      제목이 커서 화면을 차지하거나 문단 사이가 벌어지면 채팅이 아니라 보고서로 읽힌다.
      블록을 직접 그리므로 pre-wrap 은 끈다(안 그러면 태그 사이 줄바꿈이 빈 줄로 보인다). */
   .msg.bot { white-space:normal; }
+  .msg.bot.error { border:1px solid var(--danger); background:var(--danger-subtle);
+    box-shadow:none; white-space:pre-wrap; }
   .msg.bot > :first-child { margin-top:0; }
   .msg.bot > :last-child { margin-bottom:0; }
   .msg.bot p { margin:0 0 var(--sp-2); }
@@ -572,23 +577,29 @@ const attachlist = document.getElementById('attachlist');
 const sessionsEl = document.getElementById('sessions');
 let currentSessionId = null;
 let stagedAttachments = [];
-let messengerTrace = null;
+const sessionActivityById = new Map();
+let sessionListRefreshTimer = null;
 
-addEventListener('t5:messenger-progress', async (event) => {
-  const progress = event.detail ?? {};
-  await loadSessions().catch(() => {});
-  if (progress.sessionId !== currentSessionId) return;
-  if (progress.done) {
-    messengerTrace?.remove(); messengerTrace = null;
-    await 대화다시그리기().catch(() => {});
+function scheduleSessionListRefresh() {
+  if (sessionListRefreshTimer) return;
+  sessionListRefreshTimer = setTimeout(() => {
+    sessionListRefreshTimer = null;
+    loadSessions().catch(() => {});
+  }, 120);
+}
+
+addEventListener('t5:session-activity', async (event) => {
+  const activity = event.detail ?? {};
+  if (!activity.sessionId) return;
+  if (activity.done || activity.status !== 'running') sessionActivityById.delete(activity.sessionId);
+  else sessionActivityById.set(activity.sessionId, activity);
+  scheduleSessionListRefresh();
+  if (activity.sessionId !== currentSessionId) return;
+  if (!activity.done && activity.status === 'running') {
+    renderSessionActivity(activity);
     return;
   }
-  if (!messengerTrace?.isConnected) {
-    messengerTrace = el('trace');
-    wrap.appendChild(messengerTrace);
-  }
-  messengerTrace.textContent = `${progress.text}…`;
-  scrollToBottom();
+  await 대화다시그리기().catch(() => {});
 });
 
 const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
@@ -2067,7 +2078,17 @@ function sessionRow(s) {
     more.className = 'more'; more.textContent = '⋯';
     more.setAttribute('aria-label', `${s.title || '새 대화'} 관리`);
     more.onclick = (ev) => { ev.stopPropagation(); openSessMenu(item, s, more); };
-    item.appendChild(t); if (ord) item.appendChild(ord); item.appendChild(age); item.appendChild(more);
+    item.appendChild(t); if (ord) item.appendChild(ord);
+    if (s.activity?.status === 'running') {
+      const runningStatus = el('sess-status running', '작업 중');
+      runningStatus.title = s.activity.text || '작업을 이어가고 있어요';
+      item.appendChild(runningStatus);
+    } else if (s.lastResultKind === 'error') {
+      const errorStatus = el('sess-status error', '확인 필요');
+      errorStatus.title = '이 대화에서 끝내지 못한 작업이 있어요';
+      item.appendChild(errorStatus);
+    }
+    item.appendChild(age); item.appendChild(more);
     item.onkeydown = (ev) => {
       if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); item.click(); }
     };
@@ -2090,6 +2111,10 @@ function sessionRow(s) {
 
 async function loadSessions() {
   const { sessions } = await (await fetch(listQuery())).json();
+  for (const session of sessions) {
+    if (session.activity?.status === 'running') sessionActivityById.set(session.id, session.activity);
+    else sessionActivityById.delete(session.id);
+  }
   sessionsEl.innerHTML = '';
   if (!sessions.length) {
     sessionsEl.appendChild(el('seclabel', listView === 'archived' ? '숨긴 대화가 없어요'
@@ -2146,7 +2171,44 @@ async function 대화투영(s) {
     }
     else if (e.role === 'assistant') renderResult(e.result, projectionOptions(i, 마지막, active));
   });
+  renderSessionActivity(s.activity ?? sessionActivityById.get(s.id));
   return s;
+}
+
+function makeSessionStopButton(sessionId, trace) {
+  const stop = el('stopbtn'); stop.textContent = '멈추기';
+  stop.dataset.sessionActivityStop = sessionId;
+  stop.onclick = async () => {
+    stop.disabled = true; stop.textContent = '멈추는 중…';
+    await fetch('/turn/cancel', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId }),
+    }).catch(() => {});
+    trace.textContent = '멈추는 중이에요 — 하던 걸음까지만 끝내요…';
+  };
+  return stop;
+}
+
+function renderSessionActivity(activity) {
+  const existing = document.getElementById('session-activity-trace');
+  const existingStop = document.querySelector('[data-session-activity-stop]');
+  if (!activity || activity.status !== 'running' || activity.sessionId !== currentSessionId) {
+    existing?.remove(); existingStop?.remove();
+    return;
+  }
+  let trace = existing;
+  if (!trace) {
+    const turns = wrap.querySelectorAll('.turn');
+    const host = turns.length ? turns[turns.length - 1] : turnBox();
+    trace = el('trace'); trace.id = 'session-activity-trace';
+    trace.dataset.sessionActivity = activity.sessionId;
+    host.appendChild(trace);
+  }
+  trace.textContent = `${activity.text || '작업을 이어가고 있어요'}…`;
+  if (!document.querySelector(`[data-session-activity-stop="${activity.sessionId}"]`)) {
+    trace.parentNode.appendChild(makeSessionStopButton(activity.sessionId, trace));
+  }
+  scrollToBottom();
 }
 
 /** 서버에서 현재 대화를 다시 받아 통째로 투영한다(턴·승인·거절이 끝난 뒤). */
@@ -2323,6 +2385,12 @@ function renderResult(r, opts = {}) {
   if (r.followUp?.decision === 'interrupt') sysline(r.followUp.userNotice);
   if (r.kind === 'clarify') { sysline(r.question); return; }
   if (r.kind === 'gated') { return; }   // 조용히 무시된 외부 이벤트 — 사용자 화면에 남기지 않음
+  if (r.kind === 'error') {
+    const box = turnBox(); box.appendChild(el('who', 'GPAO-T5'));
+    const message = el('msg bot error');
+    message.textContent = `${r.reply ?? '이번 작업을 끝내지 못했어요.'}${r.nextSafeAction ? `\n\n다음: ${r.nextSafeAction}` : ''}`;
+    box.appendChild(message); return;
+  }
 
   if (r.kind === 'approval') {
     const box = turnBox();
@@ -2775,30 +2843,25 @@ async function submit() {
   if (!t) return;
   const surfaceStartedAt = performance.now();
   if (!currentSessionId) await newSession();
+  const submittedSessionId = currentSessionId;
   const sentAttachments = [...stagedAttachments];
   const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', t));
   renderMessageAttachments(box, sentAttachments);
   text.value = ''; text.style.height = 'auto'; document.body.classList.remove('nav-open');
   // P6-12: 스트림으로 조용한 작업 흐름을 보여주고, complete 시 지속된 결과를 렌더한다(끊겨도 진실은 세션에 남음).
-  const trace = el('trace', '요청을 이해하고 있어요…'); box.appendChild(trace);
+  const trace = el('trace', '요청을 이해하고 있어요…');
+  trace.id = 'session-activity-trace'; trace.dataset.sessionActivity = submittedSessionId;
+  box.appendChild(trace);
   // **멈춤**(F-5) — 한 턴이 수백 번 손을 쓸 수 있게 된 뒤로, 멈출 데가 없으면 사용자는
   // 자기 컴퓨터에서 벌어지는 일을 못 세운다. 문만 있고 누를 데가 없으면 없는 것과 같다.
   // 이미 한 일은 되돌리지 않는다 — 되돌리기는 사용자가 따로 말하는 별개의 일이다.
-  const 멈춤 = el('stopbtn'); 멈춤.textContent = '멈추기';
-  멈춤.onclick = async () => {
-    멈춤.disabled = true; 멈춤.textContent = '멈추는 중…';
-    await fetch('/turn/cancel', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sessionId: currentSessionId }),
-    }).catch(() => {});
-    trace.textContent = '멈추는 중이에요 — 하던 걸음까지만 끝내요…';
-  };
+  const 멈춤 = makeSessionStopButton(submittedSessionId, trace);
   box.appendChild(멈춤);
   const 멈춤치우기 = () => 멈춤.remove();
   const firstFeedbackPaint = afterVisiblePaint(surfaceStartedAt);
   scrollToBottom(true); // 내가 방금 보냈으니 무조건 따라간다(내용이 다 붙은 뒤에 스크롤)
   try {
-    const streamed = await streamTurn(t, trace, {
+    const streamed = await streamTurn(submittedSessionId, t, trace, {
       surfaceStartedAt, firstFeedbackPaint,
       attachmentIds: sentAttachments.map((record) => record.attachmentId),
       onStarted: () => { stagedAttachments = []; renderStagedAttachments(); },
@@ -2808,12 +2871,17 @@ async function submit() {
     if (recovery) {
       renderRecovery(box, recovery);
       await streamed.reportComplete();
+      await loadSessions();
       return;
     }
     // 스트림이 실행·지속한 그 결과를 **서버 사실로** 다시 투영한다(중복 실행 없음).
     // 덧붙이기만 하면 이번 턴이 무효화한 옛 승인 카드가 화면에 살아 남는다(G-1B 실측).
     // 통째로 갈아끼우므로 "따라 보고 있었는가"를 **미리** 재야 한다(아래 자리지키며 주석).
-    await 자리지키며(async () => 대화투영(await (await fetch(`/sessions/${currentSessionId}`)).json()));
+    if (currentSessionId === submittedSessionId) {
+      await 자리지키며(async () => 대화투영(
+        await (await fetch(`/sessions/${submittedSessionId}`)).json(),
+      ));
+    }
     await streamed.reportComplete();
     await loadSessions();
   } catch {
@@ -2851,13 +2919,13 @@ async function reportVisibleTiming(measurementId, event, sample) {
   }).catch(() => {}); // 계측 실패가 대화 흐름을 막지 않는다
 }
 
-async function streamTurn(t, trace, { surfaceStartedAt, firstFeedbackPaint, attachmentIds = [], onStarted }) {
-  const start = await (await fetch('/turn/stream-start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: currentSessionId, text: t, attachmentIds }) })).json();
+async function streamTurn(sessionId, t, trace, { surfaceStartedAt, firstFeedbackPaint, attachmentIds = [], onStarted }) {
+  const start = await (await fetch('/turn/stream-start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId, text: t, attachmentIds }) })).json();
   if (!start.streamId) throw new Error('stream-start');
   onStarted?.();
   firstFeedbackPaint.then((sample) => reportVisibleTiming(start.measurementId, 'first_feedback_visible', sample));
   return new Promise((resolve, reject) => {
-    const url = `/turn/stream?sessionId=${encodeURIComponent(currentSessionId)}&streamId=${encodeURIComponent(start.streamId)}`;
+    const url = `/turn/stream?sessionId=${encodeURIComponent(sessionId)}&streamId=${encodeURIComponent(start.streamId)}`;
     const es = new EventSource(url);
     let done = false;
     let recovery = null;
