@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `U1-G0 SOCIAL LINK REALITY BASELINE — IN PROGRESS` (6개 플랫폼 실제 링크 정답선)
+현재 Gate: `U1-G0 SOCIAL LINK REALITY BASELINE — COMPLETE` (6개 플랫폼 실제 링크 정답선)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -1587,7 +1587,7 @@ Non-goals:
 
 ## U1-G0 — Social Link Reality Baseline
 
-상태: `IN PROGRESS` — 한국의 자영업자·소상공인이 SNS 콘텐츠의 실제 의미와 고객 반응을 이해하도록
+상태: `COMPLETE` — 한국의 자영업자·소상공인이 SNS 콘텐츠의 실제 의미와 고객 반응을 이해하도록
 돕기 전에, X·Threads·Facebook·Instagram·YouTube·TikTok 링크의 identity·관측 가능 범위·실패 경계를
 사람이 확인한 정답선으로 고정한다.
 
@@ -1623,12 +1623,20 @@ Non-goals:
 - 현재 T5 baseline의 성공·실패·미측정 범위와 U1-G1 첫 adapter 순서 확정
 - 기존 전체 회귀 유지
 
+완료 증거:
+
+- 6개 플랫폼·21개 identity/boundary 사례, 각 플랫폼 실제 공개 콘텐츠 최소 1개
+- 현재 T5 공개 `web_read` 실측: 6개 중 identity·text 5개, 모두 partial dynamic, Facebook 1개 HTTP 400 차단
+- caption·metrics·comments·subtitle·audio·frames·OCR는 6개 모두 미관측으로 보존
+- 첫 후속 조사: Facebook 공개 Post를 기존 Browser Hand와 공식 지원 source로 비교한 뒤 새 adapter 필요 여부 결정
+- 증거: `refoundation/evidence/u1-g0-social-link-research-2026-08-21.json`
+
 ## 현재 다음 한 작업
 
 Web Hand W0~W6, Document Data Hand D1, Unified Attachment Hand A1까지 완료되어 1차 완성에 도달했다.
-다음 한 작업은 실제 반복 업무·사용자 교정에서 재사용 가능한 text-only Skill 후보가 자연스럽게 발생하는
-사례를 관측할 때 Learning 후보 작성 Gate를 여는 것이다. 현재 lifecycle 완료를 후보 자동 생성 완료로
-확대하지 않는다. 그 밖의
+다음 한 작업은 U1-G1에서 현재 `web_read`가 전혀 관측하지 못한 Facebook 공개 Post를 기존 Browser Hand와
+공식 지원 source로 실제 비교해, 새 adapter가 필요한지와 필요한 최소 coverage를 확정하는 것이다. SNS 대상과
+분석 관점은 현재 사용자의 사업·취향·목표·요청에서 매번 정하며 고정 persona를 만들지 않는다. 그 밖의
 능력은 기능 목록에서 자동으로 고르지 않는다. 실제 콘솔 사용에서
 사용자 과업이 실패하거나 불편하면 해당 Run·Receipt를 읽고 모델·손·방법·권한·UI 중 공통 원인을 확정한 뒤
 그 한 축만 연다. 실제 사업자 계정이 준비되기 전에는 Naver 실계정 자격을 완료로 주장하지 않는다.

@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assessSocialLinkObservations, loadSocialLinkBaseline, socialBaselineReadiness } from '../src/social-link-baseline.js';
+import {
+  assessSocialLinkObservations, loadSocialLinkBaseline, socialBaselineReadiness,
+  summarizeSocialWebRead,
+} from '../src/social-link-baseline.js';
 
 const baselineFile = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'config', 'social-link-baseline.json');
 
@@ -44,4 +47,33 @@ test('후보 관측은 identity와 coverage를 모두 맞혀야 통과하고 보
   assert.equal(assessSocialLinkObservations(baseline, wrongIdentity).passed, false);
   const falseCoverage = structuredClone(observations); falseCoverage[0].observed.push('metrics');
   assert.equal(assessSocialLinkObservations(baseline, falseCoverage).passed, false);
+});
+
+test('현재 web_read 기준선은 요청 주소 반사와 실제 응답 identity·본문 관측을 구분한다', async () => {
+  const baseline = await loadSocialLinkBaseline(baselineFile);
+  const sample = baseline.cases.find((item) => item.caseId === 'youtube-official-video-live');
+  const reached = summarizeSocialWebRead(sample, {
+    state: 'partial_dynamic',
+    source: {
+      status: 200,
+      requestedUrl: sample.inputUrl,
+      finalUrl: 'https://www.youtube.com/watch?v=M7lc1UVf-VE',
+      canonicalUrl: 'https://www.youtube.com/watch?v=M7lc1UVf-VE',
+      title: 'YouTube Data API Overview',
+      coverage: { kind: 'partial_dynamic' },
+    },
+    content: { text: 'Observed public page text', totalChars: 25, truncated: false, omittedChars: 0 },
+  });
+  assert.equal(reached.identityObserved, true);
+  assert.deepEqual(reached.observed, ['identity', 'text']);
+  assert.deepEqual(reached.missing, ['caption', 'metrics', 'comments', 'subtitle', 'audio', 'frames', 'ocr']);
+
+  const echoedOnly = summarizeSocialWebRead(sample, {
+    state: 'failed', reason: 'network_error',
+    source: { requestedUrl: sample.inputUrl, finalUrl: sample.inputUrl, redirects: [] },
+    content: null,
+  });
+  assert.equal(echoedOnly.identityObserved, false);
+  assert.deepEqual(echoedOnly.observed, []);
+  assert.ok(echoedOnly.missing.includes('identity'));
 });

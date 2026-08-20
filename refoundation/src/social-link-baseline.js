@@ -6,6 +6,7 @@ const REFERENCES = new Set(['live_reference', 'format_fixture']);
 const STATES = new Set(['identified', 'redirect_required', 'not_content']);
 const CONTENT_TYPES = new Set(['post', 'thread', 'image', 'video', 'short_video', 'profile']);
 const AUTHORITIES = new Set(['official_documentation', 'official_format_documentation', 'manual_public_observation']);
+const OBSERVATION_FIELDS = ['identity', 'text', 'caption', 'metrics', 'comments', 'subtitle', 'audio', 'frames', 'ocr'];
 
 function clone(value) { return structuredClone(value); }
 function requiredText(value, label) { const text = String(value ?? '').trim(); if (!text) throw new Error(`${label} is required`); return text; }
@@ -72,9 +73,41 @@ export function assessSocialLinkObservations(baseline, observations = []) {
       canonicalUrl: (actual?.canonicalUrl ?? null) === expected.expected.canonicalUrl,
       coverageDisjoint: Array.isArray(actual?.observed) && Array.isArray(actual?.missing)
         && !actual.observed.some((field) => actual.missing.includes(field)),
-      noUnsupportedClaims: !Array.isArray(actual?.observed) || actual.observed.every((field) => ['identity', 'text', 'caption', 'metrics', 'comments', 'subtitle', 'audio', 'frames', 'ocr'].includes(field)),
+      noUnsupportedClaims: !Array.isArray(actual?.observed) || actual.observed.every((field) => OBSERVATION_FIELDS.includes(field)),
     };
     return { caseId: expected.caseId, platform: expected.platform, checks, passed: Object.values(checks).every(Boolean) };
   });
   return { schema: 't5.social-link-baseline-assessment.v1', rows, passed: rows.every((row) => row.passed), missingCaseIds: baseline.cases.filter((item) => !byId.has(item.caseId)).map((item) => item.caseId) };
+}
+
+export function summarizeSocialWebRead(expected, result = {}) {
+  if (!expected || expected.expected?.state !== 'identified') throw new TypeError('identified social baseline case is required');
+  const status = Number(result.source?.status);
+  const responseReached = Number.isInteger(status) && status >= 200 && status < 300
+    && !['failed', 'cancelled', 'blocked', 'login_required', 'rate_limited'].includes(result.state);
+  const identityUrls = [result.source?.canonicalUrl, result.source?.finalUrl]
+    .filter((value) => typeof value === 'string');
+  const identityObserved = responseReached && identityUrls.some((value) => {
+    try { return decodeURIComponent(new URL(value).href).includes(expected.expected.contentId); } catch { return false; }
+  });
+  const textObserved = typeof result.content?.text === 'string' && result.content.text.trim().length > 0;
+  const observed = [];
+  if (identityObserved) observed.push('identity');
+  if (textObserved) observed.push('text');
+  return {
+    caseId: expected.caseId,
+    platform: expected.platform,
+    webReadState: String(result.state ?? 'unknown'),
+    reason: result.reason == null ? null : String(result.reason),
+    status: Number.isInteger(status) ? status : null,
+    finalUrl: typeof result.source?.finalUrl === 'string' ? result.source.finalUrl : null,
+    canonicalUrl: typeof result.source?.canonicalUrl === 'string' ? result.source.canonicalUrl : null,
+    title: typeof result.source?.title === 'string' ? result.source.title : null,
+    coverageKind: typeof result.source?.coverage?.kind === 'string' ? result.source.coverage.kind : null,
+    observedChars: textObserved ? Number(result.content.totalChars ?? result.content.text.length) : 0,
+    outputTruncated: Boolean(result.content?.truncated),
+    identityObserved,
+    observed,
+    missing: OBSERVATION_FIELDS.filter((field) => !observed.includes(field)),
+  };
 }

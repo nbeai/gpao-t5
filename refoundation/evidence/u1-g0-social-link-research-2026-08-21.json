@@ -28,12 +28,31 @@
   },
   "currentT5LiveReadMeasurement": {
     "attempted": true,
-    "executed": false,
-    "reason": "external execution approval review timed out twice; no product result was inferred"
+    "executed": true,
+    "measuredAt": "2026-08-21T03:16:09+09:00",
+    "method": "current makeWebReadTool, public fetch only, no cookie or login session",
+    "summary": {
+      "liveCases": 6,
+      "identityObserved": 5,
+      "textObserved": 5,
+      "partialDynamic": 5,
+      "blocked": 1,
+      "captionMetricsCommentsSubtitleAudioFramesOcrObserved": 0
+    },
+    "rows": [
+      {"caseId":"x-official-post-live","state":"partial_dynamic","status":200,"identityObserved":true,"observed":["identity","text"],"observedChars":1787},
+      {"caseId":"threads-small-business-post-live","state":"partial_dynamic","status":200,"identityObserved":true,"observed":["identity","text"],"observedChars":12020,"outputTruncated":true},
+      {"caseId":"facebook-business-post-live","state":"blocked","status":400,"identityObserved":false,"observed":[],"observedChars":0},
+      {"caseId":"instagram-coffee-reel-live","state":"partial_dynamic","status":200,"identityObserved":true,"observed":["identity","text"],"observedChars":11269},
+      {"caseId":"youtube-official-video-live","state":"partial_dynamic","status":200,"identityObserved":true,"observed":["identity","text"],"observedChars":12362,"outputTruncated":true},
+      {"caseId":"tiktok-official-video-live","state":"partial_dynamic","status":200,"identityObserved":true,"observed":["identity","text"],"observedChars":337}
+    ]
   },
   "decisions": {
     "buildNow": ["baseline schema","identity and coverage assessor","ground-truth provenance"],
     "doNotBuildYet": ["fixed business persona","universal interest taxonomy","crawler","topic listening","media download","STT","OCR","sentiment","watchlist","automation"],
-    "completionBlockedBy": ["current T5 live observation baseline"]
+    "firstAdapterInvestigation": "facebook public post observation: compare current browser hand with official supported source before adding a new adapter",
+    "secondEvidenceLane": "youtube subtitle and media coverage after identity/source routing",
+    "completionBlockedBy": []
   }
 }
