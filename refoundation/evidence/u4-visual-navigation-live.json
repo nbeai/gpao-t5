@@ -1,0 +1,33 @@
+{
+  "schema": "t5.u4-visual-navigation-live.v1",
+  "recordedAt": "2026-08-20T21:33:30+09:00",
+  "commitUnderTest": "15e9dea9",
+  "workspace": "isolated-private-tmp",
+  "desktop": {
+    "iconFontPixels": 18,
+    "iconTargetWidth": 36,
+    "iconTargetHeight": 36,
+    "detailTitle": "설정 › 메신저",
+    "detailBack": "← 설정으로 돌아가기",
+    "rootTitle": "설정",
+    "rootBack": "← 대화로 돌아가기"
+  },
+  "narrowViewport": {
+    "width": 390,
+    "hamburgerTag": "BUTTON",
+    "hamburgerFontPixels": 20,
+    "hamburgerTargetWidth": 36,
+    "hamburgerTargetHeight": 36,
+    "settingsPanelWidth": 390
+  },
+  "layerBoundaries": {
+    "sidebarShadowObserved": true,
+    "topBarShadowObserved": true,
+    "composerUpwardShadowObserved": true,
+    "inputFocusRingObserved": true
+  },
+  "verification": {
+    "refoundationCheck": { "passed": 365, "failed": 0 },
+    "integration": { "passed": 68, "failed": 0 }
+  }
+}
