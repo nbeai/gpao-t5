@@ -24,7 +24,7 @@ test('Notion 연결은 discovery·DCR·OAuth 뒤 MCP self/tool 목록까지 확�
   const calls = [];
   const fetchImpl = async (url, options = {}) => {
     const value = String(url); calls.push(value);
-    if (value.endsWith('/mcp/.well-known/oauth-protected-resource')) return new Response(JSON.stringify({
+    if (value.endsWith('/.well-known/oauth-protected-resource/mcp')) return new Response(JSON.stringify({
       authorization_servers: ['https://auth.notion.test'],
     }), { status: 200, headers: { 'content-type': 'application/json' } });
     if (value.endsWith('/.well-known/oauth-authorization-server')) return new Response(JSON.stringify(metadata), {
@@ -110,7 +110,7 @@ test('동시에 들어온 Notion 연결 시작은 callback 포트를 열기 전�
   const secretStore = memorySecrets();
   const fetchImpl = async (url) => {
     const value = String(url);
-    if (value.endsWith('/mcp/.well-known/oauth-protected-resource')) return new Response(JSON.stringify({
+    if (value.endsWith('/.well-known/oauth-protected-resource/mcp')) return new Response(JSON.stringify({
       authorization_servers: ['https://auth.notion.test'],
     }), { status: 200, headers: { 'content-type': 'application/json' } });
     if (value.endsWith('/.well-known/oauth-authorization-server')) return new Response(JSON.stringify(metadata), {

@@ -28,9 +28,23 @@ test('Notion OAuth discovery는 protected resource→authorization metadata 두 
     serverUrl: 'https://mcp.notion.com/mcp', fetchImpl,
   }), metadata);
   assert.deepEqual(calls, [
-    'https://mcp.notion.com/mcp/.well-known/oauth-protected-resource',
+    'https://mcp.notion.com/.well-known/oauth-protected-resource/mcp',
     'https://auth.notion.test/.well-known/oauth-authorization-server',
   ]);
+});
+
+test('root MCP 주소는 protected-resource well-known 주소에 빈 경로를 덧붙이지 않는다', async () => {
+  const calls = [];
+  await discoverNotionOAuth({
+    serverUrl: 'https://mcp.example.test/',
+    fetchImpl: async (url) => {
+      calls.push(String(url));
+      return new Response(JSON.stringify(calls.length === 1
+        ? { authorization_servers: ['https://auth.notion.test'] }
+        : metadata), { status: 200, headers: { 'content-type': 'application/json' } });
+    },
+  });
+  assert.equal(calls[0], 'https://mcp.example.test/.well-known/oauth-protected-resource');
 });
 
 test('Notion 동적 클라이언트 등록은 public PKCE client와 정확한 callback만 선언한다', async () => {

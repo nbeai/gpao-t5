@@ -23,7 +23,8 @@ async function jsonResponse(response, reason) {
 
 export async function discoverNotionOAuth({ serverUrl = NOTION_MCP_URL, fetchImpl = globalThis.fetch } = {}) {
   const server = httpsUrl(serverUrl, 'Notion MCP URL');
-  const resourceMetadataUrl = new URL(`${server.pathname.replace(/\/$/u, '')}/.well-known/oauth-protected-resource`, server.origin);
+  const resourcePath = server.pathname === '/' ? '' : server.pathname.replace(/\/$/u, '');
+  const resourceMetadataUrl = new URL(`/.well-known/oauth-protected-resource${resourcePath}`, server.origin);
   const resource = await jsonResponse(await fetchImpl(resourceMetadataUrl, {
     headers: { accept: 'application/json', 'user-agent': 'GPAO-T5-MCP/1.0' },
   }), 'protected_resource_discovery_failed');
