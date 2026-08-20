@@ -1632,8 +1632,10 @@ export function makeConsoleServer({
   server.closeModelConnections = () => modelConnections?.close?.();
   server.closeMessengers = () => messenger.stop();
   server.closeBrowsers = closeBrowserDrivers;
-  server.closeWorkspaceConnections = () => {
-    for (const service of connectionServices.values()) service.close?.();
+  server.closeWorkspaceConnections = async () => {
+    await Promise.all([...connectionServices.values()].map(async (service) => {
+      await service.close?.();
+    }));
   };
   return server;
 }

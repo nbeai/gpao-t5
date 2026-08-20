@@ -21,6 +21,8 @@ import { WorkspaceCredentialStore } from '../src/workspace-credential-store.js';
 import { makeGoogleDriveConnection } from '../src/google-drive-connection.js';
 import { makeGoogleDriveApi } from '../src/google-drive-api.js';
 import { makeGoogleDriveTool } from '../src/google-drive-tool.js';
+import { makePlatformSecretStore } from '../src/platform-secret-store.js';
+import { makeNotionMcpConnection } from '../src/notion-mcp-connection.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -63,6 +65,10 @@ const googleDriveService = {
     });
   },
 };
+const notionConnection = makeNotionMcpConnection({
+  secretStore: makePlatformSecretStore({ platform: computerEnvironment.platform }),
+  browserAvailable: true,
+});
 const server = makeConsoleServer({
   stateDir,
   workspace,
@@ -83,8 +89,9 @@ const server = makeConsoleServer({
     platform: computerEnvironment.platform,
     browserAvailable: true,
     includeGoogle: false,
+    includeNotion: false,
   }),
-  workspaceConnectionServices: [googleDriveService],
+  workspaceConnectionServices: [googleDriveService, notionConnection],
   onError: (error) => console.error('[refoundation-console]', error?.message ?? error),
 });
 await new Promise((resolveListen, reject) => {
@@ -114,7 +121,7 @@ const stop = async () => {
   server.closeModelConnections();
   await server.closeMessengers();
   await server.closeBrowsers();
-  server.closeWorkspaceConnections();
+  await server.closeWorkspaceConnections();
   await persistentBrowserHost.close().catch(() => {});
   await server.managedProcesses.stopAll('runtime_shutdown');
   server.close(async () => {

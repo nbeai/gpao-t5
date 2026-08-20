@@ -12,6 +12,8 @@ retain that complete text and all required notices.
 
 | Package | Version | Declared license |
 |---|---:|---|
+| `@modelcontextprotocol/client` | 2.0.0 | MIT |
+| `@modelcontextprotocol/core` | 2.0.0 | MIT |
 | `@mozilla/readability` | 0.6.0 | Apache-2.0 |
 | `@nodable/entities` | 3.0.0 | MIT |
 | `@office-kit/xlsx` | 0.9.0 | MIT |
@@ -20,6 +22,7 @@ retain that complete text and all required notices.
 | `anynum` | 1.0.1 | MIT |
 | `boolbase` | 2.0.0 | ISC |
 | `clawpdf` | 0.3.0 | MIT |
+| `cross-spawn` | 7.0.6 | MIT |
 | `css-select` | 7.0.0 | BSD-2-Clause |
 | `css-what` | 8.0.0 | BSD-2-Clause |
 | `cssom` | 0.5.0 | MIT |
@@ -28,6 +31,8 @@ retain that complete text and all required notices.
 | `domhandler` | 6.0.1 | BSD-2-Clause |
 | `domutils` | 4.0.2 | BSD-2-Clause |
 | `entities` | 8.0.0 | BSD-2-Clause |
+| `eventsource` | 3.0.7 | MIT |
+| `eventsource-parser` | 3.1.1 | MIT |
 | `fast-xml-builder` | 1.3.1 | MIT |
 | `fast-xml-parser` | 5.11.0 | MIT |
 | `fflate` | 0.8.3 | MIT |
@@ -41,23 +46,32 @@ retain that complete text and all required notices.
 | `htmlparser2/node_modules/entities` | 7.0.1 | BSD-2-Clause |
 | `linkedom` | 0.18.13 | ISC |
 | `is-unsafe` | 2.0.0 | MIT |
+| `isexe` | 2.0.0 | ISC |
+| `jose` | 6.2.9 | MIT |
 | `node-addon-api` | 8.9.2 | MIT |
 | `node-gyp-build` | 4.8.4 | MIT |
 | `node-pty` | 1.1.0 | MIT |
 | `node-pty/node_modules/node-addon-api` | 7.1.1 | MIT |
 | `nth-check` | 3.0.1 | BSD-2-Clause |
 | `path-expression-matcher` | 1.6.2 | MIT |
+| `path-key` | 3.1.1 | MIT |
+| `pkce-challenge` | 5.0.1 | MIT |
+| `shebang-command` | 2.0.0 | MIT |
+| `shebang-regex` | 3.0.0 | MIT |
 | `strnum` | 2.4.2 | MIT |
 | `tree-sitter-bash` | 0.25.1 | MIT |
 | `uhyphen` | 0.2.0 | ISC |
 | `web-tree-sitter` | 0.26.9 | MIT |
+| `which` | 2.0.2 | ISC |
 | `xml-naming` | 0.3.0 | MIT |
 | `xmlchars` | 2.2.0 | MIT |
 | `yaml` | 2.9.0 | ISC |
+| `zod` | 4.4.3 | MIT |
 
 Direct upstream projects:
 
 - Mozilla Readability: <https://github.com/mozilla/readability>
+- Model Context Protocol TypeScript SDK: <https://github.com/modelcontextprotocol/typescript-sdk>
 - Office Kit XLSX: <https://github.com/office-kit/xlsx>
 - agent-browser: <https://github.com/vercel-labs/agent-browser>
 - clawpdf: <https://github.com/openclaw/clawpdf>
