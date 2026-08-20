@@ -1,0 +1,92 @@
+{
+  "schema": "t5.pre-pkg-human-closeout.v1",
+  "recordedAt": "2026-08-20T16:45:43.846Z",
+  "target": "second_macos_pkg_preflight",
+  "packageBuilt": false,
+  "model": {
+    "provider": "chatgpt_oauth",
+    "modelId": "gpt-5.5"
+  },
+  "dataBoundary": {
+    "actualUserData": false,
+    "isolatedHome": true,
+    "isolatedState": true,
+    "externalEffects": false,
+    "temporaryRoomsRemoved": true,
+    "lingeringScenarioProcesses": 0
+  },
+  "humanScenarios": {
+    "runner": "npm run refoundation:qualify:human-scenarios",
+    "firstAttemptOnly": true,
+    "scenarioCount": 3,
+    "naturalLanguageTurns": 41,
+    "passed": true,
+    "results": [
+      {
+        "id": "event-planning-long-dialogue",
+        "turns": 18,
+        "passed": true,
+        "proved": [
+          "number correction",
+          "topic detour and return",
+          "responsibility scope correction",
+          "decided versus undecided separation",
+          "urgent three-line summary",
+          "no unnecessary computer tools"
+        ]
+      },
+      {
+        "id": "files-artifact-undo",
+        "turns": 12,
+        "passed": true,
+        "proved": [
+          "actual file discovery",
+          "latest fact selection beyond filename",
+          "conflict reporting and user correction",
+          "preview before materialization",
+          "file creation and reopen verification",
+          "source preservation",
+          "recoverable undo"
+        ]
+      },
+      {
+        "id": "personal-reminder-cross-session",
+        "turns": 11,
+        "passed": true,
+        "proved": [
+          "preference memory",
+          "reminder creation and verification",
+          "reminder cancellation and absence verification",
+          "new-session preference recall",
+          "cancelled-work recall without recreation"
+        ]
+      }
+    ]
+  },
+  "currentCapabilityLifecycleEvidence": {
+    "comparison": "531bb079",
+    "safeLifecycle": "d03bed2d",
+    "actualProposalApplyUsesUserRun": true,
+    "exactRevisionVerified": true,
+    "fileChangedOnKeep": false
+  },
+  "regression": {
+    "refoundationCheck": {
+      "passed": 400,
+      "failed": 0
+    },
+    "legacyImports": 0
+  },
+  "repositoryAfterScenario": {
+    "productChanges": 0,
+    "preExistingOwnerChangesPreserved": true
+  },
+  "verdict": "human_scenario_ready_for_owner_requested_pkg_build",
+  "unverifiedUntilPackageExists": [
+    "installed app first launch",
+    "installed app model connection",
+    "installed app restart continuity",
+    "Gatekeeper, signature, notarization, and stapling",
+    "team member Mac behavior"
+  ]
+}
