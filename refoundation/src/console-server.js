@@ -48,6 +48,8 @@ import { userSafeTurnFailure } from './turn-failure.js';
 import {
   recoveryEvidenceForTurn, repeatedNoProgressSignal,
 } from './conversation-recovery.js';
+import { makeConnectionDoctor } from './connection-truth.js';
+import { makeConnectionTool } from './connection-tool.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -163,6 +165,7 @@ export function makeConsoleServer({
   webReadOptions = {},
   browserDriverFactory,
   browserHost,
+  workspaceConnectionInspectors = [],
   processYieldMs = 1000,
   documentCli = bundledDocumentCli,
   attachmentStore,
@@ -682,6 +685,7 @@ export function makeConsoleServer({
       offeredTools.unshift(makeSessionSearchTool({
         ledger: conversations, sessions, currentSessionId: sessionId,
       }));
+      offeredTools.unshift(makeConnectionTool({ doctor: connectionDoctor }));
       const result = await runAgent({
         request: modelRequest,
         requestAttachments: imageInputs,
@@ -952,6 +956,57 @@ export function makeConsoleServer({
     },
     log: (...values) => onError?.(new Error(values.map(String).join(' '))),
   });
+  const connectionDoctor = makeConnectionDoctor({ inspectors: [
+    {
+      id: 'model', label: 'AI 모델', category: 'core',
+      async inspect() {
+        const connection = await status();
+        return {
+          state: connection?.connected ? 'connected' : 'needs_connection',
+          reason: connection?.connected ? null : 'model_not_connected',
+          userSafeSummary: connection?.connected
+            ? `${connection.modelId ?? '선택한 모델'}을 사용하고 있어요.` : '대화에 사용할 모델 연결이 필요해요.',
+          capabilities: { conversation: Boolean(connection?.connected) },
+          routes: (connection?.connections ?? []).slice(0, 12).map((item) => ({
+            kind: item.kind === 'chatgpt_oauth' ? 'account' : 'api_key',
+            label: item.kind === 'chatgpt_oauth' ? 'ChatGPT 계정' : `${item.provider} API`,
+            state: item.active ? 'connected' : 'ready', canStart: false,
+          })),
+        };
+      },
+    },
+    {
+      id: 'telegram', label: '텔레그램', category: 'messenger',
+      async inspect() {
+        const current = await messenger.status();
+        const connected = current.connections?.telegram?.connected === true;
+        return {
+          state: connected ? 'connected' : 'needs_connection',
+          reason: connected ? null : 'telegram_not_connected',
+          userSafeSummary: connected ? '텔레그램 메시지를 주고받을 수 있어요.' : '사용하려면 봇을 연결해 주세요.',
+          capabilities: { receive: connected, send: connected },
+          routes: [{ kind: 'bot_token', label: '텔레그램 봇', state: connected ? 'connected' : 'needs_connection', canStart: true }],
+        };
+      },
+    },
+    {
+      id: 't5-browser', label: '웹사이트 계정', category: 'browser',
+      async inspect() {
+        const available = Boolean(browserHost);
+        return {
+          state: available ? 'ready' : 'unavailable',
+          reason: available ? 'site_login_checked_when_requested' : 'browser_unavailable',
+          userSafeSummary: available
+            ? 'T5 브라우저에서 사이트별 로그인을 시작하고 계속 사용할 수 있어요.'
+            : 'T5 브라우저를 사용할 수 없어요.',
+          capabilities: { login: available, read: available, download: available, upload: available },
+          routes: available
+            ? [{ kind: 'browser', label: 'T5 브라우저', state: 'ready', canStart: true }] : [],
+        };
+      },
+    },
+    ...workspaceConnectionInspectors,
+  ] });
   queueMicrotask(async () => {
     try {
       for (const binding of await messengerState.listBindings()) {
@@ -1498,7 +1553,13 @@ export function makeConsoleServer({
         const memory = await memories.read();
         json(res, 200, { entries: memory.events }); return;
       }
-      if (req.method === 'GET' && url.pathname === '/connectors/truth') { json(res, 200, { connectors: [] }); return; }
+      if (req.method === 'GET' && url.pathname === '/connections/doctor') {
+        json(res, 200, await connectionDoctor.inspect()); return;
+      }
+      if (req.method === 'GET' && url.pathname === '/connectors/truth') {
+        const report = await connectionDoctor.inspect();
+        json(res, 200, { ...report, connectors: report.connections, invalidDeclared: [] }); return;
+      }
       if (req.method === 'POST' && url.pathname === '/turn/metrics/visible') {
         const input = await body(req);
         json(res, 200, { ok: await recordSurfaceMetric(input) }); return;

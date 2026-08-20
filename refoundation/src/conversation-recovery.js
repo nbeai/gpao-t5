@@ -10,18 +10,32 @@ function fingerprint(value) {
   return createHash('sha256').update(normalize(value)).digest('hex');
 }
 
+function stableDiagnosticValue(value) {
+  if (Array.isArray(value)) return value.map(stableDiagnosticValue);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.keys(value).sort().flatMap((key) => (
+    ['checkedAt', 'recordedAt', 'startedAt', 'endedAt', 'durationMs'].includes(key)
+      ? [] : [[key, stableDiagnosticValue(value[key])]]
+  )));
+}
+
 function validEvidence(value) {
   return value?.schema === EVIDENCE_SCHEMA
     && /^[0-9a-f]{64}$/u.test(value.userFingerprint ?? '')
     && /^[0-9a-f]{64}$/u.test(value.surfaceFingerprint ?? '')
+    && /^[0-9a-f]{64}$/u.test(value.diagnosticFingerprint ?? '')
     && Number.isInteger(value.receiptCount)
-    && Number.isInteger(value.executedToolCalls);
+    && Number.isInteger(value.executedToolCalls)
+    && typeof value.diagnosticOnly === 'boolean';
 }
 
 export function recoveryEvidenceForTurn({
   userText, reply, kind, failureCode = null, receipts = [],
 } = {}) {
   const items = Array.isArray(receipts) ? receipts : [];
+  const diagnosticOnly = items.length > 0 && items.every((receipt) => (
+    receipt?.requestedCall?.name === 'connection'
+  ));
   return {
     schema: EVIDENCE_SCHEMA,
     userFingerprint: fingerprint(userText),
@@ -31,6 +45,15 @@ export function recoveryEvidenceForTurn({
     receiptCount: items.length,
     executedToolCalls: items.filter((receipt) => receipt?.actualCall != null).length,
     changedEffects: items.filter((receipt) => receipt?.result?.effectObservation?.changed === true).length,
+    diagnosticOnly,
+    diagnosticFingerprint: createHash('sha256')
+      .update(JSON.stringify(stableDiagnosticValue(items.map((receipt) => ({
+        requestedCall: receipt?.requestedCall ?? null,
+        actualCall: receipt?.actualCall ?? null,
+        outcome: receipt?.outcome ?? null,
+        result: receipt?.result ?? null,
+      })))))
+      .digest('hex'),
   };
 }
 function lastCompletedExchange(transcript = []) {
@@ -48,9 +71,10 @@ function lastCompletedExchange(transcript = []) {
 
 function madeNoProgress(evidence) {
   return validEvidence(evidence)
-    && evidence.receiptCount === 0
-    && evidence.executedToolCalls === 0
-    && evidence.changedEffects === 0;
+    && evidence.changedEffects === 0
+    && (evidence.receiptCount === 0
+      ? evidence.executedToolCalls === 0
+      : evidence.diagnosticOnly && evidence.executedToolCalls === evidence.receiptCount);
 }
 
 /**
@@ -65,6 +89,9 @@ export function repeatedNoProgressSignal({ session, currentUserText, currentResu
   if (!madeNoProgress(priorEvidence)) return null;
   if (priorEvidence.userFingerprint === evidence.userFingerprint) return null;
   if (priorEvidence.surfaceFingerprint !== evidence.surfaceFingerprint) return null;
+  if (priorEvidence.diagnosticOnly !== evidence.diagnosticOnly) return null;
+  if (evidence.diagnosticOnly
+    && priorEvidence.diagnosticFingerprint !== evidence.diagnosticFingerprint) return null;
   if (String(previous.assistant.result?.kind ?? '') !== String(currentResult?.kind ?? '')) return null;
   if (currentResult?.kind === 'error'
     && String(previous.assistant.result?.failureCode ?? '') !== String(currentResult?.failureCode ?? '')) return null;

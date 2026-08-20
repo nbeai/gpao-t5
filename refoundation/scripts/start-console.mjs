@@ -16,6 +16,7 @@ import { makeConsoleServer } from '../src/console-server.js';
 import { resolveConsoleWorkspace } from '../src/console-config.js';
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
 import { makePersistentBrowserHost } from '../src/persistent-browser-host.js';
+import { workspaceConnectionBaselineInspectors } from '../src/workspace-connection-baseline.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -56,6 +57,11 @@ const server = makeConsoleServer({
     browserHost: persistentBrowserHost,
   }),
   browserHost: persistentBrowserHost,
+  workspaceConnectionInspectors: workspaceConnectionBaselineInspectors({
+    userHome: computerEnvironment.userHome,
+    platform: computerEnvironment.platform,
+    browserAvailable: true,
+  }),
   onError: (error) => console.error('[refoundation-console]', error?.message ?? error),
 });
 await new Promise((resolveListen, reject) => {

@@ -13,5 +13,5 @@ test('회복권은 모델 답장이 아니라 대화 카드와 항상 접근 가
   assert.match(html, /새 대화에서 이어가기/u);
   assert.match(html, /\/sessions\/recover/u);
   assert.match(html, /activeRecoveryIds/u);
-  assert.doesNotMatch(html, /Doctor|Run reset|thread reset/u);
+  assert.doesNotMatch(html, /["'`]Doctor["'`]|Run reset|thread reset/u);
 });

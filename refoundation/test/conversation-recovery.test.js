@@ -82,3 +82,24 @@ test('같은 공급자 오류가 실행 진전 없이 반복돼도 모델과 무
     evidence,
   })?.kind, 'repeated_no_progress');
 });
+
+test('연결 상태만 같은 값으로 다시 확인하고 막다른 답을 반복해도 진전으로 꾸미지 않는다', () => {
+  const reply = '전용 연결은 아직 없어요.';
+  const connectionReceipt = (checkedAt) => ({
+    outcome: 'succeeded', actualCall: { name: 'connection', args: { action: 'inspect', id: 'google-workspace' } },
+    requestedCall: { name: 'connection', args: { action: 'inspect', id: 'google-workspace' } },
+    result: {
+      state: 'inspected', checkedAt,
+      connection: { id: 'google-workspace', state: 'needs_connection', reason: 'not_connected' },
+    },
+  });
+  const firstReceipts = [connectionReceipt('2026-08-20T00:00:00.000Z')];
+  const secondReceipts = [connectionReceipt('2026-08-20T00:01:00.000Z')];
+  const session = { transcript: previousExchange({ user: '구글 연동해줘', reply, receipts: firstReceipts }) };
+  const evidence = recoveryEvidenceForTurn({
+    userText: '그럼 지금 연결 시작해', reply, kind: 'reply', receipts: secondReceipts,
+  });
+  assert.equal(repeatedNoProgressSignal({
+    session, currentUserText: '그럼 지금 연결 시작해', currentResult: { kind: 'reply', reply }, evidence,
+  })?.kind, 'repeated_no_progress');
+});
