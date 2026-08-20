@@ -172,8 +172,8 @@ test('Telegram 진행 말풍선 하나를 상태로 수정하고 최종 Markdown
     }),
     createSession: async () => 'progress-session', authorizeInbound: async () => true,
     onInbound: async (_message, { progress }) => {
-      await progress('판단하고 있어요');
-      await progress('웹에서 후보를 찾고 있어요');
+      await progress('요청을 이해하고 있어요');
+      await progress('웹에서 관련 자료를 찾고 있어요');
       return '서울은 **흐림**이고 `24°C`예요.';
     },
   });
@@ -184,8 +184,8 @@ test('Telegram 진행 말풍선 하나를 상태로 수정하고 최종 Markdown
     const sent = fixture.calls.filter((call) => call.method === 'sendMessage');
     const edits = fixture.calls.filter((call) => call.method === 'editMessageText');
     assert.equal(sent.length, 1, '진행 말풍선은 하나만 생성한다');
-    assert.equal(sent[0].body.text, '판단하고 있어요…');
-    assert.equal(edits[0].body.text, '웹에서 후보를 찾고 있어요…');
+    assert.equal(sent[0].body.text, '요청을 이해하고 있어요…');
+    assert.equal(edits[0].body.text, '웹에서 관련 자료를 찾고 있어요…');
     assert.match(edits.at(-1).body.text, /<b>흐림<\/b>/u);
     assert.match(edits.at(-1).body.text, /<code>24°C<\/code>/u);
     assert.doesNotMatch(edits.at(-1).body.text, /\*\*/u);

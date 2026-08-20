@@ -34,12 +34,25 @@ test('Telegram 턴의 안전한 진행 문구는 콘솔 SSE와 같은 Telegram �
   };
   const server = makeConsoleServer({
     stateDir: room, workspace: room,
-    modelFactory: async () => ({
-      async respond() {
-        await new Promise((resolve) => setTimeout(resolve, 20));
-        return { text: '완료했어요.', toolCalls: [] };
-      },
-    }),
+    modelFactory: async () => {
+      let turn = 0;
+      return {
+        async respond() {
+          turn += 1;
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          if (turn === 1) return {
+            text: '', toolCalls: [{ id: 'progress-exec', name: 'exec', args: {
+              command: "printf 'progress-ok'", cwd: null,
+              effect: {
+                kind: 'observe', summary: '진행 상태 시험', targets: [], reversible: true,
+                backupAvailable: true, recipientNew: false, approvalToken: null,
+              },
+            } }],
+          };
+          return { text: '완료했어요.', toolCalls: [] };
+        },
+      };
+    },
     modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
     messengerProviderFactory: () => provider,
   });
@@ -71,9 +84,20 @@ test('Telegram 턴의 안전한 진행 문구는 콘솔 SSE와 같은 Telegram �
     assert.equal((await server.messengerGateway.pollOnce()).replied, 1);
     await readEvents;
     assert.match(eventText, /event: messenger_progress/u);
-    assert.match(eventText, /판단하고 있어요/u);
+    assert.match(eventText, /요청을 이해하고 있어요/u);
+    assert.match(eventText, /컴퓨터에서 필요한 정보를 확인하고 있어요/u);
+    assert.match(eventText, /컴퓨터 작업 결과를 다시 확인하고 있어요/u);
+    assert.match(eventText, /확인한 내용을 바탕으로 다음 단계를 생각하고 있어요/u);
     assert.match(eventText, /"done":true/u);
-    assert.ok(telegramProgress.includes('판단하고 있어요'));
+    const expectedProgress = [
+      '요청을 이해하고 있어요',
+      '컴퓨터에서 필요한 정보를 확인하고 있어요',
+      '컴퓨터 작업 결과를 다시 확인하고 있어요',
+      '확인한 내용을 바탕으로 다음 단계를 생각하고 있어요',
+    ];
+    assert.deepEqual(telegramProgress.slice(0, expectedProgress.length), expectedProgress);
+    assert.doesNotMatch(eventText, /판단/u);
+    assert.doesNotMatch(telegramProgress.join('\n'), /판단/u);
     assert.ok(telegramProgress.includes('final:완료했어요.'));
     const sessions = await fetch(`${base}/sessions`).then((response) => response.json());
     assert.deepEqual(sessions.sessions[0].origin, { channel: 'telegram', chatId: '555' });

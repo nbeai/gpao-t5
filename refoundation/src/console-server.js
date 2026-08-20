@@ -40,25 +40,15 @@ import {
 } from './attachment-hand.js';
 import { MessengerCredentialStore } from './messenger-credential-store.js';
 import { makeMessengerGateway, MessengerStateStore } from './messenger-gateway.js';
+import {
+  modelProgressText, safeProgressText, toolCompletedProgressText, toolProgressText,
+} from './progress-language.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
 const legacyUiRoot = resolve(repositoryRoot, 'src', 'surface', 'web');
 const bundledSkillsRoot = resolve(repositoryRoot, 'refoundation', 'skills');
 const bundledDocumentCli = resolve(repositoryRoot, 'refoundation', 'bin', 't5-document.mjs');
-const SAFE_PROGRESS_TEXT = new Set([
-  '판단하고 있어요', '브라우저 화면을 관측하고 있어요', '첨부 파일을 확인하고 있어요',
-  '웹에서 후보를 찾고 있어요', '선택한 페이지를 읽고 있어요', '필요한 방법을 확인하고 있어요',
-  '이전 결과를 다시 확인하고 있어요', '기억을 확인하고 있어요', '이전 대화를 찾고 있어요',
-  '터미널을 사용하고 있어요', '웹 관측 결과를 확인하고 있어요',
-  '첨부 파일 결과를 확인하고 있어요', '터미널 결과를 확인하고 있어요',
-]);
-
-function safeProgressText(value) {
-  const text = String(value ?? '');
-  return SAFE_PROGRESS_TEXT.has(text) ? text : '작업하고 있어요';
-}
-
 function attachmentSurface(record) {
   return {
     attachmentId: record.attachmentId,
@@ -582,7 +572,7 @@ export function makeConsoleServer({
             await run.append({
               type: 'model_started', stepId: `model-${event.turn}`, payload: { turn: event.turn },
             });
-            emit('trace_status', { text: '판단하고 있어요' });
+            emit('trace_status', { text: modelProgressText(event.turn) });
           } else if (event.type === 'model_context') {
             await run.append({
               type: 'model_context_built', stepId: `model-${event.turn}`,
@@ -609,17 +599,7 @@ export function makeConsoleServer({
                 turn: event.turn, toolCallId: event.toolCallId, name: event.name, args: event.args,
               },
             });
-            emit('tool_progress', {
-              text: event.name === 'browser' ? '브라우저 화면을 관측하고 있어요'
-                : event.name === 'attachment' ? '첨부 파일을 확인하고 있어요'
-                : event.name === 'web_search' ? '웹에서 후보를 찾고 있어요'
-                : event.name === 'web_read' ? '선택한 페이지를 읽고 있어요'
-                : event.name === 'skill' ? '필요한 방법을 확인하고 있어요'
-                : event.name === 'conversation_recall' ? '이전 결과를 다시 확인하고 있어요'
-                  : event.name === 'memory' ? '기억을 확인하고 있어요'
-                    : event.name === 'session_search' ? '이전 대화를 찾고 있어요'
-                  : '터미널을 사용하고 있어요',
-            });
+            emit('tool_progress', { text: toolProgressText(event.name, event.args) });
           } else if (event.type === 'tool_end') {
             if (event.receipt.result?.effectObservation?.changed === true) {
               for (const target of event.receipt.result.effectObservation.declared?.targets ?? []) {
@@ -639,10 +619,11 @@ export function makeConsoleServer({
                 name: event.receipt.requestedCall.name, content: JSON.stringify(event.receipt),
               },
             });
-            emit('trace_status', { text: event.name === 'browser' || event.name === 'web_search' || event.name === 'web_read'
-              ? '웹 관측 결과를 확인하고 있어요'
-              : event.name === 'attachment' ? '첨부 파일 결과를 확인하고 있어요'
-                : '터미널 결과를 확인하고 있어요' });
+            emit('trace_status', {
+              text: toolCompletedProgressText(
+                event.name, event.receipt?.requestedCall?.args ?? {},
+              ),
+            });
           }
         },
       });
