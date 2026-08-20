@@ -166,6 +166,7 @@ export function makeConsoleServer({
   browserDriverFactory,
   browserHost,
   workspaceConnectionInspectors = [],
+  workspaceConnectionServices = [],
   processYieldMs = 1000,
   documentCli = bundledDocumentCli,
   attachmentStore,
@@ -678,6 +679,19 @@ export function makeConsoleServer({
       if (skillSnapshot.skills.length) {
         offeredTools.unshift(makeSkillTool({ snapshot: skillSnapshot, catalogMode: skillCatalogMode }));
       }
+      for (const service of connectionServices.values()) {
+        if (typeof service.makeTool !== 'function') continue;
+        const workspaceTool = await service.makeTool({
+          attachments, sessionId, runId: run.runId,
+          authorizeEffect: (args) => effectPreflight({
+            toolName: service.toolName ?? service.id, args, ownerId: sessionId,
+          }),
+          authorizeUploadPath: (candidate) => (
+            (!options.trigger || options.trigger === 'user') && requestContainsExactPath(text, candidate)
+          ),
+        });
+        if (workspaceTool) offeredTools.unshift(workspaceTool);
+      }
       offeredTools.unshift(makeMemoryTool({
         ledger: memories,
         source: { origin: 'foreground', sessionId, runId: run.runId },
@@ -769,10 +783,7 @@ export function makeConsoleServer({
         receipt.result?.state === 'approval_required'
       ));
       const outputArtifacts = result.receipts.filter((receipt) => (
-        receipt.requestedCall?.name === 'attachment'
-        && receipt.requestedCall?.args?.action === 'register_output'
-        && receipt.outcome === 'succeeded'
-        && receipt.result?.artifact
+        receipt.outcome === 'succeeded' && receipt.result?.artifact
       )).map((receipt) => attachmentSurface(receipt.result.artifact));
       const browserHandoffReceipt = [...result.receipts].reverse().find((receipt) => (
         receipt.requestedCall?.name === 'browser'
@@ -956,6 +967,15 @@ export function makeConsoleServer({
     },
     log: (...values) => onError?.(new Error(values.map(String).join(' '))),
   });
+  const connectionServices = new Map(workspaceConnectionServices.map((service) => {
+    if (!service?.id || !service?.label || !service?.category || typeof service.inspect !== 'function') {
+      throw new TypeError('invalid workspace connection service');
+    }
+    return [service.id, service];
+  }));
+  if (connectionServices.size !== workspaceConnectionServices.length) {
+    throw new TypeError('duplicate workspace connection service');
+  }
   const connectionDoctor = makeConnectionDoctor({ inspectors: [
     {
       id: 'model', label: 'AI 모델', category: 'core',
@@ -1005,6 +1025,10 @@ export function makeConsoleServer({
         };
       },
     },
+    ...workspaceConnectionServices.map((service) => ({
+      id: service.id, label: service.label, category: service.category,
+      inspect: (options) => service.inspect(options),
+    })),
     ...workspaceConnectionInspectors,
   ] });
   queueMicrotask(async () => {
@@ -1553,6 +1577,24 @@ export function makeConsoleServer({
         const memory = await memories.read();
         json(res, 200, { entries: memory.events }); return;
       }
+      const workspaceConnectionAction = req.method === 'POST' && url.pathname.match(
+        /^\/connections\/([a-z0-9-]+)\/(start|await|disconnect)$/u,
+      );
+      if (workspaceConnectionAction) {
+        const [, id, action] = workspaceConnectionAction;
+        const service = connectionServices.get(id);
+        if (!service) { json(res, 404, { error: '연결 대상을 찾지 못했어요.' }); return; }
+        if (action === 'start') {
+          if (typeof service.start !== 'function') { json(res, 409, { error: '이 연결은 지금 시작할 수 없어요.' }); return; }
+          json(res, 200, await service.start()); return;
+        }
+        if (action === 'await') {
+          if (typeof service.awaitConnection !== 'function') { json(res, 409, { error: '진행 중인 연결이 없어요.' }); return; }
+          json(res, 200, await service.awaitConnection()); return;
+        }
+        if (typeof service.disconnect !== 'function') { json(res, 409, { error: '이 연결은 해제할 수 없어요.' }); return; }
+        json(res, 200, await service.disconnect()); return;
+      }
       if (req.method === 'GET' && url.pathname === '/connections/doctor') {
         json(res, 200, await connectionDoctor.inspect()); return;
       }
@@ -1590,5 +1632,8 @@ export function makeConsoleServer({
   server.closeModelConnections = () => modelConnections?.close?.();
   server.closeMessengers = () => messenger.stop();
   server.closeBrowsers = closeBrowserDrivers;
+  server.closeWorkspaceConnections = () => {
+    for (const service of connectionServices.values()) service.close?.();
+  };
   return server;
 }

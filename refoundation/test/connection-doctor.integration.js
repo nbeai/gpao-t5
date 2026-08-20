@@ -51,3 +51,52 @@ test('연결 닥터와 기존 connector truth는 같은 실제 연결 목록을 
     await rm(room, { recursive: true, force: true });
   }
 });
+
+test('설정의 범용 OAuth 연결·완료·해제 endpoint는 등록된 업무공간 서비스만 호출한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-workspace-connection-actions-'));
+  let connected = false;
+  const calls = [];
+  const service = {
+    id: 'google-workspace', label: 'Google Workspace', category: 'workspace',
+    inspect: async () => ({
+      state: connected ? 'connected' : 'needs_connection',
+      userSafeSummary: connected ? '연결됨' : '연결 필요', capabilities: {}, routes: [],
+      actions: connected ? [{
+        id: 'disconnect', label: '연결 해제', kind: 'disconnect',
+        endpoint: '/connections/google-workspace/disconnect',
+      }] : [{
+        id: 'connect', label: 'Google 계정 연결', kind: 'oauth',
+        startEndpoint: '/connections/google-workspace/start',
+        awaitEndpoint: '/connections/google-workspace/await',
+      }],
+    }),
+    async start() { calls.push('start'); return { authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth?state=public' }; },
+    async awaitConnection() { calls.push('await'); connected = true; return { connected: true, userSafeSummary: 'Google Drive를 연결했어요.' }; },
+    async disconnect() { calls.push('disconnect'); connected = false; return { disconnected: true, userSafeSummary: 'Google Drive 연결을 해제했어요.' }; },
+  };
+  const server = makeConsoleServer({
+    stateDir: join(room, 'state'), workspace: room, workspaceConnectionServices: [service],
+    modelFactory: () => ({ respond: async () => ({ text: '네', toolCalls: [] }) }),
+    modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject); server.listen(0, '127.0.0.1', resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const postAction = (path) => fetch(`${base}${path}`, { method: 'POST' });
+  try {
+    const before = await fetch(`${base}/connections/doctor`).then((response) => response.json());
+    assert.equal(before.connections.find((item) => item.id === 'google-workspace').actions[0].kind, 'oauth');
+    assert.equal((await postAction('/connections/google-workspace/start')).status, 200);
+    assert.equal((await postAction('/connections/google-workspace/await')).status, 200);
+    const after = await fetch(`${base}/connections/doctor`).then((response) => response.json());
+    assert.equal(after.connections.find((item) => item.id === 'google-workspace').state, 'connected');
+    assert.equal((await postAction('/connections/google-workspace/disconnect')).status, 200);
+    assert.deepEqual(calls, ['start', 'await', 'disconnect']);
+    assert.equal((await postAction('/connections/not-registered/start')).status, 404);
+  } finally {
+    server.closeWakeStreams(); await server.closeMessengers(); server.closeWorkspaceConnections();
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});

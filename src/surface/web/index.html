@@ -1560,6 +1560,44 @@ async function renderConnectionDoctor(target) {
         const text = mk('div', 'connection-label');
         text.appendChild(mk('div', 'tb-name', connection.label));
         text.appendChild(mk('div', 'tb-hint', connection.userSafeSummary));
+        if (connection.actions?.length) {
+          const actionRow = mk('div', 'connection-actions');
+          const actionStatus = mk('div', 'tb-hint');
+          for (const action of connection.actions) {
+            const button = document.createElement('button'); button.className = 'connection-button';
+            button.textContent = action.label;
+            button.onclick = async () => {
+              button.disabled = true;
+              if (action.kind === 'oauth') {
+                const popup = window.open('about:blank', '_blank');
+                if (popup) popup.opener = null;
+                actionStatus.textContent = '계정 연결을 준비하고 있어요…';
+                const started = await endpointJson(action.startEndpoint, { method: 'POST' });
+                if (!started.ok || !started.data?.authorizeUrl) {
+                  popup?.close(); actionStatus.textContent = endpointError(started, '계정 연결을 시작하지 못했어요.');
+                  button.disabled = false; return;
+                }
+                if (popup) popup.location.href = started.data.authorizeUrl;
+                else window.open(started.data.authorizeUrl, '_blank', 'noopener');
+                actionStatus.textContent = '열린 화면에서 계정을 선택하고 허용해 주세요…';
+                const finished = await endpointJson(action.awaitEndpoint, { method: 'POST' });
+                actionStatus.textContent = finished.ok
+                  ? (finished.data?.userSafeSummary ?? '연결했어요.')
+                  : endpointError(finished, '계정 연결을 완료하지 못했어요.');
+                if (finished.ok) await load(); else button.disabled = false;
+                return;
+              }
+              actionStatus.textContent = '연결을 해제하고 있어요…';
+              const disconnected = await endpointJson(action.endpoint, { method: 'POST' });
+              actionStatus.textContent = disconnected.ok
+                ? (disconnected.data?.userSafeSummary ?? '연결을 해제했어요.')
+                : endpointError(disconnected, '연결을 해제하지 못했어요.');
+              if (disconnected.ok) await load(); else button.disabled = false;
+            };
+            actionRow.appendChild(button);
+          }
+          text.append(actionRow, actionStatus);
+        }
         row.appendChild(text);
         row.appendChild(mk('div', 'connection-current', stateLabel[connection.state] ?? '확인 필요'));
         result.appendChild(row);

@@ -26,10 +26,11 @@ function browserRoute(browserAvailable, startUrl) {
 
 export function workspaceConnectionBaselineInspectors({
   userHome, platform = process.platform, browserAvailable = false,
+  includeGoogle = true, includeNotion = true,
 } = {}) {
   if (!userHome) throw new TypeError('workspace connection baseline requires userHome');
   return [
-    {
+    ...(includeGoogle ? [{
       id: 'google-workspace', label: 'Google Workspace', category: 'workspace',
       async inspect() {
         const localSync = await googleSyncAvailable(userHome, platform);
@@ -55,8 +56,8 @@ export function workspaceConnectionBaselineInspectors({
           ],
         };
       },
-    },
-    {
+    }] : []),
+    ...(includeNotion ? [{
       id: 'notion', label: 'Notion', category: 'workspace',
       async inspect() {
         return {
@@ -75,6 +76,6 @@ export function workspaceConnectionBaselineInspectors({
           ],
         };
       },
-    },
+    }] : []),
   ];
 }

@@ -39,6 +39,22 @@ function safeRoutes(value) {
   });
 }
 
+function safeActions(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 8).flatMap((action) => {
+    const id = String(action?.id ?? '').trim();
+    const label = String(action?.label ?? '').trim();
+    const kind = String(action?.kind ?? '').trim();
+    const endpoints = ['endpoint', 'startEndpoint', 'awaitEndpoint'].flatMap((key) => {
+      const path = action?.[key] == null ? null : String(action[key]);
+      return path && /^\/connections\/[a-z0-9-]+\/(?:start|await|disconnect)$/u.test(path)
+        ? [[key, path]] : [];
+    });
+    if (!/^[a-z][a-z0-9_-]{0,63}$/u.test(id) || !label || !['oauth', 'disconnect'].includes(kind)) return [];
+    return [{ id, label, kind, ...Object.fromEntries(endpoints) }];
+  });
+}
+
 function safeResult(inspector, raw) {
   const state = String(raw?.state ?? '');
   if (!STATES.has(state)) throw new TypeError(`invalid connection state: ${state || '(empty)'}`);
@@ -52,6 +68,7 @@ function safeResult(inspector, raw) {
     id: inspector.id, label: inspector.label, category: inspector.category,
     state, reason, userSafeSummary: summary,
     capabilities: safeCapabilities(raw?.capabilities), routes: safeRoutes(raw?.routes),
+    actions: safeActions(raw?.actions),
   };
 }
 
@@ -89,7 +106,7 @@ export function makeConnectionDoctor({ inspectors = [], timeoutMs = DEFAULT_TIME
             state: 'needs_attention',
             reason: error?.code === 'CHECK_TIMEOUT' ? 'check_timeout' : 'check_failed',
             userSafeSummary: '연결 상태를 확인하지 못했어요. 잠시 후 다시 확인해 주세요.',
-            capabilities: {}, routes: [],
+            capabilities: {}, routes: [], actions: [],
           };
         }
         return safeResult(inspector, raw);

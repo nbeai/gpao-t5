@@ -11,6 +11,8 @@ test('일반 사용자는 설정에서 연결 상태와 가능한 다음 행동�
   assert.match(html, /연결 상태 확인/u);
   assert.match(html, /\/connections\/doctor/u);
   assert.match(html, /다시 확인/u);
+  assert.match(html, /계정 연결을 준비하고 있어요/u);
+  assert.match(html, /action\.kind === 'oauth'/u);
   assert.match(html, /연결됨|연결 필요|사용 가능|확인 필요/u);
   assert.doesNotMatch(html, /oauth_pending_internal|connector_state_enum/u);
 });
