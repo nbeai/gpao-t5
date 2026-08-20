@@ -124,31 +124,39 @@ export function makeNotionMcpConnection({
       if (pending) throw Object.assign(new Error('Notion 연결을 이미 진행하고 있어요.'), {
         status: 409, reason: 'oauth_in_progress',
       });
-      if ((await this.inspect()).state === 'connected') throw Object.assign(new Error('Notion이 이미 연결되어 있어요.'), {
-        status: 409, reason: 'already_connected',
-      });
-      const pkce = createNotionPkce();
-      const callback = startNotionCallback({ state: pkce.state, port: callbackPort });
-      let callbackAddress;
-      try { callbackAddress = await callback.listening; }
-      catch (error) { callback.cancel(); throw error; }
-      let current = await bundle();
-      if (!current?.metadata || !current?.client || current.redirectUri !== callbackAddress.redirectUri) {
-        const metadata = await discoverNotionOAuth({ serverUrl: NOTION_MCP_URL, fetchImpl });
-        const client = await registerNotionClient({
-          metadata, redirectUri: callbackAddress.redirectUri, fetchImpl,
+      pending = { phase: 'starting' };
+      let callback = null;
+      try {
+        if ((await this.inspect()).state === 'connected') throw Object.assign(new Error('Notion이 이미 연결되어 있어요.'), {
+          status: 409, reason: 'already_connected',
         });
-        current = { version: 1, redirectUri: callbackAddress.redirectUri, metadata, client };
-        await secretStore.set(SECRET_NAME, current);
+        const pkce = createNotionPkce();
+        callback = startNotionCallback({ state: pkce.state, port: callbackPort });
+        let callbackAddress;
+        try { callbackAddress = await callback.listening; }
+        catch (error) { callback.cancel(); throw error; }
+        let current = await bundle();
+        if (!current?.metadata || !current?.client || current.redirectUri !== callbackAddress.redirectUri) {
+          const metadata = await discoverNotionOAuth({ serverUrl: NOTION_MCP_URL, fetchImpl });
+          const client = await registerNotionClient({
+            metadata, redirectUri: callbackAddress.redirectUri, fetchImpl,
+          });
+          current = { version: 1, redirectUri: callbackAddress.redirectUri, metadata, client };
+          await secretStore.set(SECRET_NAME, current);
+        }
+        pending = { pkce, callback, bundle: current };
+        return {
+          authorizeUrl: buildNotionAuthorizeUrl({
+            metadata: current.metadata, client: current.client, redirectUri: current.redirectUri,
+            challenge: pkce.challenge, state: pkce.state,
+          }),
+          notice: 'Notion 계정 연결을 시작했어요.',
+        };
+      } catch (error) {
+        callback?.cancel();
+        pending = null;
+        throw error;
       }
-      pending = { pkce, callback, bundle: current };
-      return {
-        authorizeUrl: buildNotionAuthorizeUrl({
-          metadata: current.metadata, client: current.client, redirectUri: current.redirectUri,
-          challenge: pkce.challenge, state: pkce.state,
-        }),
-        notice: 'Notion 계정 연결을 시작했어요.',
-      };
     },
     async awaitConnection() {
       const current = pending;
@@ -200,7 +208,7 @@ export function makeNotionMcpConnection({
       return { disconnected: true, provider: 'notion', userSafeSummary: 'Notion 연결을 해제했어요.' };
     },
     async close() {
-      pending?.callback.cancel(); pending = null;
+      pending?.callback?.cancel(); pending = null;
       await runtime?.close?.().catch(() => {}); runtime = null;
     },
   };

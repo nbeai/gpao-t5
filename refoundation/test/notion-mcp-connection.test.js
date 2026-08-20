@@ -105,3 +105,30 @@ test('Notion invalid_grant는 재시도 루프 없이 token만 지우고 등록 
     assert.equal((await connection.inspect()).state, 'needs_connection');
   } finally { await connection.close(); }
 });
+
+test('동시에 들어온 Notion 연결 시작은 callback 포트를 열기 전에 하나만 입장한다', async () => {
+  const secretStore = memorySecrets();
+  const fetchImpl = async (url) => {
+    const value = String(url);
+    if (value.endsWith('/mcp/.well-known/oauth-protected-resource')) return new Response(JSON.stringify({
+      authorization_servers: ['https://auth.notion.test'],
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+    if (value.endsWith('/.well-known/oauth-authorization-server')) return new Response(JSON.stringify(metadata), {
+      status: 200, headers: { 'content-type': 'application/json' },
+    });
+    return new Response(JSON.stringify({ client_id: 'one-client' }), {
+      status: 201, headers: { 'content-type': 'application/json' },
+    });
+  };
+  const connection = makeNotionMcpConnection({
+    secretStore, fetchImpl, callbackPort: 0,
+    runtimeFactory: () => { throw new Error('not used'); },
+  });
+  try {
+    const results = await Promise.allSettled([connection.start(), connection.start()]);
+    assert.equal(results.filter((item) => item.status === 'fulfilled').length, 1);
+    const rejected = results.find((item) => item.status === 'rejected');
+    assert.equal(rejected.reason.status, 409);
+    assert.equal(rejected.reason.reason, 'oauth_in_progress');
+  } finally { await connection.close(); }
+});

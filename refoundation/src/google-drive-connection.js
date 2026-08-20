@@ -105,19 +105,27 @@ export function makeGoogleDriveConnection({
       if (pending) throw Object.assign(new Error('Google 계정 연결을 이미 진행하고 있어요.'), {
         status: 409, reason: 'oauth_in_progress',
       });
-      const pkce = createGoogleDrivePkce();
-      const callback = startGoogleDriveCallback({ state: pkce.state });
-      let callbackAddress;
-      try { callbackAddress = await callback.listening; }
-      catch (error) { callback.cancel(); throw error; }
-      pending = { pkce, callback, redirectUri: callbackAddress.redirectUri };
-      return {
-        authorizeUrl: buildGoogleDriveAuthorizeUrl({
-          clientId, redirectUri: pending.redirectUri,
-          challenge: pkce.challenge, state: pkce.state,
-        }),
-        notice: 'Google 계정 연결을 시작했어요.',
-      };
+      pending = { phase: 'starting' };
+      let callback = null;
+      try {
+        const pkce = createGoogleDrivePkce();
+        callback = startGoogleDriveCallback({ state: pkce.state });
+        let callbackAddress;
+        try { callbackAddress = await callback.listening; }
+        catch (error) { callback.cancel(); throw error; }
+        pending = { pkce, callback, redirectUri: callbackAddress.redirectUri };
+        return {
+          authorizeUrl: buildGoogleDriveAuthorizeUrl({
+            clientId, redirectUri: pending.redirectUri,
+            challenge: pkce.challenge, state: pkce.state,
+          }),
+          notice: 'Google 계정 연결을 시작했어요.',
+        };
+      } catch (error) {
+        callback?.cancel();
+        pending = null;
+        throw error;
+      }
     },
     async awaitConnection() {
       const current = pending;
@@ -155,7 +163,7 @@ export function makeGoogleDriveConnection({
       return { disconnected: true, provider: PROVIDER, userSafeSummary: 'Google Drive 연결을 해제했어요.' };
     },
     close() {
-      pending?.callback.cancel(); pending = null;
+      pending?.callback?.cancel(); pending = null;
     },
   };
 }

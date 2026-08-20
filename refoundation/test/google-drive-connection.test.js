@@ -91,3 +91,17 @@ test('만료된 Google access token은 refresh 뒤 0600 저장소와 API 호출�
     assert.doesNotMatch(JSON.stringify(await connection.inspect()), /NEW-ACCESS|REFRESH-SECRET/u);
   } finally { connection.close(); await rm(room, { recursive: true, force: true }); }
 });
+
+test('동시에 들어온 Google 연결 시작도 callback을 하나만 연다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-google-start-race-'));
+  const connection = makeGoogleDriveConnection({
+    store: new WorkspaceCredentialStore(room), clientId: 'desktop-client',
+  });
+  try {
+    const results = await Promise.allSettled([connection.start(), connection.start()]);
+    assert.equal(results.filter((item) => item.status === 'fulfilled').length, 1);
+    const rejected = results.find((item) => item.status === 'rejected');
+    assert.equal(rejected.reason.status, 409);
+    assert.equal(rejected.reason.reason, 'oauth_in_progress');
+  } finally { connection.close(); await rm(room, { recursive: true, force: true }); }
+});
