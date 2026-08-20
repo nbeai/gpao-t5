@@ -26,11 +26,11 @@
       "visibleCommentsPresent": true
     },
     "missing": ["all 759 comments", "complete reply threads", "media pixels", "audio", "frames", "ocr"],
-    "boundary": "snapshot still contained loading statuses; visible comments are a subset"
+    "boundary": "snapshot contained both a login banner and already-visible public content, plus loading statuses; login was not required and visible comments are a subset"
   },
   "decision": {
     "newFacebookAdapterRequired": false,
-    "smallestChange": "let the model switch once from static observation to the existing Browser Hand and preserve visible-subset coverage",
+    "smallestChange": "let the model switch once from static observation to the existing Browser Hand, preserve visible-subset coverage, and avoid login when requested public content is already visible",
     "runtimePlatformRule": false
   },
   "verification": {

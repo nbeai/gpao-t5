@@ -55,6 +55,7 @@ test('정확한 공개 페이지의 정적 관측이 막히면 기존 브라우�
   assert.match(instructions, /exact public page.*blocked.*empty.*browser.*once/i);
   assert.match(instructions, /visible.*subset.*not.*complete dataset/i);
   assert.match(instructions, /do not repeat.*same static request/i);
+  assert.match(instructions, /public content.*already visible.*login banner.*do not require login/i);
   assert.doesNotMatch(instructions, /facebook.*special|instagram.*special/i);
 });
 
