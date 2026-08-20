@@ -857,6 +857,8 @@ async function renderModelConnect(target) {
         <input id="mcKey" type="password" placeholder="API 키" aria-label="API 키" autocomplete="off">
         <input id="mcModel" type="text" placeholder="모델(비우면 기본)" aria-label="모델 이름">
       </div>
+      <div class="tb-hint">API 키는 대화가 아닌 이 입력칸에서만 받아요. 검증된 키는 이 Mac의 T5 전용
+        저장소에 다른 계정이 읽지 못하도록 보관하고, 화면에는 연결 이름과 저장 상태만 표시해요.</div>
       <div class="connection-actions">
         <button id="mcConnect" class="connection-button primary">API 키로 연결</button>
         <button id="mcDisconnect" class="connection-button">현재 연결 해제</button>
@@ -3261,10 +3263,39 @@ function renderSuggestion(box, sug) {
   box.appendChild(card);
 }
 
+const CHAT_SECRET_PATTERNS = [
+  /\bsk-(?:proj-|ant-)?[A-Za-z0-9_-]{16,}\b/u,
+  /\bAIza[A-Za-z0-9_-]{20,}\b/u,
+  /\b(?:ghp_|github_pat_)[A-Za-z0-9_]{16,}\b/u,
+  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/u,
+];
+function containsCredentialLikeText(value) {
+  const textValue = String(value ?? '');
+  return CHAT_SECRET_PATTERNS.some((pattern) => pattern.test(textValue));
+}
+function renderChatSecretBoundary() {
+  document.getElementById('chat-secret-boundary')?.closest('.turn')?.remove();
+  const box = turnBox(); box.appendChild(el('who', 'GPAO-T5'));
+  const card = el('suggest'); card.id = 'chat-secret-boundary';
+  card.appendChild(el('sug-t', '비밀값은 대화로 보내지 않았어요'));
+  card.appendChild(el('sug-line', '내용은 저장하거나 모델에 전달하지 않았어요. 사용할 곳의 전용 연결 입력칸에 붙여 넣어 주세요.'));
+  const buttons = el('btns');
+  const model = document.createElement('button'); model.className = 'act primary'; model.textContent = '모델 연결 열기';
+  model.onclick = () => openSettings('model');
+  const messenger = document.createElement('button'); messenger.className = 'act no'; messenger.textContent = '메신저 연결 열기';
+  messenger.onclick = () => openSettings('messenger');
+  buttons.append(model, messenger); card.appendChild(buttons); box.appendChild(card);
+}
+
 async function submit() {
   const typed = text.value.trim();
   const t = typed || (stagedAttachments.length ? '첨부한 파일을 확인해줘.' : '');
   if (!t) return;
+  if (containsCredentialLikeText(t)) {
+    text.value = ''; text.style.height = 'auto';
+    renderChatSecretBoundary();
+    return;
+  }
   const surfaceStartedAt = performance.now();
   if (!currentSessionId) await newSession();
   const submittedSessionId = currentSessionId;
@@ -3465,6 +3496,12 @@ for (const event of ['dragleave', 'drop']) inbox.addEventListener(event, (e) => 
 inbox.addEventListener('drop', (e) => uploadFiles(e.dataTransfer?.files ?? []));
 send.onclick = submit;
 text.addEventListener('input', () => { text.style.height = 'auto'; text.style.height = Math.min(text.scrollHeight, 160) + 'px'; });
+text.addEventListener('paste', (event) => {
+  const pasted = event.clipboardData?.getData('text/plain') ?? '';
+  if (!containsCredentialLikeText(pasted)) return;
+  event.preventDefault();
+  renderChatSecretBoundary();
+});
 // 한글·일본어·중국어는 **조합 중**에 Enter 가 온다(조합 확정 Enter). 그때 보내면 확정되지 않은
 // 마지막 글자가 입력칸에 남아 다음 말 앞에 붙는다 — "단어 끝 글자가 자동으로 입력된다"의 정체다.
 // 문장에 띄어쓰기가 있으면 이미 조합이 끝나 있어 증상이 안 보였다(오너 실사용 지적).
