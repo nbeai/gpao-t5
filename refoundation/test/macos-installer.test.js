@@ -10,6 +10,8 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.match(build, /node-x64/u);
   assert.match(build, /COPYRIGHT/u);
   assert.match(build, /THIRD_PARTY_NOTICES\.md/u);
+  assert.match(build, /'skill-packages'/u);
+  assert.match(build, /'capabilities'/u);
   assert.doesNotMatch(build, /gpao-t-handoff|AuthKey_|signing-private/u);
   assert.match(launcher, /start-console\.mjs/u);
   assert.doesNotMatch(launcher, /connect-chatgpt\.mjs|startOAuth/u);
@@ -17,6 +19,9 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.match(launcher, /T5_REFOUNDATION_MODEL_CONNECTION_FILE/u);
   assert.match(launcher, /runtime\/bin/u);
   assert.doesNotMatch(launcher, /bin\/gpao-t5\.mjs/u);
+  const verifier = await readFile(new URL('../scripts/verify-macos-installer.mjs', import.meta.url), 'utf8');
+  assert.match(verifier, /const childExit = new Promise/u);
+  assert.doesNotMatch(verifier, /child\.kill\('SIGTERM'\);\s*await new Promise\(\(resolveExit\) => child\.once/u);
 });
 
 test('2차 macOS package version은 제품 version 0.1.2와 일치한다', async () => {

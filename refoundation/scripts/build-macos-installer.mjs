@@ -64,7 +64,7 @@ async function copyRuntimeApp(target) {
   for (const file of ['package.json', 'package-lock.json']) {
     await copyFile(join(repo, 'refoundation', file), join(refoundation, file));
   }
-  for (const directory of ['src', 'bin', 'skills', 'config']) {
+  for (const directory of ['src', 'bin', 'skills', 'skill-packages', 'capabilities', 'config']) {
     await cp(join(repo, 'refoundation', directory), join(refoundation, directory), {
       recursive: true, dereference: false,
     });

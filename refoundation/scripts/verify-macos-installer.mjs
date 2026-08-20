@@ -49,6 +49,10 @@ try {
     join(appRoot, 'refoundation', 'scripts', 'start-console.mjs'),
     join(appRoot, 'refoundation', 'scripts', 'connect-chatgpt.mjs'),
     join(appRoot, 'refoundation', 'bin', 't5-document.mjs'),
+    join(appRoot, 'refoundation', 'skill-packages', 'customer-inquiry-triage', 'SKILL.md'),
+    join(appRoot, 'refoundation', 'capabilities', 'asana', 'capability.json'),
+    join(appRoot, 'refoundation', 'config', 'skill-catalog.json'),
+    join(appRoot, 'refoundation', 'config', 'cli-catalog.json'),
     join(appRoot, 'src', 'surface', 'web', 'index.html'),
     join(appRoot, 'COPYRIGHT'), join(appRoot, 'NOTICE'), join(appRoot, 'THIRD_PARTY_NOTICES.md'),
     join(appRoot, 'docs', '00-product', 'GPAO-T5-FOUNDER-MANIFESTO-ko.md'),
@@ -86,9 +90,13 @@ try {
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+  let childStdout = ''; let childStderr = '';
+  child.stdout.on('data', (chunk) => { childStdout += chunk; });
+  child.stderr.on('data', (chunk) => { childStderr += chunk; });
+  const childExit = new Promise((resolveExit) => child.once('exit', (code, signal) => resolveExit({ code, signal })));
   try {
     const port = await waitForPort(portFile);
-    if (!port) throw new Error('packaged console did not publish its port');
+    if (!port) throw new Error(`packaged console did not publish its port: ${childStderr || childStdout}`);
     const health = await fetch(`http://127.0.0.1:${port}/health`).then((response) => response.json());
     if (health?.ok !== true || health?.product !== 'gpao-t5-refoundation') {
       throw new Error('packaged console health is invalid');
@@ -96,8 +104,8 @@ try {
     const html = await fetch(`http://127.0.0.1:${port}/`).then((response) => response.text());
     if (!html.includes('GPAO-T5')) throw new Error('packaged console UI is invalid');
   } finally {
-    child.kill('SIGTERM');
-    await new Promise((resolveExit) => child.once('exit', resolveExit));
+    if (child.exitCode == null && child.signalCode == null) child.kill('SIGTERM');
+    await childExit;
   }
 
   let secretHits = '';
