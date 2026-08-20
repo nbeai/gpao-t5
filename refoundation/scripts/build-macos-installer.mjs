@@ -59,6 +59,7 @@ async function verifiedNode(tarball, expectedName, shasums, destination) {
 async function copyRuntimeApp(target) {
   const refoundation = join(target, 'refoundation');
   await mkdir(join(target, 'src', 'surface', 'web'), { recursive: true });
+  await mkdir(join(target, 'docs', '00-product'), { recursive: true });
   await mkdir(join(refoundation, 'scripts'), { recursive: true });
   for (const file of ['package.json', 'package-lock.json']) {
     await copyFile(join(repo, 'refoundation', file), join(refoundation, file));
@@ -77,6 +78,10 @@ async function copyRuntimeApp(target) {
   for (const file of ['COPYRIGHT', 'NOTICE', 'THIRD_PARTY_NOTICES.md']) {
     await copyFile(join(repo, file), join(target, file));
   }
+  await copyFile(
+    join(repo, 'docs', '00-product', 'GPAO-T5-FOUNDER-MANIFESTO-ko.md'),
+    join(target, 'docs', '00-product', 'GPAO-T5-FOUNDER-MANIFESTO-ko.md'),
+  );
   run('npm', ['ci', '--omit=dev'], { cwd: refoundation, stdio: 'inherit' });
 }
 

@@ -1577,6 +1577,7 @@ const setBack = document.getElementById('set-back');
 const SET_SECTIONS = [
   ['model', '모델'], ['messenger', '메신저'], ['tools', '도구와 연결'],
   ['skills', '스킬'], ['automation', '자동화'], ['memory', '기억과 개인정보'], ['looks', '모양'],
+  ['about', 'T5에 대하여'],
 ];
 function closeSettings() { setov.classList.remove('open'); }
 async function openSettings(section = 'model') {
@@ -1925,6 +1926,19 @@ const SET_RENDER = {
     const b = document.createElement('button'); b.className = 'tb-test'; b.textContent = '밝은·어두운 테마 전환';
     b.onclick = toggleTheme;
     box.appendChild(b);
+    setBody.appendChild(box);
+  },
+  async about() {
+    setBody.replaceChildren();
+    const box = mk('div', 'tb-card');
+    box.appendChild(mk('div', 'tb-name', 'T5를 만든 이유'));
+    box.appendChild(mk('div', 'tb-hint', '이 글은 T5의 창립 선언문이며 기능이나 행동 규칙을 바꾸지 않아요.'));
+    const response = await fetch('/about/manifesto');
+    if (!response.ok) throw new Error('founder manifesto unavailable');
+    const manifesto = await response.json();
+    const content = document.createElement('div'); content.className = 'about-manifesto';
+    renderMarkdownInto(content, manifesto.markdown ?? '');
+    box.appendChild(content);
     setBody.appendChild(box);
   },
 };

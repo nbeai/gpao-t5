@@ -51,6 +51,7 @@ try {
     join(appRoot, 'refoundation', 'bin', 't5-document.mjs'),
     join(appRoot, 'src', 'surface', 'web', 'index.html'),
     join(appRoot, 'COPYRIGHT'), join(appRoot, 'NOTICE'), join(appRoot, 'THIRD_PARTY_NOTICES.md'),
+    join(appRoot, 'docs', '00-product', 'GPAO-T5-FOUNDER-MANIFESTO-ko.md'),
   ];
   for (const path of required) await stat(path);
   for (const forbidden of ['test', 'evidence']) {

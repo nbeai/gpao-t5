@@ -60,6 +60,9 @@ const legacyUiRoot = resolve(repositoryRoot, 'src', 'surface', 'web');
 const bundledSkillsRoot = resolve(repositoryRoot, 'refoundation', 'skills');
 const bundledCapabilitiesRoot = resolve(repositoryRoot, 'refoundation', 'capabilities');
 const bundledDocumentCli = resolve(repositoryRoot, 'refoundation', 'bin', 't5-document.mjs');
+const founderManifestoPath = resolve(
+  repositoryRoot, 'docs', '00-product', 'GPAO-T5-FOUNDER-MANIFESTO-ko.md',
+);
 function attachmentSurface(record) {
   return {
     attachmentId: record.attachmentId,
@@ -1295,6 +1298,13 @@ export function makeConsoleServer({
       if (req.method === 'GET' && url.pathname === '/wake-events.js') {
         res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
         res.end(await readFile(resolve(here, 'wake-events.js'), 'utf8'));
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/about/manifesto') {
+        json(res, 200, {
+          kind: 'founder_manifesto', title: '도구와 목적', affectsRuntime: false,
+          markdown: await readFile(founderManifestoPath, 'utf8'),
+        });
         return;
       }
       if (req.method === 'POST' && url.pathname === '/attachments') {
