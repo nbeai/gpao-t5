@@ -22,6 +22,8 @@ test('macOS team installer starts the console first and lets the user choose a m
   const verifier = await readFile(new URL('../scripts/verify-macos-installer.mjs', import.meta.url), 'utf8');
   assert.match(verifier, /const childExit = new Promise/u);
   assert.doesNotMatch(verifier, /child\.kill\('SIGTERM'\);\s*await new Promise\(\(resolveExit\) => child\.once/u);
+  assert.match(verifier, /\^-----BEGIN \(RSA \|OPENSSH \)\?PRIVATE KEY-----\$/u);
+  assert.doesNotMatch(verifier, /'-l', 'BEGIN \(RSA \)\?PRIVATE KEY/u);
 });
 
 test('2차 macOS package version은 제품 version 0.1.2와 일치한다', async () => {

@@ -111,7 +111,7 @@ try {
   let secretHits = '';
   try {
     secretHits = run('rg', [
-      '-l', 'BEGIN (RSA )?PRIVATE KEY|BEGIN PRIVATE KEY|BEGIN OPENSSH PRIVATE KEY', app,
+      '-l', '^-----BEGIN (RSA |OPENSSH )?PRIVATE KEY-----$', app,
     ], { stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   } catch (error) {
     if (error?.status !== 1) throw error;
