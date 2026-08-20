@@ -98,6 +98,7 @@ export function makeNotionMcpConnection({
         installed: false, authenticated: false, state: 'needs_attention', reason: 'notion_cli_check_failed',
       }));
       const cliReady = cli.authenticated === true;
+      const connecting = pending != null;
       const capabilities = connected
         ? capabilitiesFromTools((current.tools ?? []).map((name) => ({ name })))
         : { search: false, read: false, create: false, update: false, download: false, upload: false };
@@ -106,9 +107,12 @@ export function makeNotionMcpConnection({
       });
       return {
         state: connected ? 'connected' : cliReady ? 'ready' : 'needs_connection',
-        reason: connected ? 'verified_notion_mcp' : cliReady ? 'notion_cli_authenticated' : 'remote_mcp_not_connected',
+        reason: connected ? 'verified_notion_mcp' : connecting ? 'oauth_in_progress'
+          : cliReady ? 'notion_cli_authenticated' : 'remote_mcp_not_connected',
         userSafeSummary: connected
           ? `${current.workspace?.name ?? 'Notion 업무공간'}에 연결되어 있어요.`
+          : connecting
+            ? 'Notion 계정 연결 화면에서 사용자 확인을 기다리고 있어요.'
           : cliReady
             ? '컴퓨터에 연결된 Notion 계정으로 페이지와 파일 작업을 할 수 있어요.'
             : 'Notion 원격 연결을 시작할 수 있어요.',
@@ -116,7 +120,7 @@ export function makeNotionMcpConnection({
         routes: [
           {
             kind: 'remote_mcp', label: 'Notion 원격 연결',
-            state: connected ? 'connected' : 'needs_connection', canStart: !connected,
+            state: connected ? 'connected' : 'needs_connection', canStart: !connected && !connecting,
           },
           {
             kind: 'authenticated_cli', label: '컴퓨터의 Notion 연결',
@@ -130,6 +134,9 @@ export function makeNotionMcpConnection({
         actions: connected ? [{
           id: 'disconnect', label: '연결 해제', kind: 'disconnect',
           endpoint: '/connections/notion/disconnect',
+        }] : connecting ? [{
+          id: 'cancel', label: '연결 취소', kind: 'cancel',
+          endpoint: '/connections/notion/cancel',
         }] : [{
           id: 'connect', label: 'Notion 계정 연결', kind: 'oauth',
           startEndpoint: '/connections/notion/start', awaitEndpoint: '/connections/notion/await',
@@ -218,7 +225,17 @@ export function makeNotionMcpConnection({
       if ((await this.inspect()).state !== 'connected') return null;
       return makeNotionTool({ runtime: await activeRuntime(), authorizeEffect });
     },
+    async cancelPending() {
+      if (!pending) return {
+        cancelled: false, provider: 'notion', userSafeSummary: '진행 중인 Notion 연결이 없어요.',
+      };
+      const current = pending;
+      pending = null;
+      current.callback?.cancel();
+      return { cancelled: true, provider: 'notion', userSafeSummary: 'Notion 계정 연결을 취소했어요.' };
+    },
     async disconnect() {
+      await this.cancelPending();
       await runtime?.close?.().catch(() => {}); runtime = null;
       await secretStore.clear(SECRET_NAME);
       return { disconnected: true, provider: 'notion', userSafeSummary: 'Notion 연결을 해제했어요.' };

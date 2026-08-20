@@ -103,5 +103,9 @@ test('동시에 들어온 Google 연결 시작도 callback을 하나만 연다',
     const rejected = results.find((item) => item.status === 'rejected');
     assert.equal(rejected.reason.status, 409);
     assert.equal(rejected.reason.reason, 'oauth_in_progress');
+    assert.equal((await connection.inspect()).actions[0].kind, 'cancel');
+    assert.equal((await connection.cancelPending()).cancelled, true);
+    assert.equal((await connection.inspect()).actions[0].kind, 'oauth');
+    assert.equal((await connection.start()).authorizeUrl.includes('accounts.google.com'), true);
   } finally { connection.close(); await rm(room, { recursive: true, force: true }); }
 });

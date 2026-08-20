@@ -130,6 +130,10 @@ test('동시에 들어온 Notion 연결 시작은 callback 포트를 열기 전�
     const rejected = results.find((item) => item.status === 'rejected');
     assert.equal(rejected.reason.status, 409);
     assert.equal(rejected.reason.reason, 'oauth_in_progress');
+    assert.equal((await connection.inspect()).actions[0].kind, 'cancel');
+    assert.equal((await connection.cancelPending()).cancelled, true);
+    assert.equal((await connection.inspect()).actions[0].kind, 'oauth');
+    assert.match((await connection.start()).authorizeUrl, /^https:\/\/auth\.notion\.test/u);
   } finally { await connection.close(); }
 });
 

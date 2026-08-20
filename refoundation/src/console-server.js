@@ -132,8 +132,10 @@ function activeSessionRecoveryIds(session) {
 
 function activeSessionConnectionHandoffIds(session) {
   const completed = new Set((session?.transcript ?? []).flatMap((entry) => (
-    entry?.role === 'system_event' && entry.event?.kind === 'connection_completed'
-      ? [String(entry.event.handoffId ?? '')] : []
+    entry?.role === 'system_event' && ['connection_completed', 'connection_cancelled'].includes(entry.event?.kind)
+      ? [String(entry.event.handoffId ?? '')]
+      : entry?.role === 'system_event' && entry.event?.kind === 'session_recovered'
+        ? (entry.event.connectionHandoffIds ?? []).map(String) : []
   )));
   return (session?.transcript ?? []).flatMap((entry) => {
     const id = entry?.role === 'assistant' ? entry.result?.connectionHandoff?.handoffId : null;
@@ -282,6 +284,20 @@ export function makeConsoleServer({
       if (typeof browser?.cancelUserLogin === 'function') {
         browserHandoffCancelled = Boolean(await browser.cancelUserLogin().catch(() => null));
       }
+      const activeConnectionHandoffIds = activeSessionConnectionHandoffIds(session);
+      const activeConnectionHandoffs = (session.transcript ?? []).flatMap((entry) => {
+        const handoff = entry?.role === 'assistant' ? entry.result?.connectionHandoff : null;
+        return handoff?.active && activeConnectionHandoffIds.includes(String(handoff.handoffId))
+          ? [handoff] : [];
+      });
+      let connectionHandoffsCancelled = 0;
+      for (const handoff of activeConnectionHandoffs) {
+        const service = connectionServices.get(String(handoff.connectionId ?? ''));
+        if (typeof service?.cancelPending === 'function') {
+          const cancelled = await service.cancelPending().catch(() => null);
+          if (cancelled?.cancelled) connectionHandoffsCancelled += 1;
+        }
+      }
       const withdrawnApprovalIds = await authority.withdrawActive(sessionId);
       const clearedActivity = sessionActivities.reset(sessionId);
       for (let attempt = 0; attempt < 20 && running.has(sessionId); attempt += 1) {
@@ -291,6 +307,7 @@ export function makeConsoleServer({
         role: 'system_event', runId: recoveryRun.runId,
         event: {
           kind: 'session_recovered', mode, recoveryIds: resolvedRecoveryIds,
+          connectionHandoffIds: activeConnectionHandoffs.map((handoff) => String(handoff.handoffId)),
           previousRunStillStopping: running.has(sessionId),
         },
       });
@@ -304,6 +321,7 @@ export function makeConsoleServer({
       }
       const facts = {
         mode, discardedStreams, withdrawnApprovals: withdrawnApprovalIds.length,
+        connectionHandoffsCancelled,
         activityCleared: Boolean(clearedActivity), browserHandoffCancelled,
         previousRunStillStopping: running.has(sessionId),
         continued: Boolean(newSession),
@@ -1625,7 +1643,7 @@ export function makeConsoleServer({
         json(res, 200, { entries: memory.events }); return;
       }
       const workspaceConnectionAction = req.method === 'POST' && url.pathname.match(
-        /^\/connections\/([a-z0-9-]+)\/(start|await|disconnect)$/u,
+        /^\/connections\/([a-z0-9-]+)\/(start|await|cancel|disconnect)$/u,
       );
       if (workspaceConnectionAction) {
         const [, id, action] = workspaceConnectionAction;
@@ -1653,6 +1671,26 @@ export function makeConsoleServer({
             },
           });
           json(res, 200, connected); return;
+        }
+        if (action === 'cancel') {
+          if (typeof service.cancelPending !== 'function') {
+            json(res, 409, { error: '취소할 연결 준비가 없어요.' }); return;
+          }
+          const input = await body(req);
+          let session = null;
+          if (input.sessionId != null || input.handoffId != null) {
+            session = await sessions.load(input.sessionId);
+            if (!session || !activeSessionConnectionHandoffIds(session).includes(String(input.handoffId ?? ''))) {
+              json(res, 409, { error: '이미 끝났거나 다른 대화의 연결 요청이에요.' }); return;
+            }
+          }
+          const cancelled = await service.cancelPending();
+          if (session) await sessions.append(session.id, {
+            role: 'system_event', event: {
+              kind: 'connection_cancelled', handoffId: String(input.handoffId), connectionId: id,
+            },
+          });
+          json(res, cancelled.cancelled ? 200 : 409, cancelled); return;
         }
         if (typeof service.disconnect !== 'function') { json(res, 409, { error: '이 연결은 해제할 수 없어요.' }); return; }
         json(res, 200, await service.disconnect()); return;

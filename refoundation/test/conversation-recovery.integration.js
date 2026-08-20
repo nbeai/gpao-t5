@@ -192,3 +192,56 @@ test('실행 중인 모델을 거치지 않고도 대화 메뉴에서 현재 작
     await rm(room, { recursive: true, force: true });
   }
 });
+
+test('대화 상태 다시 준비는 계정 연결 대기도 즉시 취소하고 다시 시작 가능한 상태로 돌린다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-conversation-recovery-connection-'));
+  let pending = false;
+  let cancelCalls = 0;
+  const service = {
+    id: 'notion', label: 'Notion', category: 'workspace',
+    inspect: async () => ({
+      state: 'needs_connection', userSafeSummary: '연결 필요', capabilities: {}, routes: [],
+      actions: pending ? [{ kind: 'cancel' }] : [{ kind: 'oauth' }],
+    }),
+    async start() { pending = true; return { authorizeUrl: 'https://notion.example/authorize' }; },
+    async cancelPending() {
+      cancelCalls += 1; const cancelled = pending; pending = false;
+      return { cancelled, userSafeSummary: 'Notion 연결을 취소했어요.' };
+    },
+  };
+  let turn = 0;
+  const server = makeConsoleServer({
+    stateDir: join(room, 'state'), workspace: room, workspaceConnectionServices: [service],
+    modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
+    modelFactory: () => ({ async respond() {
+      turn += 1;
+      return turn === 1
+        ? { text: '', toolCalls: [{ id: 'start-notion', name: 'connection', args: { action: 'start', id: 'notion' } }] }
+        : { text: 'Notion 연결 화면을 준비했어요.', toolCalls: [] };
+    } }),
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject); server.listen(0, '127.0.0.1', resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const session = (await post(base, '/sessions', {})).body;
+    const started = await post(base, '/turn', { sessionId: session.id, text: '노션 연결해줘' });
+    assert.equal(started.body.connectionHandoff?.active, true);
+    const recovered = await post(base, '/sessions/recover', { sessionId: session.id, mode: 'reset' });
+    assert.equal(recovered.status, 200);
+    assert.equal(cancelCalls, 1);
+    assert.equal(pending, false);
+    const detail = await fetch(`${base}/sessions/${session.id}`).then((response) => response.json());
+    assert.deepEqual(detail.activeConnectionHandoffIds, []);
+    const runs = await fetch(`${base}/runs?sessionId=${session.id}`).then((response) => response.json());
+    const recoveryRun = runs.runs.find((run) => run.request === 'conversation recovery');
+    const run = await fetch(`${base}/runs/${recoveryRun.runId}`).then((response) => response.json());
+    assert.equal(run.events.find((event) => event.type === 'conversation_recovered')
+      .payload.connectionHandoffsCancelled, 1);
+  } finally {
+    server.closeWakeStreams(); await server.closeMessengers(); await server.closeWorkspaceConnections();
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});

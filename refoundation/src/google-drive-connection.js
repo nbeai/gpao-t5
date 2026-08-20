@@ -60,14 +60,18 @@ export function makeGoogleDriveConnection({
       const availableBrowser = options.browserAvailable ?? browserAvailable;
       const publicState = (await store.describe())[PROVIDER] ?? null;
       const connected = publicState?.connected === true;
+      const connecting = pending != null;
       return {
         state: connected ? 'connected' : clientId ? 'needs_connection'
           : availableBrowser ? 'needs_connection' : 'unavailable',
         reason: connected ? 'verified_drive_connection'
+          : connecting ? 'oauth_in_progress'
           : clientId ? 'oauth_not_connected'
             : availableBrowser ? 'oauth_client_missing' : 'no_available_route',
         userSafeSummary: connected
           ? 'Google Drive 전용 연결을 사용할 수 있어요.'
+          : connecting
+            ? 'Google 계정 연결 화면에서 사용자 확인을 기다리고 있어요.'
           : clientId
             ? 'Google 계정 연결을 시작할 수 있어요.'
             : availableBrowser
@@ -81,7 +85,7 @@ export function makeGoogleDriveConnection({
           {
             kind: 'official', label: 'Google Drive 전용 연결',
             state: connected ? 'connected' : clientId ? 'needs_connection' : 'unavailable',
-            canStart: Boolean(clientId && !connected),
+            canStart: Boolean(clientId && !connected && !connecting),
           },
           ...(availableBrowser ? [{
             kind: 'browser', label: 'T5 브라우저', state: 'ready', canStart: true,
@@ -91,6 +95,9 @@ export function makeGoogleDriveConnection({
         actions: connected ? [{
           id: 'disconnect', label: '연결 해제', kind: 'disconnect',
           endpoint: '/connections/google-workspace/disconnect',
+        }] : connecting ? [{
+          id: 'cancel', label: '연결 취소', kind: 'cancel',
+          endpoint: '/connections/google-workspace/cancel',
         }] : clientId ? [{
           id: 'connect', label: 'Google 계정 연결', kind: 'oauth',
           startEndpoint: '/connections/google-workspace/start',
@@ -158,7 +165,17 @@ export function makeGoogleDriveConnection({
       return { connected: true, provider: PROVIDER };
     },
     credential,
+    async cancelPending() {
+      if (!pending) return {
+        cancelled: false, provider: PROVIDER, userSafeSummary: '진행 중인 Google 연결이 없어요.',
+      };
+      const current = pending;
+      pending = null;
+      current.callback?.cancel();
+      return { cancelled: true, provider: PROVIDER, userSafeSummary: 'Google 계정 연결을 취소했어요.' };
+    },
     async disconnect() {
+      await this.cancelPending();
       await store.clear(PROVIDER);
       return { disconnected: true, provider: PROVIDER, userSafeSummary: 'Google Drive 연결을 해제했어요.' };
     },

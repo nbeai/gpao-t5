@@ -6,6 +6,13 @@ import { join } from 'node:path';
 
 import { makeConsoleServer } from '../src/console-server.js';
 
+async function post(base, path, input) {
+  const response = await fetch(`${base}${path}`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input ?? {}),
+  });
+  return { status: response.status, body: await response.json() };
+}
+
 for (const request of [
   '구글 계정 연동은 할 수 있어?',
   '내 드라이브 자료를 같이 보고 싶어.',
@@ -207,6 +214,64 @@ test('자연어 계정 연결은 connection start 뒤 대화 내 OAuth handoff�
     assert.equal(detail.transcript.some((entry) => (
       entry.role === 'system_event' && entry.event?.kind === 'connection_completed'
     )), true);
+  } finally {
+    server.closeWakeStreams(); await server.closeMessengers(); await server.closeWorkspaceConnections();
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('대화 안 계정 연결은 사용자가 즉시 취소할 수 있고 같은 대화에서 다시 시작할 수 있다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-connection-oauth-cancel-'));
+  let pending = false;
+  const service = {
+    id: 'notion', label: 'Notion', category: 'workspace',
+    inspect: async () => ({
+      state: 'needs_connection', userSafeSummary: pending ? '사용자 확인을 기다리고 있어요.' : '연결 필요',
+      capabilities: {}, routes: [], actions: pending ? [{
+        id: 'cancel', label: '연결 취소', kind: 'cancel', endpoint: '/connections/notion/cancel',
+      }] : [{
+        id: 'connect', label: 'Notion 계정 연결', kind: 'oauth',
+        startEndpoint: '/connections/notion/start', awaitEndpoint: '/connections/notion/await',
+      }],
+    }),
+    async start() { pending = true; return { authorizeUrl: 'https://notion.example/authorize' }; },
+    async cancelPending() {
+      const cancelled = pending; pending = false;
+      return { cancelled, userSafeSummary: cancelled ? 'Notion 계정 연결을 취소했어요.' : '진행 중인 연결이 없어요.' };
+    },
+  };
+  let calls = 0;
+  const server = makeConsoleServer({
+    stateDir: join(room, 'state'), workspace: room, workspaceConnectionServices: [service],
+    modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
+    modelFactory: () => ({ async respond(input) {
+      calls += 1;
+      if (calls % 2 === 1) return { text: '', toolCalls: [{
+        id: `start-${calls}`, name: 'connection', args: { action: 'start', id: 'notion' },
+      }] };
+      return { text: 'Notion 연결 화면을 준비했어요.', toolCalls: [] };
+    } }),
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject); server.listen(0, '127.0.0.1', resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const first = await post(base, '/turn', { sessionId: session.id, text: '노션 연결해줘' });
+    const cancelled = await post(base, '/connections/notion/cancel', {
+      sessionId: session.id, handoffId: first.body.runId,
+    });
+    assert.equal(cancelled.status, 200);
+    assert.equal(cancelled.body.cancelled, true);
+    assert.deepEqual(
+      (await fetch(`${base}/sessions/${session.id}`).then((response) => response.json())).activeConnectionHandoffIds,
+      [],
+    );
+    const restarted = await post(base, '/turn', { sessionId: session.id, text: '다시 노션 연결해줘' });
+    assert.equal(restarted.status, 200);
+    assert.notEqual(restarted.body.connectionHandoff?.handoffId, first.body.runId);
   } finally {
     server.closeWakeStreams(); await server.closeMessengers(); await server.closeWorkspaceConnections();
     await new Promise((resolve) => server.close(resolve));

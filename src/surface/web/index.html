@@ -1580,7 +1580,24 @@ async function renderConnectionDoctor(target) {
                 if (popup) popup.location.href = started.data.authorizeUrl;
                 else window.open(started.data.authorizeUrl, '_blank', 'noopener');
                 actionStatus.textContent = '열린 화면에서 계정을 선택하고 허용해 주세요…';
+                const cancel = document.createElement('button'); cancel.className = 'connection-button';
+                cancel.textContent = '연결 취소'; actionRow.appendChild(cancel);
+                let userCancelled = false;
+                cancel.onclick = async () => {
+                  cancel.disabled = true;
+                  userCancelled = true;
+                  const stopped = await endpointJson(action.startEndpoint.replace(/\/start$/u, '/cancel'), {
+                    method: 'POST',
+                  });
+                  actionStatus.textContent = stopped.ok
+                    ? (stopped.data?.userSafeSummary ?? '계정 연결을 취소했어요.')
+                    : endpointError(stopped, '계정 연결을 취소하지 못했어요.');
+                  if (!stopped.ok) userCancelled = false;
+                  popup?.close();
+                };
                 const finished = await endpointJson(action.awaitEndpoint, { method: 'POST' });
+                cancel.remove();
+                if (userCancelled) { button.disabled = false; return; }
                 actionStatus.textContent = finished.ok
                   ? (finished.data?.userSafeSummary ?? '연결했어요.')
                   : endpointError(finished, '계정 연결을 완료하지 못했어요.');
@@ -2610,12 +2627,27 @@ function renderConnectionHandoff(box, result, { historical, activeConnectionHand
   const status = el('sug-line');
   const button = document.createElement('button'); button.className = 'act primary';
   button.textContent = '계정 연결 계속하기';
+  const cancel = document.createElement('button'); cancel.className = 'act no';
+  cancel.textContent = '연결 취소';
+  cancel.onclick = async () => {
+    button.disabled = true; cancel.disabled = true;
+    const cancelled = await endpointJson(handoff.awaitEndpoint.replace(/\/await$/u, '/cancel'), {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: currentSessionId, handoffId: handoff.handoffId }),
+    });
+    status.textContent = cancelled.ok
+      ? (cancelled.data?.userSafeSummary ?? '계정 연결을 취소했어요.')
+      : endpointError(cancelled, '계정 연결을 취소하지 못했어요.');
+    if (cancelled.ok) { await 대화다시그리기(); await loadSessions(); }
+    else { button.disabled = false; cancel.disabled = false; }
+  };
   button.onclick = async () => {
-    button.disabled = true;
+    button.disabled = true; cancel.disabled = true;
     let authorize;
     try { authorize = new URL(handoff.authorizeUrl); } catch { authorize = null; }
     if (!authorize || authorize.protocol !== 'https:' || !/^\/connections\/[a-z0-9-]+\/await$/u.test(handoff.awaitEndpoint ?? '')) {
-      status.textContent = '연결 주소를 확인하지 못했어요. 다시 연결을 요청해 주세요.'; return;
+      status.textContent = '연결 주소를 확인하지 못했어요. 다시 연결을 요청해 주세요.';
+      cancel.disabled = false; return;
     }
     const popup = window.open('about:blank', '_blank');
     if (popup) { popup.opener = null; popup.location.href = authorize.href; }
@@ -2630,9 +2662,9 @@ function renderConnectionHandoff(box, result, { historical, activeConnectionHand
       : endpointError(finished, '계정 연결을 완료하지 못했어요.');
     if (finished.ok) {
       toast(status.textContent); await 대화다시그리기(); await loadSessions();
-    } else button.disabled = false;
+    } else { button.disabled = false; cancel.disabled = false; }
   };
-  card.append(button, status); box.appendChild(card);
+  card.append(button, cancel, status); box.appendChild(card);
 }
 
 function renderResult(r, opts = {}) {
