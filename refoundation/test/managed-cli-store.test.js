@@ -146,3 +146,15 @@ test('모델 도구는 임의 URL을 받지 않고 reversible local change에서
   assert.equal((await tool.execute({ action: 'install', id: 'json-tool', version: null })).state, 'installed');
   assert.deepEqual(calls, ['json-tool']);
 });
+
+test('실행 시점의 bare command와 exact managed path만 active CLI version·digest에 결속한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-managed-cli-attribution-')); const bytes = Buffer.from('fixture');
+  try {
+    const store = new ManagedCliStore({ root: room, catalog: await loadCliCatalog(fixtureCatalog(bytes)), platform: 'darwin', architecture: 'arm64', fetchImpl: async () => new Response(bytes), verifyExecutable: async () => ({}) });
+    await store.install('json-tool');
+    const bare = await store.attributeCommand({ steps: [{ executable: 'json-tool' }] });
+    assert.deepEqual(bare, [{ kind: 'cli', id: 'json-tool', version: '1.0.0', digest: sha256(bytes) }]);
+    assert.deepEqual(await store.attributeCommand({ steps: [{ executable: '/usr/bin/json-tool' }] }), []);
+    assert.deepEqual(await store.attributeCommand({ steps: [{ executable: store.binaryPath('json-tool') }] }), bare);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});

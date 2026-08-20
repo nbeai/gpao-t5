@@ -30,7 +30,7 @@ function ptyEnv(defaultDirectory, runtime, additions = {}) {
 
 export function makePtyStartTool({
   workingDirectory, workspace, computer, processRegistry, ownerId = 'default',
-  yieldMs = 1000, originRunId, effectPreflight, env = {}, pathPrepend,
+  yieldMs = 1000, originRunId, effectPreflight, env = {}, pathPrepend, capabilityAttribution,
 } = {}) {
   const defaultDirectory = workingDirectory ?? workspace;
   if (!defaultDirectory || !isAbsolute(defaultDirectory)) throw new TypeError('absolute workingDirectory is required');
@@ -60,6 +60,11 @@ export function makePtyStartTool({
       const cwd = await realpath(candidate);
       const effectBefore = await observeDeclaredEffect(args.effect, cwd);
       const explanation = await explainShellCommand(command).catch((error) => ({ ok: false, error: error.message }));
+      let capabilitiesUsed = [];
+      if (typeof capabilityAttribution === 'function') {
+        try { capabilitiesUsed = await capabilityAttribution({ command, commandExplanation: explanation, ownerId }); }
+        catch { capabilitiesUsed = []; }
+      }
       const ptyProcess = pty.spawn(runtime.program, runtime.argsFor(commandWithManagedPath(command, pathPrepend, runtime.family)), {
         cwd, env: ptyEnv(root, runtime, env), name: 'xterm-256color',
         cols: args.cols, rows: args.rows,
@@ -69,6 +74,7 @@ export function makePtyStartTool({
         metadata: {
           kind: 'managed', pty: true, originRunId,
           declaredEffect: structuredClone(args.effect), effectBefore, effectCwd: cwd,
+          ...(capabilitiesUsed.length ? { capabilitiesUsed: structuredClone(capabilitiesUsed) } : {}),
         },
       });
       if (context.signal?.aborted && result.state === 'running') {
@@ -78,6 +84,7 @@ export function makePtyStartTool({
         ? await observeDeclaredEffect(args.effect, cwd) : null;
       return {
         ...result, commandExplanation: explanation,
+        ...(capabilitiesUsed.length ? { capabilitiesUsed: structuredClone(capabilitiesUsed) } : {}),
         effectObservation: compareEffectObservations(args.effect, effectBefore, after),
       };
     },

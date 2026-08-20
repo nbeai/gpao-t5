@@ -125,3 +125,12 @@ test('관리 CLI 경로는 로그인 셸 초기화 뒤에도 현재 T5 command�
   assert.equal(result.stdout, `${executable}\nmanaged-path`);
   assert.equal(process.env.PATH?.startsWith(bin), false);
 }));
+
+test('exec 영수증은 실행 시점에 확인된 managed capability identity만 결속한다', async () => rooms(async ({ workspace }) => {
+  const tool = makeExecTool({ workspace, capabilityAttribution: async ({ commandExplanation }) => (
+    commandExplanation.steps[0].executable === 't5-json'
+      ? [{ kind: 'cli', id: 't5-json', version: '1.2.3', digest: 'a'.repeat(64) }] : []
+  ) });
+  const result = await tool.execute({ command: 't5-json --version', cwd: null });
+  assert.deepEqual(result.capabilitiesUsed, [{ kind: 'cli', id: 't5-json', version: '1.2.3', digest: 'a'.repeat(64) }]);
+}));

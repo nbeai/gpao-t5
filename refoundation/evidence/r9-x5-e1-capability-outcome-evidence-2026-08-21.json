@@ -1,0 +1,48 @@
+{
+  "schema": "t5.gate-evidence.v1",
+  "gate": "R9-X5-E1",
+  "recordedAt": "2026-08-21T01:02:00+09:00",
+  "contract": {
+    "capabilityKinds": ["cli", "skill"],
+    "facts": ["prepared", "used", "run_status", "duration", "model_turns", "tool_calls", "failed_calls", "not_executed_calls", "last_used_at"],
+    "notInferred": ["purpose_achieved", "quality", "user_satisfaction", "improve", "retire"]
+  },
+  "fixtureQualification": {
+    "prepareWithoutUseSeparated": true,
+    "skillSearchWithoutViewSeparated": true,
+    "failedAndCancelledRunsPreserved": true,
+    "restartPersistence": true,
+    "managedCliUsageRuns": 2,
+    "duplicateInstalls": 0
+  },
+  "actualModelQualification": {
+    "provider": "chatgpt_oauth",
+    "model": "gpt-5.5",
+    "workRun": {
+      "sessionId": "d9925909-d472-48d5-9bd2-7c89efe9d9df",
+      "runId": "3257d550-d38c-46c5-87fb-0b1fcfe37b51",
+      "capability": { "kind": "cli", "id": "jq", "version": "1.8.2", "digest": "2d75340ba57a4b4b4c8708a21c2dc8e958a48aaa8bba13b27f77f6e4c0eca07e" },
+      "capabilityUses": 2,
+      "result": { "completedSettlements": 2, "total": 232000 }
+    },
+    "evidenceRun": {
+      "sessionId": "0d7577f5-b1b5-46f4-9ef2-ee084d6b90c0",
+      "runId": "feb67f6e-2491-40d7-8c24-72c6b6fc4d3e",
+      "toolSequence": ["capability_evidence:list", "capability_evidence:inspect"],
+      "reported": { "preparationRuns": 1, "usageRuns": 1, "uses": 2, "completedUsageRuns": 1, "failedUsageRuns": 0, "cancelledUsageRuns": 0 },
+      "lifecycleChanges": 0,
+      "statedSampleBoundary": true
+    }
+  },
+  "privacy": {
+    "requestTextInReport": false,
+    "toolOutputInReport": false,
+    "userPathInReport": false,
+    "secretInReport": false
+  },
+  "regression": {
+    "refoundationCheck": { "passed": 394, "failed": 0 },
+    "legacyImports": 0
+  },
+  "unverified": ["user satisfaction", "quality improvement", "comparative winner", "automatic retirement"]
+}

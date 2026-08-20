@@ -45,6 +45,11 @@ const CLI_PROGRESS = Object.freeze({
   rollback: '이전 도구 버전으로 되돌리고 있어요',
 });
 
+const CAPABILITY_EVIDENCE_PROGRESS = Object.freeze({
+  list: '준비한 능력의 실제 사용 기록을 확인하고 있어요',
+  inspect: '이 능력이 실제로 쓰인 결과를 살펴보고 있어요',
+});
+
 const MEMORY_PROGRESS = Object.freeze({
   list: '기억해 둔 내용을 확인하고 있어요',
   add: '기억할 내용을 정리하고 있어요',
@@ -78,6 +83,7 @@ const COMPLETED_PROGRESS = Object.freeze({
   attachment: '파일에서 확인한 내용을 정리하고 있어요',
   skill: '확인한 방법을 작업에 적용하고 있어요',
   cli_prepare: '준비한 도구를 현재 작업에 적용하고 있어요',
+  capability_evidence: '확인한 사용 기록을 현재 요청과 맞춰보고 있어요',
   memory: '기억에서 확인한 내용을 현재 대화와 이어보고 있어요',
   session_search: '지난 대화에서 찾은 내용을 현재 요청과 이어보고 있어요',
   conversation_recall: '이전 작업에서 찾은 내용을 정리하고 있어요',
@@ -91,6 +97,7 @@ const FIXED_PROGRESS_TEXT = new Set([
   FALLBACK, ...Object.values(MODEL_PROGRESS), ...Object.values(BROWSER_PROGRESS),
   ...Object.values(ATTACHMENT_PROGRESS), ...Object.values(SKILL_PROGRESS),
   ...Object.values(CLI_PROGRESS),
+  ...Object.values(CAPABILITY_EVIDENCE_PROGRESS),
   ...Object.values(MEMORY_PROGRESS), ...Object.values(SESSION_PROGRESS),
   ...Object.values(RECALL_PROGRESS), ...Object.values(PROCESS_PROGRESS),
   ...Object.values(COMPLETED_PROGRESS),
@@ -121,6 +128,8 @@ export function toolProgressText(name, args = {}) {
   if (name === 'attachment') return ATTACHMENT_PROGRESS[action] ?? '첨부 파일을 확인하고 있어요';
   if (name === 'skill') return SKILL_PROGRESS[action] ?? '필요한 작업 방법을 살펴보고 있어요';
   if (name === 'cli_prepare') return CLI_PROGRESS[action] ?? '필요한 컴퓨터 도구를 준비하고 있어요';
+  if (name === 'capability_evidence') return CAPABILITY_EVIDENCE_PROGRESS[action]
+    ?? '준비한 능력의 실제 사용 기록을 확인하고 있어요';
   if (name === 'memory') return MEMORY_PROGRESS[action] ?? '기억해 둔 내용을 확인하고 있어요';
   if (name === 'session_search') return SESSION_PROGRESS[action] ?? '지난 대화를 확인하고 있어요';
   if (name === 'conversation_recall') return RECALL_PROGRESS[action]

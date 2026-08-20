@@ -38,9 +38,16 @@ test('필요한 CLI를 검증해 준비하고 같은 Run 즉시 사용한 뒤 �
     return { async respond(input) {
       turn += 1; const userText = input.messages.findLast((message) => message.role === 'user')?.content ?? '';
       const last = input.messages.at(-1);
+      if (userText.includes('사용 기록')) {
+        if (turn === 1) return { text: '', toolCalls: [{ id: 'evidence', name: 'capability_evidence', args: { action: 'inspect', kind: 'cli', id: 'json-tool' } }] };
+        const evidence = JSON.parse(last.content); assert.equal(evidence.result.capability.usageRuns, 2);
+        assert.equal(evidence.result.interpretationBoundary.runCompletionIsNotPurposeAchievement, true);
+        return { text: '두 대화에서 실제 사용됐지만 이것만으로 품질이나 계속 보유 가치를 단정하지 않았어요.', toolCalls: [] };
+      }
       if (userText.includes('새 대화')) {
         if (turn === 1) return { text: '', toolCalls: [{ id: 'reuse', name: 'exec', args: { command: 'command -v json-tool; json-tool', cwd: null, effect: observe('준비된 도구 재사용') } }] };
         const receipt = JSON.parse(last.content); assert.equal(receipt.result.stdout, `${join(stateDir, 'managed-cli/bin/json-tool')}\nmanaged-json-ok`);
+        assert.equal(receipt.result.capabilitiesUsed[0].id, 'json-tool');
         return { text: '새 대화에서도 준비된 도구를 바로 사용했어요.', toolCalls: [] };
       }
       if (turn === 1) {
@@ -56,18 +63,18 @@ test('필요한 CLI를 검증해 준비하고 같은 Run 즉시 사용한 뒤 �
         assert.equal(receipt.result.state, 'installed'); assert.match(receipt.result.sha256, /^[a-f0-9]{64}$/u);
         return { text: '', toolCalls: [{ id: 'use', name: 'exec', args: { command: 'json-tool', cwd: null, effect: observe('준비된 도구 사용') } }] };
       }
-      assert.equal(receipt.result.stdout, 'managed-json-ok');
+      assert.equal(receipt.result.stdout, 'managed-json-ok'); assert.equal(receipt.result.capabilitiesUsed[0].version, '1.0.0');
       return { text: '필요한 도구를 안전하게 준비해 바로 사용했어요.', toolCalls: [] };
     } };
   };
-  const server = makeConsoleServer({
+  let server = makeConsoleServer({
     stateDir, workspace, cliCatalogFile: catalogFile, managedCliRoot: join(stateDir, 'managed-cli'), modelFactory,
     cliFetchImpl: async () => { downloads += 1; return new Response(bytes, { status: 200 }); },
     cliVerifyExecutable: async ({ expectedVersion }) => ({ version: expectedVersion }),
     modelStatus: () => ({ connected: true, provider: 'test', modelId: 'cli-model' }),
   });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
-  const base = `http://127.0.0.1:${server.address().port}`;
+  let base = `http://127.0.0.1:${server.address().port}`;
   try {
     const first = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
     const firstReply = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: first.id, text: 'JSON을 정리할 수단이 없으면 검증된 도구를 준비해서 처리해줘' }) }).then((response) => response.json());
@@ -79,7 +86,19 @@ test('필요한 CLI를 검증해 준비하고 같은 Run 즉시 사용한 뒤 �
     assert.equal(secondReply.reply, '새 대화에서도 준비된 도구를 바로 사용했어요.');
     assert.equal(downloads, 1);
     assert.equal((await server.managedCliStore).bin, join(stateDir, 'managed-cli/bin'));
+    await new Promise((resolve) => server.close(resolve));
+    server = makeConsoleServer({
+      stateDir, workspace, cliCatalogFile: catalogFile, managedCliRoot: join(stateDir, 'managed-cli'), modelFactory,
+      cliFetchImpl: async () => { downloads += 1; return new Response(bytes, { status: 200 }); },
+      cliVerifyExecutable: async ({ expectedVersion }) => ({ version: expectedVersion }),
+      modelStatus: () => ({ connected: true, provider: 'test', modelId: 'cli-model' }),
+    });
+    await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+    base = `http://127.0.0.1:${server.address().port}`;
+    const third = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const thirdReply = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: third.id, text: '전에 준비한 JSON 도구의 실제 사용 기록을 확인해줘' }) }).then((response) => response.json());
+    assert.match(thirdReply.reply, /두 대화에서 실제 사용/u); assert.match(thirdReply.reply, /단정하지 않았/u);
   } finally {
-    await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true });
+    if (server.listening) await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true });
   }
 });

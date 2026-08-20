@@ -18,6 +18,7 @@ import { compareEffectObservations, observeDeclaredEffect } from './effect-obser
 import { loadSkillSnapshot, makeSkillTool, mergeSkillSnapshots } from './skill-runtime.js';
 import { ManagedSkillStore, makeSkillAcquisitionTool } from './managed-skill-store.js';
 import { loadCliCatalog, ManagedCliStore, makeCliAcquisitionTool } from './managed-cli-store.js';
+import { makeCapabilityEvidenceTool } from './capability-outcome-evidence.js';
 import { loadSkillPolicyCatalog } from './skill-policy-catalog.js';
 import { ConversationLedger } from './conversation-ledger.js';
 import { projectHistoricalConversationEntries } from './conversation-projection.js';
@@ -697,6 +698,7 @@ export function makeConsoleServer({
         workingDirectory: workspace, computer, processRegistry: processes, ownerId: sessionId,
         yieldMs: processYieldMs, originRunId: run.runId, effectPreflight,
         pathPrepend: managedCliStore.bin,
+        capabilityAttribution: ({ commandExplanation }) => managedCliStore.attributeCommand(commandExplanation),
         env: { T5_DOCUMENT_CLI: documentCli, PATH: managedCliStore.prependPath(process.env.PATH ?? process.env.Path ?? '') },
       });
       const [bundledSkillSnapshot, managedSkillSnapshot, skillPackageSnapshot, managedSkillStore] = await Promise.all([
@@ -762,6 +764,7 @@ export function makeConsoleServer({
           toolName: 'cli_prepare', args, ownerId: sessionId,
         }),
       }));
+      offeredTools.unshift(makeCapabilityEvidenceTool({ runLedger }));
       if (capabilitySnapshot.entries.length) {
         offeredTools.unshift(makeCapabilityCatalogTool({
           snapshot: capabilitySnapshot, connectionDoctor,

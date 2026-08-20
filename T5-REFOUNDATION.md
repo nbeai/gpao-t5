@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `R9-X5-C1 SAFE MANAGED CLI ACQUISITION — COMPLETE` (고정 배포물 검증·즉시 사용·재사용·복구)
+현재 Gate: `R9-X5-E1 CAPABILITY OUTCOME EVIDENCE — COMPLETE` (사용·결과·비용 사실 결속)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -1418,10 +1418,74 @@ Non-goals / honest boundary:
 - 제거·복원·이전 검증본 rollback과 lifecycle 원장
 - 기존 X1~X5-S2·Terminal·PTY·Web·Memory·Attachment·Messenger 전체 회귀 유지
 
+## R9-X5-E1 — Capability Outcome Evidence
+
+상태: `COMPLETE` — 능력을 준비·호출한 사실과 사용자 목적에 실제로 도움이 된 사실을 섞지 않고,
+기존 Run·ToolReceipt·속도·효과 원장을 능력별로 결속해 개선·교체·정리의 근거를 만든다.
+
+사용자 완료 문장:
+
+> 사용자가 “전에 준비한 방법이나 도구가 실제로 쓰이고 있니?”라고 물으면 T5가 설치 개수가 아니라
+> 실제 사용 횟수·완료와 실패·최근 사용·시간과 재시도 사실을 확인해 답한다. 증거가 부족하면 유용하거나
+> 쓸모없다고 단정하지 않는다.
+
+이미 선 실제 증거:
+
+- Run 원장은 요청·모델 왕복·전체 ToolReceipt·완료·실패·취소·시간·토큰·효과를 지속
+- managed Skill은 name·content digest와 install·remove·restore lifecycle을 지속
+- managed CLI는 id·version·SHA-256과 install·remove·restore·rollback lifecycle을 지속
+- 실제 jq 첫 Run은 prepare 1회·exec 2회·합계 20,300, 새 Session은 prepare 0·exec 2회·같은 결과
+
+현재 가장 큰 미달:
+
+- CLI의 bare command가 실제 managed binary로 해석됐다는 사실이 실행 영수증에 직접 결속되지 않음
+- Skill view·CLI 사용·준비 lifecycle과 Run terminal 결과를 능력별로 함께 조회할 표면이 없음
+- completed Run·성공 tool call만으로 사용자 목적 달성·품질 향상·폐기 가능을 추측할 위험
+
+이번 Gate의 최소 변경:
+
+- exec·process_start·PTY 실행 시점에 active managed CLI id·version·digest를 exact command에 결속
+- 기존 skill view·capability prepare·CLI prepare receipt와 Run terminal 사실을 작은 read-only report로 투영
+- capability별 사용 Run·준비 Run·완료·실패·취소·tool failure·시간·model/tool calls·최근 사용만 반환
+- 모델이 자연어 목적에서 필요할 때만 list·inspect하고, 사용자에게 내부 원장 용어 없이 설명
+- report는 `purposeAchieved`·quality score·improve·retire 결론을 만들지 않고 evidence boundary를 명시
+
+Non-goals:
+
+- 자동 점수·랭킹·A/B 실행, Skill 자동 수정, CLI 자동 update, 능력 자동 비활성·삭제
+- 사용자 문장 정규식으로 만족·교정·불만 판정, Run completed를 목적 달성으로 승격
+- 새 관리 화면·알림·Marketplace, Core 자기 수정, 모델 없는 lifecycle 결정
+
+완료 Gate:
+
+- 준비만 하고 사용하지 않은 능력을 사용됨으로 세지 않음
+- tool 성공 뒤 Run 실패·취소를 완료 효과로 꾸미지 않음
+- skill search와 view, CLI system binary와 managed binary를 구분
+- 같은 Run 즉시 사용·새 Session 재사용이 capability id·version과 결속
+- restart 뒤 같은 report, 비밀·요청 원문·사용자 경로 노출 0
+- 실제 일반 사용자 질문에서 모델이 근거와 미확인 경계를 함께 답함
+- 기존 X1~X5-C1·전체 기능 회귀 유지
+
+실제 성립한 결과:
+
+- managed CLI의 bare command와 exact managed path만 실행 시점 active id·version·SHA-256에 결속;
+  `/usr/bin/jq` 같은 시스템 절대경로는 managed 사용으로 세지 않음
+- `skill search`는 사용 0, exact `skill view`만 name·content digest와 사용 Run으로 결속
+- read-only `capability_evidence list·inspect`가 최근 200 Run의 준비·사용·완료·실패·취소·시간·호출을 투영
+- report는 요청 원문·출력·사용자 경로·비밀을 내지 않고 purpose·quality·satisfaction·retirement 미판정을 명시
+- fixture 종단: prepare-only와 use 분리, 실패·취소 보존, restart 뒤 CLI 사용 2 Run·재설치 0 조회
+- 실제 `gpt-5.5`: jq 1.8.2로 완료 정산 `2건·232,000원`; exec 2개에 같은 capability digest 결속
+- 새 Session의 일반 사용자 질문: evidence list→inspect, 준비 1 Run·사용 1 Run/2회·완료 1·실패/취소 0
+- 모델은 표본이 적다고 밝히고 즉시 제거하지 않았으며 lifecycle 변경 tool call 0
+- 전체 회귀 394/394, legacy import 0
+- 증거: `refoundation/evidence/r9-x5-e1-capability-outcome-evidence-2026-08-21.json`
+
 ## 현재 다음 한 작업
 
 Web Hand W0~W6, Document Data Hand D1, Unified Attachment Hand A1까지 완료되어 1차 완성에 도달했다.
-다음 능력은 기능 목록에서 자동으로 고르지 않는다. 실제 콘솔 사용에서
+다음 한 작업은 같은 목적에서 반복 실패·사용자 교정·대체 방법이 관측될 때만 X5-E2 비교 개선 후보를
+여는 것이다. 아직 한 방법의 completed Run만으로 더 낫다거나 폐기 가능하다고 판정하지 않는다. 그 밖의
+능력은 기능 목록에서 자동으로 고르지 않는다. 실제 콘솔 사용에서
 사용자 과업이 실패하거나 불편하면 해당 Run·Receipt를 읽고 모델·손·방법·권한·UI 중 공통 원인을 확정한 뒤
 그 한 축만 연다. 실제 사업자 계정이 준비되기 전에는 Naver 실계정 자격을 완료로 주장하지 않는다.
 Windows 실제 기기와 crash-resilient managed process는 각각 플랫폼·운영 트랙으로 유지한다.

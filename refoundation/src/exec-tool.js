@@ -67,6 +67,7 @@ function makeCommandTool(options = {}, { managed }) {
     outputLimit = DEFAULT_OUTPUT_LIMIT,
     env = {},
     pathPrepend,
+    capabilityAttribution,
     explainCommand,
     effectPreflight,
   } = options;
@@ -110,6 +111,11 @@ function makeCommandTool(options = {}, { managed }) {
       let commandExplanation;
       try { commandExplanation = await explain(command); }
       catch (error) { commandExplanation = { ok: false, error: error?.message ?? String(error) }; }
+      let capabilitiesUsed = [];
+      if (typeof capabilityAttribution === 'function') {
+        try { capabilitiesUsed = await capabilityAttribution({ command, commandExplanation, ownerId }); }
+        catch { capabilitiesUsed = []; }
+      }
 
       const onAbort = () => { registry.stopOwner(ownerId, 'aborted').catch(() => {}); };
       context.signal?.addEventListener('abort', onAbort, { once: true });
@@ -130,6 +136,7 @@ function makeCommandTool(options = {}, { managed }) {
             declaredEffect: structuredClone(args.effect ?? { kind: 'observe', targets: [] }),
             effectBefore: structuredClone(effectBefore),
             effectCwd: cwd,
+            ...(capabilitiesUsed.length ? { capabilitiesUsed: structuredClone(capabilitiesUsed) } : {}),
           },
         });
         if (context.signal?.aborted && result.state === 'running') {
@@ -144,6 +151,7 @@ function makeCommandTool(options = {}, { managed }) {
           ? null : await observeDeclaredEffect(args.effect ?? { kind: 'observe', targets: [] }, cwd);
         result = {
           ...result,
+          ...(capabilitiesUsed.length ? { capabilitiesUsed: structuredClone(capabilitiesUsed) } : {}),
           effectObservation: compareEffectObservations(
             args.effect ?? { kind: 'observe', targets: [] }, effectBefore, effectAfter,
           ),
@@ -187,8 +195,9 @@ function controlObservation(result) {
 
 async function withTerminalEffect(result, processRegistry, processId, ownerId) {
   const observation = controlObservation(result);
-  if (!['completed', 'failed', 'stopped'].includes(result?.state)) return observation;
   const metadata = processRegistry.metadata(processId, ownerId);
+  if (metadata?.capabilitiesUsed?.length) observation.capabilitiesUsed = structuredClone(metadata.capabilitiesUsed);
+  if (!['completed', 'failed', 'stopped'].includes(result?.state)) return observation;
   if (!metadata?.declaredEffect) return observation;
   const after = await observeDeclaredEffect(metadata.declaredEffect, metadata.effectCwd);
   observation.effectObservation = compareEffectObservations(

@@ -162,6 +162,22 @@ export class ManagedCliStore {
     return { state: actualVersion ? 'installed' : 'not_installed', ...publicPackage(entry), activeVersion: actualVersion, managedPath: actualVersion ? path : null };
   }
   async installed() { const results = await Promise.all(this.catalog.packages.map((item) => this.status(item.id))); return results.filter((item) => item.state === 'installed'); }
+  async attributeCommand(explanation) {
+    const executables = new Set((explanation?.steps ?? []).map((step) => String(step?.executable ?? '')).filter(Boolean));
+    if (!executables.size) return [];
+    const used = [];
+    for (const active of await this.installed()) {
+      const command = executableName(this.entry(active.id).command, this.platform);
+      const matched = [...executables].some((executable) => (
+        executable === active.managedPath
+        || (!/[\\/]/u.test(executable) && (executable === command || executable === this.entry(active.id).command))
+      ));
+      if (!matched) continue;
+      const asset = this.catalog.asset(active.id, active.activeVersion, this.platform, this.architecture);
+      used.push({ kind: 'cli', id: active.id, version: active.activeVersion, digest: asset.sha256 });
+    }
+    return used;
+  }
   async ensureVersion(id, version) {
     const asset = this.catalog.asset(id, version, this.platform, this.architecture); const target = this.versionPath(id, version);
     const packageDirectory = join(this.versions, id); const directory = join(packageDirectory, version);
