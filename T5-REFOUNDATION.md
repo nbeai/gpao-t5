@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `U1-G1 SOCIAL SOURCE FALLBACK — IN PROGRESS` (기존 손의 정확한 전환)
+현재 Gate: `U1-G2 VIDEO TEXT REALITY BASELINE — IN PROGRESS` (자막 우선 영상 관측 정답선)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -1633,7 +1633,7 @@ Non-goals:
 
 ## U1-G1 — Social Source Fallback
 
-상태: `IN PROGRESS` — 공개 SNS 주소의 정적 읽기가 막히거나 일부만 보일 때 새 플랫폼 전용 손을 먼저
+상태: `COMPLETE` — 공개 SNS 주소의 정적 읽기가 막히거나 일부만 보일 때 새 플랫폼 전용 손을 먼저
 만들지 않고, 현재 Browser Hand가 실제로 더 관측할 수 있는지 한 번 확인한다.
 
 사용자 완료 문장:
@@ -1669,11 +1669,56 @@ Non-goals:
 
 현재 증거: `refoundation/evidence/u1-g1-social-source-fallback-2026-08-21.json`
 
+완료 증거:
+
+- 실제 OAuth 모델 `gpt-5.5`가 공개 Facebook Post에서 `web_read(blocked 400) → browser navigate → full snapshot`
+  순서로 같은 Run을 완료하고 정적 요청 반복 0
+- 공개 본문이 보이는 상태에서 로그인 배너를 이유로 login handoff를 열지 않음
+- 게시물 본문·좋아요 1.2천·댓글 759개·공유 13회와 실제 보인 댓글을 답하되 759개 전체 관측으로 꾸미지 않음
+- Browser compact 2,095자와 full 8,832자의 실제 차이를 측정해 본문·댓글 문장이 필요할 때만 full 1회 사용
+- 새 Facebook adapter·플랫폼 정규식·crawler 추가 0
+
+## U1-G2 — Video Text Reality Baseline
+
+상태: `IN PROGRESS` — 영상의 의미를 제목·페이지 문구만으로 추측하지 않기 위해, 현재 T5가 공개 YouTube
+영상에서 실제 자막을 얻을 수 있는지와 자막이 없을 때의 정지 경계를 먼저 고정한다.
+
+사용자 완료 문장:
+
+> 사장님이 공개 영상 링크를 보내면 T5가 영상에 실제 자막이 있는지 확인하고, 얻은 자막과 페이지 설명을
+> 구분해 필요한 관점으로 정리하며, 자막·음성·화면을 보지 못했다면 본 것처럼 말하지 않는다.
+
+이미 선 실제 증거:
+
+- U1-G0 YouTube `web_read`는 identity·페이지 text만 partial dynamic으로 관측하고 subtitle·audio·frames는 0
+- 비교군·오픈소스 연구에서 YouTube는 자막을 먼저 얻고, 자막 실패 뒤에만 bounded media·STT를 검토하는 순서가 공통
+- 현재 저장소에는 media downloader·STT·OCR가 없으며 실제 결손 확인 전 설치하지 않는 것이 현재 Gate 경계
+
+이번 Gate의 최소 변경:
+
+- 공개 YouTube의 manual caption·auto caption·caption absent·Short URL identity/coverage baseline
+- 현재 Browser Hand와 설치된 범용 CLI 현실을 먼저 측정하고 title·description·subtitle을 분리
+- 자막 원문은 외부 자료로 표시하고 language·source·범위·생략을 보존
+- 자막이 없거나 접근 불가하면 audio를 들은 척하지 않고 다음 후보 수단과 비용만 판정
+
+Non-goals:
+
+- yt-dlp·FFmpeg·whisper.cpp 자동 설치, cookie·로그인 세션 추출, 영상 전체 다운로드
+- TikTok·Instagram·Facebook 영상까지 동시에 확장, OCR·프레임 추출·sentiment·콘텐츠 성공 공식
+- 사용자의 업종·취향·목표를 고정 분류로 내장
+
+완료 Gate:
+
+- 변동 가능한 실제 영상과 불변 URL/상태 fixture를 분리한 baseline
+- 현재 T5의 title·description·subtitle 관측 성공·실패·미측정 범위 확정
+- 자막이 있는 영상은 실제 자막으로, 없는 영상은 정직한 missing으로 판정
+- 새 CLI 필요 여부를 실측 근거로 결정하고 기존 전체 회귀 유지
+
 ## 현재 다음 한 작업
 
 Web Hand W0~W6, Document Data Hand D1, Unified Attachment Hand A1까지 완료되어 1차 완성에 도달했다.
-다음 한 작업은 U1-G1의 실제 콘솔 모델 재현이다. SNS 대상과 분석 관점은 현재 사용자의 사업·취향·목표·
-요청에서 매번 정하며 고정 persona를 만들지 않는다. 그 밖의
+다음 한 작업은 U1-G2의 실제 YouTube 자막 상태 기준선과 현재 T5 관측 baseline이다. SNS 대상과 분석 관점은
+현재 사용자의 사업·취향·목표·요청에서 매번 정하며 고정 persona를 만들지 않는다. 그 밖의
 능력은 기능 목록에서 자동으로 고르지 않는다. 실제 콘솔 사용에서
 사용자 과업이 실패하거나 불편하면 해당 Run·Receipt를 읽고 모델·손·방법·권한·UI 중 공통 원인을 확정한 뒤
 그 한 축만 연다. 실제 사업자 계정이 준비되기 전에는 Naver 실계정 자격을 완료로 주장하지 않는다.

@@ -43,6 +43,21 @@
   "verification": {
     "countertest": "red before console instruction change",
     "fixtureJourney": "web_read blocked -> compact browser observation -> full snapshot on same tab -> answer separates total count from visible comments",
-    "actualConsoleModel": "pending"
+    "actualConsoleModel": {
+      "provider": "chatgpt_oauth",
+      "modelId": "gpt-5.5",
+      "sessionId": "498dead4-55e3-4c74-9925-5509fe5d20fc",
+      "runId": "c324fa4d-918d-4599-baba-1bd81f1fb7d1",
+      "status": "completed",
+      "toolSequence": [
+        {"name":"web_read","state":"blocked","status":400},
+        {"name":"browser","action":"navigate","shownChars":2095},
+        {"name":"browser","action":"snapshot","full":true,"shownChars":8832}
+      ],
+      "repeatedStaticRead": false,
+      "unnecessaryLogin": false,
+      "answerSeparatedVisibleSubset": true,
+      "answerBoundary": "public post body and visible top comments were reported; all 759 comments were explicitly not claimed"
+    }
   }
 }
