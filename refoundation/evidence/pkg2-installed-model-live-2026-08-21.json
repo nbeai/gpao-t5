@@ -1,0 +1,47 @@
+{
+  "schema": "t5.macos-installed-model-live.v1",
+  "recordedAt": "2026-08-21T03:15:00+09:00",
+  "product": "GPAO-T5",
+  "version": "0.1.2",
+  "package": {
+    "path": "dist/GPAO-T5-0.1.2-universal.pkg",
+    "bytes": 144014354,
+    "sha256": "74e2766325232875cb0764f8702ed1b358757b8ccac817ce16e273ea583c09de",
+    "signature": "Developer ID Installer",
+    "notarized": true,
+    "stapled": true,
+    "gatekeeper": "accepted"
+  },
+  "installation": {
+    "installerUiCompleted": true,
+    "receiptId": "kr.co.gpao.t5",
+    "receiptVersion": "0.1.2",
+    "installedPath": "/Applications/GPAO-T5.app",
+    "installedProcessPathVerified": true,
+    "userApplicationCopyNotUsed": true
+  },
+  "stateBoundary": {
+    "existingCredentialPreserved": true,
+    "credentialMode": "0600",
+    "sessionStatePreserved": true,
+    "secretValuesObserved": false
+  },
+  "model": {
+    "provider": "chatgpt_oauth",
+    "modelId": "gpt-5.5",
+    "connectedBeforeFirstTurn": true,
+    "firstLiveReply": "0.1.2 설치본 첫 라이브 응답 정상"
+  },
+  "restart": {
+    "runtimeStopped": true,
+    "newProcessAndPortObserved": true,
+    "modelConnectionPreserved": true,
+    "sameConversationPreserved": true,
+    "secondLiveReply": "재시작 연속성 정상"
+  },
+  "passed": true,
+  "remaining": [
+    "same package on a different team member Mac",
+    "fresh-user model authorization with no pre-existing credential"
+  ]
+}
