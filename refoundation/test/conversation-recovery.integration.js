@@ -57,6 +57,47 @@ test('두 번째 무진전 답은 모델 답을 바꾸지 않고 회복 선택�
   } finally { await testApp.close(); }
 });
 
+test('중간에 다른 일을 실제로 마친 뒤 연결 막힘이 재등장해도 회복 선택을 지속한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-conversation-recovery-returned-'));
+  const blocked = '앞선 미완료 작업과 지금 요청이 함께 잡혔어요. 지금 할 일만 한 번 더 말씀해 주세요.';
+  let call = 0;
+  const server = makeConsoleServer({
+    stateDir: join(room, 'state'), workspace: room,
+    modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
+    modelFactory: () => ({ async respond() {
+      call += 1;
+      if (call === 1 || call === 4) return { text: blocked, toolCalls: [] };
+      if (call === 2) return { text: '', toolCalls: [{
+        id: 'unrelated-work', name: 'exec', args: {
+          command: "printf '관련 파일을 확인했습니다\\n'", cwd: null, effect: null,
+        },
+      }] };
+      return { text: '관련 파일을 확인했어요.', toolCalls: [] };
+    } }),
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject); server.listen(0, '127.0.0.1', resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const session = (await post(base, '/sessions', {})).body;
+    await post(base, '/turn', { sessionId: session.id, text: '구글 연결을 시작해줘' });
+    const worked = await post(base, '/turn', {
+      sessionId: session.id, text: '그 전에 관련 파일이 있는지 확인해줘',
+    });
+    assert.match(worked.body.reply, /확인했어요/u);
+    const returned = await post(base, '/turn', {
+      sessionId: session.id, text: '이제 노션 연결을 그대로 진행해',
+    });
+    assert.equal(returned.body.reply, blocked);
+    assert.equal(returned.body.recovery?.kind, 'repeated_no_progress');
+  } finally {
+    server.closeWakeStreams(); await server.closeMessengers();
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
 test('대화 상태 다시 준비는 모델 없이 임시 작업·승인을 정리하고 기록을 보존한다', async () => {
   const testApp = await app();
   try {

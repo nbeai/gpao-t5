@@ -103,3 +103,41 @@ test('연결 상태만 같은 값으로 다시 확인하고 막다른 답을 반
     session, currentUserText: '그럼 지금 연결 시작해', currentResult: { kind: 'reply', reply }, evidence,
   })?.kind, 'repeated_no_progress');
 });
+
+test('중간에 다른 과업을 마쳤어도 마지막 복구 이후 같은 연결 막힘이 다시 나타나면 회복권을 연다', () => {
+  const blocked = '앞선 미완료 작업과 지금 요청이 함께 잡혔어요. 지금 할 일만 한 번 더 말씀해 주세요.';
+  const session = { transcript: [
+    ...previousExchange({ user: '구글 연결을 시작해줘', reply: blocked }),
+    ...previousExchange({
+      user: '그 전에 다운로드 폴더에서 사장개조 자료를 찾아줘',
+      reply: '관련 폴더 세 곳과 독립 파일 두 개를 찾았어요.',
+      receipts: [{
+        outcome: 'succeeded', requestedCall: { name: 'exec', args: { command: 'find fixture' } },
+        actualCall: { name: 'exec', args: { command: 'find fixture' } },
+        result: { state: 'completed', effectObservation: { changed: false } },
+      }],
+    }),
+  ] };
+  const evidence = recoveryEvidenceForTurn({
+    userText: '이제 노션 연결을 그대로 진행해', reply: blocked, kind: 'reply', receipts: [],
+  });
+  assert.equal(repeatedNoProgressSignal({
+    session, currentUserText: '이제 노션 연결을 그대로 진행해',
+    currentResult: { kind: 'reply', reply: blocked }, evidence,
+  })?.kind, 'repeated_no_progress');
+});
+
+test('사용자가 대화 상태를 다시 준비한 뒤에는 그 이전 막힘을 새 반복으로 세지 않는다', () => {
+  const blocked = '앞선 미완료 작업과 지금 요청이 함께 잡혔어요. 지금 할 일만 한 번 더 말씀해 주세요.';
+  const session = { transcript: [
+    ...previousExchange({ user: '구글 연결해줘', reply: blocked }),
+    { role: 'system_event', event: { kind: 'session_recovered', mode: 'reset' } },
+  ] };
+  const evidence = recoveryEvidenceForTurn({
+    userText: '노션 연결해줘', reply: blocked, kind: 'reply', receipts: [],
+  });
+  assert.equal(repeatedNoProgressSignal({
+    session, currentUserText: '노션 연결해줘',
+    currentResult: { kind: 'reply', reply: blocked }, evidence,
+  }), null);
+});

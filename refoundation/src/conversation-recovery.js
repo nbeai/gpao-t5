@@ -56,17 +56,22 @@ export function recoveryEvidenceForTurn({
       .digest('hex'),
   };
 }
-function lastCompletedExchange(transcript = []) {
-  let assistantIndex = -1;
+function completedExchangesSinceRecovery(transcript = []) {
+  const exchanges = [];
+  let assistant = null;
   for (let index = transcript.length - 1; index >= 0; index -= 1) {
-    if (transcript[index]?.role === 'assistant') { assistantIndex = index; break; }
+    const entry = transcript[index];
+    if (entry?.role === 'system_event' && entry.event?.kind === 'session_recovered') break;
+    if (!assistant && entry?.role === 'assistant') {
+      assistant = entry;
+      continue;
+    }
+    if (assistant && entry?.role === 'user') {
+      exchanges.push({ user: entry, assistant });
+      assistant = null;
+    }
   }
-  if (assistantIndex < 0) return null;
-  let user = null;
-  for (let index = assistantIndex - 1; index >= 0; index -= 1) {
-    if (transcript[index]?.role === 'user') { user = transcript[index]; break; }
-  }
-  return user ? { user, assistant: transcript[assistantIndex] } : null;
+  return exchanges;
 }
 
 function madeNoProgress(evidence) {
@@ -79,22 +84,26 @@ function madeNoProgress(evidence) {
 
 /**
  * This detector never interprets Korean or provider prose. It only opens a recovery surface when
- * two distinct user turns produce the exact same surface result with no ToolReceipt in between.
+ * two distinct user turns after the last explicit recovery produce the exact same no-progress
+ * surface result. Unrelated successful work between those turns does not hide a recurring dead end.
  * It does not replace, edit, or block the model answer.
  */
 export function repeatedNoProgressSignal({ session, currentUserText, currentResult, evidence } = {}) {
   if (!madeNoProgress(evidence)) return null;
-  const previous = lastCompletedExchange(session?.transcript);
-  const priorEvidence = previous?.assistant?.result?.recoveryEvidence;
-  if (!madeNoProgress(priorEvidence)) return null;
-  if (priorEvidence.userFingerprint === evidence.userFingerprint) return null;
-  if (priorEvidence.surfaceFingerprint !== evidence.surfaceFingerprint) return null;
-  if (priorEvidence.diagnosticOnly !== evidence.diagnosticOnly) return null;
-  if (evidence.diagnosticOnly
-    && priorEvidence.diagnosticFingerprint !== evidence.diagnosticFingerprint) return null;
-  if (String(previous.assistant.result?.kind ?? '') !== String(currentResult?.kind ?? '')) return null;
-  if (currentResult?.kind === 'error'
-    && String(previous.assistant.result?.failureCode ?? '') !== String(currentResult?.failureCode ?? '')) return null;
+  const previous = completedExchangesSinceRecovery(session?.transcript).find((exchange) => {
+    const priorEvidence = exchange.assistant?.result?.recoveryEvidence;
+    if (!madeNoProgress(priorEvidence)) return false;
+    if (priorEvidence.userFingerprint === evidence.userFingerprint) return false;
+    if (priorEvidence.surfaceFingerprint !== evidence.surfaceFingerprint) return false;
+    if (priorEvidence.diagnosticOnly !== evidence.diagnosticOnly) return false;
+    if (evidence.diagnosticOnly
+      && priorEvidence.diagnosticFingerprint !== evidence.diagnosticFingerprint) return false;
+    if (String(exchange.assistant.result?.kind ?? '') !== String(currentResult?.kind ?? '')) return false;
+    if (currentResult?.kind === 'error'
+      && String(exchange.assistant.result?.failureCode ?? '') !== String(currentResult?.failureCode ?? '')) return false;
+    return true;
+  });
+  if (!previous) return null;
   return {
     kind: 'repeated_no_progress',
     userSafeSummary: '같은 자리에서 진행되지 않고 있어요.',
