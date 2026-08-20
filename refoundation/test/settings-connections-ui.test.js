@@ -17,6 +17,15 @@ test('설정은 서버가 실제 제공하는 모델과 ChatGPT OAuth를 동등�
   assert.match(html, /\/model\/connections\/activate/u);
   assert.match(html, /\/model\/connections\/remove/u);
   assert.match(html, /response\.ok/u);
+  assert.match(html, /id="mcResult"[^>]*role="status"[^>]*aria-live="polite"/u);
+  assert.match(html, /연결 중…/u);
+  assert.match(html, /연결이 완료됐어요/u);
+  assert.match(html, /apply\.id = 'mcApply'/u);
+  assert.match(html, /선택한 모델 적용/u);
+  assert.match(html, /모델을 변경하는 중…/u);
+  assert.match(html, /refreshActiveModelSurface/u);
+  assert.match(html, /사용 중/u);
+  assert.doesNotMatch(html, /radio\.onchange\s*=\s*async/u);
 });
 
 test('메신저 설정은 provider capability로 비밀 필드를 만들고 연결·해제·allowlist를 잇는다', async () => {

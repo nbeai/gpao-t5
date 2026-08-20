@@ -30,7 +30,9 @@ test('설정 API는 모델 4종·Telegram 연결을 검증·저장·활성하고
       ok: true, status: 200,
       json: async () => String(url).includes('generativelanguage')
         ? ({ name: 'models/gemini-3.6-flash', supportedGenerationMethods: ['generateContent'] })
-        : ({ id: String(url).split('/').at(-1) }),
+        : String(url).includes('upstage')
+          ? ({ model: 'solar-pro4', choices: [{ message: { role: 'assistant', content: 'OK' } }] })
+          : ({ id: String(url).split('/').at(-1) }),
     }),
   });
   let status = { connected: false, provider: null, modelId: null, activeId: null, connections: [] };
@@ -50,6 +52,16 @@ test('설정 API는 모델 4종·Telegram 연결을 검증·저장·활성하고
     modelStatus: async () => status,
     modelConnections: {
       ...modelConnections,
+      async activate(id) {
+        const result = await modelConnections.activate(id);
+        const connections = await catalog.list();
+        const active = connections.find((item) => item.active);
+        status = {
+          connected: Boolean(active), provider: active?.provider ?? null,
+          modelId: active?.modelId ?? null, activeId: active?.id ?? null, connections,
+        };
+        return result;
+      },
       async connect(input) {
         const result = await modelConnections.connect(input);
         const connections = await catalog.list();
@@ -77,6 +89,18 @@ test('설정 API는 모델 4종·Telegram 연결을 검증·저장·활성하고
     assert.doesNotMatch(listed, new RegExp(secret));
     assert.match(listed, /OpenAI/u);
     assert.equal((await stat(connectionFile)).mode & 0o777, 0o600);
+
+    const upstage = await post(base, '/model/connect', {
+      provider: 'upstage', key: 'upstage-secret-never-return',
+    });
+    assert.equal(upstage.status, 200);
+    const connections = await catalog.list();
+    const openai = connections.find((item) => item.provider === 'openai');
+    const applied = await post(base, '/model/connections/activate', { id: openai.id });
+    assert.equal(applied.status, 200);
+    const active = await fetch(`${base}/model/connection`).then((response) => response.json());
+    assert.equal(active.provider, 'openai');
+    assert.equal(active.modelId, 'gpt-5.6-terra');
 
     const channelProviders = await fetch(`${base}/channels/providers`).then((response) => response.json());
     assert.deepEqual(channelProviders.providers.map((item) => item.id), ['telegram']);

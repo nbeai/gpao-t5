@@ -399,8 +399,16 @@
   .connection-alt { border-top:1px solid var(--line); padding-top:var(--sp-3); margin-top:var(--sp-3); }
   .connection-alt .tb-hint { display:inline-block; margin:0 0 0 var(--sp-2); background:transparent; padding:0; color:var(--muted); }
   .connection-row { display:flex; align-items:center; gap:var(--sp-2); margin:var(--sp-2) 0; }
+  .connection-row.is-active { background:var(--accent-subtle); border-radius:var(--r-sm); padding:var(--sp-2); }
   .connection-row .connection-label { flex:1; min-width:0; overflow-wrap:anywhere; font-size:var(--fs-sm); }
+  .connection-current { flex:none; color:var(--ok); font-size:var(--fs-xs); font-weight:600; }
+  .connection-apply { display:flex; flex-wrap:wrap; align-items:center; gap:var(--sp-2); margin-top:var(--sp-3);
+    padding-top:var(--sp-3); border-top:1px solid var(--line); }
+  .connection-selection-hint { flex:1; min-width:0; color:var(--muted); font-size:var(--fs-xs); }
   #mcResult, #msgResult { min-height:1.4em; overflow-wrap:anywhere; font-size:var(--fs-xs); color:var(--muted); }
+  #mcResult[data-state="working"] { color:var(--accent); }
+  #mcResult[data-state="success"] { color:var(--ok); font-weight:600; }
+  #mcResult[data-state="error"] { color:var(--danger); }
   #mcResult:empty, #msgResult:empty { display:none; }
 
   @media (max-width:720px) {
@@ -733,7 +741,7 @@ async function renderModelConnect(target) {
         <span class="tb-hint">API 키 대신 계정 연결을 선택할 수 있어요.</span>
       </div>
       <div id="mcList" style="margin:4px 0;"></div>
-      <div id="mcResult"></div>`;
+      <div id="mcResult" role="status" aria-live="polite"></div>`;
     (target ?? statePanel).appendChild(box);
     box.querySelector('#mcConnect').onclick = async () => {
       const body = {
@@ -741,41 +749,64 @@ async function renderModelConnect(target) {
         key: box.querySelector('#mcKey').value,
         modelId: box.querySelector('#mcModel').value || undefined,
       };
-      box.querySelector('#mcResult').textContent = '확인 중…';
-      const result = await endpointJson('/model/connect', {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
-      });
-      const rep = result.data?.report ?? {};
-      box.querySelector('#mcResult').textContent = result.ok
-        ? ([rep.userSafeSummary, rep.nextSafeAction].filter(Boolean).join(' ') || '연결됐어요.')
-        : endpointError(result, '연결하지 못했어요. 키와 제공자를 확인해 주세요.');
-      if (result.ok && result.data?.connected) box.querySelector('#mcKey').value = ''; // 성공한 키는 화면에 남기지 않는다
-      refreshApiConnectState();
-      await refreshModelConnect();
+      const providerLabel = MODEL_PROVIDER_LABEL[body.provider] ?? body.provider;
+      setModelConnectBusy(box, true, '#mcConnect', '연결 중…', 'API 키로 연결');
+      showModelConnectionResult(box, `${providerLabel} 연결 작업 중…`, 'working');
+      try {
+        const result = await endpointJson('/model/connect', {
+          method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+        });
+        if (result.ok && result.data?.connected) {
+          box.querySelector('#mcKey').value = ''; // 성공한 키는 화면에 남기지 않는다
+          const model = result.data.modelId ? ` · ${result.data.modelId}` : '';
+          showModelConnectionResult(
+            box, `${providerLabel}${model} 연결이 완료됐어요. 지금 사용할 모델로 적용됐어요.`, 'success',
+          );
+        } else {
+          showModelConnectionResult(
+            box, endpointError(result, '연결하지 못했어요. 키와 제공자를 확인해 주세요.'), 'error',
+          );
+        }
+      } finally {
+        setModelConnectBusy(box, false, '#mcConnect', '연결 중…', 'API 키로 연결');
+        refreshApiConnectState();
+        await refreshModelConnect();
+      }
     };
     box.querySelector('#mcChatgpt').onclick = async () => {
-      const login = await endpointJson('/model/chatgpt/login', { method: 'POST' });
-      if (!login.ok || !login.data?.authorizeUrl) {
-        box.querySelector('#mcResult').textContent = endpointError(login, 'ChatGPT 계정 연결을 시작하지 못했어요.'); return;
+      setModelConnectBusy(box, true, '#mcChatgpt', '연결 중…', 'ChatGPT 계정으로 연결');
+      showModelConnectionResult(box, 'ChatGPT 계정 연결 작업 중…', 'working');
+      try {
+        const login = await endpointJson('/model/chatgpt/login', { method: 'POST' });
+        if (!login.ok || !login.data?.authorizeUrl) {
+          showModelConnectionResult(
+            box, endpointError(login, 'ChatGPT 계정 연결을 시작하지 못했어요.'), 'error',
+          ); return;
+        }
+        showModelConnectionResult(box, '브라우저에서 ChatGPT 연결을 승인해 주세요.', 'working');
+        window.open(login.data.authorizeUrl, '_blank', 'noopener'); // 로그인은 사용자가 직접 한다
+        const done = await endpointJson('/model/chatgpt/await', { method: 'POST' });
+        showModelConnectionResult(box, done.ok
+          ? 'ChatGPT 계정 연결이 완료됐어요. 지금 사용할 모델로 적용됐어요.'
+          : endpointError(done, 'ChatGPT 계정 연결을 완료하지 못했어요.'), done.ok ? 'success' : 'error');
+      } finally {
+        setModelConnectBusy(box, false, '#mcChatgpt', '연결 중…', 'ChatGPT 계정으로 연결');
+        refreshApiConnectState();
+        await refreshModelConnect();
       }
-      box.querySelector('#mcResult').textContent = `${login.data.notice ?? 'ChatGPT 계정으로 연결해요.'} (브라우저에서 승인해 주세요)`;
-      window.open(login.data.authorizeUrl, '_blank', 'noopener'); // 로그인은 사용자가 직접 한다
-      const done = await endpointJson('/model/chatgpt/await', { method: 'POST' });
-      box.querySelector('#mcResult').textContent = done.ok
-        ? ([done.data?.userSafeSummary, done.data?.nextSafeAction].filter(Boolean).join(' ') || '연결됐어요.')
-        : endpointError(done, 'ChatGPT 계정 연결을 완료하지 못했어요.');
-      await refreshModelConnect();
     };
     box.querySelector('#mcDisconnect').onclick = async () => {
       const result = await endpointJson('/model/disconnect', { method: 'POST' });
-      box.querySelector('#mcResult').textContent = result.ok
-        ? '연결을 해제했어요.' : endpointError(result, '연결을 해제하지 못했어요.');
+      showModelConnectionResult(box, result.ok
+        ? '연결을 해제했어요.' : endpointError(result, '연결을 해제하지 못했어요.'),
+      result.ok ? 'success' : 'error');
       await refreshModelConnect();
     };
   }
   if (target && box.parentNode !== target) target.appendChild(box); // 설정 허브로 이동(한 곳 관리)
   const providerResult = await endpointJson('/model/providers');
   const select = box.querySelector('#mcProvider');
+  const previouslySelected = select.value;
   select.replaceChildren();
   const listed = Array.isArray(providerResult.data?.providers) ? providerResult.data.providers : [];
   const oauthList = [providerResult.data?.oauth].flat().filter(Boolean);
@@ -794,6 +825,9 @@ async function renderModelConnect(target) {
     option.dataset.defaultModel = provider.defaultModel ?? '';
     select.appendChild(option);
   }
+  if ([...select.options].some((option) => option.value === previouslySelected)) {
+    select.value = previouslySelected;
+  }
   const refreshModelPlaceholder = () => {
     const defaultModel = select.selectedOptions[0]?.dataset.defaultModel;
     box.querySelector('#mcModel').placeholder = defaultModel ? `모델 (기본: ${defaultModel})` : '모델(비우면 기본)';
@@ -811,6 +845,22 @@ async function renderModelConnect(target) {
   await refreshModelConnect();
 }
 
+function showModelConnectionResult(box, message, state = '') {
+  const result = box.querySelector('#mcResult');
+  result.textContent = message;
+  result.dataset.state = state;
+}
+
+function setModelConnectBusy(box, busy, buttonSelector, busyLabel, idleLabel) {
+  box.setAttribute('aria-busy', busy ? 'true' : 'false');
+  box.dataset.busy = busy ? 'true' : '';
+  for (const control of box.querySelectorAll(
+    '#mcProvider, #mcKey, #mcModel, #mcConnect, #mcDisconnect, #mcChatgpt, #mcList input, #mcList button',
+  )) control.disabled = busy;
+  const button = box.querySelector(buttonSelector);
+  if (button) button.textContent = busy ? busyLabel : idleLabel;
+}
+
 // 보관 중인 연결 목록(P-ONB-1). 라디오=기본으로 쓸 모델, 각 항목에 해제. 여러 개일 때만 보인다.
 async function renderConnectionList() {
   const box = document.getElementById('mcList');
@@ -822,21 +872,19 @@ async function renderConnectionList() {
   }
   const list = result.data?.connections ?? [];
   if (list.length < 2) { box.innerHTML = ''; return; } // 하나뿐이면 상태 줄로 충분(안티 대시보드)
-  box.innerHTML = '<div style="opacity:.7; font-size:11px; margin-bottom:2px;">쓸 모델 고르기</div>';
+  box.innerHTML = '<div style="opacity:.7; font-size:11px; margin-bottom:2px;">사용할 모델 선택</div>';
+  const active = list.find((connection) => connection.active) ?? null;
   for (const c of list) {
-    const row = document.createElement('div'); row.className = 'connection-row';
+    const row = document.createElement('div');
+    row.className = `connection-row${c.active ? ' is-active' : ''}`;
     const radio = document.createElement('input');
-    radio.type = 'radio'; radio.name = 'mcActive'; radio.checked = !!c.active;
-    radio.onchange = async () => {
-      const result = await endpointJson('/model/connections/activate', {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: c.id }),
-      });
-      if (!result.ok) document.getElementById('mcResult').textContent = endpointError(result, '기본 모델을 바꾸지 못했어요.');
-      await refreshModelConnect();
-    };
-    const label = document.createElement('span');
+    radio.type = 'radio'; radio.name = 'mcActive'; radio.value = c.id; radio.checked = !!c.active;
+    radio.id = `mc-choice-${c.id.replace(/[^a-zA-Z0-9_-]/gu, '-')}`;
+    const label = document.createElement('label'); label.htmlFor = radio.id;
     label.className = 'connection-label';
-    label.textContent = `${c.label ?? c.provider ?? c.modelId ?? '모델 연결'}${c.keyMasked ? ` · ${c.keyMasked}` : ''}${c.unofficial ? ' · 공식 지원 아님' : ''}`;
+    label.textContent = `${c.label ?? c.provider ?? '모델 연결'}${c.modelId ? ` · ${c.modelId}` : ''}${c.keyMasked ? ` · ${c.keyMasked}` : ''}${c.unofficial ? ' · 공식 지원 아님' : ''}`;
+    const current = document.createElement('span'); current.className = 'connection-current';
+    current.textContent = c.active ? '현재 사용 중' : '';
     const del = document.createElement('button');
     del.textContent = '해제'; del.className = 'connection-button';
     del.onclick = async () => {
@@ -846,15 +894,58 @@ async function renderConnectionList() {
       if (!result.ok) document.getElementById('mcResult').textContent = endpointError(result, '연결을 해제하지 못했어요.');
       await refreshModelConnect();
     };
-    row.append(radio, label, del);
+    row.append(radio, label, current, del);
     box.appendChild(row);
   }
+  const applyArea = document.createElement('div'); applyArea.className = 'connection-apply';
+  const hint = document.createElement('span'); hint.className = 'connection-selection-hint';
+  const apply = document.createElement('button'); apply.id = 'mcApply';
+  apply.className = 'connection-button primary'; apply.textContent = '선택한 모델 적용';
+  const updateSelection = () => {
+    const selected = list.find((item) => item.id === box.querySelector('input[name="mcActive"]:checked')?.value);
+    const changed = Boolean(selected && selected.id !== active?.id);
+    apply.disabled = !changed;
+    hint.textContent = changed
+      ? `${selected.label ?? selected.provider} · ${selected.modelId} 선택됨 — 적용 전`
+      : `${active?.label ?? active?.provider} · ${active?.modelId} 사용 중`;
+  };
+  for (const radio of box.querySelectorAll('input[name="mcActive"]')) radio.onchange = updateSelection;
+  apply.onclick = async () => {
+    const selected = list.find((item) => item.id === box.querySelector('input[name="mcActive"]:checked')?.value);
+    if (!selected || selected.id === active?.id) return;
+    box.setAttribute('aria-busy', 'true');
+    for (const control of box.querySelectorAll('input, button')) control.disabled = true;
+    apply.textContent = '적용 중…';
+    showModelConnectionResult(document.getElementById('modelConnect'), '모델을 변경하는 중…', 'working');
+    modelinfo.textContent = '모델 변경 중…';
+    const changed = await endpointJson('/model/connections/activate', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: selected.id }),
+    });
+    if (!changed.ok) {
+      showModelConnectionResult(
+        document.getElementById('modelConnect'), endpointError(changed, '모델을 바꾸지 못했어요.'), 'error',
+      );
+      box.removeAttribute('aria-busy');
+      await refreshInitialModelStatus();
+      await renderConnectionList();
+      return;
+    }
+    showModelConnectionResult(
+      document.getElementById('modelConnect'),
+      `${selected.label ?? selected.provider} · ${selected.modelId} 모델로 변경했어요.`, 'success',
+    );
+    box.removeAttribute('aria-busy');
+    await refreshModelConnect();
+  };
+  applyArea.append(hint, apply); box.appendChild(applyArea); updateSelection();
 }
 
 async function refreshModelConnect() {
   const result = await endpointJson('/model/connection');
   const st = result.ok ? result.data : null;
   await renderConnectionList();
+  refreshActiveModelSurface(st);
   const el = document.getElementById('mcStatus');
   if (!el) return;
   document.getElementById('mcDisconnect').disabled = !result.ok || !st?.connected;
@@ -863,8 +954,21 @@ async function refreshModelConnect() {
   const src = st.source
     ? ({ user: '화면에서 연결', saved: '저장된 연결', env: '환경 설정', chatgpt_oauth: 'ChatGPT 계정' }[st.source] ?? st.source)
     : null;
-  el.textContent = `${MODEL_PROVIDER_LABEL[st.provider] ?? st.provider} · ${st.modelId}${st.keyMasked ? ` · ${st.keyMasked}` : ''}${src ? ` (${src})` : ''}`
+  el.textContent = `현재 사용 중 · ${MODEL_PROVIDER_LABEL[st.provider] ?? st.provider} · ${st.modelId}${st.keyMasked ? ` · ${st.keyMasked}` : ''}${src ? ` (${src})` : ''}`
     + (st.unofficial ? ' · 공식 지원 아님' : '');
+}
+
+function refreshActiveModelSurface(st) {
+  if (!st?.connected) {
+    modelinfo.textContent = '연결된 모델 없음';
+    chip.textContent = '연결 필요';
+    chip.classList.add('warn');
+    return;
+  }
+  const provider = MODEL_PROVIDER_LABEL[st.provider] ?? st.provider;
+  modelinfo.textContent = `${provider} · ${st.modelId} · 사용 중`;
+  chip.textContent = '연결됨';
+  chip.classList.remove('warn');
 }
 
 // 첫 모델 응답을 기다리는 동안에도 저장된 연결 사실은 바로 보인다. 정적 stub 를 "준비됨"으로
@@ -872,15 +976,7 @@ async function refreshModelConnect() {
 // usable/health 기반의 "준비됨" 판정은 기존 renderSelfState 가 첫 실제 턴 뒤에 맡는다.
 async function refreshInitialModelStatus() {
   const st = await (await fetch('/model/connection')).json().catch(() => null);
-  if (!st?.connected) {
-    modelinfo.textContent = '연결된 모델 없음';
-    chip.textContent = '연결 필요';
-    chip.classList.add('warn');
-    return;
-  }
-  modelinfo.textContent = `${st.modelId} · 연결됨`;
-  chip.textContent = '연결됨';
-  chip.classList.remove('warn');
+  refreshActiveModelSurface(st);
 }
 
 // ── 기억 찾기 (P6-18) ── 과거 대화 검색. **결과는 "찾은 기억(반영 안 됨)".** 반영은 명시 admit(§6.16)만 —
