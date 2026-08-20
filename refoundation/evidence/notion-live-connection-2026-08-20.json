@@ -1,0 +1,44 @@
+{
+  "schema": "t5.notion-live-connection-evidence.v1",
+  "recordedAt": "2026-08-20T11:06:22Z",
+  "actualUserAccountUsed": true,
+  "actualUserDataObserved": true,
+  "connection": {
+    "oauthCompleted": true,
+    "workspaceIdentityVerified": true,
+    "remoteToolListVerified": true
+  },
+  "strictSchemaFailureBeforeFix": {
+    "runId": "55600c14-8856-4ffe-bb81-a43c2bc102ea",
+    "providerStatus": 400,
+    "notionToolExecuted": false
+  },
+  "searchAndRead": {
+    "runId": "3b6725e7-6476-4954-b66f-e59444ad8e2e",
+    "completed": true,
+    "remoteCalls": ["notion-list-recent-pages", "notion-fetch"]
+  },
+  "createAndReopen": {
+    "runId": "7769b95f-896f-446e-b437-ad712baac0b9",
+    "completed": true,
+    "remoteCalls": ["notion-create-pages", "notion-fetch"]
+  },
+  "approvedUpdateAndReopen": {
+    "requestRunId": "49a58377-d94a-46e1-b9fb-8fbd6612922b",
+    "approvalRunId": "e90f3e28-ffe7-4fee-8497-2ce8edf48cc1",
+    "userApproved": true,
+    "activePendingAfter": 0,
+    "remoteCalls": ["notion-update-page", "notion-fetch"]
+  },
+  "testPage": {
+    "title": "T5 연결 확인 2026-08-20",
+    "leftInWorkspace": true,
+    "reason": "deletion was outside the authorized create-update verification"
+  },
+  "verification": {
+    "refoundationTestsPassed": 345,
+    "refoundationTestsFailed": 0,
+    "integrationTestsPassed": 66,
+    "integrationTestsFailed": 0
+  }
+}

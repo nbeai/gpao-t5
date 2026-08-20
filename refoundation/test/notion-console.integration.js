@@ -55,24 +55,24 @@ test('연결된 Notion 손은 도구 발견→검색→페이지 읽기→수정
     modelFactory: () => ({ async respond(input) {
       turn += 1;
       assert.ok(input.tools.some((tool) => tool.name === 'notion'));
-      const base = { toolName: null, arguments: null, effect: null };
+      const base = { toolName: null, argumentsJson: null, effect: null };
       if (turn === 1) return { text: '', toolCalls: [{
         id: 'list-notion', name: 'notion', args: { ...base, action: 'list_tools' },
       }] };
       if (turn === 2) return { text: '', toolCalls: [{
         id: 'search-notion', name: 'notion', args: {
-          ...base, action: 'call', toolName: 'notion-search', arguments: { query: '주간 회의' },
+          ...base, action: 'call', toolName: 'notion-search', argumentsJson: JSON.stringify({ query: '주간 회의' }),
         },
       }] };
       if (turn === 3) return { text: '', toolCalls: [{
         id: 'fetch-notion', name: 'notion', args: {
-          ...base, action: 'call', toolName: 'notion-fetch', arguments: { id: 'page-1' },
+          ...base, action: 'call', toolName: 'notion-fetch', argumentsJson: JSON.stringify({ id: 'page-1' }),
         },
       }] };
       if (turn === 4) return { text: '', toolCalls: [{
         id: 'update-notion', name: 'notion', args: {
           ...base, action: 'call', toolName: 'notion-update-page',
-          arguments: { page_id: 'page-1', command: '결정사항에 다음 주 재검토 추가' },
+          argumentsJson: JSON.stringify({ page_id: 'page-1', command: '결정사항에 다음 주 재검토 추가' }),
           effect: {
             kind: 'external_change', summary: '주간 회의 페이지 수정', targets: ['notion'],
             reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null,

@@ -16,7 +16,7 @@ const driveNulls = {
   query: null, fileId: null, pageSize: null, pageToken: null, exportMime: null,
   name: null, parentId: null, filePath: null, mimeType: null, effect: null,
 };
-const notionNulls = { toolName: null, arguments: null, effect: null };
+const notionNulls = { toolName: null, argumentsJson: null, effect: null };
 const attachmentNulls = {
   attachmentId: null, filePath: null, maxChars: null, maxCells: null, maxPages: null,
 };
@@ -131,19 +131,19 @@ test('일반 사용자의 Notion·Google 자료 찾기부터 파일 왕복까지
 
   const queue = [
     () => ({ text: '', toolCalls: [{ id: 'n-list', name: 'notion', args: { ...notionNulls, action: 'list_tools' } }] }),
-    () => ({ text: '', toolCalls: [{ id: 'n-search', name: 'notion', args: { ...notionNulls, action: 'call', toolName: 'notion-search', arguments: { query: '주간 회의' } } }] }),
-    () => ({ text: '', toolCalls: [{ id: 'n-fetch', name: 'notion', args: { ...notionNulls, action: 'call', toolName: 'notion-fetch', arguments: { id: 'meeting-1' } } }] }),
+    () => ({ text: '', toolCalls: [{ id: 'n-search', name: 'notion', args: { ...notionNulls, action: 'call', toolName: 'notion-search', argumentsJson: JSON.stringify({ query: '주간 회의' }) } }] }),
+    () => ({ text: '', toolCalls: [{ id: 'n-fetch', name: 'notion', args: { ...notionNulls, action: 'call', toolName: 'notion-fetch', argumentsJson: JSON.stringify({ id: 'meeting-1' }) } }] }),
     () => ({ text: '', toolCalls: [{ id: 'n-create', name: 'notion', args: {
-      ...notionNulls, action: 'call', toolName: 'notion-create-pages', arguments: { title: '후속 할 일' },
+      ...notionNulls, action: 'call', toolName: 'notion-create-pages', argumentsJson: JSON.stringify({ title: '후속 할 일' }),
       effect: effect('external_change', 'Notion 후속 페이지 만들기', ['notion']),
     } }] }),
     () => ({ text: '', toolCalls: [{ id: 'n-update', name: 'notion', args: {
-      ...notionNulls, action: 'call', toolName: 'notion-update-page', arguments: { page_id: 'meeting-1', text: '다음 주 재검토' },
+      ...notionNulls, action: 'call', toolName: 'notion-update-page', argumentsJson: JSON.stringify({ page_id: 'meeting-1', text: '다음 주 재검토' }),
       effect: effect('external_change', 'Notion 회의 페이지 수정', ['notion']),
     } }] }),
     () => ({ text: '주간 회의를 찾아 읽고, 후속 할 일 페이지를 만든 뒤 회의 페이지도 수정했어요.', toolCalls: [] }),
 
-    () => ({ text: '', toolCalls: [{ id: 'n-fetch-file', name: 'notion', args: { ...notionNulls, action: 'call', toolName: 'notion-fetch', arguments: { id: 'meeting-1' } } }] }),
+    () => ({ text: '', toolCalls: [{ id: 'n-fetch-file', name: 'notion', args: { ...notionNulls, action: 'call', toolName: 'notion-fetch', argumentsJson: JSON.stringify({ id: 'meeting-1' }) } }] }),
     () => ({ text: '', toolCalls: [{ id: 'n-download', name: 'exec', args: {
       command: `curl -fsS ${JSON.stringify(remoteUrl)} -o ${JSON.stringify(downloaded)}`, cwd: room,
       effect: effect('local_change', 'Notion 회의자료 받기', [downloaded]),

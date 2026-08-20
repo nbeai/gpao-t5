@@ -21,10 +21,10 @@ test('Notion 도구 목록의 readOnlyHint가 true인 조회는 추가 효과 �
   };
   const tool = makeNotionTool({ runtime, authorizeEffect: async () => { throw new Error('must not authorize'); } });
   assert.equal((await tool.preflight({
-    action: 'call', toolName: 'notion-search', arguments: { query: '회의록' }, effect: null,
+    action: 'call', toolName: 'notion-search', argumentsJson: JSON.stringify({ query: '회의록' }), effect: null,
   })).allowed, true);
   const result = await tool.execute({
-    action: 'call', toolName: 'notion-search', arguments: { query: '회의록' }, effect: null,
+    action: 'call', toolName: 'notion-search', argumentsJson: JSON.stringify({ query: '회의록' }), effect: null,
   });
   assert.equal(result.state, 'called');
   assert.equal(result.trust, 'untrusted_external');
@@ -47,16 +47,16 @@ test('Notion 쓰기 도구는 effect와 authority가 없으면 remote call 전�
       : { allowed: false, outcome: 'not_executed', result: { state: 'external_change_required' } },
   });
   const missing = await tool.preflight({
-    action: 'call', toolName: 'notion-update-page', arguments: { page_id: 'p1' }, effect: null,
+    action: 'call', toolName: 'notion-update-page', argumentsJson: JSON.stringify({ page_id: 'p1' }), effect: null,
   });
   assert.equal(missing.allowed, false);
   assert.equal(calls, 0);
   const allowed = await tool.preflight({
-    action: 'call', toolName: 'notion-update-page', arguments: { page_id: 'p1' }, effect: effect('external_change'),
+    action: 'call', toolName: 'notion-update-page', argumentsJson: JSON.stringify({ page_id: 'p1' }), effect: effect('external_change'),
   });
   assert.equal(allowed.allowed, true);
   await tool.execute({
-    action: 'call', toolName: 'notion-update-page', arguments: { page_id: 'p1' }, effect: effect('external_change'),
+    action: 'call', toolName: 'notion-update-page', argumentsJson: JSON.stringify({ page_id: 'p1' }), effect: effect('external_change'),
   });
   assert.equal(calls, 1);
 });
@@ -76,17 +76,34 @@ test('destructiveHint 도구는 external_change로 낮출 수 없고 원격 오�
   };
   const tool = makeNotionTool({ runtime, authorizeEffect: async () => ({ allowed: true }) });
   const lowered = await tool.preflight({
-    action: 'call', toolName: 'notion-delete-page', arguments: {}, effect: effect('external_change'),
+    action: 'call', toolName: 'notion-delete-page', argumentsJson: '{}', effect: effect('external_change'),
   });
   assert.equal(lowered.allowed, false);
   assert.equal(lowered.result.state, 'destructive_required');
   const failed = await tool.execute({
-    action: 'call', toolName: 'notion-delete-page', arguments: {}, effect: effect('destructive'),
+    action: 'call', toolName: 'notion-delete-page', argumentsJson: '{}', effect: effect('destructive'),
   });
   assert.equal(failed.exitCode, 1);
   const large = await tool.execute({
-    action: 'call', toolName: 'notion-search', arguments: {}, effect: null,
+    action: 'call', toolName: 'notion-search', argumentsJson: '{}', effect: null,
   });
   assert.equal(large.truncated, true);
   assert.ok(JSON.stringify(large.content).length < 70_000);
+});
+
+test('Notion 동적 인자는 OpenAI strict schema에서 허용되는 JSON 문자열로만 전달된다', async () => {
+  const tool = makeNotionTool({
+    runtime: {
+      async listTools() { return [{
+        name: 'notion-search', inputSchema: { type: 'object' }, annotations: { readOnlyHint: true },
+      }]; },
+      async callTool() { return { content: [], isError: false }; },
+    },
+  });
+  assert.equal(tool.parameters.properties.arguments, undefined);
+  assert.deepEqual(tool.parameters.properties.argumentsJson.type, ['string', 'null']);
+  assert.equal(JSON.stringify(tool.parameters).includes('"additionalProperties":true'), false);
+  await assert.rejects(() => tool.preflight({
+    action: 'call', toolName: 'notion-search', argumentsJson: '{broken', effect: null,
+  }), /invalid JSON/u);
 });
