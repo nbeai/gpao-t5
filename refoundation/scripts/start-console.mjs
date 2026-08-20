@@ -27,6 +27,7 @@ import { makeGoogleDriveTool } from '../src/google-drive-tool.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 import { makeNotionMcpConnection } from '../src/notion-mcp-connection.js';
 import { makeNotionCliInspector } from '../src/notion-cli-inspector.js';
+import { makeRemoteMcpConnection } from '../src/remote-mcp-connection.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -93,10 +94,15 @@ const googleDriveService = {
     });
   },
 };
+const platformSecretStore = makePlatformSecretStore({ platform: computerEnvironment.platform });
 const notionConnection = makeNotionMcpConnection({
-  secretStore: makePlatformSecretStore({ platform: computerEnvironment.platform }),
+  secretStore: platformSecretStore,
   browserAvailable: true,
   cliInspect: makeNotionCliInspector(),
+});
+const linearConnection = makeRemoteMcpConnection({
+  id: 'linear', label: 'Linear', serverUrl: 'https://mcp.linear.app/mcp',
+  resource: 'https://mcp.linear.app/mcp', secretStore: platformSecretStore,
 });
 const server = makeConsoleServer({
   stateDir,
@@ -120,7 +126,7 @@ const server = makeConsoleServer({
     includeGoogle: false,
     includeNotion: false,
   }),
-  workspaceConnectionServices: [googleDriveService, notionConnection],
+  workspaceConnectionServices: [googleDriveService, notionConnection, linearConnection],
   onError: (error) => console.error('[refoundation-console]', error?.message ?? error),
 });
 await new Promise((resolveListen, reject) => {

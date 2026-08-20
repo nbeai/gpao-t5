@@ -1,0 +1,17 @@
+{
+  "schema": "t5.capability-manifest.v1",
+  "id": "linear",
+  "label": "Linear",
+  "category": "project_management",
+  "description": "Linear issue, project, comment와 마감 업무를 읽고 관리하는 공식 remote MCP",
+  "terms": ["리니어", "linear", "linear.app", "issue", "project", "이슈", "프로젝트", "마감 업무"],
+  "capabilities": { "search": true, "read": true, "create": true, "update": true },
+  "route": {
+    "kind": "remote_mcp",
+    "endpoint": "https://mcp.linear.app/mcp",
+    "sourceUrl": "https://linear.app/docs/mcp",
+    "preparation": "user_authorization_available",
+    "canStart": true,
+    "userSafeSummary": "Linear 공식 연결을 사용자 로그인과 허용으로 시작할 수 있어요."
+  }
+}

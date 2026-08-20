@@ -9,7 +9,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'capabilitie
 
 test('bundled 후보는 공식 최신 경로와 서로 다른 제품 blocker를 정직하게 보존한다', async () => {
   const catalog = await loadCapabilityCatalog({ directory: root });
-  assert.deepEqual(catalog.entries.map((entry) => entry.id), ['airtable', 'asana', 'figma']);
+  assert.deepEqual(catalog.entries.map((entry) => entry.id), ['airtable', 'asana', 'figma', 'linear']);
   assert.deepEqual(catalog.rejected, []);
   const byId = Object.fromEntries(catalog.entries.map((entry) => [entry.id, entry]));
   assert.equal(byId.asana.endpoint, 'https://mcp.asana.com/v2/mcp');
@@ -17,5 +17,6 @@ test('bundled 후보는 공식 최신 경로와 서로 다른 제품 blocker를 
   assert.doesNotMatch(JSON.stringify(byId.asana), /mcp\.asana\.com\/sse/u);
   assert.equal(byId.figma.preparation, 'provider_approval_required');
   assert.equal(byId.airtable.preparation, 'generic_mcp_runtime_required');
-  assert.equal(catalog.entries.every((entry) => entry.canStart === false), true);
+  assert.equal(byId.linear.preparation, 'user_authorization_available');
+  assert.equal(byId.linear.canStart, true);
 });

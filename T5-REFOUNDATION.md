@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `R9-X3 CAPABILITY COORDINATOR BOUNDARY — COMPLETE` (서버와 능력 조율 책임 분리)
+현재 Gate: `R9-X4 GENERIC REMOTE MCP — COMPLETE` (후보 발견·사용자 OAuth·동적 도구·목적 재개)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -1279,6 +1279,46 @@ Non-goals:
 - X1 집중 14/14, 실제 `gpt-5.5` 7/7 유지: Run 2, wake 1, capability read 1, 원래 목적 완료
 - X2 실제 `gpt-5.5` 3표현 유지: official candidate 3/3, blocker 3/3, handoff·거짓 실행 0
 - 증거: `refoundation/evidence/r9-x3-capability-coordinator-boundary-2026-08-20.json`
+
+## R9-X4 — Generic Remote MCP
+
+상태: `COMPLETE` — 별도 개발자 설정 없이 OAuth 2.1 Dynamic Client Registration을 지원하는 Linear를
+첫 증명으로 선택해, 후보 발견부터 사용자 로그인·동적 tool 확인·원래 목적 재개까지 범용 계약으로 닫았다.
+
+사용자 완료 문장:
+
+> 사용자가 “Linear를 연결해서 오늘 마감 업무를 찾아줘”라고 한 번 말하면 T5가 공식 후보를 선택하고
+> 로그인 화면을 열며, 사용자가 허용한 뒤 실제 도구를 확인하고 같은 대화에서 원래 업무를 자동으로 답한다.
+
+현재 성립한 계약:
+
+- `remote-mcp-oauth`: protected-resource·authorization metadata, HTTPS issuer 결속, DCR, PKCE S256,
+  loopback callback, code exchange·refresh·invalid_grant 분리
+- `remote-mcp-runtime`: Streamable HTTP, secret token callback, bounded·검증된 dynamic tools/list·call
+- `remote-mcp-tool`: list 뒤 exact tool call, readOnly 자동 관측, write/open-world effect 재판정,
+  destructiveHint 강화, 외부 content 무권한
+- `remote-mcp-connection`: secure store, 연결 중·연결됨·취소·해제, token refresh, tools/list가 실제
+  성공한 뒤에만 connected, 연결 전 모델 tool 0
+- Linear manifest는 `user_authorization_available·canStart:true`; start-console service 배선 외 core vendor 분기 0
+- 공식 live metadata: `https://mcp.linear.app/mcp`, DCR endpoint, PKCE S256, read·write scope 확인
+- fixture 인간 여정: 자연어 1회 → OAuth handoff → tools/list → list_issues 1회 → 원래 답, 중복 0
+- 실제 `gpt-5.5`: Run 2, remote call 1, error 0, handoff·connected·resumed·목적 완료 전부 통과
+- 증거: `refoundation/evidence/r9-x4-remote-mcp-live-2026-08-20.json`
+
+Non-goals / honest boundary:
+
+- 실제 Linear 사용자 계정과 실제 업무 data 검증은 아직 없음
+- Asana 사전 등록, Figma provider 승인, Airtable OAuth 앱/PAT를 우회하지 않음
+- 임의 MCP URL·사용자 manifest·stdio command 설치, Marketplace, 자동 Skill 설치는 열지 않음
+- Notion 고유 workspace identity·CLI file route를 generic 검증으로 낮추지 않음
+
+완료 Gate:
+
+- DCR·PKCE·callback·token·tools/list·read call 반대시험
+- 사용자 비밀은 모델·Run·오류·공개 상태에 0
+- 후보 발견→연결→X1 resume→목적 완료 fixture·실제 모델
+- write·destructive 권한은 기존 R2 경계를 재사용
+- 기존 X1~X3·Notion·Google·Terminal·Web·Memory·Attachment·Messenger 회귀 유지
 
 ## 현재 다음 한 작업
 

@@ -1,0 +1,24 @@
+{
+  "schema": "t5.r9-remote-mcp-live.v1",
+  "model": { "provider": "chatgpt_oauth", "modelId": "gpt-5.5" },
+  "prompt": "Linear를 연결해서 오늘 마감 업무를 찾아줘. 연결이 끝나면 내가 다시 말하지 않아도 이어서 알려줘.",
+  "officialReality": {
+    "server": "https://mcp.linear.app/mcp",
+    "transport": "streamable_http",
+    "authorizationServer": "https://mcp.linear.app",
+    "dynamicClientRegistration": true,
+    "pkceS256": true,
+    "scopes": ["read", "write"]
+  },
+  "checks": {
+    "handoffStarted": true,
+    "connectedAfterToolList": true,
+    "resumedExactlyOnce": true,
+    "remoteReadOnce": true,
+    "goalCompleted": true,
+    "noRuntimeErrors": true
+  },
+  "counts": { "runs": 2, "remoteCalls": 1, "errors": 0 },
+  "finalReply": "Linear 연결이 완료되어 오늘 마감 업무를 확인했어요. 견적 검토 — 마감: 오늘",
+  "passed": true
+}
