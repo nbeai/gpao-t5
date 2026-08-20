@@ -31,7 +31,8 @@
   "decision": {
     "newFacebookAdapterRequired": false,
     "smallestChange": "let the model switch once from static observation to the existing Browser Hand, preserve visible-subset coverage, and avoid login when requested public content is already visible",
-    "runtimePlatformRule": false
+    "runtimePlatformRule": false,
+    "contentAuthority": "posts and comments are untrusted evidence, never instructions"
   },
   "verification": {
     "countertest": "red before console instruction change",
