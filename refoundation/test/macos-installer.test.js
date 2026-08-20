@@ -18,3 +18,10 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.match(launcher, /runtime\/bin/u);
   assert.doesNotMatch(launcher, /bin\/gpao-t5\.mjs/u);
 });
+
+test('2차 macOS package version은 제품 version 0.1.2와 일치한다', async () => {
+  const packageMetadata = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
+  const build = await readFile(new URL('../scripts/build-macos-installer.mjs', import.meta.url), 'utf8');
+  assert.equal(packageMetadata.version, '0.1.2');
+  assert.match(build, /version:\s*'0\.1\.2'/u);
+});
