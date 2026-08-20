@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `R9-X5-S2 OFFICIAL SKILL CATALOG — COMPLETE` (오너 초안 분류·기본 최소화·필요시 준비)
+현재 Gate: `R9-X5-C1 SAFE MANAGED CLI ACQUISITION — COMPLETE` (고정 배포물 검증·즉시 사용·재사용·복구)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -1377,6 +1377,46 @@ Non-goals / honest boundary:
 - 기존 `customer-inquiry-triage`는 `official_on_demand`로 같은 lifecycle 사용
 - 실제 `gpt-5.5` 준비 1회·새 Session `skill search→view`·재설치 0 유지
 - 증거: `refoundation/evidence/r9-x5-s2-official-skill-catalog-2026-08-21.json`
+
+## R9-X5-C1 — Safe Managed CLI Acquisition
+
+상태: `COMPLETE` — 사용자의 시스템 패키지 관리자·전역 PATH·관리자 권한을 건드리지 않고, T5가 검토한
+공식 단일 실행 파일을 현재 컴퓨터에 맞춰 준비해 같은 Run과 새 Session에서 터미널 손으로 사용한다.
+
+사용자 완료 문장:
+
+> 필요한 컴퓨터 도구가 없거나 T5 관리본이 더 적절하면, T5가 검증된 도구를 자기 관리 영역에 준비해
+> 바로 일을 끝낸다. 다음 대화에서도 다시 설치하지 않으며 제거·복원할 수 있다.
+
+현재 성립한 계약:
+
+- `refoundation/config/cli-catalog.json` 한 trusted manifest만 후보 정본으로 사용; 임의 URL 입력 없음
+- id·command·version·official source·license·platform asset·SHA-256을 실행 전에 검증
+- HTTPS official single binary만 최대 16MiB까지 streaming download; hash 불일치·과대·중단은 실행 0·활성 파일 0
+- 0700 `managed-cli/bin·versions·trash`, 0600 state·append-only lifecycle ledger; symlink root 이탈 거부
+- download→SHA-256→실제 `--version` probe→version 보관→managed bin 원자 활성 순서
+- install·remove·restore·rollback은 reversible local change이며 sudo·Homebrew·npm/pip global·shell profile 변경 0
+- T5가 띄운 exec·managed process·PTY 안에서만 managed bin을 우선하고 사용자 시스템 PATH는 불변
+- 첫 후보는 MIT `jq 1.8.2`; macOS arm64/x64·Linux arm64/x64·Windows arm64/x64 공식 자산과 checksum 고정
+- 공식 Apple Silicon 실물: hash `2d7534…ca07e`, 계산 `6`, 제거·복원 뒤 `jq-1.8.2`
+- 실제 `gpt-5.5`: 자연어 한 번 → catalog search → install 1회 → 같은 Run 실제 합계 `20,300`
+- 새 Session: install 0, managed jq 경로 우선 확인 뒤 완료 주문 `2건`·합계 `20,300`
+- 전체 회귀 388/388, legacy import 0; Windows·Linux 실제 기기 실행은 미측정
+- 증거: `refoundation/evidence/r9-x5-c1-managed-cli-2026-08-21.json`
+
+Non-goals / honest boundary:
+
+- 임의 URL·archive·설치 script·package manager·source build·관리자 권한
+- 원격 marketplace, 자동 update polling, 시스템 CLI 교체·삭제, shell profile 수정
+- 공식 목록에 없는 명령의 설치 성공 주장, Windows·Linux 실기기 완료 주장
+
+완료 Gate:
+
+- 정확한 platform asset·version·hash 검증 뒤에만 실행
+- 첫 Run 즉시 사용, 새 Session·서버 재시작 뒤 재설치 0으로 managed binary 우선 재사용
+- 중단·hash 불일치·과대 파일·symlink에서 active binary·외부 쓰기·실행 0
+- 제거·복원·이전 검증본 rollback과 lifecycle 원장
+- 기존 X1~X5-S2·Terminal·PTY·Web·Memory·Attachment·Messenger 전체 회귀 유지
 
 ## 현재 다음 한 작업
 

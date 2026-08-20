@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { access, mkdtemp, mkdir, realpath, rm } from 'node:fs/promises';
+import { access, chmod, mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -116,4 +116,12 @@ test('명령 설명기가 실패해도 셸 실행 능력은 줄지 않는다', a
   assert.equal(result.exitCode, 0);
   assert.equal(result.stdout, 'still-ran');
   assert.deepEqual(result.commandExplanation, { ok: false, error: 'parser unavailable' });
+}));
+
+test('관리 CLI 경로는 로그인 셸 초기화 뒤에도 현재 T5 command에서만 우선한다', async () => rooms(async ({ workspace }) => {
+  const bin = join(workspace, 'managed bin'); const executable = join(bin, 't5-json');
+  await mkdir(bin); await writeFile(executable, '#!/bin/sh\nprintf managed-path', { mode: 0o700 }); await chmod(executable, 0o700);
+  const result = await makeExecTool({ workspace, pathPrepend: bin }).execute({ command: 'command -v t5-json; t5-json', cwd: null });
+  assert.equal(result.stdout, `${executable}\nmanaged-path`);
+  assert.equal(process.env.PATH?.startsWith(bin), false);
 }));

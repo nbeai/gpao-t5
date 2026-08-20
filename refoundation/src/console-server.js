@@ -17,6 +17,7 @@ import { AuthorityStore, boundaryForEffect, effectDeclarationMismatch } from './
 import { compareEffectObservations, observeDeclaredEffect } from './effect-observation.js';
 import { loadSkillSnapshot, makeSkillTool, mergeSkillSnapshots } from './skill-runtime.js';
 import { ManagedSkillStore, makeSkillAcquisitionTool } from './managed-skill-store.js';
+import { loadCliCatalog, ManagedCliStore, makeCliAcquisitionTool } from './managed-cli-store.js';
 import { loadSkillPolicyCatalog } from './skill-policy-catalog.js';
 import { ConversationLedger } from './conversation-ledger.js';
 import { projectHistoricalConversationEntries } from './conversation-projection.js';
@@ -62,6 +63,7 @@ const legacyUiRoot = resolve(repositoryRoot, 'src', 'surface', 'web');
 const bundledSkillsRoot = resolve(repositoryRoot, 'refoundation', 'skills');
 const bundledSkillPackagesRoot = resolve(repositoryRoot, 'refoundation', 'skill-packages');
 const bundledSkillCatalogFile = resolve(repositoryRoot, 'refoundation', 'config', 'skill-catalog.json');
+const bundledCliCatalogFile = resolve(repositoryRoot, 'refoundation', 'config', 'cli-catalog.json');
 const bundledCapabilitiesRoot = resolve(repositoryRoot, 'refoundation', 'capabilities');
 const bundledDocumentCli = resolve(repositoryRoot, 'refoundation', 'bin', 't5-document.mjs');
 const founderManifestoPath = resolve(
@@ -180,6 +182,10 @@ export function makeConsoleServer({
   skillPackagesRoot = bundledSkillPackagesRoot,
   skillCatalogFile = bundledSkillCatalogFile,
   managedSkillsRoot,
+  cliCatalogFile = bundledCliCatalogFile,
+  managedCliRoot,
+  cliFetchImpl,
+  cliVerifyExecutable,
   capabilitiesRoot = bundledCapabilitiesRoot,
   skillCatalogMode = 'on-demand',
   conversationProjection = 'historical-tool-receipt-v1',
@@ -258,10 +264,16 @@ export function makeConsoleServer({
   let onboardingSkipped = false;
   let capabilityCoordinator = null;
   const managedRoot = managedSkillsRoot ?? join(stateDir, 'managed-skills');
+  const cliRoot = managedCliRoot ?? join(stateDir, 'managed-cli');
   const skillPackageSnapshotPromise = loadSkillSnapshot({ directory: skillPackagesRoot });
   const skillPolicyCatalogPromise = loadSkillPolicyCatalog(skillCatalogFile);
   const managedSkillStorePromise = Promise.all([skillPackageSnapshotPromise, skillPolicyCatalogPromise])
     .then(([catalogSnapshot, policyCatalog]) => new ManagedSkillStore({ root: managedRoot, catalogSnapshot, policyCatalog }));
+  const managedCliStorePromise = loadCliCatalog(cliCatalogFile).then((catalog) => new ManagedCliStore({
+    root: cliRoot, catalog, platform: computer.platform, architecture: computer.architecture,
+    ...(cliFetchImpl ? { fetchImpl: cliFetchImpl } : {}),
+    ...(cliVerifyExecutable ? { verifyExecutable: cliVerifyExecutable } : {}),
+  }));
 
   async function browserDriver(sessionId) {
     if (typeof browserDriverFactory !== 'function') return null;
@@ -680,10 +692,12 @@ export function makeConsoleServer({
         }), runId: run.runId,
       });
       const model = await modelFactory({ sessionId, workspace, computer: computerFacts });
+      const managedCliStore = await managedCliStorePromise;
       const terminal = makeTerminalHand({
         workingDirectory: workspace, computer, processRegistry: processes, ownerId: sessionId,
         yieldMs: processYieldMs, originRunId: run.runId, effectPreflight,
-        env: { T5_DOCUMENT_CLI: documentCli },
+        pathPrepend: managedCliStore.bin,
+        env: { T5_DOCUMENT_CLI: documentCli, PATH: managedCliStore.prependPath(process.env.PATH ?? process.env.Path ?? '') },
       });
       const [bundledSkillSnapshot, managedSkillSnapshot, skillPackageSnapshot, managedSkillStore] = await Promise.all([
         loadSkillSnapshot({ directory: skillsRoot }),
@@ -742,6 +756,12 @@ export function makeConsoleServer({
           }),
         }));
       }
+      offeredTools.unshift(makeCliAcquisitionTool({
+        store: managedCliStore,
+        authorizeEffect: (args) => effectPreflight({
+          toolName: 'cli_prepare', args, ownerId: sessionId,
+        }),
+      }));
       if (capabilitySnapshot.entries.length) {
         offeredTools.unshift(makeCapabilityCatalogTool({
           snapshot: capabilitySnapshot, connectionDoctor,
@@ -1876,6 +1896,7 @@ export function makeConsoleServer({
   server.messengerCredentialStore = messengerCredentials;
   server.runLedger = runLedger;
   server.authorityStore = authority;
+  server.managedCliStore = managedCliStorePromise;
   server.runtimeInstanceId = runtimeInstanceId;
   server.unsubscribeTerminalWake = unsubscribeTerminal;
   server.closeWakeStreams = () => {

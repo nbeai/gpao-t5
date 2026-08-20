@@ -35,6 +35,16 @@ const SKILL_PROGRESS = Object.freeze({
   view: '필요한 작업 방법을 살펴보고 있어요',
 });
 
+const CLI_PROGRESS = Object.freeze({
+  search: '필요한 컴퓨터 도구를 찾고 있어요',
+  preview: '도구의 출처와 안전 정보를 확인하고 있어요',
+  status: '준비된 도구 상태를 확인하고 있어요',
+  install: '검증된 컴퓨터 도구를 준비하고 있어요',
+  remove: '준비했던 컴퓨터 도구를 정리하고 있어요',
+  restore: '이전에 준비한 컴퓨터 도구를 복구하고 있어요',
+  rollback: '이전 도구 버전으로 되돌리고 있어요',
+});
+
 const MEMORY_PROGRESS = Object.freeze({
   list: '기억해 둔 내용을 확인하고 있어요',
   add: '기억할 내용을 정리하고 있어요',
@@ -67,6 +77,7 @@ const COMPLETED_PROGRESS = Object.freeze({
   browser: '화면에서 확인한 내용을 정리하고 있어요',
   attachment: '파일에서 확인한 내용을 정리하고 있어요',
   skill: '확인한 방법을 작업에 적용하고 있어요',
+  cli_prepare: '준비한 도구를 현재 작업에 적용하고 있어요',
   memory: '기억에서 확인한 내용을 현재 대화와 이어보고 있어요',
   session_search: '지난 대화에서 찾은 내용을 현재 요청과 이어보고 있어요',
   conversation_recall: '이전 작업에서 찾은 내용을 정리하고 있어요',
@@ -79,6 +90,7 @@ const COMPLETED_PROGRESS = Object.freeze({
 const FIXED_PROGRESS_TEXT = new Set([
   FALLBACK, ...Object.values(MODEL_PROGRESS), ...Object.values(BROWSER_PROGRESS),
   ...Object.values(ATTACHMENT_PROGRESS), ...Object.values(SKILL_PROGRESS),
+  ...Object.values(CLI_PROGRESS),
   ...Object.values(MEMORY_PROGRESS), ...Object.values(SESSION_PROGRESS),
   ...Object.values(RECALL_PROGRESS), ...Object.values(PROCESS_PROGRESS),
   ...Object.values(COMPLETED_PROGRESS),
@@ -108,6 +120,7 @@ export function toolProgressText(name, args = {}) {
   if (name === 'browser') return BROWSER_PROGRESS[action] ?? '브라우저 화면을 살펴보고 있어요';
   if (name === 'attachment') return ATTACHMENT_PROGRESS[action] ?? '첨부 파일을 확인하고 있어요';
   if (name === 'skill') return SKILL_PROGRESS[action] ?? '필요한 작업 방법을 살펴보고 있어요';
+  if (name === 'cli_prepare') return CLI_PROGRESS[action] ?? '필요한 컴퓨터 도구를 준비하고 있어요';
   if (name === 'memory') return MEMORY_PROGRESS[action] ?? '기억해 둔 내용을 확인하고 있어요';
   if (name === 'session_search') return SESSION_PROGRESS[action] ?? '지난 대화를 확인하고 있어요';
   if (name === 'conversation_recall') return RECALL_PROGRESS[action]

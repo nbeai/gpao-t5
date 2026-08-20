@@ -5,6 +5,7 @@ import { isAbsolute, resolve } from 'node:path';
 import { discoverComputerEnvironment } from './computer-environment.js';
 import { explainShellCommand } from './command-explainer.js';
 import { compareEffectObservations, observeDeclaredEffect } from './effect-observation.js';
+import { commandWithManagedPath } from './managed-command-path.js';
 
 const EFFECT_SCHEMA = {
   type: 'object',
@@ -21,15 +22,15 @@ const EFFECT_SCHEMA = {
   additionalProperties: false,
 };
 
-function ptyEnv(defaultDirectory, runtime) {
+function ptyEnv(defaultDirectory, runtime, additions = {}) {
   const keep = ['PATH', 'Path', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TERM', 'TMPDIR', 'TMP', 'TEMP', ...(runtime.environmentKeys ?? [])];
   const env = Object.fromEntries(keep.flatMap((name) => process.env[name] == null ? [] : [[name, process.env[name]]]));
-  return { ...env, HOME: process.env.T5_REFOUNDATION_HOME ?? defaultDirectory, USERPROFILE: process.env.T5_REFOUNDATION_HOME ?? defaultDirectory };
+  return { ...env, HOME: process.env.T5_REFOUNDATION_HOME ?? defaultDirectory, USERPROFILE: process.env.T5_REFOUNDATION_HOME ?? defaultDirectory, ...additions };
 }
 
 export function makePtyStartTool({
   workingDirectory, workspace, computer, processRegistry, ownerId = 'default',
-  yieldMs = 1000, originRunId, effectPreflight,
+  yieldMs = 1000, originRunId, effectPreflight, env = {}, pathPrepend,
 } = {}) {
   const defaultDirectory = workingDirectory ?? workspace;
   if (!defaultDirectory || !isAbsolute(defaultDirectory)) throw new TypeError('absolute workingDirectory is required');
@@ -59,8 +60,8 @@ export function makePtyStartTool({
       const cwd = await realpath(candidate);
       const effectBefore = await observeDeclaredEffect(args.effect, cwd);
       const explanation = await explainShellCommand(command).catch((error) => ({ ok: false, error: error.message }));
-      const ptyProcess = pty.spawn(runtime.program, runtime.argsFor(command), {
-        cwd, env: ptyEnv(root, runtime), name: 'xterm-256color',
+      const ptyProcess = pty.spawn(runtime.program, runtime.argsFor(commandWithManagedPath(command, pathPrepend, runtime.family)), {
+        cwd, env: ptyEnv(root, runtime, env), name: 'xterm-256color',
         cols: args.cols, rows: args.rows,
       });
       let result = await processRegistry.startPty({

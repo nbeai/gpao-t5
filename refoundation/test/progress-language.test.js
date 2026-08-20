@@ -19,6 +19,7 @@ test('진행 언어는 판단을 말하지 않고 실제 작업 단계에 맞는
     ['attachment', { action: 'inspect' }, '첨부 파일의 내용을 살펴보고 있어요'],
     ['attachment', { action: 'register_output' }, '결과 파일을 준비하고 있어요'],
     ['skill', { action: 'search' }, '알맞은 작업 방법을 찾고 있어요'],
+    ['cli_prepare', { action: 'install' }, '검증된 컴퓨터 도구를 준비하고 있어요'],
     ['memory', { action: 'list' }, '기억해 둔 내용을 확인하고 있어요'],
     ['memory', { action: 'replace' }, '기억할 내용을 정리하고 있어요'],
     ['session_search', { action: 'search' }, '지난 대화에서 관련 내용을 찾고 있어요'],

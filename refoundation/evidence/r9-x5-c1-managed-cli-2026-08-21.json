@@ -1,0 +1,53 @@
+{
+  "schema": "t5.gate-evidence.v1",
+  "gate": "R9-X5-C1",
+  "recordedAt": "2026-08-21T00:45:00+09:00",
+  "candidate": {
+    "id": "jq",
+    "version": "1.8.2",
+    "officialSource": "https://github.com/jqlang/jq",
+    "release": "https://github.com/jqlang/jq/releases/tag/jq-1.8.2",
+    "checksumSource": "https://raw.githubusercontent.com/jqlang/jq/master/sig/v1.8.2/sha256sum.txt",
+    "license": "MIT",
+    "platformAssets": ["darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64", "win32-arm64", "win32-x64"]
+  },
+  "officialArtifactQualification": {
+    "platform": "darwin-arm64",
+    "sha256": "2d75340ba57a4b4b4c8708a21c2dc8e958a48aaa8bba13b27f77f6e4c0eca07e",
+    "versionOutput": "jq-1.8.2",
+    "calculationOutput": "6",
+    "removeRecoverable": true,
+    "restoreSucceeded": true
+  },
+  "actualModelQualification": {
+    "provider": "chatgpt_oauth",
+    "model": "gpt-5.5",
+    "first": {
+      "sessionId": "75ecee7a-1e5a-4912-a573-9f8c86d4ce86",
+      "runId": "10366801-8779-4c5c-b426-250c330912aa",
+      "toolSequence": ["cli_prepare:search", "cli_prepare:install", "exec", "exec"],
+      "installCalls": 1,
+      "result": { "completedOrderTotal": 20300 }
+    },
+    "newSessionAfterRestart": {
+      "sessionId": "f64ca655-e4a8-46f9-9913-3e38281d0704",
+      "runId": "073a892f-9143-4bcc-9ac3-9355c3e0ea40",
+      "toolSequence": ["exec", "exec"],
+      "installCalls": 0,
+      "commandResolution": "/Users/jyp/.local/state/gpao-t5/refoundation-console/managed-cli/bin/jq",
+      "result": { "completedOrderCount": 2, "completedOrderTotal": 20300 }
+    }
+  },
+  "boundaries": {
+    "arbitraryUrls": 0,
+    "packageManagers": 0,
+    "administratorPrivileges": 0,
+    "shellProfileChanges": 0,
+    "systemCliChanges": 0
+  },
+  "regression": {
+    "refoundationCheck": { "passed": 388, "failed": 0 },
+    "legacyImports": 0
+  },
+  "unverified": ["Windows real device execution", "Linux real device execution"]
+}

@@ -5,6 +5,7 @@ import { discoverComputerEnvironment } from './computer-environment.js';
 import { ManagedProcessRegistry } from './managed-process.js';
 import { compareEffectObservations, observeDeclaredEffect } from './effect-observation.js';
 import { makePtyStartTool } from './pty-tool.js';
+import { commandWithManagedPath } from './managed-command-path.js';
 
 const DEFAULT_YIELD_MS = 1000;
 const DEFAULT_OUTPUT_LIMIT = 64_000;
@@ -65,6 +66,7 @@ function makeCommandTool(options = {}, { managed }) {
     yieldMs = DEFAULT_YIELD_MS,
     outputLimit = DEFAULT_OUTPUT_LIMIT,
     env = {},
+    pathPrepend,
     explainCommand,
     effectPreflight,
   } = options;
@@ -115,7 +117,7 @@ function makeCommandTool(options = {}, { managed }) {
         const effectBefore = await observeDeclaredEffect(args.effect ?? { kind: 'observe', targets: [] }, cwd);
         let result = await registry.start({
           program: runtime.program,
-          args: runtime.argsFor(command),
+          args: runtime.argsFor(commandWithManagedPath(command, pathPrepend, runtime.family)),
           command,
           cwd,
           env: isolatedEnv(root, env, runtime),
