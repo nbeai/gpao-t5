@@ -1,6 +1,8 @@
 import { join } from 'node:path';
 
 import { makeOpenAIResponsesModel } from './openai-responses-model.js';
+import { makeAnthropicMessagesModel } from './anthropic-messages-model.js';
+import { makeGeminiGenerateContentModel } from './gemini-generate-content-model.js';
 import { makeChatGptResponsesModel } from './chatgpt-responses-model.js';
 import {
   makeStoredChatGptCredentialSource, makeStoredModelCredentialCatalog,
@@ -51,7 +53,7 @@ export function consoleInstructions(workspace, computer = {}) {
   ].join('\n');
 }
 
-export function makeConsoleModelAccess({ connectionFile, stateDir } = {}) {
+export function makeConsoleModelAccess({ connectionFile, stateDir, fetchImpl = globalThis.fetch } = {}) {
   if (!connectionFile || !stateDir) throw new TypeError('connectionFile and stateDir are required');
   const catalog = makeStoredModelCredentialCatalog({ file: connectionFile });
 
@@ -76,9 +78,10 @@ export function makeConsoleModelAccess({ connectionFile, stateDir } = {}) {
       if (selected.kind === 'chatgpt_oauth') {
         const responseDumper = diagnostics ? makePromptDumper({ directory: join(dumpRoot, 'response') }) : null;
         return makeChatGptResponsesModel({
-          credentials: makeStoredChatGptCredentialSource({ file: connectionFile }),
+          credentials: makeStoredChatGptCredentialSource({ file: connectionFile, fetchImpl }),
           model: selected.modelId,
           instructions,
+          fetchImpl,
           ...(diagnostics ? {
             dump: makePromptDumper({ directory: join(dumpRoot, 'prompt') }),
             observeResponse: ({ status, raw }) => responseDumper({
@@ -88,15 +91,22 @@ export function makeConsoleModelAccess({ connectionFile, stateDir } = {}) {
         });
       }
       const base = String(selected.baseUrl ?? 'https://api.openai.com/v1').replace(/\/$/, '');
-      return makeOpenAIResponsesModel({
-        apiKey: selected.apiKey,
-        model: selected.modelId,
-        endpoint: `${base}/responses`,
-        instructions,
+      const common = {
+        apiKey: selected.apiKey, model: selected.modelId, instructions, fetchImpl,
         ...(diagnostics ? { dump: makePromptDumper({
           directory: join(dumpRoot, 'prompt'), sensitiveValues: [selected.apiKey],
         }) } : {}),
-      });
+      };
+      if (selected.provider === 'openai') {
+        return makeOpenAIResponsesModel({ ...common, endpoint: `${base}/responses` });
+      }
+      if (selected.provider === 'anthropic') {
+        return makeAnthropicMessagesModel({ ...common, endpoint: `${base}/v1/messages` });
+      }
+      if (selected.provider === 'gemini') {
+        return makeGeminiGenerateContentModel({ ...common, baseUrl: base });
+      }
+      throw new Error(`Unsupported API provider: ${selected.provider}`);
     },
   };
 }

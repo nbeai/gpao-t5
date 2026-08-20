@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..', '..');
 const product = {
-  name: 'GPAO-T5', bundleId: 'kr.co.gpao.t5', version: '0.1.0', port: 4174,
+  name: 'GPAO-T5', bundleId: 'kr.co.gpao.t5', version: '0.1.1', port: 4174,
 };
 
 function run(command, args, options = {}) {

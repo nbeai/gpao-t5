@@ -647,6 +647,19 @@ function renderModelSettingsLink() {
   statePanel.appendChild(l);
 }
 
+async function endpointJson(url, options) {
+  try {
+    const response = await fetch(url, options);
+    const data = await response.json().catch(() => ({}));
+    return { ok: response.ok, data, status: response.status };
+  } catch {
+    return { ok: false, data: {}, status: 0 };
+  }
+}
+function endpointError(result, fallback) {
+  return result?.data?.error ?? result?.data?.userSafeSummary ?? fallback;
+}
+
 // ── 모델 연결 (P-RT-4 → P-ONB-2) ── 칩 패널에서 키를 연결한다. 서버가 "확실한 무효만 거절"을
 //   보장한다: 확인된 것은 검증됨으로, 도달 못 한 것은 저장하되 "모델 확인 필요"로 표시한다.
 //   응답엔 마스킹 키·사용자 언어만 온다(원본 키·원문 진단 없음). 안티 대시보드: 열 때만.
@@ -658,59 +671,81 @@ async function renderModelConnect(target) {
       <b>모델 연결</b>
       <div id="mcStatus" style="margin:4px 0;"></div>
       <div style="display:flex; flex-wrap:wrap; gap:4px; margin:4px 0;">
-        <select id="mcProvider">
-          <option value="beai">BEAI</option>
-          <option value="gemini">Gemini</option>
-          <option value="openai">OpenAI</option>
-          <option value="anthropic">Claude</option>
-          <option value="openai_compatible">호환 서버(직접 입력)</option>
-        </select>
+        <select id="mcProvider" aria-label="API 제공자"></select>
         <input id="mcKey" type="password" placeholder="API 키" autocomplete="off">
         <input id="mcModel" type="text" placeholder="모델(비우면 기본)">
-        <input id="mcBase" type="text" placeholder="서버 주소" style="display:none;">
         <button id="mcConnect">연결</button>
         <button id="mcDisconnect">해제</button>
       </div>
       <div style="margin:4px 0;">
         <button id="mcChatgpt">ChatGPT 계정으로 연결</button>
-        <span style="opacity:.7; font-size:11px;">공식 지원 방식이 아니에요 — 막히면 연결이 끊길 수 있어요.</span>
+        <span style="opacity:.7; font-size:11px;">API 키 대신 계정 연결을 선택할 수 있어요.</span>
       </div>
       <div id="mcList" style="margin:4px 0;"></div>
       <div id="mcResult"></div>`;
     (target ?? statePanel).appendChild(box);
-    box.querySelector('#mcProvider').onchange = (e) => {
-      box.querySelector('#mcBase').style.display = e.target.value === 'openai_compatible' ? '' : 'none';
-    };
     box.querySelector('#mcConnect').onclick = async () => {
       const body = {
         provider: box.querySelector('#mcProvider').value,
         key: box.querySelector('#mcKey').value,
         modelId: box.querySelector('#mcModel').value || undefined,
-        baseUrl: box.querySelector('#mcBase').value || undefined,
       };
       box.querySelector('#mcResult').textContent = '확인 중…';
-      const r = await (await fetch('/model/connect', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).json();
-      const rep = r.report ?? {};
-      box.querySelector('#mcResult').textContent = [rep.userSafeSummary, rep.nextSafeAction].filter(Boolean).join(' ');
-      if (r.connected) box.querySelector('#mcKey').value = ''; // 성공한 키는 화면에 남기지 않는다
+      const result = await endpointJson('/model/connect', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+      });
+      const rep = result.data?.report ?? {};
+      box.querySelector('#mcResult').textContent = result.ok
+        ? ([rep.userSafeSummary, rep.nextSafeAction].filter(Boolean).join(' ') || '연결됐어요.')
+        : endpointError(result, '연결하지 못했어요. 키와 제공자를 확인해 주세요.');
+      if (result.ok && result.data?.connected) box.querySelector('#mcKey').value = ''; // 성공한 키는 화면에 남기지 않는다
       await refreshModelConnect();
     };
     box.querySelector('#mcChatgpt').onclick = async () => {
-      const r = await (await fetch('/model/chatgpt/login', { method: 'POST' })).json();
-      if (r.error) { box.querySelector('#mcResult').textContent = r.error; return; }
-      box.querySelector('#mcResult').textContent = r.notice + ' (브라우저에서 승인해 주세요)';
-      window.open(r.authorizeUrl, '_blank', 'noopener'); // 로그인은 사용자가 직접 한다
-      const done = await (await fetch('/model/chatgpt/await', { method: 'POST' })).json();
-      box.querySelector('#mcResult').textContent = [done.userSafeSummary, done.nextSafeAction].filter(Boolean).join(' ');
+      const login = await endpointJson('/model/chatgpt/login', { method: 'POST' });
+      if (!login.ok || !login.data?.authorizeUrl) {
+        box.querySelector('#mcResult').textContent = endpointError(login, 'ChatGPT 계정 연결을 시작하지 못했어요.'); return;
+      }
+      box.querySelector('#mcResult').textContent = `${login.data.notice ?? 'ChatGPT 계정으로 연결해요.'} (브라우저에서 승인해 주세요)`;
+      window.open(login.data.authorizeUrl, '_blank', 'noopener'); // 로그인은 사용자가 직접 한다
+      const done = await endpointJson('/model/chatgpt/await', { method: 'POST' });
+      box.querySelector('#mcResult').textContent = done.ok
+        ? ([done.data?.userSafeSummary, done.data?.nextSafeAction].filter(Boolean).join(' ') || '연결됐어요.')
+        : endpointError(done, 'ChatGPT 계정 연결을 완료하지 못했어요.');
       await refreshModelConnect();
     };
     box.querySelector('#mcDisconnect').onclick = async () => {
-      await fetch('/model/disconnect', { method: 'POST' });
-      box.querySelector('#mcResult').textContent = '연결을 해제했어요.';
+      const result = await endpointJson('/model/disconnect', { method: 'POST' });
+      box.querySelector('#mcResult').textContent = result.ok
+        ? '연결을 해제했어요.' : endpointError(result, '연결을 해제하지 못했어요.');
       await refreshModelConnect();
     };
   }
   if (target && box.parentNode !== target) target.appendChild(box); // 설정 허브로 이동(한 곳 관리)
+  const providerResult = await endpointJson('/model/providers');
+  const select = box.querySelector('#mcProvider');
+  select.replaceChildren();
+  const listed = Array.isArray(providerResult.data?.providers) ? providerResult.data.providers : [];
+  const oauthList = [providerResult.data?.oauth].flat().filter(Boolean);
+  const oauthAvailable = [...listed, ...oauthList].some((provider) => {
+    const id = typeof provider === 'string' ? provider : provider?.id ?? provider?.provider;
+    return id === 'chatgpt_oauth' || id === 'chatgpt' || provider?.kind === 'oauth';
+  }) || providerResult.data?.chatgptOAuth === true;
+  const apiProviders = listed.filter((provider) => {
+    const id = provider?.id ?? provider?.provider;
+    return id && id !== 'chatgpt_oauth' && provider?.kind !== 'oauth';
+  });
+  for (const provider of apiProviders) {
+    const option = document.createElement('option');
+    option.value = provider.id ?? provider.provider;
+    option.textContent = provider.label ?? option.value;
+    option.dataset.defaultModel = provider.defaultModel ?? '';
+    select.appendChild(option);
+  }
+  select.disabled = !providerResult.ok || !apiProviders.length;
+  box.querySelector('#mcConnect').disabled = select.disabled;
+  box.querySelector('#mcChatgpt').hidden = !oauthAvailable;
+  if (!providerResult.ok) box.querySelector('#mcResult').textContent = endpointError(providerResult, '연결 방법을 불러오지 못했어요.');
   await refreshModelConnect();
 }
 
@@ -718,8 +753,12 @@ async function renderModelConnect(target) {
 async function renderConnectionList() {
   const box = document.getElementById('mcList');
   if (!box) return;
-  const data = await (await fetch('/model/connections')).json().catch(() => null);
-  const list = data?.connections ?? [];
+  const result = await endpointJson('/model/connections');
+  if (!result.ok) {
+    box.textContent = endpointError(result, '저장된 모델 연결을 불러오지 못했어요.');
+    return;
+  }
+  const list = result.data?.connections ?? [];
   if (list.length < 2) { box.innerHTML = ''; return; } // 하나뿐이면 상태 줄로 충분(안티 대시보드)
   box.innerHTML = '<div style="opacity:.7; font-size:11px; margin-bottom:2px;">쓸 모델 고르기</div>';
   for (const c of list) {
@@ -728,15 +767,21 @@ async function renderConnectionList() {
     const radio = document.createElement('input');
     radio.type = 'radio'; radio.name = 'mcActive'; radio.checked = !!c.active;
     radio.onchange = async () => {
-      await fetch('/model/connections/activate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: c.id }) });
+      const result = await endpointJson('/model/connections/activate', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: c.id }),
+      });
+      if (!result.ok) document.getElementById('mcResult').textContent = endpointError(result, '기본 모델을 바꾸지 못했어요.');
       await refreshModelConnect();
     };
     const label = document.createElement('span');
-    label.textContent = `${c.label}${c.keyMasked ? ` · ${c.keyMasked}` : ''}${c.unofficial ? ' · 공식 지원 아님' : ''}`;
+    label.textContent = `${c.label ?? c.provider ?? c.modelId ?? '모델 연결'}${c.keyMasked ? ` · ${c.keyMasked}` : ''}${c.unofficial ? ' · 공식 지원 아님' : ''}`;
     const del = document.createElement('button');
     del.textContent = '해제'; del.style.cssText = 'font-size:11px; padding:1px 6px;';
     del.onclick = async () => {
-      await fetch('/model/connections/remove', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: c.id }) });
+      const result = await endpointJson('/model/connections/remove', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: c.id }),
+      });
+      if (!result.ok) document.getElementById('mcResult').textContent = endpointError(result, '연결을 해제하지 못했어요.');
       await refreshModelConnect();
     };
     row.append(radio, label, del);
@@ -745,13 +790,17 @@ async function renderConnectionList() {
 }
 
 async function refreshModelConnect() {
-  const st = await (await fetch('/model/connection')).json().catch(() => null);
+  const result = await endpointJson('/model/connection');
+  const st = result.ok ? result.data : null;
   await renderConnectionList();
   const el = document.getElementById('mcStatus');
   if (!el) return;
-  if (!st || !st.connected) { el.textContent = '연결된 모델 없음 — 내장 안내 모드로 동작 중'; return; }
-  const src = { user: '화면에서 연결', saved: '저장된 연결', env: '환경 설정', chatgpt_oauth: 'ChatGPT 계정' }[st.source] ?? st.source;
-  el.textContent = `${st.provider} · ${st.modelId}${st.keyMasked ? ` · ${st.keyMasked}` : ''} (${src})`
+  if (!result.ok) { el.textContent = endpointError(result, '모델 연결 상태를 불러오지 못했어요.'); return; }
+  if (!st?.connected) { el.textContent = '연결된 모델 없음 — 모델 하나를 연결하면 대화를 시작할 수 있어요'; return; }
+  const src = st.source
+    ? ({ user: '화면에서 연결', saved: '저장된 연결', env: '환경 설정', chatgpt_oauth: 'ChatGPT 계정' }[st.source] ?? st.source)
+    : null;
+  el.textContent = `${st.provider} · ${st.modelId}${st.keyMasked ? ` · ${st.keyMasked}` : ''}${src ? ` (${src})` : ''}`
     + (st.unofficial ? ' · 공식 지원 아님' : '');
 }
 
@@ -1104,6 +1153,112 @@ function projectAutomationDoor(payload = {}, { now = Date.now() } = {}) {
 }
 // ╚══ 조각 E 투영 끝 ═══════════════════════════════════════════════════════════
 
+function messengerFieldName(field) { return field?.name ?? field?.id ?? ''; }
+function renderMessengerFields(box, provider) {
+  const host = box.querySelector('#msgFields');
+  host.replaceChildren();
+  for (const field of provider?.fields ?? []) {
+    const name = messengerFieldName(field);
+    if (!name || ['token', 'botToken', 'bot_token'].includes(name)) continue;
+    const input = document.createElement(field.type === 'select' ? 'select' : 'input');
+    input.dataset.channelField = name;
+    if (input.tagName === 'SELECT') {
+      for (const choice of field.options ?? []) {
+        const option = document.createElement('option');
+        option.value = typeof choice === 'string' ? choice : choice.value;
+        option.textContent = typeof choice === 'string' ? choice : (choice.label ?? choice.value);
+        input.appendChild(option);
+      }
+      input.setAttribute('aria-label', field.label ?? name);
+    } else {
+      input.type = field.type === 'password' || field.secret ? 'password' : (field.type ?? 'text');
+      input.placeholder = field.placeholder ?? field.label ?? name;
+      input.autocomplete = 'off';
+    }
+    input.required = field.required !== false;
+    host.appendChild(input);
+  }
+  box.querySelector('#msgToken').placeholder = provider?.tokenPlaceholder ?? '봇 토큰';
+}
+
+async function refreshMessengerStatus(box, target, providers) {
+  const result = await endpointJson('/channels');
+  const selected = box.querySelector('#msgProvider').value;
+  const channels = Array.isArray(result.data?.channels) ? result.data.channels : [];
+  const current = channels.find((channel) => (channel.id ?? channel.provider) === selected);
+  box.querySelector('#msgStatus').textContent = result.ok
+    ? (current?.userSafe ?? (current?.connected ? '연결됨' : '연결되지 않음'))
+    : endpointError(result, '메신저 상태를 불러오지 못했어요.');
+  box.querySelector('#msgDisconnectBtn').disabled = !current?.connected;
+  const old = document.getElementById('pendingSenders');
+  if (old) old.remove();
+  if (result.ok && current?.connected && selected === 'telegram') await renderPendingSenders(target);
+  const provider = providers.find((candidate) => (candidate.id ?? candidate.provider) === selected);
+  if (provider) renderMessengerFields(box, provider);
+}
+
+async function renderMessengerConnect(target) {
+  const providerResult = await endpointJson('/channels/providers');
+  const providers = Array.isArray(providerResult.data?.providers) ? providerResult.data.providers : [];
+  const box = mk('div', 'tb-card'); box.id = 'msgConnect';
+  box.innerHTML = `
+    <div class="tb-name">메신저 연결</div>
+    <div class="tb-hint">쓰는 메신저를 고르고 봇 토큰을 연결하면 같은 T5와 대화할 수 있어요.</div>
+    <div id="msgStatus" class="tb-hint"></div>
+    <div style="display:flex; flex-wrap:wrap; gap:4px; margin:6px 0;">
+      <select id="msgProvider" aria-label="메신저"></select>
+      <input id="msgToken" type="password" placeholder="봇 토큰" autocomplete="off">
+      <span id="msgFields" style="display:contents;"></span>
+      <button id="msgConnectBtn">연결</button>
+      <button id="msgDisconnectBtn">해제</button>
+    </div>
+    <div id="msgResult" class="tb-hint"></div>`;
+  target.appendChild(box);
+  const select = box.querySelector('#msgProvider');
+  for (const provider of providers) {
+    const option = document.createElement('option');
+    option.value = provider.id ?? provider.provider;
+    option.textContent = provider.label ?? option.value;
+    select.appendChild(option);
+  }
+  select.disabled = !providerResult.ok || !providers.length;
+  box.querySelector('#msgConnectBtn').disabled = select.disabled;
+  if (!providerResult.ok) box.querySelector('#msgResult').textContent = endpointError(providerResult, '연결할 메신저를 불러오지 못했어요.');
+  select.onchange = async () => {
+    const provider = providers.find((candidate) => (candidate.id ?? candidate.provider) === select.value);
+    renderMessengerFields(box, provider);
+    await refreshMessengerStatus(box, target, providers);
+  };
+  box.querySelector('#msgConnectBtn').onclick = async () => {
+    const fields = {};
+    for (const input of box.querySelectorAll('[data-channel-field]')) fields[input.dataset.channelField] = input.value;
+    const payload = { provider: select.value, token: box.querySelector('#msgToken').value, ...fields, fields };
+    box.querySelector('#msgResult').textContent = '확인 중…';
+    const result = await endpointJson('/channels/connect', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    box.querySelector('#msgResult').textContent = result.ok
+      ? (result.data?.userSafeSummary ?? '연결됐어요.')
+      : endpointError(result, '연결하지 못했어요. 봇 토큰을 확인해 주세요.');
+    if (result.ok) {
+      box.querySelector('#msgToken').value = '';
+      for (const input of box.querySelectorAll('[data-channel-field]')) if (input.type === 'password') input.value = '';
+    }
+    await refreshMessengerStatus(box, target, providers);
+  };
+  box.querySelector('#msgDisconnectBtn').onclick = async () => {
+    const result = await endpointJson('/channels/disconnect', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ provider: select.value }),
+    });
+    box.querySelector('#msgResult').textContent = result.ok
+      ? (result.data?.userSafeSummary ?? '연결을 해제했어요.')
+      : endpointError(result, '연결을 해제하지 못했어요.');
+    await refreshMessengerStatus(box, target, providers);
+  };
+  if (providers[0]) renderMessengerFields(box, providers[0]);
+  await refreshMessengerStatus(box, target, providers);
+}
+
 // ── 설정 허브 (Pre-P-OP-7 UX Closure) ── 새 관리 콘솔이 아니라 **이미 있는 기능의 정리**다.
 // 각 영역은 지금 실제로 조회·관리할 수 있는 범위만 보여준다 — 없는 기능을 약속하지 않는다.
 const setov = document.getElementById('setov');
@@ -1135,14 +1290,7 @@ const SET_RENDER = {
   },
   async messenger() {
     setBody.replaceChildren();
-    const box = mk('div', 'tb-card');
-    box.appendChild(mk('div', 'tb-name', '메신저 연결 상태'));
-    try {
-      const { channels } = await (await fetch('/channels')).json();
-      for (const c of channels ?? []) box.appendChild(mk('div', 'tb-hint', `${c.label} — ${c.userSafe}`));
-    } catch { box.appendChild(mk('div', 'tb-hint', '상태를 불러오지 못했어요.')); }
-    setBody.appendChild(box);
-    await renderPendingSenders(setBody); // 허용목록 관리 — 도구함과 같은 렌더러(두 진실 금지)
+    await renderMessengerConnect(setBody);
   },
   async tools() {
     setBody.replaceChildren();

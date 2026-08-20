@@ -41,11 +41,9 @@
   [NSFileManager.defaultManager createDirectoryAtURL:[self support]
     withIntermediateDirectories:YES attributes:@{NSFilePosixPermissions: @0700} error:&error];
   if (error) { [self fail:@"GPAO-T5를 시작하지 못했어요" error:error]; return; }
-  if ([NSFileManager.defaultManager fileExistsAtPath:[self connectionFile].path]) {
-    [self startConsole];
-  } else {
-    [self startOAuth];
-  }
+  // 연결 방법은 콘솔 설정에서 사용자가 고른다. launcher가 credential 유무만 보고
+  // ChatGPT OAuth를 먼저 실행하면 API 키 사용자는 자기 방법을 선택할 수 없다.
+  [self startConsole];
 }
 
 - (NSTask *)processForEntry:(NSString *)entry error:(NSError **)error {
@@ -82,27 +80,6 @@
   task.standardOutput = handle;
   task.standardError = handle;
   return task;
-}
-
-- (void)startOAuth {
-  NSError *error = nil;
-  NSTask *task = [self processForEntry:@"refoundation/scripts/connect-chatgpt.mjs" error:&error];
-  if (!task) { [self fail:@"GPAO-T5를 시작하지 못했어요" error:error]; return; }
-  __weak typeof(self) weakSelf = self;
-  task.terminationHandler = ^(NSTask *finished) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-      typeof(self) self = weakSelf;
-      if (!self) return;
-      if (finished.terminationStatus == 0) [self startConsole];
-      else {
-        [self alert:@"ChatGPT 연결을 완료하지 못했어요"
-          message:@"GPAO-T5를 다시 열면 연결을 다시 시작할 수 있어요."];
-        [NSApp terminate:nil];
-      }
-    });
-  };
-  if (![task launchAndReturnError:&error]) { [self fail:@"ChatGPT 연결을 시작하지 못했어요" error:error]; return; }
-  self.child = task;
 }
 
 - (void)startConsole {

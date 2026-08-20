@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { makeConsoleModelAccess } from '../src/console-model-factory.js';
+import { makeModelConnectionService } from '../src/model-connection-service.js';
 import { makeStoredModelCredentialCatalog } from '../src/chatgpt-oauth-credential.js';
 import { makeStoredOpenAIWebSearchProvider } from '../src/openai-web-search-provider.js';
 import { naverReadableUrlResolver } from '../src/naver-readable-url.js';
@@ -30,6 +31,7 @@ const portFile = process.env.T5_REFOUNDATION_PORT_FILE
 await Promise.all([mkdir(stateDir, { recursive: true }), mkdir(workspace, { recursive: true })]);
 
 const access = makeConsoleModelAccess({ connectionFile, stateDir });
+const modelConnections = makeModelConnectionService({ file: connectionFile });
 const credentialCatalog = makeStoredModelCredentialCatalog({ file: connectionFile });
 const webSearchProviders = [makeStoredOpenAIWebSearchProvider({ credentialCatalog })];
 const server = makeConsoleServer({
@@ -37,6 +39,7 @@ const server = makeConsoleServer({
   workspace,
   modelFactory: (context) => access.model(context),
   modelStatus: () => access.status(),
+  modelConnections,
   computerEnvironment,
   webSearchProviders,
   webReadOptions: { urlResolvers: [naverReadableUrlResolver] },
@@ -70,6 +73,8 @@ if (!process.argv.includes('--no-open')) {
 
 const stop = async () => {
   server.closeWakeStreams();
+  server.closeModelConnections();
+  await server.closeMessengers();
   await server.closeBrowsers();
   await server.managedProcesses.stopAll('runtime_shutdown');
   server.close(async () => {

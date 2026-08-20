@@ -38,6 +38,8 @@ import { AttachmentStore } from './attachment-store.js';
 import {
   attachmentContext, makeAttachmentTool, modelImageInputs,
 } from './attachment-hand.js';
+import { MessengerCredentialStore } from './messenger-credential-store.js';
+import { makeMessengerGateway, MessengerStateStore } from './messenger-gateway.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -145,6 +147,8 @@ export function makeConsoleServer({
   processYieldMs = 1000,
   documentCli = bundledDocumentCli,
   attachmentStore,
+  modelConnections,
+  messengerProviderFactory,
   onError,
 } = {}) {
   if (!stateDir || !workspace) throw new TypeError('stateDir and workspace are required');
@@ -187,6 +191,10 @@ export function makeConsoleServer({
   const browserDrivers = new Map();
   const browserObservations = new Map();
   const browserArtifactRoot = resolve(stateDir, 'browser');
+  const messengerDirectory = join(stateDir, 'messenger');
+  const messengerCredentials = new MessengerCredentialStore(messengerDirectory);
+  const messengerState = new MessengerStateStore(messengerDirectory);
+  let onboardingSkipped = false;
 
   async function browserDriver(sessionId) {
     if (typeof browserDriverFactory !== 'function') return null;
@@ -717,6 +725,36 @@ export function makeConsoleServer({
     return true;
   }
 
+  const messenger = makeMessengerGateway({
+    credentialStore: messengerCredentials,
+    stateStore: messengerState,
+    ...(messengerProviderFactory ? { providerFactory: messengerProviderFactory } : {}),
+    createSession: async () => sessions.create(),
+    authorizeInbound: async (message) => {
+      const allowed = await messengerState.isAllowed(message.provider, message);
+      if (!allowed) await messengerState.notePending(message.provider, message);
+      return allowed;
+    },
+    onInbound: async (message) => {
+      const completed = await executeTurn(message.sessionId, message.text, () => {}, {
+        trigger: 'messenger',
+        metadata: {
+          provider: message.provider, chatId: message.chatId,
+          userId: message.userId, username: message.username,
+        },
+        inputEntry: {
+          role: 'user', text: message.text, channel: message.provider,
+          channelMeta: { chatId: message.chatId, userId: message.userId, username: message.username },
+        },
+      });
+      return completed.surfaceResult?.reply ?? completed.result?.answer ?? null;
+    },
+    log: (...values) => onError?.(new Error(values.map(String).join(' '))),
+  });
+  queueMicrotask(() => messenger.start().catch((error) => {
+    if (error?.message !== 'messenger_not_connected') onError?.(error);
+  }));
+
   function broadcastWake(payload) {
     for (const response of wakeSubscribers) {
       response.write(`event: managed_process_wake\ndata: ${JSON.stringify(payload)}\n\n`);
@@ -907,11 +945,60 @@ export function makeConsoleServer({
       if (req.method === 'GET' && url.pathname === '/model/connections') {
         const connection = await status();
         json(res, 200, {
-          connections: connection.connections ?? [], activeId: connection.activeId ?? null, roleBindings: {},
+          connections: (connection.connections ?? []).map((item) => ({
+            ...item,
+            label: item.kind === 'chatgpt_oauth' ? 'ChatGPT 계정'
+              : item.provider === 'openai' ? 'OpenAI'
+                : item.provider === 'anthropic' ? 'Claude'
+                  : item.provider === 'gemini' ? 'Gemini' : item.provider,
+            keyMasked: item.kind === 'api_key' ? 'API 키 저장됨' : null,
+            unofficial: item.kind === 'chatgpt_oauth',
+          })),
+          activeId: connection.activeId ?? null, roleBindings: {},
         }); return;
       }
+      if (req.method === 'GET' && url.pathname === '/model/providers') {
+        if (!modelConnections) { json(res, 503, { error: '모델 연결 설정을 준비하지 못했어요.' }); return; }
+        json(res, 200, modelConnections.providers()); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/model/connect') {
+        if (!modelConnections) { json(res, 503, { error: '모델 연결 설정을 준비하지 못했어요.' }); return; }
+        const input = await body(req);
+        const connected = await modelConnections.connect(input);
+        onboardingSkipped = false;
+        json(res, 200, {
+          ...connected,
+          report: { userSafeSummary: `${connected.provider} 모델을 연결했어요.` },
+        }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/model/connections/activate') {
+        const input = await body(req);
+        json(res, 200, await modelConnections.activate(input.id)); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/model/connections/remove') {
+        const input = await body(req);
+        json(res, 200, await modelConnections.remove(input.id)); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/model/disconnect') {
+        const input = await body(req);
+        json(res, 200, await modelConnections.disconnect(input.id)); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/model/chatgpt/login') {
+        json(res, 200, await modelConnections.startChatGpt()); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/model/chatgpt/await') {
+        json(res, 200, await modelConnections.awaitChatGpt()); return;
+      }
       if (req.method === 'GET' && url.pathname === '/onboarding') {
-        json(res, 200, { needed: false, seenWelcome: true, canConnect: true }); return;
+        const connection = await status();
+        json(res, 200, {
+          needed: !connection.connected && !onboardingSkipped,
+          seenWelcome: true, canConnect: Boolean(modelConnections),
+        }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/onboarding/skip') {
+        onboardingSkipped = true;
+        json(res, 200, { skipped: true }); return;
       }
       if (req.method === 'POST' && url.pathname === '/welcome') {
         json(res, 200, { state: 'skipped' }); return;
@@ -1074,7 +1161,54 @@ export function makeConsoleServer({
             ? [{ id: 'browser', label: '브라우저', executable: true }] : []),
         ] }); return;
       }
-      if (req.method === 'GET' && url.pathname === '/channels') { json(res, 200, { channels: [] }); return; }
+      if (req.method === 'GET' && url.pathname === '/channels/providers') {
+        json(res, 200, { providers: [{
+          id: 'telegram', label: '텔레그램', tokenPlaceholder: 'BotFather에서 받은 봇 토큰',
+          fields: [], inboundMode: 'long_polling',
+        }] }); return;
+      }
+      if (req.method === 'GET' && url.pathname === '/channels') {
+        const messengerStatus = await messenger.status();
+        const telegram = messengerStatus.connections.telegram;
+        json(res, 200, { channels: [{
+          id: 'telegram', provider: 'telegram', label: '텔레그램',
+          connected: Boolean(telegram?.connected),
+          userSafe: telegram?.connected
+            ? `연결됨${telegram.bot?.username ? ` (@${telegram.bot.username})` : ''} · 메시지 받는 중`
+            : '연결되지 않음',
+          bot: telegram?.bot ?? null,
+        }] }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/channels/connect') {
+        const input = await body(req);
+        await messenger.stop();
+        const connected = await messenger.connect({ provider: input.provider, token: input.token });
+        await messenger.start({ provider: input.provider });
+        json(res, 200, { ...connected, userSafeSummary: '텔레그램 봇을 연결했어요.' }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/channels/disconnect') {
+        const input = await body(req);
+        const disconnected = await messenger.disconnect(input.provider);
+        json(res, 200, { ...disconnected, userSafeSummary: '메신저 연결을 해제했어요.' }); return;
+      }
+      if (req.method === 'GET' && url.pathname === '/channels/allowlist') {
+        const provider = url.searchParams.get('channel') ?? 'telegram';
+        json(res, 200, {
+          channel: provider,
+          allowed: await messengerState.listAllowed(provider),
+          pending: await messengerState.listPending(provider),
+        }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/channels/allowlist') {
+        const input = await body(req);
+        const provider = input.channel ?? 'telegram';
+        if (input.revoke != null) {
+          const allowed = await messengerState.revoke(provider, input.revoke);
+          json(res, 200, { allowed, userSafeSummary: '이 사람의 메시지 허용을 해제했어요.' }); return;
+        }
+        const allowed = await messengerState.allow(provider, input);
+        json(res, 200, { allowed, userSafeSummary: '이 사람의 메시지를 받기 시작했어요.' }); return;
+      }
       if (req.method === 'GET' && url.pathname === '/skills') { json(res, 200, { skills: [] }); return; }
       if (req.method === 'GET' && url.pathname === '/automation') { json(res, 200, { jobs: [], candidates: [] }); return; }
       if (req.method === 'GET' && url.pathname === '/overview') { json(res, 200, {}); return; }
@@ -1104,6 +1238,9 @@ export function makeConsoleServer({
   server.conversationLedger = conversations;
   server.memoryLedger = memories;
   server.attachmentStore = attachments;
+  server.messengerGateway = messenger;
+  server.messengerStateStore = messengerState;
+  server.messengerCredentialStore = messengerCredentials;
   server.runLedger = runLedger;
   server.authorityStore = authority;
   server.unsubscribeTerminalWake = unsubscribeTerminal;
@@ -1112,6 +1249,8 @@ export function makeConsoleServer({
     for (const response of wakeSubscribers) response.end();
     wakeSubscribers.clear();
   };
+  server.closeModelConnections = () => modelConnections?.close?.();
+  server.closeMessengers = () => messenger.stop();
   server.closeBrowsers = async () => {
     await Promise.all([...browserDrivers.values()].map(async (driver) => {
       try { await driver.close?.(); } catch { /* already closed */ }
