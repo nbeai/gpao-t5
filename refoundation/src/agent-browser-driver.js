@@ -6,7 +6,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } 
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const DEFAULT_BINARY = resolve(here, '..', 'node_modules', '.bin', 'agent-browser');
+export const DEFAULT_AGENT_BROWSER_BINARY = resolve(here, '..', 'node_modules', '.bin', 'agent-browser');
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_BUFFER = 8 * 1024 * 1024;
 const DEFAULT_DOWNLOAD_TIMEOUT_MS = 60_000;
@@ -202,7 +202,8 @@ export async function secureBrowserStatePermissions(root) {
 export function makeAgentBrowserDriver({
   ownerId,
   outputDirectory,
-  binary = DEFAULT_BINARY,
+  browserHost = null,
+  binary = DEFAULT_AGENT_BROWSER_BINARY,
   run,
   downloadTimeoutMs = DEFAULT_DOWNLOAD_TIMEOUT_MS,
   downloadPollMs = DEFAULT_DOWNLOAD_POLL_MS,
@@ -226,7 +227,7 @@ export function makeAgentBrowserDriver({
       AGENT_BROWSER_AUTOSAVE_INTERVAL_MS: '0',
     },
   });
-  const namespace = BROWSER_NAMESPACE;
+  const namespace = browserHost?.clientNamespace ?? BROWSER_NAMESPACE;
   let availabilityCache = null;
   let activeTabId = null;
   let activeTabUrl = null;
@@ -234,7 +235,19 @@ export function makeAgentBrowserDriver({
   let userControl = false;
   let runtimeRootReady = false;
 
-  function commonArgs() {
+  async function commonArgs(options = {}) {
+    if (browserHost) {
+      const { cdpUrl } = await browserHost.connection(options);
+      return [
+        '--namespace', namespace,
+        '--cdp', cdpUrl,
+        '--no-auto-dialog',
+        '--idle-timeout', '0',
+        '--session', session,
+        '--download-path', downloadDirectory,
+        '--pin-tab', '--json',
+      ];
+    }
     return [
       '--namespace', namespace,
       '--profile', profileDirectory,
@@ -266,15 +279,16 @@ export function makeAgentBrowserDriver({
     await ensureRuntimeRoot();
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        const raw = await execute([...commonArgs(), ...args], options);
+        const raw = await execute([...(await commonArgs(options)), ...args], options);
         if (usesDefaultRun) {
           await secureBrowserStatePermissions(join(sessionRoot, '.agent-browser'));
         }
         return parseJsonOutput(raw, args[0] ?? 'command');
       } catch (error) {
-        const lifecycleRace = /Failed to connect.*No such file|No such file.*Failed to connect/i
+        const lifecycleRace = /Failed to connect.*No such file|No such file.*Failed to connect|ECONNREFUSED|connection refused/i
           .test(error?.message ?? '');
         if (!lifecycleRace || attempt > 0 || options.signal?.aborted) throw error;
+        browserHost?.invalidate?.();
         await new Promise((resolveWait) => setTimeout(resolveWait, 250));
       }
     }
@@ -455,7 +469,9 @@ export function makeAgentBrowserDriver({
   }
 
   return {
-    profile: { id: 'isolated', kind: 'managed_isolated', selected: true },
+    profile: browserHost?.profile
+      ? { ...browserHost.profile }
+      : { id: 'isolated', kind: 'managed_isolated', selected: true },
     session,
     userControlActive: () => userControl,
     async available() {
@@ -512,6 +528,21 @@ export function makeAgentBrowserDriver({
     submitFacts,
     uploadFileFacts: uploadFileFact,
     async beginUserLogin(url, { signal } = {}) {
+      if (browserHost) {
+        const opened = await command(['open', String(url)], { signal });
+        const tab = await currentTab({ signal });
+        const activation = await browserHost.activate();
+        userControl = true;
+        return {
+          state: 'user_control_required', pageObserved: false, secretValuesObserved: false,
+          profile: { ...this.profile },
+          tab: normalizeTab({ ...opened, ...tab, url: tab.url || opened.url || url }),
+          handoff: {
+            visible: activation.visible === true, inputOwner: 'user',
+            modelActionsBlocked: true, canReveal: true,
+          },
+        };
+      }
       await command(['close'], { signal });
       activeTabId = null;
       activeTabUrl = null;
@@ -555,6 +586,16 @@ export function makeAgentBrowserDriver({
       }
       activeTabId = null;
       activeTabUrl = null;
+      if (browserHost) {
+        const observed = await takeSnapshot({ tabId: tab.tabId ?? tabId, full: false, signal });
+        userControl = false;
+        return {
+          state: 'handoff_complete_candidate', secretFieldsPresent: false,
+          secretValuesObserved: false, continuityEstablished: true,
+          profile: { ...this.profile }, ...observed,
+          handoff: { visible: true, inputOwner: 'user', resumedHeadless: false },
+        };
+      }
       await command(['close'], { signal });
       headedMode = false;
       try {
@@ -591,7 +632,10 @@ export function makeAgentBrowserDriver({
       if (!userControl) return {
         state: 'login_handoff_not_active', pageObserved: false, secretValuesObserved: false,
       };
-      await command(['close'], { signal });
+      if (browserHost) {
+        const tab = activeTabId ? { tabId: activeTabId } : await currentTab({ signal }).catch(() => null);
+        if (tab?.tabId) await command(['tab', 'close', String(tab.tabId)], { signal }).catch(() => {});
+      } else await command(['close'], { signal });
       activeTabId = null;
       activeTabUrl = null;
       headedMode = false;
@@ -599,6 +643,10 @@ export function makeAgentBrowserDriver({
       return {
         state: 'user_control_cancelled', pageObserved: false, secretValuesObserved: false,
       };
+    },
+    async revealUserLogin() {
+      if (!userControl || !browserHost) return { visible: false, reason: 'login_handoff_not_active' };
+      return browserHost.activate();
     },
     async navigate(url, { signal } = {}) {
       if (!activeTabUrl) {
@@ -674,7 +722,10 @@ export function makeAgentBrowserDriver({
       };
     },
     async close({ signal } = {}) {
-      await command(['close'], { signal });
+      if (browserHost) {
+        const tab = activeTabId ? { tabId: activeTabId } : await currentTab({ signal }).catch(() => null);
+        if (tab?.tabId) await command(['tab', 'close', String(tab.tabId)], { signal }).catch(() => {});
+      } else await command(['close'], { signal });
       activeTabId = null;
       activeTabUrl = null;
       userControl = false;

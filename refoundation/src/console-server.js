@@ -148,6 +148,7 @@ export function makeConsoleServer({
   webSearchProviders = [],
   webReadOptions = {},
   browserDriverFactory,
+  browserHost,
   processYieldMs = 1000,
   documentCli = bundledDocumentCli,
   attachmentStore,
@@ -172,6 +173,10 @@ export function makeConsoleServer({
   if (!['off', 'pre-checkpoint-v0'].includes(memoryFlushMode)) {
     throw new TypeError('unsupported memory flush mode');
   }
+  // A browser tab can outlive this server process during development, an app restart, or a
+  // computer restart. Give every process lifetime a public, non-secret identity so the page can
+  // distinguish a reconnect from a connection to the same runtime.
+  const runtimeInstanceId = randomUUID();
   const sessions = new ConsoleSessionStore(stateDir);
   const conversations = new ConversationLedger(join(stateDir, 'conversations'));
   const memories = new MemoryLedger(join(stateDir, 'memory'));
@@ -207,6 +212,13 @@ export function makeConsoleServer({
       browserDrivers.set(sessionId, await browserDriverFactory(sessionId));
     }
     return browserDrivers.get(sessionId);
+  }
+
+  async function closeBrowserDrivers() {
+    await Promise.all([...browserDrivers.values()].map(async (driver) => {
+      try { await driver.close?.(); } catch { /* already closed */ }
+    }));
+    browserDrivers.clear();
   }
 
   function browserObservationRegistry(sessionId) {
@@ -669,6 +681,18 @@ export function makeConsoleServer({
         && receipt.outcome === 'succeeded'
         && receipt.result?.artifact
       )).map((receipt) => attachmentSurface(receipt.result.artifact));
+      const browserHandoffReceipt = [...result.receipts].reverse().find((receipt) => (
+        receipt.requestedCall?.name === 'browser'
+        && receipt.requestedCall?.args?.action === 'login_start'
+        && receipt.outcome === 'succeeded'
+        && receipt.result?.state === 'user_control_required'
+      ));
+      const browserHandoff = browserHandoffReceipt ? {
+        active: true,
+        visible: browserHandoffReceipt.result?.handoff?.visible === true,
+        canReveal: browserHandoffReceipt.result?.handoff?.canReveal === true,
+        provider: 'browser',
+      } : null;
       const surfaceResult = approvalReceipt ? (() => {
         const { effect, pendingId, command, toolName } = approvalReceipt.result;
         return {
@@ -694,6 +718,7 @@ export function makeConsoleServer({
         kind: 'reply',
         reply: result.answer,
         runId: run.runId,
+        ...(browserHandoff ? { browserHandoff } : {}),
         ...(outputArtifacts.length ? { artifacts: outputArtifacts } : {}),
         ...(options.trigger && options.trigger !== 'user' ? { trigger: options.trigger } : {}),
         selfStateSummary: selfState(connection, workspace, browserReady),
@@ -888,7 +913,11 @@ export function makeConsoleServer({
     try {
       if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
         const source = await readFile(resolve(uiRoot, 'index.html'), 'utf8');
-        const html = source.replace('</body>', [
+        const withRuntime = source.replace(
+          '</head>',
+          `<meta name="t5-runtime-instance" content="${runtimeInstanceId}">\n</head>`,
+        );
+        const html = withRuntime.replace('</body>', [
           '<script type="module" src="/path-links.js"></script>',
           '<script type="module" src="/wake-events.js"></script>',
           '</body>',
@@ -985,7 +1014,8 @@ export function makeConsoleServer({
       if (req.method === 'GET' && url.pathname === '/health') {
         const connection = await status();
         json(res, 200, {
-          ok: true, product: 'gpao-t5-refoundation', model: connection, workspace, computer: computerFacts,
+          ok: true, product: 'gpao-t5-refoundation', runtimeInstanceId,
+          model: connection, workspace, computer: computerFacts,
         }); return;
       }
       if (req.method === 'GET' && url.pathname === '/events/stream') {
@@ -993,7 +1023,7 @@ export function makeConsoleServer({
           'content-type': 'text/event-stream; charset=utf-8',
           'cache-control': 'no-cache', connection: 'keep-alive',
         });
-        res.write(': connected\n\n');
+        res.write(`event: runtime_ready\ndata: ${JSON.stringify({ runtimeInstanceId })}\n\n`);
         wakeSubscribers.add(res);
         req.once('close', () => wakeSubscribers.delete(res));
         return;
@@ -1005,6 +1035,43 @@ export function makeConsoleServer({
         const input = await body(req);
         const opened = await reveal(input.path);
         json(res, 200, { ok: true, ...opened }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/browser/login/reveal') {
+        const input = await body(req);
+        const session = await sessions.load(input.sessionId);
+        if (!session) { json(res, 404, { error: '대화를 찾지 못했어요.' }); return; }
+        const driver = await browserDriver(input.sessionId);
+        if (!driver?.revealUserLogin) {
+          json(res, 503, { error: '로그인 창을 다시 보여줄 수 없어요.' }); return;
+        }
+        const revealed = await driver.revealUserLogin();
+        json(res, revealed.visible ? 200 : 409, revealed.visible
+          ? { ok: true, ...revealed }
+          : { ok: false, ...revealed, error: '현재 열려 있는 로그인 창을 찾지 못했어요.' });
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/browser/identity') {
+        json(res, 200, browserHost ? {
+          available: true, profile: browserHost.profile,
+          userSafeSummary: 'T5 브라우저는 로그인 상태를 여러 대화와 재시작 뒤에도 이어서 사용해요.',
+        } : {
+          available: false, profile: null,
+          userSafeSummary: '지속되는 T5 브라우저를 사용할 수 없어요.',
+        });
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/browser/identity/reset') {
+        if (!browserHost?.reset) {
+          json(res, 503, { error: 'T5 브라우저 로그인을 초기화할 수 없어요.' }); return;
+        }
+        const input = await body(req);
+        if (input.confirmation !== 'RESET_T5_BROWSER') {
+          json(res, 400, { error: '로그인 정보를 모두 지울지 다시 확인해 주세요.' }); return;
+        }
+        await closeBrowserDrivers();
+        await browserHost.reset({ confirmation: input.confirmation });
+        json(res, 200, { ok: true, userSafeSummary: 'T5 브라우저의 로그인 정보를 모두 지웠어요.' });
+        return;
       }
       if (req.method === 'GET' && url.pathname === '/model/connection') {
         const connection = await status();
@@ -1325,6 +1392,7 @@ export function makeConsoleServer({
   server.messengerCredentialStore = messengerCredentials;
   server.runLedger = runLedger;
   server.authorityStore = authority;
+  server.runtimeInstanceId = runtimeInstanceId;
   server.unsubscribeTerminalWake = unsubscribeTerminal;
   server.closeWakeStreams = () => {
     unsubscribeTerminal();
@@ -1333,11 +1401,6 @@ export function makeConsoleServer({
   };
   server.closeModelConnections = () => modelConnections?.close?.();
   server.closeMessengers = () => messenger.stop();
-  server.closeBrowsers = async () => {
-    await Promise.all([...browserDrivers.values()].map(async (driver) => {
-      try { await driver.close?.(); } catch { /* already closed */ }
-    }));
-    browserDrivers.clear();
-  };
+  server.closeBrowsers = closeBrowserDrivers;
   return server;
 }

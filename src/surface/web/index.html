@@ -415,6 +415,13 @@
   #mcResult[data-state="success"] { color:var(--ok); font-weight:600; }
   #mcResult[data-state="error"] { color:var(--danger); }
   #mcResult:empty, #msgResult:empty { display:none; }
+  .runtime-notice { position:fixed; z-index:12000; top:var(--sp-3); left:50%; transform:translateX(-50%);
+    display:flex; align-items:center; gap:var(--sp-3); width:min(560px,calc(100vw - 32px));
+    padding:var(--sp-3) var(--sp-4); border:1px solid var(--line-strong); border-radius:var(--r-md);
+    background:var(--panel); color:var(--fg); box-shadow:var(--sh-lg); font-size:var(--fs-sm); }
+  .runtime-notice span { flex:1; min-width:0; line-height:1.5; }
+  .runtime-notice button { flex:none; border:1px solid var(--accent); border-radius:var(--r-sm);
+    background:var(--accent); color:var(--accent-ink); padding:var(--sp-2) var(--sp-3); font:inherit; cursor:pointer; }
 
   @media (max-width:720px) {
     #side { position:fixed; z-index:20; transform:translateX(-100%);
@@ -577,8 +584,72 @@ const attachlist = document.getElementById('attachlist');
 const sessionsEl = document.getElementById('sessions');
 let currentSessionId = null;
 let stagedAttachments = [];
+let activeLocalTurns = 0;
 const sessionActivityById = new Map();
 let sessionListRefreshTimer = null;
+const RUNTIME_RELOAD_STATE_KEY = 't5-runtime-reload-state-v1';
+
+function rememberPageStateForReload() {
+  try {
+    sessionStorage.setItem(RUNTIME_RELOAD_STATE_KEY, JSON.stringify({
+      sessionId: currentSessionId,
+      text: text.value,
+      attachments: stagedAttachments,
+      savedAt: Date.now(),
+    }));
+  } catch { /* 저장소가 막혀도 사용자가 직접 새로고침할 수 있다 */ }
+}
+
+function savedPageState() {
+  try { return JSON.parse(sessionStorage.getItem(RUNTIME_RELOAD_STATE_KEY) || 'null'); }
+  catch { return null; }
+}
+
+async function restorePageStateAfterReload(saved) {
+  if (!saved || saved.sessionId !== currentSessionId) return;
+  text.value = typeof saved.text === 'string' ? saved.text : '';
+  text.dispatchEvent(new Event('input'));
+  if (Array.isArray(saved.attachments) && saved.attachments.length) {
+    const wanted = new Set(saved.attachments.map((record) => record.attachmentId));
+    const live = await fetch(`/attachments?sessionId=${encodeURIComponent(currentSessionId)}`)
+      .then((response) => response.ok ? response.json() : ({ attachments: [] }))
+      .catch(() => ({ attachments: [] }));
+    stagedAttachments = (live.attachments ?? []).filter((record) => wanted.has(record.attachmentId));
+    renderStagedAttachments();
+  }
+  try { sessionStorage.removeItem(RUNTIME_RELOAD_STATE_KEY); } catch {}
+}
+
+function runtimeNotice(message, reconnect = false) {
+  let notice = document.getElementById('runtime-notice');
+  if (!notice) {
+    notice = document.createElement('div'); notice.id = 'runtime-notice'; notice.className = 'runtime-notice';
+    notice.setAttribute('role', 'status'); notice.setAttribute('aria-live', 'polite');
+    document.body.appendChild(notice);
+  }
+  notice.replaceChildren(el(null, message));
+  if (reconnect) {
+    const button = document.createElement('button'); button.type = 'button'; button.textContent = '화면 다시 연결';
+    button.onclick = () => { rememberPageStateForReload(); location.reload(); };
+    notice.appendChild(button);
+  }
+}
+
+addEventListener('t5:runtime-connection', (event) => {
+  if (event.detail?.connected) {
+    const notice = document.getElementById('runtime-notice');
+    if (notice && !notice.querySelector('button')) notice.remove();
+    return;
+  }
+  runtimeNotice('T5와 다시 연결하고 있어요…');
+});
+
+addEventListener('t5:runtime-changed', () => {
+  const canReloadQuietly = !text.value.trim() && stagedAttachments.length === 0 && activeLocalTurns === 0;
+  rememberPageStateForReload();
+  if (canReloadQuietly) { location.reload(); return; }
+  runtimeNotice('T5가 새로 준비됐어요. 쓰던 내용은 그대로 보관해 두었어요.', true);
+});
 
 function scheduleSessionListRefresh() {
   if (sessionListRefreshTimer) return;
@@ -1482,6 +1553,39 @@ const SET_RENDER = {
     b.onclick = () => { closeSettings(); openToolbox(); };
     box.appendChild(b);
     setBody.appendChild(box);
+    const browserCard = mk('div', 'tb-card');
+    browserCard.appendChild(mk('div', 'tb-name', 'T5 브라우저'));
+    let browserIdentity = null;
+    try { browserIdentity = await (await fetch('/browser/identity')).json(); } catch { /* card explains below */ }
+    browserCard.appendChild(mk('div', 'tb-hint', browserIdentity?.available
+      ? '한 번 로그인하면 여러 대화에서 계속 사용할 수 있어요. T5나 브라우저를 다시 열어도 로그인 상태를 이어갑니다.'
+      : '지속되는 T5 브라우저를 지금 사용할 수 없어요.'));
+    if (browserIdentity?.available) {
+      const resetResult = mk('div', 'tb-hint', '');
+      const reset = document.createElement('button');
+      reset.className = 'connection-button'; reset.textContent = 'T5 브라우저 로그인 모두 지우기';
+      let confirming = false;
+      reset.onclick = async () => {
+        if (!confirming) {
+          confirming = true;
+          reset.textContent = '정말 로그인 정보를 모두 지우기';
+          resetResult.textContent = '네이버를 포함해 T5 브라우저에 로그인한 모든 사이트에서 다시 로그인해야 해요.';
+          return;
+        }
+        reset.disabled = true; reset.textContent = '지우는 중…';
+        const response = await fetch('/browser/identity/reset', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ confirmation: 'RESET_T5_BROWSER' }),
+        });
+        const result = await response.json().catch(() => ({}));
+        resetResult.textContent = response.ok
+          ? (result.userSafeSummary ?? 'T5 브라우저의 로그인 정보를 모두 지웠어요.')
+          : (result.error ?? '로그인 정보를 지우지 못했어요.');
+        reset.disabled = false; reset.textContent = 'T5 브라우저 로그인 모두 지우기'; confirming = false;
+      };
+      browserCard.append(reset, resetResult);
+    }
+    setBody.appendChild(browserCard);
   },
   async skills() {
     setBody.replaceChildren();
@@ -2468,6 +2572,29 @@ function renderResult(r, opts = {}) {
     renderMarkdownInto(bot, 답문);
     box.appendChild(bot);
   }
+  if (!historical && r.browserHandoff?.active) {
+    const handoff = el('suggest browser-handoff');
+    handoff.appendChild(el('sug-t', '로그인 창을 열었어요'));
+    handoff.appendChild(el('sug-line', r.browserHandoff.visible
+      ? 'T5 브라우저에서 로그인한 뒤, 이 대화로 돌아와 완료했다고 알려주세요.'
+      : '로그인 창을 열었지만 앞에 표시하지 못했어요. 아래 버튼으로 다시 확인할 수 있어요.'));
+    const reveal = document.createElement('button');
+    reveal.className = 'act primary'; reveal.textContent = '로그인 창 보기';
+    reveal.onclick = async () => {
+      reveal.disabled = true; reveal.textContent = '창을 찾고 있어요…';
+      const response = await fetch('/browser/login/reveal', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId: currentSessionId }),
+      });
+      const result = await response.json().catch(() => ({}));
+      reveal.disabled = false; reveal.textContent = '로그인 창 보기';
+      let note = handoff.querySelector('.browser-handoff-result');
+      if (!note) { note = el('sug-line browser-handoff-result'); handoff.appendChild(note); }
+      note.textContent = response.ok ? '로그인 창을 앞으로 가져왔어요.'
+        : (result.error ?? '로그인 창을 찾지 못했어요. 다시 요청해 주세요.');
+    };
+    handoff.appendChild(reveal); box.appendChild(handoff);
+  }
   renderArtifacts(box, r.artifacts);
   renderRecord(box, r.ledger);
   // P5-B-1B: 비밀 입력창. **대화창으로 키를 받지 않는다** — 여기 넣은 값은 대화·원장·모델을
@@ -2860,6 +2987,7 @@ async function submit() {
   const 멈춤치우기 = () => 멈춤.remove();
   const firstFeedbackPaint = afterVisiblePaint(surfaceStartedAt);
   scrollToBottom(true); // 내가 방금 보냈으니 무조건 따라간다(내용이 다 붙은 뒤에 스크롤)
+  activeLocalTurns += 1;
   try {
     const streamed = await streamTurn(submittedSessionId, t, trace, {
       surfaceStartedAt, firstFeedbackPaint,
@@ -2888,6 +3016,7 @@ async function submit() {
     trace.remove();
     sysline('연결에 문제가 있었어요. 잠시 후 다시 시도해 주세요.');
   } finally {
+    activeLocalTurns = Math.max(0, activeLocalTurns - 1);
     멈춤치우기(); // 오류로 끝나도 버튼이 남지 않는다
   }
 }
@@ -3076,10 +3205,13 @@ async function maybeWelcome(sessionId) {
 // 초기화: 세션 목록 → 최근 세션 복원, 없으면 새로 만든다. 첫 실행이면 연결부터 안내한다.
 (async () => {
   await refreshInitialModelStatus();
+  const saved = savedPageState();
   try {
     const { sessions } = await (await fetch('/sessions')).json();
-    if (sessions.length) await selectSession(sessions[0].id);
+    const preferred = sessions.find((session) => session.id === saved?.sessionId) ?? sessions[0];
+    if (preferred) await selectSession(preferred.id);
     else await newSession();
+    await restorePageStateAfterReload(saved);
   } catch { await newSession(); }
   try {
     const onboarding = await maybeRunOnboarding();

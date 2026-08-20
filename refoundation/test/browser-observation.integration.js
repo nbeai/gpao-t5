@@ -14,7 +14,7 @@ test('실제 콘솔 모델이 browser navigate의 렌더링 snapshot을 읽고 �
   await mkdir(workspace, { recursive: true });
   let modelTurn = 0;
   const driver = {
-    profile: { id: 'isolated', kind: 'managed_isolated', selected: true },
+    profile: { id: 'default', kind: 'managed_persistent', selected: true },
     async available() { return { available: true, version: '0.34.0' }; },
     async navigate(url) { return {
       tab: { tabId: 't1', targetId: 'target-1', title: '동적 사업주 화면', url },
@@ -227,7 +227,11 @@ test('사용자가 visible browser에서 직접 로그인한 뒤 다음 턴 logi
     async available() { return { available: true, version: '0.34.0' }; },
     async beginUserLogin(url) {
       calls.push(['login_start', url]); active = true;
-      return { state: 'user_control_required', pageObserved: false, secretValuesObserved: false, tab: { tabId: 't1', targetId: 'target-1', title: '', url } };
+      return {
+        state: 'user_control_required', pageObserved: false, secretValuesObserved: false,
+        tab: { tabId: 't1', targetId: 'target-1', title: '', url },
+        handoff: { visible: false, inputOwner: 'user', modelActionsBlocked: true, canReveal: true },
+      };
     },
     async loginStatus() {
       calls.push(['login_status']); active = false;
@@ -240,6 +244,7 @@ test('사용자가 visible browser에서 직접 로그인한 뒤 다음 턴 logi
       };
     },
     async status() { return { state: 'ready' }; }, async profiles() { return { profiles: [this.profile] }; },
+    async revealUserLogin() { calls.push(['login_reveal']); return { visible: true, application: 'T5 Browser' }; },
     async tabs() { return { tabs: [] }; }, async navigate() { throw new Error('not used'); },
     async snapshot() { throw new Error('must not observe login form'); }, async screenshot() { throw new Error('not used'); },
     async close() {},
@@ -272,9 +277,19 @@ test('사용자가 visible browser에서 직접 로그인한 뒤 다음 턴 logi
     const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
     const first = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: session.id, text: '사업자 페이지에 로그인해야 해' }) }).then((response) => response.json());
     assert.match(first.reply, /직접 로그인/);
+    assert.deepEqual(first.browserHandoff, {
+      active: true, visible: false, canReveal: true, provider: 'browser',
+    });
+    const revealed = await fetch(`${base}/browser/login/reveal`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id }),
+    }).then((response) => response.json());
+    assert.equal(revealed.visible, true);
     const second = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: session.id, text: '로그인 완료했어' }) }).then((response) => response.json());
     assert.match(second.reply, /사업자 대시보드/);
-    assert.deepEqual(calls, [['login_start', 'https://example.com/login'], ['login_status']]);
+    assert.deepEqual(calls, [
+      ['login_start', 'https://example.com/login'], ['login_reveal'], ['login_status'],
+    ]);
     const run = await fetch(`${base}/runs/${second.runId}`).then((response) => response.json());
     const receipt = run.events.find((event) => event.type === 'tool_completed').payload.receipt;
     assert.equal(receipt.result.secretValuesObserved, false);

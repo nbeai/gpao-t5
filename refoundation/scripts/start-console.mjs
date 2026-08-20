@@ -9,10 +9,13 @@ import { makeModelConnectionService } from '../src/model-connection-service.js';
 import { makeStoredModelCredentialCatalog } from '../src/chatgpt-oauth-credential.js';
 import { makeStoredOpenAIWebSearchProvider } from '../src/openai-web-search-provider.js';
 import { naverReadableUrlResolver } from '../src/naver-readable-url.js';
-import { makeAgentBrowserDriver, sessionNameForOwner } from '../src/agent-browser-driver.js';
+import {
+  DEFAULT_AGENT_BROWSER_BINARY, makeAgentBrowserDriver, sessionNameForOwner,
+} from '../src/agent-browser-driver.js';
 import { makeConsoleServer } from '../src/console-server.js';
 import { resolveConsoleWorkspace } from '../src/console-config.js';
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
+import { makePersistentBrowserHost } from '../src/persistent-browser-host.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -34,6 +37,10 @@ const access = makeConsoleModelAccess({ connectionFile, stateDir });
 const modelConnections = makeModelConnectionService({ file: connectionFile });
 const credentialCatalog = makeStoredModelCredentialCatalog({ file: connectionFile });
 const webSearchProviders = [makeStoredOpenAIWebSearchProvider({ credentialCatalog })];
+const browserRoot = join(stateDir, 'browser');
+const persistentBrowserHost = makePersistentBrowserHost({
+  root: browserRoot, binary: DEFAULT_AGENT_BROWSER_BINARY,
+});
 const server = makeConsoleServer({
   stateDir,
   workspace,
@@ -46,7 +53,9 @@ const server = makeConsoleServer({
   browserDriverFactory: (sessionId) => makeAgentBrowserDriver({
     ownerId: sessionId,
     outputDirectory: join(stateDir, 'browser', sessionNameForOwner(sessionId), 'artifacts'),
+    browserHost: persistentBrowserHost,
   }),
+  browserHost: persistentBrowserHost,
   onError: (error) => console.error('[refoundation-console]', error?.message ?? error),
 });
 await new Promise((resolveListen, reject) => {
@@ -76,6 +85,7 @@ const stop = async () => {
   server.closeModelConnections();
   await server.closeMessengers();
   await server.closeBrowsers();
+  await persistentBrowserHost.close().catch(() => {});
   await server.managedProcesses.stopAll('runtime_shutdown');
   server.close(async () => {
     if (portFile) await rm(portFile, { force: true }).catch(() => {});

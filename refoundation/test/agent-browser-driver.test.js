@@ -44,6 +44,66 @@ test('driver navigate는 격리 session에서 open 뒤 compact snapshot을 같�
   }
 });
 
+test('공용 T5 브라우저를 쓰는 대화들은 같은 CDP·프로필 신분과 서로 다른 pinned session을 쓴다', async () => {
+  const calls = [];
+  const host = {
+    profile: { id: 'default', kind: 'managed_persistent', selected: true },
+    async connection() { return { cdpUrl: 'ws://127.0.0.1:9222/devtools/browser/t5' }; },
+    async activate() { return { visible: true, application: 'T5 Browser' }; },
+  };
+  const run = async (args) => {
+    calls.push(args);
+    const command = args.slice(args.indexOf('--json') + 1);
+    if (command[0] === 'tab') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabs":[{"tabId":"t1","url":"https://example.com/","active":true}]}}' };
+    if (command[0] === 'snapshot') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabId":"t1","url":"https://example.com/","snapshot":"ok","refs":{}}}' };
+    return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabId":"t1","url":"https://example.com/"}}' };
+  };
+  const first = makeAgentBrowserDriver({ ownerId: 'conversation-a', outputDirectory: '/private/tmp/a', run, browserHost: host });
+  const second = makeAgentBrowserDriver({ ownerId: 'conversation-b', outputDirectory: '/private/tmp/b', run, browserHost: host });
+  await first.navigate('https://example.com/');
+  await second.navigate('https://example.com/');
+  const opens = calls.filter((args) => args.includes('open'));
+  assert.equal(opens.length, 2);
+  assert.ok(opens.every((args) => args.includes('--cdp') && args.includes('--pin-tab')));
+  assert.ok(opens.every((args) => !args.includes('--profile')));
+  assert.notEqual(
+    opens[0][opens[0].indexOf('--session') + 1],
+    opens[1][opens[1].indexOf('--session') + 1],
+  );
+  assert.deepEqual(first.profile, host.profile);
+});
+
+test('공용 브라우저 로그인은 실제 창을 앞으로 가져오고 완료 뒤 브라우저를 닫지 않는다', async () => {
+  const calls = [];
+  let secretFields = 1;
+  let activations = 0;
+  const host = {
+    profile: { id: 'default', kind: 'managed_persistent', selected: true },
+    async connection() { return { cdpUrl: 'ws://127.0.0.1:9222/devtools/browser/t5' }; },
+    async activate() { activations += 1; return { visible: true, application: 'T5 Browser' }; },
+  };
+  const driver = makeAgentBrowserDriver({
+    ownerId: 'login-owner', outputDirectory: '/private/tmp/login-owner', browserHost: host,
+    run: async (args) => {
+      const command = args.slice(args.indexOf('--json') + 1); calls.push(command);
+      if (command[0] === 'get') return { exitCode: 0, stderr: '', stdout: JSON.stringify({ success: true, data: { count: secretFields } }) };
+      if (command[0] === 'tab') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabs":[{"tabId":"t1","url":"https://example.com/dashboard","active":true}]}}' };
+      if (command[0] === 'snapshot') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabId":"t1","url":"https://example.com/dashboard","snapshot":"dashboard","refs":{}}}' };
+      return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabId":"t1","url":"https://example.com/login"}}' };
+    },
+  });
+  const started = await driver.beginUserLogin('https://example.com/login');
+  assert.equal(started.handoff.visible, true);
+  assert.equal(started.handoff.canReveal, true);
+  assert.equal(activations, 1);
+  secretFields = 0;
+  const completed = await driver.loginStatus({ tabId: 't1' });
+  assert.equal(completed.state, 'handoff_complete_candidate');
+  assert.equal(completed.handoff.resumedHeadless, false);
+  assert.equal(calls.some((command) => command[0] === 'close'), false);
+  assert.equal((await driver.revealUserLogin()).visible, false, '완료된 handoff는 다시 보일 현재 창이 아니다');
+});
+
 test('재시작 복원 탭과 같은 URL을 navigate하면 stale DOM을 쓰지 않고 reload 뒤 관측한다', async () => {
   const calls = [];
   const run = async (args) => {

@@ -181,6 +181,7 @@ test('기존 콘솔 UI가 새 session → agent loop → terminal → persisted 
     assert.match(html, /GPAO-T5/);
     assert.match(html, /path-links\.js/);
     assert.match(html, /wake-events\.js/);
+    assert.match(html, /name="t5-runtime-instance" content="[0-9a-f-]{36}"/u);
     const reveal = await fetch(`${base}/computer/reveal`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-t5-console-action': 'reveal' },
