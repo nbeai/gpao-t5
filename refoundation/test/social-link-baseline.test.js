@@ -6,13 +6,11 @@ import { assessSocialLinkObservations, loadSocialLinkBaseline, socialBaselineRea
 
 const baselineFile = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'config', 'social-link-baseline.json');
 
-test('SNS 기준선은 사용자 관심을 대표한다고 주장하지 않고 6개 플랫폼 관측 기계의 공백만 드러낸다', async () => {
+test('SNS 기준선은 사용자 관심을 대표하지 않으면서 6개 플랫폼 live identity와 boundary를 갖춘다', async () => {
   const baseline = await loadSocialLinkBaseline(baselineFile); const readiness = socialBaselineReadiness(baseline);
-  assert.equal(baseline.cases.length, 18); assert.deepEqual(baseline.platforms, ['x', 'threads', 'facebook', 'instagram', 'youtube', 'tiktok']);
-  assert.equal(readiness.ready, false);
-  assert.deepEqual(readiness.gaps.filter((gap) => /no live identified/u.test(gap)), [
-    'threads: no live identified content reference', 'instagram: no live identified content reference',
-  ]);
+  assert.equal(baseline.cases.length, 21); assert.deepEqual(baseline.platforms, ['x', 'threads', 'facebook', 'instagram', 'youtube', 'tiktok']);
+  assert.equal(readiness.ready, true);
+  assert.deepEqual(readiness.gaps, []);
   assert.equal(baseline.scope.representativeOfUsers, false);
   assert.equal(baseline.scope.analysisTargetsComeFrom, 'current_user_business_taste_goal_and_request');
   assert.deepEqual(readiness.sampledContextTags, ['beauty', 'creator', 'education', 'food', 'local-service', 'retail']);

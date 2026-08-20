@@ -58,14 +58,24 @@
       "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://developers.facebook.com/docs/threads/threads-media","observedAt":"2026-08-21T00:00:00Z"}
     },
     {
-      "caseId": "threads-profile-live-gap",
+      "caseId": "threads-small-business-post-live",
       "platform": "threads",
       "referenceType": "live_reference",
+      "scenario": "canonical_post",
+      "businessDomain": "creator",
+      "inputUrl": "https://www.threads.net/@jesscreatives/post/DHMTG2VRer7",
+      "expected": {"state":"identified","contentType":"post","contentId":"DHMTG2VRer7","canonicalUrl":"https://www.threads.com/@jesscreatives/post/DHMTG2VRer7"},
+      "groundTruth": {"authority":"manual_public_observation","referenceUrl":"https://www.threads.net/@jesscreatives/post/DHMTG2VRer7","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "threads-profile-not-content",
+      "platform": "threads",
+      "referenceType": "format_fixture",
       "scenario": "profile_not_content",
       "businessDomain": "creator",
       "inputUrl": "https://www.threads.com/@threads",
       "expected": {"state":"not_content","contentType":"profile","contentId":null,"canonicalUrl":null},
-      "groundTruth": {"authority":"manual_public_observation","referenceUrl":"https://www.threads.com/@threads","observedAt":"2026-08-21T00:00:00Z"}
+      "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://developers.facebook.com/docs/threads/threads-profiles","observedAt":"2026-08-21T00:00:00Z"}
     },
     {
       "caseId": "facebook-post-format",
@@ -118,14 +128,24 @@
       "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/oembed/","observedAt":"2026-08-21T00:00:00Z"}
     },
     {
-      "caseId": "instagram-profile-live-gap",
+      "caseId": "instagram-coffee-reel-live",
       "platform": "instagram",
       "referenceType": "live_reference",
+      "scenario": "short_video",
+      "businessDomain": "retail",
+      "inputUrl": "https://www.instagram.com/reel/DEibH0Ghvb5/?igsh=bzAxNmdjMTdsMm9v",
+      "expected": {"state":"identified","contentType":"short_video","contentId":"DEibH0Ghvb5","canonicalUrl":"https://www.instagram.com/reel/DEibH0Ghvb5/"},
+      "groundTruth": {"authority":"manual_public_observation","referenceUrl":"https://www.instagram.com/reel/DEibH0Ghvb5/","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "instagram-profile-not-content",
+      "platform": "instagram",
+      "referenceType": "format_fixture",
       "scenario": "profile_not_content",
       "businessDomain": "retail",
       "inputUrl": "https://www.instagram.com/instagram/",
       "expected": {"state":"not_content","contentType":"profile","contentId":null,"canonicalUrl":null},
-      "groundTruth": {"authority":"manual_public_observation","referenceUrl":"https://www.instagram.com/instagram/","observedAt":"2026-08-21T00:00:00Z"}
+      "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/business-discovery","observedAt":"2026-08-21T00:00:00Z"}
     },
     {
       "caseId": "youtube-official-video-live",
@@ -156,6 +176,16 @@
       "inputUrl": "https://www.youtube.com/shorts/M7lc1UVf-VE?feature=share",
       "expected": {"state":"identified","contentType":"short_video","contentId":"M7lc1UVf-VE","canonicalUrl":"https://www.youtube.com/watch?v=M7lc1UVf-VE"},
       "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://support.google.com/youtube/answer/10059070","observedAt":"2026-08-21T00:00:00Z"}
+    },
+    {
+      "caseId": "youtube-channel-not-content",
+      "platform": "youtube",
+      "referenceType": "format_fixture",
+      "scenario": "profile_not_content",
+      "businessDomain": "education",
+      "inputUrl": "https://www.youtube.com/@GoogleDevelopers",
+      "expected": {"state":"not_content","contentType":"profile","contentId":null,"canonicalUrl":null},
+      "groundTruth": {"authority":"official_format_documentation","referenceUrl":"https://developers.google.com/youtube/v3/docs/channels","observedAt":"2026-08-21T00:00:00Z"}
     },
     {
       "caseId": "tiktok-official-video-live",
