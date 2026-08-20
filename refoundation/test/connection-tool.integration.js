@@ -189,6 +189,14 @@ test('자연어 계정 연결은 connection start 뒤 대화 내 OAuth handoff�
     assert.equal(answer.connectionHandoff?.handoffId, answer.runId);
     let detail = await fetch(`${base}/sessions/${session.id}`).then((response) => response.json());
     assert.deepEqual(detail.activeConnectionHandoffIds, [answer.runId]);
+    const other = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    assert.notEqual(other.id, session.id);
+    assert.deepEqual(
+      (await fetch(`${base}/sessions/${other.id}`).then((response) => response.json())).activeConnectionHandoffIds,
+      [],
+    );
+    detail = await fetch(`${base}/sessions/${session.id}`).then((response) => response.json());
+    assert.deepEqual(detail.activeConnectionHandoffIds, [answer.runId]);
     const completed = await fetch(`${base}/connections/notion/await`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sessionId: session.id, handoffId: answer.runId }),
