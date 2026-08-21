@@ -4,7 +4,9 @@ import { access, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { makeYouTubeCaptionTool, youtubeVideoIdentity } from '../src/youtube-caption-tool.js';
+import {
+  makeYouTubeCaptionTool, probeYouTubeCaptionPresence, youtubeVideoIdentity,
+} from '../src/youtube-caption-tool.js';
 
 const video = 'https://www.youtube.com/watch?v=M7lc1UVf-VE';
 const installedStore = {
@@ -41,6 +43,37 @@ test('준비 전에는 실행하지 않고 필요한 managed capability만 공�
   assert.equal(result.state, 'not_prepared');
   assert.deepEqual(result.requiredCapability, { kind: 'cli', id: 'yt-dlp', toolSurface: 'video_text' });
   assert.equal(calls, 0);
+});
+
+test('native player response는 자막 부재를 CLI 준비·실행 전에 1회 확인하고 불확실하면 확장하지 않는다', async () => {
+  const identity = youtubeVideoIdentity('https://youtu.be/TPAvVgk3L-E');
+  const html = (tracks) => `<script>var ytInitialPlayerResponse = ${JSON.stringify({
+    playabilityStatus: { status: 'OK' },
+    ...(tracks == null ? {} : { captions: { playerCaptionsTracklistRenderer: { captionTracks: tracks } } }),
+  })};</script>`;
+  const absent = await probeYouTubeCaptionPresence({
+    identity, fetchImpl: async () => new Response(html(null), { status: 200 }),
+  });
+  assert.equal(absent.state, 'absent'); assert.equal(absent.trackCount, 0);
+  const present = await probeYouTubeCaptionPresence({
+    identity, fetchImpl: async () => new Response(html([{ languageCode: 'en' }]), { status: 200 }),
+  });
+  assert.equal(present.state, 'present'); assert.equal(present.trackCount, 1);
+  const unknown = await probeYouTubeCaptionPresence({
+    identity, fetchImpl: async () => new Response('<html>shell</html>', { status: 200 }),
+  });
+  assert.equal(unknown.state, 'unknown');
+
+  let sourceCalls = 0;
+  const tool = makeYouTubeCaptionTool({
+    root: join(tmpdir(), 'unused-native-absent'),
+    store: { ...installedStore, async status() { return { state: 'not_installed' }; } },
+    fetchImpl: async () => new Response(html(null), { status: 200 }),
+    runProcess: async () => { sourceCalls += 1; },
+  });
+  const result = await tool.execute({ action: 'read', url: identity.canonicalUrl, language: null, maxChars: 1000 });
+  assert.equal(result.state, 'caption_absent'); assert.equal(result.nativeProbe.state, 'absent');
+  assert.equal(sourceCalls, 0); assert.equal(result.requiredCapability, undefined);
 });
 
 test('manual 자막을 automatic보다 먼저 선택하고 bounded JSON3 사실만 돌려준다', async () => {
@@ -110,7 +143,9 @@ test('자막 absent는 파일과 audio 관측 없이 정직하게 멈춘다', as
   try {
     const tool = makeYouTubeCaptionTool({
       root: room, store: installedStore,
-      runProcess: async () => (calls += 1, { code: 0, stdout: 'NA\nNA\n', stderr: '' }),
+      runProcess: async () => (calls += 1, calls === 1
+        ? { code: 0, stdout: '', stderr: 'There are no subtitles for the requested languages' }
+        : { code: 0, stdout: `${JSON.stringify({ live_chat: [{ ext: 'json' }] })}\nNA\n`, stderr: '' }),
     });
     const result = await tool.execute({ action: 'read', url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ', language: null, maxChars: 1000 });
     assert.equal(result.state, 'caption_absent'); assert.equal(calls, 2);

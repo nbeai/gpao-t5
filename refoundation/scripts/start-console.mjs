@@ -113,6 +113,7 @@ const server = makeConsoleServer({
   computerEnvironment,
   webSearchProviders,
   webReadOptions: { urlResolvers: [naverReadableUrlResolver] },
+  videoTextFetchImpl: globalThis.fetch,
   browserDriverFactory: (sessionId) => makeAgentBrowserDriver({
     ownerId: sessionId,
     outputDirectory: join(stateDir, 'browser', sessionNameForOwner(sessionId), 'artifacts'),

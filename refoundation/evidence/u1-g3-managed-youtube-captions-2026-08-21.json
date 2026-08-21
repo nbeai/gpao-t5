@@ -95,6 +95,12 @@
     "events": 466,
     "mediaDownloaded": false
   },
+  "captionAbsentCorrection": {
+    "observedFailure": {"firstRunWallMs":121161,"secondRunWallMs":143501,"videoTextFailuresPerRun":2,"repeatedFailureMsApprox":66000},
+    "rootCause": "yt-dlp live_chat was treated as a subtitle language and produced an unexpected non-JSON3 output",
+    "nativeBoundary": {"captionAbsentFirstMs":829,"repeatCacheMs":53,"ytDlpProcessCalls":0},
+    "modelBoundary": "after caption_absent do not retry video_text; use one public description read only when it can satisfy the remaining goal"
+  },
   "fixtureJourney": {
     "firstRunTools": ["video_text:not_prepared","cli_prepare:install","video_text:caption_read"],
     "newSessionTools": ["video_text:caption_read"],

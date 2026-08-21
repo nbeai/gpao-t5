@@ -193,6 +193,7 @@ export function makeConsoleServer({
   videoTextRoot,
   videoTextCacheRoot,
   videoTextRunProcess,
+  videoTextFetchImpl,
   capabilitiesRoot = bundledCapabilitiesRoot,
   skillCatalogMode = 'on-demand',
   conversationProjection = 'historical-tool-receipt-v1',
@@ -775,6 +776,7 @@ export function makeConsoleServer({
         store: managedCliStore,
         root: join(videoTextRoot ?? join(stateDir, 'video-text'), sessionId),
         cacheRoot: videoTextCacheRoot ?? join(stateDir, 'video-text-cache'),
+        ...(videoTextFetchImpl ? { fetchImpl: videoTextFetchImpl } : {}),
         ...(videoTextRunProcess ? { runProcess: videoTextRunProcess } : {}),
       }));
       offeredTools.unshift(makeCapabilityEvidenceTool({ runLedger }));

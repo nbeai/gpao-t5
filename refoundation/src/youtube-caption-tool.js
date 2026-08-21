@@ -4,6 +4,7 @@ import {
   chmod, lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile,
 } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
+import { webUserAgentForPlatform } from './web-read-tool.js';
 
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/u;
 const LANGUAGE = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]+)*$/u;
@@ -13,6 +14,7 @@ const DEFAULT_MAX_CAPTION_BYTES = 2 * 1024 * 1024;
 const MAX_PROCESS_OUTPUT = 4 * 1024 * 1024;
 const MAX_STDERR = 32 * 1024;
 const DEFAULT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const MAX_NATIVE_PAGE_BYTES = 4 * 1024 * 1024;
 
 function sha256(bytes) { return createHash('sha256').update(bytes).digest('hex'); }
 
@@ -93,6 +95,8 @@ function trackObjects(stdout) {
   return { manual, automatic };
 }
 
+function captionLanguageKeys(tracks) { return Object.keys(tracks).filter((key) => key !== 'live_chat').sort(); }
+
 function matchingLanguage(keys, requested) {
   const lower = requested.toLowerCase();
   return keys.find((key) => key.toLowerCase() === lower)
@@ -102,7 +106,7 @@ function matchingLanguage(keys, requested) {
 }
 
 function chooseTrack(manual, automatic, requested) {
-  const manualKeys = Object.keys(manual).sort(); const automaticKeys = Object.keys(automatic).sort();
+  const manualKeys = captionLanguageKeys(manual); const automaticKeys = captionLanguageKeys(automatic);
   if (requested) {
     const exactManual = matchingLanguage(manualKeys, requested);
     if (exactManual) return { source: 'manual', language: exactManual };
@@ -115,6 +119,70 @@ function chooseTrack(manual, automatic, requested) {
   const automaticEnglish = automaticKeys.includes('en-orig') ? 'en-orig' : matchingLanguage(automaticKeys, 'en');
   if (automaticEnglish) return { source: 'automatic', language: automaticEnglish };
   return automaticKeys[0] ? { source: 'automatic', language: automaticKeys[0] } : null;
+}
+
+function objectAfterMarker(text, marker) {
+  const markerAt = text.indexOf(marker); if (markerAt < 0) return null;
+  const start = text.indexOf('{', markerAt + marker.length); if (start < 0) return null;
+  let depth = 0; let string = false; let escape = false;
+  for (let index = start; index < text.length; index += 1) {
+    const character = text[index];
+    if (string) {
+      if (escape) escape = false;
+      else if (character === '\\') escape = true;
+      else if (character === '"') string = false;
+      continue;
+    }
+    if (character === '"') { string = true; continue; }
+    if (character === '{') depth += 1;
+    else if (character === '}' && --depth === 0) return text.slice(start, index + 1);
+  }
+  return null;
+}
+
+async function boundedResponseText(response, maxBytes) {
+  const declared = Number(response.headers?.get?.('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) return null;
+  const reader = response.body?.getReader?.();
+  if (!reader) {
+    const bytes = Buffer.from(await response.arrayBuffer());
+    return bytes.length <= maxBytes ? bytes.toString('utf8') : null;
+  }
+  const chunks = []; let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read(); if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) { await reader.cancel().catch(() => {}); return null; }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks, total).toString('utf8');
+}
+
+export async function probeYouTubeCaptionPresence({ fetchImpl, identity, timeoutMs = 10_000 } = {}) {
+  if (typeof fetchImpl !== 'function') return { state: 'unknown', reason: 'native_probe_unavailable' };
+  const started = Date.now();
+  try {
+    const response = await fetchImpl(identity.canonicalUrl, {
+      method: 'GET', redirect: 'follow', signal: AbortSignal.timeout(timeoutMs),
+      headers: { 'user-agent': webUserAgentForPlatform(), 'accept-language': 'ko-KR,ko;q=0.9,en;q=0.7' },
+    });
+    if (!response.ok) return { state: 'unknown', reason: 'native_probe_http', status: response.status, durationMs: Date.now() - started };
+    const html = await boundedResponseText(response, MAX_NATIVE_PAGE_BYTES);
+    if (html == null) return { state: 'unknown', reason: 'native_probe_too_large', durationMs: Date.now() - started };
+    const raw = objectAfterMarker(html, 'var ytInitialPlayerResponse =');
+    let player; try { player = raw ? JSON.parse(raw) : null; } catch { player = null; }
+    if (!player || player.playabilityStatus?.status !== 'OK') {
+      return { state: 'unknown', reason: 'native_player_unverified', durationMs: Date.now() - started };
+    }
+    const tracks = player.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+    return {
+      state: Array.isArray(tracks) && tracks.length > 0 ? 'present' : 'absent',
+      trackCount: Array.isArray(tracks) ? tracks.length : 0,
+      durationMs: Date.now() - started,
+    };
+  } catch (error) {
+    return { state: 'unknown', reason: error?.name === 'TimeoutError' ? 'native_probe_timeout' : 'native_probe_failed', durationMs: Date.now() - started };
+  }
 }
 
 function timestamp(milliseconds) {
@@ -269,6 +337,7 @@ async function captionReadResult({
 export function makeYouTubeCaptionTool({
   store, root, runProcess = defaultRunProcess, maxCaptionBytes = DEFAULT_MAX_CAPTION_BYTES,
   javascriptRuntime = process.execPath, cacheRoot = null, cacheTtlMs = DEFAULT_CACHE_TTL_MS,
+  fetchImpl = null,
 } = {}) {
   if (!store || !root || typeof runProcess !== 'function') throw new TypeError('YouTube caption tool inputs are required');
   if (!isAbsolute(javascriptRuntime)) throw new TypeError('exact bundled JavaScript runtime path is required');
@@ -297,16 +366,31 @@ export function makeYouTubeCaptionTool({
       if (language != null && !LANGUAGE.test(language)) throw new TypeError('invalid caption language');
       const maxChars = args.maxChars == null ? DEFAULT_MAX_CHARS : Number(args.maxChars);
       if (!Number.isInteger(maxChars) || maxChars < 500 || maxChars > MAX_CHARS) throw new TypeError('invalid caption text limit');
+      const revision = status.state === 'installed' ? await store.activeRevision('yt-dlp') : null;
+      if (revision) {
+        const cached = await readCaptionCache({
+          cacheRoot, identity, requestedLanguage: language, revision, maxChars, cacheTtlMs, maxCaptionBytes,
+        });
+        if (cached) return cached;
+      }
+      if (language == null && fetchImpl) {
+        const nativeProbe = await probeYouTubeCaptionPresence({ fetchImpl, identity });
+        if (nativeProbe.state === 'absent') {
+          const cache = revision ? await writeCaptionCache({
+            cacheRoot, identity, requestedLanguage: language, revision, record: { state: 'caption_absent' }, cacheTtlMs,
+          }) : null;
+          return {
+            state: 'caption_absent', video: identity, availableLanguages: [], nativeProbe,
+            ...(cache ? { cache } : {}), sourceInvoked: true, ...executionFacts(''),
+            observed: ['identity'], missing: ['captionTrack', 'captionText', 'audio', 'frames', 'ocr'],
+          };
+        }
+      }
       if (status.state !== 'installed') return {
         state: 'not_prepared', video: identity,
         requiredCapability: { kind: 'cli', id: 'yt-dlp', toolSurface: 'video_text' },
         observed: ['identity'], missing: ['captionTrack', 'captionText', 'audio', 'frames', 'ocr'],
       };
-      const revision = await store.activeRevision('yt-dlp');
-      const cached = await readCaptionCache({
-        cacheRoot, identity, requestedLanguage: language, revision, maxChars, cacheTtlMs, maxCaptionBytes,
-      });
-      if (cached) return cached;
       await ensureSafeRoot(root);
       const work = await mkdtemp(join(root, 'caption-')); await chmod(work, 0o700);
       const binary = store.binaryPath('yt-dlp');
@@ -341,7 +425,7 @@ export function makeYouTubeCaptionTool({
           ...executionFacts(probe?.stderr), observed: ['identity'], missing: ['captionTrack', 'captionText', 'audio', 'frames', 'ocr'],
         };
         const { manual, automatic } = trackObjects(probe.stdout);
-        const availableLanguages = [...new Set([...Object.keys(manual), ...Object.keys(automatic)])].sort();
+        const availableLanguages = [...new Set([...captionLanguageKeys(manual), ...captionLanguageKeys(automatic)])].sort();
         if (availableLanguages.length === 0) {
           const cache = await writeCaptionCache({
             cacheRoot, identity, requestedLanguage: language, revision, record: { state: 'caption_absent' }, cacheTtlMs,
@@ -374,8 +458,8 @@ export function makeYouTubeCaptionTool({
         if (fetched?.code !== 0) return {
           state: 'source_failed', video: identity, reason: 'caption_fetch_failed', fetchRetried,
           failedSource: selected.source, failedLanguage: selected.language,
-          availableManualLanguages: Object.keys(manual).sort().slice(0, 50),
-          availableAutomaticLanguages: Object.keys(automatic).sort().slice(0, 50),
+          availableManualLanguages: captionLanguageKeys(manual).slice(0, 50),
+          availableAutomaticLanguages: captionLanguageKeys(automatic).slice(0, 50),
           ...executionFacts(`${probe.stderr ?? ''}\n${fetched?.stderr ?? ''}`),
           observed: ['identity', 'captionTrack'], missing: ['captionText', 'audio', 'frames', 'ocr'],
         };
