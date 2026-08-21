@@ -32,6 +32,7 @@ test('판정은 자연어 문자열 정답 대신 source·사용자 사실·교�
     const review = {
       sourceUrl: suite.sharedSource.url, outcomeType: definition.expectedOutcomeType,
       ...Object.fromEntries(USER_GROUNDED_SOCIAL_REVIEW_DIMENSIONS.map((dimension) => [dimension, true])),
+      evidence: Object.fromEntries(USER_GROUNDED_SOCIAL_REVIEW_DIMENSIONS.map((dimension) => [dimension, 'turn 1-6 evidence'])),
     };
     const turns = definition.turns.map(() => ({ answer: '사용자 목적에 맞춘 자연스러운 답변' }));
     const verdict = assessUserGroundedSocialScenario({
@@ -48,4 +49,10 @@ test('판정은 자연어 문자열 정답 대신 source·사용자 사실·교�
     turns: weak.definition.turns.map(() => ({ answer: '답변' })), capabilityInstalls: 0, review: weak.review,
   });
   assert.equal(weak.verdict.passed, false);
+  const unsupported = structuredClone(results[2]); delete unsupported.review.evidence.correctionApplied;
+  unsupported.verdict = assessUserGroundedSocialScenario({
+    definition: unsupported.definition, sourceUrl: suite.sharedSource.url,
+    turns: unsupported.definition.turns.map(() => ({ answer: '답변' })), capabilityInstalls: 0, review: unsupported.review,
+  });
+  assert.equal(unsupported.verdict.passed, false);
 });

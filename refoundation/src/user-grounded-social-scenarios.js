@@ -49,6 +49,7 @@ export function assessUserGroundedSocialScenario({ definition, sourceUrl, turns 
     sameSource: normalizeWebUrl(sourceUrl) === normalizeWebUrl(review.sourceUrl),
     expectedOutcome: review.outcomeType === definition.expectedOutcomeType,
     noCapabilityInstall: capabilityInstalls === 0,
+    reviewEvidence: REVIEW_DIMENSIONS.every((dimension) => String(review.evidence?.[dimension] ?? '').trim()),
     ...Object.fromEntries(REVIEW_DIMENSIONS.map((dimension) => [dimension, review[dimension] === true])),
   };
   return { checks, passed: Object.values(checks).every(Boolean) };
