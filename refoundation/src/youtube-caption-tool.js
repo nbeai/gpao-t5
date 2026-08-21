@@ -222,6 +222,50 @@ function executionFacts(stderr = '') {
   };
 }
 
+async function captionOutput(work, identity, maxCaptionBytes, maxChars) {
+  const entries = await readdir(work, { withFileTypes: true });
+  if (entries.length === 0) return null;
+  if (entries.length !== 1 || !entries[0].isFile() || !entries[0].name.startsWith(`${identity.videoId}.`)
+    || !entries[0].name.endsWith('.json3')) throw new Error('unexpected caption source output');
+  const path = join(work, entries[0].name); const info = await lstat(path);
+  if (!info.isFile() || info.isSymbolicLink()) throw new Error('caption output must be a regular file');
+  if (info.size > maxCaptionBytes) throw new Error('caption output is too large');
+  const bytes = await readFile(path);
+  let parsed; try { parsed = JSON.parse(bytes.toString('utf8')); }
+  catch { throw new Error('caption JSON3 is invalid'); }
+  const language = entries[0].name.slice(`${identity.videoId}.`.length, -'.json3'.length);
+  if (!LANGUAGE.test(language)) throw new Error('caption output language is invalid');
+  return { bytes, language, content: captionText(parsed, maxChars) };
+}
+
+async function captionReadResult({
+  output, selected, identity, language, revision, cacheRoot, cacheTtlMs, stderr,
+  fetchRetried = false, fastPath = false,
+}) {
+  const cache = output.content.cues ? await writeCaptionCache({
+    cacheRoot, identity, requestedLanguage: language, revision,
+    record: {
+      state: 'caption_read', source: selected.source, language: selected.language,
+      bytes: output.bytes.length, sha256: sha256(output.bytes),
+      events: output.content.events, cues: output.content.cues, transcript: output.content.complete,
+    },
+    cacheTtlMs,
+  }) : null;
+  return {
+    state: output.content.cues ? 'caption_read' : 'caption_empty', video: identity,
+    caption: {
+      source: selected.source, language: selected.language, format: 'json3',
+      bytes: output.bytes.length, sha256: sha256(output.bytes),
+      events: output.content.events, cues: output.content.cues, text: output.content.text,
+    },
+    capability: { kind: 'cli', id: 'yt-dlp', version: revision.version, digest: revision.digest },
+    execution: executionFacts(stderr), fetchRetried, fastPath,
+    sourceInvoked: true, ...(cache ? { cache } : {}),
+    observed: output.content.cues ? ['identity', 'captionTrack', 'captionText'] : ['identity', 'captionTrack'],
+    missing: output.content.cues ? ['audio', 'frames', 'ocr'] : ['captionText', 'audio', 'frames', 'ocr'],
+  };
+}
+
 export function makeYouTubeCaptionTool({
   store, root, runProcess = defaultRunProcess, maxCaptionBytes = DEFAULT_MAX_CAPTION_BYTES,
   javascriptRuntime = process.execPath, cacheRoot = null, cacheTtlMs = DEFAULT_CACHE_TTL_MS,
@@ -271,6 +315,23 @@ export function makeYouTubeCaptionTool({
         '--js-runtimes', `node:${javascriptRuntime}`,
       ];
       try {
+        if (language == null) {
+          const fast = await runProcess({
+            path: binary, cwd: work, signal: context.signal,
+            args: [
+              ...baseArgs, '--no-overwrites', '--write-subs', '--sub-langs', 'en',
+              '--sub-format', 'json3', '--output', join(work, '%(id)s.%(ext)s'), identity.canonicalUrl,
+            ],
+          });
+          if (fast?.code === 0) {
+            const output = await captionOutput(work, identity, maxCaptionBytes, maxChars);
+            if (output) return captionReadResult({
+              output, selected: { source: 'manual', language: output.language },
+              identity, language, revision, cacheRoot, cacheTtlMs, stderr: fast.stderr, fastPath: true,
+            });
+          }
+          await clearTemporaryWork(work);
+        }
         const probe = await runProcess({
           path: binary, cwd: work, signal: context.signal,
           args: [...baseArgs, '--print', '%(subtitles)j', '--print', '%(automatic_captions)j', identity.canonicalUrl],
@@ -318,39 +379,12 @@ export function makeYouTubeCaptionTool({
           ...executionFacts(`${probe.stderr ?? ''}\n${fetched?.stderr ?? ''}`),
           observed: ['identity', 'captionTrack'], missing: ['captionText', 'audio', 'frames', 'ocr'],
         };
-        const entries = await readdir(work, { withFileTypes: true });
-        if (entries.length !== 1 || !entries[0].isFile() || !entries[0].name.startsWith(`${identity.videoId}.`)
-          || !entries[0].name.endsWith('.json3')) throw new Error('unexpected caption source output');
-        const path = join(work, entries[0].name); const info = await lstat(path);
-        if (!info.isFile() || info.isSymbolicLink()) throw new Error('caption output must be a regular file');
-        if (info.size > maxCaptionBytes) throw new Error('caption output is too large');
-        const bytes = await readFile(path);
-        let parsed; try { parsed = JSON.parse(bytes.toString('utf8')); }
-        catch { throw new Error('caption JSON3 is invalid'); }
-        const content = captionText(parsed, maxChars);
-        const cache = content.cues ? await writeCaptionCache({
-          cacheRoot, identity, requestedLanguage: language, revision,
-          record: {
-            state: 'caption_read', source: selected.source, language: selected.language,
-            bytes: bytes.length, sha256: sha256(bytes), events: content.events, cues: content.cues,
-            transcript: content.complete,
-          },
-          cacheTtlMs,
-        }) : null;
-        return {
-          state: content.cues ? 'caption_read' : 'caption_empty', video: identity,
-          caption: {
-            source: selected.source, language: selected.language, format: 'json3',
-            bytes: bytes.length, sha256: sha256(bytes), events: content.events, cues: content.cues,
-            text: content.text,
-          },
-          capability: { kind: 'cli', id: 'yt-dlp', version: revision.version, digest: revision.digest },
-          execution: executionFacts(`${probe.stderr ?? ''}\n${fetched.stderr ?? ''}`),
-          fetchRetried,
-          sourceInvoked: true, ...(cache ? { cache } : {}),
-          observed: content.cues ? ['identity', 'captionTrack', 'captionText'] : ['identity', 'captionTrack'],
-          missing: content.cues ? ['audio', 'frames', 'ocr'] : ['captionText', 'audio', 'frames', 'ocr'],
-        };
+        const output = await captionOutput(work, identity, maxCaptionBytes, maxChars);
+        if (!output) throw new Error('caption source produced no file');
+        return captionReadResult({
+          output, selected, identity, language, revision, cacheRoot, cacheTtlMs,
+          stderr: `${probe.stderr ?? ''}\n${fetched.stderr ?? ''}`, fetchRetried,
+        });
       } finally { await rm(work, { recursive: true, force: true }); }
     },
   };

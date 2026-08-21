@@ -64,6 +64,37 @@
     "newSessionSourceCalls": 0,
     "remoteVideoIdDisclosure": 0
   },
+  "humanDevConsoleMeasurement": {
+    "beforeManualFirst": {
+      "firstRunWallMs": 143476,
+      "firstInstallMs": 19315,
+      "automaticFailureMs": 42095,
+      "manualCaptionMs": 28991,
+      "secondRunWallMs": 96262
+    },
+    "afterManualFirstAndCache": {
+      "firstRunWallMs": 60997,
+      "firstManualCaptionMs": 28836,
+      "secondNewSessionWallMs": 20364,
+      "secondCacheMs": 68,
+      "secondModelMs": 20091
+    }
+  },
+  "nativeSourceInvestigation": {
+    "watchPage": {"captionPresentMs":699,"captionAbsentMs":815,"trackIdentityWorked":true},
+    "rawTimedtext": {"status":200,"bytes":0,"formatsTested":["original","json3","vtt"]},
+    "ytDlpUrlDifference": {"differentValues":["ei","expire","hl","signature","sparams"],"requiresDifferentPlayerClient":true},
+    "decision": "do not reimplement YouTube player client and signature compatibility"
+  },
+  "manualFastPath": {
+    "strategy": "language null tries one manual English subtitle-only process before the precise track probe",
+    "fallback": "if no regular JSON3 file is produced, clear temporary output and use the existing precise track flow",
+    "realFirstMs": 10470,
+    "previousFirstMs": 28836,
+    "realCacheHitMs": 39,
+    "events": 466,
+    "mediaDownloaded": false
+  },
   "fixtureJourney": {
     "firstRunTools": ["video_text:not_prepared","cli_prepare:install","video_text:caption_read"],
     "newSessionTools": ["video_text:caption_read"],

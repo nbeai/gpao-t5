@@ -1767,6 +1767,11 @@ Non-goals:
 - fixture 인간 흐름: 첫 Run `video_text→cli_prepare→video_text`, 새 Session `video_text`만, download 1회
 - youtube-transcript.ai 비교 실측: 첫 2.14초 MISS→재요청 0.72초 HIT; 같은 원리를 외부 의존 없이 로컬 24시간
   cache로 적용하고 실제 반환 언어를 보존
+- 실제 인간 개발 콘솔: 143.5초→manual-first 61.0초, 새 Session 96.3초→cache 20.4초(자막 cache 68ms,
+  나머지 대부분 모델 20.1초)
+- native caption URL은 watch identity를 0.7~0.9초에 찾았지만 signed timedtext가 200/0 bytes였고 yt-dlp URL의
+  `ei·expire·hl·signature·sparams`가 달라 별도 player client 재구현을 폐기
+- manual English 단일 프로세스 fast path 실물 10.47초(기존 28.84초), 같은 자막 local cache 39ms
 - 단위·경계·전체 회귀 418/418, legacy import 0
 - 실제 설치 상태·연결 모델 종단은 새 managed CLI의 실제 사용자 영역 준비와 모델 사용에 대한 별도 명시 승인 대기
 - 증거: `refoundation/evidence/u1-g3-managed-youtube-captions-2026-08-21.json`

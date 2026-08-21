@@ -69,6 +69,22 @@ test('manual 자막을 automatic보다 먼저 선택하고 bounded JSON3 사실�
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 
+test('일반 요약의 language null은 manual English 단일 프로세스 fast path를 먼저 쓴다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-youtube-caption-fast-'));
+  const calls = [];
+  try {
+    const tool = makeYouTubeCaptionTool({ root: room, store: installedStore, runProcess: async ({ args, cwd }) => {
+      calls.push([...args]);
+      await writeFile(join(cwd, 'M7lc1UVf-VE.en.json3'), json3(['fast manual caption']), { mode: 0o600 });
+      return { code: 0, stdout: '', stderr: '' };
+    } });
+    const result = await tool.execute({ action: 'read', url: video, language: null, maxChars: 1000 });
+    assert.equal(result.state, 'caption_read'); assert.equal(result.caption.source, 'manual');
+    assert.equal(result.caption.language, 'en'); assert.equal(result.fastPath, true); assert.equal(calls.length, 1);
+    assert.ok(calls[0].includes('--write-subs')); assert.ok(!calls[0].includes('--print'));
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
 test('요청 언어의 manual이 없을 때만 automatic을 쓰고, 언어가 없으면 다른 언어로 바꾸지 않는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-youtube-caption-auto-'));
   const calls = [];
@@ -97,7 +113,7 @@ test('자막 absent는 파일과 audio 관측 없이 정직하게 멈춘다', as
       runProcess: async () => (calls += 1, { code: 0, stdout: 'NA\nNA\n', stderr: '' }),
     });
     const result = await tool.execute({ action: 'read', url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ', language: null, maxChars: 1000 });
-    assert.equal(result.state, 'caption_absent'); assert.equal(calls, 1);
+    assert.equal(result.state, 'caption_absent'); assert.equal(calls, 2);
     assert.deepEqual(result.observed, ['identity']);
     assert.ok(result.missing.includes('captionText')); assert.ok(result.missing.includes('audio'));
     assert.deepEqual(await readdir(room), []);
