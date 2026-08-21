@@ -1,0 +1,62 @@
+{
+  "schema": "t5.user-grounded-social-scenarios.v1",
+  "scope": {
+    "representativeOfUsers": false,
+    "purpose": "prove_same_source_different_user_goal_analysis",
+    "analysisTargetsComeFrom": "current_user_business_taste_goal_and_corrections"
+  },
+  "sharedSource": {
+    "platform": "facebook",
+    "url": "https://www.facebook.com/ZUSCoffeeMY/posts/were-changing-our-operating-hours-would-you-like-your-coffee-from1-7am-11pm2-8am/887379952660846/",
+    "observed": ["identity", "text", "metrics", "visible_comments"],
+    "missing": ["all_759_comments", "complete_reply_threads", "media_pixels", "audio"],
+    "facts": {
+      "postQuestion": "7AM-11PM or 8AM-10PM",
+      "reactions": "1.2천",
+      "commentCount": 759,
+      "shareCount": 13,
+      "visibleThemes": ["출근 전 구매", "밤 수요 감소", "직원 휴식", "상권별 차등 운영", "배달 지연"]
+    }
+  },
+  "scenarios": [
+    {
+      "id": "office-cafe-hours",
+      "title": "출근 상권 카페의 영업시간 실험",
+      "expectedOutcomeType": "operating-hours-experiment",
+      "turns": [
+        {"kind":"context","prompt":"나는 오피스 상권에서 작은 카페를 운영해. 직원은 두 명이고 아침 매출을 늘릴지 고민 중이야. 이 게시물에서 우리에게 중요한 것부터 봐줘."},
+        {"kind":"analysis","prompt":"댓글 수가 많다는 이유만으로 7시 오픈이 정답이라고 보면 될까? 실제로 보인 반응과 네 해석을 나눠줘."},
+        {"kind":"constraint","prompt":"평일 손님은 출근 직장인이 많고, 지금은 8시에 열어. 직원 한 명이 아침 준비를 맡아야 해."},
+        {"kind":"correction","prompt":"주말은 오피스 손님이 거의 없으니 평일과 같은 결론으로 묶지 말아줘."},
+        {"kind":"challenge","prompt":"매출보다 직원 피로가 더 중요할 수도 있어. 내가 먼저 확인해야 할 숫자는 뭐야?"},
+        {"kind":"final","prompt":"당장 영업시간을 바꾸지는 말고, 2주 동안 작게 검증할 방법과 중단 기준까지 정리해줘."}
+      ]
+    },
+    {
+      "id": "minimal-jewelry-content",
+      "title": "미니멀 주얼리 브랜드의 참여형 콘텐츠 실험",
+      "expectedOutcomeType": "content-choice-post-experiment",
+      "turns": [
+        {"kind":"context","prompt":"나는 온라인 미니멀 주얼리 브랜드를 운영해. 이 카페 게시물에서 제품이 아니라 고객 반응을 만드는 방식만 배워보고 싶어."},
+        {"kind":"analysis","prompt":"사람들이 많이 답한 이유를 실제 게시물 구조와 보이는 댓글 근거로 설명해줘. 커피 업종 성공 공식을 만들지는 마."},
+        {"kind":"constraint","prompt":"우리 고객은 말투가 과하거나 이모지가 많은 콘텐츠를 싫어해. 브랜드 톤은 차분하고 간결해."},
+        {"kind":"correction","prompt":"할인이나 경품으로 참여를 끌 생각은 없어. 그 방향의 제안은 빼줘."},
+        {"kind":"challenge","prompt":"팔로워가 아직 적은데 선택지를 묻는 방식이 정말 의미가 있을까? 확인할 수 있는 작은 신호를 알려줘."},
+        {"kind":"final","prompt":"반지 신제품을 예로 들어 서로 다른 참여형 게시물 실험 3개와, 어떤 결과면 계속할지 정리해줘."}
+      ]
+    },
+    {
+      "id": "local-business-consulting-brief",
+      "title": "병원 상권 카페를 위한 근거 제한 사례 브리프",
+      "expectedOutcomeType": "evidence-limited-client-brief",
+      "turns": [
+        {"kind":"context","prompt":"나는 소상공인 컨설턴트야. 이 게시물을 카페 고객에게 보여줄 사례로 쓸 수 있는지 검토해줘."},
+        {"kind":"analysis","prompt":"게시물에서 직접 확인한 사실, 화면에 보인 댓글 표본, 네 해석을 서로 섞지 말고 나눠줘."},
+        {"kind":"constraint","prompt":"댓글은 759개라지만 우리가 실제로 전부 본 건 아니잖아. 대표성 한계를 먼저 짚어줘."},
+        {"kind":"correction","prompt":"내 고객은 오피스가 아니라 병원 앞 카페야. 출근길 수요를 그대로 적용하지 마."},
+        {"kind":"challenge","prompt":"이 사례를 잘못 일반화하면 어떤 운영 위험이 생길까? 고객에게 추가로 물을 질문도 골라줘."},
+        {"kind":"final","prompt":"고객 미팅에서 쓸 수 있게 사례에서 배울 점, 적용하면 안 되는 점, 현장 검증 질문을 한 장 브리프로 정리해줘."}
+      ]
+    }
+  ]
+}
