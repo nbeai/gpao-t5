@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import { loadSkillSnapshot, mergeSkillSnapshots } from '../src/skill-runtime.js';
-import { ManagedSkillStore } from '../src/managed-skill-store.js';
+import { ManagedSkillStore, makeSkillAcquisitionTool } from '../src/managed-skill-store.js';
 import { loadSkillPolicyCatalog } from '../src/skill-policy-catalog.js';
 
 const packages = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'skill-packages');
@@ -31,5 +31,24 @@ test('검증된 text-only 방법은 T5 관리 root에 0600 설치되고 제거·
     const restricted = await store.install('himalaya-email');
     assert.equal(restricted.state, 'explicit_selection_required');
     assert.equal(restricted.policy.selection, 'restricted_selected');
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('사용자는 패키지 이름을 몰라도 현재 작업 방법을 보고 복구 가능한 보관·복원을 할 수 있다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-managed-skill-list-'));
+  try {
+    const catalog = await loadSkillSnapshot({ directory: packages });
+    const policyCatalog = await loadSkillPolicyCatalog(policyFile);
+    const store = new ManagedSkillStore({ root: room, catalogSnapshot: catalog, policyCatalog });
+    const tool = makeSkillAcquisitionTool({ store, catalogSnapshot: catalog });
+    await store.install('xurl');
+    const before = await tool.execute({ action: 'list', name: null, effect: null });
+    assert.equal(before.skills.find((skill) => skill.name === 'xurl').installed, true);
+    await tool.execute({ action: 'remove', name: 'xurl', effect: null });
+    assert.equal((await tool.execute({ action: 'list', name: null, effect: null }))
+      .skills.find((skill) => skill.name === 'xurl').installed, false);
+    await tool.execute({ action: 'restore', name: 'xurl', effect: null });
+    assert.equal((await tool.execute({ action: 'list', name: null, effect: null }))
+      .skills.find((skill) => skill.name === 'xurl').installed, true);
   } finally { await rm(room, { recursive: true, force: true }); }
 });

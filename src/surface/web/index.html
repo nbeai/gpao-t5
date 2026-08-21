@@ -130,12 +130,12 @@
   .sess .sess-status.running { color:var(--accent); background:var(--accent-subtle); }
   .sess .sess-status.error { color:var(--danger); background:var(--danger-subtle); }
   /* P2-4a 목록 정리: 평소엔 조용히 있다가 마우스를 올리면 나타난다(설정판처럼 무겁지 않게) */
-  .sess .pin { flex:none; font-size:12px; opacity:.85; }
-  .sess .origin { flex:none; font-size:12px; opacity:.9; }
+  .sess .pin { flex:none; font-size:14px; opacity:.85; }
+  .sess .origin { flex:none; font-size:14px; opacity:.9; }
   /* **숨기지 않는다.** opacity:0 으로 감추면 hover 가 없는 터치 기기에서는 메뉴를 열 방법이 아예 없다.
      평소엔 옅게 두고 마우스를 올리거나 초점이 가면 또렷해진다. */
-  .sess .more { flex:none; color:var(--faint); cursor:pointer; opacity:.5; padding:0 4px; font-size:14px; line-height:1;
-    background:none; border:0; font-family:inherit; min-width:22px; min-height:22px; }
+  .sess .more { flex:none; color:var(--faint); cursor:pointer; opacity:.58; padding:0 4px; font-size:18px; line-height:1;
+    background:none; border:0; font-family:inherit; min-width:28px; min-height:28px; }
   .sess .more:focus-visible, .sess:focus-visible { opacity:1; outline:2px solid var(--accent, #8a7); outline-offset:1px; }
   .sess:hover .more, .sess.menu-open .more { opacity:1; }
   .sess .more:hover { color:var(--fg); }
@@ -160,7 +160,7 @@
     cursor:pointer; padding:3px 8px; border-radius:var(--r-sm); }
   .selbar button:hover { background:var(--hover); }
   .selbar button.warn { color:var(--danger, #e5534b); }
-  .sess .chk { flex:none; width:14px; height:14px; margin-right:2px; accent-color:var(--dot, #7a8); }
+  .sess .chk { flex:none; width:16px; height:16px; margin-right:2px; accent-color:var(--dot, #7a8); }
   .sechead { display:flex; align-items:center; gap:6px; width:100%; background:none; border:0; cursor:pointer;
     color:var(--faint); font:inherit; font-size:var(--fs-xs); letter-spacing:.04em; padding:var(--sp-2) var(--sp-3) 4px; }
   .sechead:hover { color:var(--muted); }
@@ -1741,9 +1741,12 @@ const SET_RENDER = {
     box.appendChild(mk('div', 'tb-name', '스킬'));
     try {
       const { skills } = await (await fetch('/skills')).json();
-      if (!skills?.length) box.appendChild(mk('div', 'tb-hint', '아직 배운 스킬이 없어요. 같은 작업이 반복되면 후보로 제안돼요 — 자동으로 켜지지는 않아요.'));
+      if (!skills?.length) box.appendChild(mk('div', 'tb-hint', '현재 사용할 수 있는 작업 방법이 없어요.'));
       for (const sk of skills ?? []) {
-        const row = mk('div', 'tb-hint', `${sk.label ?? sk.id} — ${sk.state === 'admitted' ? '활성화됨' : sk.state === 'candidate' || sk.state === 'replay_required' ? '추천됨(아직 아님)' : sk.state}`);
+        const stateText = sk.state === 'admitted' ? '사용 중'
+          : sk.state === 'available' ? '필요할 때 준비'
+            : sk.state === 'candidate' || sk.state === 'replay_required' ? '추천됨(아직 아님)' : sk.state;
+        const row = mk('div', 'tb-hint', `${sk.label ?? sk.id} — ${stateText}`);
         if (sk.state === 'candidate' || sk.state === 'replay_required') {
           const b = document.createElement('button'); b.className = 'tb-test'; b.textContent = '승인';
           b.onclick = async () => { await fetch(`/skills/${sk.id}/approve`, { method: 'POST' }); SET_RENDER.skills(); };
@@ -1860,20 +1863,21 @@ const SET_RENDER = {
         : '없음';
       rows.className = 'ov';
       rows.innerHTML = [
-        `<div class="ov-row"><span class="ov-on">반영 중 선호</span> <span class="ov-k">${actsHtml(o.preferences.reflected, [['rollback-memory', '되돌리기']], 'statement')}</span></div>`,
+        `<div class="ov-row"><span class="ov-on">반영 중 선호</span> <span class="ov-k">${actsHtml(o.preferences.reflected, [['rollback-memory', '잊기']], 'statement')}</span></div>`,
         `<div class="ov-row"><span class="ov-off">확인 대기</span> <span class="ov-k">${actsHtml(o.preferences.pending, [['confirm-pref', '확인(반영)'], ['reject-memory', '지우기']], 'statement')}</span></div>`,
-        `<div class="ov-row"><span class="ov-on">반영 중 기억</span> <span class="ov-k">${actsHtml(o.memories.reflected, [['rollback-memory', '되돌리기']], 'statement')}</span></div>`,
+        `<div class="ov-row"><span class="ov-on">반영 중 기억</span> <span class="ov-k">${actsHtml(o.memories.reflected, [['rollback-memory', '잊기']], 'statement')}</span></div>`,
       ].join('');
       box.appendChild(rows);
       // S5-5 · **하나의 목록**을 그대로 그린다. 상태를 화면에서 다시 계산하지 않는다 —
       // 그러면 서버와 화면이 다른 말을 하게 된다.
       try {
         const st = await (await fetch('/memory/state')).json();
-        const 이름 = { preference: '선호', operating_principle: '원리', lane: '이어받을 작업' };
+        const 이름 = { user: '선호', work: '이어받을 작업', preference: '선호', operating_principle: '원리', lane: '이어받을 작업' };
         const 상태말 = {
           active: '쓰이는 중', pinned: '붙들어 둠', archived: '치워 둠', decayed: '내려감',
         };
         const 버튼 = (it) => {
+          if (!it.manageable) return '';
           const b = [];
           if (it.state === 'archived' || it.state === 'decayed') b.push(['restore-memory', '되돌리기']);
           else {
@@ -1885,11 +1889,14 @@ const SET_RENDER = {
         const 성장 = document.createElement('div');
         성장.className = 'ov';
         성장.innerHTML = (st.items ?? []).length
-          ? (st.items ?? []).map((it) => `<div class="ov-row"><span class="${it.state === 'active' || it.state === 'pinned' ? 'ov-on' : 'ov-off'}">${esc(이름[it.kind] ?? it.kind)} · ${esc(상태말[it.state] ?? it.state)}</span> <span class="ov-k">${esc(it.statement ?? '')} ${버튼(it)}</span></div>`).join('')
+          ? (st.items ?? []).map((raw) => { const it = {
+            ...raw, id: raw.id ?? raw.memoryId, statement: raw.statement ?? raw.content,
+            state: raw.state ?? 'active', manageable: raw.id != null && raw.state != null,
+          }; return `<div class="ov-row"><span class="${it.state === 'active' || it.state === 'pinned' ? 'ov-on' : 'ov-off'}">${esc(이름[it.kind] ?? it.kind)} · ${esc(상태말[it.state] ?? it.state)}</span> <span class="ov-k">${esc(it.statement ?? '')} ${버튼(it)}</span></div>`; }).join('')
           : '<div class="ov-row"><span class="ov-off">아직 없음</span></div>';
         box.appendChild(mk('div', 'tb-name', '기억·원리·이어받을 작업'));
         box.appendChild(성장);
-        box.appendChild(mk('div', 'tb-hint', '치우거나 내려간 것은 지워지지 않아요 — 언제든 되돌릴 수 있고, 붙들어 두면 자동으로 내려가지 않아요.'));
+        box.appendChild(mk('div', 'tb-hint', '기억을 바꾸거나 지우고 싶으면 대화에서 평소 말로 알려 주세요. 과거 대화는 그대로 남아요.'));
       } catch { box.appendChild(mk('div', 'tb-hint', '기억 상태를 불러오지 못했어요.')); }
 
       const led = await (await fetch('/memory/ledger')).json().catch(() => ({ entries: [] }));
@@ -2590,12 +2597,12 @@ function renderOverview(o) {
   el.innerHTML = [
     sec('연결', row('ov-on', '받을 준비됨', list(o.connections.ready, (c) => c.label)) + row('ov-off', '연결/로그인 필요', list(o.connections.notReady, (c) => c.label))),
     sec('스킬', row('ov-on', '활성화됨', list(o.skills.active, (s) => s.label)) + row('ov-off', '추천됨(아직 아님)', acts(o.skills.recommended, 'approve-skill', (s) => s.label, '승인'))),
-    sec('선호', row('ov-on', '반영 중', acts(o.preferences.reflected, 'rollback-memory', (x) => x.statement, '되돌리기')) // 반영하기와 같은 수준의 되돌리기
+    sec('선호', row('ov-on', '반영 중', acts(o.preferences.reflected, 'rollback-memory', (x) => x.statement, '잊기'))
       + row('ov-off', '확인 대기', acts2(o.preferences.pending, [['confirm-pref', '확인(반영)'], ['reject-memory', '지우기']], (x) => x.statement))
       + row('ov-off', '추정됨(반영 안 함)', list(o.preferences.inferred, (x) => x.statement))), // 추정은 액션 없음(읽기 전용)
     sec('전달', row('ov-on', `보냄 ${o.deliveries.deliveredCount}건`, '') + row('ov-off', '전달 실패(다시 보낼 수 있어요)', acts(o.deliveries.failed, 'retry-delivery', (d) => d.target || d.label, '다시 보내기'))),
     // 검색으로 반영한 기억도 같은 자리서 되돌린다(선호 되돌리기와 같은 수준).
-    sec('기억', row('ov-on', '반영 중', acts(o.memories.reflected, 'rollback-memory', (m) => m.statement, '되돌리기'))),
+    sec('기억', row('ov-on', '반영 중', acts(o.memories.reflected, 'rollback-memory', (m) => m.statement, '잊기'))),
   ].join('');
 }
 

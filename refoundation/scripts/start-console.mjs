@@ -143,17 +143,36 @@ if (!process.argv.includes('--no-open')) {
   spawn(opener, [url], { stdio: 'ignore', detached: true, shell: process.platform === 'win32' }).unref();
 }
 
+let stopping = false;
+async function boundedShutdown(work, timeoutMs = 2_500) {
+  let timer;
+  await Promise.race([
+    Promise.resolve().then(work).catch(() => {}),
+    new Promise((resolveTimeout) => {
+      timer = setTimeout(resolveTimeout, timeoutMs);
+      timer.unref?.();
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
 const stop = async () => {
+  if (stopping) return;
+  stopping = true;
   server.closeWakeStreams();
   server.closeModelConnections();
-  await server.closeMessengers();
-  await server.closeBrowsers();
-  await server.closeWorkspaceConnections();
-  await server.managedProcesses.stopAll('runtime_shutdown');
-  server.close(async () => {
-    if (portFile) await rm(portFile, { force: true }).catch(() => {});
-    process.exit(0);
-  });
+  await Promise.all([
+    boundedShutdown(() => server.closeMessengers()),
+    boundedShutdown(() => server.closeBrowsers()),
+    boundedShutdown(() => server.closeWorkspaceConnections()),
+    boundedShutdown(() => server.managedProcesses.stopAll('runtime_shutdown')),
+  ]);
+  await boundedShutdown(() => new Promise((resolveClose) => {
+    server.close(resolveClose);
+    server.closeIdleConnections?.();
+    server.closeAllConnections?.();
+  }), 1_000);
+  if (portFile) await rm(portFile, { force: true }).catch(() => {});
+  process.exit(0);
 };
 process.once('SIGINT', stop);
 process.once('SIGTERM', stop);

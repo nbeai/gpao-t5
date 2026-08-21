@@ -40,15 +40,19 @@ export class ManagedSkillStore {
 export function makeSkillAcquisitionTool({ store, catalogSnapshot, authorizeEffect } = {}) {
   if (!store || !catalogSnapshot) throw new TypeError('skill acquisition inputs are required');
   const catalogTool = makeSkillTool({ snapshot: catalogSnapshot, catalogMode: 'on-demand' });
-  return { name: 'capability_prepare', description: 'Search and prepare trusted bundled procedural methods only after skill search shows that no installed method can complete the goal. Never install a package already marked installed; use skill search/view instead. These packages contain SKILL.md text only, no executable code. Install is a reversible T5-managed local change and returns the method content for immediate use. Never call this for arbitrary URLs, packages, or commands.',
+  return { name: 'capability_prepare', description: 'Search, list, prepare, archive, or restore trusted bundled procedural methods. Use action=list when the user asks what methods are active or asks to archive/restore a method without naming its package ID; then use remove for a recoverable archive or restore to bring it back and verify with list. Only install after skill search shows that no installed method can complete the goal. Never install a package already marked installed; use skill search/view instead. These packages contain SKILL.md text only, no executable code. Install and remove are reversible T5-managed local changes. Never call this for arbitrary URLs, packages, or commands.',
     parameters: { type: 'object', additionalProperties: false, properties: {
-      action: { type: 'string', enum: ['search', 'preview', 'install', 'remove', 'restore'] },
+      action: { type: 'string', enum: ['list', 'search', 'preview', 'install', 'remove', 'restore'] },
       name: { type: ['string', 'null'] }, effect: { anyOf: [EFFECT_SCHEMA, { type: 'null' }] },
     }, required: ['action', 'name', 'effect'] },
-    async preflight(args, context) { if (['search', 'preview'].includes(args.action)) return { allowed: true };
+    async preflight(args, context) { if (['list', 'search', 'preview'].includes(args.action)) return { allowed: true };
       if (args.effect?.kind !== 'local_change' || args.effect?.reversible !== true) return { allowed: false, outcome: 'not_executed', result: { state: 'reversible_local_change_required' } };
       return typeof authorizeEffect === 'function' ? authorizeEffect(args, context) : { allowed: true }; },
-    async execute(args) { if (args.action === 'search') { const result = await catalogTool.execute({ action: 'search', name: args.name });
+    async execute(args) { if (args.action === 'list') { const installed = new Set(await store.installedNames());
+        return { state: 'listed', skills: store.catalog.skills.map((skill) => ({
+          ...skill, installed: installed.has(skill.name), policy: store.entry(skill.name).policy,
+        })) }; }
+      if (args.action === 'search') { const result = await catalogTool.execute({ action: 'search', name: args.name });
         const installed = new Set(await store.installedNames()); return { ...result, skills: result.skills.map((skill) => ({ ...skill, installed: installed.has(skill.name), policy: store.entry(skill.name).policy })) }; }
       if (args.action === 'preview') { const entry = store.entry(args.name); return { state: 'previewed', ...entry.metadata, policy: entry.policy, codeExecution: false }; }
       if (args.action === 'install') return store.install(args.name); if (args.action === 'remove') return store.remove(args.name);

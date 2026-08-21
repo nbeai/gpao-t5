@@ -285,6 +285,24 @@ export function makeConsoleServer({
     ...(cliVerifyExecutable ? { verifyExecutable: cliVerifyExecutable } : {}),
   }));
 
+  async function skillSurface() {
+    const [bundled, packages, policy, store] = await Promise.all([
+      loadSkillSnapshot({ directory: skillsRoot }), skillPackageSnapshotPromise,
+      skillPolicyCatalogPromise, managedSkillStorePromise,
+    ]);
+    const activeManaged = new Set(await store.installedNames());
+    const byName = new Map([...bundled.skills, ...packages.skills].map((skill) => [skill.name, skill]));
+    return policy.entries.map((entry) => {
+      const skill = byName.get(entry.name);
+      const active = entry.activeByDefault || activeManaged.has(entry.name);
+      return {
+        id: entry.name, label: entry.name, description: skill?.description ?? '',
+        state: active ? 'admitted' : 'available', selection: entry.selection,
+        active, contentDigest: skill?.contentDigest ?? null,
+      };
+    });
+  }
+
   async function browserDriver(sessionId) {
     if (typeof browserDriverFactory !== 'function') return null;
     if (!browserDrivers.has(sessionId)) {
@@ -294,10 +312,15 @@ export function makeConsoleServer({
   }
 
   async function closeBrowserDrivers() {
-    await Promise.all([...browserDrivers.values()].map(async (driver) => {
-      try { await driver.close?.(); } catch { /* already closed */ }
-    }));
+    const drivers = [...browserDrivers.values()];
     browserDrivers.clear();
+    await Promise.all(drivers.map(async (driver) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2_000);
+      timer.unref?.();
+      try { await driver.close?.({ signal: controller.signal }); } catch { /* already closed or timed out */ }
+      finally { clearTimeout(timer); }
+    }));
   }
 
   async function recoverSession({ sessionId, mode, recoveryId = null }) {
@@ -1842,9 +1865,38 @@ export function makeConsoleServer({
         const allowed = await messengerState.allow(provider, input);
         json(res, 200, { allowed, userSafeSummary: '이 사람의 메시지를 받기 시작했어요.' }); return;
       }
-      if (req.method === 'GET' && url.pathname === '/skills') { json(res, 200, { skills: [] }); return; }
+      if (req.method === 'GET' && url.pathname === '/skills') {
+        json(res, 200, { skills: await skillSurface() }); return;
+      }
       if (req.method === 'GET' && url.pathname === '/automation') { json(res, 200, { jobs: [], candidates: [] }); return; }
-      if (req.method === 'GET' && url.pathname === '/overview') { json(res, 200, {}); return; }
+      if (req.method === 'GET' && url.pathname === '/overview') {
+        await memories.ensure();
+        const memory = await memories.read();
+        const reflected = memory.items.map((item) => ({
+          id: item.memoryId, statement: item.content, kind: item.kind,
+        }));
+        const [connectionReport, skills] = await Promise.all([
+          connectionDoctor.inspect(), skillSurface(),
+        ]);
+        const connections = connectionReport.connections.map((connection) => ({
+          id: connection.id, label: connection.label, state: connection.state,
+        }));
+        json(res, 200, {
+          connections: {
+            ready: connections.filter((item) => ['connected', 'ready'].includes(item.state)),
+            notReady: connections.filter((item) => !['connected', 'ready'].includes(item.state)),
+          },
+          skills: {
+            active: skills.filter((item) => item.active),
+            recommended: skills.filter((item) => item.state === 'candidate'),
+          },
+          preferences: {
+            reflected: reflected.filter((item) => item.kind === 'user'), pending: [], inferred: [],
+          },
+          deliveries: { deliveredCount: 0, failed: [] },
+          memories: { reflected: reflected.filter((item) => item.kind === 'work') },
+        }); return;
+      }
       if (req.method === 'GET' && url.pathname === '/memory/state') {
         await memories.ensure();
         const memory = await memories.read();
@@ -1854,6 +1906,18 @@ export function makeConsoleServer({
         await memories.ensure();
         const memory = await memories.read();
         json(res, 200, { entries: memory.events }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/memory/rollback') {
+        const input = await body(req);
+        await memories.ensure();
+        const removed = await memories.remove({
+          memoryId: input.candidateId, source: { origin: 'settings', action: 'forget' },
+        });
+        json(res, 200, {
+          ok: true, removed: { id: removed.memoryId, kind: removed.kind },
+          receiptWritten: true,
+          userSafeSummary: '이 기억을 현재 목록에서 지웠어요. 과거 대화는 그대로 남아요.',
+        }); return;
       }
       const workspaceConnectionAction = req.method === 'POST' && url.pathname.match(
         /^\/connections\/([a-z0-9-]+)\/(start|await|action|check|cancel|disconnect)$/u,
@@ -1957,6 +2021,7 @@ export function makeConsoleServer({
   server.runLedger = runLedger;
   server.authorityStore = authority;
   server.managedCliStore = managedCliStorePromise;
+  server.managedSkillStore = managedSkillStorePromise;
   server.runtimeInstanceId = runtimeInstanceId;
   server.unsubscribeTerminalWake = unsubscribeTerminal;
   server.closeWakeStreams = () => {
