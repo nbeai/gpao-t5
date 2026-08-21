@@ -75,7 +75,8 @@ test('공용 T5 브라우저를 쓰는 대화들은 같은 CDP·프로필 신분
 
 test('공용 브라우저 로그인은 실제 창을 앞으로 가져오고 완료 뒤 브라우저를 닫지 않는다', async () => {
   const calls = [];
-  let secretFields = 1;
+  const secretFields = 1;
+  let visibleSecretFields = 1;
   let activations = 0;
   const host = {
     profile: { id: 'default', kind: 'managed_persistent', selected: true },
@@ -86,7 +87,9 @@ test('공용 브라우저 로그인은 실제 창을 앞으로 가져오고 완�
     ownerId: 'login-owner', outputDirectory: '/private/tmp/login-owner', browserHost: host,
     run: async (args) => {
       const command = args.slice(args.indexOf('--json') + 1); calls.push(command);
-      if (command[0] === 'get') return { exitCode: 0, stderr: '', stdout: JSON.stringify({ success: true, data: { count: secretFields } }) };
+      if (command[0] === 'get') return { exitCode: 0, stderr: '', stdout: JSON.stringify({
+        success: true, data: { count: String(command[2] ?? '').includes(':visible') ? visibleSecretFields : secretFields },
+      }) };
       if (command[0] === 'tab') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabs":[{"tabId":"t1","url":"https://example.com/dashboard","active":true}]}}' };
       if (command[0] === 'snapshot') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabId":"t1","url":"https://example.com/dashboard","snapshot":"dashboard","refs":{}}}' };
       return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabId":"t1","url":"https://example.com/login"}}' };
@@ -96,10 +99,12 @@ test('공용 브라우저 로그인은 실제 창을 앞으로 가져오고 완�
   assert.equal(started.handoff.visible, true);
   assert.equal(started.handoff.canReveal, true);
   assert.equal(activations, 1);
-  secretFields = 0;
+  visibleSecretFields = 0;
   const completed = await driver.loginStatus({ tabId: 't1' });
   assert.equal(completed.state, 'handoff_complete_candidate');
   assert.equal(completed.handoff.resumedHeadless, false);
+  assert.equal(secretFields, 1, '페이지 어딘가의 숨은 비밀번호 input은 남아 있어도 된다');
+  assert.ok(calls.some((command) => command[0] === 'get' && String(command[2]).includes(':visible')));
   assert.equal(calls.some((command) => command[0] === 'close'), false);
   assert.equal((await driver.revealUserLogin()).visible, false, '완료된 handoff는 다시 보일 현재 창이 아니다');
 });

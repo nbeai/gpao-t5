@@ -14,7 +14,7 @@ const DEFAULT_DOWNLOAD_POLL_MS = 100;
 const DEFAULT_MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024;
 const DEFAULT_UPLOAD_SETTLE_MS = 300;
 export const BROWSER_NAMESPACE = 't5-refoundation-v2';
-const SECRET_FIELD_SELECTOR = [
+const SECRET_FIELD_SELECTORS = [
   'input[type="password"]',
   'input[autocomplete~="current-password"]', 'input[autocomplete~="new-password"]',
   'input[autocomplete~="one-time-code"]', '[name*="otp" i]', '[id*="otp" i]',
@@ -22,7 +22,10 @@ const SECRET_FIELD_SELECTOR = [
   'input[autocomplete~="cc-name"]', 'input[autocomplete~="cc-number"]',
   'input[autocomplete~="cc-csc"]', 'input[autocomplete~="cc-exp"]',
   'input[autocomplete~="cc-exp-month"]', 'input[autocomplete~="cc-exp-year"]',
-].join(', ');
+];
+const SECRET_FIELD_SELECTOR = SECRET_FIELD_SELECTORS.join(', ');
+const VISIBLE_SECRET_FIELD_SELECTOR = SECRET_FIELD_SELECTORS
+  .map((selector) => `${selector}:visible`).join(', ');
 
 export function sessionNameForOwner(ownerId) {
   const digest = createHash('sha256').update(String(ownerId ?? '')).digest('hex').slice(0, 20);
@@ -569,7 +572,7 @@ export function makeAgentBrowserDriver({
       };
       await selectTab(tabId, { signal });
       const secretFieldsPresent = countValue(
-        await command(['get', 'count', SECRET_FIELD_SELECTOR], { signal }),
+        await command(['get', 'count', VISIBLE_SECRET_FIELD_SELECTOR], { signal }),
       ) > 0;
       const tab = await currentTab({ signal });
       if (secretFieldsPresent) return {
@@ -601,7 +604,7 @@ export function makeAgentBrowserDriver({
       try {
         await command(['open', currentUrl], { signal });
         const resumedSecretFields = countValue(
-          await command(['get', 'count', SECRET_FIELD_SELECTOR], { signal }),
+          await command(['get', 'count', VISIBLE_SECRET_FIELD_SELECTOR], { signal }),
         );
         if (resumedSecretFields > 0) {
           const resumedTab = await currentTab({ signal });
