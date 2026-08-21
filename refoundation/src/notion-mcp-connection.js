@@ -127,7 +127,7 @@ export function makeNotionMcpConnection({
             state: cli.state, canStart: cli.installed === true && !cliReady,
           },
           ...(availableBrowser ? [{
-            kind: 'browser', label: 'T5 브라우저', state: 'ready', canStart: true,
+            kind: 'browser', label: '내 브라우저', state: 'ready', canStart: true,
             startUrl: 'https://www.notion.so/',
           }] : []),
         ],

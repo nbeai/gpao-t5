@@ -107,6 +107,44 @@ test('검증되지 않은 봇 토큰은 저장하지 않고 공개 상태·오�
   }
 });
 
+test('개인용 Telegram은 첫 private sender를 자동 소유자로 결속하고 첫 메시지부터 처리한다', async () => {
+  const fixture = await telegramFixture();
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-first-owner-'));
+  const credentials = new MessengerCredentialStore(room);
+  const state = new MessengerStateStore(room);
+  const sessions = [];
+  const gateway = makeMessengerGateway({
+    credentialStore: credentials, stateStore: state,
+    providerFactory: ({ token }) => makeTelegramMessengerProvider({
+      token, apiBase: fixture.base, pollTimeoutSeconds: 0,
+    }),
+    createSession: async () => { sessions.push('telegram-owner-session'); return sessions[0]; },
+    authorizeInbound: async (message) => (await state.claimFirstOwner(message.provider, message)).allowed,
+    onInbound: async (message) => `반가워요: ${message.text}`,
+  });
+  try {
+    await gateway.connect({ provider: 'telegram', token: TOKEN });
+    fixture.updates.push(update(5, { userId: 4242, text: '연결 확인' }));
+    assert.deepEqual(await gateway.pollOnce(), { received: 1, accepted: 1, replied: 1, offset: 6 });
+    assert.equal(sessions.length, 1, '첫 메시지를 버리고 재전송시키지 않는다');
+    assert.deepEqual(await state.listAllowed('telegram'), [{
+      userId: '4242', username: 'owner', label: '내 계정',
+      allowedAt: (await state.listAllowed('telegram'))[0].allowedAt,
+      source: 'first_private_message',
+    }]);
+    assert.match(fixture.calls.find((call) => call.method === 'sendMessage').body.text, /반가워요/u);
+
+    fixture.updates.push(update(6, { userId: 9999, chatId: 9999, text: '다른 사람' }));
+    assert.deepEqual(await gateway.pollOnce(), { received: 1, accepted: 0, replied: 0, offset: 7 });
+    assert.deepEqual((await state.listAllowed('telegram')).map((item) => item.userId), ['4242']);
+    await gateway.disconnect('telegram');
+    assert.deepEqual(await state.listAllowed('telegram'), []);
+    assert.deepEqual(await state.listBindings(), []);
+  } finally {
+    await fixture.close();
+  }
+});
+
 test('텔레그램 long polling은 inbound→같은 chat session→outbound reply를 잇고 재시작 offset을 보존한다', async () => {
   const fixture = await telegramFixture();
   const room = await mkdtemp(join(tmpdir(), 't5-messenger-e2e-'));

@@ -28,7 +28,7 @@ test('설정은 서버가 실제 제공하는 모델과 ChatGPT OAuth를 동등�
   assert.doesNotMatch(html, /radio\.onchange\s*=\s*async/u);
 });
 
-test('메신저 설정은 provider capability로 비밀 필드를 만들고 연결·해제·allowlist를 잇는다', async () => {
+test('메신저 설정은 token 뒤 첫 개인 메시지를 자동 연결하고 현재 내 계정만 보여준다', async () => {
   const html = await readFile(resolve(root, 'src/surface/web/index.html'), 'utf8');
   assert.match(html, /endpointJson\('\/channels\/providers'\)/u);
   assert.match(html, /id="msgProvider"/u);
@@ -37,7 +37,10 @@ test('메신저 설정은 provider capability로 비밀 필드를 만들고 연�
   assert.match(html, /provider\?\.fields/u);
   assert.match(html, /endpointJson\('\/channels\/connect'/u);
   assert.match(html, /endpointJson\('\/channels\/disconnect'/u);
-  assert.match(html, /renderPendingSenders/u);
+  assert.match(html, /watchMessengerReady/u);
+  assert.match(html, /renderTelegramOwner/u);
+  assert.match(html, /내 계정 연결 해제/u);
+  assert.doesNotMatch(html, /이 사람 허용/u);
   assert.match(html, /#mcResult:empty, #msgResult:empty \{ display:none; \}/u);
   assert.match(html, /response\.ok/u);
 });

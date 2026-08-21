@@ -90,6 +90,27 @@ export class MessengerStateStore {
     return ((await this.read()).allowed[provider] ?? []).some((entry) => entry.userId === id);
   }
 
+  async claimFirstOwner(provider, message = {}) {
+    const id = numericUserId(message.userId);
+    if (!id || message.isDirectMessage !== true) return { allowed: false, claimed: false };
+    return this.serialize(async () => {
+      const state = await this.read();
+      state.allowed[provider] ??= [];
+      const existing = state.allowed[provider].find((entry) => entry.userId === id);
+      if (existing) return { allowed: true, claimed: false, owner: structuredClone(existing) };
+      if (state.allowed[provider].length > 0) return { allowed: false, claimed: false };
+      const username = String(message.username ?? '').replace(/^@/, '') || null;
+      const owner = {
+        userId: id, username, label: '내 계정', allowedAt: Date.now(),
+        source: 'first_private_message',
+      };
+      state.allowed[provider].push(owner);
+      state.pending[provider] = [];
+      await this.write(state);
+      return { allowed: true, claimed: true, owner: structuredClone(owner) };
+    });
+  }
+
   async notePending(provider, { userId, username } = {}) {
     if (userId == null && !username) return null;
     return this.serialize(async () => {
@@ -146,6 +167,19 @@ export class MessengerStateStore {
       state.allowed[provider] = (state.allowed[provider] ?? []).filter((entry) => entry.userId !== id);
       await this.write(state);
       return structuredClone(state.allowed[provider]);
+    });
+  }
+
+  async resetProvider(provider) {
+    return this.serialize(async () => {
+      const state = await this.read();
+      delete state.offsets[provider];
+      delete state.allowed[provider];
+      delete state.pending[provider];
+      state.bindings = Object.fromEntries(Object.entries(state.bindings)
+        .filter(([key]) => !key.startsWith(`${provider}:`)));
+      await this.write(state);
+      return true;
     });
   }
 }
@@ -278,6 +312,19 @@ export function makeMessengerGateway({
 
     pollOnce,
 
+    async sendToSession({ sessionId, text, signal } = {}) {
+      if (!sessionId || !String(text ?? '').trim()) throw new TypeError('messenger session and text are required');
+      const binding = (await stateStore.listBindings()).find((entry) => entry.sessionId === String(sessionId));
+      if (!binding) return { sent: false, reason: 'session_not_bound_to_messenger' };
+      const loaded = activeProvider?.id === binding.provider
+        ? { provider: activeProvider } : await providerFromStore(binding.provider);
+      if (loaded.provider !== activeProvider) await loaded.provider.validate({ signal });
+      const topic = binding.chatId.match(/^(.*):topic:([^:]+)$/u);
+      const chatId = topic ? topic[1] : binding.chatId;
+      const threadId = topic ? topic[2] : null;
+      return loaded.provider.sendReply({ chatId, threadId, text: String(text), signal });
+    },
+
     async start({ provider = 'telegram' } = {}) {
       supported(provider);
       if (running) return { started: true, reason: 'already_running', provider };
@@ -320,6 +367,7 @@ export function makeMessengerGateway({
       supported(provider);
       await this.stop();
       await credentialStore.clear(provider);
+      await stateStore.resetProvider(provider);
       return { provider, connected: false };
     },
 

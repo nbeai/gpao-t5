@@ -9,13 +9,12 @@ import { makeModelConnectionService } from '../src/model-connection-service.js';
 import { makeStoredModelCredentialCatalog } from '../src/chatgpt-oauth-credential.js';
 import { makeStoredOpenAIWebSearchProvider } from '../src/openai-web-search-provider.js';
 import { naverReadableUrlResolver } from '../src/naver-readable-url.js';
-import {
-  DEFAULT_AGENT_BROWSER_BINARY, makeAgentBrowserDriver, sessionNameForOwner,
-} from '../src/agent-browser-driver.js';
 import { makeConsoleServer } from '../src/console-server.js';
 import { resolveConsoleWorkspace } from '../src/console-config.js';
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
-import { makePersistentBrowserHost } from '../src/persistent-browser-host.js';
+import { makeUserBrowserConnection } from '../src/user-browser-connection.js';
+import { makeUserChromeDriver } from '../src/user-chrome-driver.js';
+import { makeUserChromeMcpRuntime } from '../src/user-chrome-mcp-runtime.js';
 import {
   googleSyncAvailable, workspaceConnectionBaselineInspectors,
 } from '../src/workspace-connection-baseline.js';
@@ -64,9 +63,14 @@ const modelConnections = makeModelConnectionService({ file: connectionFile });
 const credentialCatalog = makeStoredModelCredentialCatalog({ file: connectionFile });
 const webSearchProviders = [makeStoredOpenAIWebSearchProvider({ credentialCatalog })];
 const browserRoot = join(stateDir, 'browser');
-const persistentBrowserHost = makePersistentBrowserHost({
-  root: browserRoot, binary: DEFAULT_AGENT_BROWSER_BINARY,
-});
+const userChromeRuntime = makeUserChromeMcpRuntime();
+const userBrowserConnection = makeUserBrowserConnection({ runtime: userChromeRuntime });
+const browserHost = {
+  profile: { id: 'user-chrome', kind: 'existing_user_browser', selected: true },
+  status: () => userChromeRuntime.status(),
+  connect: () => userChromeRuntime.connect(),
+  close: () => userChromeRuntime.close(),
+};
 const workspaceCredentialStore = new WorkspaceCredentialStore(join(stateDir, 'connections'));
 const bundledGoogleOAuth = await bundledGoogleOAuthConfig();
 const googleOAuthClientId = process.env.T5_GOOGLE_OAUTH_CLIENT_ID
@@ -114,12 +118,11 @@ const server = makeConsoleServer({
   webSearchProviders,
   webReadOptions: { urlResolvers: [naverReadableUrlResolver] },
   videoTextFetchImpl: globalThis.fetch,
-  browserDriverFactory: (sessionId) => makeAgentBrowserDriver({
-    ownerId: sessionId,
-    outputDirectory: join(stateDir, 'browser', sessionNameForOwner(sessionId), 'artifacts'),
-    browserHost: persistentBrowserHost,
+  browserDriverFactory: (sessionId) => makeUserChromeDriver({
+    runtime: userChromeRuntime,
+    outputDirectory: join(browserRoot, sessionId, 'artifacts'),
   }),
-  browserHost: persistentBrowserHost,
+  browserHost,
   workspaceConnectionInspectors: workspaceConnectionBaselineInspectors({
     userHome: computerEnvironment.userHome,
     platform: computerEnvironment.platform,
@@ -127,7 +130,7 @@ const server = makeConsoleServer({
     includeGoogle: false,
     includeNotion: false,
   }),
-  workspaceConnectionServices: [googleDriveService, notionConnection, linearConnection],
+  workspaceConnectionServices: [userBrowserConnection, googleDriveService, notionConnection, linearConnection],
   onError: (error) => console.error('[refoundation-console]', error?.message ?? error),
 });
 await new Promise((resolveListen, reject) => {
@@ -158,7 +161,7 @@ const stop = async () => {
   await server.closeMessengers();
   await server.closeBrowsers();
   await server.closeWorkspaceConnections();
-  await persistentBrowserHost.close().catch(() => {});
+  await userChromeRuntime.close().catch(() => {});
   await server.managedProcesses.stopAll('runtime_shutdown');
   server.close(async () => {
     if (portFile) await rm(portFile, { force: true }).catch(() => {});

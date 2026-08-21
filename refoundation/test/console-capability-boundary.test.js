@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { consoleInstructions } from '../src/console-model-factory.js';
-import { resolveConsoleWorkspace } from '../src/console-config.js';
+import { resolveConsoleWorkspace, sanitizeTerminalPath } from '../src/console-config.js';
 import { requestContainsExactPath } from '../src/console-server.js';
 
 test('콘솔의 기본 터미널 범위는 사용자의 홈이며 별도 설정만 명시적으로 덮어쓴다', () => {
@@ -73,4 +73,17 @@ test('browser upload 권한은 현재 요청의 완전한 절대경로 토큰에
   assert.equal(requestContainsExactPath(`/prefix${path}`, path), false);
   assert.equal(requestContainsExactPath('report.pdf를 올려줘', path), false);
   assert.equal(requestContainsExactPath('경로 없음', ''), false);
+});
+
+test('일반 terminal PATH는 내부 agent-browser binary를 노출하지 않는다', () => {
+  const source = [
+    '/Applications/GPAO-T5.app/Contents/Resources/runtime/bin',
+    '/Applications/GPAO-T5.app/Contents/Resources/app/refoundation/node_modules/.bin',
+    '/opt/homebrew/bin', '/usr/bin', '/bin',
+  ].join(':');
+  const safe = sanitizeTerminalPath(source, ':');
+  assert.doesNotMatch(safe, /refoundation\/node_modules\/\.bin/u);
+  assert.match(safe, /Resources\/runtime\/bin/u); assert.match(safe, /\/usr\/bin/u);
+  const instructions = consoleInstructions('/Users/example', {});
+  assert.match(instructions, /Never invoke agent-browser.*exec.*internal browser/i);
 });

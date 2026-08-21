@@ -74,14 +74,23 @@ export function makeBrowserObservationTool({
   authorizeUploadPath,
 } = {}) {
   if (!driver || typeof driver.available !== 'function') throw new TypeError('browser driver is required');
+  const supportedActions = ACTIONS.filter((action) => {
+    if (['status', 'profiles', 'tabs', 'login_start', 'login_status', 'login_cancel'].includes(action)) return true;
+    const method = ({
+      navigate: 'navigate', snapshot: 'snapshot', screenshot: 'screenshot', click: 'click', fill: 'fill',
+      submit: 'submit', login_start: 'beginUserLogin', login_status: 'loginStatus',
+      login_cancel: 'cancelUserLogin', download: 'download', upload: 'upload',
+    })[action];
+    return typeof driver[method] === 'function';
+  });
   const tool = {
     name: 'browser',
-    description: 'Observe and act in a managed isolated browser. download saves one completed artifact under the T5-managed root. upload accepts only an exact absolute path authorized by the current user request and an observed file input, binds its hash, and returns sanitized network plus a new snapshot. File controls reject ordinary click. There is no model secret input, cookie/storage access, user-profile import, evaluation, or computer use.',
+    description: 'Observe and act only in the user Chrome session explicitly connected to T5. T5 can open or use a visible work tab in that browser, but never reads cookies, storage, passwords, or secret fields. A closed or disconnected tab stops this method rather than silently switching to another user tab. download and upload remain available only when the connected backend returns their exact observed receipts.',
     parameters: {
       type: 'object',
       properties: {
         action: {
-          type: 'string', enum: ACTIONS,
+          type: 'string', enum: supportedActions,
           description: 'Use submit, download, or upload rather than click for the corresponding observed control.',
         },
         url: { type: ['string', 'null'], description: 'HTTP(S) URL for navigate or login_start, otherwise null.' },
@@ -105,7 +114,7 @@ export function makeBrowserObservationTool({
       additionalProperties: false,
     },
     async execute(args = {}, context = {}) {
-      if (!ACTIONS.includes(args.action)) throw new TypeError(`unsupported browser observation action: ${args.action}`);
+      if (!supportedActions.includes(args.action)) throw new TypeError(`unsupported browser observation action: ${args.action}`);
       const availability = await driver.available();
       if (!availability?.available) return {
         state: 'unavailable', reason: availability?.reason ?? 'browser_unavailable', effect: 'observe',

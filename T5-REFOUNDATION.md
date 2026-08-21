@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `U1-G4 USER-GROUNDED SOCIAL ANALYSIS — IN PROGRESS` (사용자 목적별 분석 품질)
+현재 Gate: `P0-H1 HUMAN RELEASE RECOVERY — IN PROGRESS` (0.1.2 인간 핵심 여정 정상화)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -18,6 +18,60 @@ legacy T5                 refoundation T5
 ```
 
 새 코어가 실제 사용자 과업에서 legacy와 비교군을 이긴 뒤 검증된 부품만 이식한다.
+
+## P0-H1 — Human Release Recovery
+
+상태: `IN PROGRESS` — 0.1.2 추가 배포 중지. 패키지·모델·단위 검사를 통과했지만 실제 사용자가 시작한
+네이버 로그인·블로그 흐름과 Telegram 첫 연결·양방향 흐름이 실패했으므로 배포 적격 판정을 철회한다.
+
+사용자 완료 문장:
+
+> 일반 사용자가 설정과 대화만으로 평소 쓰던 브라우저의 로그인된 탭과 Telegram 개인 대화를 T5에
+> 연결하고, 앱을 다시 열어도 이어서 쓸 수 있다. 막힌 방법은 반복하지 않고 사용자가 중지를 말하기 전에
+> T5가 현재 한계를 설명하고 멈춘다.
+
+실제 실패 증거:
+
+- Browser: 로그인 handoff target 종료 뒤 현재 탭이 있어도 과거 pinned target의 `tab_gone` 반복, rebind 0
+- Browser: 내부 `agent-browser`가 일반 terminal PATH에 노출돼 T5 profile과 다른 현실을 관측하고 로그인
+  미유지로 잘못 보고
+- Telegram: bot token만으로 `connected·send·receive`를 선언하지만 첫 sender pending·allow 과정 안내 부족
+- Telegram: inbound gateway·자동 답장은 존재하지만 일반 콘솔에서 bound Telegram chat으로 보내는 도구 0
+- Release: 41턴 인간 검사는 행사·파일·알림만 다뤘고 Naver·Telegram 0; 설치 실물은 모델 기본 대화만 검증
+
+이번 Gate의 최소 변경:
+
+- 로그인 업무에는 T5 전용·관리형 브라우저를 실행하지 않고 사용자가 선택한 기존 브라우저 탭만 연결
+- 연결된 탭의 실제 브라우저·창·탭·origin을 단일 상태로 유지하고, 탭 종료·연결 해제는 bounded stop
+- 사용자가 다시 탭을 선택해 연결하면 같은 Session의 원래 목적을 이어서 실제 페이지를 재관측
+- 브라우저의 cookie·local storage·비밀번호를 복사하거나 모델·도구 결과에 노출하지 않음
+- 내부 agent-browser binary를 terminal PATH에서 제거하고 모델의 raw browser CLI 우회 금지
+- Telegram 상태를 bot 연결·내 첫 메시지 대기·개인 대화 가능·polling 실패로 분리
+- token 연결 뒤 최초 private DM의 숫자 sender를 개인 소유자로 자동 결속하고 첫 메시지부터 처리
+- 최초 소유자 결속 뒤 다른 sender는 자동 거부하고 사용자가 명시적으로 추가할 때만 허용
+- Telegram-origin Session을 콘솔에 표시하고 그 Session 또는 명시한 bound chat으로 제한된 send 제공
+- 같은 결함 가족의 무진전 반복은 bounded stop; 사용자의 “그만”은 즉시 현재 Run·프로세스·handoff 정리
+
+필수 인간 종단:
+
+- Naver: 평소 브라우저의 로그인된 탭 선택→블로그 글쓰기 관측→다른 탭 이동→재연결→앱 재시작→로그인 유지
+- Telegram: token→첫 private 메시지 자동 결속→typing/답장→콘솔 Session→콘솔 답장→재시작
+- 전체 Hand 별도 UX·성능: Terminal, Web, Browser, Attachment/Document, Memory/Context, Connections,
+  Messenger, Skills/Managed CLI, SNS/Video를 실제 사람 말투의 singleton·중장기 multiturn·목적형 시나리오로
+  검사하고 wall time·model turns·tool calls·사용자 개입·실패 전환·자동 정지를 기록
+
+Non-goals:
+
+- 새 SNS·STT·OCR·automation·connector 기능, UI 전면 재설계, 설치파일 생성
+- 테스트 수·호출 수를 완료로 승격, Telegram을 새 외부 브리지로 재작성, Browser cookie 직접 조작
+- T5 전용 브라우저·별도 browser profile·사용자 browser profile 복제, 모든 browser 제품 동시 지원
+
+완료 Gate:
+
+- 위 Naver·Telegram 시작점부터 재시작까지 실제 콘솔 종단 통과
+- 테스터가 지적한 반복 로그인·개발 설명·raw CLI 우회·수동 승인·수동 중지 의존 0
+- 전체 Hand 인간 시나리오에서 목적 달성 또는 bounded honest stop, 동일 실패 무한 반복 0
+- 기존 전체 회귀 유지 후에도 설치본 검증 전 배포 가능 선언 금지
 
 ## 공통 중단선
 

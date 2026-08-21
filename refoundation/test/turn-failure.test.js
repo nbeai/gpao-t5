@@ -19,3 +19,12 @@ test('알 수 없는 실패도 모델과 터미널을 한 원인처럼 뭉치지
   assert.match(failure.text, /요청을 처리하는 중/u);
   assert.doesNotMatch(JSON.stringify(failure), /터미널|provider secret raw detail/u);
 });
+
+test('같은 도구 무진전 반복은 사용자에게 정지와 회복 경로로 보인다', () => {
+  const failure = userSafeTurnFailure(Object.assign(new Error('same call'), {
+    reason: 'repeated_tool_call_without_progress',
+  }));
+  assert.equal(failure.code, 'repeated_method_stopped');
+  assert.match(failure.text, /반복.*멈췄/u);
+  assert.match(failure.nextSafeAction, /대화 상태.*다른 방법/u);
+});

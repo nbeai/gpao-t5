@@ -1210,7 +1210,7 @@ async function openToolbox(focusId) {
     const r = await (await fetch('/toolbox')).json();
     tbTools = r.tools || [];
     renderToolbox('', focusId);
-    await renderPendingSenders();
+    await renderTelegramOwner();
     await renderInvalidDeclared();
     if (!focusId) tbSearch.focus();
   } catch { tbBody.replaceChildren(mk('div', 'tb-empty', '도구 목록을 불러오지 못했어요.')); }
@@ -1488,9 +1488,18 @@ async function refreshMessengerStatus(box, target) {
     ? (current?.userSafe ?? (current?.connected ? '연결됨' : '연결되지 않음'))
     : endpointError(result, '메신저 상태를 불러오지 못했어요.');
   box.querySelector('#msgDisconnectBtn').disabled = !current?.connected;
-  const old = document.getElementById('pendingSenders');
+  const old = document.getElementById('telegramOwner');
   if (old) old.remove();
-  if (result.ok && current?.connected && selected === 'telegram') await renderPendingSenders(target, false);
+  if (result.ok && current?.ready && selected === 'telegram') await renderTelegramOwner(target, false);
+  return current ?? null;
+}
+
+async function watchMessengerReady(box, target) {
+  for (let attempt = 0; attempt < 60 && setov.classList.contains('open'); attempt += 1) {
+    const current = await refreshMessengerStatus(box, target);
+    if (!current?.connected || current?.ready) return;
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
 }
 
 async function renderMessengerConnect(target) {
@@ -1534,6 +1543,7 @@ async function renderMessengerConnect(target) {
     renderMessengerFields(box, provider);
     refreshMessengerConnectState();
     await refreshMessengerStatus(box, target);
+    if (result.ok) watchMessengerReady(box, target).catch(() => {});
   };
   box.querySelector('#msgConnectBtn').onclick = async () => {
     const fields = {};
@@ -1564,7 +1574,8 @@ async function renderMessengerConnect(target) {
   };
   if (providers[0]) renderMessengerFields(box, providers[0]);
   refreshMessengerConnectState();
-  await refreshMessengerStatus(box, target);
+  const current = await refreshMessengerStatus(box, target);
+  if (current?.connected && !current?.ready) watchMessengerReady(box, target).catch(() => {});
 }
 
 // ── 설정 허브 (Pre-P-OP-7 UX Closure) ── 새 관리 콘솔이 아니라 **이미 있는 기능의 정리**다.
@@ -1608,7 +1619,7 @@ async function renderConnectionDoctor(target) {
   refresh.textContent = '다시 확인'; head.appendChild(refresh); card.appendChild(head);
   const result = mk('div', 'tb-hint', '현재 연결 상태를 확인하고 있어요…'); card.appendChild(result);
   const stateLabel = {
-    connected: '연결됨', ready: '사용 가능', needs_connection: '연결 필요',
+    connected: '연결됨', ready: '사용 가능', connecting: '연결 중', needs_connection: '연결 필요',
     needs_attention: '확인 필요', unavailable: '지금은 사용 불가',
   };
   const load = async () => {
@@ -1678,6 +1689,14 @@ async function renderConnectionDoctor(target) {
                   ? (performed.data?.userSafeSummary ?? '필요한 화면을 열었어요.')
                   : endpointError(performed, '필요한 화면을 열지 못했어요.');
                 button.disabled = false;
+                if (performed.ok && performed.data?.connection?.id === 'user-browser') {
+                  for (let attempt = 0; attempt < 60 && setov.classList.contains('open'); attempt += 1) {
+                    await new Promise((resolve) => setTimeout(resolve, 1000));
+                    const current = await load();
+                    const browser = current?.connections?.find((item) => item.id === 'user-browser');
+                    if (browser?.state !== 'connecting') break;
+                  }
+                }
                 return;
               }
               actionStatus.textContent = '연결을 해제하고 있어요…';
@@ -1697,6 +1716,7 @@ async function renderConnectionDoctor(target) {
       }
     }
     refresh.disabled = false; refresh.textContent = '다시 확인';
+    return report;
   };
   refresh.onclick = load;
   target.appendChild(card);
@@ -1722,39 +1742,6 @@ const SET_RENDER = {
     b.onclick = () => { closeSettings(); openToolbox(); };
     box.appendChild(b);
     setBody.appendChild(box);
-    const browserCard = mk('div', 'tb-card');
-    browserCard.appendChild(mk('div', 'tb-name', 'T5 브라우저'));
-    let browserIdentity = null;
-    try { browserIdentity = await (await fetch('/browser/identity')).json(); } catch { /* card explains below */ }
-    browserCard.appendChild(mk('div', 'tb-hint', browserIdentity?.available
-      ? '한 번 로그인하면 여러 대화에서 계속 사용할 수 있어요. T5나 브라우저를 다시 열어도 로그인 상태를 이어갑니다.'
-      : '지속되는 T5 브라우저를 지금 사용할 수 없어요.'));
-    if (browserIdentity?.available) {
-      const resetResult = mk('div', 'tb-hint', '');
-      const reset = document.createElement('button');
-      reset.className = 'connection-button'; reset.textContent = 'T5 브라우저 로그인 모두 지우기';
-      let confirming = false;
-      reset.onclick = async () => {
-        if (!confirming) {
-          confirming = true;
-          reset.textContent = '정말 로그인 정보를 모두 지우기';
-          resetResult.textContent = '네이버를 포함해 T5 브라우저에 로그인한 모든 사이트에서 다시 로그인해야 해요.';
-          return;
-        }
-        reset.disabled = true; reset.textContent = '지우는 중…';
-        const response = await fetch('/browser/identity/reset', {
-          method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ confirmation: 'RESET_T5_BROWSER' }),
-        });
-        const result = await response.json().catch(() => ({}));
-        resetResult.textContent = response.ok
-          ? (result.userSafeSummary ?? 'T5 브라우저의 로그인 정보를 모두 지웠어요.')
-          : (result.error ?? '로그인 정보를 지우지 못했어요.');
-        reset.disabled = false; reset.textContent = 'T5 브라우저 로그인 모두 지우기'; confirming = false;
-      };
-      browserCard.append(reset, resetResult);
-    }
-    setBody.appendChild(browserCard);
   },
   async skills() {
     setBody.replaceChildren();
@@ -1981,52 +1968,33 @@ async function renderInvalidDeclared() {
   tbBody.appendChild(box);
 }
 
-// P5-1: 모르는 사람이 메신저로 말을 걸면 **여기서 허용**한다. 이게 없으면 처음 연결한 사용자가
-// 자기 id 를 알아낼 방법이 없어 허용목록을 만들 수 없다(닭과 달걀). 내용은 저장하지 않는다 —
-// 누가 언제 몇 번 말을 걸었는지만.
-async function renderPendingSenders(target = tbBody, prepend = true) {
+// 개인용 T5는 token 연결 뒤 처음 말을 건 private Telegram 계정을 자동으로 내 계정에 결속한다.
+// 일반 사용자가 pairing code·숫자 id·수동 승인목록을 배울 이유가 없다.
+async function renderTelegramOwner(target = tbBody, prepend = true) {
   let data;
   try { data = await (await fetch('/channels/allowlist?channel=telegram')).json(); } catch { return; }
-  const pending = data.pending ?? [];
   const allowed = data.allowed ?? [];
-  if (!pending.length && !allowed.length) return;
+  if (!allowed.length) return;
   const box = mk('div', 'tb-card');
-  box.appendChild(mk('div', 'tb-name', '텔레그램에서 말을 건 사람'));
-  if (pending.length) {
-    for (const p of pending) {
-      const row = mk('div', 'tb-hint', `${p.username ? '@' + p.username : 'id ' + p.userId} · ${p.count}번 시도 — 아직 받지 않았어요`);
-      const btn = document.createElement('button');
-      btn.className = 'tb-test'; btn.textContent = '이 사람 허용';
-      btn.onclick = async () => {
-        const out = await (await fetch('/channels/allowlist', {
-          method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ channel: 'telegram', userId: p.userId, username: p.username }),
-        })).json();
-        if (out.userSafeSummary) toast(out.userSafeSummary);
-        await renderPendingSenders(target, prepend);
-      };
-      row.appendChild(btn);
-      box.appendChild(row);
-    }
-  }
+  box.appendChild(mk('div', 'tb-name', '내 텔레그램'));
   for (const a of allowed) {
-    const row = mk('div', 'tb-hint', `${a.label ? a.label + ' · ' : ''}${a.username ? '@' + a.username : 'id ' + a.userId} — 받는 중`);
+    const row = mk('div', 'tb-hint', `${a.username ? '@' + a.username : '연결한 계정'} — 이 계정의 메시지를 받고 있어요`);
     const btn = document.createElement('button');
-    btn.className = 'tb-test'; btn.textContent = '해제';
+    btn.className = 'tb-test'; btn.textContent = '내 계정 연결 해제';
     btn.onclick = async () => {
       const out = await (await fetch('/channels/allowlist', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ channel: 'telegram', revoke: a.userId ?? a.username }),
       })).json();
       if (out.userSafeSummary) toast(out.userSafeSummary);
-      await renderPendingSenders(target, prepend);
+      await renderTelegramOwner(target, prepend);
     };
     row.appendChild(btn);
     box.appendChild(row);
   }
-  const old = document.getElementById('pendingSenders');
+  const old = document.getElementById('telegramOwner');
   if (old) old.remove();
-  box.id = 'pendingSenders';
+  box.id = 'telegramOwner';
   if (prepend) target.prepend(box);
   else target.appendChild(box);
 }
@@ -2920,10 +2888,10 @@ function renderResult(r, opts = {}) {
   renderConnectionHandoff(box, r, opts);
   if (!historical && r.browserHandoff?.active) {
     const handoff = el('suggest browser-handoff');
-    handoff.appendChild(el('sug-t', '로그인 창을 열었어요'));
+    handoff.appendChild(el('sug-t', '내 Chrome에서 로그인할 페이지를 열었어요'));
     handoff.appendChild(el('sug-line', r.browserHandoff.visible
-      ? 'T5 브라우저에서 로그인한 뒤, 이 대화로 돌아와 완료했다고 알려주세요.'
-      : '로그인 창을 열었지만 앞에 표시하지 못했어요. 아래 버튼으로 다시 확인할 수 있어요.'));
+      ? '평소 쓰는 Chrome에서 직접 로그인한 뒤, 이 대화로 돌아와 완료했다고 알려주세요.'
+      : '연결한 Chrome 탭을 앞에 표시하지 못했어요. 아래 버튼으로 다시 확인할 수 있어요.'));
     const reveal = document.createElement('button');
     reveal.className = 'act primary'; reveal.textContent = '로그인 창 보기';
     reveal.onclick = async () => {
@@ -2936,8 +2904,8 @@ function renderResult(r, opts = {}) {
       reveal.disabled = false; reveal.textContent = '로그인 창 보기';
       let note = handoff.querySelector('.browser-handoff-result');
       if (!note) { note = el('sug-line browser-handoff-result'); handoff.appendChild(note); }
-      note.textContent = response.ok ? '로그인 창을 앞으로 가져왔어요.'
-        : (result.error ?? '로그인 창을 찾지 못했어요. 다시 요청해 주세요.');
+      note.textContent = response.ok ? '연결한 Chrome 탭을 앞으로 가져왔어요.'
+        : (result.error ?? '연결한 Chrome 탭을 찾지 못했어요. 다시 연결해 주세요.');
     };
     handoff.appendChild(reveal); box.appendChild(handoff);
   }

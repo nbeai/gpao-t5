@@ -163,6 +163,7 @@ export async function runAgent({
   }];
   const receipts = [];
   const modelCalls = [];
+  const repeatedCalls = new Map();
   let modelTurns = 0;
 
   while (modelTurns < maxModelTurns) {
@@ -215,7 +216,23 @@ export async function runAgent({
         type: 'tool_start', turn: modelTurns, toolCallId: String(call?.id ?? ''),
         name: call?.name, args: structuredClone(call?.args ?? {}),
       });
-      const receipt = await executeCall(call, registry, signal);
+      const requested = requestedCall(call);
+      const fingerprint = JSON.stringify([requested.name, requested.args]);
+      const repetitions = repeatedCalls.get(fingerprint) ?? 0;
+      if (repetitions >= 3) {
+        const error = new Error('same tool call repeated without progress');
+        error.reason = 'repeated_tool_call_without_progress';
+        error.toolName = requested.name;
+        throw error;
+      }
+      repeatedCalls.set(fingerprint, repetitions + 1);
+      const receipt = repetitions >= 2 ? {
+        toolCallId: requested.id,
+        requestedCall: requested,
+        actualCall: null,
+        outcome: 'not_executed',
+        result: { state: 'repeated_call_stopped', occurrences: repetitions + 1 },
+      } : await executeCall(call, registry, signal);
       receipts.push(receipt);
       transcript.push(toolMessage(receipt));
       await onEvent?.({

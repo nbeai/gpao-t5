@@ -18,7 +18,7 @@ test('재창립 정본은 제품·진행·작업 규율로 분리된다', () => 
   assert.match(product, /개선·교체·비활성·제거/);
   assert.match(product, /Core와 사용자별로 성장하는\s*Capability Layer를 분리/);
   assert.match(product, /필요한 능력만 갖추고 개선·정리하는 적응성/);
-  assert.match(map, /현재 Gate: `U1-G4 USER-GROUNDED SOCIAL ANALYSIS — IN PROGRESS`/);
+  assert.match(map, /현재 Gate: `P0-H1 HUMAN RELEASE RECOVERY — IN PROGRESS`/);
   assert.match(map, /상태: `FIRST_COMPLETE`/);
   assert.match(map, /Unified Attachment Hand A1까지 완료되어 1차 완성/);
   assert.match(agents, /새 코어는 `refoundation\/`/);

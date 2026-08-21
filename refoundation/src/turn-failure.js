@@ -12,6 +12,11 @@ function modelLabel(error, connection) {
 
 export function userSafeTurnFailure(error, connection = null) {
   const label = modelLabel(error, connection);
+  if (error?.reason === 'repeated_tool_call_without_progress') return {
+    code: 'repeated_method_stopped',
+    text: '같은 방법으로 진전 없이 반복되어 이번 작업을 멈췄어요.',
+    nextSafeAction: '대화 상태를 다시 준비하거나 다른 방법으로 새로 요청해 주세요.',
+  };
   if (error?.reason === 'image_input_unsupported') return {
     code: 'model_image_input_unsupported',
     text: `현재 선택한 ${label} 연결에서는 이미지 입력을 사용할 수 없어요.`,

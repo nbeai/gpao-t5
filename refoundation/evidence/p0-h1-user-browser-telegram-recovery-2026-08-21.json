@@ -1,0 +1,41 @@
+{
+  "schema": "t5.p0-h1.recovery-evidence.v1",
+  "date": "2026-08-21",
+  "sourceFailure": {
+    "release": "0.1.2",
+    "browser": "stale managed tab and raw agent-browser created conflicting login realities",
+    "telegram": "bot token was reported connected before a personal sender was usable, and console-origin replies were not delivered"
+  },
+  "comparators": {
+    "openclawCommit": "75c44b2b98d508593b71501da80c12aa63a7e672",
+    "hermesCommit": "d47252547bddc01eb2262ce4e60e2ebd918bfc32",
+    "adoptedPrinciples": [
+      "existing signed-in browser is a separate backend from a managed browser",
+      "closed selected tabs are not replaced for effectful actions",
+      "numeric messenger identity and deterministic channel session routing",
+      "typing, progress, final delivery, and delivery identity remain distinct"
+    ],
+    "notCopied": [
+      "managed or dedicated browser profile",
+      "cookie or profile import",
+      "developer-facing pairing code for the first personal Telegram account"
+    ]
+  },
+  "implementation": {
+    "browser": "Google Chrome DevTools MCP 1.7.0 auto-connect to an explicitly allowed user Chrome session",
+    "telegram": "first private numeric sender becomes the personal owner and the first message is processed immediately",
+    "loopStop": "third exact repeated tool call is not executed; a fourth insistence terminates the Run"
+  },
+  "verification": {
+    "fullRefoundation": { "passed": 437, "failed": 0 },
+    "humanFixtureSuite": { "passed": 42, "failed": 0 },
+    "dependencyAuditHigh": 0,
+    "legacyImports": 0
+  },
+  "notVerified": [
+    "real Naver account through the user's own Chrome",
+    "real Telegram Bot API and personal account",
+    "installed package",
+    "non-Chrome user browsers"
+  ]
+}

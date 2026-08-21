@@ -22,6 +22,7 @@ retain that complete text and all required notices.
 | `anynum` | 1.0.1 | MIT |
 | `boolbase` | 2.0.0 | ISC |
 | `clawpdf` | 0.3.0 | MIT |
+| `chrome-devtools-mcp` | 1.7.0 | Apache-2.0 |
 | `cross-spawn` | 7.0.6 | MIT |
 | `css-select` | 7.0.0 | BSD-2-Clause |
 | `css-what` | 8.0.0 | BSD-2-Clause |
@@ -75,6 +76,7 @@ Direct upstream projects:
 - Office Kit XLSX: <https://github.com/office-kit/xlsx>
 - agent-browser: <https://github.com/vercel-labs/agent-browser>
 - clawpdf: <https://github.com/openclaw/clawpdf>
+- Chrome DevTools MCP: <https://github.com/ChromeDevTools/chrome-devtools-mcp>
 - LinkeDOM: <https://github.com/WebReflection/linkedom>
 - node-pty: <https://github.com/microsoft/node-pty>
 - tree-sitter-bash: <https://github.com/tree-sitter/tree-sitter-bash>

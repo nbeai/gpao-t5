@@ -237,3 +237,42 @@ test('콘솔의 앞선 사용자·assistant 대화가 현재 요청보다 먼저
   });
   assert.equal(result.answer, '이어진 답');
 });
+
+test('같은 도구 호출이 진전 없이 반복되면 두 번만 실행하고 모델에게 정지 사실을 준 뒤 끝낸다', async () => {
+  let executed = 0;
+  let turn = 0;
+  const model = { async respond(input) {
+    turn += 1;
+    if (turn === 4) {
+      const receipt = JSON.parse(input.messages.at(-1).content);
+      assert.equal(receipt.outcome, 'not_executed');
+      assert.equal(receipt.result.state, 'repeated_call_stopped');
+      return { text: '같은 방법은 여기서 멈추겠습니다.', toolCalls: [] };
+    }
+    return { text: '', toolCalls: [{ id: `same-${turn}`, name: 'browser', args: { action: 'navigate', url: 'https://example.com' } }] };
+  } };
+  const tool = {
+    name: 'browser', description: 'fixture', parameters: { type: 'object' },
+    async execute() { executed += 1; throw new Error('tab unavailable'); },
+  };
+  const result = await runAgent({ request: '페이지를 열어줘', model, tools: [tool] });
+  assert.equal(result.status, 'completed');
+  assert.equal(executed, 2);
+  assert.equal(result.receipts[2].actualCall, null);
+});
+
+test('정지 영수증 뒤에도 같은 호출을 고집하면 Run을 오류로 끝내고 무한 반복하지 않는다', async () => {
+  let executed = 0;
+  const model = { async respond() { return {
+    text: '', toolCalls: [{ id: `same-${Date.now()}`, name: 'browser', args: { action: 'snapshot' } }],
+  }; } };
+  const tool = {
+    name: 'browser', description: 'fixture', parameters: { type: 'object' },
+    async execute() { executed += 1; return { state: 'tab_unavailable' }; },
+  };
+  await assert.rejects(
+    () => runAgent({ request: '계속 새로고침해', model, tools: [tool] }),
+    (error) => error.reason === 'repeated_tool_call_without_progress',
+  );
+  assert.equal(executed, 2);
+});

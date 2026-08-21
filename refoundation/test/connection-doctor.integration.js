@@ -8,7 +8,17 @@ import { makeConsoleServer } from '../src/console-server.js';
 
 test('연결 닥터와 기존 connector truth는 같은 실제 연결 목록을 사용한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-connection-doctor-'));
-  const browserHost = { profile: { id: 'default', kind: 'managed_persistent', selected: true } };
+  const browserHost = {
+    profile: { id: 'user-chrome', kind: 'existing_user_browser', selected: true },
+    status: () => ({ connected: true }),
+  };
+  const browserConnection = {
+    id: 'user-browser', label: '내 브라우저', category: 'browser',
+    async inspect() { return {
+      state: 'connected', reason: 'verified_user_browser_session',
+      userSafeSummary: '평소 쓰는 Chrome에 연결되어 있어요.', capabilities: { read: true }, routes: [],
+    }; },
+  };
   const workspaceConnectionInspectors = [{
     id: 'google-workspace', label: 'Google Workspace', category: 'workspace',
     async inspect() {
@@ -22,6 +32,7 @@ test('연결 닥터와 기존 connector truth는 같은 실제 연결 목록을 
   }];
   const server = makeConsoleServer({
     stateDir: join(room, 'state'), workspace: room, browserHost, workspaceConnectionInspectors,
+    workspaceConnectionServices: [browserConnection],
     modelFactory: () => ({ respond: async () => ({ text: '네', toolCalls: [] }) }),
     modelStatus: () => ({
       connected: true, provider: 'fixture', modelId: 'fixture',
@@ -39,7 +50,7 @@ test('연결 닥터와 기존 connector truth는 같은 실제 연결 목록을 
     assert.deepEqual(doctor.connections.map(({ id, state }) => ({ id, state })), [
       { id: 'model', state: 'connected' },
       { id: 'telegram', state: 'needs_connection' },
-      { id: 't5-browser', state: 'ready' },
+      { id: 'user-browser', state: 'connected' },
       { id: 'google-workspace', state: 'unavailable' },
     ]);
     assert.deepEqual(truth.connectors.map(({ id, state }) => ({ id, state })),

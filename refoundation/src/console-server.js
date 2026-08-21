@@ -9,6 +9,7 @@ import { ConsoleSessionStore } from './console-session-store.js';
 import { makeTerminalHand } from './exec-tool.js';
 import { discoverComputerEnvironment, publicComputerFacts } from './computer-environment.js';
 import { makePathRevealer } from './path-revealer.js';
+import { sanitizeTerminalPath } from './console-config.js';
 import { ManagedProcessRegistry } from './managed-process.js';
 import { RunLedger } from './run-ledger.js';
 import { deriveRunSpeedReceipt } from './run-speed-receipt.js';
@@ -707,7 +708,10 @@ export function makeConsoleServer({
         yieldMs: processYieldMs, originRunId: run.runId, effectPreflight,
         pathPrepend: managedCliStore.bin,
         capabilityAttribution: ({ commandExplanation }) => managedCliStore.attributeCommand(commandExplanation),
-        env: { T5_DOCUMENT_CLI: documentCli, PATH: managedCliStore.prependPath(process.env.PATH ?? process.env.Path ?? '') },
+        env: {
+          T5_DOCUMENT_CLI: documentCli,
+          PATH: managedCliStore.prependPath(sanitizeTerminalPath(process.env.PATH ?? process.env.Path ?? '')),
+        },
       });
       const [bundledSkillSnapshot, managedSkillSnapshot, skillPackageSnapshot, managedSkillStore] = await Promise.all([
         loadSkillSnapshot({ directory: skillsRoot }),
@@ -966,6 +970,32 @@ export function makeConsoleServer({
         ...(options.trigger && options.trigger !== 'user' ? { trigger: options.trigger } : {}),
         selfStateSummary: selfState(connection, workspace, browserReady),
       };
+      if ((!options.trigger || options.trigger === 'user') && session.origin?.channel === 'telegram'
+        && surfaceResult.kind === 'reply') {
+        try {
+          const delivery = await messenger.sendToSession({
+            sessionId, text: surfaceResult.reply, signal: controller.signal,
+          });
+          if (delivery.sent) {
+            surfaceResult.channelDelivery = {
+              provider: 'telegram', sent: true,
+              messageIds: structuredClone(delivery.messageIds ?? []),
+            };
+            await run.append({
+              type: 'channel_delivery_completed', stepId: 'telegram-delivery',
+              payload: surfaceResult.channelDelivery,
+            });
+          }
+        } catch (error) {
+          surfaceResult.channelDelivery = {
+            provider: 'telegram', sent: false, reason: error?.code ?? 'telegram_delivery_failed',
+          };
+          await run.append({
+            type: 'channel_delivery_failed', stepId: 'telegram-delivery',
+            payload: surfaceResult.channelDelivery,
+          });
+        }
+      }
       const recoveryEvidence = recoveryEvidenceForTurn({
         userText: text, reply: surfaceResult.reply, kind: surfaceResult.kind,
         failureCode: surfaceResult.failureCode ?? null, receipts: result.receipts,
@@ -1072,9 +1102,8 @@ export function makeConsoleServer({
       origin: origin ? { channel: origin.provider, chatId: origin.chatId } : null,
     }),
     authorizeInbound: async (message) => {
-      const allowed = await messengerState.isAllowed(message.provider, message);
-      if (!allowed) await messengerState.notePending(message.provider, message);
-      return allowed;
+      const ownership = await messengerState.claimFirstOwner(message.provider, message);
+      return ownership.allowed;
     },
     onInbound: async (message, { progress } = {}) => {
       const notify = (type, payload) => {
@@ -1145,29 +1174,21 @@ export function makeConsoleServer({
       id: 'telegram', label: '텔레그램', category: 'messenger',
       async inspect() {
         const current = await messenger.status();
-        const connected = current.connections?.telegram?.connected === true;
+        const botConnected = current.connections?.telegram?.connected === true;
+        const owner = (await messengerState.listAllowed('telegram'))[0] ?? null;
+        const connected = botConnected && Boolean(owner);
         return {
           state: connected ? 'connected' : 'needs_connection',
-          reason: connected ? null : 'telegram_not_connected',
-          userSafeSummary: connected ? '텔레그램 메시지를 주고받을 수 있어요.' : '사용하려면 봇을 연결해 주세요.',
+          reason: connected ? null : botConnected ? 'telegram_waiting_for_owner_message' : 'telegram_not_connected',
+          userSafeSummary: connected ? '내 텔레그램과 메시지를 주고받을 수 있어요.'
+            : botConnected ? '텔레그램에서 연결한 봇에게 아무 메시지나 보내 주세요.'
+              : '사용하려면 봇을 연결해 주세요.',
           capabilities: { receive: connected, send: connected },
-          routes: [{ kind: 'bot_token', label: '텔레그램 봇', state: connected ? 'connected' : 'needs_connection', canStart: true }],
-        };
-      },
-    },
-    {
-      id: 't5-browser', label: '웹사이트 계정', category: 'browser',
-      async inspect() {
-        const available = Boolean(browserHost);
-        return {
-          state: available ? 'ready' : 'unavailable',
-          reason: available ? 'site_login_checked_when_requested' : 'browser_unavailable',
-          userSafeSummary: available
-            ? 'T5 브라우저에서 사이트별 로그인을 시작하고 계속 사용할 수 있어요.'
-            : 'T5 브라우저를 사용할 수 없어요.',
-          capabilities: { login: available, read: available, download: available, upload: available },
-          routes: available
-            ? [{ kind: 'browser', label: 'T5 브라우저', state: 'ready', canStart: true }] : [],
+          routes: [{
+            kind: 'bot_token', label: '텔레그램 봇',
+            state: connected ? 'connected' : botConnected ? 'waiting_for_user' : 'needs_connection',
+            canStart: !botConnected,
+          }],
         };
       },
     },
@@ -1492,26 +1513,26 @@ export function makeConsoleServer({
         return;
       }
       if (req.method === 'GET' && url.pathname === '/browser/identity') {
+        const connected = browserHost?.status?.().connected === true;
         json(res, 200, browserHost ? {
-          available: true, profile: browserHost.profile,
-          userSafeSummary: 'T5 브라우저는 로그인 상태를 여러 대화와 재시작 뒤에도 이어서 사용해요.',
+          available: true, connected, profile: browserHost.profile,
+          userSafeSummary: connected
+            ? '평소 쓰는 Chrome에 연결되어 있어요. 로그인 정보는 Chrome에 그대로 있고 T5는 선택한 탭만 사용해요.'
+            : '평소 쓰는 Chrome을 연결하면 로그인된 웹사이트를 함께 볼 수 있어요.',
         } : {
-          available: false, profile: null,
-          userSafeSummary: '지속되는 T5 브라우저를 사용할 수 없어요.',
+          available: false, connected: false, profile: null,
+          userSafeSummary: '사용자 브라우저 연결을 지금 사용할 수 없어요.',
         });
         return;
       }
-      if (req.method === 'POST' && url.pathname === '/browser/identity/reset') {
-        if (!browserHost?.reset) {
-          json(res, 503, { error: 'T5 브라우저 로그인을 초기화할 수 없어요.' }); return;
-        }
+      if (req.method === 'POST' && url.pathname === '/browser/user/select') {
         const input = await body(req);
-        if (input.confirmation !== 'RESET_T5_BROWSER') {
-          json(res, 400, { error: '로그인 정보를 모두 지울지 다시 확인해 주세요.' }); return;
-        }
-        await closeBrowserDrivers();
-        await browserHost.reset({ confirmation: input.confirmation });
-        json(res, 200, { ok: true, userSafeSummary: 'T5 브라우저의 로그인 정보를 모두 지웠어요.' });
+        const session = await sessions.load(input.sessionId);
+        if (!session) { json(res, 404, { error: '대화를 찾지 못했어요.' }); return; }
+        const driver = await browserDriver(input.sessionId);
+        const selected = await driver?.selectTab?.(input.pageId, { bringToFront: true });
+        if (!selected) { json(res, 409, { error: '선택한 브라우저 탭을 연결하지 못했어요.' }); return; }
+        json(res, 200, { ok: true, tab: selected, userSafeSummary: '이 Chrome 탭을 현재 대화에 연결했어요.' });
         return;
       }
       if (req.method === 'GET' && url.pathname === '/model/connection') {
@@ -1769,11 +1790,15 @@ export function makeConsoleServer({
       if (req.method === 'GET' && url.pathname === '/channels') {
         const messengerStatus = await messenger.status();
         const telegram = messengerStatus.connections.telegram;
+        const owner = (await messengerState.listAllowed('telegram'))[0] ?? null;
         json(res, 200, { channels: [{
           id: 'telegram', provider: 'telegram', label: '텔레그램',
           connected: Boolean(telegram?.connected),
-          userSafe: telegram?.connected
-            ? `연결됨${telegram.bot?.username ? ` (@${telegram.bot.username})` : ''} · 메시지 받는 중`
+          ready: Boolean(telegram?.connected && owner), owner,
+          userSafe: telegram?.connected && owner
+            ? `내 계정과 연결됨${telegram.bot?.username ? ` (@${telegram.bot.username})` : ''} · 메시지 받는 중`
+            : telegram?.connected
+              ? `봇 연결됨${telegram.bot?.username ? ` (@${telegram.bot.username})` : ''} · 이 봇에게 아무 메시지나 보내 주세요`
             : '연결되지 않음',
           bot: telegram?.bot ?? null,
         }] }); return;
@@ -1783,7 +1808,11 @@ export function makeConsoleServer({
         await messenger.stop();
         const connected = await messenger.connect({ provider: input.provider, token: input.token });
         await messenger.start({ provider: input.provider });
-        json(res, 200, { ...connected, userSafeSummary: '텔레그램 봇을 연결했어요.' }); return;
+        json(res, 200, {
+          ...connected,
+          ready: false,
+          userSafeSummary: `텔레그램 봇을 연결했어요. Telegram에서 @${connected.bot.username}에게 아무 메시지나 보내면 내 계정으로 바로 연결돼요.`,
+        }); return;
       }
       if (req.method === 'POST' && url.pathname === '/channels/disconnect') {
         const input = await body(req);

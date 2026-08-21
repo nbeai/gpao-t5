@@ -6,14 +6,11 @@ import { join } from 'node:path';
 
 import { makeConsoleServer } from '../src/console-server.js';
 
-test('설정은 지속 T5 브라우저 상태를 보여주고 두 단계 확인 뒤 로그인만 초기화한다', async () => {
+test('설정은 사용자 Chrome 연결 상태만 보여주고 T5가 로그인 정보를 지우지 않는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-browser-identity-settings-'));
-  let resetCalls = 0;
   const browserHost = {
-    profile: { id: 'default', kind: 'managed_persistent', selected: true },
-    async reset({ confirmation }) {
-      assert.equal(confirmation, 'RESET_T5_BROWSER'); resetCalls += 1; return { reset: true };
-    },
+    profile: { id: 'user-chrome', kind: 'existing_user_browser', selected: true },
+    status: () => ({ connected: true }),
   };
   const server = makeConsoleServer({
     stateDir: room, workspace: room, browserHost,
@@ -24,18 +21,13 @@ test('설정은 지속 T5 브라우저 상태를 보여주고 두 단계 확인 
     server.once('error', reject); server.listen(0, '127.0.0.1', resolve);
   });
   const base = `http://127.0.0.1:${server.address().port}`;
-  const post = (body) => fetch(`${base}/browser/identity/reset`, {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
-  });
   try {
     const identity = await fetch(`${base}/browser/identity`).then((response) => response.json());
     assert.equal(identity.available, true);
-    assert.equal(identity.profile.kind, 'managed_persistent');
-    assert.equal((await post({ confirmation: 'wrong' })).status, 400);
-    assert.equal(resetCalls, 0);
-    const reset = await post({ confirmation: 'RESET_T5_BROWSER' });
-    assert.equal(reset.status, 200);
-    assert.equal(resetCalls, 1);
+    assert.equal(identity.connected, true);
+    assert.equal(identity.profile.kind, 'existing_user_browser');
+    assert.match(identity.userSafeSummary, /로그인 정보는 Chrome에 그대로/u);
+    assert.equal((await fetch(`${base}/browser/identity/reset`, { method: 'POST' })).status, 404);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
