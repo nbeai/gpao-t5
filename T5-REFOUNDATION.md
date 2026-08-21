@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `U1-G3 SAFE MANAGED YOUTUBE CAPTIONS — IN PROGRESS` (자막 전용 검증 능력)
+현재 Gate: `U1-G4 USER-GROUNDED SOCIAL ANALYSIS — IN PROGRESS` (사용자 목적별 분석 품질)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -1727,7 +1727,7 @@ Non-goals:
 
 ## U1-G3 — Safe Managed YouTube Captions
 
-상태: `IN PROGRESS` — 검증된 `yt-dlp`를 시스템 전역이나 사용자 설정에 설치하지 않고 T5 managed 영역에
+상태: `COMPLETE` — 검증된 `yt-dlp`를 시스템 전역이나 사용자 설정에 설치하지 않고 T5 managed 영역에
 준비해, 공개 YouTube에서 필요한 자막만 받고 원문·언어·source·범위를 모델에 제공한다.
 
 사용자 완료 문장:
@@ -1778,12 +1778,51 @@ Non-goals:
 - 실제 설치 상태·연결 모델 종단은 새 managed CLI의 실제 사용자 영역 준비와 모델 사용에 대한 별도 명시 승인 대기
 - 증거: `refoundation/evidence/u1-g3-managed-youtube-captions-2026-08-21.json`
 
+최종 성능 등급:
+
+- `available fallback`, `instant default` 아님
+- manual caption 실물 cold source 10.47초, 같은 자막 local cache 39~68ms
+- 실제 사용자 답은 cache hit에서도 모델 생성 약 20초가 지배
+- 자막 부재는 native player response 0.83초, cache 53ms, yt-dlp 실행 0
+- 외부 상업 provider 또는 T5 공유 edge cache가 서기 전에는 “고속 영상 분석”으로 홍보하지 않음
+
+## U1-G4 — User-grounded Social Analysis
+
+상태: `IN PROGRESS` — 같은 SNS 자료라도 사장님의 사업·취향·현재 목표에 따라 무엇을 중요하게 볼지가
+달라진다는 제품 원칙을 실제 멀티턴 분석으로 검증한다.
+
+사용자 완료 문장:
+
+> 사장님이 자기 사업과 지금 고민을 말하고 SNS 링크를 주면 T5가 실제로 확인한 내용 중 그 목적에 필요한
+> 신호를 골라, 기회·위험·다음 행동과 아직 확인하지 못한 범위를 사장님에게 맞게 설명한다.
+
+이번 Gate의 최소 변경:
+
+- 같은 source도 서로 다른 실제 사용자 목적에서 다른 중요도·질문·결과가 나오는 중기 멀티턴 시나리오
+- 사용자가 말한 사업·취향·목표는 현재 대화 사실로 모델이 사용하고 runtime 고정 persona·분류표는 0
+- source identity·실제 관측·사용자 해석·제안을 답에서 구분
+- 조회하지 않은 댓글·지표·영상·자막을 근거로 승격하지 않음
+- 사용자가 관점을 교정하면 새 규칙 엔진 없이 같은 Session에서 분석 초점을 자연스럽게 갱신
+
+Non-goals:
+
+- 보편적 성공 공식·고정 업종 persona·단일 engagement score·감성 규칙 엔진
+- crawler·keyword listening·watchlist·automation·대량 계정 수집
+- 새 SNS 전용 tool·STT·OCR·프레임 추출
+
+완료 Gate:
+
+- 실제 사람 말투의 서로 다른 사업 목적 3개 이상, 각 6턴 이상 멀티턴
+- 같은 source를 썼을 때도 사용자 목적에 따라 결과가 실질적으로 달라짐
+- 사용자 교정 전후 초점 변경, source 사실·해석·미확인 범위 유지
+- 목적에 충분한 기존 손만 사용하고 새 능력 준비 0
+- 실제 콘솔 모델 종단과 기존 전체 회귀 유지
+
 ## 현재 다음 한 작업
 
 Web Hand W0~W6, Document Data Hand D1, Unified Attachment Hand A1까지 완료되어 1차 완성에 도달했다.
-다음 한 작업은 U1-G3에서 managed CLI의 package별 size 경계와 yt-dlp subtitle-only 실행 계약을 반대시험으로
-고정하는 것이다. SNS 대상과 분석 관점은 현재 사용자의 사업·취향·목표·요청에서 매번 정하며 고정 persona를
-만들지 않는다. 그 밖의
+다음 한 작업은 U1-G4의 실제 인간형 멀티턴 시나리오와 판정식을 먼저 고정하는 것이다. SNS 대상과 분석 관점은
+현재 사용자의 사업·취향·목표·요청에서 매번 정하며 고정 persona를 만들지 않는다. 그 밖의
 능력은 기능 목록에서 자동으로 고르지 않는다. 실제 콘솔 사용에서
 사용자 과업이 실패하거나 불편하면 해당 Run·Receipt를 읽고 모델·손·방법·권한·UI 중 공통 원인을 확정한 뒤
 그 한 축만 연다. 실제 사업자 계정이 준비되기 전에는 Naver 실계정 자격을 완료로 주장하지 않는다.

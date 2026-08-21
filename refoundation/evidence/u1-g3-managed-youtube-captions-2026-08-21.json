@@ -109,5 +109,15 @@
     "automaticFailureJourney": ["video_text:automatic source_failed after one retry","video_text:manual en caption_read","Korean answer with actual source language preserved"],
     "tests": {"passed":418,"failed":0,"legacyImports":0}
   },
-  "actualConsoleModel": "pending explicit approval for new real-state CLI installation and external model usage"
+  "actualConsoleModel": {
+    "humanControlledIsolatedDevConsole": true,
+    "provider": "chatgpt_oauth",
+    "modelId": "gpt-5.5",
+    "firstPreparedRunId": "969f44b4-086d-458f-b0b2-11037e4c6452",
+    "manualFirstRunId": "1647a352-f7cf-43bf-9095-41b4560616f4",
+    "newSessionCacheRunId": "2d25fc70-73eb-4b1e-8b7e-40d24253e5b4",
+    "newSessionReinstall": false,
+    "answersPreservedActualCaptionSource": true,
+    "performanceClass": "available fallback, not instant default"
+  }
 }
