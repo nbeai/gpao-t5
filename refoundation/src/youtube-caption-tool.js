@@ -239,7 +239,7 @@ export function makeYouTubeCaptionTool({
       properties: {
         action: { type: 'string', enum: ['status', 'read'] },
         url: { type: ['string', 'null'] },
-        language: { type: ['string', 'null'], maxLength: 24 },
+        language: { type: ['string', 'null'], maxLength: 24, description: 'Specific caption track language only when explicitly needed; null prefers an available manual source.' },
         maxChars: { type: ['integer', 'null'], minimum: 500, maximum: MAX_CHARS },
       },
       required: ['action', 'url', 'language', 'maxChars'],
