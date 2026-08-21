@@ -1,5 +1,6 @@
 import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { modelCapabilityManifest } from './model-capabilities.js';
 
 export const CHATGPT_OAUTH_TOKEN_URL = 'https://auth.openai.com/oauth/token';
 export const CHATGPT_OAUTH_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
@@ -259,6 +260,7 @@ export function makeStoredModelCredentialCatalog({ file } = {}) {
         provider: connection.provider,
         modelId: connection.modelId ?? null,
         active: connection.id === state.activeId,
+        capabilityManifest: modelCapabilityManifest(connection),
         ...(connection.validation?.verifiedAt
           ? { verifiedAt: connection.validation.verifiedAt } : {}),
       }));
@@ -276,10 +278,14 @@ export function makeStoredModelCredentialCatalog({ file } = {}) {
         return {
           kind: 'api_key', provider: connection.provider, apiKey: connection.key,
           modelId: connection.modelId, baseUrl: official.baseUrl,
+          capabilityManifest: modelCapabilityManifest(connection),
         };
       }
       if (connection.kind === 'chatgpt_oauth') {
-        return { kind: 'chatgpt_oauth', id: connection.id, modelId: connection.modelId };
+        return {
+          kind: 'chatgpt_oauth', id: connection.id, modelId: connection.modelId,
+          capabilityManifest: modelCapabilityManifest(connection),
+        };
       }
       throw new Error(`Unsupported stored connection kind: ${connection.kind}`);
     },

@@ -346,6 +346,8 @@ export function makeYouTubeCaptionTool({
   }
   return {
     name: 'video_text',
+    relatedTools: ['cli_prepare'],
+    searchTerms: ['video caption youtube transcript subtitles', '유튜브 영상 자막 원문'],
     description: 'Read bounded public YouTube caption text through a restricted managed source. It never uses user config, cookies, login, playlists, media download, audio, frames, OCR, or arbitrary yt-dlp arguments. Manual captions are preferred for the requested language; automatic captions are fallback only.',
     parameters: {
       type: 'object', additionalProperties: false,

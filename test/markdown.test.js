@@ -57,6 +57,13 @@ test('T5가 발급한 browser artifact만 대화 안의 이미지 미리보기�
   assert.match(h, /alt="브라우저 화면"/);
 });
 
+test('현재 Session에 결속된 T5 관리 attachment preview도 대화 안에 그린다', () => {
+  const attachment = '493cfdb2-e6d9-4bb3-994d-e8266c3b70d6';
+  const session = '5d26fa7f-a122-4eab-ae86-39b5f14bbd8c';
+  const path = `/attachments/${attachment}/content?sessionId=${session}&inline=1`;
+  assert.match(renderMarkdown(`![참고 이미지](${path})`), new RegExp(`<img src="${path.replace('?', '\\?').replace('&', '&amp;')}"`));
+});
+
 test('외부·data·임의 상대경로 이미지는 미리보기 권한을 얻지 않는다', () => {
   for (const source of [
     '![외부](https://example.com/x.png)',

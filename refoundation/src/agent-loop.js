@@ -57,7 +57,7 @@ function historyMessage(message) {
   return null;
 }
 
-async function executeCall(call, tools, signal) {
+async function executeCall(call, tools, signal, activeTools) {
   const requested = requestedCall(call);
   const tool = tools.get(requested.name);
   if (!tool) {
@@ -67,6 +67,15 @@ async function executeCall(call, tools, signal) {
       actualCall: null,
       outcome: 'unavailable',
       result: { error: `Unknown tool: ${requested.name}` },
+    };
+  }
+  if (!activeTools.has(requested.name)) {
+    return {
+      toolCallId: requested.id, requestedCall: requested, actualCall: null,
+      outcome: 'unavailable', result: {
+        state: 'deferred_tool_not_active', tool: requested.name,
+        nextSafeAction: 'Use tool_search for this capability first.',
+      },
     };
   }
 
@@ -154,7 +163,8 @@ export async function runAgent({
     registry.set(tool.name, tool);
   }
 
-  const definitions = [...registry.values()].map(toolDefinition);
+  const activeTools = new Set([...registry.values()].filter((tool) => tool.deferred !== true).map((tool) => tool.name));
+  let definitions = [...activeTools].map((name) => toolDefinition(registry.get(name)));
   const prior = history.map(historyMessage).filter(Boolean);
   if (!Array.isArray(requestAttachments)) throw new TypeError('requestAttachments must be an array');
   const transcript = [...prior, {
@@ -164,6 +174,8 @@ export async function runAgent({
   const receipts = [];
   const modelCalls = [];
   const repeatedCalls = new Map();
+  const completedTools = new Set();
+  const completedCapabilityGroups = new Set();
   let modelTurns = 0;
 
   while (modelTurns < maxModelTurns) {
@@ -232,9 +244,32 @@ export async function runAgent({
         actualCall: null,
         outcome: 'not_executed',
         result: { state: 'repeated_call_stopped', occurrences: repetitions + 1 },
-      } : await executeCall(call, registry, signal);
+      } : await executeCall(call, registry, signal, activeTools);
       receipts.push(receipt);
       transcript.push(toolMessage(receipt));
+      const acceptedActivations = [];
+      for (const name of receipt.result?.activatedTools ?? []) {
+        const candidate = registry.get(name);
+        if (candidate && !completedTools.has(name)
+          && !completedCapabilityGroups.has(candidate.capabilityGroup)) {
+          activeTools.add(name); acceptedActivations.push(name);
+        }
+      }
+      if (Array.isArray(receipt.result?.activatedTools)) {
+        receipt.result.activatedTools = acceptedActivations;
+        if (Array.isArray(receipt.result.tools)) {
+          receipt.result.tools = receipt.result.tools.filter((tool) => acceptedActivations.includes(tool.name));
+        }
+        if (!acceptedActivations.length) receipt.result.state = 'no_match';
+      }
+      if (receipt.result?.stopFurtherResearch === true) completedTools.add(requested.name);
+      for (const group of receipt.result?.completedCapabilityGroups ?? []) completedCapabilityGroups.add(group);
+      for (const name of receipt.result?.deactivatedTools ?? []) activeTools.delete(name);
+      for (const name of completedTools) activeTools.delete(name);
+      for (const name of [...activeTools]) {
+        if (completedCapabilityGroups.has(registry.get(name)?.capabilityGroup)) activeTools.delete(name);
+      }
+      definitions = [...activeTools].map((name) => toolDefinition(registry.get(name)));
       await onEvent?.({
         type: 'tool_end', turn: modelTurns, name: call?.name, outcome: receipt.outcome,
         receipt: structuredClone(receipt),

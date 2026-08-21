@@ -26,6 +26,7 @@ retain that complete text and all required notices.
 | `css-select` | 7.0.0 | BSD-2-Clause |
 | `css-what` | 8.0.0 | BSD-2-Clause |
 | `cssom` | 0.5.0 | MIT |
+| `cron-parser` | 5.10.0 | MIT |
 | `dom-serializer` | 3.1.1 | MIT |
 | `domelementtype` | 3.0.0 | BSD-2-Clause |
 | `domhandler` | 6.0.1 | BSD-2-Clause |
@@ -45,6 +46,7 @@ retain that complete text and all required notices.
 | `htmlparser2/node_modules/domutils` | 3.2.2 | BSD-2-Clause |
 | `htmlparser2/node_modules/entities` | 7.0.1 | BSD-2-Clause |
 | `linkedom` | 0.18.13 | ISC |
+| `luxon` | 3.7.2 | MIT |
 | `is-unsafe` | 2.0.0 | MIT |
 | `isexe` | 2.0.0 | ISC |
 | `jose` | 6.2.9 | MIT |
@@ -75,6 +77,7 @@ Direct upstream projects:
 - Office Kit XLSX: <https://github.com/office-kit/xlsx>
 - agent-browser: <https://github.com/vercel-labs/agent-browser>
 - clawpdf: <https://github.com/openclaw/clawpdf>
+- cron-parser: <https://github.com/harrisiirak/cron-parser>
 - LinkeDOM: <https://github.com/WebReflection/linkedom>
 - node-pty: <https://github.com/microsoft/node-pty>
 - tree-sitter-bash: <https://github.com/tree-sitter/tree-sitter-bash>

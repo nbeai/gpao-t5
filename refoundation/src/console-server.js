@@ -39,6 +39,8 @@ import {
 } from './memory-tool.js';
 import { makeSessionSearchTool } from './session-search-tool.js';
 import { makeWebSearchTool } from './web-search-tool.js';
+import { makeWebResearchTool } from './web-research-tool.js';
+import { makeVisualReferenceTool } from './visual-reference-tool.js';
 import { makeWebReadTool } from './web-read-tool.js';
 import { makeBrowserObservationTool } from './browser-observation-tool.js';
 import { makeBrowserObservationRegistry } from './browser-action-state.js';
@@ -61,6 +63,10 @@ import { makeConnectionTool } from './connection-tool.js';
 import { CapabilityHandoffLedger } from './capability-handoff-ledger.js';
 import { makeCapabilityHandoffCoordinator } from './capability-handoff-coordinator.js';
 import { loadCapabilityCatalog, makeCapabilityCatalogTool } from './capability-catalog.js';
+import { AutomationStore } from './automation-store.js';
+import { AutomationScheduler } from './automation-scheduler.js';
+import { makeAutomationTool } from './automation-tool.js';
+import { deferTools, makeToolSearchTool } from './tool-search.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -247,6 +253,7 @@ export function makeConsoleServer({
   const memories = new MemoryLedger(join(stateDir, 'memory'));
   const capabilityHandoffs = new CapabilityHandoffLedger(join(stateDir, 'capability-handoffs'));
   const capabilityLifecycle = new CapabilityLifecycleLedger(join(stateDir, 'capability-lifecycle'));
+  const automationStore = new AutomationStore(join(stateDir, 'automation', 'state.json'));
   const runLedger = new RunLedger(join(stateDir, 'runs'));
   const authority = new AuthorityStore(join(stateDir, 'authority'));
   const attachments = attachmentStore ?? new AttachmentStore(join(stateDir, 'attachments'));
@@ -265,6 +272,7 @@ export function makeConsoleServer({
   const pendingSurfaceMetrics = new Map();
   const webReadTool = makeWebReadTool(webReadOptions);
   const webSearchTool = makeWebSearchTool({ providers: webSearchProviders });
+  const webResearchTool = makeWebResearchTool({ searchTool: webSearchTool, readTool: webReadTool });
   const browserDrivers = new Map();
   const browserObservations = new Map();
   const browserArtifactRoot = resolve(stateDir, 'browser');
@@ -273,6 +281,7 @@ export function makeConsoleServer({
   const messengerState = new MessengerStateStore(messengerDirectory);
   let onboardingSkipped = false;
   let capabilityCoordinator = null;
+  let automationScheduler = null;
   const managedRoot = managedSkillsRoot ?? join(stateDir, 'managed-skills');
   const cliRoot = managedCliRoot ?? join(stateDir, 'managed-cli');
   const skillPackageSnapshotPromise = loadSkillSnapshot({ directory: skillPackagesRoot });
@@ -486,6 +495,17 @@ export function makeConsoleServer({
     if (running.has(sessionId)) throw Object.assign(new Error('session already running'), { status: 409 });
     const session = await sessions.load(sessionId);
     if (!session) throw Object.assign(new Error('session not found'), { status: 404 });
+    const connectionAtStart = await status();
+    const currentModelConnection = connectionAtStart?.connected ? {
+      provider: connectionAtStart.provider ?? 'unknown', modelId: connectionAtStart.modelId ?? 'unknown',
+      wire: connectionAtStart.capabilityManifest?.wire ?? null,
+    } : null;
+    const previousModelConnection = session.lastModelConnection ?? null;
+    const modelTransition = previousModelConnection && currentModelConnection
+      && (previousModelConnection.provider !== currentModelConnection.provider
+        || previousModelConnection.modelId !== currentModelConnection.modelId
+        || previousModelConnection.wire !== currentModelConnection.wire)
+      ? { previous: previousModelConnection, current: currentModelConnection } : null;
     const attachmentIds = [...new Set((options.attachmentIds ?? []).map(String))];
     if (attachmentIds.length > 10) throw Object.assign(new Error('한 번에 첨부할 수 있는 파일은 10개까지예요.'), { status: 413 });
     const currentAttachments = await Promise.all(attachmentIds.map((attachmentId) => (
@@ -514,7 +534,19 @@ export function makeConsoleServer({
       attachmentIds,
       trigger: options.trigger ?? 'user',
       ...(options.metadata ?? {}),
+      ...(currentModelConnection ? { modelConnection: currentModelConnection } : {}),
+      ...(modelTransition ? { modelTransition } : {}),
     } });
+    if (modelTransition) await run.append({
+      type: 'model_connection_changed', stepId: 'model-compatibility',
+      payload: {
+        ...modelTransition, canonicalConversationPreserved: true,
+        providerSpecificReasoningProjected: true,
+      },
+    });
+    if (currentModelConnection) await sessions.updateMeta(sessionId, {
+      lastModelConnection: currentModelConnection,
+    });
     const initialActivity = sessionActivities.start({
       sessionId, runId: run.runId, text: modelProgressText(1), phase: 'starting',
     });
@@ -758,7 +790,7 @@ export function makeConsoleServer({
         }));
         if (availability.available) {
           browserReady = true;
-          offeredTools.unshift(makeBrowserObservationTool({
+          const browserTool = makeBrowserObservationTool({
             driver: currentBrowser,
             publishScreenshot: (captured) => publishBrowserScreenshot(sessionId, captured),
             observationRegistry: browserObservationRegistry(sessionId),
@@ -769,14 +801,21 @@ export function makeConsoleServer({
             authorizeEffect: (args) => effectPreflight({
               toolName: 'browser', args, ownerId: sessionId,
             }),
-          }));
+          });
+          browserTool.relatedTools = ['web_read'];
+          browserTool.capabilityGroup = 'web_observation';
+          browserTool.searchTerms = ['browser rendered page screenshot login dynamic website', '브라우저 화면 로그인 동적 페이지'];
+          offeredTools.unshift(browserTool);
         }
       }
       offeredTools.unshift(webReadTool);
       if ((await Promise.all(webSearchProviders.map(async (provider) => {
         try { return (await provider.available())?.available === true; }
         catch { return false; }
-      }))).some(Boolean)) offeredTools.unshift(webSearchTool);
+      }))).some(Boolean)) offeredTools.unshift(
+        webSearchTool, webResearchTool,
+        makeVisualReferenceTool({ researchTool: webResearchTool, attachments, sessionId }),
+      );
       if (projection.recoverable.length) {
         offeredTools.unshift(makeConversationRecallTool({
           ledger: conversations, sessionId, allowedRefs: projection.recoverable,
@@ -814,6 +853,10 @@ export function makeConsoleServer({
         stores: { cli: managedCliStore, skill: managedSkillStore },
         authorizeEffect: (args) => effectPreflight({ toolName: 'capability_lifecycle', args, ownerId: sessionId }),
       }));
+      offeredTools.unshift(makeAutomationTool({
+        store: automationStore, scheduler: automationScheduler, sessionId,
+        authorizeEffect: (args) => effectPreflight({ toolName: 'automation', args, ownerId: sessionId }),
+      }));
       if (capabilitySnapshot.entries.length) {
         offeredTools.unshift(makeCapabilityCatalogTool({
           snapshot: capabilitySnapshot, connectionDoctor,
@@ -843,12 +886,21 @@ export function makeConsoleServer({
         doctor: connectionDoctor, startConnection: startConnectionForTool,
         performConnection: (id, actionId) => performConnectionAction(id, actionId, { sessionId }),
       }));
+      const coreToolNames = [
+        'connection', 'session_search', 'memory', 'skill',
+        'exec', 'process_start', 'pty_start', 'process_control',
+      ];
+      const deferredTools = deferTools(offeredTools, {
+        coreNames: coreToolNames, includeAttachment: attachmentIds.length > 0,
+      });
+      const searchable = deferredTools.filter((tool) => tool.deferred);
+      deferredTools.unshift(makeToolSearchTool({ tools: searchable }));
       const result = await runAgent({
         request: modelRequest,
         requestAttachments: imageInputs,
         history,
         model,
-        tools: offeredTools,
+        tools: deferredTools,
         signal: controller.signal,
         maxModelTurns: 32,
         onEvent: async (event) => {
@@ -1238,6 +1290,42 @@ export function makeConsoleServer({
     })),
     ...workspaceConnectionInspectors,
   ] });
+  automationScheduler = new AutomationScheduler({
+    store: automationStore,
+    execute: async ({ job, run: automationRun }) => {
+      const executionSession = await sessions.create({ continuationOf: job.sessionId });
+      let completed;
+      try {
+        completed = await executeTurn(executionSession.id, job.prompt, () => {}, {
+          trigger: 'automation', metadata: { jobId: job.id, automationRunId: automationRun.id },
+        });
+      } finally { await sessions.setArchived(executionSession.id, true).catch(() => {}); }
+      let deliveryStatus = 'not_requested';
+      const originSession = await sessions.load(job.sessionId);
+      const reply = completed.surfaceResult?.reply ?? completed.result?.answer ?? null;
+      if (reply) {
+        await sessions.append(job.sessionId, {
+          role: 'assistant', result: {
+            kind: 'reply', reply, runId: completed.runId, trigger: 'automation',
+            automation: { jobId: job.id, automationRunId: automationRun.id },
+          },
+        });
+        await conversations.ensure({ sessionId: job.sessionId, legacyMessages: historyFrom(originSession) });
+        await conversations.appendMessage({
+          sessionId: job.sessionId, messageId: `${completed.runId}:automation-delivery`, runId: completed.runId,
+          message: { role: 'assistant', content: reply },
+        });
+        broadcastEvent('automation_completed', { sessionId: job.sessionId, jobId: job.id, runId: completed.runId });
+      }
+      if (originSession?.origin?.channel === 'telegram' && reply) {
+        const delivery = await messenger.sendToSession({
+          sessionId: job.sessionId, text: reply,
+        });
+        deliveryStatus = delivery.sent ? 'succeeded' : 'failed';
+      }
+      return { runId: completed.runId, deliveryStatus };
+    },
+  });
   async function startConnectionForTool(id) {
     const service = connectionServices.get(id);
     if (!service || typeof service.start !== 'function') throw new Error('connection start is unavailable');
@@ -1868,7 +1956,23 @@ export function makeConsoleServer({
       if (req.method === 'GET' && url.pathname === '/skills') {
         json(res, 200, { skills: await skillSurface() }); return;
       }
-      if (req.method === 'GET' && url.pathname === '/automation') { json(res, 200, { jobs: [], candidates: [] }); return; }
+      if (req.method === 'GET' && url.pathname === '/automation') { json(res, 200, await automationStore.list()); return; }
+      if (req.method === 'POST' && url.pathname === '/automation/pause') {
+        const input = await body(req); const job = await automationStore.pause(input.jobId);
+        await automationScheduler.jobsChanged(); json(res, 200, { ok: true, job }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/automation/resume') {
+        const input = await body(req); const job = await automationStore.resume(input.jobId);
+        await automationScheduler.jobsChanged(); json(res, 200, { ok: true, job }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/automation/cancel') {
+        const input = await body(req); const job = await automationStore.cancel(input.jobId);
+        await automationScheduler.jobsChanged(); json(res, 200, { ok: true, job }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/automation/run') {
+        const input = await body(req); const run = await automationScheduler.runNow(input.jobId);
+        json(res, 200, { ok: true, enqueued: true, runId: run.id }); return;
+      }
       if (req.method === 'GET' && url.pathname === '/overview') {
         await memories.ensure();
         const memory = await memories.read();
@@ -2022,6 +2126,10 @@ export function makeConsoleServer({
   server.authorityStore = authority;
   server.managedCliStore = managedCliStorePromise;
   server.managedSkillStore = managedSkillStorePromise;
+  server.automationStore = automationStore;
+  server.automationScheduler = automationScheduler;
+  server.startAutomations = () => automationScheduler.start();
+  server.closeAutomations = () => automationScheduler.stop();
   server.runtimeInstanceId = runtimeInstanceId;
   server.unsubscribeTerminalWake = unsubscribeTerminal;
   server.closeWakeStreams = () => {

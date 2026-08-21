@@ -83,6 +83,50 @@ Non-goals:
 - 테스트 초록을 사용자 목적 달성으로 승격
 - 새 계획서·인계서·봉인문으로 같은 사실 복제
 
+## U2 — Model Environment Contract · Fast Web Hand · Automation v1
+
+상태: `COMPLETE` — 오너가 P0-H1의 기존 non-goal 중 웹손 고도화와 automation을 명시적으로 열어,
+비교군 기능을 복제하지 않고 모델 환경 계약과 세 실제 사용자 손으로 닫았다.
+
+사용자 완료 문장:
+
+> 모델이 바뀌어도 T5가 현재 지원 능력을 추측하지 않고, 필요한 도구만 열어 빠르게 여러 웹 출처와
+> 실제 이미지를 확인하며, 사용자가 평소 말로 예약한 일을 재시작 뒤에도 실행·확인·중지할 수 있다.
+
+성립한 계약:
+
+- 연결별 `t5.model-capabilities.v1`: text·tools·parallelTools·visionInput·imageToolResult·audio·video·
+  reasoning·prompt caching·streaming을 `supported / unsupported / unknown`으로 보존
+- 설정 화면에 현재 모델의 도구·이미지·스트리밍 실제 adapter 경계 표시
+- 모델 전환 첫 Run에 이전·현재 provider/model/wire와 canonical Conversation 보존 Receipt
+- 기본 9개 Core schema만 공개하고 peripheral 도구는 `tool_search` 뒤 가장 관련 있는 하나와 명시적
+  의존성만 다음 model turn에 공개; 완료된 capability group은 같은 Run에서 다시 열지 않음
+- OpenAI API 검색이 없을 때 Naver→DuckDuckGo→Bing 공개 후보 경로, 공급자 실패는 같은 질의의 다음
+  실제 공급자로 bounded 전환
+- `web_research`: 최대 4개 관점 검색과 서로 다른 도메인 최대 10개 병렬 관측, HTML·JSON·text·PDF
+  실제 내용과 dynamic/login/timeout 경계를 한 Receipt로 반환
+- `visual_reference`: 출처 page metadata 또는 검색 결과 이미지에서 T5 관리 preview를 병렬 생성하고
+  3개가 서면 종료; 동일 origin attachment preview만 Markdown image로 허용
+- `cron-parser@5.10.0` 정확 핀으로 cron·interval·one-shot·IANA timezone·DST 계산
+- automation 원장: create/list/inspect/run-now/pause/resume/cancel, claim-before-execution, 실행 history,
+  겹친 job 독립 실행, 재시작 interrupted truth, one-shot unknown 자동 재실행 금지
+- automation은 원래 대화를 점유하지 않는 continuation Session에서 실행하고 결과만 원래 대화와 결속된
+  Telegram에 전달; 각 Run은 현재 Authority를 새로 판정
+
+실제 결과:
+
+- 웹 리서치: 173,932ms·22 model turns·23 tools → 38,363ms·3 turns·2 tools
+- 시각 참고자료: 244,273ms·21 turns → 20,231ms·3 turns, 관리 preview 3개 실제 표시
+- 1분 반복 자동화: 생성→정시 실행→재시작 복원→원래 대화 전달→지금 실행→멈춤→재개→취소 성립
+- 초기 tool schema: 19개·20,719 bytes → 9개·8,435 bytes
+- 근거: `refoundation/evidence/u2-model-web-automation-live-2026-08-22.json`
+
+미확인·경계:
+
+- 실제 Claude·Gemini·Upstage key가 없어 wire unit 외 live qualification은 미측정
+- T5 runtime이 완전히 꺼진 동안의 회차는 `skip`; 설치 앱의 상시 background agent는 아직 없음
+- Windows·Linux 실제 기기 scheduler lifecycle 미측정
+
 ## R0 — 독립 개발 환경
 
 상태: `COMPLETE` — 환경 검사 4/4, 격리 자격 신호 0, legacy 제품 소스 변경 0.

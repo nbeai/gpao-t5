@@ -1,0 +1,72 @@
+{
+  "schema": "t5.u2-model-web-automation-live.v1",
+  "recordedAt": "2026-08-22T01:45:00+09:00",
+  "comparisonSources": {
+    "openclawCommit": "f65b7e06eaa66b9ce5fe2b3ca3549fbb7834acaa",
+    "hermesCommit": "fcbd1076a93841fa88855acce810e342a5b78101",
+    "principlesUsed": [
+      "scheduler trigger is separate from execution and delivery",
+      "due jobs are claimed before side effects and independent jobs do not execute serially",
+      "multi-source extraction is parallel and bounded",
+      "peripheral tool schemas are loaded only after tool search"
+    ]
+  },
+  "modelEnvironment": {
+    "manifestSchema": "t5.model-capabilities.v1",
+    "states": ["supported", "unsupported", "unknown"],
+    "initialToolDefinitionsBefore": 19,
+    "initialToolDefinitionsAfter": 9,
+    "initialToolSchemaBytesBefore": 20719,
+    "initialToolSchemaBytesAfter": 8435,
+    "modelSwitchCompatibilityReceipt": true
+  },
+  "webResearch": {
+    "baseline": { "wallMs": 173932, "modelTurns": 22, "toolCalls": 23 },
+    "final": {
+      "runId": "aa1c82af-8dce-4c6c-afcf-52656cc9af9b",
+      "wallMs": 38363,
+      "modelTurns": 3,
+      "toolCalls": ["tool_search", "web_research"],
+      "officialPdfTextSupported": true,
+      "keylessProviders": ["naver", "duckduckgo", "bing"]
+    }
+  },
+  "visualReference": {
+    "baseline": {
+      "runId": "fdfbdea4-672f-4990-a582-2d5b7632cb54",
+      "wallMs": 244273,
+      "modelTurns": 21
+    },
+    "final": {
+      "runId": "92fa4e73-4b40-4b2b-a9bc-d5f25b91822a",
+      "wallMs": 20231,
+      "modelTurns": 3,
+      "toolCalls": ["tool_search", "visual_reference"],
+      "managedPreviews": 3,
+      "inlineRendered": true
+    }
+  },
+  "automation": {
+    "creationRunId": "f5c87e32-0519-4d44-a438-9de0c1ea839e",
+    "jobId": "651e2978-043a-4395-a9ca-1ce206377ae8",
+    "schedule": "* * * * *",
+    "timezone": "Asia/Seoul",
+    "restartRestored": true,
+    "scheduledRunsSucceeded": 4,
+    "runNowSucceeded": true,
+    "pauseResumeCancelSucceeded": true,
+    "overlappingJobsIndependent": true,
+    "ambiguousInterruptedOneShotNotReplayed": true
+  },
+  "verification": {
+    "refoundationTests": { "passed": 459, "failed": 0 },
+    "markdownTests": { "passed": 22, "failed": 0 },
+    "legacySourceImports": 0,
+    "dependencyAuditVulnerabilities": 0
+  },
+  "unverified": [
+    "live Anthropic, Gemini, and Upstage qualifications require owner-provided credentials",
+    "scheduled execution while the T5 runtime is completely shut down is not supported",
+    "Windows and Linux scheduler lifecycle remain unmeasured on physical devices"
+  ]
+}

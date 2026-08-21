@@ -13,7 +13,7 @@ test('web_search는 후보만 돌려주고 어느 주소도 대신 읽지 않는
       return [
         { title: '첫 자료', url: 'https://example.com/a?utm_source=test', snippet: '첫 설명' },
         { title: '첫 자료 중복', url: 'https://example.com/a?utm_source=other', snippet: '중복' },
-        { title: '둘째 자료', url: 'https://example.org/b', snippet: '둘째 설명' },
+        { title: '둘째 자료', url: 'https://other.example.com/b', snippet: '둘째 설명', imageUrl: 'https://img.example.org/b.jpg' },
       ];
     },
   };
@@ -30,6 +30,7 @@ test('web_search는 후보만 돌려주고 어느 주소도 대신 읽지 않는
   assert.equal(result.candidates[0].rank, 1);
   assert.equal(result.candidates[0].url, 'https://example.com/a');
   assert.equal(result.candidates[0].instructionAuthority, 'none');
+  assert.equal(result.candidates[1].previewImageUrl, 'https://img.example.org/b.jpg');
   assert.equal(result.observedPageContent, false);
 });
 
@@ -51,6 +52,16 @@ test('web_search 실패는 시도한 provider와 아직 가능한 대안을 사�
   assert.equal(result.attemptedProvider.id, 'broken');
   assert.match(result.error, /provider timeout/);
   assert.deepEqual(result.availableAlternatives.map((item) => item.id), ['ready']);
+});
+
+test('첫 검색 공급자가 막히면 같은 질의를 다음 실제 공급자로 한 번 전환한다', async () => {
+  const first = { id: 'first', label: 'First', async available() { return { available: true }; }, async search() { throw new Error('challenge'); } };
+  const second = { id: 'second', label: 'Second', async available() { return { available: true }; }, async search() { return [{ title: 'B', url: 'https://b.example/', snippet: 'ok' }]; } };
+  const result = await makeWebSearchTool({ providers: [first, second] }).execute({
+    query: '시장', provider: null, limit: 3, domains: null,
+  });
+  assert.equal(result.state, 'candidates'); assert.equal(result.provider.id, 'second');
+  assert.equal(result.attempts[0].provider.id, 'first');
 });
 
 test('web_search는 사용할 수 없는 provider를 실행한 척하지 않는다', async () => {

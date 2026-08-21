@@ -8,6 +8,9 @@ import { makeConsoleModelAccess } from '../src/console-model-factory.js';
 import { makeModelConnectionService } from '../src/model-connection-service.js';
 import { makeStoredModelCredentialCatalog } from '../src/chatgpt-oauth-credential.js';
 import { makeStoredOpenAIWebSearchProvider } from '../src/openai-web-search-provider.js';
+import { makeDuckDuckGoSearchProvider } from '../src/duckduckgo-search-provider.js';
+import { makeBingSearchProvider } from '../src/bing-search-provider.js';
+import { makeNaverSearchProvider } from '../src/naver-search-provider.js';
 import { naverReadableUrlResolver } from '../src/naver-readable-url.js';
 import { makeAgentBrowserDriver, sessionNameForOwner } from '../src/agent-browser-driver.js';
 import { makeConsoleServer } from '../src/console-server.js';
@@ -59,7 +62,12 @@ await Promise.all([mkdir(stateDir, { recursive: true }), mkdir(workspace, { recu
 const access = makeConsoleModelAccess({ connectionFile, stateDir });
 const modelConnections = makeModelConnectionService({ file: connectionFile });
 const credentialCatalog = makeStoredModelCredentialCatalog({ file: connectionFile });
-const webSearchProviders = [makeStoredOpenAIWebSearchProvider({ credentialCatalog })];
+const webSearchProviders = [
+  makeStoredOpenAIWebSearchProvider({ credentialCatalog }),
+  makeNaverSearchProvider(),
+  makeDuckDuckGoSearchProvider(),
+  makeBingSearchProvider(),
+];
 const workspaceCredentialStore = new WorkspaceCredentialStore(join(stateDir, 'connections'));
 const bundledGoogleOAuth = await bundledGoogleOAuthConfig();
 const googleOAuthClientId = process.env.T5_GOOGLE_OAUTH_CLIENT_ID
@@ -137,6 +145,7 @@ if (portFile) {
 }
 console.log(`T5 재창립 콘솔 준비됨 → ${url}`);
 console.log(`작업 공간 → ${workspace}`);
+await server.startAutomations();
 
 if (!process.argv.includes('--no-open')) {
   const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
@@ -164,6 +173,7 @@ const stop = async () => {
     boundedShutdown(() => server.closeMessengers()),
     boundedShutdown(() => server.closeBrowsers()),
     boundedShutdown(() => server.closeWorkspaceConnections()),
+    boundedShutdown(() => server.closeAutomations()),
     boundedShutdown(() => server.managedProcesses.stopAll('runtime_shutdown')),
   ]);
   await boundedShutdown(() => new Promise((resolveClose) => {

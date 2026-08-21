@@ -3,12 +3,14 @@ import { isIP } from 'node:net';
 
 import { Readability } from '@mozilla/readability';
 import { parseHTML } from 'linkedom';
+import { openPdf } from 'clawpdf';
 
 const DEFAULT_MAX_CHARS = 32_000;
 const MAX_OUTPUT_CHARS = 64_000;
 const DEFAULT_TIMEOUT_MS = 20_000;
 const MAX_REDIRECTS = 8;
 const MAX_RESPONSE_BYTES = 4_000_000;
+const MAX_PDF_RESPONSE_BYTES = 24 * 1024 * 1024;
 export function webUserAgentForPlatform(platform = process.platform) {
   const system = platform === 'win32' ? 'Windows NT 10.0; Win64; x64'
     : platform === 'darwin' ? 'Macintosh; Intel Mac OS X 10_15_7'
@@ -88,30 +90,51 @@ function contentType(headers) {
 
 async function limitedText(response, byteLimit = MAX_RESPONSE_BYTES) {
   if (!response.body?.getReader) {
-    const text = await response.text();
-    return { text: text.slice(0, byteLimit), bytes: Buffer.byteLength(text.slice(0, byteLimit)), truncated: Buffer.byteLength(text) > byteLimit };
+    const full = Buffer.from(await response.arrayBuffer());
+    const buffer = full.subarray(0, byteLimit);
+    return { text: new TextDecoder().decode(buffer), buffer, bytes: buffer.length, truncated: full.length > byteLimit };
   }
   const reader = response.body.getReader();
-  const decoder = new TextDecoder();
   let bytes = 0;
-  let text = '';
+  const chunks = [];
   let truncated = false;
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     const remaining = byteLimit - bytes;
     if (value.byteLength > remaining) {
-      text += decoder.decode(value.subarray(0, Math.max(0, remaining)), { stream: true });
+      chunks.push(Buffer.from(value.subarray(0, Math.max(0, remaining))));
       bytes += Math.max(0, remaining);
       truncated = true;
       await reader.cancel().catch(() => {});
       break;
     }
     bytes += value.byteLength;
-    text += decoder.decode(value, { stream: true });
+    chunks.push(Buffer.from(value));
   }
-  text += decoder.decode();
-  return { text, bytes, truncated };
+  const buffer = Buffer.concat(chunks, bytes);
+  return { text: new TextDecoder().decode(buffer), buffer, bytes, truncated };
+}
+
+async function pdfText(buffer, { maxPages = 12, maxChars = DEFAULT_MAX_CHARS } = {}) {
+  const document = await openPdf(buffer);
+  try {
+    const pages = []; let totalChars = 0;
+    for (let pageNumber = 1; pageNumber <= Math.min(document.pageCount, maxPages); pageNumber += 1) {
+      const page = document.page(pageNumber);
+      try {
+        const text = page.text().trim(); totalChars += text.length;
+        if (text) pages.push(`Page ${pageNumber}\n${text}`);
+      } finally { page[Symbol.dispose]?.(); }
+    }
+    const text = pages.join('\n\n');
+    return {
+      text: text.slice(0, maxChars), totalChars,
+      pageCount: document.pageCount, shownPages: Math.min(document.pageCount, maxPages),
+      truncated: text.length > maxChars || document.pageCount > maxPages,
+      omittedChars: Math.max(0, text.length - maxChars), requiresOcrOrVision: totalChars === 0,
+    };
+  } finally { await document[Symbol.asyncDispose]?.(); }
 }
 
 function compactText(value) {
@@ -228,9 +251,15 @@ function htmlFacts(html, url) {
   const { document } = parseHTML(html);
   const title = compactText(document.querySelector('title')?.textContent ?? '');
   const canonicalRaw = document.querySelector('link[rel~="canonical"]')?.getAttribute('href');
+  const previewRaw = document.querySelector('meta[property="og:image"], meta[name="twitter:image"], meta[property="twitter:image"]')
+    ?.getAttribute('content');
   let canonicalUrl = null;
   if (canonicalRaw) {
     try { canonicalUrl = normalizeWebUrl(new URL(canonicalRaw, url).href); } catch { canonicalUrl = null; }
+  }
+  let previewImageUrl = null;
+  if (previewRaw) {
+    try { previewImageUrl = normalizeWebUrl(new URL(previewRaw, url).href); } catch { previewImageUrl = null; }
   }
   const passwordField = Boolean(document.querySelector('input[type="password"]'));
   const scripts = document.querySelectorAll('script').length;
@@ -248,7 +277,7 @@ function htmlFacts(html, url) {
   const text = readable?.text || visibleFallback;
   return {
     title: readable?.title || title,
-    canonicalUrl,
+    canonicalUrl, previewImageUrl,
     text,
     loginWall: passwordField && text.length < 1_000,
     dynamicShell: text.length < 120 && scripts > 0,
@@ -285,6 +314,9 @@ export function makeWebReadTool({
   if (typeof fetchImpl !== 'function') throw new TypeError('fetch implementation is required');
   return {
     name: 'web_read',
+    capabilityGroup: 'web_observation',
+    relatedTools: ['browser'],
+    searchTerms: ['exact public URL page content static read', '정확한 주소 페이지 읽기'],
     description: 'Read one exact public HTTP(S) URL. Returns observed source identity, redirects, content type, readable text, and honest login/dynamic/block/truncation boundaries.',
     parameters: {
       type: 'object',
@@ -369,8 +401,26 @@ export function makeWebReadTool({
         };
         const terminalState = responseState(response.status);
         if (terminalState) return { state: terminalState, source: sourceBase, content: null };
-        const body = await limitedText(response);
+        const disposition = String(response.headers.get('content-disposition') ?? '');
+        let decodedDisposition = disposition;
+        try { decodedDisposition = decodeURIComponent(disposition); } catch { /* preserve observed header */ }
+        const pdfHint = type === 'application/pdf' || /\.pdf(?:"|$)/iu.test(decodedDisposition);
+        const body = await limitedText(response, pdfHint ? MAX_PDF_RESPONSE_BYTES : MAX_RESPONSE_BYTES);
         const source = { ...sourceBase, observedBytes: body.bytes, responseBodyTruncated: body.truncated };
+        if ((type === 'application/pdf' || body.buffer.subarray(0, 5).toString('binary') === '%PDF-') && !body.truncated) {
+          const extracted = await pdfText(body.buffer, { maxChars });
+          source.contentType = 'application/pdf';
+          source.coverage = {
+            kind: 'pdf_text', pageCount: extracted.pageCount, shownPages: extracted.shownPages,
+            requiresOcrOrVision: extracted.requiresOcrOrVision,
+          };
+          if (!extracted.text) return { state: 'empty', source, content: null };
+          return { state: 'read', source, content: {
+            format: 'text', text: extracted.text, totalChars: extracted.totalChars,
+            trust: 'untrusted_external', instructionAuthority: 'none',
+            truncated: extracted.truncated, omittedChars: extracted.omittedChars,
+          } };
+        }
         if (type === 'text/html' || type === 'application/xhtml+xml' || (!type && /<html/i.test(body.text))) {
           const facts = htmlFacts(body.text, currentUrl);
           const embedded = embeddedPageData(body.text, { maxChars: Math.min(48_000, maxChars) });
@@ -379,6 +429,7 @@ export function makeWebReadTool({
             : facts.text;
           source.title = facts.title;
           source.canonicalUrl = facts.canonicalUrl;
+          source.previewImageUrl = facts.previewImageUrl;
           source.embeddedData = {
             present: Boolean(embedded.text), itemCount: embedded.itemCount,
             observedChars: embedded.observedChars,

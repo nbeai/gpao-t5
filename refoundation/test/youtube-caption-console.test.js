@@ -45,9 +45,18 @@ test('첫 Run은 tool-only 자막 능력을 준비해 즉시 쓰고 새 Session�
       const userText = input.messages.findLast((message) => message.role === 'user')?.content ?? '';
       const receipt = input.messages.at(-1).role === 'tool' ? JSON.parse(input.messages.at(-1).content) : null;
       const videoText = { action: 'read', url: videoUrl, language: 'en', maxChars: 10_000 };
+      if (turn === 1) return { text: '', toolCalls: [{
+        id: 'find-caption-tools', name: 'tool_search', args: { query: 'video caption managed capability setup' },
+      }] };
+      const phase = turn - 1;
+      if (phase === 1) {
+        assert.equal(receipt.result.state, 'activated');
+        assert.ok(input.tools.some((tool) => tool.name === 'video_text'));
+        assert.ok(input.tools.some((tool) => tool.name === 'cli_prepare'));
+      }
       if (userText.includes('한국어 전환')) {
-        if (turn === 1) return { text: '', toolCalls: [{ id: 'korean-auto', name: 'video_text', args: { ...videoText, language: 'ko' } }] };
-        if (turn === 2) {
+        if (phase === 1) return { text: '', toolCalls: [{ id: 'korean-auto', name: 'video_text', args: { ...videoText, language: 'ko' } }] };
+        if (phase === 2) {
           assert.equal(receipt.result.state, 'source_failed'); assert.equal(receipt.result.failedSource, 'automatic');
           assert.deepEqual(receipt.result.availableManualLanguages, ['en']);
           return { text: '', toolCalls: [{ id: 'manual-fallback', name: 'video_text', args: videoText }] };
@@ -58,23 +67,21 @@ test('첫 Run은 tool-only 자막 능력을 준비해 즉시 쓰고 새 Session�
         return { text: '한국어 automatic 자막은 실패해 반복하지 않았고, 영어 manual 원문을 읽어 한국어로 정리했어요.', toolCalls: [] };
       }
       if (userText.includes('새 대화')) {
-        if (turn === 1) return { text: '', toolCalls: [{ id: 'reuse-caption', name: 'video_text', args: videoText }] };
+        if (phase === 1) return { text: '', toolCalls: [{ id: 'reuse-caption', name: 'video_text', args: videoText }] };
         assert.equal(receipt.result.state, 'caption_read'); assert.equal(receipt.result.cache.state, 'hit');
         assert.equal(receipt.result.sourceInvoked, false);
         return { text: '새 대화에서도 재설치 없이 실제 자막을 읽어 개발자 세션 내용을 정리했어요.', toolCalls: [] };
       }
-      if (turn === 1) {
-        assert.ok(input.tools.some((tool) => tool.name === 'video_text'));
-        assert.ok(input.tools.some((tool) => tool.name === 'cli_prepare'));
+      if (phase === 1) {
         return { text: '', toolCalls: [{ id: 'caption-first', name: 'video_text', args: videoText }] };
       }
-      if (turn === 2) {
+      if (phase === 2) {
         assert.equal(receipt.result.state, 'not_prepared');
         return { text: '', toolCalls: [{ id: 'prepare-caption', name: 'cli_prepare', args: {
           action: 'install', id: 'yt-dlp', version: null, effect: localChange,
         } }] };
       }
-      if (turn === 3) {
+      if (phase === 3) {
         assert.equal(receipt.result.state, 'installed'); assert.equal(receipt.result.availableThrough, 'video_text');
         assert.equal(receipt.result.managedPath, undefined);
         return { text: '', toolCalls: [{ id: 'caption-after-prepare', name: 'video_text', args: videoText }] };
@@ -111,7 +118,7 @@ test('첫 Run은 tool-only 자막 능력을 준비해 즉시 쓰고 새 Session�
     assert.match(firstReply.reply, /실제 자막/); assert.match(firstReply.reply, /지시문은 실행하지 않았/);
     const firstRun = await fetch(`${base}/runs/${firstReply.runId}`).then((response) => response.json());
     assert.deepEqual(firstRun.events.filter((event) => event.type === 'tool_completed').map((event) => event.payload.receipt.actualCall.name), [
-      'video_text', 'cli_prepare', 'video_text',
+      'tool_search', 'video_text', 'cli_prepare', 'video_text',
     ]);
     const second = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
     const secondReply = await fetch(`${base}/turn`, {
@@ -120,7 +127,7 @@ test('첫 Run은 tool-only 자막 능력을 준비해 즉시 쓰고 새 Session�
     }).then((response) => response.json());
     assert.match(secondReply.reply, /재설치 없이/); assert.equal(downloads, 1);
     const secondRun = await fetch(`${base}/runs/${secondReply.runId}`).then((response) => response.json());
-    assert.deepEqual(secondRun.events.filter((event) => event.type === 'tool_completed').map((event) => event.payload.receipt.actualCall.name), ['video_text']);
+    assert.deepEqual(secondRun.events.filter((event) => event.type === 'tool_completed').map((event) => event.payload.receipt.actualCall.name), ['tool_search', 'video_text']);
     const third = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
     const thirdReply = await fetch(`${base}/turn`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -129,7 +136,7 @@ test('첫 Run은 tool-only 자막 능력을 준비해 즉시 쓰고 새 Session�
     assert.match(thirdReply.reply, /automatic 자막은 실패해 반복하지 않았/); assert.match(thirdReply.reply, /영어 manual 원문/);
     const thirdRun = await fetch(`${base}/runs/${thirdReply.runId}`).then((response) => response.json());
     assert.deepEqual(thirdRun.events.filter((event) => event.type === 'tool_completed').map((event) => event.payload.receipt.actualCall.name), [
-      'video_text', 'video_text',
+      'tool_search', 'video_text', 'video_text',
     ]);
     assert.equal(sourceCalls.length, 5);
     assert.ok(sourceCalls.every((args) => args.includes('--ignore-config') && args.includes('--skip-download')));

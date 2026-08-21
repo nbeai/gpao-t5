@@ -862,6 +862,7 @@ async function renderModelConnect(target) {
     box.innerHTML = `
       <b>모델 연결</b>
       <div id="mcStatus" style="margin:4px 0;"></div>
+      <div id="mcCapabilities" class="tb-hint"></div>
       <div class="connection-fields">
         <select id="mcProvider" aria-label="API 제공자"></select>
         <input id="mcKey" type="password" placeholder="API 키" aria-label="API 키" autocomplete="off">
@@ -1084,15 +1085,25 @@ async function refreshModelConnect() {
   await renderConnectionList();
   refreshActiveModelSurface(st);
   const el = document.getElementById('mcStatus');
+  const capabilities = document.getElementById('mcCapabilities');
   if (!el) return;
   document.getElementById('mcDisconnect').disabled = !result.ok || !st?.connected;
-  if (!result.ok) { el.textContent = endpointError(result, '모델 연결 상태를 불러오지 못했어요.'); return; }
-  if (!st?.connected) { el.textContent = '연결된 모델 없음 — 모델 하나를 연결하면 대화를 시작할 수 있어요'; return; }
+  if (!result.ok) { el.textContent = endpointError(result, '모델 연결 상태를 불러오지 못했어요.'); if (capabilities) capabilities.textContent = ''; return; }
+  if (!st?.connected) { el.textContent = '연결된 모델 없음 — 모델 하나를 연결하면 대화를 시작할 수 있어요'; if (capabilities) capabilities.textContent = ''; return; }
   const src = st.source
     ? ({ user: '화면에서 연결', saved: '저장된 연결', env: '환경 설정', chatgpt_oauth: 'ChatGPT 계정' }[st.source] ?? st.source)
     : null;
   el.textContent = `현재 사용 중 · ${MODEL_PROVIDER_LABEL[st.provider] ?? st.provider} · ${st.modelId}${st.keyMasked ? ` · ${st.keyMasked}` : ''}${src ? ` (${src})` : ''}`
     + (st.unofficial ? ' · 공식 지원 아님' : '');
+  if (capabilities) {
+    const facts = st.capabilityManifest?.capabilities ?? {};
+    const stateText = { supported: '가능', unsupported: '지원 안 함', unknown: '확인 필요' };
+    capabilities.textContent = [
+      `도구 사용 ${stateText[facts.tools] ?? '확인 필요'}`,
+      `이미지 입력 ${stateText[facts.visionInput] ?? '확인 필요'}`,
+      `스트리밍 ${stateText[facts.streaming] ?? '확인 필요'}`,
+    ].join(' · ');
+  }
 }
 
 function refreshActiveModelSurface(st) {
@@ -1256,7 +1267,7 @@ const AE_STATE_LABEL = {
 const AE_ENDED = new Set(['cancelled', 'expired']);
 const AE_RUN_LABEL = {
   succeeded: '성공', failed: '실패', cancelled: '취소됨', unknown: '확인 못 함',
-  queued: '대기 중', claimed: '시작하는 중', running: '도는 중', waiting_approval: '승인 대기',
+  skipped: '건너뜀', queued: '대기 중', claimed: '시작하는 중', running: '도는 중', waiting_approval: '승인 대기',
 };
 
 /**
@@ -1274,10 +1285,22 @@ const AE_RUN_LABEL = {
  */
 function automationJobActions(job) {
   const state = job?.state;
-  if (state === 'scheduled') return [{ id: 'pause', label: '멈추기', path: '/automation/pause' }];
+  if (state === 'scheduled') return [
+    { id: 'run', label: '지금 실행', path: '/automation/run' },
+    { id: 'pause', label: '멈추기', path: '/automation/pause' },
+    { id: 'cancel', label: '취소', path: '/automation/cancel' },
+  ];
   if (state === 'paused' || state === 'approved') {
-    return [{ id: 'resume', label: '다시 켜기', path: '/automation/resume' }];
+    return [
+      { id: 'run', label: '한 번 실행', path: '/automation/run' },
+      { id: 'resume', label: '다시 켜기', path: '/automation/resume' },
+      { id: 'cancel', label: '취소', path: '/automation/cancel' },
+    ];
   }
+  if (state === 'needs_review') return [
+    { id: 'run', label: '다시 실행', path: '/automation/run' },
+    { id: 'cancel', label: '취소', path: '/automation/cancel' },
+  ];
   return [];
 }
 
@@ -1391,8 +1414,8 @@ function aeGuide(candidates) {
     title: '아직 켜 둔 자동화가 없어요',
     steps: [
       '대화에서 「매일 아침 9시에 …해 줘」처럼 시점을 넣어 말해 보세요.',
-      'T5 가 예약 후보를 만들고, 무엇을·언제·어디로 보낼지 확인한 뒤에만 켜져요.',
-      '켜진 뒤에는 여기서 멈추고 다시 켤 수 있어요.',
+      '예약되면 이 화면에서 다음 실행과 지난 결과를 함께 볼 수 있어요.',
+      '켜진 뒤에는 여기서 한 번 실행하거나, 멈추고, 다시 켜고, 취소할 수 있어요.',
     ],
   };
 }
@@ -1438,8 +1461,7 @@ function projectAutomationDoor(payload = {}, { now = Date.now() } = {}) {
   return {
     appRunning: {
       applies: jobs.some((job) => job.state === 'scheduled'),
-      text: 'T5 는 백그라운드 데몬이 아니에요 — 이 앱이 켜져 있는 동안에만 예약이 돌아요. '
-        + '꺼 두면 그 시간은 그냥 지나가요.',
+      text: 'T5가 실행 중일 때 예약이 돌아요. 꺼져 있던 동안의 회차는 건너뛰고, 다시 켜면 다음 회차부터 이어져요.',
     },
     jobs: live,
     ended,

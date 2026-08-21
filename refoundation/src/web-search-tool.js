@@ -25,12 +25,16 @@ function normalizeLimit(value) {
   return number;
 }
 
-function normalizeResults(rows, limit) {
+function normalizeResults(rows, limit, domains = []) {
   const seen = new Set();
   const candidates = [];
   for (const row of Array.isArray(rows) ? rows : []) {
     const url = normalizeCandidateUrl(row?.url);
     if (!url || seen.has(url)) continue;
+    if (domains.length) {
+      const host = new URL(url).hostname.toLowerCase();
+      if (!domains.some((domain) => host === domain || host.endsWith(`.${domain}`))) continue;
+    }
     seen.add(url);
     candidates.push({
       rank: candidates.length + 1,
@@ -42,6 +46,7 @@ function normalizeResults(rows, limit) {
       trust: 'untrusted_external', instructionAuthority: 'none',
       ...(row?.publishedAt ? { publishedAt: String(row.publishedAt) } : {}),
       ...(row?.sourceType ? { sourceType: String(row.sourceType) } : {}),
+      ...(normalizeCandidateUrl(row?.imageUrl) ? { previewImageUrl: normalizeCandidateUrl(row.imageUrl) } : {}),
     });
     if (candidates.length >= limit) break;
   }
@@ -74,6 +79,7 @@ export function makeWebSearchTool({ providers = [] } = {}) {
   }
   return {
     name: 'web_search',
+    capabilityGroup: 'web_observation',
     description: 'Search the public web and return candidate sources only. This does not read page contents; choose a candidate and call web_read to inspect it.',
     parameters: {
       type: 'object',
@@ -97,36 +103,44 @@ export function makeWebSearchTool({ providers = [] } = {}) {
         .filter((item) => /^[a-z0-9.-]+$/i.test(item) && !item.startsWith('.') && !item.endsWith('.'));
       const facts = await providerFacts(providers);
       const requested = args.provider == null ? null : String(args.provider).trim();
-      const selectedFact = requested
-        ? facts.find((item) => item.id === requested)
-        : facts.find((item) => item.available);
-      if (!selectedFact?.available) {
+      const selectedFacts = requested
+        ? facts.filter((item) => item.id === requested && item.available)
+        : facts.filter((item) => item.available);
+      if (!selectedFacts.length) {
         return {
           state: 'unavailable', query, providers: facts,
           ...(requested ? { requestedProvider: requested } : {}),
           observedPageContent: false,
         };
       }
-      const selected = providers.find((provider) => provider.id === selectedFact.id);
-      try {
-        const rows = await selected.search(query, { limit, domains, signal: context.signal });
-        return {
-          state: 'candidates', query,
-          provider: { id: selectedFact.id, label: selectedFact.label },
-          candidates: normalizeResults(rows, limit),
-          readState: 'candidates_only', observedPageContent: false,
-          networkEffect: { kind: 'external_observe', sent: 'search_query' },
-        };
-      } catch (error) {
-        return {
-          state: context.signal?.aborted ? 'cancelled' : 'failed', query,
-          attemptedProvider: { id: selectedFact.id, label: selectedFact.label },
-          error: error?.message ?? String(error),
-          availableAlternatives: facts.filter((item) => item.available && item.id !== selectedFact.id)
-            .map(({ id, label }) => ({ id, label })),
-          observedPageContent: false,
-        };
+      const attempts = [];
+      for (const selectedFact of selectedFacts) {
+        const selected = providers.find((provider) => provider.id === selectedFact.id);
+        try {
+          const rows = await selected.search(query, { limit, domains, signal: context.signal });
+          const candidates = normalizeResults(rows, limit, domains);
+          if (!candidates.length) throw new Error('search returned no usable candidates');
+          return {
+            state: 'candidates', query,
+            provider: { id: selectedFact.id, label: selectedFact.label }, attempts,
+            candidates, readState: 'candidates_only', observedPageContent: false,
+            networkEffect: { kind: 'external_observe', sent: 'search_query' },
+          };
+        } catch (error) {
+          attempts.push({ provider: { id: selectedFact.id, label: selectedFact.label }, error: error?.message ?? String(error) });
+          if (context.signal?.aborted) break;
+        }
       }
+      return {
+        state: context.signal?.aborted ? 'cancelled' : 'failed', query, attempts,
+        ...(selectedFacts.length === 1 ? { attemptedProvider: {
+          id: selectedFacts[0].id, label: selectedFacts[0].label,
+        } } : {}),
+        error: attempts.at(-1)?.error ?? 'search failed',
+        availableAlternatives: facts.filter((item) => item.available
+          && !selectedFacts.some((selected) => selected.id === item.id)).map(({ id, label }) => ({ id, label })),
+        observedPageContent: false,
+      };
     },
   };
 }

@@ -22,6 +22,14 @@ function continuationSource(value) {
   return id;
 }
 
+function modelConnection(value) {
+  if (value == null) return null;
+  const provider = String(value.provider ?? '').trim(); const modelId = String(value.modelId ?? '').trim();
+  const wire = value.wire == null ? null : String(value.wire).trim();
+  if (!provider || !modelId) throw new TypeError('model connection requires provider and modelId');
+  return { provider, modelId, wire: wire || null };
+}
+
 export class ConsoleSessionStore {
   constructor(directory) {
     if (!directory) throw new TypeError('console state directory is required');
@@ -92,6 +100,7 @@ export class ConsoleSessionStore {
           deletedAt: session.deletedAt ?? null, turns: session.transcript.length,
           origin: clone(session.origin ?? null),
           continuationOf: session.continuationOf ?? null,
+          lastModelConnection: clone(session.lastModelConnection ?? null),
           lastResultKind: lastAssistant?.result?.kind ?? null,
         };
       });
@@ -122,6 +131,9 @@ export class ConsoleSessionStore {
         session.manualTitle = true;
       }
       if (typeof fields.pinned === 'boolean') session.pinned = fields.pinned;
+      if (fields.lastModelConnection !== undefined) {
+        session.lastModelConnection = modelConnection(fields.lastModelConnection);
+      }
       session.updatedAt = Date.now();
       await this.write(state);
       return clone(session);

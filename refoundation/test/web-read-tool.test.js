@@ -3,6 +3,24 @@ import assert from 'node:assert/strict';
 
 import { makeWebReadTool, normalizeWebUrl, webUserAgentForPlatform } from '../src/web-read-tool.js';
 
+function makePdf(text) {
+  const escaped = text.replace(/[()\\]/g, '\\$&');
+  const stream = `BT /F1 12 Tf 72 720 Td (${escaped}) Tj ET`;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+    `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let body = '%PDF-1.4\n'; const offsets = [0];
+  for (let index = 0; index < objects.length; index += 1) { offsets.push(Buffer.byteLength(body)); body += `${index + 1} 0 obj\n${objects[index]}\nendobj\n`; }
+  const xref = Buffer.byteLength(body); body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  body += offsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
+  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(body);
+}
+
 test('URL은 사람이 쓴 IRI를 보존해 안전한 HTTP 주소로 정규화한다', () => {
   assert.equal(
     normalizeWebUrl('example.com/한글 문서?q=작은 가게'),
@@ -144,6 +162,29 @@ test('web_read는 큰 JSON을 본 범위만 돌려주고 생략량을 정확히 
   assert.equal(result.content.text.length, 500);
   assert.equal(result.content.omittedChars, result.content.totalChars - 500);
   assert.equal(result.source.contentType, 'application/json');
+});
+
+test('web_read는 실제 출처 페이지의 대표 이미지 주소를 본문과 분리해 관측한다', async () => {
+  const tool = makeWebReadTool({
+    resolveHost: async () => ['93.184.216.34'],
+    fetchImpl: async () => new Response('<html><head><title>Cafe</title><meta property="og:image" content="/cover.jpg"></head><body>Beige cafe reference</body></html>', {
+      status: 200, headers: { 'content-type': 'text/html' },
+    }),
+  });
+  const result = await tool.execute({ url: 'https://example.com/design', maxChars: null });
+  assert.equal(result.source.previewImageUrl, 'https://example.com/cover.jpg');
+  assert.doesNotMatch(result.content.text, /cover\.jpg/u);
+});
+
+test('web_read는 공개 PDF를 미지원 바이너리로 버리지 않고 페이지 텍스트를 관측한다', async () => {
+  const bytes = makePdf('Official economic outlook 2026');
+  const tool = makeWebReadTool({
+    resolveHost: async () => ['93.184.216.34'],
+    fetchImpl: async () => new Response(bytes, { status: 200, headers: { 'content-type': 'application/pdf' } }),
+  });
+  const result = await tool.execute({ url: 'https://example.com/report.pdf', maxChars: 10_000 });
+  assert.equal(result.state, 'read'); assert.equal(result.source.coverage.kind, 'pdf_text');
+  assert.match(result.content.text, /Official economic outlook 2026/u);
 });
 
 test('web_read는 public URL이 private 주소로 해석되거나 redirect되면 fetch하지 않는다', async () => {
