@@ -25,6 +25,7 @@ test('첫 Run은 tool-only 자막 능력을 준비해 즉시 쓰고 새 Session�
   const room = await mkdtemp(join(tmpdir(), 't5-youtube-caption-console-'));
   const stateDir = join(room, 'state'); const workspace = join(room, 'workspace');
   const catalogFile = join(room, 'cli-catalog.json'); const videoTextRoot = join(room, 'video-text');
+  const videoTextCacheRoot = join(room, 'video-text-cache');
   const binary = Buffer.from('fixture yt-dlp binary'); const digest = createHash('sha256').update(binary).digest('hex');
   await mkdir(workspace, { recursive: true });
   await writeFile(catalogFile, JSON.stringify({
@@ -53,11 +54,13 @@ test('첫 Run은 tool-only 자막 능력을 준비해 즉시 쓰고 새 Session�
         }
         assert.equal(receipt.result.state, 'caption_read'); assert.equal(receipt.result.caption.source, 'manual');
         assert.equal(receipt.result.caption.language, 'en');
+        assert.equal(receipt.result.cache.state, 'hit'); assert.equal(receipt.result.sourceInvoked, false);
         return { text: '한국어 automatic 자막은 실패해 반복하지 않았고, 영어 manual 원문을 읽어 한국어로 정리했어요.', toolCalls: [] };
       }
       if (userText.includes('새 대화')) {
         if (turn === 1) return { text: '', toolCalls: [{ id: 'reuse-caption', name: 'video_text', args: videoText }] };
-        assert.equal(receipt.result.state, 'caption_read');
+        assert.equal(receipt.result.state, 'caption_read'); assert.equal(receipt.result.cache.state, 'hit');
+        assert.equal(receipt.result.sourceInvoked, false);
         return { text: '새 대화에서도 재설치 없이 실제 자막을 읽어 개발자 세션 내용을 정리했어요.', toolCalls: [] };
       }
       if (turn === 1) {
@@ -83,7 +86,7 @@ test('첫 Run은 tool-only 자막 능력을 준비해 즉시 쓰고 새 Session�
     } };
   };
   const server = makeConsoleServer({
-    stateDir, workspace, cliCatalogFile: catalogFile, managedCliRoot: join(stateDir, 'managed-cli'), videoTextRoot,
+    stateDir, workspace, cliCatalogFile: catalogFile, managedCliRoot: join(stateDir, 'managed-cli'), videoTextRoot, videoTextCacheRoot,
     cliFetchImpl: async () => (downloads += 1, new Response(binary, { headers: { 'content-length': String(binary.length) } })),
     cliVerifyExecutable: async ({ expectedVersion }) => ({ version: expectedVersion }),
     videoTextRunProcess: async ({ args, cwd }) => {
@@ -128,7 +131,7 @@ test('첫 Run은 tool-only 자막 능력을 준비해 즉시 쓰고 새 Session�
     assert.deepEqual(thirdRun.events.filter((event) => event.type === 'tool_completed').map((event) => event.payload.receipt.actualCall.name), [
       'video_text', 'video_text',
     ]);
-    assert.equal(sourceCalls.length, 9);
+    assert.equal(sourceCalls.length, 5);
     assert.ok(sourceCalls.every((args) => args.includes('--ignore-config') && args.includes('--skip-download')));
     assert.ok(sourceCalls.every((args) => args.includes('--js-runtimes') && args.some((arg) => arg.startsWith('node:'))));
     assert.ok(sourceCalls.every((args) => !args.some((arg) => /cookie/i.test(arg))));

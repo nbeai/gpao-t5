@@ -191,6 +191,7 @@ export function makeConsoleServer({
   cliFetchImpl,
   cliVerifyExecutable,
   videoTextRoot,
+  videoTextCacheRoot,
   videoTextRunProcess,
   capabilitiesRoot = bundledCapabilitiesRoot,
   skillCatalogMode = 'on-demand',
@@ -773,6 +774,7 @@ export function makeConsoleServer({
       offeredTools.unshift(makeYouTubeCaptionTool({
         store: managedCliStore,
         root: join(videoTextRoot ?? join(stateDir, 'video-text'), sessionId),
+        cacheRoot: videoTextCacheRoot ?? join(stateDir, 'video-text-cache'),
         ...(videoTextRunProcess ? { runProcess: videoTextRunProcess } : {}),
       }));
       offeredTools.unshift(makeCapabilityEvidenceTool({ runLedger }));

@@ -46,6 +46,24 @@
       "productDecision": "do not claim reliable Korean automatic captions; return manual language alternatives for model-selected translation"
     }
   },
+  "remoteComparatorResearch": {
+    "service": "youtube-transcript.ai public transcript endpoint",
+    "documentedArchitecture": ["one GET by video ID","timestamped Markdown","open CORS","24-hour Cloudflare edge cache"],
+    "measured": {
+      "firstEnglish": {"cache":"MISS","seconds":2.144,"bytes":21776,"language":"en"},
+      "repeatEnglish": {"cache":"HIT","seconds":0.717,"bytes":21776,"language":"en"},
+      "requestedKorean": {"cache":"MISS","seconds":1.900,"actualLanguage":"en","fallbackWasNotTranslation":true}
+    },
+    "commercialBoundary": "fair use is not a resale or sustained bulk tier; product use requires a separate partnership",
+    "t5Decision": "do not depend on the remote service; adopt a 24-hour local cache keyed by video, requested language, and trusted tool revision"
+  },
+  "localCache": {
+    "ttlSeconds": 86400,
+    "permissions": "0700 directory, 0600 record",
+    "keyFacts": ["videoId","requestedLanguage","yt-dlp version","yt-dlp digest"],
+    "newSessionSourceCalls": 0,
+    "remoteVideoIdDisclosure": 0
+  },
   "fixtureJourney": {
     "firstRunTools": ["video_text:not_prepared","cli_prepare:install","video_text:caption_read"],
     "newSessionTools": ["video_text:caption_read"],

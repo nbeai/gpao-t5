@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { access, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -101,6 +101,26 @@ test('자막 absent는 파일과 audio 관측 없이 정직하게 멈춘다', as
     assert.deepEqual(result.observed, ['identity']);
     assert.ok(result.missing.includes('captionText')); assert.ok(result.missing.includes('audio'));
     assert.deepEqual(await readdir(room), []);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('같은 video·요청 언어·tool digest는 24시간 로컬 cache에서 source 호출 없이 재사용한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-youtube-caption-cache-'));
+  const work = join(room, 'work'); const cacheRoot = join(room, 'cache'); let calls = 0;
+  try {
+    const tool = makeYouTubeCaptionTool({ root: work, cacheRoot, store: installedStore, runProcess: async ({ cwd }) => {
+      calls += 1;
+      if (calls === 1) return { code: 0, stdout: `${JSON.stringify({ en: [{ ext: 'json3' }] })}\n{}\n`, stderr: '' };
+      await writeFile(join(cwd, 'M7lc1UVf-VE.en.json3'), json3(['cached transcript line']), { mode: 0o600 });
+      return { code: 0, stdout: '', stderr: '' };
+    } });
+    const first = await tool.execute({ action: 'read', url: video, language: 'en', maxChars: 1000 });
+    assert.equal(first.cache.state, 'stored'); assert.equal(first.sourceInvoked, true); assert.equal(calls, 2);
+    const second = await tool.execute({ action: 'read', url: 'https://youtu.be/M7lc1UVf-VE', language: 'en', maxChars: 500 });
+    assert.equal(second.cache.state, 'hit'); assert.equal(second.sourceInvoked, false); assert.equal(calls, 2);
+    assert.equal(second.video.videoId, first.video.videoId); assert.match(second.caption.text.text, /cached transcript line/);
+    const files = await readdir(cacheRoot); assert.equal(files.length, 1);
+    assert.equal((await stat(join(cacheRoot, files[0]))).mode & 0o777, 0o600);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 

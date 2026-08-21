@@ -1743,6 +1743,7 @@ Non-goals:
 - 추가 runtime 설치 없이 T5가 이미 사용하는 bundled Node exact path만 JavaScript runtime으로 재사용
 - manual caption 우선, 요청 언어가 없을 때 automatic fallback; JSON3만 managed temporary output에 생성
 - caption file의 language·source·bytes·hash·events·truncation Receipt, 원문은 필요한 bounded 구간만 모델에 제공
+- 첫 성공 자막은 videoId·요청 언어·tool version/digest에 결속해 24시간 0600 로컬 cache; 다음 Session source 호출 0
 - 첫 Run 준비·사용, 새 Session 재설치 0, remove·restore는 기존 managed CLI lifecycle 재사용
 
 Non-goals:
@@ -1764,6 +1765,8 @@ Non-goals:
 - 공식 자산 격리 종단: exact hash·version→private-bin→manual JSON3 466 cues→caption absent→remove·restore
 - raw `yt-dlp` PATH·공개 managedPath 노출 0, media·cookie·user config 0, bundled Node로 runtime 경고 0
 - fixture 인간 흐름: 첫 Run `video_text→cli_prepare→video_text`, 새 Session `video_text`만, download 1회
+- youtube-transcript.ai 비교 실측: 첫 2.14초 MISS→재요청 0.72초 HIT; 같은 원리를 외부 의존 없이 로컬 24시간
+  cache로 적용하고 실제 반환 언어를 보존
 - 단위·경계·전체 회귀 418/418, legacy import 0
 - 실제 설치 상태·연결 모델 종단은 새 managed CLI의 실제 사용자 영역 준비와 모델 사용에 대한 별도 명시 승인 대기
 - 증거: `refoundation/evidence/u1-g3-managed-youtube-captions-2026-08-21.json`

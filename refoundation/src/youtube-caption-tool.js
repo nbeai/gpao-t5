@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import {
-  chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm,
+  chmod, lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile,
 } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 
@@ -12,6 +12,7 @@ const MAX_CHARS = 64_000;
 const DEFAULT_MAX_CAPTION_BYTES = 2 * 1024 * 1024;
 const MAX_PROCESS_OUTPUT = 4 * 1024 * 1024;
 const MAX_STDERR = 32 * 1024;
+const DEFAULT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 function sha256(bytes) { return createHash('sha256').update(bytes).digest('hex'); }
 
@@ -135,12 +136,82 @@ function captionText(json, maxChars) {
   const complete = cues.join('\n'); const shown = complete.slice(0, maxChars);
   return {
     events: json.events.length, cues: cues.length,
+    complete,
     text: {
       text: shown, totalChars: complete.length, shownChars: shown.length,
       truncated: complete.length > shown.length, omittedChars: Math.max(0, complete.length - shown.length),
       trust: 'untrusted_external', instructionAuthority: 'none',
     },
   };
+}
+
+function textWindow(complete, maxChars) {
+  const shown = complete.slice(0, maxChars);
+  return {
+    text: shown, totalChars: complete.length, shownChars: shown.length,
+    truncated: complete.length > shown.length, omittedChars: Math.max(0, complete.length - shown.length),
+    trust: 'untrusted_external', instructionAuthority: 'none',
+  };
+}
+
+function cacheIdentity(identity, requestedLanguage, revision) {
+  return sha256(Buffer.from(JSON.stringify({
+    videoId: identity.videoId, requestedLanguage: requestedLanguage ?? null,
+    version: revision.version, digest: revision.digest,
+  })));
+}
+
+async function readCaptionCache({ cacheRoot, identity, requestedLanguage, revision, maxChars, cacheTtlMs, maxCaptionBytes }) {
+  if (!cacheRoot) return null;
+  await ensureSafeRoot(cacheRoot);
+  const path = join(cacheRoot, `${cacheIdentity(identity, requestedLanguage, revision)}.json`);
+  let info;
+  try { info = await lstat(path); } catch (error) { if (error?.code === 'ENOENT') return null; throw error; }
+  if (!info.isFile() || info.isSymbolicLink()) throw new Error('caption cache must be a regular file');
+  if (info.size > (maxCaptionBytes * 2) + 128_000) return null;
+  let record;
+  try { record = JSON.parse(await readFile(path, 'utf8')); } catch { return null; }
+  const ageMs = Date.now() - new Date(record?.recordedAt).getTime();
+  if (record?.schema !== 't5.video-text-cache.v1' || record.videoId !== identity.videoId
+    || (record.requestedLanguage ?? null) !== (requestedLanguage ?? null)
+    || record.version !== revision.version || record.digest !== revision.digest
+    || !Number.isFinite(ageMs) || ageMs < 0 || ageMs > cacheTtlMs) return null;
+  const cache = { state: 'hit', ageSeconds: Math.floor(ageMs / 1000), ttlSeconds: Math.floor(cacheTtlMs / 1000) };
+  if (record.state === 'caption_absent') return {
+    state: 'caption_absent', video: identity, availableLanguages: [], cache,
+    ...executionFacts(''), sourceInvoked: false,
+    observed: ['identity'], missing: ['captionTrack', 'captionText', 'audio', 'frames', 'ocr'],
+  };
+  if (record.state !== 'caption_read' || typeof record.transcript !== 'string'
+    || record.transcript.length > maxCaptionBytes * 2 || !['manual', 'automatic'].includes(record.source)
+    || !LANGUAGE.test(record.language ?? '')) return null;
+  return {
+    state: 'caption_read', video: identity,
+    caption: {
+      source: record.source, language: record.language, format: 'json3',
+      bytes: record.bytes, sha256: record.sha256, events: record.events, cues: record.cues,
+      text: textWindow(record.transcript, maxChars),
+    },
+    capability: { kind: 'cli', id: 'yt-dlp', version: revision.version, digest: revision.digest },
+    execution: executionFacts(''), sourceInvoked: false, cache,
+    observed: ['identity', 'captionTrack', 'captionText'], missing: ['audio', 'frames', 'ocr'],
+  };
+}
+
+async function writeCaptionCache({ cacheRoot, identity, requestedLanguage, revision, record, cacheTtlMs }) {
+  if (!cacheRoot) return null;
+  await ensureSafeRoot(cacheRoot);
+  const path = join(cacheRoot, `${cacheIdentity(identity, requestedLanguage, revision)}.json`);
+  const temporary = `${path}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, JSON.stringify({
+      schema: 't5.video-text-cache.v1', recordedAt: new Date().toISOString(),
+      videoId: identity.videoId, requestedLanguage: requestedLanguage ?? null,
+      version: revision.version, digest: revision.digest, ...record,
+    }), { mode: 0o600 });
+    await chmod(temporary, 0o600); await rename(temporary, path); await chmod(path, 0o600);
+  } finally { await rm(temporary, { force: true }); }
+  return { state: 'stored', ttlSeconds: Math.floor(cacheTtlMs / 1000) };
 }
 
 function executionFacts(stderr = '') {
@@ -153,10 +224,13 @@ function executionFacts(stderr = '') {
 
 export function makeYouTubeCaptionTool({
   store, root, runProcess = defaultRunProcess, maxCaptionBytes = DEFAULT_MAX_CAPTION_BYTES,
-  javascriptRuntime = process.execPath,
+  javascriptRuntime = process.execPath, cacheRoot = null, cacheTtlMs = DEFAULT_CACHE_TTL_MS,
 } = {}) {
   if (!store || !root || typeof runProcess !== 'function') throw new TypeError('YouTube caption tool inputs are required');
   if (!isAbsolute(javascriptRuntime)) throw new TypeError('exact bundled JavaScript runtime path is required');
+  if (!Number.isInteger(cacheTtlMs) || cacheTtlMs < 1000 || cacheTtlMs > 7 * 24 * 60 * 60 * 1000) {
+    throw new TypeError('invalid caption cache TTL');
+  }
   return {
     name: 'video_text',
     description: 'Read bounded public YouTube caption text through a restricted managed source. It never uses user config, cookies, login, playlists, media download, audio, frames, OCR, or arbitrary yt-dlp arguments. Manual captions are preferred for the requested language; automatic captions are fallback only.',
@@ -184,6 +258,11 @@ export function makeYouTubeCaptionTool({
         requiredCapability: { kind: 'cli', id: 'yt-dlp', toolSurface: 'video_text' },
         observed: ['identity'], missing: ['captionTrack', 'captionText', 'audio', 'frames', 'ocr'],
       };
+      const revision = await store.activeRevision('yt-dlp');
+      const cached = await readCaptionCache({
+        cacheRoot, identity, requestedLanguage: language, revision, maxChars, cacheTtlMs, maxCaptionBytes,
+      });
+      if (cached) return cached;
       await ensureSafeRoot(root);
       const work = await mkdtemp(join(root, 'caption-')); await chmod(work, 0o700);
       const binary = store.binaryPath('yt-dlp');
@@ -202,10 +281,15 @@ export function makeYouTubeCaptionTool({
         };
         const { manual, automatic } = trackObjects(probe.stdout);
         const availableLanguages = [...new Set([...Object.keys(manual), ...Object.keys(automatic)])].sort();
-        if (availableLanguages.length === 0) return {
-          state: 'caption_absent', video: identity, availableLanguages: [],
+        if (availableLanguages.length === 0) {
+          const cache = await writeCaptionCache({
+            cacheRoot, identity, requestedLanguage: language, revision, record: { state: 'caption_absent' }, cacheTtlMs,
+          });
+          return {
+          state: 'caption_absent', video: identity, availableLanguages: [], ...(cache ? { cache } : {}), sourceInvoked: true,
           ...executionFacts(probe.stderr), observed: ['identity'], missing: ['captionTrack', 'captionText', 'audio', 'frames', 'ocr'],
-        };
+          };
+        }
         const selected = chooseTrack(manual, automatic, language);
         if (!selected) return {
           state: 'language_unavailable', video: identity,
@@ -243,7 +327,16 @@ export function makeYouTubeCaptionTool({
         const bytes = await readFile(path);
         let parsed; try { parsed = JSON.parse(bytes.toString('utf8')); }
         catch { throw new Error('caption JSON3 is invalid'); }
-        const content = captionText(parsed, maxChars); const revision = await store.activeRevision('yt-dlp');
+        const content = captionText(parsed, maxChars);
+        const cache = content.cues ? await writeCaptionCache({
+          cacheRoot, identity, requestedLanguage: language, revision,
+          record: {
+            state: 'caption_read', source: selected.source, language: selected.language,
+            bytes: bytes.length, sha256: sha256(bytes), events: content.events, cues: content.cues,
+            transcript: content.complete,
+          },
+          cacheTtlMs,
+        }) : null;
         return {
           state: content.cues ? 'caption_read' : 'caption_empty', video: identity,
           caption: {
@@ -254,6 +347,7 @@ export function makeYouTubeCaptionTool({
           capability: { kind: 'cli', id: 'yt-dlp', version: revision.version, digest: revision.digest },
           execution: executionFacts(`${probe.stderr ?? ''}\n${fetched.stderr ?? ''}`),
           fetchRetried,
+          sourceInvoked: true, ...(cache ? { cache } : {}),
           observed: content.cues ? ['identity', 'captionTrack', 'captionText'] : ['identity', 'captionTrack'],
           missing: content.cues ? ['audio', 'frames', 'ocr'] : ['captionText', 'audio', 'frames', 'ocr'],
         };
