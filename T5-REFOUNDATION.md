@@ -26,13 +26,14 @@ legacy T5                 refoundation T5
 
 사용자 완료 문장:
 
-> 일반 사용자가 설정과 대화만으로 평소 쓰던 브라우저의 로그인된 탭과 Telegram 개인 대화를 T5에
-> 연결하고, 앱을 다시 열어도 이어서 쓸 수 있다. 막힌 방법은 반복하지 않고 사용자가 중지를 말하기 전에
-> T5가 현재 한계를 설명하고 멈춘다.
+> 일반 사용자가 0.1.1에서 성공했던 것처럼, 요청하면 눈앞에 열린 T5 브라우저에서 네이버에 로그인하고
+> 원래 대화로 돌아와 블로그·메일 업무를 계속할 수 있다. Telegram은 token 뒤 첫 메시지부터 바로 이어지고,
+> 막힌 방법은 반복하지 않고 T5가 현재 한계를 설명하고 멈춘다.
 
 실제 실패 증거:
 
-- Browser: 로그인 handoff target 종료 뒤 현재 탭이 있어도 과거 pinned target의 `tab_gone` 반복, rebind 0
+- Browser: 0.1.1의 대화별 visible login profile은 실제 Naver 로그인·메일 읽기에 성공했으나, 0.1.2의
+  공용 persistent host가 stale pinned target과 `tab_gone` 반복을 만들었음
 - Browser: 내부 `agent-browser`가 일반 terminal PATH에 노출돼 T5 profile과 다른 현실을 관측하고 로그인
   미유지로 잘못 보고
 - Telegram: bot token만으로 `connected·send·receive`를 선언하지만 첫 sender pending·allow 과정 안내 부족
@@ -41,10 +42,10 @@ legacy T5                 refoundation T5
 
 이번 Gate의 최소 변경:
 
-- 로그인 업무에는 T5 전용·관리형 브라우저를 실행하지 않고 사용자가 선택한 기존 브라우저 탭만 연결
-- 연결된 탭의 실제 브라우저·창·탭·origin을 단일 상태로 유지하고, 탭 종료·연결 해제는 bounded stop
-- 사용자가 다시 탭을 선택해 연결하면 같은 Session의 원래 목적을 이어서 실제 페이지를 재관측
-- 브라우저의 cookie·local storage·비밀번호를 복사하거나 모델·도구 결과에 노출하지 않음
+- 0.1.1 패키지 실물의 대화별 managed profile·visible login handoff를 제품 경로로 복원
+- 로그인 요청 때 눈앞에 T5 브라우저를 한 번 열고, 사용자가 그 창에서 로그인한 뒤 같은 profile을 재관측
+- 공용 persistent browser host와 사용자 Chrome remote-debugging·MCP 연결을 제품 경로에서 제거
+- 브라우저의 cookie·local storage·비밀번호를 모델·도구 결과에 노출하지 않음
 - 내부 agent-browser binary를 terminal PATH에서 제거하고 모델의 raw browser CLI 우회 금지
 - Telegram 상태를 bot 연결·내 첫 메시지 대기·개인 대화 가능·polling 실패로 분리
 - token 연결 뒤 최초 private DM의 숫자 sender를 개인 소유자로 자동 결속하고 첫 메시지부터 처리
@@ -54,7 +55,7 @@ legacy T5                 refoundation T5
 
 필수 인간 종단:
 
-- Naver: 평소 브라우저의 로그인된 탭 선택→블로그 글쓰기 관측→다른 탭 이동→재연결→앱 재시작→로그인 유지
+- Naver: 요청→눈앞의 T5 브라우저→사용자 로그인→완료 발화→같은 profile의 블로그·메일 관측→종료
 - Telegram: token→첫 private 메시지 자동 결속→typing/답장→콘솔 Session→콘솔 답장→재시작
 - 전체 Hand 별도 UX·성능: Terminal, Web, Browser, Attachment/Document, Memory/Context, Connections,
   Messenger, Skills/Managed CLI, SNS/Video를 실제 사람 말투의 singleton·중장기 multiturn·목적형 시나리오로
@@ -64,7 +65,7 @@ Non-goals:
 
 - 새 SNS·STT·OCR·automation·connector 기능, UI 전면 재설계, 설치파일 생성
 - 테스트 수·호출 수를 완료로 승격, Telegram을 새 외부 브리지로 재작성, Browser cookie 직접 조작
-- T5 전용 브라우저·별도 browser profile·사용자 browser profile 복제, 모든 browser 제품 동시 지원
+- 사용자 Chrome remote debugging·MCP·extension 연결, 0.1.1 성공 범위를 넘는 로그인 영속화 재설계
 
 완료 Gate:
 

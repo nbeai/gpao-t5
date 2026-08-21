@@ -9,12 +9,10 @@ import { makeModelConnectionService } from '../src/model-connection-service.js';
 import { makeStoredModelCredentialCatalog } from '../src/chatgpt-oauth-credential.js';
 import { makeStoredOpenAIWebSearchProvider } from '../src/openai-web-search-provider.js';
 import { naverReadableUrlResolver } from '../src/naver-readable-url.js';
+import { makeAgentBrowserDriver, sessionNameForOwner } from '../src/agent-browser-driver.js';
 import { makeConsoleServer } from '../src/console-server.js';
 import { resolveConsoleWorkspace } from '../src/console-config.js';
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
-import { makeUserBrowserConnection } from '../src/user-browser-connection.js';
-import { makeUserChromeDriver } from '../src/user-chrome-driver.js';
-import { makeUserChromeMcpRuntime } from '../src/user-chrome-mcp-runtime.js';
 import {
   googleSyncAvailable, workspaceConnectionBaselineInspectors,
 } from '../src/workspace-connection-baseline.js';
@@ -62,15 +60,6 @@ const access = makeConsoleModelAccess({ connectionFile, stateDir });
 const modelConnections = makeModelConnectionService({ file: connectionFile });
 const credentialCatalog = makeStoredModelCredentialCatalog({ file: connectionFile });
 const webSearchProviders = [makeStoredOpenAIWebSearchProvider({ credentialCatalog })];
-const browserRoot = join(stateDir, 'browser');
-const userChromeRuntime = makeUserChromeMcpRuntime();
-const userBrowserConnection = makeUserBrowserConnection({ runtime: userChromeRuntime });
-const browserHost = {
-  profile: { id: 'user-chrome', kind: 'existing_user_browser', selected: true },
-  status: () => userChromeRuntime.status(),
-  connect: () => userChromeRuntime.connect(),
-  close: () => userChromeRuntime.close(),
-};
 const workspaceCredentialStore = new WorkspaceCredentialStore(join(stateDir, 'connections'));
 const bundledGoogleOAuth = await bundledGoogleOAuthConfig();
 const googleOAuthClientId = process.env.T5_GOOGLE_OAUTH_CLIENT_ID
@@ -118,11 +107,10 @@ const server = makeConsoleServer({
   webSearchProviders,
   webReadOptions: { urlResolvers: [naverReadableUrlResolver] },
   videoTextFetchImpl: globalThis.fetch,
-  browserDriverFactory: (sessionId) => makeUserChromeDriver({
-    runtime: userChromeRuntime,
-    outputDirectory: join(browserRoot, sessionId, 'artifacts'),
+  browserDriverFactory: (sessionId) => makeAgentBrowserDriver({
+    ownerId: sessionId,
+    outputDirectory: join(stateDir, 'browser', sessionNameForOwner(sessionId), 'artifacts'),
   }),
-  browserHost,
   workspaceConnectionInspectors: workspaceConnectionBaselineInspectors({
     userHome: computerEnvironment.userHome,
     platform: computerEnvironment.platform,
@@ -130,7 +118,7 @@ const server = makeConsoleServer({
     includeGoogle: false,
     includeNotion: false,
   }),
-  workspaceConnectionServices: [userBrowserConnection, googleDriveService, notionConnection, linearConnection],
+  workspaceConnectionServices: [googleDriveService, notionConnection, linearConnection],
   onError: (error) => console.error('[refoundation-console]', error?.message ?? error),
 });
 await new Promise((resolveListen, reject) => {
@@ -161,7 +149,6 @@ const stop = async () => {
   await server.closeMessengers();
   await server.closeBrowsers();
   await server.closeWorkspaceConnections();
-  await userChromeRuntime.close().catch(() => {});
   await server.managedProcesses.stopAll('runtime_shutdown');
   server.close(async () => {
     if (portFile) await rm(portFile, { force: true }).catch(() => {});

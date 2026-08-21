@@ -6,14 +6,10 @@ import { join } from 'node:path';
 
 import { makeConsoleServer } from '../src/console-server.js';
 
-test('설정은 사용자 Chrome 연결 상태만 보여주고 T5가 로그인 정보를 지우지 않는다', async () => {
+test('설정은 0.1.1의 대화별 T5 브라우저 로그인 경계를 정직하게 보여준다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-browser-identity-settings-'));
-  const browserHost = {
-    profile: { id: 'user-chrome', kind: 'existing_user_browser', selected: true },
-    status: () => ({ connected: true }),
-  };
   const server = makeConsoleServer({
-    stateDir: room, workspace: room, browserHost,
+    stateDir: room, workspace: room, browserDriverFactory: async () => null,
     modelFactory: async () => ({ respond: async () => ({ text: '네', toolCalls: [] }) }),
     modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
   });
@@ -24,9 +20,9 @@ test('설정은 사용자 Chrome 연결 상태만 보여주고 T5가 로그인 �
   try {
     const identity = await fetch(`${base}/browser/identity`).then((response) => response.json());
     assert.equal(identity.available, true);
-    assert.equal(identity.connected, true);
-    assert.equal(identity.profile.kind, 'existing_user_browser');
-    assert.match(identity.userSafeSummary, /로그인 정보는 Chrome에 그대로/u);
+    assert.equal(identity.connected, false);
+    assert.equal(identity.profile.kind, 'managed_isolated');
+    assert.match(identity.userSafeSummary, /로그인이 필요한 순간.*T5 브라우저/u);
     assert.equal((await fetch(`${base}/browser/identity/reset`, { method: 'POST' })).status, 404);
   } finally {
     await new Promise((resolve) => server.close(resolve));

@@ -21,7 +21,7 @@ export async function googleSyncAvailable(userHome, platform) {
 
 function browserRoute(browserAvailable, startUrl) {
   return browserAvailable
-    ? [{ kind: 'browser', label: '내 브라우저', state: 'ready', canStart: true, startUrl }] : [];
+    ? [{ kind: 'browser', label: 'T5 브라우저', state: 'ready', canStart: true, startUrl }] : [];
 }
 
 export function workspaceConnectionBaselineInspectors({
@@ -41,7 +41,7 @@ export function workspaceConnectionBaselineInspectors({
           userSafeSummary: localSync
             ? '컴퓨터에 동기화된 Google Drive 일반 파일을 찾고 읽을 수 있어요. 전용 연결은 아직 없어요.'
             : browserAvailable
-              ? '전용 연결은 아직 없고, 필요할 때 연결한 내 브라우저에서 로그인할 수 있어요.'
+              ? '전용 연결은 아직 없고, 필요할 때 T5 브라우저에서 로그인할 수 있어요.'
               : '전용 연결과 사용할 수 있는 로그인 경로가 아직 없어요.',
           capabilities: {
             search: localSync, read: localSync, create: false,
@@ -64,7 +64,7 @@ export function workspaceConnectionBaselineInspectors({
           state: browserAvailable ? 'needs_connection' : 'unavailable',
           reason: browserAvailable ? 'remote_mcp_not_connected' : 'no_available_route',
           userSafeSummary: browserAvailable
-            ? '원격 연결은 아직 없고, 필요할 때 연결한 내 브라우저에서 로그인할 수 있어요.'
+            ? '원격 연결은 아직 없고, 필요할 때 T5 브라우저에서 로그인할 수 있어요.'
             : '원격 연결과 사용할 수 있는 로그인 경로가 아직 없어요.',
           capabilities: {
             search: false, read: false, create: false,

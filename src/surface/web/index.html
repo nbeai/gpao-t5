@@ -1689,14 +1689,6 @@ async function renderConnectionDoctor(target) {
                   ? (performed.data?.userSafeSummary ?? '필요한 화면을 열었어요.')
                   : endpointError(performed, '필요한 화면을 열지 못했어요.');
                 button.disabled = false;
-                if (performed.ok && performed.data?.connection?.id === 'user-browser') {
-                  for (let attempt = 0; attempt < 60 && setov.classList.contains('open'); attempt += 1) {
-                    await new Promise((resolve) => setTimeout(resolve, 1000));
-                    const current = await load();
-                    const browser = current?.connections?.find((item) => item.id === 'user-browser');
-                    if (browser?.state !== 'connecting') break;
-                  }
-                }
                 return;
               }
               actionStatus.textContent = '연결을 해제하고 있어요…';
@@ -2888,26 +2880,11 @@ function renderResult(r, opts = {}) {
   renderConnectionHandoff(box, r, opts);
   if (!historical && r.browserHandoff?.active) {
     const handoff = el('suggest browser-handoff');
-    handoff.appendChild(el('sug-t', '내 Chrome에서 로그인할 페이지를 열었어요'));
+    handoff.appendChild(el('sug-t', '로그인 창을 열었어요'));
     handoff.appendChild(el('sug-line', r.browserHandoff.visible
-      ? '평소 쓰는 Chrome에서 직접 로그인한 뒤, 이 대화로 돌아와 완료했다고 알려주세요.'
-      : '연결한 Chrome 탭을 앞에 표시하지 못했어요. 아래 버튼으로 다시 확인할 수 있어요.'));
-    const reveal = document.createElement('button');
-    reveal.className = 'act primary'; reveal.textContent = '로그인 창 보기';
-    reveal.onclick = async () => {
-      reveal.disabled = true; reveal.textContent = '창을 찾고 있어요…';
-      const response = await fetch('/browser/login/reveal', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sessionId: currentSessionId }),
-      });
-      const result = await response.json().catch(() => ({}));
-      reveal.disabled = false; reveal.textContent = '로그인 창 보기';
-      let note = handoff.querySelector('.browser-handoff-result');
-      if (!note) { note = el('sug-line browser-handoff-result'); handoff.appendChild(note); }
-      note.textContent = response.ok ? '연결한 Chrome 탭을 앞으로 가져왔어요.'
-        : (result.error ?? '연결한 Chrome 탭을 찾지 못했어요. 다시 연결해 주세요.');
-    };
-    handoff.appendChild(reveal); box.appendChild(handoff);
+      ? '눈앞에 열린 T5 브라우저에서 직접 로그인한 뒤, 이 대화로 돌아와 완료했다고 알려주세요.'
+      : '로그인 창을 앞에 표시하지 못해 여기서 멈췄어요. 다시 요청하면 새 로그인 창을 열게요.'));
+    box.appendChild(handoff);
   }
   renderArtifacts(box, r.artifacts);
   renderRecord(box, r.ledger);

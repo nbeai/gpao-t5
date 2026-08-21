@@ -1192,6 +1192,23 @@ export function makeConsoleServer({
         };
       },
     },
+    {
+      id: 't5-browser', label: '웹사이트 로그인', category: 'browser',
+      async inspect() {
+        const available = typeof browserDriverFactory === 'function';
+        return {
+          state: available ? 'ready' : 'unavailable',
+          reason: available ? 'visible_login_handoff_ready' : 'browser_unavailable',
+          userSafeSummary: available
+            ? '로그인이 필요하면 눈앞에 T5 브라우저를 열어 직접 로그인할 수 있어요.'
+            : '웹사이트 로그인 기능을 지금 사용할 수 없어요.',
+          capabilities: { login: available, read: available, act: available },
+          routes: available ? [{
+            kind: 'browser', label: 'T5 브라우저', state: 'ready', canStart: true,
+          }] : [],
+        };
+      },
+    },
     ...workspaceConnectionServices.map((service) => ({
       id: service.id, label: service.label, category: service.category,
       inspect: (options) => service.inspect(options),
@@ -1513,26 +1530,14 @@ export function makeConsoleServer({
         return;
       }
       if (req.method === 'GET' && url.pathname === '/browser/identity') {
-        const connected = browserHost?.status?.().connected === true;
-        json(res, 200, browserHost ? {
-          available: true, connected, profile: browserHost.profile,
-          userSafeSummary: connected
-            ? '평소 쓰는 Chrome에 연결되어 있어요. 로그인 정보는 Chrome에 그대로 있고 T5는 선택한 탭만 사용해요.'
-            : '평소 쓰는 Chrome을 연결하면 로그인된 웹사이트를 함께 볼 수 있어요.',
-        } : {
-          available: false, connected: false, profile: null,
-          userSafeSummary: '사용자 브라우저 연결을 지금 사용할 수 없어요.',
+        const available = typeof browserDriverFactory === 'function';
+        json(res, 200, {
+          available, connected: false,
+          profile: available ? { id: 'isolated', kind: 'managed_isolated', selected: true } : null,
+          userSafeSummary: available
+            ? '로그인이 필요한 순간에만 눈앞에 T5 브라우저를 열어요. 로그인 정보는 해당 대화의 T5 브라우저 안에 보관돼요.'
+            : 'T5 브라우저를 지금 사용할 수 없어요.',
         });
-        return;
-      }
-      if (req.method === 'POST' && url.pathname === '/browser/user/select') {
-        const input = await body(req);
-        const session = await sessions.load(input.sessionId);
-        if (!session) { json(res, 404, { error: '대화를 찾지 못했어요.' }); return; }
-        const driver = await browserDriver(input.sessionId);
-        const selected = await driver?.selectTab?.(input.pageId, { bringToFront: true });
-        if (!selected) { json(res, 409, { error: '선택한 브라우저 탭을 연결하지 못했어요.' }); return; }
-        json(res, 200, { ok: true, tab: selected, userSafeSummary: '이 Chrome 탭을 현재 대화에 연결했어요.' });
         return;
       }
       if (req.method === 'GET' && url.pathname === '/model/connection') {

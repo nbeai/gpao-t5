@@ -82,7 +82,7 @@ export function makeGoogleDriveConnection({
             : clientId
               ? 'Google 계정 연결을 시작할 수 있어요.'
               : availableBrowser
-                ? '전용 연결 준비가 필요하고, 지금은 연결한 내 브라우저에서 로그인할 수 있어요.'
+                ? '전용 연결 준비가 필요하고, 지금은 T5 브라우저 로그인을 사용할 수 있어요.'
                 : 'Google Drive 전용 연결 준비가 필요해요.');
       return {
         state, reason, userSafeSummary,
@@ -98,7 +98,7 @@ export function makeGoogleDriveConnection({
             canStart: Boolean(clientId && !connected && !connecting),
           },
           ...(availableBrowser ? [{
-            kind: 'browser', label: '내 브라우저', state: 'ready', canStart: true,
+            kind: 'browser', label: 'T5 브라우저', state: 'ready', canStart: true,
             startUrl: 'https://drive.google.com/',
           }] : []),
           ...(desktop?.routes ?? (localSync ? [{
