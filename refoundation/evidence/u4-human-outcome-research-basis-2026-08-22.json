@@ -135,6 +135,23 @@
       "observations": {
         "principle": "AI improves work inside its uneven capability frontier and can reduce performance outside it; similar-looking tasks require different verification."
       }
+    },
+    {
+      "id": "hbs-operational-transparency",
+      "type": "service_experience_experiments",
+      "url": "https://www.hbs.edu/faculty/Pages/item.aspx?lt=&num=40158",
+      "observations": {
+        "principle": "Showing meaningful work being performed can increase perceived effort, value and trust even when the objective result is unchanged.",
+        "boundary": "Transparency cannot rescue a poor process and should not expose irrelevant internal machinery."
+      }
+    },
+    {
+      "id": "waiting-duration-information-control",
+      "type": "service_waiting_experiment",
+      "url": "https://cir.nii.ac.jp/crid/1360588388243207296",
+      "observations": {
+        "principle": "Waiting-duration information may not shorten perceived duration, but can preserve a sense of control and improve acceptance and service-quality evaluation."
+      }
     }
   ],
   "methodCaveats": [
@@ -150,6 +167,15 @@
     "operate the business: email, calendar, files, tasks, contracts, billing, settlement",
     "improve the business: review, inquiry, content, sales and cost evidence into changes",
     "monitor and repeat: daily exceptions, weekly performance, monthly reconciliation"
+  ],
+  "derivedExperienceExpectations": [
+    "smooth continuity across sessions, devices, channels, files and apps",
+    "compatibility with the user's existing environment rather than migration into T5-specific formats",
+    "capabilities that expand and retire without making the user administer an agent framework",
+    "predictable current state, next observation and stop path without fabricated completion estimates",
+    "operational transparency based on actual runtime events rather than hidden chain-of-thought or decorative status text",
+    "trust through source, execution, effect, uncertainty, recovery and result evidence",
+    "a revisable understanding of the user without permanent persona classification"
   ],
   "humanOwnedBoundary": [
     "professional conclusions and accountable claims",
