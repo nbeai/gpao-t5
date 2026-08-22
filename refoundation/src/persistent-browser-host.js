@@ -97,6 +97,7 @@ async function macManagedChromeConnection(profileDirectory) {
       '--disable-background-networking', '--disable-component-update', '--disable-default-apps',
       '--disable-popup-blocking', '--disable-prompt-on-repost', '--disable-sync',
       '--disable-features=Translate', '--password-store=basic', '--use-mock-keychain',
+      '--restore-last-session',
       `--user-data-dir=${profileDirectory}`,
     ]);
     if (!launched.ok) throw new Error('T5 managed Chrome could not be opened');

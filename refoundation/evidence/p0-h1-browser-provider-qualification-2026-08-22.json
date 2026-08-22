@@ -1,6 +1,6 @@
 {
   "schema": "t5.p0-h1.browser-provider-qualification.v1",
-  "recordedAt": "2026-08-22T12:28:20Z",
+  "recordedAt": "2026-08-22T12:36:21Z",
   "gate": {
     "name": "P0-H1 HUMAN RELEASE RECOVERY",
     "state": "IN_PROGRESS",
@@ -96,6 +96,13 @@
       "publishClicked": false,
       "submitClicked": false,
       "userSurfaceObserved": true
+    },
+    "realSessionCookieRestartFailure": {
+      "runId": "935e7fc6-3abf-4ce7-8bda-043393ab9b6a",
+      "afterRuntimeRestart": "login_required",
+      "changedEffects": 0,
+      "cause": "the managed Chrome clean shutdown did not restore session-only login cookies",
+      "postFixActualAccountRetest": false
     }
   },
   "modelEnvironment": {
@@ -133,9 +140,17 @@
     "failed": 0,
     "legacyImports": 0
   },
+  "restartContinuityFix": {
+    "managedChromeArgument": "--restore-last-session",
+    "sessionCookieOpposingTestBeforeFix": "LOGIN REQUIRED",
+    "sessionCookieOpposingTestAfterFix": "AUTHENTICATED",
+    "focusedIntegrationPassed": 1,
+    "focusedIntegrationFailed": 0,
+    "actualAccountReloginRequested": false
+  },
   "decision": {
     "commit": false,
     "gatePromotion": false,
-    "nextRequiredWork": "capture a live roleless modal with exact modal/control identity before any user-selected action; then qualify restart continuity and the installed human journey without publish"
+    "nextRequiredWork": "qualify the committed Browser Hand in the installed human journey during the next normal signed-in use; do not require a special Naver-only retest"
   }
 }

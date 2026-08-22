@@ -64,6 +64,11 @@ async function fixture() {
       res.end('<h1>LOGIN SAVED</h1>');
       return;
     }
+    if (req.url === '/login-session') {
+      res.setHeader('set-cookie', 't5_login=kept; Path=/; HttpOnly; SameSite=Lax');
+      res.end('<h1>SESSION LOGIN SAVED</h1>');
+      return;
+    }
     res.end(req.headers.cookie?.includes('t5_login=kept')
       ? '<h1>AUTHENTICATED</h1>' : '<h1>LOGIN REQUIRED</h1>');
   });
@@ -206,6 +211,41 @@ test('제품의 공유 managed profile은 대화를 바꾸고 T5 runtime을 다�
   } finally {
     await restored?.close().catch(() => {});
     await other?.close().catch(() => {});
+    await first?.close().catch(() => {});
+    await secondHost?.close().catch(() => {});
+    await firstHost?.close().catch(() => {});
+    await site.close();
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('브라우저 종료형 runtime 재시작도 session cookie 로그인을 복원한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-session-cookie-restart-live-'));
+  const site = await fixture();
+  const namespace = `t5-session-cookie-${process.pid}-${Date.now()}`;
+  let firstHost = host(room, namespace);
+  let secondHost = null;
+  let first = null;
+  let restored = null;
+  try {
+    first = makeAgentBrowserDriver({
+      ownerId: 'session-cookie', clientInstanceId: 'runtime-one',
+      outputDirectory: join(room, 'first', 'artifacts'), browserHost: firstHost,
+    });
+    assert.match((await first.navigate(`${site.base}/login-session`)).snapshot.text, /SESSION LOGIN SAVED/u);
+    await first.close();
+    await firstHost.close();
+
+    secondHost = host(room, namespace);
+    restored = makeAgentBrowserDriver({
+      ownerId: 'session-cookie', clientInstanceId: 'runtime-two',
+      outputDirectory: join(room, 'restored', 'artifacts'), browserHost: secondHost,
+    });
+    const afterRestart = await restored.navigate(`${site.base}/check`);
+    assert.match(afterRestart.snapshot.text, /AUTHENTICATED/u);
+    assert.doesNotMatch(afterRestart.snapshot.text, /LOGIN REQUIRED/u);
+  } finally {
+    await restored?.close().catch(() => {});
     await first?.close().catch(() => {});
     await secondHost?.close().catch(() => {});
     await firstHost?.close().catch(() => {});
