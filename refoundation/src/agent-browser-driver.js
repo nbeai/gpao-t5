@@ -394,6 +394,27 @@ export function makeAgentBrowserDriver({
     }
   }
 
+  async function actionResultTab(beforeTabs, requestedTabId, options = {}) {
+    const known = new Set(beforeTabs.flatMap((tab) => [tab.tabId, tab.targetId]).filter(Boolean));
+    const afterTabs = normalizeTabs(await command(['tab', 'list'], options));
+    const opened = afterTabs.filter((tab) => (
+      !known.has(tab.tabId) && !known.has(tab.targetId)
+    ));
+    if (opened.length === 0) return { tabId: requestedTabId, transition: null };
+    const activeOpened = opened.filter((tab) => tab.active);
+    const adopted = activeOpened.length === 1 ? activeOpened[0] : opened.length === 1 ? opened[0] : null;
+    if (!adopted?.tabId) throw new Error('browser action opened multiple ambiguous tabs');
+    await selectTab(adopted.tabId, options);
+    return {
+      tabId: adopted.tabId,
+      transition: {
+        kind: 'new_tab', fromTabId: requestedTabId ?? null, toTabId: adopted.tabId,
+        fromTargetId: beforeTabs.find((tab) => tab.tabId === requestedTabId)?.targetId ?? null,
+        toTargetId: adopted.targetId ?? null,
+      },
+    };
+  }
+
   async function takeSnapshot({ tabId, full = false, maxChars, signal } = {}) {
     await selectTab(tabId, { signal });
     const args = ['snapshot', ...(full ? [] : ['-i', '-c'])];
@@ -664,17 +685,22 @@ export function makeAgentBrowserDriver({
 
   async function act(kind, { tabId, ref, text, signal } = {}) {
     await selectTab(tabId, { signal });
+    const beforeTabs = normalizeTabs(await command(['tab', 'list'], { signal }));
     await clearNetwork({ signal });
     await command(kind === 'fill'
       ? ['fill', cliRef(ref), String(text ?? '')]
       : ['click', cliRef(ref)], { signal });
-    const observed = await takeSnapshot({ tabId, full: false, signal });
+    const resultTab = kind === 'fill'
+      ? { tabId, transition: null }
+      : await actionResultTab(beforeTabs, tabId, { signal });
+    const observed = await takeSnapshot({ tabId: resultTab.tabId, full: false, signal });
     const network = await networkFacts({ signal });
     return {
       action: kind === 'fill'
         ? { kind, ref: String(ref), textChars: String(text ?? '').length }
         : { kind, ref: String(ref) },
       ...observed, network,
+      ...(resultTab.transition ? { tabTransition: resultTab.transition } : {}),
     };
   }
 

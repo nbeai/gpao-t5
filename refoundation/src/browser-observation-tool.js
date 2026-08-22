@@ -233,6 +233,7 @@ export function makeBrowserObservationTool({
             changed: before.refScope.url !== after.tab.url,
             from: before.refScope.url, to: after.tab.url,
           },
+          ...(acted.tabTransition ? { tabTransition: structuredClone(acted.tabTransition) } : {}),
           ...(args.modalIntent ? {
             modalAction: {
               intent: args.modalIntent,

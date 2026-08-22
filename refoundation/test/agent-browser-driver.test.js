@@ -224,6 +224,53 @@ test('click·fill은 action 직전 network를 비우고 행동 후 snapshot과 s
   assert.equal(JSON.stringify(fill).includes('coffee'), false);
 });
 
+test('click이 새 탭을 만들면 그 탭을 행동 결과로 채택해 관측한다', async () => {
+  const calls = [];
+  let clicked = false;
+  const run = async (args) => {
+    const command = args.slice(args.indexOf('--json') + 1);
+    calls.push(command);
+    if (command[0] === 'click') {
+      clicked = true;
+      return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{}}' };
+    }
+    if (command[0] === 'tab' && command[1] === 'list') {
+      const tabs = clicked
+        ? [
+          { tabId: 't1', targetId: 'target-1', url: 'https://example.com/', active: false },
+          { tabId: 't2', targetId: 'target-2', url: 'https://example.com/editor', active: true },
+        ]
+        : [{ tabId: 't1', targetId: 'target-1', url: 'https://example.com/', active: true }];
+      return { exitCode: 0, stderr: '', stdout: JSON.stringify({ success: true, data: { tabs } }) };
+    }
+    if (command[0] === 'tab') {
+      return { exitCode: 0, stderr: '', stdout: JSON.stringify({
+        success: true, data: command[1] === 't2'
+          ? { tabId: 't2', targetId: 'target-2', url: 'https://example.com/editor', active: true }
+          : { tabId: 't1', targetId: 'target-1', url: 'https://example.com/', active: true },
+      }) };
+    }
+    if (command[0] === 'snapshot') {
+      return { exitCode: 0, stderr: '', stdout: JSON.stringify({ success: true, data: {
+        tabId: 't2', targetId: 'target-2', url: 'https://example.com/editor',
+        snapshot: '- heading "편집기" [ref=e1]', refs: { e1: { role: 'heading', name: '편집기' } },
+      } }) };
+    }
+    if (command[0] === 'network') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"requests":[]}}' };
+    return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{}}' };
+  };
+  const driver = makeAgentBrowserDriver({ ownerId: 'new-tab-action', outputDirectory: '/private/tmp', run });
+  const result = await driver.click({ tabId: 't1', ref: 'e28' });
+  assert.equal(result.tab.tabId, 't2');
+  assert.equal(result.tab.url, 'https://example.com/editor');
+  assert.deepEqual(result.tabTransition, {
+    kind: 'new_tab', fromTabId: 't1', toTabId: 't2',
+    fromTargetId: 'target-1', toTargetId: 'target-2',
+  });
+  assert.match(result.snapshot.text, /편집기/u);
+  assert.ok(calls.some((command) => command.join(' ') === 'tab t2'));
+});
+
 test('snapshot이 만든 ref를 쓸 때 같은 활성 tab을 재선택해 ref를 지우지 않는다', async () => {
   const calls = [];
   const run = async (args) => {
