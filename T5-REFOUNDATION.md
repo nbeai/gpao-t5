@@ -381,6 +381,11 @@ T5와 모델의 기능을 억제하지 않는 범위에서 추출·비교·적�
 - 실제 Terminal: 두 모델 모두 2 turns·exec 1회·합계 42
 - Browser·Connection 격리 도구 종단: 두 모델 모두 각각 2 turns·tool 1회, 관측·미연결 진실 유지
 - 전체 새 코어 검사 `493/493`, legacy import `0`
+- 실제 40턴 주제 전환 Episode: 제품 철학·가벼운 대화·전략·설치 실패·보안 재개/종결·P0·패키지·문구
+  요청·Interaction Core가 섞인 상태에서 gpt-5.5·gpt-5.6-terra 모두 full context와 Checkpoint+tail의
+  현재 상태 `10/10`, 자연어 응답 `2/2`; 닫힌 작업 재개 `0`
+- 첫 gpt-5.5 산문 Checkpoint가 오래된 session-only 수용 경계를 누락한 실패를 발견해, 내부 Checkpoint를
+  `현재 대상/형식·수용한 결정/경계·닫힘/보류·금지/재개 금지·남은 작업` 섹션으로 고정한 뒤 통과
 - 비용: 호출당 provider input 약 `+482 tokens`; prompt cache 관측, Claude·Gemini·Upstage live는 자격 부재로 미측정
 - 근거: `refoundation/evidence/u4-i0-interaction-core-live-2026-08-23.json`
 

@@ -13,6 +13,8 @@ test('checkpoint는 현재 대상·형식·교정·닫힌 쟁점과 합의 경�
   assert.match(CONVERSATION_CHECKPOINT_SYSTEM_INSTRUCTIONS, /latest user correction/is);
   assert.match(CONVERSATION_CHECKPOINT_SYSTEM_INSTRUCTIONS, /closed or deferred/is);
   assert.match(CONVERSATION_CHECKPOINT_SYSTEM_INSTRUCTIONS, /user-accepted.*assistant proposals.*did not accept/is);
+  assert.match(CONVERSATION_CHECKPOINT_SYSTEM_INSTRUCTIONS, /ACCEPTED DECISIONS\/BOUNDARIES.*CLOSED\/DEFERRED.*PROHIBITED\/DO NOT REOPEN.*OPEN WORK/is);
+  assert.match(CONVERSATION_CHECKPOINT_SYSTEM_INSTRUCTIONS, /Do not omit an accepted boundary.*topic later changed/is);
 });
 
 function entries(count, size = 80) {
