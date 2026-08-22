@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `P0-H1 HUMAN RELEASE RECOVERY — COMPLETE` (0.1.3 인간 핵심 여정 회복, 배포 서명 보류)
+현재 Gate: `P0-H1 HUMAN RELEASE RECOVERY — COMPLETE` (0.1.3 인간 핵심 여정·정식 배포 인증 완료)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -70,8 +70,18 @@ Telegram-origin Session과 콘솔에 4턴으로 일치했고, 재설치 뒤에�
 스크립트는 실행 중 앱을 종료하고 관리자 권한으로 `/Applications/GPAO-T5.app`과 package receipt를 실제
 제거했다. 모델 자격·대화 원장 `4`·Run `15`·Messenger 상태 `2`는 보존됐고, 동일 package 재설치 뒤
 `gpt-5.6-terra`와 Telegram 대화가 자동 복원됐다. 이로써 P0-H1 사용자 완료 문장과 제거·재설치 종단은
-성립했다. 현재 package는 무서명·미공증 내부 RC이며, 서명·공증·테스터 배포는 오너의 별도 지시 전까지
-열지 않는다.
+성립했다.
+
+2026-08-23 정식 배포 인증: 깨끗한 커밋 `7550a273`에서 universal app의 Mach-O·Node runtime을
+`Developer ID Application` hardened runtime·trusted timestamp로 서명하고, PKG를 `Developer ID Installer`로
+서명했다. Apple notary submission `d4b33ab1-a87e-41e5-9033-ad3cdf5b1d83`은 `Accepted`, staple·validate와
+Gatekeeper package·설치 app은 모두 `Notarized Developer ID`로 승인됐다. 최종 package는
+`dist/GPAO-T5-0.1.3-universal.pkg`, `148,303,629 bytes`, SHA-256
+`3bf64886d711b415ec687e48376b63466f6d2afc4524d7824fc74c285af14631`이다. exact package 설치 뒤 모델 연결과
+Telegram-origin 대화가 보존됐다. 로컬 `pkgutil --check-signature`와 `codesign --verify --deep`은 0.1.2·0.1.3
+모두 동일한 invalid 결과를 내지만, 두 버전 모두 Apple notary·stapler·Gatekeeper에서 승인됐다. 이 로컬
+검증기 불일치는 숨기지 않고 별도 경계로 기록한다. 근거는
+`refoundation/evidence/p0-h1-0.1.3-release-closeout-2026-08-23.json`이다.
 
 사용자 완료 문장:
 
