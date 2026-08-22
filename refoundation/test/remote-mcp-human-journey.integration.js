@@ -32,11 +32,15 @@ test('사용자는 Linear를 한 번 요청하고 로그인 허용 뒤 원래 �
     workspaceConnectionServices: [linear], connectionPollIntervalMs: 5,
     modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
     modelFactory: () => ({ async respond(input) {
+      if (turn >= 3 && !input.tools.some((tool) => tool.name === 'linear')) return {
+        text: '', toolCalls: [{
+          id: 'find-linear', name: 'tool_search', args: { query: 'linear' },
+        }],
+      };
       turn += 1;
       if (turn === 1) return { text: '', toolCalls: [{ id: 'connections', name: 'connection', args: { action: 'list', id: null, actionId: null } }] };
       if (turn === 2) return { text: '', toolCalls: [{ id: 'connect-linear', name: 'connection', args: { action: 'start', id: 'linear', actionId: null } }] };
       if (turn === 3) return { text: 'Linear 로그인 화면에서 허용해 주세요. 끝나면 원래 부탁을 이어갈게요.', toolCalls: [] };
-      assert.ok(input.tools.some((tool) => tool.name === 'linear'));
       if (turn === 4) return { text: '', toolCalls: [{ id: 'list-tools', name: 'linear', args: { action: 'list_tools', toolName: null, argumentsJson: null, effect: null } }] };
       if (turn === 5) return { text: '', toolCalls: [{ id: 'issues', name: 'linear', args: { action: 'call', toolName: 'list_issues', argumentsJson: '{}', effect: null } }] };
       return { text: '오늘 마감 업무는 견적 검토예요.', toolCalls: [] };

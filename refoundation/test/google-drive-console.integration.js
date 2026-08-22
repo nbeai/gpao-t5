@@ -43,8 +43,12 @@ test('연결된 Google Drive 손은 자연어 검색→파일 선택→다운로
     stateDir: join(room, 'state'), workspace: room, workspaceConnectionServices: [service],
     modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
     modelFactory: () => ({ async respond(input) {
+      const drive = input.tools.find((tool) => tool.name === 'google_drive');
+      if (!drive) return { text: '', toolCalls: [{
+        id: 'find-google-drive', name: 'tool_search',
+        args: { query: 'Google Drive search download connected files' },
+      }] };
       turn += 1;
-      const drive = input.tools.find((tool) => tool.name === 'google_drive'); assert.ok(drive);
       if (turn === 1) return { text: '', toolCalls: [{
         id: 'search-drive', name: 'google_drive', args: {
           ...nulls, action: 'search', query: '8월 정산', pageSize: 20,
@@ -84,7 +88,7 @@ test('연결된 Google Drive 손은 자연어 검색→파일 선택→다운로
     assert.equal(bytes, '%PDF-GOOGLE-T5');
     const run = await fetch(`${base}/runs/${answer.runId}`).then((response) => response.json());
     assert.deepEqual(run.events.filter((event) => event.type === 'tool_completed')
-      .map((event) => event.payload.receipt.actualCall.name), ['google_drive', 'google_drive']);
+      .map((event) => event.payload.receipt.actualCall.name), ['tool_search', 'google_drive', 'google_drive']);
   } finally {
     server.closeWakeStreams(); await server.closeMessengers(); server.closeWorkspaceConnections();
     await new Promise((resolve) => server.close(resolve));

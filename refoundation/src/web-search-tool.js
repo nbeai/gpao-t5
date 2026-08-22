@@ -80,6 +80,10 @@ export function makeWebSearchTool({ providers = [] } = {}) {
   return {
     name: 'web_search',
     capabilityGroup: 'web_observation',
+    searchTerms: [
+      'public web candidate source list only without reading pages',
+      '공개 웹 검색 후보 목록만 페이지 읽기 전',
+    ],
     description: 'Search the public web and return candidate sources only. This does not read page contents; choose a candidate and call web_read to inspect it.',
     parameters: {
       type: 'object',

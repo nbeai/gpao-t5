@@ -299,7 +299,8 @@ export function makeAgentBrowserDriver({
   const profileDirectory = join(sessionRoot, 'profile');
   const downloadDirectory = join(sessionRoot, 'downloads');
   const uid = typeof process.getuid === 'function' ? process.getuid() : 'user';
-  const socketDirectory = join(process.platform === 'darwin' ? '/private/tmp' : tmpdir(), `t5-ab-${uid}`);
+  const socketDirectory = browserHost?.clientSocketDirectory
+    ?? join(process.platform === 'darwin' ? '/private/tmp' : tmpdir(), `t5-ab-${uid}`);
   const usesDefaultRun = run == null;
   const execute = run ?? defaultRun(binary, {
     environment: {

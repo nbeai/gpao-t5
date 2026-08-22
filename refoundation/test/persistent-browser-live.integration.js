@@ -219,7 +219,7 @@ test('제품의 공유 managed profile은 대화를 바꾸고 T5 runtime을 다�
   }
 });
 
-test('브라우저 종료형 runtime 재시작도 session cookie 로그인을 복원한다', async () => {
+test('정상 종료 뒤 session-only cookie 로그인은 복원됐다고 주장하지 않는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-session-cookie-restart-live-'));
   const site = await fixture();
   const namespace = `t5-session-cookie-${process.pid}-${Date.now()}`;
@@ -242,8 +242,8 @@ test('브라우저 종료형 runtime 재시작도 session cookie 로그인을 �
       outputDirectory: join(room, 'restored', 'artifacts'), browserHost: secondHost,
     });
     const afterRestart = await restored.navigate(`${site.base}/check`);
-    assert.match(afterRestart.snapshot.text, /AUTHENTICATED/u);
-    assert.doesNotMatch(afterRestart.snapshot.text, /LOGIN REQUIRED/u);
+    assert.match(afterRestart.snapshot.text, /LOGIN REQUIRED/u);
+    assert.doesNotMatch(afterRestart.snapshot.text, /AUTHENTICATED/u);
   } finally {
     await restored?.close().catch(() => {});
     await first?.close().catch(() => {});

@@ -53,8 +53,10 @@ test('연결된 Notion 손은 도구 발견→검색→페이지 읽기→수정
     stateDir: join(room, 'state'), workspace: room, workspaceConnectionServices: [service],
     modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
     modelFactory: () => ({ async respond(input) {
+      if (!input.tools.some((tool) => tool.name === 'notion')) return { text: '', toolCalls: [{
+        id: 'find-notion', name: 'tool_search', args: { query: 'notion' },
+      }] };
       turn += 1;
-      assert.ok(input.tools.some((tool) => tool.name === 'notion'));
       const base = { toolName: null, argumentsJson: null, effect: null };
       if (turn === 1) return { text: '', toolCalls: [{
         id: 'list-notion', name: 'notion', args: { ...base, action: 'list_tools' },
@@ -97,7 +99,7 @@ test('연결된 Notion 손은 도구 발견→검색→페이지 읽기→수정
       'notion-search', 'notion-fetch', 'notion-update-page',
     ]);
     const run = await fetch(`${base}/runs/${answer.runId}`).then((response) => response.json());
-    assert.equal(run.events.filter((event) => event.type === 'tool_completed').length, 4);
+    assert.equal(run.events.filter((event) => event.type === 'tool_completed').length, 5);
     assert.equal(run.events.some((event) => (
       event.type === 'tool_completed'
       && event.payload.receipt.requestedCall.args.effect?.kind === 'external_change'

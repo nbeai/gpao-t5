@@ -186,10 +186,19 @@ test('일반 사용자의 Notion·Google 자료 찾기부터 파일 왕복까지
     () => ({ text: 'Google Drive에 폴더를 만들고 파일 이름 변경·업로드·교체를 마친 뒤 다시 확인했어요.', toolCalls: [] }),
   ];
 
+  let discoveryId = 0;
   const server = makeConsoleServer({
     stateDir, workspace: room, workspaceConnectionServices: [googleService, notionService],
     modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
     modelFactory: () => ({ async respond(input) {
+      const userText = input.messages.findLast((message) => message.role === 'user')?.content ?? '';
+      const desired = userText.includes('구글') ? 'google_drive' : 'notion';
+      if (!input.tools.some((tool) => tool.name === desired)) return {
+        text: '', toolCalls: [{
+          id: `find-workspace-tool-${discoveryId += 1}`, name: 'tool_search',
+          args: { query: desired },
+        }],
+      };
       const next = queue.shift();
       assert.ok(next, 'unexpected extra model turn');
       assert.ok(input.tools.some((tool) => tool.name === 'connection'));

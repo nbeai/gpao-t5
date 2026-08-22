@@ -32,20 +32,40 @@ test('모델이 검색 후보를 고른 뒤 그 주소만 읽고 두 Receipt를 
     },
   };
   let modelTurn = 0;
+  let searchDiscoveryRequested = false;
   const server = makeConsoleServer({
     stateDir, workspace,
     webSearchProviders: [provider],
     webReadOptions: { allowPrivateUrls: true },
     modelFactory: () => ({ async respond(input) {
+      if (modelTurn === 0 && !input.tools.some((tool) => tool.name === 'web_search')) {
+        if (searchDiscoveryRequested) {
+          const receipt = JSON.parse(input.messages.at(-1).content);
+          assert.deepEqual(receipt.result.activatedTools, ['web_search']);
+        }
+        searchDiscoveryRequested = true;
+        return { text: '', toolCalls: [{
+          id: 'find-web-search', name: 'tool_search',
+          args: { query: 'public web candidate source list only without reading pages' },
+        }] };
+      }
+      if (modelTurn === 1 && !input.tools.some((tool) => tool.name === 'web_read')) return {
+        text: '', toolCalls: [{
+          id: 'find-web-read', name: 'tool_search',
+          args: { query: 'exact public URL page content static read' },
+        }],
+      };
       modelTurn += 1;
       if (modelTurn === 1) {
         assert.ok(input.tools.some((tool) => tool.name === 'web_search'));
-        assert.ok(input.tools.some((tool) => tool.name === 'web_read'));
         return { text: '', toolCalls: [{ id: 'search-web', name: 'web_search', args: {
           query: '우리 가게 영업시간 공지', provider: null, limit: 5, domains: null,
         } }] };
       }
-      const receipt = JSON.parse(input.messages.at(-1).content);
+      const receiptMessage = modelTurn === 2
+        ? input.messages.findLast((message) => message.name === 'web_search')
+        : input.messages.at(-1);
+      const receipt = JSON.parse(receiptMessage.content);
       if (modelTurn === 2) {
         assert.equal(receipt.result.state, 'candidates');
         assert.equal(receipt.result.observedPageContent, false);
@@ -71,12 +91,15 @@ test('모델이 검색 후보를 고른 뒤 그 주소만 읽고 두 Receipt를 
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sessionId: created.id, text: '우리 가게 영업시간 공지를 찾아 확인해줘' }),
     }).then((response) => response.json());
+    assert.equal(reply.kind, 'reply', JSON.stringify(reply));
     assert.match(reply.reply, /오전 9시/);
     const run = await fetch(`${base}/runs/${reply.runId}`).then((response) => response.json());
     const completed = run.events.filter((event) => event.type === 'tool_completed');
-    assert.deepEqual(completed.map((event) => event.payload.receipt.actualCall.name), ['web_search', 'web_read']);
-    assert.equal(completed[0].payload.receipt.result.readState, 'candidates_only');
-    assert.equal(completed[1].payload.receipt.result.source.finalUrl, articleUrl);
+    assert.deepEqual(completed.map((event) => event.payload.receipt.actualCall.name), [
+      'tool_search', 'web_search', 'tool_search', 'web_read',
+    ]);
+    assert.equal(completed[1].payload.receipt.result.readState, 'candidates_only');
+    assert.equal(completed[3].payload.receipt.result.source.finalUrl, articleUrl);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await new Promise((resolve) => target.close(resolve));

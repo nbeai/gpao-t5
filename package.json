@@ -28,7 +28,7 @@
     "refoundation:boundary": "node refoundation/scripts/check-boundary.mjs",
     "refoundation:test": "node --test refoundation/test/*.test.js",
     "refoundation:check": "npm run refoundation:doctor && npm run refoundation:boundary && npm run refoundation:test",
-    "refoundation:integration": "node --test refoundation/test/*.integration.js",
+    "refoundation:integration": "node --test --test-concurrency=1 refoundation/test/*.integration.js",
     "refoundation:ci": "npm run refoundation:check && npm run refoundation:integration",
     "refoundation:isolated": "node refoundation/scripts/run-isolated.mjs --",
     "refoundation:live": "node refoundation/scripts/run-live.mjs",

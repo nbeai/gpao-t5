@@ -38,8 +38,13 @@ test('새 Session의 모델은 session_search 발견 뒤 canonical 주변 원문
   const server = makeConsoleServer({
     stateDir, workspace,
     modelFactory: () => ({ async respond(input) {
+      if (!input.tools.some((tool) => tool.name === 'session_search')) return {
+        text: '', toolCalls: [{
+          id: 'find-session-search', name: 'tool_search',
+          args: { query: 'search and read past session conversation history' },
+        }],
+      };
       modelTurn += 1;
-      assert.ok(input.tools.some((tool) => tool.name === 'session_search'));
       if (modelTurn === 1) return {
         text: '', toolCalls: [{
           id: 'search-1', name: 'session_search',

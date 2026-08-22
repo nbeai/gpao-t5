@@ -261,7 +261,13 @@ test('콘솔 모델이 장기 exec handle을 poll해 새 출력과 실제 완료
     let observed = '';
     return { async respond(input) {
       const last = input.messages.at(-1);
-      if (last.role !== 'tool') return {
+      if (!input.tools.some((tool) => tool.name === 'process_start')) return {
+        text: '', toolCalls: [{
+          id: 'find-long-process', name: 'tool_search',
+          args: { query: 'long running background command managed process' },
+        }],
+      };
+      if (last.role !== 'tool' || last.name === 'tool_search') return {
         text: '', responseId: 'start', responseModel: 'process-model',
         toolCalls: [{
           id: 'long-exec', name: 'process_start',
@@ -342,7 +348,13 @@ test('콘솔 취소는 실행 중인 자식 프로세스 트리를 실제로 끝
   const modelFactory = () => ({
     async respond(input) {
       const last = input.messages.at(-1);
-      if (last.role !== 'tool') return {
+      if (!input.tools.some((tool) => tool.name === 'process_start')) return {
+        text: '', toolCalls: [{
+          id: 'find-cancel-process', name: 'tool_search',
+          args: { query: 'long running background command managed process' },
+        }],
+      };
+      if (last.role !== 'tool' || last.name === 'tool_search') return {
         text: '', toolCalls: [{
           id: 'cancel-exec', name: 'process_start',
           args: {
@@ -455,6 +467,12 @@ test('관측되지 않은 process_start 완료가 같은 세션의 모델 Run을
       if (request.includes('managed process terminal event')) return {
         text: '자동 완료 알림: wake-output', toolCalls: [],
         responseId: 'wake-model', responseModel: 'wake-test-model',
+      };
+      if (!input.tools.some((tool) => tool.name === 'process_start')) return {
+        text: '', toolCalls: [{
+          id: 'find-wake-process', name: 'tool_search',
+          args: { query: 'long running background command managed process' },
+        }],
       };
       if (turn++ === 0) return {
         text: '', toolCalls: [{

@@ -37,7 +37,22 @@ test('필요한 CLI를 검증해 준비하고 같은 Run 즉시 사용한 뒤 �
   const modelFactory = ({ sessionId }) => {
     let turn = 0;
     return { async respond(input) {
-      turn += 1; const userText = input.messages.findLast((message) => message.role === 'user')?.content ?? '';
+      const userText = input.messages.findLast((message) => message.role === 'user')?.content ?? '';
+      if (userText.includes('사용 기록')
+        && !input.tools.some((tool) => tool.name === 'capability_evidence')) return {
+        text: '', toolCalls: [{
+          id: 'find-capability-evidence', name: 'tool_search',
+          args: { query: 'observed use of prepared managed commands evidence' },
+        }],
+      };
+      if (!userText.includes('사용 기록') && !userText.includes('새 대화')
+        && !input.tools.some((tool) => tool.name === 'cli_prepare')) return {
+        text: '', toolCalls: [{
+          id: 'find-cli-prepare', name: 'tool_search',
+          args: { query: 'prepare trusted managed CLI capability' },
+        }],
+      };
+      turn += 1;
       const last = input.messages.at(-1);
       if (userText.includes('사용 기록')) {
         if (turn === 1) return { text: '', toolCalls: [{ id: 'evidence', name: 'capability_evidence', args: { action: 'inspect', kind: 'cli', id: 'json-tool' } }] };
@@ -52,7 +67,6 @@ test('필요한 CLI를 검증해 준비하고 같은 Run 즉시 사용한 뒤 �
         return { text: '새 대화에서도 준비된 도구를 바로 사용했어요.', toolCalls: [] };
       }
       if (turn === 1) {
-        assert.ok(input.tools.some((tool) => tool.name === 'cli_prepare'));
         return { text: '', toolCalls: [{ id: 'search', name: 'cli_prepare', args: { action: 'search', id: 'json', version: null, effect: null } }] };
       }
       const receipt = JSON.parse(last.content);
@@ -81,7 +95,7 @@ test('필요한 CLI를 검증해 준비하고 같은 Run 즉시 사용한 뒤 �
     const firstReply = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: first.id, text: 'JSON을 정리할 수단이 없으면 검증된 도구를 준비해서 처리해줘' }) }).then((response) => response.json());
     assert.equal(firstReply.reply, '필요한 도구를 안전하게 준비해 바로 사용했어요.');
     const firstRun = await fetch(`${base}/runs/${firstReply.runId}`).then((response) => response.json());
-    assert.deepEqual(firstRun.events.filter((event) => event.type === 'tool_completed').map((event) => event.payload.receipt.actualCall.name), ['cli_prepare', 'cli_prepare', 'exec']);
+    assert.deepEqual(firstRun.events.filter((event) => event.type === 'tool_completed').map((event) => event.payload.receipt.actualCall.name), ['tool_search', 'cli_prepare', 'cli_prepare', 'exec']);
     const second = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
     const secondReply = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: second.id, text: '새 대화에서 같은 JSON 도구를 써줘' }) }).then((response) => response.json());
     assert.equal(secondReply.reply, '새 대화에서도 준비된 도구를 바로 사용했어요.');

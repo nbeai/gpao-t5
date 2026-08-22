@@ -97,7 +97,6 @@ async function macManagedChromeConnection(profileDirectory) {
       '--disable-background-networking', '--disable-component-update', '--disable-default-apps',
       '--disable-popup-blocking', '--disable-prompt-on-repost', '--disable-sync',
       '--disable-features=Translate', '--password-store=basic', '--use-mock-keychain',
-      '--restore-last-session',
       `--user-data-dir=${profileDirectory}`,
     ]);
     if (!launched.ok) throw new Error('T5 managed Chrome could not be opened');
@@ -179,11 +178,16 @@ export function makePersistentBrowserHost({
   const profileDirectory = join(identityRoot, 'profile');
   const uid = typeof process.getuid === 'function' ? process.getuid() : 'user';
   const socketDirectory = join(process.platform === 'darwin' ? '/private/tmp' : tmpdir(), `t5-bh-${uid}`);
+  const clientSocketDirectory = join(
+    process.platform === 'darwin' ? '/private/tmp' : tmpdir(), `t5-ab-${uid}`,
+  );
   const environment = {
     HOME: identityRoot, USERPROFILE: identityRoot,
     AGENT_BROWSER_SOCKET_DIR: socketDirectory,
     AGENT_BROWSER_AUTOSAVE_INTERVAL_MS: DEFAULT_AUTOSAVE_MS,
   };
+  const clientNamespace = `t5c-${createHash('sha256').update(namespace).digest('hex').slice(0, 8)}`;
+  const clientEnvironment = { ...environment, AGENT_BROWSER_SOCKET_DIR: clientSocketDirectory };
   const execute = run ?? ((args, options) => execFileResult(binary, args, options));
   const usesManagedMacLaunch = run == null && process.platform === 'darwin';
   let cdpUrl = null;
@@ -216,9 +220,11 @@ export function makePersistentBrowserHost({
     await mkdir(profileDirectory, { recursive: true, mode: 0o700 });
     await rejectSymlink(profileDirectory);
     await mkdir(socketDirectory, { recursive: true, mode: 0o700 });
+    await mkdir(clientSocketDirectory, { recursive: true, mode: 0o700 });
     await Promise.all([
       chmod(identityDirectory, 0o700), chmod(identityRoot, 0o700),
       chmod(profileDirectory, 0o700), chmod(socketDirectory, 0o700),
+      chmod(clientSocketDirectory, 0o700),
     ]);
   }
 
@@ -257,7 +263,8 @@ export function makePersistentBrowserHost({
     identityRoot,
     profileDirectory,
     namespace,
-    clientNamespace: `t5c-${createHash('sha256').update(namespace).digest('hex').slice(0, 8)}`,
+    clientNamespace,
+    clientSocketDirectory,
     async connection(options = {}) {
       if (cdpUrl) return { cdpUrl };
       return serialize(() => connect(options));
@@ -281,6 +288,10 @@ export function makePersistentBrowserHost({
       return serialize(async () => {
         await prepare();
         if (usesManagedMacLaunch) {
+          await execute([
+            '--namespace', clientNamespace, '--cdp', cdpUrl,
+            '--idle-timeout', '0', '--json', 'close', '--all',
+          ], { signal, environment: clientEnvironment }).catch(() => {});
           await closeManagedChrome(cdpUrl, profileDirectory);
           cdpUrl = null;
           return { closed: true };

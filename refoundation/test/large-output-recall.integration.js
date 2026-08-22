@@ -42,13 +42,18 @@ test('큰 과거 출력은 stub으로 시작하고 conversation_recall로 중간
     stateDir, workspace,
     modelStatus: () => ({ connected: true, provider: 'test', modelId: 'recall-model' }),
     modelFactory: () => ({ async respond(input) {
+      if (!input.tools.some((tool) => tool.name === 'conversation_recall')) return {
+        text: '', toolCalls: [{
+          id: 'find-conversation-recall', name: 'tool_search',
+          args: { query: 'recall omitted historical tool output exact text' },
+        }],
+      };
       turn += 1;
       if (turn === 1) {
         const historical = input.messages.find((message) => message.role === 'tool');
         const projected = JSON.parse(historical.content);
         assert.doesNotMatch(projected.result.stdout, /MIDDLE-NEEDLE-7391/);
         assert.equal(projected.result.stdoutProjection.messageId, 'seed-3');
-        assert.ok(input.tools.some((tool) => tool.name === 'conversation_recall'));
         return { text: '', toolCalls: [{ id: 'recall-find', name: 'conversation_recall', args: {
           action: 'find', messageId: 'seed-3', stream: 'stdout',
           query: 'MIDDLE-NEEDLE', offset: null, limit: null,
@@ -74,7 +79,7 @@ test('큰 과거 출력은 stub으로 시작하고 conversation_recall로 중간
     const run = await fetch(`${base}/runs/${reply.runId}`).then((response) => response.json());
     const tools = run.events.filter((event) => event.type === 'tool_completed')
       .map((event) => event.payload.receipt.actualCall.name);
-    assert.deepEqual(tools, ['conversation_recall']);
+    assert.deepEqual(tools, ['tool_search', 'conversation_recall']);
     const canonical = await server.conversationLedger.read(session.id);
     const original = canonical.entries.find((entry) => entry.messageId === 'seed-3');
     assert.match(original.message.content, /MIDDLE-NEEDLE-7391/);

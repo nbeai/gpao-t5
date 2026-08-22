@@ -12,6 +12,9 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.match(build, /THIRD_PARTY_NOTICES\.md/u);
   assert.match(build, /'skill-packages'/u);
   assert.match(build, /'capabilities'/u);
+  assert.match(build, /PACKAGE_SOURCE_PATHS/u);
+  assert.match(build, /'status', '--porcelain', '--', ...PACKAGE_SOURCE_PATHS/u);
+  assert.match(build, /sourceScope: 'packaged-inputs'/u);
   assert.doesNotMatch(build, /gpao-t-handoff|AuthKey_|signing-private/u);
   assert.match(launcher, /start-console\.mjs/u);
   assert.doesNotMatch(launcher, /connect-chatgpt\.mjs|startOAuth/u);

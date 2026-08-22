@@ -34,8 +34,14 @@ test('등록되지 않은 외부 능력은 connection 진실 뒤 trusted candida
     stateDir: join(room, 'state'), workspace: room, capabilitiesRoot,
     modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
     modelFactory: () => ({ async respond(input) {
+      if (!input.tools.some((tool) => tool.name === 'capability_catalog')) {
+        assert.ok(input.tools.some((tool) => tool.name === 'tool_search'));
+        return { text: '', toolCalls: [{
+          id: 'find-capability-catalog', name: 'tool_search',
+          args: { query: 'capability catalog external connection candidate' },
+        }] };
+      }
       turn += 1;
-      assert.ok(input.tools.some((tool) => tool.name === 'capability_catalog'));
       if (turn === 1) return { text: '', toolCalls: [{
         id: 'connections', name: 'connection', args: { action: 'list', id: null, actionId: null },
       }] };
@@ -70,7 +76,7 @@ test('등록되지 않은 외부 능력은 connection 진실 뒤 trusted candida
     const receipts = detail.events.flatMap((event) => event.type === 'tool_completed'
       ? [event.payload.receipt] : []);
     assert.deepEqual(receipts.map((receipt) => receipt.actualCall?.name), [
-      'connection', 'capability_catalog', 'capability_catalog',
+      'tool_search', 'connection', 'capability_catalog', 'capability_catalog',
     ]);
   } finally {
     server.closeWakeStreams(); await server.closeMessengers(); await server.closeWorkspaceConnections();

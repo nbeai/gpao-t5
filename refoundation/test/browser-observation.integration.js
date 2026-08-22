@@ -23,6 +23,7 @@ test('실제 콘솔 모델이 browser navigate의 렌더링 snapshot을 읽고 �
     async status() { return { state: 'ready' }; },
     async profiles() { return { profiles: [this.profile] }; },
     async tabs() { return { tabs: [] }; },
+    async editables({ tabId }) { return { tab: { tabId }, editables: [] }; },
     async snapshot() { throw new Error('not used'); },
     async screenshot() { throw new Error('not used'); },
     async close() {},
@@ -35,13 +36,14 @@ test('실제 콘솔 모델이 browser navigate의 렌더링 snapshot을 읽고 �
         const browser = input.tools.find((tool) => tool.name === 'browser');
         assert.ok(browser);
         assert.deepEqual(browser.parameters.properties.action.enum, [
-          'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'submit',
+          'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'fill_editable', 'submit',
           'login_start', 'login_status', 'login_cancel', 'download', 'upload',
         ]);
         return { text: '', toolCalls: [{ id: 'observe-page', name: 'browser', args: {
           action: 'navigate', url: 'https://example.com/app', tabId: null,
           full: null, maxChars: 20_000, fullPage: null,
-          observationId: null, ref: null, text: null, filePath: null, effect: null,
+          observationId: null, ref: null, editableId: null, modalIntent: null,
+          text: null, textFilePath: null, textFileStartLine: null, filePath: null, effect: null,
         } }] };
       }
       const receipt = JSON.parse(input.messages.at(-1).content);
@@ -104,9 +106,10 @@ test('콘솔 모델이 download ref를 사용하고 실제 managed file 영수�
     }; },
     async status() { return { state: 'ready' }; }, async profiles() { return { profiles: [this.profile] }; },
     async tabs() { return { tabs: [] }; }, async snapshot() { throw new Error('not used'); },
+    async editables({ tabId }) { return { tab: { tabId }, editables: [] }; },
     async screenshot() { throw new Error('not used'); }, async close() {},
   };
-  const nulls = { url: null, tabId: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, text: null, filePath: null, effect: null };
+  const nulls = { url: null, tabId: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, editableId: null, modalIntent: null, text: null, textFilePath: null, textFileStartLine: null, filePath: null, effect: null };
   const server = makeConsoleServer({
     stateDir, workspace, browserDriverFactory: () => driver,
     modelFactory: () => ({ async respond(input) {
@@ -173,9 +176,10 @@ test('콘솔 upload는 현재 사용자 문장에 적힌 exact path만 file inpu
     },
     async status() { return { state: 'ready' }; }, async profiles() { return { profiles: [this.profile] }; },
     async tabs() { return { tabs: [] }; }, async snapshot() { throw new Error('not used'); },
+    async editables({ tabId }) { return { tab: { tabId }, editables: [] }; },
     async screenshot() { throw new Error('not used'); }, async close() {},
   };
-  const nulls = { url: null, tabId: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, text: null, filePath: null, effect: null };
+  const nulls = { url: null, tabId: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, editableId: null, modalIntent: null, text: null, textFilePath: null, textFileStartLine: null, filePath: null, effect: null };
   const server = makeConsoleServer({
     stateDir, workspace, browserDriverFactory: () => driver,
     modelFactory: () => ({ async respond(input) {
@@ -249,7 +253,7 @@ test('사용자가 visible browser에서 직접 로그인한 뒤 다음 턴 logi
     async snapshot() { throw new Error('must not observe login form'); }, async screenshot() { throw new Error('not used'); },
     async close() {},
   };
-  const nulls = { url: null, tabId: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, text: null, filePath: null, effect: null };
+  const nulls = { url: null, tabId: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, editableId: null, modalIntent: null, text: null, textFilePath: null, textFileStartLine: null, filePath: null, effect: null };
   const server = makeConsoleServer({
     stateDir, workspace, browserDriverFactory: () => driver,
     modelFactory: () => ({ async respond(input) {
@@ -447,9 +451,10 @@ test('세 사용자 턴에서 최신 browser ref로 fill 뒤 submit하고 각 �
     },
     async status() { return { state: 'ready' }; }, async profiles() { return { profiles: [this.profile] }; },
     async tabs() { return { tabs: [] }; }, async snapshot() { throw new Error('not used'); },
+    async editables({ tabId }) { return { tab: { tabId }, editables: [] }; },
     async screenshot() { throw new Error('not used'); }, async close() {},
   };
-  const nulls = { url: null, full: null, maxChars: 20_000, fullPage: null, text: null, filePath: null, effect: null };
+  const nulls = { url: null, full: null, maxChars: 20_000, fullPage: null, editableId: null, modalIntent: null, text: null, textFilePath: null, textFileStartLine: null, filePath: null, effect: null };
   const server = makeConsoleServer({
     stateDir, workspace, browserDriverFactory: () => driver,
     modelFactory: () => ({ async respond(input) {
@@ -540,9 +545,10 @@ test('browser submit 결제 효과는 실제 제출 전에 exact-call 승인으�
     async submit() { submits += 1; throw new Error('must not execute before approval'); },
     async status() { return { state: 'ready' }; }, async profiles() { return { profiles: [this.profile] }; },
     async tabs() { return { tabs: [] }; }, async snapshot() { throw new Error('not used'); },
+    async editables({ tabId }) { return { tab: { tabId }, editables: [] }; },
     async screenshot() { throw new Error('not used'); }, async close() {},
   };
-  const nulls = { url: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, text: null, filePath: null, effect: null };
+  const nulls = { url: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, editableId: null, modalIntent: null, text: null, textFilePath: null, textFileStartLine: null, filePath: null, effect: null };
   const server = makeConsoleServer({
     stateDir, workspace, browserDriverFactory: () => driver,
     modelFactory: () => ({ async respond(input) {

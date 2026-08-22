@@ -80,6 +80,12 @@ test('OAuth 준비가 끝나면 사용자가 원래 부탁을 반복하지 않�
     connectionPollIntervalMs: 5,
     modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
     modelFactory: () => ({ async respond(input) {
+      if (modelTurn >= 2 && !input.tools.some((tool) => tool.name === 'workspace_fixture')) {
+        assert.match(JSON.stringify(input.messages), /continue the unfinished user goal/iu);
+        return { text: '', toolCalls: [{
+          id: 'find-workspace-fixture', name: 'tool_search', args: { query: 'workspace_fixture' },
+        }] };
+      }
       modelTurn += 1;
       if (modelTurn === 1) return { text: '', toolCalls: [{
         id: 'connect', name: 'connection',
@@ -87,7 +93,6 @@ test('OAuth 준비가 끝나면 사용자가 원래 부탁을 반복하지 않�
       }] };
       if (modelTurn === 2) return { text: '계정 연결 화면을 준비했어요.', toolCalls: [] };
       assert.match(JSON.stringify(input.messages), /continue the unfinished user goal/iu);
-      assert.ok(input.tools.some((tool) => tool.name === 'workspace_fixture'));
       if (modelTurn === 3) return {
         text: '', toolCalls: [{ id: 'read-after-connect', name: 'workspace_fixture', args: {} }],
       };

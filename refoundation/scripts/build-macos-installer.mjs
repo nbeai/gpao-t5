@@ -13,9 +13,22 @@ const repo = resolve(here, '..', '..');
 const product = {
   name: 'GPAO-T5', bundleId: 'kr.co.gpao.t5', version: '0.1.2', port: 4174,
 };
+const PACKAGE_SOURCE_PATHS = [
+  'refoundation',
+  'src/surface/web/index.html', 'src/surface/web/markdown.js',
+  'src/surface/web/approval-state.js',
+  'COPYRIGHT', 'NOTICE', 'THIRD_PARTY_NOTICES.md',
+  'docs/00-product/GPAO-T5-FOUNDER-MANIFESTO-ko.md',
+];
 
 function run(command, args, options = {}) {
   return execFileSync(command, args, { encoding: 'utf8', ...options });
+}
+
+function packageSourceDirty() {
+  return Boolean(run('git', [
+    'status', '--porcelain', '--', ...PACKAGE_SOURCE_PATHS,
+  ], { cwd: repo }).trim());
 }
 
 async function sha256(path) {
@@ -227,7 +240,7 @@ exit 0
       schema: 't5.macos-team-installer.v1', product: product.name, version: product.version,
       bundleId: product.bundleId, architectures: ['arm64', 'x86_64'], port: product.port,
       sourceCommit: run('git', ['rev-parse', 'HEAD'], { cwd: repo }).trim(),
-      sourceDirty: Boolean(run('git', ['status', '--porcelain'], { cwd: repo }).trim()),
+      sourceDirty: packageSourceDirty(), sourceScope: 'packaged-inputs',
       node: { version: 'v24.14.0', officialArchiveSha256: nodeHashes },
       signing: appIdentity ? 'developer-id' : 'unsigned', notarized: false, stapled: false,
       package: { path: output, bytes: (await stat(output)).size, sha256: await sha256(output) },
