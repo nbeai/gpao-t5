@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `P0-H1 HUMAN RELEASE RECOVERY — IN PROGRESS` (0.1.2 인간 핵심 여정 정상화)
+현재 Gate: `P0-H1 HUMAN RELEASE RECOVERY — COMPLETE` (0.1.3 인간 핵심 여정 회복, 배포 서명 보류)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -21,7 +21,7 @@ legacy T5                 refoundation T5
 
 ## P0-H1 — Human Release Recovery
 
-상태: `IN PROGRESS` — 0.1.2 추가 배포 중지. 패키지·모델·단위 검사를 통과했지만 실제 사용자가 시작한
+상태: `COMPLETE` — 0.1.2 추가 배포 중지. 패키지·모델·단위 검사를 통과했지만 실제 사용자가 시작한
 네이버 로그인·블로그 흐름과 Telegram 첫 연결·양방향 흐름이 실패했으므로 배포 적격 판정을 철회한다.
 
 2026-08-22 구현 검증: 제품의 한 managed browser identity는 실제 브라우저·루프백 로그인에서 대화 전환과
@@ -63,8 +63,15 @@ effect를 분리하고 destructive 의미, exact control identity, stale modal �
 
 이 RC는 앱을 완전히 종료한 뒤 서비스의 session-only 로그인을 복원한다고 주장하지 않는다. 실제 Naver에서
 재로그인이 필요함을 확인했고, cookie 직접 추출·복원이나 불안정한 daemon 생명주기 변경은 제품에 넣지 않았다.
-또한 현재 package는 무서명·미공증 내부 RC이므로 테스터 배포 적격이 아니다. 이 두 경계를 닫거나 오너가
-배포 범위에서 제외한다고 명시하기 전에는 Gate를 `COMPLETE`로 올리지 않는다.
+오너는 0.1.3에서 이 재로그인 경계를 공식 수용했다.
+
+2026-08-23 P0-H1 인간 종단: 실제 Telegram에서 첫 메시지→T5 답장→후속 메시지→T5 답장이 같은
+Telegram-origin Session과 콘솔에 4턴으로 일치했고, 재설치 뒤에도 Session·Run 결속이 복원됐다. 최종 제거
+스크립트는 실행 중 앱을 종료하고 관리자 권한으로 `/Applications/GPAO-T5.app`과 package receipt를 실제
+제거했다. 모델 자격·대화 원장 `4`·Run `15`·Messenger 상태 `2`는 보존됐고, 동일 package 재설치 뒤
+`gpt-5.6-terra`와 Telegram 대화가 자동 복원됐다. 이로써 P0-H1 사용자 완료 문장과 제거·재설치 종단은
+성립했다. 현재 package는 무서명·미공증 내부 RC이며, 서명·공증·테스터 배포는 오너의 별도 지시 전까지
+열지 않는다.
 
 사용자 완료 문장:
 

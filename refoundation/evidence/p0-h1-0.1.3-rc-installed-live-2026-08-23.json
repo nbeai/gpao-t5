@@ -3,10 +3,10 @@
   "recordedAt": "2026-08-23T00:20:00+09:00",
   "product": "GPAO-T5",
   "version": "0.1.3",
-  "sourceCommit": "f28c0994339e6d29ce622c879243d6692cc0e0dd",
+  "sourceCommit": "354cbcb0f2cc9efca6332418a7340331fa27a3f0",
   "package": {
     "path": "dist/GPAO-T5-0.1.3-universal-unsigned.pkg",
-    "sha256": "d43745587edca876cd483f3d52031e6dbc547454c5bbee69ae999d7a1f231129",
+    "sha256": "1fa16cfac38da40ccdcb7a9c51e9c705b75a0e4884d0e9be13ed25b13a580b98",
     "sourceDirty": false,
     "payloadVerification": true,
     "signed": false,
@@ -36,13 +36,35 @@
     "saved": false,
     "published": false
   },
+  "telegram": {
+    "sessionId": "3260bb98-0cc9-4935-8793-89f8fa166a4c",
+    "turns": 4,
+    "runIds": [
+      "c943adae-0a35-428d-97d1-235e1843a22d",
+      "8328346a-b633-4acd-845f-cb6d67a95714"
+    ],
+    "telegramToConsole": true,
+    "consoleStateMatched": true,
+    "restoredAfterReinstall": true
+  },
+  "uninstallReinstall": {
+    "installedAppRemoved": true,
+    "packageReceiptRemoved": true,
+    "installedProcessesRemaining": 0,
+    "modelCredentialPreserved": true,
+    "conversationLedgersPreserved": 4,
+    "runsPreserved": 15,
+    "messengerStateFilesPreserved": 2,
+    "reinstallSucceeded": true,
+    "modelConnectionRestored": true
+  },
   "checks": {
     "refoundation": { "passed": 485, "failed": 0 },
     "focusedBrowser": { "passed": 45, "failed": 0 },
     "legacyImports": 0
   },
   "remaining": [
-    "A complete app quit may require login again for services using session-only cookies.",
+    "A complete app quit may require login again for services using session-only cookies; the owner accepted this 0.1.3 boundary.",
     "The RC is unsigned and not notarized, so it is not a tester distribution artifact."
   ]
 }
