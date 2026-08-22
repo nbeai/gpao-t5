@@ -44,10 +44,12 @@ iframe·동적 editor를 현재 tab·frame·document observation에 결속한다
 본문 `8,053자`가 각각 재관측 일치했고 저장·발행·제출은 `0`이었다. 긴 본문은 모델이 원문을 다시 생성하지
 않고 사용자 지정 path·SHA-256·시작 행에 결속해 입력했다. modal의 requested effect와 runtime required
 effect를 분리하고 destructive 의미, exact control identity, stale modal 변경을 실행 전에 막는다. 실제
-재시작에서 발견한 session-only 로그인 소실은 먼저 실패한 통합시험을 `--restore-last-session` 복원으로
-교정했고 관리 Chrome 종료 잔여는 `0`이다. 새 코어 회귀는 `479/479`, legacy import는 `0`이다. 근거는
+재시작에서는 로그아웃을 한 번 관측했고, 정상 종료 뒤 session-only cookie는 복원되지 않음을 반대시험으로
+고정했다. 쿠키 직접 조작 없이 서비스의 실제 로그인 연속성이 성립하는지는 보류한 설치본 인간 종단에서
+확인하며, 현재 완료로 주장하지 않는다. 관리 Chrome·agent-browser daemon 종료 잔여는 `0`이다. 현재
+새 코어 회귀는 `480/480`, 전체 통합 회귀는 `94/94`, legacy import는 `0`이다. 근거는
 `refoundation/evidence/p0-h1-browser-provider-qualification-2026-08-22.json`, 커밋은 `4f7c003f`,
-`7a77fc9c`, `baaae2c7`, `d8cec7a4`다. 수정 뒤 실제 Naver 계정 재로그인은 별도로 요구하지 않았으므로
+`7a77fc9c`, `baaae2c7`, `d8cec7a4`, `2f2d63e3`다. 실제 Naver 계정 재로그인은 별도로 요구하지 않았으므로
 설치본의 다음 정상 로그인 인간 종단 전에는 Gate를 `COMPLETE`로 올리지 않는다.
 
 사용자 완료 문장:
@@ -201,10 +203,10 @@ Non-goals:
 
 ## U4 — Human Outcome Intelligence · 현실 사용자 개발선
 
-상태: `OWNER-OPENED — U4-R0 IN PROGRESS` — 오너가 설치본 검증은 실제 배포 시점으로 보류하고 현실
-사용자 개발을 계속하기로 했다. 이 결정은 `P0-H1`을 완료로 올리거나 설치본 검증을 면제하지 않는다.
-U4는 기능 목록이 아니라 실제 일인사업자·프리랜서·복합 사무 사용자가 본업에 더 집중하는지를 제품
-결과로 삼는다.
+상태: `OWNER-APPROVED PLAN — IMPLEMENTATION NOT OPEN` — 현재 `P0-H1`의 설치본 인간 종단은 실제
+배포 시점까지 보류한다. U4의 방향은 승인됐지만 로컬 제품이 다른 사용자를 관측·수집하는 개발은 열지
+않는다. U4는 기능 목록이 아니라 실제 일인사업자·프리랜서·복합 사무 사용자가 본업에 더 집중하는지를
+제품 결과로 삼는다.
 
 연구 근거:
 
@@ -325,12 +327,9 @@ U4는 기능 목록이 아니라 실제 일인사업자·프리랜서·복합 �
 
 ### U4-R0 — Reality Corpus와 인간 baseline
 
-상태: `IN PROGRESS — PARTICIPANT INTAKE REQUIRED` — 제품 코드를 얹기 전에 실제 사람의 업무 구조를
-개발 재료로 만든다. 기존 로컬 개발 기록을 개인정보 복사 없이 읽기 전용으로 조사한 결과 세션 metadata
-`113`, conversation ledger `74`, 사용자 메시지 `185`, 10턴 이상 세션 `2`, Telegram-origin `1`, Run
-`211`이 있었지만, 동의 사용자·7일 업무 일지·기존 방식 baseline과 결속된 적격 Episode는 `0`이었다.
-개발·자격 시험을 실제 사용자 Corpus로 승격하지 않는다. 근거는
-`refoundation/evidence/u4-r0-existing-episode-inventory-2026-08-22.json`이다.
+상태: `PLANNED` — 제품 코드를 얹기 전에 실제 사람의 업무 구조를 개발 재료로 만든다. 다른 사용자의
+로컬 T5 활동을 제품이 원격 관측·수집하거나 참여자 모집을 로컬 코어 개발의 선행조건으로 만들지 않는다.
+훗날 현장 연구가 열리면 참여자가 자발적으로 제공한 익명화 일지·인터뷰·결과만 별도 연구 절차로 다룬다.
 
 대상·기간:
 
@@ -711,8 +710,6 @@ P0-H1 인간 배포 회복 COMPLETE
 ```
 
 - 각 Gate는 앞 Gate의 실제 미달 하나만 열고, 다음 Gate 편의를 위해 production 구조를 선구현하지 않는다.
-- 2026-08-22 오너 결정으로 P0-H1 설치본 종단은 배포 시점까지 보류하고 U4-R0 관측만 먼저 열었다.
-  이는 P0-H1 완료나 U4-E0 구현 개방을 뜻하지 않는다.
 - `U4-Q1`은 P1 직후부터 모든 후속 Gate의 회귀 기준으로 계속 실행한다.
 - Health P0 위험이 현장에 다시 나타나면 순서를 앞당길 수 있지만 범위는 실제 결함 가족에 한정한다.
 - Connector·OCR·PPTX·고급 Office·audio·상시 background는 실제 Work Loop 미달이 증명할 때 해당 손으로 연다.

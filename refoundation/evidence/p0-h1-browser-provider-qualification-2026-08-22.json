@@ -1,6 +1,6 @@
 {
   "schema": "t5.p0-h1.browser-provider-qualification.v1",
-  "recordedAt": "2026-08-22T12:36:21Z",
+  "recordedAt": "2026-08-22T13:35:38Z",
   "gate": {
     "name": "P0-H1 HUMAN RELEASE RECOVERY",
     "state": "IN_PROGRESS",
@@ -136,23 +136,48 @@
   },
   "regression": {
     "command": "npm run refoundation:check",
-    "passed": 479,
+    "passed": 480,
     "failed": 0,
-    "legacyImports": 0
+    "legacyImports": 0,
+    "integrationCommand": "npm run refoundation:integration",
+    "integrationPassed": 94,
+    "integrationFailed": 0,
+    "integrationConcurrency": 1
   },
-  "restartContinuityFix": {
-    "managedChromeArgument": "--restore-last-session",
+  "restartContinuityStatus": {
+    "state": "WITHDRAWN_UNVERIFIED",
+    "managedChromeArgument": null,
     "sessionCookieOpposingTestBeforeFix": "LOGIN REQUIRED",
-    "sessionCookieOpposingTestAfterFix": "AUTHENTICATED",
-    "focusedIntegrationPassed": 1,
-    "focusedIntegrationFailed": 0,
+    "sessionCookieOpposingTestCurrent": "LOGIN REQUIRED",
+    "sessionCookieTruthTestPassed": true,
     "actualAccountReloginRequested": false,
     "browserCloseTimeoutMs": 8000,
-    "shutdownResidualProcesses": 0
+    "shutdownResidualChromeProcesses": 0,
+    "shutdownResidualAgentBrowserDaemons": 0,
+    "claim": "service login continuity after a clean app restart remains for the deferred installed human journey"
+  },
+  "packageReadiness": {
+    "installerGenerated": false,
+    "installedHumanJourneyDeferredByOwner": true,
+    "productionNpmCiPassed": true,
+    "productionDependenciesInstalled": 58,
+    "productionPackagesAudited": 59,
+    "productionVulnerabilities": 0,
+    "licenseMetadataTestsPassed": 3,
+    "packageMetadataTestsPassed": 2,
+    "sourceDirtyScope": "packaged-inputs",
+    "externalBuildInputsPresent": false,
+    "missingExternalBuildInputs": [
+      "T5_NODE_ARM64_TARBALL",
+      "T5_NODE_X64_TARBALL",
+      "T5_NODE_SHASUMS"
+    ],
+    "signingInputsPresent": false,
+    "unsignedBuildSupported": true
   },
   "decision": {
     "commit": true,
-    "commits": ["4f7c003f", "7a77fc9c", "baaae2c7", "d8cec7a4"],
+    "commits": ["4f7c003f", "7a77fc9c", "baaae2c7", "d8cec7a4", "2f2d63e3"],
     "gatePromotion": false,
     "nextRequiredWork": "qualify the committed Browser Hand in the installed human journey during the next normal signed-in use; do not require a special Naver-only retest"
   }
