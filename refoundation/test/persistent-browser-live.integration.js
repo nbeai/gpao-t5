@@ -117,3 +117,33 @@ test('한 번 만든 로그인은 다른 T5 대화와 브라우저 호스트 재
     await rm(room, { recursive: true, force: true });
   }
 });
+
+test('제품의 대화별 managed profile은 T5 runtime을 닫고 같은 대화를 다시 열어도 로그인을 유지한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-conversation-browser-restart-live-'));
+  const site = await fixture();
+  const outputDirectory = join(room, 'browser', 'artifacts');
+  let first = null;
+  let restored = null;
+  let other = null;
+  try {
+    first = makeAgentBrowserDriver({ ownerId: 'same-conversation', outputDirectory });
+    assert.match((await first.navigate(`${site.base}/login`)).snapshot.text, /LOGIN SAVED/u);
+    await first.close();
+
+    restored = makeAgentBrowserDriver({ ownerId: 'same-conversation', outputDirectory });
+    const afterRestart = await restored.navigate(`${site.base}/check`);
+    assert.match(afterRestart.snapshot.text, /AUTHENTICATED/u);
+    assert.doesNotMatch(afterRestart.snapshot.text, /LOGIN REQUIRED/u);
+
+    other = makeAgentBrowserDriver({
+      ownerId: 'other-conversation', outputDirectory: join(room, 'other', 'artifacts'),
+    });
+    assert.match((await other.navigate(`${site.base}/check`)).snapshot.text, /LOGIN REQUIRED/u);
+  } finally {
+    await other?.close().catch(() => {});
+    await restored?.close().catch(() => {});
+    await first?.close().catch(() => {});
+    await site.close();
+    await rm(room, { recursive: true, force: true });
+  }
+});

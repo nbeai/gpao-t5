@@ -5,6 +5,8 @@ import { makeTelegramMessengerProvider } from './telegram-messenger-provider.js'
 
 const AVAILABLE_PROVIDERS = Object.freeze(['telegram']);
 const bindingKey = (provider, chatId) => `${provider}:${chatId}`;
+const ingressKey = (provider, updateId) => `${provider}:${Number(updateId)}`;
+const INGRESS_TERMINAL = new Set(['completed', 'rejected', 'adopted_unknown']);
 const numericUserId = (value) => {
   const id = String(value ?? '').trim();
   return /^\d+$/u.test(id) && BigInt(id) > 0n ? id : null;
@@ -26,10 +28,11 @@ export class MessengerStateStore {
       if (state?.version !== 1 || !state.offsets || !state.bindings) throw new Error('unsupported messenger runtime state');
       state.allowed ??= {};
       state.pending ??= {};
+      state.ingress ??= {};
       return state;
     } catch (error) {
       if (error?.code === 'ENOENT') return {
-        version: 1, offsets: {}, bindings: {}, allowed: {}, pending: {},
+        version: 1, offsets: {}, bindings: {}, allowed: {}, pending: {}, ingress: {},
       };
       throw error;
     }
@@ -58,6 +61,72 @@ export class MessengerStateStore {
       state.offsets[provider] = Math.max(Number(state.offsets[provider] ?? 0), Number(offset ?? 0));
       await this.write(state);
       return state.offsets[provider];
+    });
+  }
+
+  async ingress(provider, updateId) {
+    return structuredClone((await this.read()).ingress[ingressKey(provider, updateId)] ?? null);
+  }
+
+  async receiveIngress(provider, updateId, message = {}) {
+    return this.serialize(async () => {
+      const state = await this.read();
+      const key = ingressKey(provider, updateId);
+      if (!state.ingress[key]) {
+        state.ingress[key] = {
+          provider, updateId: Number(updateId), state: 'received', attempts: 0,
+          receivedAt: Date.now(),
+          messageId: message.messageId == null ? null : String(message.messageId),
+          chatId: String(message.chatId ?? ''),
+          threadId: message.threadId == null ? null : String(message.threadId),
+          userId: String(message.userId ?? ''), username: message.username ? String(message.username) : null,
+          text: String(message.text ?? '').slice(0, 64_000),
+          isDirectMessage: message.isDirectMessage === true, isMention: message.isMention === true,
+        };
+      }
+      await this.write(state);
+      return structuredClone(state.ingress[key]);
+    });
+  }
+
+  async markIngress(provider, updateId, nextState, payload = {}) {
+    if (!['received', 'adopted', 'completed', 'rejected', 'adopted_unknown'].includes(nextState)) {
+      throw new TypeError('invalid messenger ingress state');
+    }
+    return this.serialize(async () => {
+      const state = await this.read();
+      const key = ingressKey(provider, updateId);
+      const current = state.ingress[key];
+      if (!current) throw new Error('messenger ingress record not found');
+      const terminal = INGRESS_TERMINAL.has(current.state);
+      if (terminal && current.state !== nextState) return structuredClone(current);
+      state.ingress[key] = {
+        ...current, ...structuredClone(payload), state: nextState, updatedAt: Date.now(),
+      };
+      if (INGRESS_TERMINAL.has(nextState)) delete state.ingress[key].text;
+      const keys = Object.keys(state.ingress).sort((left, right) => (
+        Number(state.ingress[left]?.updatedAt ?? state.ingress[left]?.receivedAt ?? 0)
+        - Number(state.ingress[right]?.updatedAt ?? state.ingress[right]?.receivedAt ?? 0)
+      ));
+      for (const stale of keys.slice(0, Math.max(0, keys.length - 500))) {
+        if (INGRESS_TERMINAL.has(state.ingress[stale]?.state)) delete state.ingress[stale];
+      }
+      await this.write(state);
+      return structuredClone(state.ingress[key]);
+    });
+  }
+
+  async noteIngressFailure(provider, updateId, code) {
+    return this.serialize(async () => {
+      const state = await this.read();
+      const key = ingressKey(provider, updateId);
+      const current = state.ingress[key];
+      if (!current) throw new Error('messenger ingress record not found');
+      current.attempts = Number(current.attempts ?? 0) + 1;
+      current.lastError = String(code ?? 'unknown').slice(0, 160);
+      current.updatedAt = Date.now();
+      await this.write(state);
+      return structuredClone(current);
     });
   }
 
@@ -176,6 +245,8 @@ export class MessengerStateStore {
       delete state.offsets[provider];
       delete state.allowed[provider];
       delete state.pending[provider];
+      state.ingress = Object.fromEntries(Object.entries(state.ingress)
+        .filter(([, entry]) => entry.provider !== provider));
       state.bindings = Object.fromEntries(Object.entries(state.bindings)
         .filter(([key]) => !key.startsWith(`${provider}:`)));
       await this.write(state);
@@ -208,6 +279,7 @@ export function makeMessengerGateway({
   let activeProvider = null;
   let stopController = null;
   let loopPromise = null;
+  let lastError = null;
 
   function supported(provider) {
     if (!AVAILABLE_PROVIDERS.includes(provider)) throw new Error(`unsupported messenger provider: ${provider}`);
@@ -246,53 +318,94 @@ export function makeMessengerGateway({
     let replied = 0;
     let nextOffset = offset;
     for (const update of updates) {
-      nextOffset = Math.max(nextOffset, Number(update.updateId ?? 0) + 1);
-      if (update.message) {
-        received += 1;
-        try {
-          if (!await authorizeInbound(structuredClone(update.message))) {
-            log('messenger_inbound_rejected', { provider });
-            await stateStore.saveOffset(provider, nextOffset);
-            continue;
-          }
-          accepted += 1;
-          const sessionId = await sessionFor(update.message);
-          const typing = runtime.startTyping?.({
-            chatId: update.message.chatId, threadId: update.message.threadId,
-          }) ?? { stop() {} };
-          const progress = runtime.createProgress?.({
-            chatId: update.message.chatId, threadId: update.message.threadId,
-          }) ?? null;
-          try {
-            const reply = await onInbound({ ...update.message, sessionId }, {
-              progress: (text) => progress?.update(text),
-            });
-            const text = typeof reply === 'string' ? reply : reply?.text;
-            if (String(text ?? '').trim()) {
-              if (progress) await progress.finalize(text, { signal });
-              else {
-                await runtime.sendReply({
-                  chatId: update.message.chatId, threadId: update.message.threadId,
-                  text, signal,
-                });
-              }
-              replied += 1;
-            }
-          } catch (error) {
-            const failure = error?.surfaceResult;
-            const failureText = failure?.reply
-              ? `${failure.reply}${failure.nextSafeAction ? `\n\n${failure.nextSafeAction}` : ''}`
-              : undefined;
-            await progress?.fail(failureText);
-            throw error;
-          } finally {
-            typing.stop();
-          }
-        } catch (error) {
-          log('messenger_inbound_failed', { provider, code: error?.code ?? error?.message ?? 'unknown' });
-        }
+      const updateId = Number(update.updateId ?? 0);
+      const acknowledgedOffset = Math.max(nextOffset, updateId + 1);
+      if (!update.message) {
+        nextOffset = await stateStore.saveOffset(provider, acknowledgedOffset);
+        continue;
       }
-      await stateStore.saveOffset(provider, nextOffset);
+      received += 1;
+      const ingress = await stateStore.receiveIngress(provider, updateId, update.message);
+      if (INGRESS_TERMINAL.has(ingress.state)) {
+        nextOffset = await stateStore.saveOffset(provider, acknowledgedOffset);
+        continue;
+      }
+      // A process can crash after marking adoption but before recording the final result. Re-running the
+      // user's turn could repeat an external effect, so close it as unknown and let conversation recovery
+      // expose the truth instead of replaying the message.
+      if (ingress.state === 'adopted') {
+        await stateStore.markIngress(provider, updateId, 'adopted_unknown', {
+          sessionId: ingress.sessionId ?? null, reason: 'runtime_restarted_after_adoption',
+        });
+        nextOffset = await stateStore.saveOffset(provider, acknowledgedOffset);
+        continue;
+      }
+
+      let adopted = false;
+      let sessionId = null;
+      let progress = null;
+      let typing = { stop() {} };
+      try {
+        if (!await authorizeInbound(structuredClone(update.message))) {
+          await stateStore.markIngress(provider, updateId, 'rejected', { reason: 'sender_not_allowed' });
+          log('messenger_inbound_rejected', { provider });
+          nextOffset = await stateStore.saveOffset(provider, acknowledgedOffset);
+          continue;
+        }
+        accepted += 1;
+        sessionId = await sessionFor(update.message);
+        await stateStore.markIngress(provider, updateId, 'adopted', {
+          sessionId, adoptedAt: Date.now(),
+        });
+        adopted = true;
+        typing = runtime.startTyping?.({
+          chatId: update.message.chatId, threadId: update.message.threadId,
+        }) ?? typing;
+        progress = runtime.createProgress?.({
+          chatId: update.message.chatId, threadId: update.message.threadId,
+        }) ?? null;
+        const reply = await onInbound({ ...update.message, sessionId }, {
+          progress: (text) => progress?.update(text),
+        });
+        const text = typeof reply === 'string' ? reply : reply?.text;
+        let delivery = null;
+        if (String(text ?? '').trim()) {
+          delivery = progress ? await progress.finalize(text, { signal })
+            : await runtime.sendReply({
+              chatId: update.message.chatId, threadId: update.message.threadId,
+              text, signal,
+            });
+          replied += 1;
+        }
+        await stateStore.markIngress(provider, updateId, 'completed', {
+          sessionId, completedAt: Date.now(),
+          messageIds: structuredClone(delivery?.messageIds ?? []),
+        });
+        nextOffset = await stateStore.saveOffset(provider, acknowledgedOffset);
+      } catch (error) {
+        const code = error?.code ?? error?.message ?? 'unknown';
+        log('messenger_inbound_failed', { provider, code });
+        if (adopted) {
+          const failure = error?.surfaceResult;
+          const failureText = failure?.reply
+            ? `${failure.reply}${failure.nextSafeAction ? `\n\n${failure.nextSafeAction}` : ''}`
+            : undefined;
+          await progress?.fail(failureText).catch(() => {});
+          await stateStore.markIngress(provider, updateId, 'adopted_unknown', {
+            sessionId, reason: String(code).slice(0, 160), failedAt: Date.now(),
+          });
+          nextOffset = await stateStore.saveOffset(provider, acknowledgedOffset);
+          continue;
+        }
+        const failed = await stateStore.noteIngressFailure(provider, updateId, code);
+        throw Object.assign(new Error('messenger inbound failed before adoption'), {
+          code: failed.attempts >= 3
+            ? 'messenger_inbound_needs_attention' : 'messenger_inbound_pre_adoption_failed',
+          cause: error,
+        });
+      } finally {
+        typing.stop();
+      }
     }
     return { received, accepted, replied, offset: nextOffset };
   }
@@ -304,6 +417,7 @@ export function makeMessengerGateway({
       const runtime = providerFactory({ provider, token: String(token) });
       const bot = await runtime.validate();
       await credentialStore.setVerified(provider, { token: String(token), bot });
+      lastError = null;
       return {
         provider, connected: true, bot, inboundMode: runtime.inboundMode,
         webhook: { active: false, reason: 'local_runtime_uses_long_polling' },
@@ -330,6 +444,7 @@ export function makeMessengerGateway({
       if (running) return { started: true, reason: 'already_running', provider };
       const loaded = await providerFromStore(provider);
       await loaded.provider.validate();
+      lastError = null;
       activeProvider = loaded.provider;
       stopController = new AbortController();
       running = true;
@@ -339,7 +454,12 @@ export function makeMessengerGateway({
             await pollOnce({ provider, signal: stopController.signal });
           } catch (error) {
             if (!running || stopController.signal.aborted || error?.code === 'telegram_poll_stopped') break;
+            lastError = {
+              code: error?.code ?? 'unknown', at: Date.now(),
+              needsAttention: error?.code === 'messenger_inbound_needs_attention',
+            };
             log('messenger_poll_failed', { provider, code: error?.code ?? 'unknown' });
+            if (lastError.needsAttention) break;
             await new Promise((resolve) => {
               const timer = setTimeout(resolve, retryDelayMs);
               timer.unref?.();
@@ -376,6 +496,7 @@ export function makeMessengerGateway({
         availableProviders: [...AVAILABLE_PROVIDERS],
         running,
         activeProvider: running ? activeProvider?.id ?? null : null,
+        lastError: lastError ? structuredClone(lastError) : null,
         inboundReality: {
           telegram: { mode: 'long_polling', webhook: { active: false, reason: 'local_runtime_uses_long_polling' } },
         },

@@ -1265,17 +1265,22 @@ export function makeConsoleServer({
         const current = await messenger.status();
         const botConnected = current.connections?.telegram?.connected === true;
         const owner = (await messengerState.listAllowed('telegram'))[0] ?? null;
-        const connected = botConnected && Boolean(owner);
+        const needsAttention = current.lastError?.needsAttention === true;
+        const receiving = current.running === true && !needsAttention;
+        const connected = botConnected && Boolean(owner) && receiving;
         return {
-          state: connected ? 'connected' : 'needs_connection',
-          reason: connected ? null : botConnected ? 'telegram_waiting_for_owner_message' : 'telegram_not_connected',
+          state: connected ? 'connected' : needsAttention ? 'needs_attention' : 'needs_connection',
+          reason: connected ? null : needsAttention ? 'telegram_receiving_stopped'
+            : botConnected ? 'telegram_waiting_for_owner_message' : 'telegram_not_connected',
           userSafeSummary: connected ? '내 텔레그램과 메시지를 주고받을 수 있어요.'
-            : botConnected ? '텔레그램에서 연결한 봇에게 아무 메시지나 보내 주세요.'
+            : needsAttention ? '텔레그램 메시지 받기가 멈췄어요. 설정에서 다시 시작할 수 있어요.'
+              : botConnected ? '텔레그램에서 연결한 봇에게 아무 메시지나 보내 주세요.'
               : '사용하려면 봇을 연결해 주세요.',
-          capabilities: { receive: connected, send: connected },
+          capabilities: { receive: connected, send: botConnected && Boolean(owner) },
           routes: [{
             kind: 'bot_token', label: '텔레그램 봇',
-            state: connected ? 'connected' : botConnected ? 'waiting_for_user' : 'needs_connection',
+            state: connected ? 'connected' : needsAttention ? 'needs_attention'
+              : botConnected ? 'waiting_for_user' : 'needs_connection',
             canStart: !botConnected,
           }],
         };
@@ -2012,11 +2017,16 @@ export function makeConsoleServer({
         const messengerStatus = await messenger.status();
         const telegram = messengerStatus.connections.telegram;
         const owner = (await messengerState.listAllowed('telegram'))[0] ?? null;
+        const needsAttention = messengerStatus.lastError?.needsAttention === true;
+        const receiving = messengerStatus.running === true && !needsAttention;
         json(res, 200, { channels: [{
           id: 'telegram', provider: 'telegram', label: '텔레그램',
           connected: Boolean(telegram?.connected),
-          ready: Boolean(telegram?.connected && owner), owner,
-          userSafe: telegram?.connected && owner
+          ready: Boolean(telegram?.connected && owner && receiving),
+          receiving, needsAttention, owner,
+          userSafe: needsAttention
+            ? '메시지 받기가 멈췄어요 · 다시 시작하면 처리하지 못한 첫 메시지부터 이어져요'
+            : telegram?.connected && owner && receiving
             ? `내 계정과 연결됨${telegram.bot?.username ? ` (@${telegram.bot.username})` : ''} · 메시지 받는 중`
             : telegram?.connected
               ? `봇 연결됨${telegram.bot?.username ? ` (@${telegram.bot.username})` : ''} · 이 봇에게 아무 메시지나 보내 주세요`
@@ -2033,6 +2043,16 @@ export function makeConsoleServer({
           ...connected,
           ready: false,
           userSafeSummary: `텔레그램 봇을 연결했어요. Telegram에서 @${connected.bot.username}에게 아무 메시지나 보내면 내 계정으로 바로 연결돼요.`,
+        }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/channels/restart') {
+        const input = await body(req);
+        const provider = input.provider ?? 'telegram';
+        await messenger.stop();
+        const restarted = await messenger.start({ provider });
+        json(res, 200, {
+          ...restarted,
+          userSafeSummary: '메시지 받기를 다시 시작했어요. 처리하지 못한 메시지가 있으면 이어서 확인해요.',
         }); return;
       }
       if (req.method === 'POST' && url.pathname === '/channels/disconnect') {

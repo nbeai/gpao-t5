@@ -37,10 +37,14 @@ test('메신저 설정은 token 뒤 첫 개인 메시지를 자동 연결하고 
   assert.match(html, /provider\?\.fields/u);
   assert.match(html, /endpointJson\('\/channels\/connect'/u);
   assert.match(html, /endpointJson\('\/channels\/disconnect'/u);
+  assert.match(html, /id="msgRestartBtn"/u);
+  assert.match(html, /endpointJson\('\/channels\/restart'/u);
+  assert.match(html, /current\?\.needsAttention/u);
   assert.match(html, /watchMessengerReady/u);
   assert.match(html, /renderTelegramOwner/u);
   assert.match(html, /내 계정 연결 해제/u);
   assert.doesNotMatch(html, /이 사람 허용/u);
+  assert.doesNotMatch(html, /if \(result\.ok\) watchMessengerReady/u);
   assert.match(html, /#mcResult:empty, #msgResult:empty \{ display:none; \}/u);
   assert.match(html, /response\.ok/u);
 });

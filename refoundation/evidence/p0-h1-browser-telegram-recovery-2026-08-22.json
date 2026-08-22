@@ -1,0 +1,57 @@
+{
+  "schema": "t5.p0-h1.browser-telegram-recovery.v1",
+  "recordedAt": "2026-08-22T03:57:32Z",
+  "baseCommit": "bb391d4a0dffc0e53b12bf28f9ea40636c297584",
+  "releaseBuilt": false,
+  "actualUserAccountAutomation": false,
+  "browser": {
+    "productPath": "conversation-scoped managed profile",
+    "userChromeRemoteDebugging": false,
+    "rawBrowserCliInTerminalPath": false,
+    "liveLoopback": {
+      "tests": 2,
+      "passed": 2,
+      "proved": [
+        "login state survives product driver close and recreation for the same conversation",
+        "another conversation does not inherit that login",
+        "shared-host comparison state survives host recreation and browser crash"
+      ]
+    }
+  },
+  "telegram": {
+    "focusedTests": 23,
+    "focusedPassed": 23,
+    "proved": [
+      "token validation without secret disclosure",
+      "first private numeric sender auto-binds as owner and first message is processed",
+      "typing, progress replacement, Markdown rendering, long reply chunking",
+      "Telegram-origin conversation appears in the console and console reply returns to the same chat",
+      "server restart keeps the same conversation and answers each update once",
+      "failure before conversation adoption does not advance offset and retries the same ingress",
+      "failure after adoption is not automatically replayed",
+      "three identical pre-adoption failures stop receiving and expose a user restart action"
+    ]
+  },
+  "regression": {
+    "command": "npm run refoundation:check",
+    "sandboxAttempt": {
+      "passed": 459,
+      "failed": 11,
+      "cause": "loopback listen and nested macOS sandbox permission"
+    },
+    "requiredPermissionRun": {
+      "passed": 470,
+      "failed": 0,
+      "legacyImports": 0
+    }
+  },
+  "releaseGate": {
+    "state": "IN_PROGRESS",
+    "remainingHumanProof": [
+      "actual Naver login then blog or mail observation in the visible T5 browser",
+      "actual Telegram token then first DM, console reply, and app restart on a tester account",
+      "installed-package repetition of both journeys"
+    ],
+    "reason": "The repository contract forbids automated tests against real home, accounts, or credentials. Loopback proof cannot be promoted to human account proof."
+  }
+}

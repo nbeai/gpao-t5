@@ -1687,6 +1687,7 @@ async function refreshMessengerStatus(box, target) {
     ? (current?.userSafe ?? (current?.connected ? '연결됨' : '연결되지 않음'))
     : endpointError(result, '메신저 상태를 불러오지 못했어요.');
   box.querySelector('#msgDisconnectBtn').disabled = !current?.connected;
+  box.querySelector('#msgRestartBtn').hidden = !current?.needsAttention;
   const old = document.getElementById('telegramOwner');
   if (old) old.remove();
   if (result.ok && current?.ready && selected === 'telegram') await renderTelegramOwner(target, false);
@@ -1696,7 +1697,7 @@ async function refreshMessengerStatus(box, target) {
 async function watchMessengerReady(box, target) {
   for (let attempt = 0; attempt < 60 && setov.classList.contains('open'); attempt += 1) {
     const current = await refreshMessengerStatus(box, target);
-    if (!current?.connected || current?.ready) return;
+    if (!current?.connected || current?.ready || current?.needsAttention) return;
     await new Promise((resolve) => setTimeout(resolve, 1500));
   }
 }
@@ -1716,6 +1717,7 @@ async function renderMessengerConnect(target) {
     </div>
     <div class="connection-actions">
       <button id="msgConnectBtn" class="connection-button primary">연결</button>
+      <button id="msgRestartBtn" class="connection-button" hidden>다시 시작</button>
       <button id="msgDisconnectBtn" class="connection-button">해제</button>
     </div>
     <div id="msgResult" class="tb-hint"></div>`;
@@ -1741,8 +1743,10 @@ async function renderMessengerConnect(target) {
     const provider = providers.find((candidate) => (candidate.id ?? candidate.provider) === select.value);
     renderMessengerFields(box, provider);
     refreshMessengerConnectState();
-    await refreshMessengerStatus(box, target);
-    if (result.ok) watchMessengerReady(box, target).catch(() => {});
+    const current = await refreshMessengerStatus(box, target);
+    if (current?.connected && !current?.ready && !current?.needsAttention) {
+      watchMessengerReady(box, target).catch(() => {});
+    }
   };
   box.querySelector('#msgConnectBtn').onclick = async () => {
     const fields = {};
@@ -1770,6 +1774,23 @@ async function renderMessengerConnect(target) {
       ? (result.data?.userSafeSummary ?? '연결을 해제했어요.')
       : endpointError(result, '연결을 해제하지 못했어요.');
     await refreshMessengerStatus(box, target);
+  };
+  box.querySelector('#msgRestartBtn').onclick = async () => {
+    const restart = box.querySelector('#msgRestartBtn');
+    restart.disabled = true;
+    box.querySelector('#msgResult').textContent = '메시지 받기를 다시 시작하고 있어요…';
+    const result = await endpointJson('/channels/restart', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ provider: select.value }),
+    });
+    box.querySelector('#msgResult').textContent = result.ok
+      ? (result.data?.userSafeSummary ?? '메시지 받기를 다시 시작했어요.')
+      : endpointError(result, '메시지 받기를 다시 시작하지 못했어요.');
+    restart.disabled = false;
+    const current = await refreshMessengerStatus(box, target);
+    if (current?.connected && !current?.ready && !current?.needsAttention) {
+      watchMessengerReady(box, target).catch(() => {});
+    }
   };
   if (providers[0]) renderMessengerFields(box, providers[0]);
   refreshMessengerConnectState();

@@ -112,6 +112,25 @@ test('설정 API는 모델 4종·Telegram 연결을 검증·저장·활성하고
     assert.match(channels, /t5_test_bot/u);
     assert.doesNotMatch(channels, new RegExp(token));
     assert.equal((await stat(server.messengerCredentialStore.file)).mode & 0o777, 0o600);
+
+    let stopped = 0;
+    let restarted = 0;
+    server.messengerGateway.status = async () => ({
+      running: false, lastError: { code: 'messenger_inbound_needs_attention', needsAttention: true },
+      connections: { telegram: { connected: true, bot: { id: '77', username: 't5_test_bot' } } },
+    });
+    server.messengerGateway.stop = async () => { stopped += 1; };
+    server.messengerGateway.start = async () => { restarted += 1; return { running: true }; };
+    const stoppedChannel = await fetch(`${base}/channels`).then((response) => response.json());
+    assert.equal(stoppedChannel.channels[0].needsAttention, true);
+    assert.equal(stoppedChannel.channels[0].receiving, false);
+    assert.match(stoppedChannel.channels[0].userSafe, /다시 시작/u);
+    const resumed = await post(base, '/channels/restart', { provider: 'telegram' });
+    assert.equal(resumed.status, 200);
+    assert.match((await resumed.json()).userSafeSummary, /다시 시작했어요/u);
+    assert.equal(stopped, 1);
+    assert.equal(restarted, 1);
+
     const disconnected = await post(base, '/channels/disconnect', { provider: 'telegram' });
     assert.equal(disconnected.status, 200);
   } finally {

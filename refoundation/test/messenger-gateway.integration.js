@@ -199,6 +199,99 @@ test('텔레그램 long polling은 inbound→같은 chat session→outbound repl
   }
 });
 
+test('Telegram 첫 메시지는 Session 채택 전 실패하면 offset을 넘기지 않고 다음 poll에서 다시 처리한다', async () => {
+  const fixture = await telegramFixture();
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-pre-adoption-'));
+  const credentials = new MessengerCredentialStore(room);
+  const state = new MessengerStateStore(room);
+  let creates = 0;
+  const gateway = makeMessengerGateway({
+    credentialStore: credentials, stateStore: state,
+    providerFactory: ({ token }) => makeTelegramMessengerProvider({
+      token, apiBase: fixture.base, pollTimeoutSeconds: 0,
+    }),
+    createSession: async () => {
+      creates += 1;
+      if (creates === 1) throw Object.assign(new Error('temporary session failure'), { code: 'temporary_session_failure' });
+      return 'recovered-session';
+    },
+    authorizeInbound: async () => true,
+    onInbound: async () => '첫 메시지를 이어받았어요.',
+  });
+  try {
+    await gateway.connect({ provider: 'telegram', token: TOKEN });
+    fixture.updates.push(update(50, { text: '첫 메시지' }));
+    await assert.rejects(() => gateway.pollOnce(), (error) => error.code === 'messenger_inbound_pre_adoption_failed');
+    assert.equal(await state.offset('telegram'), 0, '채택 전 실패한 update를 ACK하면 안 된다');
+    assert.equal((await state.ingress('telegram', 50)).state, 'received');
+
+    assert.deepEqual(await gateway.pollOnce(), { received: 1, accepted: 1, replied: 1, offset: 51 });
+    assert.equal(creates, 2);
+    assert.equal((await state.ingress('telegram', 50)).state, 'completed');
+    assert.equal(fixture.calls.filter((call) => call.method === 'sendMessage').length, 1);
+  } finally { await fixture.close(); }
+});
+
+test('Telegram 작업 채택 뒤 실패는 불명확 효과를 다시 실행하지 않고 durable 상태로 닫는다', async () => {
+  const fixture = await telegramFixture();
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-post-adoption-'));
+  const credentials = new MessengerCredentialStore(room);
+  const state = new MessengerStateStore(room);
+  let executions = 0;
+  const gateway = () => makeMessengerGateway({
+    credentialStore: credentials, stateStore: state,
+    providerFactory: ({ token }) => makeTelegramMessengerProvider({
+      token, apiBase: fixture.base, pollTimeoutSeconds: 0,
+    }),
+    createSession: async () => 'adopted-session', authorizeInbound: async () => true,
+    onInbound: async () => {
+      executions += 1;
+      throw Object.assign(new Error('model result uncertain'), { code: 'model_result_uncertain' });
+    },
+  });
+  try {
+    await gateway().connect({ provider: 'telegram', token: TOKEN });
+    fixture.updates.push(update(60, { text: '외부 효과가 있을 수 있는 요청' }));
+    assert.deepEqual(await gateway().pollOnce(), { received: 1, accepted: 1, replied: 0, offset: 61 });
+    const adopted = await state.ingress('telegram', 60);
+    assert.equal(adopted.state, 'adopted_unknown');
+    assert.equal(adopted.sessionId, 'adopted-session');
+    assert.equal(adopted.text, undefined, 'terminal ingress record에 사용자 원문을 중복 보존하지 않는다');
+
+    assert.deepEqual(await gateway().pollOnce(), { received: 0, accepted: 0, replied: 0, offset: 61 });
+    assert.equal(executions, 1, '채택된 작업을 restart 뒤 자동 재실행하면 안 된다');
+  } finally { await fixture.close(); }
+});
+
+test('Telegram 채택 전 같은 실패가 세 번 반복되면 polling을 멈추고 확인 필요 상태를 남긴다', async () => {
+  const fixture = await telegramFixture();
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-bounded-stop-'));
+  const state = new MessengerStateStore(room);
+  const gateway = makeMessengerGateway({
+    credentialStore: new MessengerCredentialStore(room), stateStore: state,
+    providerFactory: ({ token }) => makeTelegramMessengerProvider({
+      token, apiBase: fixture.base, pollTimeoutSeconds: 0,
+    }),
+    createSession: async () => { throw Object.assign(new Error('session unavailable'), { code: 'session_unavailable' }); },
+    authorizeInbound: async () => true, onInbound: async () => 'never', retryDelayMs: 1,
+  });
+  try {
+    await gateway.connect({ provider: 'telegram', token: TOKEN });
+    fixture.updates.push(update(70, { text: '처리할 수 없는 첫 메시지' }));
+    await gateway.start();
+    for (let count = 0; count < 100 && (await gateway.status()).running; count += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+    const status = await gateway.status();
+    assert.equal(status.running, false);
+    assert.deepEqual(status.lastError && {
+      code: status.lastError.code, needsAttention: status.lastError.needsAttention,
+    }, { code: 'messenger_inbound_needs_attention', needsAttention: true });
+    assert.equal((await state.ingress('telegram', 70)).attempts, 3);
+    assert.equal(await state.offset('telegram'), 0);
+  } finally { await gateway.stop(); await fixture.close(); }
+});
+
 test('Telegram 진행 말풍선 하나를 상태로 수정하고 최종 Markdown을 HTML 답변으로 바꾸어 남긴다', async () => {
   const fixture = await telegramFixture();
   const room = await mkdtemp(join(tmpdir(), 't5-messenger-progress-'));
