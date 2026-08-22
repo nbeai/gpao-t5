@@ -50,6 +50,8 @@
     "refoundation:qualify:session-search": "node refoundation/scripts/run-session-search-qualification.mjs",
     "refoundation:qualify:recovery": "node refoundation/scripts/run-recovery-qualification.mjs",
     "refoundation:compare:recovery": "node refoundation/scripts/run-recovery-comparison.mjs",
+    "refoundation:compare:interaction-core": "node refoundation/scripts/run-interaction-core-comparison.mjs",
+    "refoundation:compare:interaction-tools": "node refoundation/scripts/run-interaction-core-tool-comparison.mjs",
     "refoundation:qualify:human-scenarios": "node refoundation/scripts/run-human-scenarios.mjs",
     "refoundation:qualify:business-workflow": "node refoundation/scripts/run-business-workflow-qualification.mjs",
     "refoundation:qualify:document-data": "node refoundation/scripts/run-document-data-qualification.mjs",

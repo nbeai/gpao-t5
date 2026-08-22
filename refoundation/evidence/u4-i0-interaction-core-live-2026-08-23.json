@@ -1,0 +1,82 @@
+{
+  "schema": "t5.interaction-core-qualification.v1",
+  "recordedAt": "2026-08-23T01:45:00+09:00",
+  "source": {
+    "name": "BEAI 5",
+    "sha256": "83f942d369a83f45171754e214628acfe9ba2d6af5ddb808ef2a2db220c25586",
+    "runtimeImportedWhole": false
+  },
+  "candidates": ["off", "v1", "v2", "v3", "v4"],
+  "selected": "v4",
+  "selectedContract": {
+    "bytes": 2079,
+    "fullConsoleInstructionBytes": 15770,
+    "focus": [
+      "current object and requested form",
+      "fact, interpretation, unknown, and inference separation",
+      "situation grasp",
+      "companionship without diagnosis",
+      "relative perspective without simulated motives",
+      "evidence-calibrated judgment",
+      "result-first output and natural closure"
+    ]
+  },
+  "dialogueComparison": {
+    "models": [
+      { "provider": "openai", "modelId": "gpt-5.6-terra" },
+      { "provider": "chatgpt_oauth", "modelId": "gpt-5.5" }
+    ],
+    "easyScenarios": 5,
+    "easyRegressions": 0,
+    "outputTokens": {
+      "gpt-5.6-terra": {
+        "judgment": { "off": 494, "v4": 248 },
+        "companionship": { "off": 554, "v4": 383 },
+        "externalMessage": { "off": 35, "v4": 36 }
+      },
+      "gpt-5.5": {
+        "judgment": { "off": 493, "v4": 368 },
+        "companionship": { "off": 789, "v4": 652 },
+        "externalMessage": { "off": 54, "v4": 45 }
+      }
+    },
+    "inputTokenOverheadPerCall": 482,
+    "promptCacheObserved": true
+  },
+  "toolQualification": {
+    "terminal": {
+      "models": ["gpt-5.6-terra", "gpt-5.5"],
+      "modelTurnsEach": 2,
+      "execCallsEach": 1,
+      "verifiedAnswer": 42,
+      "passed": true
+    },
+    "browser": {
+      "models": ["gpt-5.6-terra", "gpt-5.5"],
+      "modelTurnsEach": 2,
+      "toolCallsEach": 1,
+      "passed": true
+    },
+    "connection": {
+      "models": ["gpt-5.6-terra", "gpt-5.5"],
+      "modelTurnsEach": 2,
+      "toolCallsEach": 1,
+      "unconnectedStatePreserved": true,
+      "passed": true
+    }
+  },
+  "checkpoint": {
+    "preservesCurrentObjectAndOutputForm": true,
+    "preservesLatestUserCorrection": true,
+    "preservesClosedOrDeferredIssues": true,
+    "separatesAcceptedDecisionsFromAssistantProposals": true
+  },
+  "checks": {
+    "refoundation": { "passed": 493, "failed": 0 },
+    "legacyImports": 0
+  },
+  "unmeasured": [
+    "Live Claude, Gemini, and Upstage comparisons were not run because no active credentials were available.",
+    "The selected core adds about 482 provider input tokens per call before caching."
+  ]
+}

@@ -11,6 +11,7 @@ import {
   makeStoredChatGptCredentialSource, makeStoredModelCredentialCatalog,
 } from '../src/chatgpt-oauth-credential.js';
 import { makeChatGptResponsesModel } from '../src/chatgpt-responses-model.js';
+import { interactionCore } from '../src/interaction-core.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -21,6 +22,8 @@ const authMode = option('--auth') ?? process.env.T5_REFOUNDATION_AUTH ?? 'consol
 const modelOverride = option('--model') ?? process.env.T5_REFOUNDATION_MODEL;
 const customRequest = option('--request');
 const keep = process.argv.includes('--keep');
+const interactionCoreMode = option('--interaction-core')
+  ?? process.env.T5_INTERACTION_CORE_MODE ?? 'off';
 const room = await mkdtemp(join(tmpdir(), 't5-refoundation-live-'));
 const home = join(room, 'home');
 const data = join(room, 'data');
@@ -40,6 +43,7 @@ const request = customRequest ?? [
 
 const instructions = [
   'You are T5, a capable personal agent operating an isolated computer workspace.',
+  ...(interactionCoreMode === 'off' ? [] : [interactionCore(interactionCoreMode)]),
   'Understand the user goal and use the available exec tool whenever computer evidence is needed.',
   'Do not ask the user to run commands that you can run.',
   'Read each tool result, and if a method fails or is insufficient, choose another method and continue.',
@@ -114,6 +118,7 @@ try {
     status: result.status,
     auth: selectedAuth,
     model: modelId,
+    interactionCoreMode,
     answer: result.answer,
     modelTurns: result.modelTurns,
     toolCalls: result.receipts.map((receipt) => ({

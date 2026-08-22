@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `P0-H1 HUMAN RELEASE RECOVERY — COMPLETE` (0.1.3 인간 핵심 여정·정식 배포 인증 완료)
+현재 Gate: `U4-I0 BEAI-DERIVED INTERACTION CORE — COMPLETE` (다음 배포 개발선)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -234,10 +234,10 @@ Non-goals:
 
 ## U4 — Human Outcome Intelligence · 현실 사용자 개발선
 
-상태: `OWNER-APPROVED PLAN — IMPLEMENTATION NOT OPEN` — 현재 `P0-H1`의 설치본 인간 종단은 실제
-배포 시점까지 보류한다. U4의 방향은 승인됐지만 로컬 제품이 다른 사용자를 관측·수집하는 개발은 열지
-않는다. U4는 기능 목록이 아니라 실제 일인사업자·프리랜서·복합 사무 사용자가 본업에 더 집중하는지를
-제품 결과로 삼는다.
+상태: `OWNER-OPENED — U4-I0 COMPLETE, REMAINDER NOT OPEN` — 오너가 BEAI 5의 검증된 대화 장점을
+T5와 모델의 기능을 억제하지 않는 범위에서 추출·비교·적용하는 I0만 열었다. 다른 사용자를 원격 관측·수집하는
+개발과 U4의 나머지 Gate는 열지 않는다. U4는 기능 목록이 아니라 실제 일인사업자·프리랜서·복합 사무
+사용자가 본업에 더 집중하는지를 제품 결과로 삼는다.
 
 연구 근거:
 
@@ -355,6 +355,40 @@ Non-goals:
 - 실제 사건 없는 진행 단계·완료 임박·성공 표시
 - 모델 내부 사고 원문·비밀·명령·검색어를 과정 투명성으로 노출
 - 현재 과업의 추론을 지속 사용자 정체성으로 승격
+
+### U4-I0 — BEAI-derived Interaction Core
+
+상태: `COMPLETE` — BEAI 5 원문 전체를 runtime prompt에 넣지 않고, 현재 대상·요청 형식·상황 파악·
+동반감·상대 관점·증거에 맞는 의견·산출물 우선·자연스러운 종결을 후보 Core로 추출했다. 제품 기본값을
+바꾸기 전에 `off·v1·v2·v3·v4`를 동일 입력과 동일 모델로 비교했고, gpt-5.5와 gpt-5.6-terra에서
+공통으로 개선된 한국어 `v4`만 승격했다.
+
+성립한 계약:
+
+- 현재 맡긴 대상과 명시한 결과 형식을 장기 맥락보다 우선
+- 사용자 확정·실제 관측·사용자 해석·미정·모델 추정을 분리하고 운영 사실·수치 기준·상대 의도 생성 금지
+- 사람·돈·시간·책임·권한·부담 중 현재 결과를 실제로 바꾸는 현실만 상황에 포함
+- 동반감은 진단·공감 문구의 양이 아니라 사용자가 말한 현실과 부담을 정확한 순서로 놓는 방식
+- 고객·직원·파트너·시장은 확인된 행동·선택 기준·수용 조건으로만 보고 사용자의 목적과 위치 유지
+- 의견 요청은 현재 의견 하나·사용자 근거·의견을 바꿀 핵심 확인 하나로 닫고 임의 계획·기간·통과 숫자 0
+- 산출물은 결과 우선, 후속 턴은 바뀐 지점만 처리, 충분하면 다시 열지 않고 종결
+- Checkpoint는 현재 대상·요청 형식·최신 교정·닫힌/보류 쟁점과 사용자 합의/모델 제안 경계를 보존
+
+실제 비교:
+
+- gpt-5.6-terra output tokens: 판단 `494→248`, 동반감 `554→383`, 쉬운 과업 5/5 회귀 0
+- gpt-5.5 output tokens: 판단 `493→368`, 동반감 `789→652`
+- 실제 Terminal: 두 모델 모두 2 turns·exec 1회·합계 42
+- Browser·Connection 격리 도구 종단: 두 모델 모두 각각 2 turns·tool 1회, 관측·미연결 진실 유지
+- 전체 새 코어 검사 `493/493`, legacy import `0`
+- 비용: 호출당 provider input 약 `+482 tokens`; prompt cache 관측, Claude·Gemini·Upstage live는 자격 부재로 미측정
+- 근거: `refoundation/evidence/u4-i0-interaction-core-live-2026-08-23.json`
+
+Non-goals:
+
+- BEAI 정체성을 T5에 덮어쓰기, 800줄 원문 전체 삽입, chain-of-thought 출력, 고정 말투·출력 템플릿
+- 감정·관계 상시 분석, 사용자 상태 진단, runtime 한국어 intent router, Memory schema 확대
+- 정식 인증된 0.1.3 package 변경; I0는 다음 배포 개발선
 
 ### U4-R0 — Reality Corpus와 인간 baseline
 

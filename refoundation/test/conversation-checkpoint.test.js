@@ -3,9 +3,17 @@ import assert from 'node:assert/strict';
 
 import {
   activeConversationProjection,
+  CONVERSATION_CHECKPOINT_SYSTEM_INSTRUCTIONS,
   planConversationCheckpoint,
   summarizeConversationCheckpoint,
 } from '../src/conversation-checkpoint.js';
+
+test('checkpoint는 현재 대상·형식·교정·닫힌 쟁점과 합의 경계를 보존한다', () => {
+  assert.match(CONVERSATION_CHECKPOINT_SYSTEM_INSTRUCTIONS, /current object.*requested output form/is);
+  assert.match(CONVERSATION_CHECKPOINT_SYSTEM_INSTRUCTIONS, /latest user correction/is);
+  assert.match(CONVERSATION_CHECKPOINT_SYSTEM_INSTRUCTIONS, /closed or deferred/is);
+  assert.match(CONVERSATION_CHECKPOINT_SYSTEM_INSTRUCTIONS, /user-accepted.*assistant proposals.*did not accept/is);
+});
 
 function entries(count, size = 80) {
   return Array.from({ length: count }, (_, index) => ({
