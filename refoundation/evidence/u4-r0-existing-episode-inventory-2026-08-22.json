@@ -1,0 +1,51 @@
+{
+  "schema": "t5.u4-r0.existing-episode-inventory.v1",
+  "recordedAt": "2026-08-22T12:54:28Z",
+  "gate": "U4-R0 Reality Corpus",
+  "state": "IN_PROGRESS_PARTICIPANT_INTAKE_REQUIRED",
+  "inspection": {
+    "source": "local_refoundation_development_state",
+    "readOnly": true,
+    "conversationContentCopiedToRepository": false,
+    "personalIdentifiersCopiedToRepository": false,
+    "credentialsObservedOrCopied": false
+  },
+  "existingStateCounts": {
+    "sessionMetadata": 113,
+    "conversationLedgers": 74,
+    "userMessages": 185,
+    "singleUserTurnSessions": 36,
+    "multiUserTurnSessions": 38,
+    "tenOrMoreUserTurnSessions": 2,
+    "telegramOriginSessions": 1,
+    "runs": 211
+  },
+  "eligibility": {
+    "consentingTargetUsers": 0,
+    "usersWithSevenDayWorkDiary": 0,
+    "episodesBoundToExistingMethodBaseline": 0,
+    "eligibleRealityCorpusEpisodes": 0,
+    "excludedExistingRecords": [
+      "developer qualification and fixture runs",
+      "owner exploratory product validation without corpus consent metadata",
+      "sessions without a seven-day work context",
+      "tasks without the user's prior method, burden, and final real-world outcome"
+    ]
+  },
+  "coverage": {
+    "educationCoachingConsulting": 0,
+    "onlineSelling": 0,
+    "localStoreService": 0,
+    "freelanceProject": 0,
+    "creatorBrandOperations": 0,
+    "mixedOfficeWork": 0,
+    "monthlyOperationsSettlement": 0,
+    "failureChangeContinuity": 0
+  },
+  "decision": {
+    "syntheticEpisodesCountAsGateEvidence": false,
+    "existingDeveloperRunsCountAsTargetUserEpisodes": false,
+    "productionFeatureImplementationOpened": false,
+    "nextRequiredWork": "enroll consenting target users and capture the first actual work episodes with prior method, human-owned decision, final outcome, time, switching, copying, re-explanation, waiting, correction, and recovery"
+  }
+}

@@ -201,9 +201,10 @@ Non-goals:
 
 ## U4 — Human Outcome Intelligence · 현실 사용자 개발선
 
-상태: `OWNER-APPROVED PLAN — IMPLEMENTATION NOT OPEN` — 현재 `P0-H1`의 Naver·Telegram 인간 배포
-회복을 먼저 닫는다. U4는 그 뒤의 공식 개발선이며, 기능 목록이 아니라 실제 일인사업자·프리랜서·복합
-사무 사용자가 본업에 더 집중하는지를 제품 결과로 삼는다.
+상태: `OWNER-OPENED — U4-R0 IN PROGRESS` — 오너가 설치본 검증은 실제 배포 시점으로 보류하고 현실
+사용자 개발을 계속하기로 했다. 이 결정은 `P0-H1`을 완료로 올리거나 설치본 검증을 면제하지 않는다.
+U4는 기능 목록이 아니라 실제 일인사업자·프리랜서·복합 사무 사용자가 본업에 더 집중하는지를 제품
+결과로 삼는다.
 
 연구 근거:
 
@@ -324,7 +325,12 @@ Non-goals:
 
 ### U4-R0 — Reality Corpus와 인간 baseline
 
-상태: `PLANNED` — 제품 코드를 얹기 전에 실제 사람의 업무 구조를 개발 재료로 만든다.
+상태: `IN PROGRESS — PARTICIPANT INTAKE REQUIRED` — 제품 코드를 얹기 전에 실제 사람의 업무 구조를
+개발 재료로 만든다. 기존 로컬 개발 기록을 개인정보 복사 없이 읽기 전용으로 조사한 결과 세션 metadata
+`113`, conversation ledger `74`, 사용자 메시지 `185`, 10턴 이상 세션 `2`, Telegram-origin `1`, Run
+`211`이 있었지만, 동의 사용자·7일 업무 일지·기존 방식 baseline과 결속된 적격 Episode는 `0`이었다.
+개발·자격 시험을 실제 사용자 Corpus로 승격하지 않는다. 근거는
+`refoundation/evidence/u4-r0-existing-episode-inventory-2026-08-22.json`이다.
 
 대상·기간:
 
@@ -705,6 +711,8 @@ P0-H1 인간 배포 회복 COMPLETE
 ```
 
 - 각 Gate는 앞 Gate의 실제 미달 하나만 열고, 다음 Gate 편의를 위해 production 구조를 선구현하지 않는다.
+- 2026-08-22 오너 결정으로 P0-H1 설치본 종단은 배포 시점까지 보류하고 U4-R0 관측만 먼저 열었다.
+  이는 P0-H1 완료나 U4-E0 구현 개방을 뜻하지 않는다.
 - `U4-Q1`은 P1 직후부터 모든 후속 Gate의 회귀 기준으로 계속 실행한다.
 - Health P0 위험이 현장에 다시 나타나면 순서를 앞당길 수 있지만 범위는 실제 결함 가족에 한정한다.
 - Connector·OCR·PPTX·고급 Office·audio·상시 background는 실제 Work Loop 미달이 증명할 때 해당 손으로 연다.
