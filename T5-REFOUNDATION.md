@@ -52,6 +52,20 @@ effect를 분리하고 destructive 의미, exact control identity, stale modal �
 `7a77fc9c`, `baaae2c7`, `d8cec7a4`, `2f2d63e3`다. 실제 Naver 계정 재로그인은 별도로 요구하지 않았으므로
 설치본의 다음 정상 로그인 인간 종단 전에는 Gate를 `COMPLETE`로 올리지 않는다.
 
+2026-08-23 0.1.3 내부 RC 종단: 로컬 콘솔 Host·Origin·설치 신분 관문과 관리자 권한 제거 경로를
+패키지 검증에 포함했다. 설치된 `0.1.3`에서 기존 `gpt-5.6-terra` 연결을 보존하고 실제 terminal Run을
+완료했다. Naver는 사용자 로그인 handoff 뒤 블로그 홈의 `글쓰기`가 만든 새 탭을 Browser action의 결과로
+채택했고, 그 새 target에서 제목·본문 편집 영역을 실제 관측했다. 입력·수정·저장·발행·제출은 `0`이었다.
+새 탭 전환은 전후 tab·target 집합의 실제 차이로만 결속하며 여러 새 탭이 동시에 생겨 대상이 모호하면
+추측하지 않고 멈춘다. 전체 새 코어 검사는 `485/485`, legacy import는 `0`이다. 근거는
+`refoundation/evidence/p0-h1-0.1.3-rc-installed-live-2026-08-23.json`, 커밋은 `ba90f96b`,
+`f28c0994`다.
+
+이 RC는 앱을 완전히 종료한 뒤 서비스의 session-only 로그인을 복원한다고 주장하지 않는다. 실제 Naver에서
+재로그인이 필요함을 확인했고, cookie 직접 추출·복원이나 불안정한 daemon 생명주기 변경은 제품에 넣지 않았다.
+또한 현재 package는 무서명·미공증 내부 RC이므로 테스터 배포 적격이 아니다. 이 두 경계를 닫거나 오너가
+배포 범위에서 제외한다고 명시하기 전에는 Gate를 `COMPLETE`로 올리지 않는다.
+
 사용자 완료 문장:
 
 > 일반 사용자가 0.1.1에서 성공했던 것처럼, 요청하면 눈앞에 열린 T5 브라우저에서 네이버에 로그인하고

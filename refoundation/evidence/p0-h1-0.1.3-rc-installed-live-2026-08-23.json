@@ -1,0 +1,48 @@
+{
+  "schema": "t5.p0-h1-installed-rc.v1",
+  "recordedAt": "2026-08-23T00:20:00+09:00",
+  "product": "GPAO-T5",
+  "version": "0.1.3",
+  "sourceCommit": "f28c0994339e6d29ce622c879243d6692cc0e0dd",
+  "package": {
+    "path": "dist/GPAO-T5-0.1.3-universal-unsigned.pkg",
+    "sha256": "d43745587edca876cd483f3d52031e6dbc547454c5bbee69ae999d7a1f231129",
+    "sourceDirty": false,
+    "payloadVerification": true,
+    "signed": false,
+    "notarized": false
+  },
+  "installation": {
+    "receiptId": "kr.co.gpao.t5",
+    "receiptVersion": "0.1.3",
+    "upgradeSucceeded": true,
+    "modelConnectionPreserved": true
+  },
+  "model": {
+    "provider": "openai",
+    "modelId": "gpt-5.6-terra"
+  },
+  "terminal": {
+    "runId": "f7bdbd79-e151-45b2-9e4a-453c8d3d7505",
+    "execCalls": 1,
+    "completed": true
+  },
+  "webHand": {
+    "runId": "98eb374e-eb5d-4959-a02f-db06a07b99f9",
+    "loginHandoff": true,
+    "actionCreatedTabAdopted": true,
+    "titleAndBodyEditablesObserved": true,
+    "changedEffects": 0,
+    "saved": false,
+    "published": false
+  },
+  "checks": {
+    "refoundation": { "passed": 485, "failed": 0 },
+    "focusedBrowser": { "passed": 45, "failed": 0 },
+    "legacyImports": 0
+  },
+  "remaining": [
+    "A complete app quit may require login again for services using session-only cookies.",
+    "The RC is unsigned and not notarized, so it is not a tester distribution artifact."
+  ]
+}
