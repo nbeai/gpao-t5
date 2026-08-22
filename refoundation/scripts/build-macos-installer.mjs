@@ -193,8 +193,7 @@ if /usr/bin/pgrep -x "${product.name}" >/dev/null 2>&1; then
   /usr/bin/osascript -e 'tell application id "${product.bundleId}" to quit' >/dev/null 2>&1 || true
   /bin/sleep 1
 fi
-ADMIN_COMMAND='/bin/rm -rf -- /Applications/${product.name}.app || exit $?; /usr/sbin/pkgutil --forget ${product.bundleId} >/dev/null 2>&1 || true'
-if /usr/bin/osascript -e "do shell script \"$ADMIN_COMMAND\" with administrator privileges"; then
+if /usr/bin/osascript -e 'do shell script "/bin/rm -rf -- /Applications/${product.name}.app || exit $?; /usr/sbin/pkgutil --forget ${product.bundleId} >/dev/null 2>&1 || true" with administrator privileges'; then
   echo "GPAO-T5 앱을 제거했습니다. 대화와 기억은 그대로 두었습니다."
 else
   echo "GPAO-T5를 제거하지 못했습니다. 관리자 승인을 확인한 뒤 다시 시도해 주세요."
