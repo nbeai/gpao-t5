@@ -45,6 +45,7 @@ try {
   const runtime = join(resources, 'runtime', 'bin');
   const required = [
     join(app, 'Contents', 'MacOS', 'GPAO-T5'),
+    join(resources, 'GPAO-T5 제거.command'),
     join(runtime, 'node'), join(runtime, 'node-arm64'), join(runtime, 'node-x64'),
     join(appRoot, 'refoundation', 'scripts', 'start-console.mjs'),
     join(appRoot, 'refoundation', 'scripts', 'connect-chatgpt.mjs'),
@@ -58,6 +59,13 @@ try {
     join(appRoot, 'docs', '00-product', 'GPAO-T5-FOUNDER-MANIFESTO-ko.md'),
   ];
   for (const path of required) await stat(path);
+  const uninstall = join(resources, 'GPAO-T5 제거.command');
+  run('/bin/sh', ['-n', uninstall]);
+  const uninstallSource = await readFile(uninstall, 'utf8');
+  if (!uninstallSource.includes('with administrator privileges')
+    || !uninstallSource.includes('pkgutil --forget')) {
+    throw new Error('packaged uninstaller does not own the installed app lifecycle');
+  }
   for (const forbidden of ['test', 'evidence']) {
     try { await stat(join(appRoot, 'refoundation', forbidden)); throw new Error(`forbidden payload: ${forbidden}`); }
     catch (error) { if (error?.code !== 'ENOENT') throw error; }
@@ -101,8 +109,26 @@ try {
     if (health?.ok !== true || health?.product !== 'gpao-t5-refoundation') {
       throw new Error('packaged console health is invalid');
     }
-    const html = await fetch(`http://127.0.0.1:${port}/`).then((response) => response.text());
+    const bootstrap = await fetch(`http://127.0.0.1:${port}/`);
+    const html = await bootstrap.text();
     if (!html.includes('GPAO-T5')) throw new Error('packaged console UI is invalid');
+    const cookie = bootstrap.headers.get('set-cookie')?.split(';', 1)[0];
+    if (!cookie) throw new Error('packaged console did not issue its local identity');
+    const unowned = await fetch(`http://127.0.0.1:${port}/sessions`, { method: 'POST' });
+    if (unowned.status !== 403) throw new Error('packaged console accepted an unowned write');
+    const crossSite = await fetch(`http://127.0.0.1:${port}/sessions`, {
+      method: 'POST', headers: { origin: 'https://evil.example', 'content-type': 'text/plain' },
+      body: '{}',
+    });
+    if (crossSite.status !== 403) throw new Error('packaged console accepted a cross-site write');
+    const rebinding = await fetch(`http://127.0.0.1:${port}/sessions`, {
+      method: 'POST', headers: { host: `evil.example:${port}` },
+    });
+    if (rebinding.status !== 403) throw new Error('packaged console accepted a rebinding host');
+    const owned = await fetch(`http://127.0.0.1:${port}/sessions`, {
+      method: 'POST', headers: { cookie },
+    });
+    if (owned.status !== 200) throw new Error('packaged console rejected its own UI identity');
   } finally {
     if (child.exitCode == null && child.signalCode == null) child.kill('SIGTERM');
     await childExit;

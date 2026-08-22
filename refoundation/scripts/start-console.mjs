@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -111,6 +111,7 @@ const linearConnection = makeRemoteMcpConnection({
   resource: 'https://mcp.linear.app/mcp', secretStore: platformSecretStore,
 });
 const browserClientInstanceId = randomUUID();
+const localConsoleToken = randomBytes(32).toString('base64url');
 const browserHost = makePersistentBrowserHost({
   root: join(stateDir, 'browser-host'), binary: DEFAULT_AGENT_BROWSER_BINARY,
 });
@@ -139,6 +140,7 @@ const server = makeConsoleServer({
     includeNotion: false,
   }),
   workspaceConnectionServices: [googleDriveService, notionConnection, linearConnection],
+  localConsoleToken,
   onError: (error) => console.error('[refoundation-console]', error?.message ?? error),
 });
 await new Promise((resolveListen, reject) => {

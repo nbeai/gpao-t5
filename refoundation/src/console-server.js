@@ -71,6 +71,7 @@ import { AutomationStore } from './automation-store.js';
 import { AutomationScheduler } from './automation-scheduler.js';
 import { makeAutomationTool } from './automation-tool.js';
 import { deferTools, makeToolSearchTool } from './tool-search.js';
+import { makeLocalConsoleGuard } from './local-console-guard.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -236,6 +237,7 @@ export function makeConsoleServer({
   attachmentStore,
   modelConnections,
   messengerProviderFactory,
+  localConsoleToken,
   onError,
 } = {}) {
   if (!stateDir || !workspace) throw new TypeError('stateDir and workspace are required');
@@ -1517,9 +1519,24 @@ export function makeConsoleServer({
     attemptProcessWake(event).catch((error) => onError?.(error));
   });
 
-  const server = createServer(async (req, res) => {
+  let server;
+  const localConsoleGuard = localConsoleToken ? makeLocalConsoleGuard({
+    token: localConsoleToken,
+    port: () => server?.address()?.port,
+  }) : null;
+  server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     try {
+      const denied = localConsoleGuard?.inspect(req, url.pathname);
+      if (denied) {
+        res.writeHead(403, {
+          'content-type': 'application/json; charset=utf-8',
+          'cache-control': 'no-store',
+          'x-content-type-options': 'nosniff',
+        });
+        res.end(JSON.stringify({ error: '이 요청으로는 T5에 연결할 수 없어요.' }));
+        return;
+      }
       if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
         const source = await readFile(resolve(uiRoot, 'index.html'), 'utf8');
         const withRuntime = source.replace(
@@ -1531,7 +1548,10 @@ export function makeConsoleServer({
           '<script type="module" src="/wake-events.js"></script>',
           '</body>',
         ].join('\n'));
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        res.writeHead(200, {
+          'content-type': 'text/html; charset=utf-8',
+          ...(localConsoleGuard ? { 'set-cookie': localConsoleGuard.cookieHeader } : {}),
+        });
         res.end(html);
         return;
       }

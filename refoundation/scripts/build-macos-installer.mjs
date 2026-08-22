@@ -187,7 +187,21 @@ esac
 </dict></plist>\n`);
 
     const uninstall = join(resources, 'GPAO-T5 제거.command');
-    await writeFile(uninstall, `#!/bin/sh\nset -e\nrm -rf "/Applications/${product.name}.app"\necho "GPAO-T5 앱을 제거했습니다. 대화와 기억은 그대로 두었습니다."\nread -r _\n`);
+    await writeFile(uninstall, `#!/bin/sh
+set -u
+if /usr/bin/pgrep -x "${product.name}" >/dev/null 2>&1; then
+  /usr/bin/osascript -e 'tell application id "${product.bundleId}" to quit' >/dev/null 2>&1 || true
+  /bin/sleep 1
+fi
+ADMIN_COMMAND='/bin/rm -rf -- /Applications/${product.name}.app || exit $?; /usr/sbin/pkgutil --forget ${product.bundleId} >/dev/null 2>&1 || true'
+if /usr/bin/osascript -e "do shell script \"$ADMIN_COMMAND\" with administrator privileges"; then
+  echo "GPAO-T5 앱을 제거했습니다. 대화와 기억은 그대로 두었습니다."
+else
+  echo "GPAO-T5를 제거하지 못했습니다. 관리자 승인을 확인한 뒤 다시 시도해 주세요."
+fi
+printf "종료하려면 Enter를 눌러 주세요. "
+read -r _
+`);
     await chmod(uninstall, 0o755);
     run('xattr', ['-cr', app]);
 
@@ -211,6 +225,17 @@ esac
 
     const scripts = join(work, 'pkg-scripts');
     await mkdir(scripts, { recursive: true });
+    await writeFile(join(scripts, 'preinstall'), `#!/bin/sh
+USER_NAME=$(stat -f %Su /dev/console)
+if [ -n "$USER_NAME" ] && [ "$USER_NAME" != "root" ]; then
+  if sudo -u "$USER_NAME" /usr/bin/pgrep -x "${product.name}" >/dev/null 2>&1; then
+    sudo -u "$USER_NAME" /usr/bin/osascript -e 'tell application id "${product.bundleId}" to quit' >/dev/null 2>&1 || true
+    /bin/sleep 1
+  fi
+fi
+exit 0
+`);
+    await chmod(join(scripts, 'preinstall'), 0o755);
     await writeFile(join(scripts, 'postinstall'), `#!/bin/sh
 USER_NAME=$(stat -f %Su /dev/console)
 if [ -n "$USER_NAME" ] && [ "$USER_NAME" != "root" ]; then
