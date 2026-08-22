@@ -4,6 +4,9 @@ import {
 } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 
+import { inspectZipArchive } from './archive-safety.js';
+import { artifactPreviewMetadata } from './artifact-preview.js';
+
 const SCHEMA = 't5.attachment-event.v1';
 const DEFAULT_MAX_FILE_BYTES = 128 * 1024 * 1024;
 const DEFAULT_MAX_SESSION_BYTES = 512 * 1024 * 1024;
@@ -59,6 +62,12 @@ export function detectAttachmentType(bytesInput, originalName = '') {
     if (zipContains(bytes, 'ppt/presentation.xml')) {
       return { mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', kind: 'document', extension: '.pptx' };
     }
+    try {
+      const manifest = inspectZipArchive(bytes, { maxEntries: 500, maxTotalBytes: 64 * 1024 * 1024 });
+      if (manifest.state === 'safe_manifest' && manifest.entries.some((entry) => entry.path === 'index.html')) {
+        return { mimeType: 'application/vnd.gpao-t5.web-bundle+zip', kind: 'web_app', extension: '.zip' };
+      }
+    } catch { /* invalid ZIP falls through to an ordinary archive and is never preview-executed */ }
     return { mimeType: 'application/zip', kind: 'archive', extension: '.zip' };
   }
   if (bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WAVE') {
@@ -71,10 +80,14 @@ export function detectAttachmentType(bytesInput, originalName = '') {
     return { mimeType: 'video/mp4', kind: 'video', extension: '.mp4' };
   }
   if (printableText(bytes)) {
-    const mimeType = extension === '.csv' ? 'text/csv'
+    const mimeType = ['.html', '.htm'].includes(extension) ? 'text/html'
+      : extension === '.svg' ? 'image/svg+xml'
+      : extension === '.csv' ? 'text/csv'
       : extension === '.md' ? 'text/markdown'
         : extension === '.json' ? 'application/json' : 'text/plain';
-    return { mimeType, kind: 'text', extension: extension || '.txt' };
+    const kind = ['.html', '.htm'].includes(extension) ? 'web'
+      : extension === '.svg' ? 'vector' : 'text';
+    return { mimeType, kind, extension: extension || '.txt' };
   }
   return { mimeType: 'application/octet-stream', kind: 'binary', extension: '.bin' };
 }
@@ -91,8 +104,12 @@ function publicRecord(record) {
     sha256: record.sha256,
     createdAt: record.createdAt,
     downloadUrl: `/attachments/${record.attachmentId}/content?sessionId=${record.sessionId}`,
-    ...(record.kind === 'image' || record.kind === 'pdf'
-      ? { previewUrl: `/attachments/${record.attachmentId}/content?sessionId=${record.sessionId}&inline=1` } : {}),
+    ...(record.direction === 'output' ? {
+      artifactFamilyId: record.artifactFamilyId ?? record.attachmentId,
+      artifactVersion: record.artifactVersion ?? 1,
+      versionsUrl: `/attachments/${record.attachmentId}/versions?sessionId=${record.sessionId}`,
+    } : {}),
+    ...artifactPreviewMetadata(record),
     ...(record.sourcePath ? { sourcePath: record.sourcePath } : {}),
     links: clone(record.links ?? []),
   };
@@ -173,20 +190,39 @@ export class AttachmentStore {
     return records;
   }
 
-  async receive({ sessionId, originalName, declaredMime = null, bytes, direction = 'input', sourcePath = null } = {}) {
+  async receive({
+    sessionId, originalName, declaredMime = null, bytes, direction = 'input', sourcePath = null,
+    revisesAttachmentId = null,
+  } = {}) {
     const content = Buffer.from(bytes ?? []);
     async function* chunks() { yield content; }
-    return this.receiveStream({ sessionId, originalName, declaredMime, stream: chunks(), direction, sourcePath });
+    return this.receiveStream({
+      sessionId, originalName, declaredMime, stream: chunks(), direction, sourcePath, revisesAttachmentId,
+    });
   }
 
   async receiveStream({
     sessionId, originalName, declaredMime = null, stream, direction = 'input', sourcePath = null,
+    revisesAttachmentId = null,
   } = {}) {
     const owner = safeUuid(sessionId, 'session');
     if (!stream || typeof stream[Symbol.asyncIterator] !== 'function') throw new TypeError('attachment stream is required');
     return this.serialize(async () => {
       await this.ensure();
       const records = this.recordsFrom(await this.events());
+      let revision = null;
+      if (revisesAttachmentId != null) {
+        const previousId = safeUuid(revisesAttachmentId, 'attachment');
+        const previous = records.get(previousId);
+        if (!previous || previous.sessionId !== owner || previous.direction !== 'output') {
+          throw Object.assign(new Error('previous result artifact not found'), { status: 404 });
+        }
+        revision = {
+          previousAttachmentId: previous.attachmentId,
+          artifactFamilyId: previous.artifactFamilyId ?? previous.attachmentId,
+          artifactVersion: Number(previous.artifactVersion ?? 1) + 1,
+        };
+      }
       const used = [...records.values()].filter((record) => record.sessionId === owner)
         .reduce((sum, record) => sum + record.bytes, 0);
       const temp = join(this.incoming, randomUUID());
@@ -224,14 +260,20 @@ export class AttachmentStore {
         await rename(temp, storedPath);
         await chmod(storedPath, 0o600);
       }
+      const attachmentId = randomUUID();
       const record = {
-        attachmentId: randomUUID(), sessionId: owner,
+        attachmentId, sessionId: owner,
         direction: direction === 'output' ? 'output' : 'input',
         originalName: safeName(originalName),
         declaredMime: declaredMime ? String(declaredMime).slice(0, 200) : null,
         mimeType: detected.mimeType, kind: detected.kind,
         bytes: total, sha256: digest, storedPath: await realpath(storedPath),
         createdAt: new Date().toISOString(),
+        ...(direction === 'output' ? {
+          artifactFamilyId: revision?.artifactFamilyId ?? attachmentId,
+          artifactVersion: revision?.artifactVersion ?? 1,
+          ...(revision?.previousAttachmentId ? { previousAttachmentId: revision.previousAttachmentId } : {}),
+        } : {}),
         ...(sourcePath ? { sourcePath } : {}),
       };
       await this.append(record.direction === 'output' ? 'output_registered' : 'received', { record });
@@ -245,6 +287,21 @@ export class AttachmentStore {
     return [...records.values()].filter((record) => record.sessionId === owner).map((record) => ({
       ...clone(record), ...publicRecord(record),
     }));
+  }
+
+  async versions({ sessionId, attachmentId } = {}) {
+    const owner = safeUuid(sessionId, 'session');
+    const id = safeUuid(attachmentId, 'attachment');
+    const records = this.recordsFrom(await this.events());
+    const current = records.get(id);
+    if (!current || current.sessionId !== owner || current.direction !== 'output') {
+      throw Object.assign(new Error('result artifact not found'), { status: 404 });
+    }
+    const family = current.artifactFamilyId ?? current.attachmentId;
+    return [...records.values()].filter((record) => record.sessionId === owner
+      && record.direction === 'output' && (record.artifactFamilyId ?? record.attachmentId) === family)
+      .sort((left, right) => Number(left.artifactVersion ?? 1) - Number(right.artifactVersion ?? 1))
+      .map((record) => ({ ...clone(record), ...publicRecord(record) }));
   }
 
   async get({ sessionId, attachmentId } = {}) {
@@ -284,7 +341,7 @@ export class AttachmentStore {
     });
   }
 
-  async registerOutput({ sessionId, workspace, filePath } = {}) {
+  async registerOutput({ sessionId, workspace, filePath, revisesAttachmentId = null } = {}) {
     const owner = safeUuid(sessionId, 'session');
     const requested = resolve(String(filePath ?? ''));
     const stat = await lstat(requested);
@@ -300,7 +357,7 @@ export class AttachmentStore {
     if (stat.size > this.maxFileBytes) throw new Error('attachment file size limit exceeded');
     return this.receive({
       sessionId: owner, originalName: basename(path), bytes: await readFile(path),
-      direction: 'output', sourcePath: path,
+      direction: 'output', sourcePath: path, revisesAttachmentId,
     });
   }
 

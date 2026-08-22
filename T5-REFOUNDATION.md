@@ -127,6 +127,50 @@ Non-goals:
 - T5 runtime이 완전히 꺼진 동안의 회차는 `skip`; 설치 앱의 상시 background agent는 아직 없음
 - Windows·Linux 실제 기기 scheduler lifecycle 미측정
 
+## U3 — Result-first Artifact Surface
+
+상태: `COMPLETE` — 오너가 일반 사용자의 문서·디자인 결과를 코드와 다운로드 카드보다 본래 모습으로
+먼저 보여주는 공통 결과물 표면을 명시적으로 열었다. P0-H1의 배포 적격 판정은 별도로 유지한다.
+
+사용자 완료 문장:
+
+> 사용자가 홈페이지·이미지·PDF·Word·Excel·표 또는 실행 가능한 정적 웹 결과를 부탁하면, T5는
+> 원문 코드나 파일 경로를 먼저 내놓지 않고 대화 안에서 실제 내용을 보여준다. 사용자는 같은 자리에서
+> 크게 보고, 수정 전 버전을 찾고, 파일을 받고, 필요할 때만 원문·파일·실행 기록을 연다.
+
+성립한 계약:
+
+- 기존 `AttachmentId·Session·Run·sha256` 원장을 결과물의 단일 identity로 재사용; 새 저장소 0
+- HTML/CSS·SVG는 opaque-origin iframe과 CSP에서 렌더링; 외부 network·form·frame·parent DOM 접근 차단
+- 이미지 원본, 브라우저 내장 PDF 페이지·확대·이동, DOCX 제목·문단·표, XLSX/CSV 시트·셀·수식·cached
+  chart data를 형식별 첫 표면으로 표시
+- browser-ready React build·다중 파일 정적 웹앱은 root `index.html`을 가진 안전 ZIP만 허용하고, 같은
+  관리 꾸러미의 CSS·JavaScript만 실행; 파일 목록·text source·bounded console/error 기록 제공
+- `크게 보기·파일 받기·원문/파일 보기·실행 기록·버전`을 결과물 아래의 실제 행동으로 제공
+- 명시한 이전 output `attachmentId`에만 다음 version을 결속; 이전 bytes·hash·download·preview 보존
+- 결과물 등록 손은 tool search 뒤 찾는 주변 기능이 아니라 기본 Human Experience로 항상 공개
+
+실제 결과:
+
+- 기존 결과 8종을 한 대화에서 등록해 각기 다른 preview 8개 표시; HTML·SVG raw source 기본 노출 0
+- 평범한 “스피치 강사 홈페이지 시안을 구체적인 화면으로 보여줘” 요청은 3 model turns·2 tools로 실제
+  HTML 결과 1개와 첫 화면을 생성; 코드 말풍선 0
+- 수정 전 deferred 결과물 손은 파일만 만들고 artifact 0·무의미 PTY 10회를 냈음; core 승격 뒤 같은 흐름은
+  PTY 0·version 2 preview·이전 version 보존으로 성립
+- Excel version 2는 표·합계 수식과 고객별 cached chart 330,000/220,000을 같은 화면에 표시
+- 실제 화면에서 발견한 PDF blank sandbox와 정적 웹앱 local JS 차단을 교정한 뒤 페이지 toolbar·웹앱
+  숫자·버튼·console·source를 재확인
+- 검사: `refoundation:check` 469/469, Markdown 22/22, legacy source import 0, high 취약점 0
+- 근거: `refoundation/evidence/u3-result-surface-live-2026-08-22.json`
+
+미확인·경계:
+
+- DOCX는 의미 구조 preview이며 Microsoft Word와 pixel-identical renderer가 아님
+- XLSX는 셀·수식·cached chart data를 보여주지만 복잡한 drawing·pivot·macro·모든 차트 스타일은
+  Excel과 pixel-identical하지 않음
+- React source·server code·npm install·개발 서버는 자동 실행하지 않음; 이미 build된 static bundle만 대상
+- 첫 홈페이지 생성 live Run은 74.26초로 결과 표면은 성립했지만 생성 속도는 계속 관측할 값
+
 ## R0 — 독립 개발 환경
 
 상태: `COMPLETE` — 환경 검사 4/4, 격리 자격 신호 0, legacy 제품 소스 변경 0.

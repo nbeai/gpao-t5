@@ -46,6 +46,10 @@ import { makeBrowserObservationTool } from './browser-observation-tool.js';
 import { makeBrowserObservationRegistry } from './browser-action-state.js';
 import { AttachmentStore } from './attachment-store.js';
 import {
+  injectArtifactPreviewBridge, readWebBundleEntry, renderAttachmentPreview, webBundleManifest,
+  webPreviewContentSecurityPolicy,
+} from './artifact-preview.js';
+import {
   attachmentContext, makeAttachmentTool, modelImageInputs,
 } from './attachment-hand.js';
 import { MessengerCredentialStore } from './messenger-credential-store.js';
@@ -91,6 +95,13 @@ function attachmentSurface(record) {
     sha256: record.sha256,
     downloadUrl: record.downloadUrl,
     ...(record.previewUrl ? { previewUrl: record.previewUrl } : {}),
+    ...(record.previewKind ? { previewKind: record.previewKind } : {}),
+    ...(record.sourceUrl ? { sourceUrl: record.sourceUrl } : {}),
+    ...(record.artifactFamilyId ? {
+      artifactFamilyId: record.artifactFamilyId,
+      artifactVersion: record.artifactVersion,
+      versionsUrl: record.versionsUrl,
+    } : {}),
   };
 }
 
@@ -889,6 +900,9 @@ export function makeConsoleServer({
       const coreToolNames = [
         'connection', 'session_search', 'memory', 'skill',
         'exec', 'process_start', 'pty_start', 'process_control',
+        // 결과물은 주변 기능이 아니라 대화와 같은 Human Experience다. 사용자가 파일·HTML·문서·표를
+        // 요청한 뒤에야 tool_search로 찾게 하면, 실제 파일을 만들고도 경로만 말하는 회귀가 생긴다.
+        'attachment',
       ];
       const deferredTools = deferTools(offeredTools, {
         coreNames: coreToolNames, includeAttachment: attachmentIds.length > 0,
@@ -1557,6 +1571,19 @@ export function makeConsoleServer({
           sessionId: input.sessionId, attachmentId: attachmentDiscardMatch[1],
         })); return;
       }
+      const attachmentVersionsMatch = req.method === 'GET' && url.pathname.match(
+        /^\/attachments\/([0-9a-f-]{36})\/versions$/i,
+      );
+      if (attachmentVersionsMatch) {
+        const sessionId = url.searchParams.get('sessionId');
+        const session = await sessions.load(sessionId);
+        if (!session) { json(res, 404, { error: '세션을 찾지 못했어요.' }); return; }
+        json(res, 200, {
+          versions: (await attachments.versions({
+            sessionId, attachmentId: attachmentVersionsMatch[1],
+          })).map(attachmentSurface),
+        }); return;
+      }
       const attachmentContentMatch = req.method === 'GET' && url.pathname.match(
         /^\/attachments\/([0-9a-f-]{36})\/content$/i,
       );
@@ -1576,6 +1603,84 @@ export function makeConsoleServer({
           'cache-control': 'private, max-age=300',
         });
         res.end(bytes); return;
+      }
+      const attachmentPreviewMatch = req.method === 'GET' && url.pathname.match(
+        /^\/attachments\/([0-9a-f-]{36})\/preview$/i,
+      );
+      if (attachmentPreviewMatch) {
+        const sessionId = url.searchParams.get('sessionId');
+        const { record, bytes } = await attachments.readContent({
+          sessionId, attachmentId: attachmentPreviewMatch[1],
+        });
+        const preview = await renderAttachmentPreview({ record, bytes });
+        res.writeHead(200, {
+          'content-type': preview.contentType,
+          'content-security-policy': preview.contentSecurityPolicy,
+          'cross-origin-resource-policy': 'same-origin',
+          'x-content-type-options': 'nosniff',
+          'cache-control': 'private, max-age=300',
+        });
+        res.end(preview.body); return;
+      }
+      const attachmentSourceMatch = req.method === 'GET' && url.pathname.match(
+        /^\/attachments\/([0-9a-f-]{36})\/source$/i,
+      );
+      if (attachmentSourceMatch) {
+        const sessionId = url.searchParams.get('sessionId');
+        const { record, bytes } = await attachments.readContent({
+          sessionId, attachmentId: attachmentSourceMatch[1],
+        });
+        if (!['web', 'vector'].includes(record.previewKind)) {
+          json(res, 415, { error: '이 결과물은 별도 원문 보기를 제공하지 않아요.' }); return;
+        }
+        res.writeHead(200, {
+          'content-type': 'text/plain; charset=utf-8',
+          'content-security-policy': "default-src 'none'; sandbox",
+          'x-content-type-options': 'nosniff',
+          'cache-control': 'private, max-age=300',
+        });
+        res.end(bytes); return;
+      }
+      const attachmentManifestMatch = req.method === 'GET' && url.pathname.match(
+        /^\/attachments\/([0-9a-f-]{36})\/manifest$/i,
+      );
+      if (attachmentManifestMatch) {
+        const sessionId = url.searchParams.get('sessionId');
+        const { record, bytes } = await attachments.readContent({
+          sessionId, attachmentId: attachmentManifestMatch[1],
+        });
+        if (record.kind !== 'web_app') {
+          json(res, 415, { error: '이 결과물은 여러 파일 웹앱이 아니에요.' }); return;
+        }
+        json(res, 200, webBundleManifest(bytes)); return;
+      }
+      const attachmentWebMatch = req.method === 'GET' && url.pathname.match(
+        /^\/attachments\/([0-9a-f-]{36})\/web\/([0-9a-f-]{36})\/(.+)$/i,
+      );
+      if (attachmentWebMatch) {
+        const [, attachmentId, sessionId, requestedPath] = attachmentWebMatch;
+        const { record, bytes } = await attachments.readContent({ sessionId, attachmentId });
+        if (record.kind !== 'web_app') {
+          json(res, 415, { error: '이 결과물은 실행 가능한 웹 꾸러미가 아니에요.' }); return;
+        }
+        const entry = readWebBundleEntry(bytes, requestedPath);
+        const sourceView = url.searchParams.get('source') === '1';
+        if (sourceView && !/^(?:text\/|application\/json)/u.test(entry.contentType)
+          && entry.contentType !== 'image/svg+xml') {
+          json(res, 415, { error: '이 파일은 글자로 볼 수 없는 형식이에요.' }); return;
+        }
+        res.writeHead(200, {
+          'content-type': sourceView ? 'text/plain; charset=utf-8' : entry.contentType,
+          'content-security-policy': sourceView ? "default-src 'none'; sandbox" : webPreviewContentSecurityPolicy(),
+          // iframe sandbox가 웹앱을 opaque origin으로 만든다. same-origin CORP는 같은 관리 꾸러미의
+          // CSS/JS까지 막으므로 이 web bundle 응답만 resource load를 허용한다. Session 경로·CSP·ZIP
+          // manifest가 외부 URL과 다른 attachment 접근을 계속 막는다.
+          'cross-origin-resource-policy': 'cross-origin',
+          'x-content-type-options': 'nosniff',
+          'cache-control': 'private, max-age=300',
+        });
+        res.end(!sourceView && entry.contentType.startsWith('text/html')
+          ? injectArtifactPreviewBridge(entry.body.toString('utf8'), attachmentId) : entry.body); return;
       }
       const browserArtifactMatch = req.method === 'GET' && url.pathname.match(
         /^\/browser-artifacts\/(t5-[0-9a-f]{20})\/(browser-[0-9a-f-]{36}\.png)$/,

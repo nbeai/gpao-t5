@@ -4,7 +4,9 @@ import { lstat, mkdir, mkdtemp, readFile, realpath, symlink, writeFile } from 'n
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { AttachmentStore } from '../src/attachment-store.js';
+import { strToU8, zipSync } from 'fflate';
+
+import { AttachmentStore, detectAttachmentType } from '../src/attachment-store.js';
 
 const SESSION_A = '11111111-1111-4111-8111-111111111111';
 const SESSION_B = '22222222-2222-4222-8222-222222222222';
@@ -115,4 +117,39 @@ test('생성 결과 등록은 workspace 안 regular file만 복사하고 다운�
   await assert.rejects(() => store.registerOutput({
     sessionId: SESSION_A, workspace, filePath: linked,
   }), /symbolic link/i);
+});
+
+test('HTML·SVG·정적 웹 꾸러미는 다운로드 파일이 아니라 관리 preview 결과물로도 식별된다', () => {
+  assert.deepEqual(detectAttachmentType(Buffer.from('<!doctype html><h1>T5</h1>'), 'site.html'), {
+    mimeType: 'text/html', kind: 'web', extension: '.html',
+  });
+  assert.deepEqual(detectAttachmentType(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>'), 'mark.svg'), {
+    mimeType: 'image/svg+xml', kind: 'vector', extension: '.svg',
+  });
+  const bundle = Buffer.from(zipSync({
+    'index.html': strToU8('<!doctype html><script src="assets/app.js"></script>'),
+    'assets/app.js': strToU8('document.body.dataset.ready="yes"'),
+  }));
+  assert.equal(detectAttachmentType(bundle, 'site.zip').kind, 'web_app');
+});
+
+test('결과 수정은 이전 attachmentId를 명시한 경우에만 같은 family의 다음 버전이 된다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-artifact-version-'));
+  const workspace = join(room, 'workspace'); await mkdir(workspace);
+  const file = join(workspace, 'site.html');
+  await writeFile(file, '<h1>첫 시안</h1>');
+  const store = new AttachmentStore(join(room, 'attachments'));
+  const first = await store.registerOutput({ sessionId: SESSION_A, workspace, filePath: file });
+  await writeFile(file, '<h1>수정 시안</h1>');
+  const second = await store.registerOutput({
+    sessionId: SESSION_A, workspace, filePath: file, revisesAttachmentId: first.attachmentId,
+  });
+  assert.equal(first.artifactVersion, 1);
+  assert.equal(second.artifactVersion, 2);
+  assert.equal(second.artifactFamilyId, first.artifactFamilyId);
+  assert.deepEqual((await store.versions({ sessionId: SESSION_A, attachmentId: second.attachmentId }))
+    .map((item) => item.artifactVersion), [1, 2]);
+  await assert.rejects(() => store.registerOutput({
+    sessionId: SESSION_B, workspace, filePath: file, revisesAttachmentId: first.attachmentId,
+  }), /not found/i);
 });

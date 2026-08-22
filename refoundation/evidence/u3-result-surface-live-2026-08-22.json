@@ -1,0 +1,98 @@
+{
+  "schema": "t5.result-surface-live-evidence.v1",
+  "recordedAt": "2026-08-22T00:10:00+09:00",
+  "ownerGoal": "A generated result appears first in its natural visual form, while source, files, logs, versions, and download remain secondary user actions.",
+  "supportedPreviewKinds": [
+    "html-css",
+    "svg",
+    "image",
+    "pdf-native-page-viewer",
+    "docx-semantic-document",
+    "xlsx-sheet-cell-formula-chart",
+    "csv-table",
+    "browser-ready-static-web-bundle"
+  ],
+  "liveRuns": {
+    "eightExistingResults": {
+      "runId": "1e0c82bc-4e14-4205-a2fc-0c873c50f4e4",
+      "status": "completed",
+      "wallMs": 61091,
+      "modelTurns": 7,
+      "toolCalls": 19,
+      "artifacts": 8
+    },
+    "failedRevisionBeforeCorePromotion": {
+      "runId": "68e485b7-7fd9-4529-8dbe-1be217822815",
+      "status": "completed_without_requested_surface",
+      "wallMs": 56064,
+      "toolCalls": 11,
+      "ptyCalls": 10,
+      "artifacts": 0,
+      "cause": "Result registration was deferred; the model made a verified file but could not see the result hand and substituted meaningless PTY calls."
+    },
+    "revisionAfterCorePromotion": {
+      "runId": "b73ffed8-aee8-4680-ba7b-7d289c3a45a0",
+      "status": "completed",
+      "wallMs": 77149,
+      "modelTurns": 5,
+      "toolCalls": 4,
+      "ptyCalls": 0,
+      "artifactVersion": 2,
+      "previousVersionPreserved": true
+    },
+    "excelChartRevision": {
+      "runId": "7d0207fa-a269-49ff-a86f-b8bba64fcc94",
+      "status": "completed",
+      "wallMs": 29623,
+      "modelTurns": 5,
+      "toolCalls": 4,
+      "artifactVersion": 2,
+      "chartCategories": ["한빛상회", "새봄상사"],
+      "chartValues": [330000, 220000]
+    },
+    "plainLanguageWebsiteCreation": {
+      "runId": "9a1cca15-64d8-477a-b7a8-2ac3cbf4bdde",
+      "status": "completed",
+      "wallMs": 74260,
+      "modelTurns": 3,
+      "toolCalls": ["exec", "attachment"],
+      "rawCodeShownInConversation": false,
+      "artifactKind": "web",
+      "artifactVersion": 1
+    }
+  },
+  "visualChecks": {
+    "surfacesInOneConversation": 8,
+    "htmlSourceHiddenByDefault": true,
+    "svgSourceHiddenByDefault": true,
+    "pdfPageAndNavigationVisible": true,
+    "docxHeadingParagraphTableVisible": true,
+    "xlsxSheetCellsFormulaVisible": true,
+    "xlsxChartVisible": true,
+    "webBundleLocalCssAndJavascriptExecuted": true,
+    "webBundleConsoleCaptured": true,
+    "webBundleFileSourceReadable": true,
+    "versionListShowsOneAndTwo": true
+  },
+  "securityChecks": {
+    "sessionBoundAccess": true,
+    "contentAddressedOriginalPreserved": true,
+    "htmlOpaqueOriginSandbox": true,
+    "externalNetworkBlockedByCsp": true,
+    "formsAndFramesBlockedByCsp": true,
+    "webBundleRequiresSafeZipAndRootIndex": true,
+    "sourceReturnedAsPlainText": true
+  },
+  "regression": {
+    "refoundationCheck": "469/469 passed",
+    "markdown": "22/22 passed",
+    "legacySourceImports": 0,
+    "highSeverityAuditVulnerabilities": 0
+  },
+  "knownLimits": [
+    "DOCX preview preserves semantic headings, paragraphs, and tables; it is not a pixel-identical Microsoft Word renderer.",
+    "XLSX preview renders cells, formulas, and cached chart data; complex Excel drawing, pivot, macro, and every chart style are not pixel-identical.",
+    "React and multi-file previews require an already-built static bundle with root index.html; unbuilt source, server code, npm installation, and arbitrary development servers are not auto-executed.",
+    "The plain-language website generation live run took 74.26 seconds, so visual delivery is correct but generation latency remains measurable."
+  ]
+}

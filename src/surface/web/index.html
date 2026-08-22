@@ -371,6 +371,44 @@
     color:var(--fg); text-decoration:none; }
   .artifact-card:hover { border-color:var(--line-strong); box-shadow:var(--sh-sm); }
   .artifact-card .meta { color:var(--muted); font-size:var(--fs-xs); }
+  .artifact-surface { width:min(760px,100%); margin-top:var(--sp-3); border:1px solid var(--line);
+    border-radius:var(--r-lg); overflow:hidden; background:var(--surface); box-shadow:var(--sh-sm); }
+  .artifact-head { display:flex; align-items:center; gap:var(--sp-3); padding:var(--sp-3) var(--sp-4);
+    border-bottom:1px solid var(--line); }
+  .artifact-head .artifact-title { min-width:0; flex:1; }
+  .artifact-head .artifact-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--fg-strong); }
+  .artifact-preview { display:block; width:100%; height:min(58vh,520px); border:0; background:#fff; }
+  img.artifact-preview { object-fit:contain; padding:var(--sp-3); }
+  .artifact-actions { display:flex; flex-wrap:wrap; gap:var(--sp-2); padding:var(--sp-3) var(--sp-4);
+    border-top:1px solid var(--line); }
+  .artifact-actions button, .artifact-actions a { border:1px solid var(--line-strong); border-radius:var(--r-sm);
+    padding:var(--sp-2) var(--sp-3); background:var(--elevated); color:var(--fg); text-decoration:none;
+    font:inherit; font-size:var(--fs-sm); cursor:pointer; }
+  .artifact-dialog { width:min(1180px,calc(100vw - 32px)); height:min(900px,calc(100vh - 32px));
+    padding:0; border:1px solid var(--line-strong); border-radius:var(--r-lg); background:var(--surface);
+    color:var(--fg); box-shadow:var(--sh-lg); }
+  .artifact-dialog::backdrop { background:rgba(20,18,14,.56); }
+  .artifact-dialog-shell { height:100%; display:grid; grid-template-rows:auto 1fr; }
+  .artifact-dialog-head { display:flex; align-items:center; gap:var(--sp-3); padding:var(--sp-3) var(--sp-4);
+    border-bottom:1px solid var(--line); }
+  .artifact-dialog-head strong { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .artifact-dialog-head button { width:36px; height:36px; border:0; border-radius:50%; background:transparent;
+    color:var(--muted); font-size:22px; cursor:pointer; }
+  .artifact-dialog-body { min-height:0; overflow:auto; background:var(--surface); }
+  .artifact-dialog-body iframe, .artifact-dialog-body img { display:block; width:100%; height:100%; min-height:70vh;
+    border:0; object-fit:contain; background:#fff; }
+  .artifact-source { margin:0; min-height:100%; padding:var(--sp-4); overflow:auto; white-space:pre;
+    font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; background:#191a1c; color:#ece9e1; }
+  .artifact-files { list-style:none; margin:0; padding:var(--sp-4); }
+  .artifact-files li { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:var(--sp-3);
+    padding:var(--sp-2) 0; border-bottom:1px solid var(--line); }
+  .artifact-files code { overflow-wrap:anywhere; }
+  .artifact-files button { border:0; padding:0; background:transparent; color:var(--fg); text-align:left;
+    font:inherit; cursor:pointer; }
+  .artifact-log { margin:0; padding:var(--sp-4); list-style:none; font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .artifact-log li { padding:var(--sp-2) 0; border-bottom:1px solid var(--line); white-space:pre-wrap; overflow-wrap:anywhere; }
+  .artifact-log .error { color:var(--danger); }
+  .artifact-log .warn { color:var(--accent); }
   /* min-width:0 이 없으면 flex textarea 가 placeholder 폭만큼 최소너비를 잡아
      보내기 버튼을 화면 밖으로 밀어낸다(모바일 입력 잘림 회귀 지점). */
   #text { flex:1; min-width:0; resize:none; border:none; outline:none; background:transparent; color:var(--fg);
@@ -754,19 +792,158 @@ function renderMessageAttachments(box, records = []) {
   box.appendChild(row);
 }
 
+const artifactFrames = new Map();
+const artifactLogs = new Map();
+function registerArtifactFrame(record, frame) {
+  const frames = artifactFrames.get(record.attachmentId) ?? new Set();
+  frames.add(frame); artifactFrames.set(record.attachmentId, frames);
+}
+window.addEventListener('message', (event) => {
+  const data = event.data;
+  if (!data || data.type !== 't5-artifact-log' || typeof data.artifactId !== 'string') return;
+  const frames = artifactFrames.get(data.artifactId);
+  if (!frames || ![...frames].some((frame) => frame.contentWindow === event.source)) return;
+  const logs = artifactLogs.get(data.artifactId) ?? [];
+  logs.push({ level: ['error', 'warn', 'log'].includes(data.level) ? data.level : 'log', text: String(data.text ?? '').slice(0, 2000) });
+  artifactLogs.set(data.artifactId, logs.slice(-50));
+});
+
 function renderArtifacts(box, records = []) {
   if (!records.length) return;
-  const row = el('attachment-row');
   for (const record of records) {
+    if (record.previewUrl) {
+      const surface = el('artifact-surface');
+      const head = el('artifact-head');
+      head.appendChild(el(null, record.previewKind === 'web' || record.previewKind === 'web_app' ? '🌐'
+        : record.previewKind === 'spreadsheet' ? '▦' : record.previewKind === 'document' ? '▤'
+          : record.previewKind === 'image' || record.previewKind === 'vector' ? '🖼' : '📄'));
+      const title = el('artifact-title');
+      title.appendChild(el('artifact-name', record.originalName));
+      title.appendChild(el('meta', `${fileSize(record.bytes)} · 결과물${record.artifactVersion ? ` · 버전 ${record.artifactVersion}` : ''}`));
+      head.appendChild(title); surface.appendChild(head);
+
+      let preview;
+      if (record.previewKind === 'image') {
+        preview = document.createElement('img'); preview.alt = `${record.originalName} 미리보기`;
+      } else {
+        preview = document.createElement('iframe');
+        preview.title = `${record.originalName} 미리보기`;
+        // 생성된 문서는 T5 DOM·쿠키와 다른 opaque origin에서만 실행한다. 웹 결과의 로컬 JavaScript만
+        // 허용하고 form·popup·download·same-origin·network는 서버 CSP가 막는다.
+        if (record.previewKind !== 'pdf') {
+          preview.setAttribute('sandbox', ['web', 'web_app'].includes(record.previewKind) ? 'allow-scripts' : '');
+        }
+        preview.loading = 'lazy';
+      }
+      preview.className = 'artifact-preview'; preview.src = record.previewUrl;
+      surface.appendChild(preview);
+      if (preview.tagName === 'IFRAME') registerArtifactFrame(record, preview);
+
+      const actions = el('artifact-actions');
+      const larger = document.createElement('button'); larger.type = 'button'; larger.textContent = '크게 보기';
+      larger.onclick = () => openArtifactDetail(record, 'preview'); actions.appendChild(larger);
+      const download = document.createElement('a'); download.href = record.downloadUrl;
+      download.download = record.originalName; download.textContent = '파일 받기'; actions.appendChild(download);
+      if (record.sourceUrl) {
+        const source = document.createElement('button'); source.type = 'button';
+        source.textContent = record.previewKind === 'web_app' ? '파일 보기' : '원문 보기';
+        source.onclick = () => openArtifactDetail(record, 'source'); actions.appendChild(source);
+      }
+      if (['web', 'web_app'].includes(record.previewKind)) {
+        const logs = document.createElement('button'); logs.type = 'button'; logs.textContent = '실행 기록';
+        logs.onclick = () => openArtifactDetail(record, 'logs'); actions.appendChild(logs);
+      }
+      if (record.versionsUrl) {
+        const versions = document.createElement('button'); versions.type = 'button'; versions.textContent = '버전';
+        versions.onclick = () => openArtifactDetail(record, 'versions'); actions.appendChild(versions);
+      }
+      surface.appendChild(actions); box.appendChild(surface); continue;
+    }
+    const row = el('attachment-row');
     const card = document.createElement('a'); card.className = 'artifact-card';
     card.href = record.downloadUrl; card.download = record.originalName;
     card.appendChild(el(null, '📄'));
     const info = document.createElement('div');
     info.appendChild(el(null, record.originalName));
     info.appendChild(el('meta', `${fileSize(record.bytes)} · 다운로드`));
-    card.appendChild(info); row.appendChild(card);
+    card.appendChild(info); row.appendChild(card); box.appendChild(row);
   }
-  box.appendChild(row);
+}
+
+async function openArtifactDetail(record, mode = 'preview') {
+  const dialog = document.createElement('dialog'); dialog.className = 'artifact-dialog';
+  const shell = el('artifact-dialog-shell');
+  const head = el('artifact-dialog-head'); head.appendChild(el('strong', record.originalName));
+  const close = document.createElement('button'); close.type = 'button'; close.textContent = '×';
+  close.setAttribute('aria-label', '결과물 닫기'); close.onclick = () => dialog.close();
+  head.appendChild(close); shell.appendChild(head);
+  const body = el('artifact-dialog-body'); shell.appendChild(body); dialog.appendChild(shell);
+  dialog.addEventListener('close', () => dialog.remove(), { once: true });
+  document.body.appendChild(dialog); dialog.showModal();
+  if (mode === 'source') {
+    try {
+      const response = await fetch(record.sourceUrl);
+      if (!response.ok) throw new Error('원문을 불러오지 못했어요.');
+      if (record.previewKind === 'web_app') {
+        const manifest = await response.json();
+        const list = el('artifact-files');
+        for (const file of manifest.files ?? []) {
+          const item = document.createElement('li');
+          const show = document.createElement('button'); show.type = 'button';
+          show.appendChild(el('code', file.path));
+          show.onclick = async () => {
+            const encoded = file.path.split('/').map(encodeURIComponent).join('/');
+            const sourceUrl = record.previewUrl.replace(/index\.html(?:\?.*)?$/u, encoded);
+            const sourceResponse = await fetch(`${sourceUrl}?source=1`);
+            if (!sourceResponse.ok) { toast('이 파일은 화면에서 원문을 볼 수 없어요.'); return; }
+            const pre = el('artifact-source'); pre.textContent = await sourceResponse.text();
+            body.replaceChildren(pre);
+          };
+          item.appendChild(show);
+          item.appendChild(el('meta', fileSize(file.bytes))); list.appendChild(item);
+        }
+        body.appendChild(list);
+      } else {
+        const source = el('artifact-source'); source.textContent = await response.text(); body.appendChild(source);
+      }
+    } catch (error) { body.appendChild(el('msg bot error', error?.message ?? '원문을 불러오지 못했어요.')); }
+    return;
+  }
+  if (mode === 'logs') {
+    const logs = artifactLogs.get(record.attachmentId) ?? [];
+    if (!logs.length) { body.appendChild(el('msg bot', '현재 미리보기에서 실행 오류가 발견되지 않았어요.')); return; }
+    const list = el('artifact-log');
+    for (const log of logs) list.appendChild(el(log.level, `[${log.level}] ${log.text}`));
+    body.appendChild(list); return;
+  }
+  if (mode === 'versions') {
+    try {
+      const response = await fetch(record.versionsUrl);
+      if (!response.ok) throw new Error('버전 기록을 불러오지 못했어요.');
+      const payload = await response.json();
+      const list = el('artifact-files');
+      for (const version of payload.versions ?? []) {
+        const item = document.createElement('li');
+        const show = document.createElement('button'); show.type = 'button';
+        show.textContent = `버전 ${version.artifactVersion} · ${version.originalName}`;
+        show.onclick = () => { dialog.close(); openArtifactDetail(version, 'preview'); };
+        item.appendChild(show); item.appendChild(el('meta', fileSize(version.bytes))); list.appendChild(item);
+      }
+      body.appendChild(list);
+    } catch (error) { body.appendChild(el('msg bot error', error?.message ?? '버전 기록을 불러오지 못했어요.')); }
+    return;
+  }
+  let preview;
+  if (record.previewKind === 'image') {
+    preview = document.createElement('img'); preview.alt = `${record.originalName} 원본 크기`;
+  } else {
+    preview = document.createElement('iframe'); preview.title = `${record.originalName} 크게 보기`;
+    if (record.previewKind !== 'pdf') {
+      preview.setAttribute('sandbox', ['web', 'web_app'].includes(record.previewKind) ? 'allow-scripts' : '');
+    }
+  }
+  preview.src = record.previewUrl; body.appendChild(preview);
+  if (preview.tagName === 'IFRAME') registerArtifactFrame(record, preview);
 }
 
 async function uploadFiles(files) {

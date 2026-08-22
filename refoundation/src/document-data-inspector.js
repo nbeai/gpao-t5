@@ -8,6 +8,7 @@ import { openPdf } from 'clawpdf';
 import { cellValueAsString, isFormulaValue, setFormula } from '@office-kit/xlsx/cell';
 import { loadWorkbook, workbookToBytes } from '@office-kit/xlsx/io';
 import { fromBuffer } from '@office-kit/xlsx/node';
+import { listChartsOnSheet } from '@office-kit/xlsx/drawing';
 import { addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook';
 import {
   getDataExtent, getMergedCells, getMergedRangeAt,
@@ -126,6 +127,37 @@ function observeCell(workbook, worksheet, cell) {
   return observed;
 }
 
+function chartTitle(space) {
+  if (space?.title?.text) return String(space.title.text);
+  const runs = space?.title?.tx?.paragraphs?.flatMap?.((paragraph) => paragraph.runs ?? []) ?? [];
+  return runs.map((run) => run.text ?? '').join('') || null;
+}
+
+function chartSeries(series = []) {
+  return series.map((item, index) => ({
+    index,
+    name: item.tx?.kind === 'literal' ? String(item.tx.value) : item.tx?.ref ?? `Series ${index + 1}`,
+    categoryRef: item.cat?.ref ?? null,
+    categories: (item.cat?.cache ?? []).map(scalar),
+    valueRef: item.val?.ref ?? item.yVal?.ref ?? null,
+    values: (item.val?.cache ?? item.yVal?.cache ?? []).map((value) => Number(value)).filter(Number.isFinite),
+  }));
+}
+
+function observeCharts(worksheet) {
+  return listChartsOnSheet(worksheet).map((drawing, index) => {
+    const reference = drawing.content.kind === 'chart' ? drawing.content.chart : null;
+    const space = reference?.space;
+    const chart = space?.plotArea?.chart;
+    return {
+      index: index + 1,
+      kind: chart?.kind ?? (reference?.cxSpace ? 'modern' : 'unknown'),
+      title: chartTitle(space),
+      series: chartSeries(chart?.series),
+    };
+  });
+}
+
 async function inspectWorkbook(fileFacts, { maxCells }) {
   const workbook = await loadWorkbook(fromBuffer(fileFacts.content));
   const sheets = [];
@@ -176,6 +208,7 @@ async function inspectWorkbook(fileFacts, { maxCells }) {
       merges: getMergedCells(worksheet).map(rangeAddress).sort(),
       hiddenRows,
       hiddenColumns,
+      charts: observeCharts(worksheet),
       cells,
     });
   }
