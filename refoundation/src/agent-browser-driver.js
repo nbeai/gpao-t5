@@ -108,13 +108,40 @@ function normalizeTabs(value) {
   return rows.map(normalizeTab);
 }
 
+function refsWithSnapshotContext(text, refs = {}) {
+  const output = structuredClone(refs);
+  const stack = [];
+  for (const line of String(text ?? '').split('\n')) {
+    const match = /^(\s*)-\s+([A-Za-z][A-Za-z0-9_-]*)(?:\s+"([^"]*)")?/u.exec(line);
+    if (!match) continue;
+    const indent = match[1].length;
+    while (stack.length && stack.at(-1).indent >= indent) stack.pop();
+    const ref = /\[ref=([A-Za-z0-9_-]+)\]/u.exec(line)?.[1] ?? null;
+    if (ref && output[ref]) {
+      const ancestors = stack.map((item) => ({
+        role: item.role, name: item.name, ...(item.ref ? { ref: item.ref } : {}),
+      }));
+      output[ref] = {
+        ...output[ref], context: {
+          ancestors,
+          modal: ancestors.some((item) => ['dialog', 'alertdialog'].includes(item.role.toLocaleLowerCase())),
+        },
+      };
+    }
+    stack.push({ indent, role: match[2], name: match[3] ?? '', ref });
+  }
+  return output;
+}
+
 function snapshotFacts(value = {}, fallbackTab = {}) {
   const text = String(value.snapshot ?? value.text ?? value.content ?? '');
   return {
     tab: normalizeTab({ ...fallbackTab, ...value }),
     snapshot: {
       text,
-      refs: value.refs && typeof value.refs === 'object' ? value.refs : {},
+      refs: refsWithSnapshotContext(
+        text, value.refs && typeof value.refs === 'object' ? value.refs : {},
+      ),
       totalChars: Number.isFinite(value.totalChars) ? value.totalChars : text.length,
       truncated: value.truncated === true,
     },
@@ -252,6 +279,7 @@ export function makeAgentBrowserDriver({
   clientInstanceId = null,
   outputDirectory,
   browserHost = null,
+  editorProvider = null,
   binary = DEFAULT_AGENT_BROWSER_BINARY,
   run,
   downloadTimeoutMs = DEFAULT_DOWNLOAD_TIMEOUT_MS,
@@ -372,6 +400,38 @@ export function makeAgentBrowserDriver({
     const data = await command(args, { signal });
     const tab = await currentTab({ signal });
     const observed = snapshotFacts(data, tab);
+    if (editorProvider?.inspectModals) {
+      const modals = await editorProvider.inspectModals({ tab: observed.tab, signal });
+      observed.snapshot.modals = modals.map((modal) => ({
+        role: modal.role, textPreview: modal.textPreview,
+        buttons: modal.controls.map((control) => control.name),
+        frameUrl: modal.frameUrl, frameId: modal.frameId, modalId: modal.modalId,
+      }));
+      const attributes = editorProvider.modalBindingAttributes;
+      const modalControlNames = new Set(modals.flatMap((modal) => modal.controls.map(
+        (control) => `${control.role}\u0000${control.name}`,
+      )));
+      for (const [ref, fact] of Object.entries(observed.snapshot.refs)) {
+        const role = String(fact.role ?? '').toLocaleLowerCase();
+        const name = String(fact.name ?? '').trim();
+        if (!attributes || !modalControlNames.has(`${role}\u0000${name}`)) continue;
+        const modalToken = attrValue(await command(
+          ['get', 'attr', cliRef(ref), attributes.modal], { signal },
+        ));
+        const controlToken = attrValue(await command(
+          ['get', 'attr', cliRef(ref), attributes.control], { signal },
+        ));
+        const modal = modals.find((item) => item.bindingToken === modalToken);
+        const control = modal?.controls.find((item) => item.bindingToken === controlToken);
+        if (!modal || !control) continue;
+        fact.context = {
+          ...(fact.context ?? {}), modal: true,
+          ancestors: [{ role: modal.role, name: modal.textPreview }],
+          modalId: modal.modalId, controlId: control.controlId,
+          frameId: modal.frameId, frameUrl: modal.frameUrl,
+        };
+      }
+    }
     activeTabId = observed.tab.tabId;
     activeTabUrl = observed.tab.url || null;
     return observed;
@@ -388,6 +448,25 @@ export function makeAgentBrowserDriver({
       type: attrValue(type), autocomplete: attrValue(autocomplete),
       href: attrValue(href), download: attrValue(download),
     };
+  }
+
+  async function modalControlFacts({ tabId, ref, signal } = {}) {
+    await selectTab(tabId, { signal });
+    const attributes = editorProvider?.modalBindingAttributes;
+    if (!attributes || !editorProvider?.inspectModals) return null;
+    const modalToken = attrValue(await command(
+      ['get', 'attr', cliRef(ref), attributes.modal], { signal },
+    ));
+    const controlToken = attrValue(await command(
+      ['get', 'attr', cliRef(ref), attributes.control], { signal },
+    ));
+    if (!modalToken || !controlToken) return null;
+    const tab = await currentTab({ signal });
+    const modals = await editorProvider.inspectModals({ tab, signal });
+    const modal = modals.find((item) => item.bindingToken === modalToken);
+    const control = modal?.controls.find((item) => item.bindingToken === controlToken);
+    if (!modal || !control) return null;
+    return { modalId: modal.modalId, controlId: control.controlId, frameId: modal.frameId };
   }
 
   async function submitFacts({ tabId, ref, signal } = {}) {
@@ -505,8 +584,28 @@ export function makeAgentBrowserDriver({
     };
   }
 
+  async function readTextFile(filePath, { startLine = 1 } = {}) {
+    const facts = await uploadFileFact(filePath);
+    if (!['text/plain', 'text/markdown', 'text/csv', 'application/json'].includes(facts.mimeType)) {
+      throw new Error('browser text source must be a supported text file');
+    }
+    const bytes = await readFile(facts.path);
+    let text;
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
+    catch { throw new Error('browser text source must be valid UTF-8'); }
+    if (!Number.isInteger(startLine) || startLine < 1) throw new Error('invalid browser text start line');
+    const selected = text.replace(/\r\n/gu, '\n').split('\n').slice(startLine - 1).join('\n');
+    if (selected.length > 20_000) throw new Error('browser text source exceeded 20000 characters');
+    return { ...facts, text: selected, textChars: selected.length, startLine };
+  }
+
   async function inspectEditables({ tabId, signal } = {}) {
     await selectTab(tabId, { signal });
+    const tab = await currentTab({ signal });
+    if (editorProvider?.inspect) {
+      const provided = await editorProvider.inspect({ tab, signal });
+      if (provided.length) return provided;
+    }
     return editableRows(await command(['eval', EDITABLE_DISCOVERY_SCRIPT], { signal }));
   }
 
@@ -515,6 +614,20 @@ export function makeAgentBrowserDriver({
     if (!/^[A-Za-z0-9_-]{1,100}$/u.test(id)) throw new TypeError('invalid editable id');
     const value = String(text ?? '');
     await selectTab(tabId, { signal });
+    const current = await currentTab({ signal });
+    if (editorProvider?.owns?.(id)) {
+      await clearNetwork({ signal });
+      const provided = await editorProvider.fill({
+        tab: current, editableId: id, text: value, signal,
+      });
+      const observed = await takeSnapshot({ tabId: current.tabId, full: false, signal });
+      observed.snapshot.editables = provided.editables;
+      return {
+        action: { kind: 'fill_editable', editableId: id, textChars: value.replace(/\r\n/g, '\n').length },
+        ...observed, network: await networkFacts({ signal }),
+        editorProvider: provided.verification,
+      };
+    }
     const before = await inspectEditables({ tabId, signal });
     const target = before.find((item) => item.editableId === id);
     if (!target) throw new Error('editable target is no longer present');
@@ -621,7 +734,9 @@ export function makeAgentBrowserDriver({
       return { tabs };
     },
     elementFacts,
+    modalControlFacts,
     submitFacts,
+    readTextFile,
     uploadFileFacts: uploadFileFact,
     async beginUserLogin(url, { signal } = {}) {
       if (browserHost) {

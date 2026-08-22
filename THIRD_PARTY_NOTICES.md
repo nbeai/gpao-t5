@@ -58,6 +58,7 @@ retain that complete text and all required notices.
 | `path-expression-matcher` | 1.6.2 | MIT |
 | `path-key` | 3.1.1 | MIT |
 | `pkce-challenge` | 5.0.1 | MIT |
+| `playwright-core` | 1.62.1 | Apache-2.0 |
 | `shebang-command` | 2.0.0 | MIT |
 | `shebang-regex` | 3.0.0 | MIT |
 | `strnum` | 2.4.2 | MIT |
@@ -80,6 +81,7 @@ Direct upstream projects:
 - cron-parser: <https://github.com/harrisiirak/cron-parser>
 - LinkeDOM: <https://github.com/WebReflection/linkedom>
 - node-pty: <https://github.com/microsoft/node-pty>
+- Playwright: <https://github.com/microsoft/playwright>
 - tree-sitter-bash: <https://github.com/tree-sitter/tree-sitter-bash>
 - web-tree-sitter: <https://github.com/tree-sitter/tree-sitter/tree/master/lib/binding_web>
 - YAML: <https://github.com/eemeli/yaml>

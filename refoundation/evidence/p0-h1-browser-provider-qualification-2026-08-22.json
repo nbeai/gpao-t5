@@ -1,0 +1,141 @@
+{
+  "schema": "t5.p0-h1.browser-provider-qualification.v1",
+  "recordedAt": "2026-08-22T12:28:20Z",
+  "gate": {
+    "name": "P0-H1 HUMAN RELEASE RECOVERY",
+    "state": "IN_PROGRESS",
+    "actualNaverBodyInputCompleted": true,
+    "publishClicked": false,
+    "saveClicked": false
+  },
+  "productBoundary": {
+    "modelVisibleHand": "browser",
+    "providerGoal": [
+      "connector",
+      "user_browser",
+      "managed_browser",
+      "computer_use_fallback"
+    ],
+    "implementedCandidate": "managed_browser + playwright editor action provider",
+    "naverSpecificSelectorAdded": false
+  },
+  "comparison": {
+    "userBrowserExtension": {
+      "connected": true,
+      "playwrightFrameLocatorAvailable": true,
+      "currentChromeProfileNaverLogin": false,
+      "writeAttempted": false
+    },
+    "managedAgentBrowser": {
+      "naverLoginContinuity": true,
+      "frameEvaluationBoundary": "agent-browser frame context does not scope eval reliably",
+      "upstreamIssue": "https://github.com/vercel-labs/agent-browser/issues/318"
+    },
+    "managedPlaywright": {
+      "version": "1.62.1",
+      "browserBinaryDownloaded": false,
+      "genericIframeFixture": {
+        "strictTitleTargets": 1,
+        "strictBodyTargets": 1,
+        "titleInput": true,
+        "bodyInput": true,
+        "hiddenAriaBufferExcluded": true
+      },
+      "hostOwnsBrowserIdentity": true,
+      "providerCallsBrowserClose": false,
+      "isolatedLoginAfterHostRestart": "AUTHENTICATED"
+    }
+  },
+  "actualRuns": {
+    "providerTitleSucceeded": {
+      "runId": "db516e37-7794-4592-9a4f-780c9bf00be4",
+      "provider": "managed_playwright",
+      "contentMatched": true,
+      "titleChars": 32
+    },
+    "authorityMisclassification": {
+      "runId": "038e88f7-6651-463b-a290-89224630eecc",
+      "requestedEffect": "external_change",
+      "observedRequest": {
+        "method": "POST",
+        "address": "https://blog.naver.com/RabbitAutoSaveDelete.naver",
+        "status": 200
+      },
+      "actualMeaning": "autosave deletion request was sent and received HTTP 200",
+      "externalEffect": "unknown_until_same_account_read_only_reobservation",
+      "backupAvailable": true,
+      "purposeCompleted": false
+    },
+    "bodyNotCompleted": {
+      "runId": "3c91168c-6200-4810-80ce-d16eb2c603e9",
+      "reason": "model omitted observationId despite using the latest editableId",
+      "runtimeChange": "a current editableId now binds to the latest observation on the same tab",
+      "implemented": true
+    },
+    "postLoginObserveOnly": {
+      "runId": "ed2b5814-72c8-4151-921f-cd1004c67283",
+      "sameManagedProfileLoggedIn": true,
+      "editorObserved": true,
+      "modalPresent": false,
+      "changedEffects": 0,
+      "liveModalIdentityQualified": false,
+      "reason": "the editor exposed no modal during the post-change read-only observation"
+    },
+    "pathBoundBodyInputSucceeded": {
+      "runId": "23845cd7-6508-412e-b42f-a6202014be61",
+      "provider": "managed_playwright",
+      "sourcePath": "/Users/jyp/gpt-5-소개글-초안.txt",
+      "sourceSha256": "af67112ad6b139c3eadee4fd419fed086729f8252ad03161adf017bf87e95713",
+      "startLine": 2,
+      "modelCopiedBodyIntoToolArgs": false,
+      "titleChars": 32,
+      "requestedBodyChars": 8053,
+      "observedBodyChars": 8053,
+      "contentMatched": true,
+      "saveClicked": false,
+      "publishClicked": false,
+      "submitClicked": false,
+      "userSurfaceObserved": true
+    }
+  },
+  "modelEnvironment": {
+    "browserCoreVisible": true,
+    "managedProcessDeferred": true,
+    "ptyDeferred": true,
+    "sessionSearchDeferred": true,
+    "immediatePtyWakeSuppressed": true,
+    "restartStaleBrowserRefsInteractive": false
+  },
+  "modalAuthority": {
+    "providerSuppliesVisibleDialogAndBlockingOverlayContext": true,
+    "naverSpecificSelectorAdded": false,
+    "exactControlBinding": [
+      "tabId",
+      "frameId",
+      "documentRevision",
+      "modalId",
+      "controlId",
+      "ref"
+    ],
+    "sameNameControlOutsideModalExcluded": true,
+    "changedModalOrControlStopsBeforeClick": true,
+    "modalIntentRequired": true,
+    "intents": ["dismiss", "continue", "discard_existing", "replace_existing"],
+    "discardAndReplaceRequire": "destructive",
+    "requestedAndActualEffectPersistedSeparately": true,
+    "realAccountRetestAfterChange": true,
+    "realAccountLiveModalPresent": false,
+    "realAccountLiveModalIdentityQualified": false
+  },
+  "regression": {
+    "command": "npm run refoundation:check",
+    "passed": 479,
+    "failed": 0,
+    "legacyImports": 0
+  },
+  "decision": {
+    "commit": false,
+    "gatePromotion": false,
+    "nextRequiredWork": "capture a live roleless modal with exact modal/control identity before any user-selected action; then qualify restart continuity and the installed human journey without publish"
+  }
+}

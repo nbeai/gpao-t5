@@ -17,6 +17,7 @@ import {
   DEFAULT_AGENT_BROWSER_BINARY, makeAgentBrowserDriver, sessionNameForOwner,
 } from '../src/agent-browser-driver.js';
 import { makePersistentBrowserHost } from '../src/persistent-browser-host.js';
+import { makeManagedPlaywrightEditorProvider } from '../src/managed-playwright-editor.js';
 import { makeConsoleServer } from '../src/console-server.js';
 import { resolveConsoleWorkspace } from '../src/console-config.js';
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
@@ -128,6 +129,7 @@ const server = makeConsoleServer({
     clientInstanceId: browserClientInstanceId,
     outputDirectory: join(stateDir, 'browser', sessionNameForOwner(sessionId), 'artifacts'),
     browserHost,
+    editorProvider: makeManagedPlaywrightEditorProvider({ browserHost }),
   }),
   workspaceConnectionInspectors: workspaceConnectionBaselineInspectors({
     userHome: computerEnvironment.userHome,

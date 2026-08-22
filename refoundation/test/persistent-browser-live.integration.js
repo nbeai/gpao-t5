@@ -13,6 +13,7 @@ import { makeBrowserObservationTool } from '../src/browser-observation-tool.js';
 import {
   makePersistentBrowserHost, managedBrowserProcessForProfile,
 } from '../src/persistent-browser-host.js';
+import { makeManagedPlaywrightEditorProvider } from '../src/managed-playwright-editor.js';
 
 async function fixture() {
   const server = createServer((req, res) => {
@@ -24,6 +25,38 @@ async function fixture() {
           <div class="post-body" contenteditable="true" data-placeholder="본문"></div>
           <button type="button">발행</button>
         </main>`);
+      return;
+    }
+    if (req.url === '/provider-editor') {
+      res.end(`<!doctype html><meta charset="utf-8"><title>PROVIDER EDITOR</title>
+        <iframe src="/provider-frame" style="width:800px;height:500px"></iframe>`);
+      return;
+    }
+    if (req.url === '/modal') {
+      res.end('<div role="dialog" aria-label="기존 작업"><p>기존 내용을 버릴까요?</p><button>계속</button></div>');
+      return;
+    }
+    if (req.url === '/roleless-modal') {
+      res.end(`<!doctype html><meta charset="utf-8"><title>ROLELESS MODAL</title>
+        <button type="button">계속</button>
+        <div style="position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.4);display:grid;place-items:center">
+          <div style="width:420px;min-height:180px;background:white;padding:24px">
+            <h2>작성 중인 항목이 있습니다.</h2><p>이어서 처리하시겠습니까?</p>
+            <button type="button">취소</button><button type="button">계속</button>
+          </div>
+        </div>`);
+      return;
+    }
+    if (req.url === '/provider-frame') {
+      res.end(`<!doctype html><meta charset="utf-8"><article>
+        <section class="title"><p>이전 제목</p></section>
+        <section class="body"><p>이전 본문</p></section>
+      </article><div aria-hidden="true" contenteditable="true" style="position:fixed;left:-9999px;width:100px;height:20px"></div>
+      <button type="button">발행</button><script>
+        document.querySelectorAll('article p').forEach((item) => item.addEventListener('click', () => {
+          item.contentEditable = 'true'; item.focus();
+        }));
+      </script>`);
       return;
     }
     if (req.url === '/login') {
@@ -181,6 +214,56 @@ test('제품의 공유 managed profile은 대화를 바꾸고 T5 runtime을 다�
   }
 });
 
+test('Browser snapshot ref는 dialog 조상 맥락을 modal action target에 결속한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-browser-modal-context-live-'));
+  const site = await fixture();
+  const browserHost = host(room, `t5-modal-context-${process.pid}-${Date.now()}`);
+  const driver = makeAgentBrowserDriver({
+    ownerId: 'modal-context', outputDirectory: join(room, 'artifacts'), browserHost,
+    editorProvider: makeManagedPlaywrightEditorProvider({ browserHost }),
+  });
+  try {
+    const opened = await driver.navigate(`${site.base}/modal`);
+    const button = Object.values(opened.snapshot.refs).find((item) => item.role === 'button');
+    assert.equal(button.context.modal, true, opened.snapshot.text);
+    assert.deepEqual(button.context.ancestors.map((item) => item.role), ['dialog']);
+    assert.match(button.context.modalId, /^[0-9a-f]{64}$/u);
+    assert.match(button.context.frameId, /^[0-9a-f]{64}$/u);
+  } finally {
+    await driver.close().catch(() => {});
+    await browserHost.close().catch(() => {});
+    await site.close();
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('역할 없는 overlay modal도 동명 외부 버튼과 구분해 exact control ref에 결속한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-browser-roleless-modal-live-'));
+  const site = await fixture();
+  const browserHost = host(room, `t5-roleless-modal-${process.pid}-${Date.now()}`);
+  const driver = makeAgentBrowserDriver({
+    ownerId: 'roleless-modal', outputDirectory: join(room, 'artifacts'), browserHost,
+    editorProvider: makeManagedPlaywrightEditorProvider({ browserHost }),
+  });
+  try {
+    const opened = await driver.navigate(`${site.base}/roleless-modal`);
+    const continues = Object.values(opened.snapshot.refs)
+      .filter((item) => item.role === 'button' && item.name === '계속');
+    assert.equal(continues.length, 2, opened.snapshot.text);
+    assert.equal(continues.filter((item) => item.context?.modal === true).length, 1);
+    const inside = continues.find((item) => item.context?.modal === true);
+    const outside = continues.find((item) => item.context?.modal !== true);
+    assert.match(inside.context.modalId, /^[0-9a-f]{64}$/u);
+    assert.match(inside.context.controlId, /^[0-9a-f]{64}$/u);
+    assert.equal(outside.context?.modal, false);
+  } finally {
+    await driver.close().catch(() => {});
+    await browserHost.close().catch(() => {});
+    await site.close();
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
 test('이미 열린 T5 관리 브라우저는 다른 앱 뒤에 있어도 세 번 연속 정확한 창을 앞으로 가져온다', {
   skip: process.platform !== 'darwin',
 }, async () => {
@@ -225,8 +308,8 @@ test('Browser Hand는 ref 없는 실제 contenteditable 제목·본문을 관측
   };
   try {
     const opened = await tool.execute({ ...common, action: 'navigate', url: `${site.base}/editor` });
-    const observed = await tool.execute({ ...common, action: 'editables', tabId: opened.tab.tabId });
-    assert.deepEqual(observed.editables.map((item) => item.kind), ['title', 'body']);
+    const observed = opened;
+    assert.deepEqual(observed.observation.editables.map((item) => item.kind), ['title', 'body']);
     const declared = {
       kind: 'external_send', summary: '웹 초안 입력', targets: [`${site.base}/editor`],
       reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null,
@@ -234,7 +317,7 @@ test('Browser Hand는 ref 없는 실제 contenteditable 제목·본문을 관측
     const title = await tool.execute({
       ...common, action: 'fill_editable', tabId: opened.tab.tabId,
       observationId: observed.observation.observationId,
-      editableId: observed.editables[0].editableId, text: '티파이브 소개', effect: declared,
+      editableId: observed.observation.editables[0].editableId, text: '티파이브 소개', effect: declared,
     });
     const bodyFact = title.after.editables.find((item) => item.kind === 'body');
     const body = await tool.execute({
@@ -246,6 +329,53 @@ test('Browser Hand는 ref 없는 실제 contenteditable 제목·본문을 관측
     assert.equal(body.after.editables.find((item) => item.kind === 'title').textChars, 7);
     assert.equal(body.after.editables.find((item) => item.kind === 'body').textChars, 31);
     assert.match(body.after.text, /발행/u);
+  } finally {
+    await driver.close().catch(() => {});
+    await browserHost.close().catch(() => {});
+    await site.close();
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('단일 Browser Hand는 managed Playwright provider로 iframe editor를 엄격히 결속해 입력한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-managed-playwright-editor-live-'));
+  const site = await fixture();
+  const browserHost = host(room, `t5-managed-playwright-${process.pid}-${Date.now()}`);
+  const driver = makeAgentBrowserDriver({
+    ownerId: 'provider-conversation', clientInstanceId: 'provider-runtime',
+    outputDirectory: join(room, 'artifacts'), browserHost,
+    editorProvider: makeManagedPlaywrightEditorProvider({ browserHost }),
+  });
+  const tool = makeBrowserObservationTool({ driver, authorizeEffect: async () => ({ allowed: true }) });
+  const common = {
+    url: null, tabId: null, full: null, maxChars: 5000, fullPage: null,
+    observationId: null, ref: null, editableId: null, text: null, filePath: null, effect: null,
+  };
+  try {
+    const opened = await tool.execute({ ...common, action: 'navigate', url: `${site.base}/provider-editor` });
+    const observed = opened;
+    assert.equal(observed.observation.editables.length, 2);
+    assert.deepEqual(observed.observation.editables.map((item) => item.textPreview), ['이전 제목', '이전 본문']);
+    assert.ok(observed.observation.editables.every((item) => item.provider === 'managed_playwright'));
+    const declared = {
+      kind: 'external_send', summary: 'provider editor 입력', targets: [`${site.base}/provider-editor`],
+      reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null,
+    };
+    const title = await tool.execute({
+      ...common, action: 'fill_editable', tabId: opened.tab.tabId,
+      observationId: observed.observation.observationId,
+      editableId: observed.observation.editables[0].editableId, text: '새 제목', effect: declared,
+    });
+    assert.equal(title.editorProvider.provider, 'managed_playwright');
+    assert.equal(title.editorProvider.contentMatched, true);
+    const bodyFact = title.after.editables.find((item) => item.textPreview === '이전 본문');
+    const body = await tool.execute({
+      ...common, action: 'fill_editable', tabId: opened.tab.tabId,
+      observationId: title.after.observationId, editableId: bodyFact.editableId,
+      text: '첫 문단\n\n둘째 문단', effect: declared,
+    });
+    assert.equal(body.editorProvider.contentMatched, true);
+    assert.match(body.after.editables.find((item) => item.editableId === bodyFact.editableId).textPreview, /첫 문단/u);
   } finally {
     await driver.close().catch(() => {});
     await browserHost.close().catch(() => {});
