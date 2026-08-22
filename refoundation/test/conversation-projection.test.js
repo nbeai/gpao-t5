@@ -231,6 +231,49 @@ test('과거 browser receipt는 사실을 보존하되 마지막 탭 상태만 �
   assert.ok(Buffer.byteLength(projected[1].content) < Buffer.byteLength(messages[1].content) * 0.85);
 });
 
+test('modal discard의 requested effect와 destructive actual effect를 과거 Browser truth에 보존한다', () => {
+  const receipt = browserReceipt({
+    id: 'modal-discard', action: 'click', url: 'https://business.example/editor',
+    text: '- dialog "기존 작업"\n  - button "선택" [ref=e2]',
+    refs: { e2: { role: 'button', name: '선택' } },
+  });
+  receipt.result.modalAction = {
+    intent: 'discard_existing', context: {
+      modal: true, ancestors: [{ role: 'dialog', name: '기존 작업' }],
+    },
+  };
+  receipt.result.effectTruth = { requestedKind: 'external_change', actualKind: 'destructive' };
+  const [projected] = projectHistoricalConversation([{
+    role: 'tool', toolCallId: 'modal-discard', name: 'browser', content: JSON.stringify(receipt),
+  }]);
+  const compact = JSON.parse(projected.content);
+  assert.equal(compact.result.modalAction.intent, 'discard_existing');
+  assert.equal(compact.result.effectTruth.requestedKind, 'external_change');
+  assert.equal(compact.result.effectTruth.actualKind, 'destructive');
+});
+
+test('새 runtime은 과거 Browser 사실을 보존하지만 stale ref·tab을 조작 상태로 재사용하지 않는다', () => {
+  const source = browserReceipt({
+    id: 'restart-old', url: 'https://business.example/editor',
+    text: '- paragraph "기존 초안"', refs: { e7: { name: '기존 초안', role: 'paragraph' } },
+  });
+  const entries = [{
+    messageId: 'browser-after-restart',
+    message: { role: 'tool', toolCallId: 'browser-restart', name: 'browser', content: JSON.stringify(source) },
+  }];
+  const projected = projectHistoricalConversationEntries(entries, {
+    preserveBrowserInteractionState: false,
+  });
+  const receipt = JSON.parse(projected.messages[0].content);
+  assert.equal(receipt.result.observation.text, '- paragraph "기존 초안"');
+  assert.equal(receipt.result.observation.interactionState, 'historical_reobserve_required');
+  assert.equal(receipt.result.observation.observationId, undefined);
+  assert.equal(receipt.result.observation.refs, undefined);
+  assert.equal(receipt.result.observation.refScope.tabId, undefined);
+  assert.equal(receipt.result.tab.tabId, undefined);
+  assert.equal(receipt.result.tab.url, 'https://business.example/editor');
+});
+
 test('browser 로그인 경계의 사용자 handoff와 비밀 미관측 사실을 보존한다', () => {
   const receipt = {
     toolCallId: 'login-1',

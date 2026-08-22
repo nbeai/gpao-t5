@@ -87,3 +87,13 @@ test('일반 terminal PATH는 내부 agent-browser binary를 노출하지 않는
   const instructions = consoleInstructions('/Users/example', {});
   assert.match(instructions, /Never invoke agent-browser.*exec.*internal browser/i);
 });
+
+test('일반 사용자 콘솔은 Browser Hand를 바로 보이고 managed process·PTY는 필요할 때만 연다', async () => {
+  const source = await import('node:fs/promises').then(({ readFile }) => readFile(
+    new URL('../src/console-server.js', import.meta.url), 'utf8',
+  ));
+  const coreBlock = /const coreToolNames = \[([\s\S]*?)\];/u.exec(source)?.[1] ?? '';
+  assert.match(coreBlock, /'browser'/u);
+  assert.doesNotMatch(coreBlock, /'process_start'|'pty_start'|'process_control'/u);
+  assert.doesNotMatch(coreBlock, /'session_search'/u);
+});

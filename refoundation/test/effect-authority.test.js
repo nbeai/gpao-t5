@@ -10,6 +10,9 @@ test('네 사용자 경계만 멈추고 관측·가역적 로컬 변경은 자�
   assert.equal(boundaryForEffect({ kind: 'observe' }), null);
   assert.equal(boundaryForEffect({ kind: 'local_change', reversible: true }), null);
   assert.equal(boundaryForEffect({ kind: 'destructive', backupAvailable: true }), null);
+  assert.equal(boundaryForEffect(
+    { kind: 'destructive', backupAvailable: true }, { requiredEffect: 'destructive' },
+  ), 'approval');
   assert.equal(boundaryForEffect({ kind: 'destructive', backupAvailable: false }), 'approval');
   assert.equal(boundaryForEffect({ kind: 'external_send', recipientNew: false }), null);
   assert.equal(boundaryForEffect({ kind: 'external_send', recipientNew: true }), 'approval');

@@ -62,6 +62,11 @@ function fixtureDriver() {
       if (ref === 'e8') return { type: 'file', autocomplete: null, href: null, download: null };
       return { type: 'button', autocomplete: null, href: null, download: null };
     },
+    async modalControlFacts() {
+      return {
+        modalId: 'modal-1', controlId: 'control-1', frameId: 'frame-1',
+      };
+    },
     async submitFacts({ ref }) {
       calls.push(['submitFacts', ref]);
       const element = ref === 'e5'
@@ -126,6 +131,13 @@ function fixtureDriver() {
       calls.push(['uploadFileFacts', filePath]);
       return { path: filePath, bytes: 25, sha256: 'e'.repeat(64), mimeType: 'application/pdf', trust: 'user_selected_local' };
     },
+    async readTextFile(filePath, options) {
+      calls.push(['readTextFile', filePath, options]);
+      return {
+        path: filePath, bytes: 24, sha256: 'f'.repeat(64), mimeType: 'text/plain',
+        text: '긴 본문 원문', textChars: 7, startLine: options.startLine,
+      };
+    },
     async upload(options) {
       calls.push(['upload', options]);
       return {
@@ -143,13 +155,47 @@ test('browser W5 schema는 download·upload를 열고 credential·cookie 기능�
   const tool = makeBrowserObservationTool({ driver: fixtureDriver() });
   assert.equal(tool.name, 'browser');
   assert.deepEqual(tool.parameters.properties.action.enum, [
-    'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'editables', 'screenshot', 'click', 'fill', 'fill_editable', 'submit',
+    'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'fill_editable', 'submit',
     'login_start', 'login_status', 'login_cancel', 'download', 'upload',
   ]);
   assert.ok(tool.parameters.required.includes('filePath'));
   assert.ok(tool.parameters.required.includes('editableId'));
+  assert.ok(tool.parameters.required.includes('modalIntent'));
+  assert.ok(tool.parameters.required.includes('textFilePath'));
+  assert.ok(tool.parameters.required.includes('textFileStartLine'));
+  assert.match(tool.parameters.properties.action.description, /local file.*browser text input.*not file upload/i);
+  assert.match(tool.parameters.properties.text.description, /user-authorized local file.*not a file upload/i);
   const forbidden = ['type', 'press', 'evaluate', 'password', 'otp', 'cookies', 'storage'];
   assert.deepEqual(Object.keys(tool.parameters.properties).filter((key) => forbidden.includes(key)), []);
+});
+
+test('사용자가 지정한 로컬 text는 모델이 본문을 재복사하지 않고 path·hash 결속으로 입력한다', async () => {
+  const driver = fixtureDriver();
+  const registry = makeBrowserObservationRegistry();
+  const tool = makeBrowserObservationTool({
+    driver, observationRegistry: registry,
+    authorizeEffect: async () => ({ allowed: true }),
+    authorizeUploadPath: async (path) => path === '/Users/test/approved.txt',
+  });
+  const observed = await tool.execute({
+    action: 'snapshot', url: null, tabId: 't1', full: false, maxChars: 5000,
+    fullPage: null, observationId: null, ref: null, editableId: null,
+    modalIntent: null, text: null, textFilePath: null, textFileStartLine: null,
+    filePath: null, effect: null,
+  });
+  const result = await tool.execute({
+    action: 'fill_editable', url: null, tabId: 't1', full: null, maxChars: 5000,
+    fullPage: null, observationId: observed.observation.observationId, ref: null,
+    editableId: 'body-field', modalIntent: null, text: null,
+    textFilePath: '/Users/test/approved.txt', textFileStartLine: 2, filePath: null,
+    effect: effect('external_send'),
+  });
+  assert.equal(result.action.textChars, 7);
+  assert.equal(result.textSource.sha256, 'f'.repeat(64));
+  assert.equal(result.textSource.startLine, 2);
+  assert.equal(result.textSource.text, undefined);
+  assert.ok(driver.calls.some((call) => call[0] === 'fillEditable'
+    && call[1].text === '긴 본문 원문'));
 });
 
 test('contenteditable 편집기는 관측된 영역 ID에만 입력하고 같은 화면에서 글자 수를 재확인한다', async () => {
@@ -159,20 +205,22 @@ test('contenteditable 편집기는 관측된 영역 ID에만 입력하고 같은
     driver, observationRegistry: registry, authorizeEffect: async () => ({ allowed: true }),
   });
   const observed = await tool.execute({
-    action: 'editables', url: null, tabId: 't1', full: null, maxChars: null, fullPage: null,
+    action: 'snapshot', url: null, tabId: 't1', full: false, maxChars: 5000, fullPage: null,
     observationId: null, ref: null, editableId: null, text: null, filePath: null, effect: null,
   });
-  assert.equal(observed.editables.length, 2);
-  assert.equal(observed.editables[0].label, '제목');
+  assert.equal(observed.observation.editables.length, 2);
+  assert.equal(observed.observation.editables[0].label, '제목');
   const base = {
     action: 'fill_editable', url: null, tabId: 't1', full: null, maxChars: 5000, fullPage: null,
     observationId: observed.observation.observationId, ref: null, editableId: 'title-field',
     text: '티파이브 소개', filePath: null,
   };
-  const editorEffect = effect('external_send', { targets: ['https://example.com/editor'] });
+  const editorEffect = effect('external_send', { targets: ['https://example.com/'] });
   const stale = await tool.preflight({ ...base, editableId: 'unknown', effect: editorEffect });
   assert.equal(stale.result.state, 'editable_not_observed');
   assert.deepEqual(await tool.preflight({ ...base, effect: editorEffect }), { allowed: true });
+  const withoutObservationId = await tool.preflight({ ...base, observationId: null, effect: editorEffect });
+  assert.deepEqual(withoutObservationId, { allowed: true });
   const result = await tool.execute({ ...base, effect: editorEffect });
   assert.equal(result.action.kind, 'fill_editable');
   assert.equal(result.action.textChars, 7);
@@ -253,8 +301,13 @@ test('navigate는 실제 탭과 같은 snapshot의 observationId·refs를 한 Re
   assert.match(result.observation.observationId, /^[0-9a-f]{64}$/);
   assert.equal(result.observation.refScope.observationId, result.observation.observationId);
   assert.equal(result.observation.refScope.tabId, 't1');
+  assert.deepEqual(result.inputCapabilities, {
+    fillEditable: true, acceptsObservedText: true, maxChars: 20_000, fileUploadRequired: false,
+  });
   assert.equal(result.observation.refs.e1.role, 'heading');
-  assert.deepEqual(driver.calls, [['navigate', 'https://example.com/']]);
+  assert.deepEqual(driver.calls, [
+    ['navigate', 'https://example.com/'], ['editables', { tabId: 't1' }],
+  ]);
 });
 
 test('snapshot은 관측 범위와 잘림을 숨기지 않고 ref를 해당 observation에만 묶는다', async () => {
@@ -266,7 +319,10 @@ test('snapshot은 관측 범위와 잘림을 숨기지 않고 ref를 해당 obse
   assert.equal(result.observation.totalChars, 22);
   assert.equal(result.observation.truncated, false);
   assert.equal(result.observation.refScope.tabId, 't1');
-  assert.deepEqual(driver.calls, [['snapshot', { tabId: 't1', full: false, maxChars: 5000 }]]);
+  assert.deepEqual(driver.calls, [
+    ['snapshot', { tabId: 't1', full: false, maxChars: 5000 }],
+    ['editables', { tabId: 't1' }],
+  ]);
 });
 
 test('screenshot은 픽셀을 봤다는 주장 대신 실제 파일 사실을 돌려준다', async () => {
@@ -328,6 +384,91 @@ test('click은 최신 observation/ref와 external_change 선언을 확인한 뒤
   assert.equal(result.after.refScope.tabId, 't1');
   assert.equal(result.network.requests[0].address, 'https://example.com/after');
   assert.equal(authorized.length, 1);
+});
+
+test('modal 행동은 명시적 intent를 요구하고 discard·replace를 destructive로 고정한다', async () => {
+  const driver = fixtureDriver();
+  const registry = makeBrowserObservationRegistry();
+  registry.remember({
+    observationId: 'modal-observation', text: '- dialog "기존 작업"\n  - button "선택" [ref=e2]',
+    refs: { e2: {
+      role: 'button', name: '선택', context: {
+        modal: true, modalId: 'modal-1', controlId: 'control-1', frameId: 'frame-1',
+        documentRevision: 'modal-observation',
+        ancestors: [{ role: 'dialog', name: '기존 작업' }],
+      },
+    } }, editables: [],
+    refScope: {
+      observationId: 'modal-observation', tabId: 't1', targetId: 'target-1', url: 'https://example.com/',
+    },
+  });
+  const authorityContexts = [];
+  const tool = makeBrowserObservationTool({
+    driver, observationRegistry: registry, authorizeEffect: async (_args, context) => {
+      authorityContexts.push(context); return { allowed: true };
+    },
+  });
+  const base = {
+    action: 'click', url: null, tabId: 't1', full: null, maxChars: 5000, fullPage: null,
+    observationId: 'modal-observation', ref: 'e2', editableId: null,
+    modalIntent: null, text: null, filePath: null,
+  };
+  const missing = await tool.preflight({ ...base, effect: effect('external_change') });
+  assert.equal(missing.result.state, 'modal_intent_required');
+  const lowered = await tool.preflight({
+    ...base, modalIntent: 'discard_existing', effect: effect('external_change'),
+  });
+  assert.equal(lowered.result.reason, 'destructive_required');
+  const clickCount = driver.calls.filter((call) => call[0] === 'click').length;
+  const blockedExecution = await tool.execute({
+    ...base, modalIntent: 'discard_existing', effect: effect('external_change'),
+  });
+  assert.equal(blockedExecution.state, 'effect_declaration_mismatch');
+  assert.equal(driver.calls.filter((call) => call[0] === 'click').length, clickCount);
+  assert.deepEqual(await tool.preflight({
+    ...base, modalIntent: 'discard_existing', effect: effect('destructive'),
+  }), { allowed: true });
+  assert.equal(authorityContexts.at(-1).requiredEffect, 'destructive');
+  const result = await tool.execute({
+    ...base, modalIntent: 'discard_existing', effect: effect('destructive'),
+  });
+  assert.equal(result.modalAction.intent, 'discard_existing');
+  assert.equal(result.effectTruth.actualKind, 'destructive');
+  assert.equal(result.modalAction.context.modalId, 'modal-1');
+  assert.equal(result.modalAction.context.controlId, 'control-1');
+  assert.equal(result.modalAction.context.frameId, 'frame-1');
+});
+
+test('modal 또는 exact control identity가 관측 뒤 바뀌면 click 전에 멈춘다', async () => {
+  const driver = fixtureDriver();
+  driver.modalControlFacts = async () => ({
+    modalId: 'modal-2', controlId: 'control-2', frameId: 'frame-1',
+  });
+  const registry = makeBrowserObservationRegistry();
+  registry.remember({
+    observationId: 'modal-observation', text: '- button "계속" [ref=e2]',
+    refs: { e2: {
+      role: 'button', name: '계속', context: {
+        modal: true, modalId: 'modal-1', controlId: 'control-1', frameId: 'frame-1',
+        documentRevision: 'modal-observation', ancestors: [{ role: 'dialog', name: '기존 작업' }],
+      },
+    } }, editables: [],
+    refScope: {
+      observationId: 'modal-observation', tabId: 't1', targetId: 'target-1', url: 'https://example.com/',
+    },
+  });
+  const tool = makeBrowserObservationTool({
+    driver, observationRegistry: registry, authorizeEffect: async () => ({ allowed: true }),
+  });
+  const args = {
+    action: 'click', url: null, tabId: 't1', full: null, maxChars: 5000, fullPage: null,
+    observationId: 'modal-observation', ref: 'e2', editableId: null,
+    modalIntent: 'continue', text: null, filePath: null, effect: effect('external_change'),
+  };
+  const before = driver.calls.filter((call) => call[0] === 'click').length;
+  const result = await tool.execute(args);
+  assert.equal(result.state, 'modal_identity_changed');
+  assert.equal(driver.calls.filter((call) => call[0] === 'click').length, before);
 });
 
 test('stale observation과 관측하지 않은 ref는 driver 행동 전에 not_executed다', async () => {

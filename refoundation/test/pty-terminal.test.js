@@ -29,6 +29,20 @@ test('현재 pipe 기반 exec는 TTY-only 프로그램을 실제로 실행할 �
   assert.match(result.stderr, /TTY_REQUIRED/);
 }));
 
+test('PTY 명령이 첫 대기 안에 끝나면 현재 Turn이 이미 관측한 것으로 표시해 별도 wake를 만들지 않는다', async () => room(async (root) => {
+  const exec = makeExecTool({ workspace: root });
+  const pty = makePtyStartTool({
+    workingDirectory: root, processRegistry: exec.processRegistry, ownerId: 'pty-immediate', yieldMs: 1000,
+  });
+  const result = await pty.execute({
+    command: 'printf done', cwd: null,
+    effect: { kind: 'observe', summary: '즉시 완료', targets: [], reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null },
+    cols: 80, rows: 24,
+  });
+  assert.equal(result.state, 'completed');
+  assert.equal(exec.processRegistry.claimTerminalWake(result.processId), null);
+}));
+
 test('pty_start는 같은 TTY-only 프로그램에 입력을 보내고 완료 출력을 관측한다', async () => room(async (root) => {
   const exec = makeExecTool({ workspace: root });
   const pty = makePtyStartTool({

@@ -447,10 +447,13 @@ export function makeConsoleServer({
 
   async function status() { return Promise.resolve(modelStatus()); }
 
-  function projectConversation(conversation, memoryItems = []) {
+  function projectConversation(sessionId, conversation, memoryItems = []) {
     const active = activeConversationProjection(conversation);
     const projectedTail = conversationProjection === 'historical-tool-receipt-v1'
-      ? projectHistoricalConversationEntries(active.tailEntries, { largeOutputMode: largeToolOutputMode })
+      ? projectHistoricalConversationEntries(active.tailEntries, {
+        largeOutputMode: largeToolOutputMode,
+        preserveBrowserInteractionState: (browserObservations.get(sessionId)?.size() ?? 0) > 0,
+      })
       : { messages: active.tailEntries.map((entry) => structuredClone(entry.message)), recoverable: [] };
     const messages = active.checkpoint
         ? [structuredClone(active.messages[0]), ...projectedTail.messages]
@@ -463,13 +466,13 @@ export function makeConsoleServer({
     };
   }
 
-  async function effectPreflight({ toolName, args, ownerId }) {
+  async function effectPreflight({ toolName, args, ownerId, requiredEffect = null }) {
     const effect = args?.effect;
     if (!effect?.kind) return {
       allowed: false, outcome: 'not_executed',
       result: { state: 'effect_declaration_required' },
     };
-    const boundary = boundaryForEffect(effect);
+    const boundary = boundaryForEffect(effect, { requiredEffect });
     if (!boundary) return { allowed: true };
     if (boundary === 'secret_input') return {
       allowed: false, outcome: 'not_executed',
@@ -532,7 +535,7 @@ export function makeConsoleServer({
     await memories.ensure();
     const memorySnapshot = await memories.read();
     let canonicalConversation = await conversations.read(sessionId);
-    let projection = projectConversation(canonicalConversation, memorySnapshot.items);
+    let projection = projectConversation(sessionId, canonicalConversation, memorySnapshot.items);
     const run = await runLedger.start({ sessionId, request: text, metadata: {
       priorConversationMessages: projection.messages.length,
       conversationProjection,
@@ -744,7 +747,7 @@ export function makeConsoleServer({
               },
             });
             canonicalConversation = await conversations.read(sessionId);
-            projection = projectConversation(canonicalConversation, memorySnapshot.items);
+            projection = projectConversation(sessionId, canonicalConversation, memorySnapshot.items);
           } catch (error) {
             await run.append({
               type: 'checkpoint_failed', stepId: 'checkpoint',
@@ -810,8 +813,9 @@ export function makeConsoleServer({
               (!options.trigger || options.trigger === 'user')
               && requestContainsExactPath(text, candidate)
             ),
-            authorizeEffect: (args) => effectPreflight({
+            authorizeEffect: (args, authorityContext) => effectPreflight({
               toolName: 'browser', args, ownerId: sessionId,
+              requiredEffect: authorityContext?.requiredEffect ?? null,
             }),
           });
           browserTool.relatedTools = ['web_read'];
@@ -899,8 +903,10 @@ export function makeConsoleServer({
         performConnection: (id, actionId) => performConnectionAction(id, actionId, { sessionId }),
       }));
       const coreToolNames = [
-        'connection', 'session_search', 'memory', 'skill',
-        'exec', 'process_start', 'pty_start', 'process_control',
+        'connection', 'memory', 'skill',
+        // Browser is a primary hand for ordinary users. Requiring every model to discover it
+        // through tool_search made provider variance choose terminal preparation instead.
+        'exec', 'browser',
         // 결과물은 주변 기능이 아니라 대화와 같은 Human Experience다. 사용자가 파일·HTML·문서·표를
         // 요청한 뒤에야 tool_search로 찾게 하면, 실제 파일을 만들고도 경로만 말하는 회귀가 생긴다.
         'attachment',

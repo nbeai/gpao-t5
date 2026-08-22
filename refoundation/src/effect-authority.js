@@ -26,8 +26,9 @@ function safeId(pendingId) {
   return value;
 }
 
-export function boundaryForEffect(effect = {}) {
+export function boundaryForEffect(effect = {}, { requiredEffect = null } = {}) {
   if (effect.kind === 'secret_input') return 'secret_input';
+  if (requiredEffect === 'destructive') return 'approval';
   if (effect.kind === 'payment') return 'approval';
   if (effect.kind === 'destructive' && effect.backupAvailable !== true) return 'approval';
   if (effect.kind === 'external_send' && effect.recipientNew === true) return 'approval';

@@ -80,6 +80,9 @@ export function makePtyStartTool({
       if (context.signal?.aborted && result.state === 'running') {
         result = await processRegistry.stop({ processId: result.processId, ownerId, reason: 'aborted', cursor: result.cursor });
       }
+      if (!['running', 'stop_requested'].includes(result.state)) {
+        processRegistry.markTerminalObserved(result.processId, ownerId);
+      }
       const after = ['completed', 'failed', 'stopped'].includes(result.state)
         ? await observeDeclaredEffect(args.effect, cwd) : null;
       return {

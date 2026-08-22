@@ -270,5 +270,9 @@ export function makeTerminalHand(options = {}) {
   const start = makeProcessStartTool({ ...options, processRegistry });
   const ptyStart = makePtyStartTool({ ...options, processRegistry });
   const control = makeProcessControlTool({ processRegistry, ownerId: options.ownerId });
+  start.relatedTools = ['process_control'];
+  start.searchTerms = ['long running background command managed process', '오래 걸리는 백그라운드 작업'];
+  ptyStart.relatedTools = ['process_control'];
+  ptyStart.searchTerms = ['interactive terminal tty tui stdin prompt', '대화형 터미널 입력'];
   return { processRegistry, tools: [exec, start, ptyStart, control] };
 }

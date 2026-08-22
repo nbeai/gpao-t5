@@ -38,6 +38,10 @@ test('공개 페이지 정적 읽기가 막히면 같은 Run에서 기존 브라
     async status() { return { state: 'ready' }; },
     async profiles() { return { profiles: [this.profile] }; },
     async tabs() { return { tabs: [] }; },
+    async editables({ tabId }) { return {
+      tab: { tabId, targetId: 'target-social-1', title: 'ZUS Coffee post', url: postUrl },
+      editables: [],
+    }; },
     async snapshot({ tabId, full }) { return {
       tab: { tabId, targetId: 'target-social-1', title: 'ZUS Coffee post', url: postUrl },
       snapshot: {

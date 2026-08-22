@@ -70,8 +70,9 @@ function pickObject(source, keys) {
   return Object.keys(output).length ? output : undefined;
 }
 
-function compactBrowserTab(tab) {
-  return pickObject(tab, ['tabId', 'title', 'url', 'active']);
+function compactBrowserTab(tab, { preserveInteractionState = false } = {}) {
+  return pickObject(tab, preserveInteractionState
+    ? ['tabId', 'title', 'url', 'active'] : ['title', 'url', 'active']);
 }
 
 function compactBrowserObservation(observation, {
@@ -80,11 +81,14 @@ function compactBrowserObservation(observation, {
 } = {}) {
   if (!observation || typeof observation !== 'object' || Array.isArray(observation)) return undefined;
   const compact = pickObject(observation, [
-    'observationId', 'totalChars', 'shownChars', 'truncated', 'omittedChars',
+    ...(preserveInteractionState ? ['observationId'] : []),
+    'totalChars', 'shownChars', 'truncated', 'omittedChars',
     'trust', 'instructionAuthority',
   ]) ?? {};
-  const scope = pickObject(observation.refScope, ['observationId', 'tabId', 'url']);
+  const scope = pickObject(observation.refScope, preserveInteractionState
+    ? ['observationId', 'tabId', 'url'] : ['url']);
   if (scope) compact.refScope = scope;
+  if (!preserveInteractionState) compact.interactionState = 'historical_reobserve_required';
   if (typeof observation.text === 'string') {
     if (preserveInteractionState || observation.text.length <= oldObservationChars) {
       compact.text = observation.text;
@@ -127,16 +131,20 @@ function compactBrowserResult(result, options) {
   const effect = compactEffect(result.declaredEffect ?? result.effect);
   if (effect) compact.effect = effect;
   else if (typeof result.effect === 'string') compact.effect = { kind: result.effect };
-  const tab = compactBrowserTab(result.tab);
+  const tab = compactBrowserTab(result.tab, options);
   if (tab) compact.tab = tab;
-  if (Array.isArray(result.tabs)) compact.tabs = result.tabs.map(compactBrowserTab).filter(Boolean);
+  if (Array.isArray(result.tabs)) {
+    compact.tabs = result.tabs.map((item) => compactBrowserTab(item, options)).filter(Boolean);
+  }
   const handoff = pickObject(result.handoff, [
     'visible', 'inputOwner', 'modelActionsBlocked', 'resumedHeadless',
   ]);
   if (handoff) compact.handoff = handoff;
-  const before = pickObject(result.before, ['observationId', 'ref', 'refFact']);
+  const before = pickObject(result.before, options.preserveInteractionState
+    ? ['observationId', 'ref', 'refFact'] : ['refFact']);
   if (before) {
-    const scope = pickObject(result.before?.refScope, ['observationId', 'tabId', 'url']);
+    const scope = pickObject(result.before?.refScope, options.preserveInteractionState
+      ? ['observationId', 'tabId', 'url'] : ['url']);
     if (scope) before.refScope = scope;
     compact.before = before;
   }
@@ -148,6 +156,10 @@ function compactBrowserResult(result, options) {
   if (navigation) compact.navigation = navigation;
   const network = compactBrowserNetwork(result.network);
   if (network) compact.network = network;
+  const modalAction = pickObject(result.modalAction, ['intent', 'context']);
+  if (modalAction) compact.modalAction = modalAction;
+  const effectTruth = pickObject(result.effectTruth, ['requestedKind', 'actualKind']);
+  if (effectTruth) compact.effectTruth = effectTruth;
   const file = pickObject(result.file, ['path', 'bytes', 'sha256', 'mimeType', 'trust']);
   if (file) compact.file = file;
   const source = pickObject(result.source, ['address', 'queryOmitted']);
@@ -263,8 +275,10 @@ export function projectHistoricalConversationEntries(entries = [], {
   largeOutputMode = 'inline',
   maxInlineOutputChars = DEFAULT_MAX_INLINE_HISTORICAL_OUTPUT_CHARS,
   previewChars = DEFAULT_HISTORICAL_OUTPUT_PREVIEW_CHARS,
+  preserveBrowserInteractionState = true,
 } = {}) {
-  const preserveBrowserIndexes = latestBrowserObservationIndexes(entries.map((entry) => entry.message));
+  const preserveBrowserIndexes = preserveBrowserInteractionState
+    ? latestBrowserObservationIndexes(entries.map((entry) => entry.message)) : new Set();
   const projected = entries.map((entry, index) => projectToolMessage(entry.message, {
     messageId: entry.messageId, largeOutputMode, maxInlineOutputChars, previewChars,
     preserveInteractionState: preserveBrowserIndexes.has(index),
