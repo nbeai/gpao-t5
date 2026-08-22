@@ -39,6 +39,17 @@ Telegram은 첫 private sender 자동 결속, 콘솔 양방향, 서버 재시작
 `editables → fill_editable → 재관측` 손과 terminal CDP 차단을 추가한 실제 OAuth·격리 편집기 재검증은
 `32초·모델 7회·도구 6회·49,579 tokens·실패 0·exec 0`으로 통과했다. 전체 회귀는 `472/472`다.
 
+2026-08-22 Web Hand 코드 종결: 모델에는 하나의 Browser Hand만 유지하고 managed Playwright provider가
+iframe·동적 editor를 현재 tab·frame·document observation에 결속한다. 실제 Naver에서 제목 `32자`와
+본문 `8,053자`가 각각 재관측 일치했고 저장·발행·제출은 `0`이었다. 긴 본문은 모델이 원문을 다시 생성하지
+않고 사용자 지정 path·SHA-256·시작 행에 결속해 입력했다. modal의 requested effect와 runtime required
+effect를 분리하고 destructive 의미, exact control identity, stale modal 변경을 실행 전에 막는다. 실제
+재시작에서 발견한 session-only 로그인 소실은 먼저 실패한 통합시험을 `--restore-last-session` 복원으로
+교정했고 관리 Chrome 종료 잔여는 `0`이다. 새 코어 회귀는 `479/479`, legacy import는 `0`이다. 근거는
+`refoundation/evidence/p0-h1-browser-provider-qualification-2026-08-22.json`, 커밋은 `4f7c003f`,
+`7a77fc9c`, `baaae2c7`, `d8cec7a4`다. 수정 뒤 실제 Naver 계정 재로그인은 별도로 요구하지 않았으므로
+설치본의 다음 정상 로그인 인간 종단 전에는 Gate를 `COMPLETE`로 올리지 않는다.
+
 사용자 완료 문장:
 
 > 일반 사용자가 0.1.1에서 성공했던 것처럼, 요청하면 눈앞에 열린 T5 브라우저에서 네이버에 로그인하고

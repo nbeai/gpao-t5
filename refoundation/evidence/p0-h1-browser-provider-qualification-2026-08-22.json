@@ -151,7 +151,8 @@
     "shutdownResidualProcesses": 0
   },
   "decision": {
-    "commit": false,
+    "commit": true,
+    "commits": ["4f7c003f", "7a77fc9c", "baaae2c7", "d8cec7a4"],
     "gatePromotion": false,
     "nextRequiredWork": "qualify the committed Browser Hand in the installed human journey during the next normal signed-in use; do not require a special Naver-only retest"
   }
