@@ -146,7 +146,9 @@
     "sessionCookieOpposingTestAfterFix": "AUTHENTICATED",
     "focusedIntegrationPassed": 1,
     "focusedIntegrationFailed": 0,
-    "actualAccountReloginRequested": false
+    "actualAccountReloginRequested": false,
+    "browserCloseTimeoutMs": 8000,
+    "shutdownResidualProcesses": 0
   },
   "decision": {
     "commit": false,

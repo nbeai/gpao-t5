@@ -188,7 +188,7 @@ const stop = async () => {
     boundedShutdown(() => server.closeAutomations()),
     boundedShutdown(() => server.managedProcesses.stopAll('runtime_shutdown')),
   ]);
-  await boundedShutdown(() => browserHost.close());
+  await boundedShutdown(() => browserHost.close(), 8_000);
   await boundedShutdown(() => new Promise((resolveClose) => {
     server.close(resolveClose);
     server.closeIdleConnections?.();

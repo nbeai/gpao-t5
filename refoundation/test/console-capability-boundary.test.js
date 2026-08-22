@@ -97,3 +97,10 @@ test('일반 사용자 콘솔은 Browser Hand를 바로 보이고 managed proces
   assert.doesNotMatch(coreBlock, /'process_start'|'pty_start'|'process_control'/u);
   assert.doesNotMatch(coreBlock, /'session_search'/u);
 });
+
+test('콘솔 종료는 관리 Chrome의 bounded close가 끝날 시간을 실제로 기다린다', async () => {
+  const source = await import('node:fs/promises').then(({ readFile }) => readFile(
+    new URL('../scripts/start-console.mjs', import.meta.url), 'utf8',
+  ));
+  assert.match(source, /boundedShutdown\(\(\) => browserHost\.close\(\), 8_000\)/u);
+});
