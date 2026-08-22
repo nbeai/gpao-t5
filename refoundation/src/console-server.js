@@ -773,6 +773,7 @@ export function makeConsoleServer({
         workingDirectory: workspace, computer, processRegistry: processes, ownerId: sessionId,
         yieldMs: processYieldMs, originRunId: run.runId, effectPreflight,
         pathPrepend: managedCliStore.bin,
+        protectedBrowserRoots: [join(stateDir, 'browser-host'), browserArtifactRoot],
         capabilityAttribution: ({ commandExplanation }) => managedCliStore.attributeCommand(commandExplanation),
         env: {
           T5_DOCUMENT_CLI: documentCli,

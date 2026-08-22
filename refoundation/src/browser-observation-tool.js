@@ -3,10 +3,10 @@ import { EFFECT_SCHEMA } from './exec-tool.js';
 import { makeBrowserObservationRegistry } from './browser-action-state.js';
 
 const ACTIONS = [
-  'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'submit',
+  'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'editables', 'screenshot', 'click', 'fill', 'fill_editable', 'submit',
   'login_start', 'login_status', 'login_cancel', 'download', 'upload',
 ];
-const ACTION_KINDS = new Set(['click', 'fill', 'submit', 'download', 'upload']);
+const ACTION_KINDS = new Set(['click', 'fill', 'fill_editable', 'submit', 'download', 'upload']);
 const DEFAULT_MAX_CHARS = 20_000;
 const MAX_CHARS = 64_000;
 
@@ -31,6 +31,7 @@ function observationResult(driver, value, maxChars, registry) {
     tabId: value?.tab?.tabId ?? null,
     targetId: value?.tab?.targetId ?? null,
     url: value?.tab?.url ?? '', text, refs: value?.snapshot?.refs ?? {},
+    editables: value?.snapshot?.editables ?? [],
   })).digest('hex');
   const result = {
     state: 'observed', effect: 'observe', profile: profileOf(driver),
@@ -40,6 +41,7 @@ function observationResult(driver, value, maxChars, registry) {
       truncated: value?.snapshot?.truncated === true || totalChars > shown.length,
       omittedChars: Math.max(0, totalChars - shown.length),
       refs: structuredClone(value?.snapshot?.refs ?? {}),
+      editables: structuredClone(value?.snapshot?.editables ?? []),
       refScope: {
         observationId, tabId: value?.tab?.tabId ?? null,
         targetId: value?.tab?.targetId ?? null, url: value?.tab?.url ?? '',
@@ -49,6 +51,28 @@ function observationResult(driver, value, maxChars, registry) {
   };
   registry.remember(result.observation);
   return result;
+}
+
+function editableObservationResult(driver, value, registry) {
+  const editables = structuredClone(value?.editables ?? []);
+  const observationId = createHash('sha256').update(JSON.stringify({
+    tabId: value?.tab?.tabId ?? null, targetId: value?.tab?.targetId ?? null,
+    url: value?.tab?.url ?? '', editables,
+  })).digest('hex');
+  const observation = {
+    observationId, text: '', totalChars: 0, shownChars: 0, truncated: false, omittedChars: 0,
+    refs: {}, editables,
+    refScope: {
+      observationId, tabId: value?.tab?.tabId ?? null,
+      targetId: value?.tab?.targetId ?? null, url: value?.tab?.url ?? '',
+    },
+    trust: 'untrusted_external', instructionAuthority: 'none',
+  };
+  registry.remember(observation);
+  return {
+    state: 'observed', effect: 'observe', profile: profileOf(driver),
+    tab: structuredClone(value.tab), observation, editables,
+  };
 }
 
 const SECRET_AUTOCOMPLETE = /^(?:current-password|new-password|one-time-code|cc-number|cc-csc|cc-exp|cc-exp-month|cc-exp-year|cc-name)$/i;
@@ -76,13 +100,13 @@ export function makeBrowserObservationTool({
   if (!driver || typeof driver.available !== 'function') throw new TypeError('browser driver is required');
   const tool = {
     name: 'browser',
-    description: 'Observe and act in the T5-managed browser profile for this conversation. When login is required, T5 opens that same profile visibly and returns control to the user; the model never receives passwords, OTPs, cookies, or storage. download and upload are available only with exact observed controls and receipts.',
+    description: 'Observe and act in the T5-managed browser. Use editables when a rich web editor shows unreferenced title/body paragraphs, then fill_editable with an exact observed editableId. Never inspect or control the managed browser through terminal/CDP. Login secrets remain user-controlled. Publishing/submission stays a separate explicit action.',
     parameters: {
       type: 'object',
       properties: {
         action: {
           type: 'string', enum: ACTIONS,
-          description: 'Use submit, download, or upload rather than click for the corresponding observed control.',
+          description: 'Use editables then fill_editable for rich editors. Use submit, download, or upload rather than click for the corresponding observed control.',
         },
         url: { type: ['string', 'null'], description: 'HTTP(S) URL for navigate or login_start, otherwise null.' },
         tabId: { type: ['string', 'null'], description: 'Stable tabId from tabs or a prior observation, otherwise null.' },
@@ -91,7 +115,8 @@ export function makeBrowserObservationTool({
         fullPage: { type: ['boolean', 'null'], description: 'For screenshot: capture the whole scrollable page.' },
         observationId: { type: ['string', 'null'], description: 'Exact latest observationId that supplied ref, otherwise null.' },
         ref: { type: ['string', 'null'], description: 'Exact ref from the bound observation for click, fill, submit, download, or upload; otherwise null.' },
-        text: { type: ['string', 'null'], maxLength: 4_000, description: 'Non-secret text for fill, otherwise null.' },
+        editableId: { type: ['string', 'null'], description: 'Exact editableId from editables for fill_editable, otherwise null.' },
+        text: { type: ['string', 'null'], maxLength: 20_000, description: 'Non-secret text for fill or fill_editable, otherwise null.' },
         filePath: { type: ['string', 'null'], description: 'Exact absolute user-provided path for upload, otherwise null.' },
         effect: {
           description: 'For click/fill/submit/download/upload, targets must contain the exact current page URL or origin only; never append an element label or description.',
@@ -100,7 +125,7 @@ export function makeBrowserObservationTool({
       },
       required: [
         'action', 'url', 'tabId', 'full', 'maxChars', 'fullPage',
-        'observationId', 'ref', 'text', 'filePath', 'effect',
+        'observationId', 'ref', 'editableId', 'text', 'filePath', 'effect',
       ],
       additionalProperties: false,
     },
@@ -169,13 +194,20 @@ export function makeBrowserObservationTool({
           ...(context.signal ? { signal: context.signal } : {}),
         }), args.maxChars ?? DEFAULT_MAX_CHARS, observationRegistry);
       }
+      if (args.action === 'editables') {
+        return editableObservationResult(driver, await driver.editables({
+          tabId: args.tabId, ...(context.signal ? { signal: context.signal } : {}),
+        }), observationRegistry);
+      }
       if (ACTION_KINDS.has(args.action)) {
         const safety = await actionSafety(args, context, false);
         if (!safety.allowed) return { ...safety.result, effect: 'not_executed' };
         const before = safety.binding.observation;
-        const acted = await driver[args.action]({
-          tabId: args.tabId, ref: args.ref,
+        const driverAction = args.action === 'fill_editable' ? 'fillEditable' : args.action;
+        const acted = await driver[driverAction]({
+          tabId: args.tabId, ref: args.ref, editableId: args.editableId,
           ...(args.action === 'fill' ? { text: args.text } : {}),
+          ...(args.action === 'fill_editable' ? { text: args.text } : {}),
           ...(args.action === 'upload' ? {
             filePath: args.filePath, expectedSha256: safety.fileFacts?.sha256,
           } : {}),
@@ -190,6 +222,8 @@ export function makeBrowserObservationTool({
             observationId: before.observationId,
             refScope: structuredClone(before.refScope),
             ref: args.ref, refFact: structuredClone(safety.binding.refFact),
+            editableId: args.editableId,
+            editableFact: structuredClone(safety.binding.editableFact),
           },
           tab: after.tab, after: after.observation,
           navigation: {
@@ -218,9 +252,13 @@ export function makeBrowserObservationTool({
 
   async function actionSafety(args, context, includeAuthority) {
     if (!ACTION_KINDS.has(args.action)) return { allowed: true };
-    const binding = observationRegistry.resolve({
-      observationId: args.observationId, tabId: args.tabId, ref: args.ref,
-    });
+    const binding = args.action === 'fill_editable'
+      ? observationRegistry.resolveEditable({
+        observationId: args.observationId, tabId: args.tabId, editableId: args.editableId,
+      })
+      : observationRegistry.resolve({
+        observationId: args.observationId, tabId: args.tabId, ref: args.ref,
+      });
     if (!binding.ok) return { ...blocked(binding.state, binding), binding };
     if (!args.effect?.kind) return { ...blocked('effect_declaration_required'), binding };
     if (!effectTargetsCurrentPage(args.effect, binding.observation)) {
@@ -232,6 +270,9 @@ export function makeBrowserObservationTool({
     let elementFacts = {};
     let submitFacts = null;
     try {
+      if (args.action === 'fill_editable') {
+        elementFacts = { type: 'contenteditable', autocomplete: null };
+      } else
       if (args.action === 'submit') {
         submitFacts = await driver.submitFacts({ tabId: args.tabId, ref: args.ref, signal: context?.signal });
         elementFacts = submitFacts.element ?? {};
@@ -240,7 +281,20 @@ export function makeBrowserObservationTool({
       }
     }
     catch (error) { return { ...blocked('element_facts_unavailable', { reason: error?.message ?? String(error) }), binding }; }
-    if (args.action === 'fill') {
+    if (args.action === 'fill' || args.action === 'fill_editable') {
+      if (args.action === 'fill_editable' && binding.editableFact?.secretLike) {
+        return { ...blocked('secret_input_required'), binding };
+      }
+      if (args.action === 'fill_editable' && !args.editableId) {
+        return { ...blocked('editable_required'), binding };
+      }
+      if (args.action === 'fill_editable' && args.text == null) return { ...blocked('text_required'), binding };
+      if (args.action === 'fill_editable' && !['external_send', 'external_change'].includes(args.effect.kind)) {
+        return { ...blocked('effect_declaration_mismatch', { reason: 'external_send_required' }), binding };
+      }
+      if (args.action === 'fill_editable') {
+        // The observed editable identity replaces an accessibility ref for rich editors.
+      } else {
       if (!['textbox', 'searchbox', 'combobox'].includes(role)) {
         return { ...blocked('ref_not_text_input', { role }), binding };
       }
@@ -252,6 +306,7 @@ export function makeBrowserObservationTool({
         return { ...blocked('effect_declaration_mismatch', { reason: 'external_send_required' }), binding };
       }
       if (args.text == null) return { ...blocked('text_required'), binding };
+      }
     }
     if (args.action === 'click') {
       const submitLike = String(elementFacts.type ?? '').toLowerCase() === 'submit';

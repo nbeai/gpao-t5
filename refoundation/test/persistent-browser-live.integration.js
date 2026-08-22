@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import {
   DEFAULT_AGENT_BROWSER_BINARY, makeAgentBrowserDriver,
 } from '../src/agent-browser-driver.js';
+import { makeBrowserObservationTool } from '../src/browser-observation-tool.js';
 import {
   makePersistentBrowserHost, managedBrowserProcessForProfile,
 } from '../src/persistent-browser-host.js';
@@ -16,6 +17,15 @@ import {
 async function fixture() {
   const server = createServer((req, res) => {
     res.setHeader('content-type', 'text/html; charset=utf-8');
+    if (req.url === '/editor') {
+      res.end(`<!doctype html><meta charset="utf-8"><title>EDITOR</title>
+        <main>
+          <div class="post-title" contenteditable="true" data-placeholder="제목"></div>
+          <div class="post-body" contenteditable="true" data-placeholder="본문"></div>
+          <button type="button">발행</button>
+        </main>`);
+      return;
+    }
     if (req.url === '/login') {
       res.setHeader('set-cookie', 't5_login=kept; Path=/; Max-Age=86400; HttpOnly; SameSite=Lax');
       res.end('<h1>LOGIN SAVED</h1>');
@@ -196,6 +206,50 @@ test('이미 열린 T5 관리 브라우저는 다른 앱 뒤에 있어도 세 �
       '반복검사 뒤 관리 Chrome 프로세스가 남으면 안 된다');
   } finally {
     await browserHost.close().catch(() => {});
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('Browser Hand는 ref 없는 실제 contenteditable 제목·본문을 관측해 입력하고 재확인한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-browser-editable-live-'));
+  const site = await fixture();
+  const browserHost = host(room, `t5-editable-${process.pid}-${Date.now()}`);
+  const driver = makeAgentBrowserDriver({
+    ownerId: 'editor-conversation', clientInstanceId: 'editor-runtime',
+    outputDirectory: join(room, 'artifacts'), browserHost,
+  });
+  const tool = makeBrowserObservationTool({ driver, authorizeEffect: async () => ({ allowed: true }) });
+  const common = {
+    url: null, tabId: null, full: null, maxChars: 5000, fullPage: null,
+    observationId: null, ref: null, editableId: null, text: null, filePath: null, effect: null,
+  };
+  try {
+    const opened = await tool.execute({ ...common, action: 'navigate', url: `${site.base}/editor` });
+    const observed = await tool.execute({ ...common, action: 'editables', tabId: opened.tab.tabId });
+    assert.deepEqual(observed.editables.map((item) => item.kind), ['title', 'body']);
+    const declared = {
+      kind: 'external_send', summary: '웹 초안 입력', targets: [`${site.base}/editor`],
+      reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null,
+    };
+    const title = await tool.execute({
+      ...common, action: 'fill_editable', tabId: opened.tab.tabId,
+      observationId: observed.observation.observationId,
+      editableId: observed.editables[0].editableId, text: '티파이브 소개', effect: declared,
+    });
+    const bodyFact = title.after.editables.find((item) => item.kind === 'body');
+    const body = await tool.execute({
+      ...common, action: 'fill_editable', tabId: opened.tab.tabId,
+      observationId: title.after.observationId, editableId: bodyFact.editableId,
+      text: '사용자의 목적을 실제 결과로 이어주는 개인 조력자입니다.', effect: declared,
+    });
+    assert.equal(body.action.textChars, 31);
+    assert.equal(body.after.editables.find((item) => item.kind === 'title').textChars, 7);
+    assert.equal(body.after.editables.find((item) => item.kind === 'body').textChars, 31);
+    assert.match(body.after.text, /발행/u);
+  } finally {
+    await driver.close().catch(() => {});
+    await browserHost.close().catch(() => {});
+    await site.close();
     await rm(room, { recursive: true, force: true });
   }
 });

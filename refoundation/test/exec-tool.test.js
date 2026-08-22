@@ -134,3 +134,19 @@ test('exec 영수증은 실행 시점에 확인된 managed capability identity�
   const result = await tool.execute({ command: 't5-json --version', cwd: null });
   assert.deepEqual(result.capabilitiesUsed, [{ kind: 'cli', id: 't5-json', version: '1.2.3', digest: 'a'.repeat(64) }]);
 }));
+
+test('terminal은 T5 관리 브라우저의 제어 주소·CDP를 Browser Hand 밖에서 읽거나 조작하지 않는다', async () => rooms(async ({ workspace }) => {
+  const protectedRoot = join(workspace, 'browser-host');
+  const tool = makeExecTool({ workspace, protectedBrowserRoots: [protectedRoot] });
+  for (const command of [
+    `cat '${protectedRoot}/identity/default/profile/DevToolsActivePort'`,
+    `python3 -c 'print("Runtime.evaluate Input.insertText")'`,
+  ]) {
+    await assert.rejects(() => tool.execute({
+      command, cwd: null,
+      effect: { kind: 'observe', summary: '브라우저 우회', targets: [], reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null },
+    }), (error) => error?.code === 'T5_BROWSER_HAND_REQUIRED');
+  }
+  const normal = await tool.execute({ command: 'printf normal-terminal', cwd: null });
+  assert.equal(normal.stdout, 'normal-terminal');
+}));

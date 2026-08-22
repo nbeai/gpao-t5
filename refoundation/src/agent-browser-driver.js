@@ -26,6 +26,35 @@ const SECRET_FIELD_SELECTORS = [
 const SECRET_FIELD_SELECTOR = SECRET_FIELD_SELECTORS.join(', ');
 const VISIBLE_SECRET_FIELD_SELECTOR = SECRET_FIELD_SELECTORS
   .map((selector) => `${selector}:visible`).join(', ');
+const EDITABLE_DISCOVERY_SCRIPT = String.raw`JSON.stringify((() => {
+  const visible = (el) => {
+    const style = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+  const candidates = Array.from(document.querySelectorAll('[contenteditable="true"], [contenteditable="plaintext-only"]'))
+    .filter((el) => visible(el) && !el.parentElement?.closest('[contenteditable="true"], [contenteditable="plaintext-only"]'));
+  return candidates.slice(0, 20).map((el, index) => {
+    let editableId = el.getAttribute('data-t5-editable-id');
+    if (!editableId) {
+      editableId = 't5e-' + crypto.randomUUID();
+      el.setAttribute('data-t5-editable-id', editableId);
+    }
+    const classText = typeof el.className === 'string' ? el.className : '';
+    const placeholder = el.getAttribute('aria-label') || el.getAttribute('data-placeholder')
+      || el.getAttribute('placeholder') || el.querySelector('[data-placeholder]')?.getAttribute('data-placeholder') || '';
+    const identity = [placeholder, el.id, classText, el.parentElement?.className || ''].join(' ');
+    const kind = /title|subject|제목/i.test(identity) ? 'title'
+      : /body|content|text|본문/i.test(identity) ? 'body' : 'editor';
+    const label = String(placeholder || (kind === 'title' ? '제목' : kind === 'body' ? '본문' : '편집 영역 ' + (index + 1))).slice(0, 120);
+    const secretLike = /password|passwd|비밀번호|one.?time|otp|verification|인증번호|cc-number|card/i.test(identity);
+    return {
+      editableId, label, kind,
+      textChars: String(el.innerText || el.textContent || '').replace(/\r\n/g, '\n').length,
+      multiline: kind !== 'title', secretLike,
+    };
+  });
+})())`;
 
 export function sessionNameForOwner(ownerId) {
   const digest = createHash('sha256').update(String(ownerId ?? '')).digest('hex').slice(0, 20);
@@ -101,6 +130,22 @@ function countValue(value) {
   const count = Number(value?.count ?? value?.value ?? value?.result);
   if (!Number.isInteger(count) || count < 0) throw new Error('agent-browser returned an invalid element count');
   return count;
+}
+
+function editableRows(value) {
+  const raw = value?.result ?? value?.value ?? value;
+  let parsed = raw;
+  if (typeof raw === 'string') {
+    try { parsed = JSON.parse(raw); }
+    catch { throw new Error('agent-browser returned invalid editable facts'); }
+  }
+  if (!Array.isArray(parsed)) throw new Error('agent-browser returned invalid editable facts');
+  return parsed.map((item) => ({
+    editableId: String(item?.editableId ?? ''), label: String(item?.label ?? ''),
+    kind: ['title', 'body', 'editor'].includes(item?.kind) ? item.kind : 'editor',
+    textChars: Math.max(0, Number(item?.textChars ?? 0)), multiline: item?.multiline !== false,
+    secretLike: item?.secretLike === true,
+  })).filter((item) => /^[A-Za-z0-9_-]{1,100}$/u.test(item.editableId));
 }
 
 function localMimeType(path, bytes) {
@@ -460,6 +505,49 @@ export function makeAgentBrowserDriver({
     };
   }
 
+  async function inspectEditables({ tabId, signal } = {}) {
+    await selectTab(tabId, { signal });
+    return editableRows(await command(['eval', EDITABLE_DISCOVERY_SCRIPT], { signal }));
+  }
+
+  async function fillEditable({ tabId, editableId, text, signal } = {}) {
+    const id = String(editableId ?? '');
+    if (!/^[A-Za-z0-9_-]{1,100}$/u.test(id)) throw new TypeError('invalid editable id');
+    const value = String(text ?? '');
+    await selectTab(tabId, { signal });
+    const before = await inspectEditables({ tabId, signal });
+    const target = before.find((item) => item.editableId === id);
+    if (!target) throw new Error('editable target is no longer present');
+    if (target.secretLike) throw new Error('secret-like editable requires user control');
+    const selector = `[data-t5-editable-id="${id}"]`;
+    await clearNetwork({ signal });
+    try {
+      await command(['fill', selector, value], { signal });
+    } catch {
+      await command(['click', selector], { signal });
+      await command(['press', process.platform === 'darwin' ? 'Meta+A' : 'Control+A'], { signal });
+      await command(['keyboard', 'inserttext', value], { signal });
+    }
+    let editables = await inspectEditables({ tabId, signal });
+    let afterTarget = editables.find((item) => item.editableId === id);
+    const expectedChars = value.replace(/\r\n/g, '\n').length;
+    if (afterTarget?.textChars !== expectedChars) {
+      await command(['click', selector], { signal });
+      await command(['press', process.platform === 'darwin' ? 'Meta+A' : 'Control+A'], { signal });
+      await command(['keyboard', 'inserttext', value], { signal });
+      editables = await inspectEditables({ tabId, signal });
+      afterTarget = editables.find((item) => item.editableId === id);
+    }
+    if (afterTarget?.textChars !== expectedChars) throw new Error('editable text verification failed');
+    const observed = await takeSnapshot({ tabId, full: false, signal });
+    observed.snapshot.editables = editables;
+    const network = await networkFacts({ signal });
+    return {
+      action: { kind: 'fill_editable', editableId: id, textChars: expectedChars },
+      ...observed, network,
+    };
+  }
+
   async function act(kind, { tabId, ref, text, signal } = {}) {
     await selectTab(tabId, { signal });
     await clearNetwork({ signal });
@@ -677,8 +765,13 @@ export function makeAgentBrowserDriver({
       };
     },
     snapshot(options = {}) { return takeSnapshot(options); },
+    async editables({ tabId, signal } = {}) {
+      const editables = await inspectEditables({ tabId, signal });
+      return { tab: await currentTab({ signal }), editables };
+    },
     click(options = {}) { return act('click', options); },
     fill(options = {}) { return act('fill', options); },
+    fillEditable,
     submit(options = {}) { return act('submit', options); },
     async download({ tabId, ref, signal } = {}) {
       await mkdir(downloadDirectory, { recursive: true, mode: 0o700 });

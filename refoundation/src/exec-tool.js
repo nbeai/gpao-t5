@@ -70,6 +70,7 @@ function makeCommandTool(options = {}, { managed }) {
     capabilityAttribution,
     explainCommand,
     effectPreflight,
+    protectedBrowserRoots = [],
   } = options;
   const defaultDirectory = workingDirectory ?? workspace;
   if (!defaultDirectory || !isAbsolute(defaultDirectory)) throw new TypeError('absolute workingDirectory is required');
@@ -106,6 +107,15 @@ function makeCommandTool(options = {}, { managed }) {
     async execute(args = {}, context = {}) {
       const command = String(args.command ?? '').trim();
       if (!command) throw new TypeError('command is required');
+      const browserControlSignature = /DevToolsActivePort|\/devtools\/browser\/|Runtime\.evaluate|Input\.(?:insertText|dispatchMouseEvent)|Page\.bringToFront|--remote-debugging-port/iu;
+      const protectedRootMentioned = protectedBrowserRoots.some((root) => (
+        String(root ?? '').trim() && command.includes(String(root))
+      ));
+      if (protectedRootMentioned || browserControlSignature.test(command)) {
+        throw Object.assign(new Error('T5 managed browser control requires the Browser Hand'), {
+          code: 'T5_BROWSER_HAND_REQUIRED',
+        });
+      }
       const root = await realpath(defaultDirectory);
       const cwd = await resolveWorkingDirectory(root, args.cwd);
       let commandExplanation;

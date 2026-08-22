@@ -29,8 +29,15 @@ runtime 재생성 뒤 로그인을 유지했다. 대화 탭 결속은 runtime마
 macOS는 정확한 관리 프로필의 Chrome 앱을 세 번 연속 전면에 표시한 뒤 종료 잔여 `0`을 확인했다.
 Telegram은 첫 private sender 자동 결속, 콘솔 양방향, 서버 재시작,
 채택 전 실패 재시도, 채택 뒤 불명확 효과 비반복, 세 번 무진전 뒤 사용자용 재시작 상태까지 통과했다.
-새 코어 회귀는 `470/470`, legacy import는 `0`이다. 실제 Naver·Telegram 사용자 계정과 설치본 종단은
-자동 시험 금지 경계 때문에 아직 미확인이며, 이 증거 전에는 Gate를 `COMPLETE`로 올리지 않는다.
+당시 새 코어 회귀는 `470/470`, legacy import는 `0`이었다. 이후 실제 Naver 로그인·메일과 Telegram
+사용자 계정은 통과했으며, 새 Browser Hand의 Naver 편집기 반복과 설치본 종단 전에는 Gate를 `COMPLETE`로
+올리지 않는다.
+
+2026-08-22 실제 사용자 Naver 검증: 한 대화에서 로그인한 뒤 다른 대화의 메일함을 추가 로그인 없이
+실제 관측했다. 블로그 초안도 화면에는 생성됐지만 Browser Hand 실패 뒤 terminal이 관리 Chrome CDP를 직접
+조작해 `2분 29초·모델 21회·도구 20회·866,015 tokens`가 들었으므로 성공 경로로 폐기했다. 공통
+`editables → fill_editable → 재관측` 손과 terminal CDP 차단을 추가한 실제 OAuth·격리 편집기 재검증은
+`32초·모델 7회·도구 6회·49,579 tokens·실패 0·exec 0`으로 통과했다. 전체 회귀는 `472/472`다.
 
 사용자 완료 문장:
 

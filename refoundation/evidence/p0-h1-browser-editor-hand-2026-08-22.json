@@ -1,0 +1,64 @@
+{
+  "schema": "t5.p0-h1.browser-editor-hand.v1",
+  "recordedAt": "2026-08-22T05:41:02Z",
+  "baseCommit": "533482c38d9d433193f8e527f59fe8e68344c8e4",
+  "actualUserFinding": {
+    "naverLoginSharedAcrossConversations": true,
+    "mailObservedInSecondConversation": true,
+    "blogDraftVisible": true,
+    "published": false,
+    "originalDraftPathAccepted": false,
+    "reason": "browser click failed and the model controlled the managed Chrome CDP through terminal"
+  },
+  "before": {
+    "wallMs": 148771,
+    "modelCalls": 21,
+    "providerTokens": 866015,
+    "toolCalls": 20,
+    "failedToolCalls": 2,
+    "terminalCalls": 9,
+    "rawCdpMethods": [
+      "Runtime.evaluate",
+      "Page.bringToFront",
+      "Input.dispatchMouseEvent",
+      "Input.insertText"
+    ]
+  },
+  "change": {
+    "genericNotNaverSpecific": true,
+    "browserActions": ["editables", "fill_editable"],
+    "editableBinding": "observationId + tabId + editableId",
+    "postInputVerification": "same editable textChars and page snapshot",
+    "publishingRemainsSeparate": true,
+    "terminalManagedBrowserControlBlocked": true
+  },
+  "actualModelLoopback": {
+    "model": "gpt-5.5",
+    "runId": "f9505af0-f2e6-41d9-a085-40e103e787eb",
+    "wallMs": 31970,
+    "modelCalls": 7,
+    "providerTokens": 49579,
+    "toolCalls": 6,
+    "failedToolCalls": 0,
+    "terminalCalls": 0,
+    "fillEditableCalls": 2,
+    "path": ["tool_search", "navigate", "editables", "fill_editable", "fill_editable", "snapshot"],
+    "published": false,
+    "passed": true
+  },
+  "regression": {
+    "liveBrowserTests": { "passed": 4, "failed": 0 },
+    "refoundationCheck": { "passed": 472, "failed": 0 },
+    "legacyImports": 0
+  },
+  "automationCleanup": {
+    "jobId": "f7510872-5815-4833-a6ba-a6a94e093285",
+    "state": "cancelled",
+    "nextRunAt": null,
+    "runs": 0
+  },
+  "remainingHumanProof": [
+    "repeat one Naver rich-editor draft with the new Browser Hand in the development console",
+    "installed-package repetition after the development-console proof"
+  ]
+}

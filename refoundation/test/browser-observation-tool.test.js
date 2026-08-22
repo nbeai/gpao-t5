@@ -37,6 +37,16 @@ function fixtureDriver() {
         snapshot: { text: '- link "More" [ref=e2]', refs: { e2: { role: 'link', name: 'More' } }, totalChars: 22, truncated: false },
       };
     },
+    async editables(options) {
+      calls.push(['editables', options]);
+      return {
+        tab: { tabId: 't1', targetId: 'target-1', title: 'Editor', url: 'https://example.com/editor' },
+        editables: [
+          { editableId: 'title-field', label: '제목', kind: 'title', textChars: 0, multiline: false },
+          { editableId: 'body-field', label: '본문', kind: 'body', textChars: 0, multiline: true },
+        ],
+      };
+    },
     async screenshot(options) {
       calls.push(['screenshot', options]);
       return {
@@ -75,6 +85,21 @@ function fixtureDriver() {
         tab: { tabId: 't1', targetId: 'target-1', title: 'Search', url: 'https://example.com/' },
         snapshot: { text: '- textbox "검색" [ref=e4]: coffee', refs: { e4: { role: 'textbox', name: '검색' } }, totalChars: 38, truncated: false },
         network: { totalRequests: 1, truncated: false, requests: [{ method: 'GET', address: 'https://example.com/suggest', queryOmitted: true, resourceType: 'Fetch', status: 200 }] },
+      };
+    },
+    async fillEditable(options) {
+      calls.push(['fillEditable', options]);
+      return {
+        action: { kind: 'fill_editable', editableId: options.editableId, textChars: options.text.length },
+        tab: { tabId: 't1', targetId: 'target-1', title: 'Editor', url: 'https://example.com/editor' },
+        snapshot: {
+          text: '- button "발행" [ref=e9]', refs: { e9: { role: 'button', name: '발행' } },
+          totalChars: 23, truncated: false,
+          editables: [
+            { editableId: options.editableId, label: '제목', kind: 'title', textChars: options.text.length, multiline: false },
+          ],
+        },
+        network: { totalRequests: 0, truncated: false, requests: [] },
       };
     },
     async submit(options) {
@@ -118,12 +143,41 @@ test('browser W5 schema는 download·upload를 열고 credential·cookie 기능�
   const tool = makeBrowserObservationTool({ driver: fixtureDriver() });
   assert.equal(tool.name, 'browser');
   assert.deepEqual(tool.parameters.properties.action.enum, [
-    'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'submit',
+    'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'editables', 'screenshot', 'click', 'fill', 'fill_editable', 'submit',
     'login_start', 'login_status', 'login_cancel', 'download', 'upload',
   ]);
   assert.ok(tool.parameters.required.includes('filePath'));
+  assert.ok(tool.parameters.required.includes('editableId'));
   const forbidden = ['type', 'press', 'evaluate', 'password', 'otp', 'cookies', 'storage'];
   assert.deepEqual(Object.keys(tool.parameters.properties).filter((key) => forbidden.includes(key)), []);
+});
+
+test('contenteditable 편집기는 관측된 영역 ID에만 입력하고 같은 화면에서 글자 수를 재확인한다', async () => {
+  const driver = fixtureDriver();
+  const registry = makeBrowserObservationRegistry();
+  const tool = makeBrowserObservationTool({
+    driver, observationRegistry: registry, authorizeEffect: async () => ({ allowed: true }),
+  });
+  const observed = await tool.execute({
+    action: 'editables', url: null, tabId: 't1', full: null, maxChars: null, fullPage: null,
+    observationId: null, ref: null, editableId: null, text: null, filePath: null, effect: null,
+  });
+  assert.equal(observed.editables.length, 2);
+  assert.equal(observed.editables[0].label, '제목');
+  const base = {
+    action: 'fill_editable', url: null, tabId: 't1', full: null, maxChars: 5000, fullPage: null,
+    observationId: observed.observation.observationId, ref: null, editableId: 'title-field',
+    text: '티파이브 소개', filePath: null,
+  };
+  const editorEffect = effect('external_send', { targets: ['https://example.com/editor'] });
+  const stale = await tool.preflight({ ...base, editableId: 'unknown', effect: editorEffect });
+  assert.equal(stale.result.state, 'editable_not_observed');
+  assert.deepEqual(await tool.preflight({ ...base, effect: editorEffect }), { allowed: true });
+  const result = await tool.execute({ ...base, effect: editorEffect });
+  assert.equal(result.action.kind, 'fill_editable');
+  assert.equal(result.action.textChars, 7);
+  assert.equal(result.after.editables[0].textChars, 7);
+  assert.equal(driver.calls.some((call) => call[0] === 'fillEditable'), true);
 });
 
 test('login handoff 중에는 page content와 action을 모델에 열지 않고 완료 후보 뒤 새 observation만 연다', async () => {

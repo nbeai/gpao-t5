@@ -32,5 +32,21 @@ export function makeBrowserObservationRegistry({ maxTabs = 20 } = {}) {
     return { ok: true, observation: structuredClone(latest), refFact: structuredClone(latest.refs[requestedRef]) };
   }
 
-  return { remember, resolve, size: () => latestByTab.size };
+  function resolveEditable({ observationId, tabId, editableId }) {
+    const requestedId = String(observationId ?? '');
+    const requestedTab = String(tabId ?? '');
+    const requestedEditable = String(editableId ?? '');
+    const latest = latestByTab.get(requestedTab);
+    if (!latest) return { ok: false, state: 'observation_unknown' };
+    if (latest.observationId !== requestedId) {
+      return { ok: false, state: 'stale_observation', latestObservationId: latest.observationId };
+    }
+    const editableFact = (latest.editables ?? []).find((item) => item.editableId === requestedEditable);
+    if (!editableFact) return { ok: false, state: 'editable_not_observed' };
+    return {
+      ok: true, observation: structuredClone(latest), editableFact: structuredClone(editableFact),
+    };
+  }
+
+  return { remember, resolve, resolveEditable, size: () => latestByTab.size };
 }
