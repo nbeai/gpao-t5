@@ -24,8 +24,10 @@ legacy T5                 refoundation T5
 상태: `IN PROGRESS` — 0.1.2 추가 배포 중지. 패키지·모델·단위 검사를 통과했지만 실제 사용자가 시작한
 네이버 로그인·블로그 흐름과 Telegram 첫 연결·양방향 흐름이 실패했으므로 배포 적격 판정을 철회한다.
 
-2026-08-22 구현 검증: 제품의 대화별 managed browser profile은 실제 브라우저·루프백 로그인에서 runtime
-재생성 뒤 같은 대화의 로그인을 유지했다. Telegram은 첫 private sender 자동 결속, 콘솔 양방향, 서버 재시작,
+2026-08-22 구현 검증: 제품의 한 managed browser identity는 실제 브라우저·루프백 로그인에서 대화 전환과
+runtime 재생성 뒤 로그인을 유지했다. 대화 탭 결속은 runtime마다 새로 만들어 stale target을 상속하지 않고,
+macOS는 정확한 관리 프로필의 Chrome 앱을 세 번 연속 전면에 표시한 뒤 종료 잔여 `0`을 확인했다.
+Telegram은 첫 private sender 자동 결속, 콘솔 양방향, 서버 재시작,
 채택 전 실패 재시도, 채택 뒤 불명확 효과 비반복, 세 번 무진전 뒤 사용자용 재시작 상태까지 통과했다.
 새 코어 회귀는 `470/470`, legacy import는 `0`이다. 실제 Naver·Telegram 사용자 계정과 설치본 종단은
 자동 시험 금지 경계 때문에 아직 미확인이며, 이 증거 전에는 Gate를 `COMPLETE`로 올리지 않는다.
@@ -48,9 +50,10 @@ legacy T5                 refoundation T5
 
 이번 Gate의 최소 변경:
 
-- 0.1.1 패키지 실물의 대화별 managed profile·visible login handoff를 제품 경로로 복원
-- 로그인 요청 때 눈앞에 T5 브라우저를 한 번 열고, 사용자가 그 창에서 로그인한 뒤 같은 profile을 재관측
-- 공용 persistent browser host와 사용자 Chrome remote-debugging·MCP 연결을 제품 경로에서 제거
+- 로그인 신분은 하나의 T5 관리 프로필로 공유하되 대화별 탭·ref·관측은 서로 격리
+- 로그인 요청 때 정확한 T5 관리 Chrome 앱을 전면에 한 번 표시하고, 추가 인증이 남아도 같은 창을 다시 표시
+- runtime마다 새 client session을 사용해 이전 process의 stale pinned target을 상속하지 않음
+- 사용자 Chrome remote-debugging·MCP 연결을 제품 경로에서 열지 않음
 - 브라우저의 cookie·local storage·비밀번호를 모델·도구 결과에 노출하지 않음
 - 내부 agent-browser binary를 terminal PATH에서 제거하고 모델의 raw browser CLI 우회 금지
 - Telegram 상태를 bot 연결·내 첫 메시지 대기·개인 대화 가능·polling 실패로 분리

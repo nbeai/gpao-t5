@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmod, lstat, mkdir, rm } from 'node:fs/promises';
+import { chmod, lstat, mkdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -37,33 +37,132 @@ function jsonData(result, action) {
 
 function macCommand(file, args) {
   return new Promise((resolveResult) => {
-    execFile(file, args, { encoding: 'utf8', timeout: 8_000 }, (error, stdout) => {
+    execFile(file, args, { encoding: 'utf8', timeout: 8_000, maxBuffer: 8 * 1024 * 1024 }, (error, stdout) => {
       resolveResult({ ok: !error, stdout: String(stdout ?? '').trim() });
     });
   });
 }
 
-async function macFrontApplicationName() {
+export async function managedBrowserProcessForProfile(profileDirectory) {
+  const listed = await macCommand('/bin/ps', ['-axo', 'pid=,command=']);
+  if (!listed.ok) return null;
+  const marker = `--user-data-dir=${profileDirectory}`;
+  for (const line of listed.stdout.split('\n')) {
+    if (!line.includes(marker) || line.includes(' --type=')) continue;
+    const match = /^\s*(\d+)\s+(.+)$/u.exec(line);
+    if (!match) continue;
+    const application = match[2].includes('Google Chrome') ? 'Google Chrome'
+      : match[2].includes('Chromium') ? 'Chromium'
+        : match[2].includes('Brave Browser') ? 'Brave Browser' : 'T5 Browser';
+    return { processId: Number(match[1]), application };
+  }
+  return null;
+}
+
+async function macFrontApplicationPid() {
   const front = await macCommand('/usr/bin/lsappinfo', ['front']);
   const asn = /ASN:[^\s]+/u.exec(front.stdout)?.[0];
   if (!front.ok || !asn) return null;
-  const info = await macCommand('/usr/bin/lsappinfo', ['info', '-only', 'name', asn]);
-  return /"LSDisplayName"="([^"]+)"/u.exec(info.stdout)?.[1] ?? null;
+  const info = await macCommand('/usr/bin/lsappinfo', ['info', '-only', 'pid', asn]);
+  const value = /"pid"=(\d+)/u.exec(info.stdout)?.[1] ?? /pid=(\d+)/u.exec(info.stdout)?.[1];
+  return value ? Number(value) : null;
 }
 
-async function macActivateWindow() {
-  for (const application of ['Google Chrome for Testing', 'Google Chrome', 'Brave Browser', 'Chromium']) {
-    const opened = await macCommand('/usr/bin/open', ['-a', application]);
-    if (!opened.ok) continue;
-    await new Promise((resolveWait) => setTimeout(resolveWait, 180));
-    const front = await macFrontApplicationName();
-    if (front === application) return { visible: true, application };
+async function macActivateWindow({ profileDirectory } = {}) {
+  let managed = null;
+  for (let attempt = 0; attempt < 40 && !managed; attempt += 1) {
+    managed = await managedBrowserProcessForProfile(profileDirectory);
+    if (!managed) await new Promise((resolveWait) => setTimeout(resolveWait, 50));
   }
-  return { visible: false, application: null };
+  if (!managed) return { visible: false, application: null, processId: null };
+  const script = `tell application "System Events" to set frontmost of first process whose unix id is ${managed.processId} to true`;
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const activated = await macCommand('/usr/bin/osascript', ['-e', script]);
+    if (activated.ok) {
+      await new Promise((resolveWait) => setTimeout(resolveWait, 60));
+      if (await macFrontApplicationPid() === managed.processId) return { visible: true, ...managed };
+    } else await new Promise((resolveWait) => setTimeout(resolveWait, 50));
+  }
+  return { visible: false, ...managed };
 }
 
-async function defaultActivateWindow() {
-  if (process.platform === 'darwin') return macActivateWindow();
+async function macManagedChromeConnection(profileDirectory) {
+  const activePortFile = join(profileDirectory, 'DevToolsActivePort');
+  const existing = await managedBrowserProcessForProfile(profileDirectory);
+  if (!existing) {
+    await rm(activePortFile, { force: true });
+    const launched = await macCommand('/usr/bin/open', [
+      '-n', '-a', 'Google Chrome', '--args',
+      '--remote-debugging-port=0', '--no-first-run', '--no-default-browser-check',
+      '--disable-background-networking', '--disable-component-update', '--disable-default-apps',
+      '--disable-popup-blocking', '--disable-prompt-on-repost', '--disable-sync',
+      '--disable-features=Translate', '--password-store=basic', '--use-mock-keychain',
+      `--user-data-dir=${profileDirectory}`,
+    ]);
+    if (!launched.ok) throw new Error('T5 managed Chrome could not be opened');
+  }
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    try {
+      const [portLine, pathLine] = (await readFile(activePortFile, 'utf8')).trim().split(/\r?\n/u);
+      const port = Number(portLine);
+      if (Number.isInteger(port) && port > 0 && /^\/devtools\/browser\/[A-Za-z0-9-]+$/u.test(pathLine)) {
+        return { cdpUrl: `ws://127.0.0.1:${port}${pathLine}` };
+      }
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+    }
+    await new Promise((resolveWait) => setTimeout(resolveWait, 50));
+  }
+  throw new Error('T5 managed Chrome did not publish its local control address');
+}
+
+async function closeManagedChrome(cdpUrl, profileDirectory) {
+  const managed = await managedBrowserProcessForProfile(profileDirectory);
+  await new Promise((resolveClose) => {
+    const socket = new WebSocket(cdpUrl);
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true; clearTimeout(timer);
+      try { socket.close(); } catch { /* browser already closed */ }
+      resolveClose();
+    };
+    const timer = setTimeout(finish, 2_000);
+    timer.unref?.();
+    socket.addEventListener('open', () => {
+      socket.send(JSON.stringify({ id: 1, method: 'Browser.close' }));
+    }, { once: true });
+    socket.addEventListener('message', finish, { once: true });
+    socket.addEventListener('close', finish, { once: true });
+    socket.addEventListener('error', finish, { once: true });
+  });
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (!await managedBrowserProcessForProfile(profileDirectory)) return;
+    await new Promise((resolveWait) => setTimeout(resolveWait, 50));
+  }
+  if (managed?.processId) {
+    try { process.kill(managed.processId, 'SIGTERM'); } catch (error) {
+      if (error?.code !== 'ESRCH') throw error;
+    }
+  }
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (!await managedBrowserProcessForProfile(profileDirectory)) return;
+    await new Promise((resolveWait) => setTimeout(resolveWait, 50));
+  }
+  if (managed?.processId) {
+    try { process.kill(managed.processId, 'SIGKILL'); } catch (error) {
+      if (error?.code !== 'ESRCH') throw error;
+    }
+  }
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (!await managedBrowserProcessForProfile(profileDirectory)) return;
+    await new Promise((resolveWait) => setTimeout(resolveWait, 50));
+  }
+  throw new Error('T5 managed Chrome did not finish closing');
+}
+
+async function defaultActivateWindow(input) {
+  if (process.platform === 'darwin') return macActivateWindow(input);
   return { visible: false, application: null };
 }
 
@@ -85,6 +184,7 @@ export function makePersistentBrowserHost({
     AGENT_BROWSER_AUTOSAVE_INTERVAL_MS: DEFAULT_AUTOSAVE_MS,
   };
   const execute = run ?? ((args, options) => execFileResult(binary, args, options));
+  const usesManagedMacLaunch = run == null && process.platform === 'darwin';
   let cdpUrl = null;
   let queue = Promise.resolve();
 
@@ -137,6 +237,11 @@ export function makePersistentBrowserHost({
 
   async function connect({ signal } = {}) {
     await prepare();
+    if (usesManagedMacLaunch) {
+      const connected = await macManagedChromeConnection(profileDirectory);
+      cdpUrl = connected.cdpUrl;
+      return connected;
+    }
     const result = await execute([...commonArgs(), 'get', 'cdp-url'], { signal, environment });
     const data = jsonData(result, 'get cdp-url');
     if (!/^wss?:\/\/127\.0\.0\.1:\d+\/devtools\/browser\//u.test(String(data.cdpUrl ?? ''))) {
@@ -160,19 +265,25 @@ export function makePersistentBrowserHost({
     async activate() {
       await this.connection();
       try {
-        const result = await activateWindow();
+        const result = await activateWindow({ profileDirectory });
         return {
           visible: result?.visible === true,
           application: result?.application ? String(result.application) : null,
+          processId: Number.isInteger(result?.processId) ? result.processId : null,
         };
       } catch {
-        return { visible: false, application: null };
+        return { visible: false, application: null, processId: null };
       }
     },
     async close({ signal } = {}) {
       if (!cdpUrl) return { closed: false };
       return serialize(async () => {
         await prepare();
+        if (usesManagedMacLaunch) {
+          await closeManagedChrome(cdpUrl, profileDirectory);
+          cdpUrl = null;
+          return { closed: true };
+        }
         const result = await execute([...commonArgs(), 'close'], { signal, environment });
         jsonData(result, 'close');
         cdpUrl = null;

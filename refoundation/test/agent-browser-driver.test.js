@@ -99,6 +99,10 @@ test('공용 브라우저 로그인은 실제 창을 앞으로 가져오고 완�
   assert.equal(started.handoff.visible, true);
   assert.equal(started.handoff.canReveal, true);
   assert.equal(activations, 1);
+  const stillWaiting = await driver.loginStatus({ tabId: 't1' });
+  assert.equal(stillWaiting.state, 'user_action_required');
+  assert.equal(stillWaiting.handoff.visible, true);
+  assert.equal(activations, 2, '추가 인증이 남으면 같은 관리 창을 다시 앞으로 가져온다');
   visibleSecretFields = 0;
   const completed = await driver.loginStatus({ tabId: 't1' });
   assert.equal(completed.state, 'handoff_complete_candidate');

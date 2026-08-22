@@ -40,10 +40,15 @@ test('로그인 창 활성화 결과는 실제 platform activator 성공 여부�
   const host = makePersistentBrowserHost({
     root: '/private/tmp/t5-browser-host-activate',
     run: async () => ({ exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"cdpUrl":"ws://127.0.0.1:9222/devtools/browser/t5"}}' }),
-    activateWindow: async () => { seen.push('activate'); return { visible: true, application: 'T5 Browser' }; },
+    activateWindow: async (input) => {
+      seen.push(input);
+      return { visible: true, application: 'Google Chrome', processId: 7391 };
+    },
   });
-  assert.deepEqual(await host.activate(), { visible: true, application: 'T5 Browser' });
-  assert.deepEqual(seen, ['activate']);
+  assert.deepEqual(await host.activate(), {
+    visible: true, application: 'Google Chrome', processId: 7391,
+  });
+  assert.deepEqual(seen, [{ profileDirectory: host.profileDirectory }]);
 });
 
 test('T5 브라우저 로그인 초기화는 정확한 확인 뒤에만 지속 프로필을 지운다', async () => {

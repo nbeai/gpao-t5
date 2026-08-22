@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { createServer } from 'node:http';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -8,7 +9,9 @@ import { join } from 'node:path';
 import {
   DEFAULT_AGENT_BROWSER_BINARY, makeAgentBrowserDriver,
 } from '../src/agent-browser-driver.js';
-import { makePersistentBrowserHost } from '../src/persistent-browser-host.js';
+import {
+  makePersistentBrowserHost, managedBrowserProcessForProfile,
+} from '../src/persistent-browser-host.js';
 
 async function fixture() {
   const server = createServer((req, res) => {
@@ -53,6 +56,12 @@ async function crashBrowser(cdpUrl) {
     }, { once: true });
     socket.addEventListener('close', () => finish(resolve), { once: true });
     socket.addEventListener('error', (error) => finish(commanded ? resolve : reject, error), { once: true });
+  });
+}
+
+async function openApplication(name) {
+  await new Promise((resolveOpen, reject) => {
+    execFile('/usr/bin/open', ['-a', name], (error) => (error ? reject(error) : resolveOpen()));
   });
 }
 
@@ -118,32 +127,75 @@ test('한 번 만든 로그인은 다른 T5 대화와 브라우저 호스트 재
   }
 });
 
-test('제품의 대화별 managed profile은 T5 runtime을 닫고 같은 대화를 다시 열어도 로그인을 유지한다', async () => {
-  const room = await mkdtemp(join(tmpdir(), 't5-conversation-browser-restart-live-'));
+test('제품의 공유 managed profile은 대화를 바꾸고 T5 runtime을 다시 열어도 로그인을 유지한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-shared-browser-restart-live-'));
   const site = await fixture();
-  const outputDirectory = join(room, 'browser', 'artifacts');
+  const namespace = `t5-product-shared-${process.pid}-${Date.now()}`;
+  let firstHost = host(room, namespace);
+  let secondHost = null;
   let first = null;
-  let restored = null;
   let other = null;
+  let restored = null;
   try {
-    first = makeAgentBrowserDriver({ ownerId: 'same-conversation', outputDirectory });
+    first = makeAgentBrowserDriver({
+      ownerId: 'conversation-a', clientInstanceId: 'runtime-one',
+      outputDirectory: join(room, 'a', 'artifacts'), browserHost: firstHost,
+    });
     assert.match((await first.navigate(`${site.base}/login`)).snapshot.text, /LOGIN SAVED/u);
-    await first.close();
 
-    restored = makeAgentBrowserDriver({ ownerId: 'same-conversation', outputDirectory });
+    other = makeAgentBrowserDriver({
+      ownerId: 'conversation-b', clientInstanceId: 'runtime-one',
+      outputDirectory: join(room, 'b', 'artifacts'), browserHost: firstHost,
+    });
+    assert.match((await other.navigate(`${site.base}/check`)).snapshot.text, /AUTHENTICATED/u);
+    await other.close();
+    await first.close();
+    await firstHost.close();
+
+    secondHost = host(room, namespace);
+    restored = makeAgentBrowserDriver({
+      ownerId: 'conversation-a', clientInstanceId: 'runtime-two',
+      outputDirectory: join(room, 'restored', 'artifacts'), browserHost: secondHost,
+    });
     const afterRestart = await restored.navigate(`${site.base}/check`);
     assert.match(afterRestart.snapshot.text, /AUTHENTICATED/u);
     assert.doesNotMatch(afterRestart.snapshot.text, /LOGIN REQUIRED/u);
-
-    other = makeAgentBrowserDriver({
-      ownerId: 'other-conversation', outputDirectory: join(room, 'other', 'artifacts'),
-    });
-    assert.match((await other.navigate(`${site.base}/check`)).snapshot.text, /LOGIN REQUIRED/u);
   } finally {
-    await other?.close().catch(() => {});
     await restored?.close().catch(() => {});
+    await other?.close().catch(() => {});
     await first?.close().catch(() => {});
+    await secondHost?.close().catch(() => {});
+    await firstHost?.close().catch(() => {});
     await site.close();
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('이미 열린 T5 관리 브라우저는 다른 앱 뒤에 있어도 세 번 연속 정확한 창을 앞으로 가져온다', {
+  skip: process.platform !== 'darwin',
+}, async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-browser-activation-live-'));
+  const browserHost = makePersistentBrowserHost({
+    root: room, namespace: `t5-activation-${process.pid}-${Date.now()}`,
+    binary: DEFAULT_AGENT_BROWSER_BINARY,
+  });
+  try {
+    await browserHost.connection();
+    let processId = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await openApplication('Finder');
+      const activation = await browserHost.activate();
+      assert.equal(activation.visible, true, `activation ${attempt + 1} must become visible`);
+      assert.equal(activation.application, 'Google Chrome');
+      assert.ok(Number.isInteger(activation.processId));
+      processId ??= activation.processId;
+      assert.equal(activation.processId, processId, '같은 관리 브라우저 창을 다시 앞으로 가져와야 한다');
+    }
+    await browserHost.close();
+    assert.equal(await managedBrowserProcessForProfile(browserHost.profileDirectory), null,
+      '반복검사 뒤 관리 Chrome 프로세스가 남으면 안 된다');
+  } finally {
+    await browserHost.close().catch(() => {});
     await rm(room, { recursive: true, force: true });
   }
 });

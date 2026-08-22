@@ -16,9 +16,12 @@ test('로그인 handoff는 눈앞의 T5 브라우저에서 사용자가 직접 �
   assert.doesNotMatch(html, /T5 브라우저 로그인 모두 지우기/u);
 });
 
-test('제품 진입점은 0.1.1의 대화별 visible T5 브라우저를 사용하고 공용 host·원격 연결을 열지 않는다', async () => {
+test('제품 진입점은 하나의 T5 로그인 신분과 런타임별 대화 탭을 사용하고 사용자 Chrome 원격 연결을 열지 않는다', async () => {
   const source = await readFile(resolve(root, 'refoundation/scripts/start-console.mjs'), 'utf8');
   assert.match(source, /makeAgentBrowserDriver/u);
+  assert.match(source, /makePersistentBrowserHost/u);
+  assert.match(source, /browserHost/u);
+  assert.match(source, /clientInstanceId/u);
   assert.match(source, /sessionNameForOwner/u);
-  assert.doesNotMatch(source, /makePersistentBrowserHost|makeUserChrome|chrome-devtools-mcp/u);
+  assert.doesNotMatch(source, /makeUserChrome|chrome-devtools-mcp/u);
 });

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -12,7 +13,10 @@ import { makeDuckDuckGoSearchProvider } from '../src/duckduckgo-search-provider.
 import { makeBingSearchProvider } from '../src/bing-search-provider.js';
 import { makeNaverSearchProvider } from '../src/naver-search-provider.js';
 import { naverReadableUrlResolver } from '../src/naver-readable-url.js';
-import { makeAgentBrowserDriver, sessionNameForOwner } from '../src/agent-browser-driver.js';
+import {
+  DEFAULT_AGENT_BROWSER_BINARY, makeAgentBrowserDriver, sessionNameForOwner,
+} from '../src/agent-browser-driver.js';
+import { makePersistentBrowserHost } from '../src/persistent-browser-host.js';
 import { makeConsoleServer } from '../src/console-server.js';
 import { resolveConsoleWorkspace } from '../src/console-config.js';
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
@@ -105,6 +109,10 @@ const linearConnection = makeRemoteMcpConnection({
   id: 'linear', label: 'Linear', serverUrl: 'https://mcp.linear.app/mcp',
   resource: 'https://mcp.linear.app/mcp', secretStore: platformSecretStore,
 });
+const browserClientInstanceId = randomUUID();
+const browserHost = makePersistentBrowserHost({
+  root: join(stateDir, 'browser-host'), binary: DEFAULT_AGENT_BROWSER_BINARY,
+});
 const server = makeConsoleServer({
   stateDir,
   workspace,
@@ -117,7 +125,9 @@ const server = makeConsoleServer({
   videoTextFetchImpl: globalThis.fetch,
   browserDriverFactory: (sessionId) => makeAgentBrowserDriver({
     ownerId: sessionId,
+    clientInstanceId: browserClientInstanceId,
     outputDirectory: join(stateDir, 'browser', sessionNameForOwner(sessionId), 'artifacts'),
+    browserHost,
   }),
   workspaceConnectionInspectors: workspaceConnectionBaselineInspectors({
     userHome: computerEnvironment.userHome,
@@ -176,6 +186,7 @@ const stop = async () => {
     boundedShutdown(() => server.closeAutomations()),
     boundedShutdown(() => server.managedProcesses.stopAll('runtime_shutdown')),
   ]);
+  await boundedShutdown(() => browserHost.close());
   await boundedShutdown(() => new Promise((resolveClose) => {
     server.close(resolveClose);
     server.closeIdleConnections?.();

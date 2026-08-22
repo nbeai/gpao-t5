@@ -1,26 +1,40 @@
 {
-  "schema": "t5.p0-h1.browser-telegram-recovery.v1",
-  "recordedAt": "2026-08-22T03:57:32Z",
-  "baseCommit": "bb391d4a0dffc0e53b12bf28f9ea40636c297584",
+  "schema": "t5.p0-h1.browser-telegram-recovery.v2",
+  "recordedAt": "2026-08-22T05:14:50Z",
+  "baseCommit": "3a43da7569f81a55b38d405a5bb3ad3dd1f2007e",
   "releaseBuilt": false,
   "actualUserAccountAutomation": false,
   "browser": {
-    "productPath": "conversation-scoped managed profile",
+    "productPath": "one managed login identity with runtime-scoped conversation tab bindings",
     "userChromeRemoteDebugging": false,
     "rawBrowserCliInTerminalPath": false,
     "liveLoopback": {
-      "tests": 2,
-      "passed": 2,
+      "tests": 3,
+      "passed": 3,
       "proved": [
-        "login state survives product driver close and recreation for the same conversation",
-        "another conversation does not inherit that login",
-        "shared-host comparison state survives host recreation and browser crash"
+        "login state is shared across conversations without sharing their tab refs or observations",
+        "login state survives browser host and console runtime recreation",
+        "a browser crash does not reattach the next runtime to a stale pinned target",
+        "the exact managed Chrome app comes to the front three consecutive times",
+        "managed Chrome process count returns to zero after the repeated test"
       ]
+    },
+    "actualConsole": {
+      "naturalLanguageLoginRequests": 3,
+      "visibleHandoffs": 3,
+      "separateConversations": 2,
+      "runtimeRestart": true,
+      "duplicateTestWindowsRemoved": 2,
+      "duplicateTabsRemoved": 5,
+      "finalManagedChromeInstancesBeforeShutdown": 1,
+      "finalLoginTabsBeforeShutdown": 1,
+      "naverAccountCompletion": "additional_security_check_not_completed"
     }
   },
   "telegram": {
     "focusedTests": 23,
     "focusedPassed": 23,
+    "actualUserAssisted": true,
     "proved": [
       "token validation without secret disclosure",
       "first private numeric sender auto-binds as owner and first message is processed",
@@ -49,7 +63,6 @@
     "state": "IN_PROGRESS",
     "remainingHumanProof": [
       "actual Naver login then blog or mail observation in the visible T5 browser",
-      "actual Telegram token then first DM, console reply, and app restart on a tester account",
       "installed-package repetition of both journeys"
     ],
     "reason": "The repository contract forbids automated tests against real home, accounts, or credentials. Loopback proof cannot be promoted to human account proof."

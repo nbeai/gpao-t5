@@ -204,6 +204,7 @@ export async function secureBrowserStatePermissions(root) {
 
 export function makeAgentBrowserDriver({
   ownerId,
+  clientInstanceId = null,
   outputDirectory,
   browserHost = null,
   binary = DEFAULT_AGENT_BROWSER_BINARY,
@@ -216,7 +217,11 @@ export function makeAgentBrowserDriver({
 } = {}) {
   if (!ownerId) throw new TypeError('browser ownerId is required');
   if (!outputDirectory) throw new TypeError('browser output directory is required');
-  const session = sessionNameForOwner(ownerId);
+  // A shared browser can outlive the console process. Its login identity is stable, but an
+  // agent-browser client session pins a concrete tab target. Scope that client binding to this
+  // runtime so a restarted console never adopts a stale target from the previous process.
+  const session = sessionNameForOwner(clientInstanceId == null
+    ? ownerId : `${String(clientInstanceId)}:${String(ownerId)}`);
   const sessionRoot = dirname(resolve(outputDirectory));
   const profileDirectory = join(sessionRoot, 'profile');
   const downloadDirectory = join(sessionRoot, 'downloads');
@@ -575,10 +580,17 @@ export function makeAgentBrowserDriver({
         await command(['get', 'count', VISIBLE_SECRET_FIELD_SELECTOR], { signal }),
       ) > 0;
       const tab = await currentTab({ signal });
-      if (secretFieldsPresent) return {
-        state: 'user_action_required', pageObserved: false, secretValuesObserved: false,
-        secretFieldsPresent: true, tab,
-      };
+      if (secretFieldsPresent) {
+        const activation = browserHost ? await browserHost.activate() : { visible: true, application: null };
+        return {
+          state: 'user_action_required', pageObserved: false, secretValuesObserved: false,
+          secretFieldsPresent: true, tab,
+          handoff: {
+            visible: activation.visible === true, inputOwner: 'user',
+            modelActionsBlocked: true, canReveal: Boolean(browserHost),
+          },
+        };
+      }
       let currentUrl;
       try {
         const parsed = new URL(tab.url);
