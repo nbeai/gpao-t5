@@ -1,0 +1,176 @@
+{
+  "schema": "t5.human-outcome-research-basis.v1",
+  "recordedAt": "2026-08-22T09:30:00+09:00",
+  "purpose": "Ground the post-P0 T5 development plan in observed work and expectations of solo business owners, freelancers, creators, and small-business generalists rather than a feature inventory.",
+  "sources": [
+    {
+      "id": "oecd-sme-workforce-2025",
+      "type": "representative_cross_country_sme_survey",
+      "url": "https://www.oecd.org/en/publications/generative-ai-and-the-sme-workforce_2d08b99d-en.html",
+      "sample": "more than 5,000 SMEs in seven countries including Korea",
+      "observations": {
+        "usingGenAiPct": 31,
+        "performanceImprovedAmongUsersPct": 65,
+        "workloadReducedApproxPct": 33,
+        "reducedExternalContractorReliancePct": 14,
+        "barriersNonUsersPct": {
+          "workUnsuitable": 57,
+          "legalCopyrightRegulation": 54,
+          "inputDataConcern": 52,
+          "skillsGap": 50
+        }
+      }
+    },
+    {
+      "id": "seoul-small-business-ai-2025",
+      "type": "korean_small_business_owner_survey",
+      "url": "https://www.kbiz.or.kr/download.do?fleDwnDs=bbsAttachFile&orgalFle=ebb3b4eb8f843237392d28ebb699ec9e843229eca1b0ec82aceab2b0eab3bcebb3b4eab3a0ec849c2e706466&saveFle=176370541511467253.pdf&seq=88869",
+      "sample": "300 Seoul small-business owners, September 2025",
+      "observations": {
+        "currentlyUsingPct": 9.7,
+        "plansToUsePct": 23.0,
+        "currentUserUseAreasPct": {
+          "managementSupport": 55.2,
+          "customerResponse": 41.4,
+          "marketingPublicity": 37.9
+        },
+        "currentUserExpectedTimeReductionPct": 79.3,
+        "adoptionBarriersPct": {
+          "cost": 69.0,
+          "knowledge": 30.7,
+          "existingSystemIntegration": 23.0,
+          "securityDataProtection": 9.7
+        },
+        "neededSupportPct": {
+          "handsOnTraining": 47.7,
+          "successCasesInformation": 41.0,
+          "basicPracticalEducation": 30.3
+        }
+      }
+    },
+    {
+      "id": "mbo-independent-workers",
+      "type": "independent_worker_survey_and_interviews",
+      "url": "https://www.mbopartners.com/state-of-independence/ai-in-the-future-of-work",
+      "sample": "1,132 independent workers plus 21 in-depth interviews",
+      "observations": {
+        "currentlyUseGenAiPct": 37,
+        "usersWithMultipleApplicationsPct": 59,
+        "useAreasPct": {
+          "researchWriting": 39,
+          "creativePresentations": 32,
+          "marketing": 27,
+          "administrativeTasks": 24
+        },
+        "reportedProductivityImprovementRangePct": [15, 30],
+        "humanStrengths": ["customer interaction", "insight", "creativity", "judgement", "manual real-world work"],
+        "aiProblems": ["hallucination", "data mistakes", "lack of common sense", "lack of transparency"]
+      }
+    },
+    {
+      "id": "quickbooks-small-business-2025",
+      "type": "vendor_commissioned_small_business_survey",
+      "url": "https://quickbooks.intuit.com/r/small-business-data/april-2025-survey/",
+      "sample": "more than 2,200 US businesses with up to 100 employees",
+      "observations": {
+        "useAreasPct": {
+          "marketing": 43,
+          "customerService": 36,
+          "administrativeTasks": 33,
+          "dataProcessing": 32,
+          "bookkeeping": 29
+        }
+      }
+    },
+    {
+      "id": "adobe-creator-toolkit-2025",
+      "type": "vendor_creator_survey",
+      "url": "https://news.adobe.com/news/2025/10/adobe-max-2025-creators-survey",
+      "sample": "16,000 creators in eight countries including South Korea",
+      "observations": {
+        "wouldUseStyleLearningAgentPct": 85,
+        "desiredAgentUsesPct": {
+          "repetitiveTasks": 51,
+          "brainstorming": 50,
+          "performanceInsights": 44
+        },
+        "requiredBoundary": "AI accelerates the workflow while creative control remains human"
+      }
+    },
+    {
+      "id": "kisdi-freelance-market-2026",
+      "type": "korean_freelance_platform_quasi_experiment",
+      "url": "https://www.kisdi.re.kr/report/view.do?arrMasterId=4334696&artId=1939756&key=m2102058837181&masterId=4334696",
+      "sample": "261 freelancers and 6,525 observations on one Korean platform",
+      "observations": {
+        "aiDesignTransactionChangePct": -21.73,
+        "demandShift": "Individuals internalize simple creation; business demand shifts toward refining and verifying AI-generated drafts.",
+        "researchLimit": "One platform and a small role-specific sample; do not generalize to every freelance occupation."
+      }
+    },
+    {
+      "id": "kisdi-post-adoption-trust-2026",
+      "type": "korean_post_adoption_user_research",
+      "url": "https://www.kisdi.re.kr/bbs/view.do?bbsSn=114957&key=m2101113055776",
+      "observations": {
+        "churnDrivers": ["error and hallucination verification cost", "low realized utility"],
+        "retentionDrivers": ["personalized responses", "context-aware conversation", "trustworthy interaction"]
+      }
+    },
+    {
+      "id": "nber-generative-ai-at-work",
+      "type": "field_study",
+      "url": "https://www.nber.org/papers/w31161",
+      "sample": "5,179 customer-support agents",
+      "observations": {
+        "averageProductivityIncreasePct": 14,
+        "noviceLowSkillIncreasePct": 34,
+        "interpretation": "AI can diffuse stronger workers' practices but does not remove the need for human responsibility or domain judgement."
+      }
+    },
+    {
+      "id": "hbs-jagged-frontier",
+      "type": "knowledge_worker_field_experiment",
+      "url": "https://aiinstitute.hbs.edu/navigating-the-jagged-technological-frontier/",
+      "observations": {
+        "principle": "AI improves work inside its uneven capability frontier and can reduce performance outside it; similar-looking tasks require different verification."
+      }
+    }
+  ],
+  "methodCaveats": [
+    "Adoption rates are not comparable across surveys because populations, industries, countries, and the definition of AI use differ.",
+    "Vendor-commissioned surveys can overrepresent customers already disposed to use the vendor's products.",
+    "Online community reports are qualitative workflow signals, not prevalence estimates.",
+    "External research cannot replace direct observation of consenting T5 target users and their actual work artifacts."
+  ],
+  "derivedHumanWorkDomains": [
+    "win work: market research, positioning, website, content, proposal, estimate",
+    "receive and manage customers: inquiry, booking, preparation, follow-up, CRM facts",
+    "deliver expert work: research and drafts around the user's professional judgement",
+    "operate the business: email, calendar, files, tasks, contracts, billing, settlement",
+    "improve the business: review, inquiry, content, sales and cost evidence into changes",
+    "monitor and repeat: daily exceptions, weekly performance, monthly reconciliation"
+  ],
+  "humanOwnedBoundary": [
+    "professional conclusions and accountable claims",
+    "customer relationship and sensitive wording",
+    "creative direction and personal voice",
+    "final price, contract, legal, tax, medical and payment decisions",
+    "physical or experiential service delivery"
+  ],
+  "t5DelegatedBoundary": [
+    "collect, locate, read and connect current sources",
+    "organize, reconcile, transform and draft",
+    "compare options and expose uncertainty",
+    "prepare native result artifacts and previews",
+    "perform reversible in-scope operations",
+    "monitor repeated work and surface exceptions"
+  ],
+  "realityCorpusTarget": {
+    "consentingUsers": "6-10",
+    "observationWindowDays": 7,
+    "tasksPerUser": 5,
+    "expectedTaskEpisodes": "30-50",
+    "privacy": "Keep no production personal data in the repository; preserve workflow structure with synthetic identities and values."
+  }
+}
