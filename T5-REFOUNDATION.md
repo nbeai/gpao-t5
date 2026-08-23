@@ -60,7 +60,9 @@ P0를 닫았다. 이어 “더 상세하게”에서 첫 답을 정정한 사실
 
 0.1.8 source version·installer metadata·package 검사는 일치하도록 준비했다. 서명·공증·설치 패키지 생성과
 현재 `/Applications` 설치본 변경은 수행하지 않았다. 다음 오너 지시 “정식 설치패키지 만들어”가 오면 이
-깨끗한 검증선에서만 package를 만든다.
+깨끗한 검증선에서만 package를 만든다. 공식 Node arm64·x64 archive와 SHASUMS 검증, Application·Installer
+인증서/개인 키 짝, notary API history까지 비밀번호 없이 확인한 준비 근거는
+`refoundation/evidence/release-0.1.8-ready-2026-08-24.json`이다.
 
 ## P0-H2 — Web Foundation Recovery
 
