@@ -124,6 +124,10 @@ export function makeSessionSearchTool({ ledger, sessions, currentSessionId = nul
   if (!ledger || !sessions) throw new TypeError('conversation ledger and session store are required');
   return {
     name: 'session_search',
+    searchTerms: [
+      'past conversation history prior decision transcript',
+      '과거 대화 원문 이전 결정 기록',
+    ],
     description: 'Search or read the user’s canonical past T5 conversations. Use search for exact words, phrases, paths, decisions, or prior work; then use read with the returned sessionId and messageId for surrounding canonical context. Use browse only when the user names no topic. Default search covers user and assistant text; set includeTools=true only when exact terminal/tool observations are needed. Session history says what was observed then, not what an external file, app, account, or website contains now—inspect a named current source first when accessible. Do not claim no prior conversation before searching.',
     parameters: {
       type: 'object', additionalProperties: false,

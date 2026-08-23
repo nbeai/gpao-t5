@@ -167,6 +167,10 @@ export function makeCapabilityCatalogTool({ snapshot, connectionDoctor } = {}) {
   }
   return {
     name: 'capability_catalog',
+    searchTerms: [
+      'official connection capability candidate blocker missing integration',
+      '공식 연결 후보 미장착 능력 차단 조건',
+    ],
     description: 'Search the trusted bundled catalog only when the current tools, skills, and connection truth do not provide a needed capability. This catalog contains pre-install candidates and exact blockers; finding one does not mean it is installed, connected, or user-startable. Use search with the user goal, then inspect one exact id. Never claim success or begin a handoff when canStart=false.',
     parameters: {
       type: 'object', additionalProperties: false,

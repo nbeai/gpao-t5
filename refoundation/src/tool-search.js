@@ -3,7 +3,7 @@ function tokens(value) { return String(value ?? '').toLocaleLowerCase().match(/[
 function tokenMatches(left, right) {
   if (left === right) return true;
   return Math.min(left.length, right.length) >= 4
-    && (left.includes(right) || right.includes(left));
+    && (left.startsWith(right) || right.startsWith(left));
 }
 
 function publicTool(tool) { return { name: tool.name, description: tool.description }; }
@@ -30,7 +30,9 @@ export function makeToolSearchTool({ tools = [], prerequisites = {} } = {}) {
       }
       const ranked = candidates.map((tool) => {
         const name = tokens(tool.name); const description = tokens(tool.description);
-        const searchTerms = tokens(tool.searchTerms?.join?.(' ') ?? ''); let score = 0;
+        const searchTerms = tokens(tool.searchTerms?.join?.(' ') ?? '');
+        let score = 0; let matchedTokens = 0; let matchedNameTokens = 0;
+        let matchedDescriptionTokens = 0; let matchedSearchTerm = false;
         // Prefer a capability whose complete name is present in the goal over a compound
         // tool that happens to share one generic token such as "search".
         const completeNameMatch = name.length && name.every((nameToken) => (
@@ -38,12 +40,24 @@ export function makeToolSearchTool({ tools = [], prerequisites = {} } = {}) {
         ));
         if (completeNameMatch) score += 8;
         for (const token of wanted) {
-          if (name.some((value) => tokenMatches(value, token))) score += 4;
-          else if (searchTerms.some((value) => tokenMatches(value, token))) score += 3;
-          else if (description.some((value) => tokenMatches(value, token))) score += 1;
+          if (name.some((value) => tokenMatches(value, token))) {
+            score += 4; matchedTokens += 1; matchedNameTokens += 1;
+          } else if (searchTerms.some((value) => tokenMatches(value, token))) {
+            score += 3; matchedTokens += 1; matchedSearchTerm = true;
+          } else if (token.length >= 4
+            && description.some((value) => tokenMatches(value, token))) {
+            score += 1; matchedTokens += 1; matchedDescriptionTokens += 1;
+          }
         }
-        return { tool, score };
-      }).filter((entry) => entry.score > 0)
+        return {
+          tool, score,
+          confident: Boolean(
+            completeNameMatch || matchedSearchTerm
+            || (matchedNameTokens >= 1 && matchedTokens >= 2)
+            || matchedDescriptionTokens >= 3
+          ),
+        };
+      }).filter((entry) => entry.score > 0 && entry.confident)
         .sort((left, right) => right.score - left.score || left.tool.name.localeCompare(right.tool.name))
         .slice(0, 1);
       const activated = [];

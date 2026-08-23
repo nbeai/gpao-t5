@@ -39,6 +39,7 @@ test('넓은 연구의 여러 각도 검색은 한 모델 도구 호출 안에�
   });
   assert.equal(peak, 3); assert.deepEqual(result.queries, ['소비', '물가', '경기']); assert.equal(result.readableCount, 3);
   assert.equal(result.stopFurtherResearch, true);
+  assert.deepEqual(result.deactivatedTools, ['web_research', 'web_search']);
   assert.equal(result.completedCapabilityGroups, undefined);
 });
 

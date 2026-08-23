@@ -7,10 +7,16 @@ import { runAgent } from '../src/agent-loop.js';
 import { makeStoredChatGptCredentialSource, makeStoredModelCredentialCatalog } from '../src/chatgpt-oauth-credential.js';
 import { makeChatGptResponsesModel } from '../src/chatgpt-responses-model.js';
 import { consoleInstructions } from '../src/console-model-factory.js';
+import { makeBingSearchProvider } from '../src/bing-search-provider.js';
+import { makeDuckDuckGoSearchProvider } from '../src/duckduckgo-search-provider.js';
+import { makeNaverSearchProvider } from '../src/naver-search-provider.js';
 import { makeOpenAIResponsesModel } from '../src/openai-responses-model.js';
 import { makePromptDumper } from '../src/prompt-dump.js';
 import { makeRemoteMcpTool } from '../src/remote-mcp-tool.js';
 import { deferTools, makeToolSearchTool } from '../src/tool-search.js';
+import { makeWebReadTool } from '../src/web-read-tool.js';
+import { makeWebResearchTool } from '../src/web-research-tool.js';
+import { makeWebSearchTool } from '../src/web-search-tool.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -21,6 +27,7 @@ const connectionFile = process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json');
 const caseFilter = option('--case');
 const keep = process.argv.includes('--keep');
+const liveWeb = process.argv.includes('--live-web');
 const selected = await makeStoredModelCredentialCatalog({ file: connectionFile }).select(option('--connection'));
 const room = await mkdtemp(join(tmpdir(), 't5-tool-routing-'));
 const home = join(room, 'home');
@@ -57,7 +64,7 @@ function tool(name, description, { searchTerms = [], result = null } = {}) {
   };
 }
 
-const core = [
+let core = [
   tool('connection', 'Inspect the current truth before claiming that T5 can connect, link, integrate, or use account data from an external workspace, service, channel, local sync folder, CLI, API, or browser login.', {
     result: { state: 'listed', connections: [{ id: 'linear', state: 'connected', capabilities: { read: true } }] },
   }),
@@ -100,7 +107,7 @@ const linear = makeRemoteMcpTool({
   authorizeEffect: async () => { throw new Error('read-only qualification must not request external authority'); },
 });
 
-const deferred = [
+let deferred = [
   tool('automation', 'Create, inspect, pause, resume, cancel, or run a durable scheduled task.', {
     searchTerms: ['schedule recurring daily weekly monthly future cron reminder', '예약 반복 매일 매주 매월 나중 알림'],
     result: { state: 'listed', jobs: [{ id: 'job-1', name: '주간 보고', state: 'scheduled' }] },
@@ -128,7 +135,7 @@ const deferred = [
   linear,
 ];
 
-const cases = [
+let cases = [
   {
     id: 'past-conversation',
     request: '현재 메모가 아니라 지난 대화 원문에서 내가 정한 납기 결정을 찾아줘.',
@@ -166,6 +173,35 @@ const cases = [
   },
 ];
 
+if (liveWeb) {
+  const webSearch = makeWebSearchTool({ providers: [
+    makeNaverSearchProvider(), makeDuckDuckGoSearchProvider(), makeBingSearchProvider(),
+  ] });
+  const webRead = makeWebReadTool();
+  const webResearch = makeWebResearchTool({ searchTool: webSearch, readTool: webRead });
+  core = core.map((entry) => entry.name === 'web_search' ? webSearch
+    : entry.name === 'web_read' ? webRead : entry);
+  core.push(webResearch);
+  deferred = deferred.filter((entry) => entry.name !== 'web_research');
+  cases = [
+    {
+      id: 'live-web-direct',
+      request: '서로 다른 여러 공개 출처를 직접 읽어서 2026년 한국 소상공인 소비 흐름을 근거와 함께 정리해줘.',
+      expected: ['web_research'], allowCoreBeforeSearch: ['web_research'],
+    },
+    {
+      id: 'live-web-contrast',
+      request: '한 출처 요약으로 끝내지 말고 최근 한국 자영업 소비 변화를 여러 독립된 공개 자료로 교차 확인해줘.',
+      expected: ['web_research'], allowCoreBeforeSearch: ['web_research'],
+    },
+    {
+      id: 'live-web-evidence',
+      request: '공개 통계와 기관 자료 등 서로 다른 도메인을 조사해서 요즘 한국 소상공인 매출과 소비 신호를 비교해줘.',
+      expected: ['web_research'], allowCoreBeforeSearch: ['web_research'],
+    },
+  ];
+}
+
 const previousHome = process.env.T5_REFOUNDATION_HOME;
 process.env.T5_REFOUNDATION_HOME = home;
 const results = [];
@@ -173,7 +209,7 @@ try {
   for (const scenario of cases.filter((entry) => !caseFilter || entry.id === caseFilter)) {
     const offered = deferTools([...core, ...deferred], { coreNames: core.map((entry) => entry.name) });
     offered.unshift(makeToolSearchTool({ tools: deferred }));
-    let result;
+    let result; const startedAt = Date.now();
     try {
       result = await runAgent({
         request: scenario.request, model: modelFor(scenario.id), tools: offered, maxModelTurns: 8,
@@ -200,14 +236,44 @@ try {
       && receipt.requestedCall.args?.effect?.kind === scenario.requiredCallEffect
       && receipt.actualCall?.name === receipt.requestedCall.name
     ));
+    const researchReceipt = result.receipts.find((receipt) => receipt.requestedCall.name === 'web_research');
+    const researchIndex = result.receipts.findIndex((receipt) => receipt.requestedCall.name === 'web_research');
+    const liveWebEvidencePassed = !liveWeb || (
+      researchReceipt?.outcome === 'succeeded'
+      && Number(researchReceipt.result?.readableCount ?? 0) >= 3
+      && result.status === 'completed'
+    );
+    const tokenUsage = result.modelCalls.reduce((totals, call) => ({
+      input: totals.input + Number(call.usage?.input_tokens ?? 0),
+      output: totals.output + Number(call.usage?.output_tokens ?? 0),
+      total: totals.total + Number(call.usage?.total_tokens ?? 0),
+      cached: totals.cached + Number(call.usage?.input_tokens_details?.cached_tokens ?? 0),
+    }), { input: 0, output: 0, total: 0, cached: 0 });
     results.push({
       id: scenario.id, status: result.status, modelTurns: result.modelTurns,
       answer: String(result.answer ?? '').slice(0, 500),
+      wallMs: Date.now() - startedAt, tokenUsage,
       calls, searchQueries: searches.map((receipt) => receipt.requestedCall.args.query),
       activated, expected: scenario.expected, unexpectedDeferred, disallowedCore, expectedEffectObserved,
+      liveWebEvidencePassed,
+      ...(liveWeb ? {
+        research: researchReceipt ? {
+          outcome: researchReceipt.outcome,
+          state: researchReceipt.result?.state ?? null,
+          readableCount: researchReceipt.result?.readableCount ?? null,
+          selectedCount: researchReceipt.result?.selectedCount ?? null,
+          stopFurtherResearch: researchReceipt.result?.stopFurtherResearch === true,
+          sourceDomains: [...new Set((researchReceipt.result?.sources ?? []).flatMap((source) => {
+            try { return [new URL(source.candidateUrl).hostname]; } catch { return []; }
+          }))],
+        } : null,
+        callsAfterResearch: researchIndex < 0 ? []
+          : result.receipts.slice(researchIndex + 1).map((receipt) => receipt.requestedCall.name),
+      } : {}),
       passed: result.status === 'completed'
-        && scenario.expected.every((name) => activated.includes(name))
-        && unexpectedDeferred.length === 0 && disallowedCore.length === 0 && expectedEffectObserved,
+        && scenario.expected.every((name) => activated.includes(name) || calls.includes(name))
+        && unexpectedDeferred.length === 0 && disallowedCore.length === 0
+        && expectedEffectObserved && liveWebEvidencePassed,
     });
   }
   console.log(JSON.stringify({

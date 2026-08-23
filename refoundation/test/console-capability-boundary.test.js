@@ -96,6 +96,7 @@ test('일반 사용자 콘솔은 검색·URL 읽기를 바로 보이고 화면 �
   const coreBlock = /const coreToolNames = \[([\s\S]*?)\];/u.exec(source)?.[1] ?? '';
   assert.match(coreBlock, /'web_search'/u);
   assert.match(coreBlock, /'web_read'/u);
+  assert.match(coreBlock, /'web_research'/u);
   assert.doesNotMatch(coreBlock, /'browser'/u);
   assert.doesNotMatch(coreBlock, /'process_start'|'pty_start'|'process_control'/u);
   assert.doesNotMatch(coreBlock, /'session_search'/u);

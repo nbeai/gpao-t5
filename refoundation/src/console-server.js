@@ -911,10 +911,12 @@ export function makeConsoleServer({
       }));
       const coreToolNames = [
         'connection', 'memory', 'skill',
-        // Public-web search and exact URL reading are foundational observation hands.
+        // Public-web search, exact URL reading, and bounded multi-source research are
+        // foundational observation hands. The research schema stays visible because
+        // both qualified models must reach it reliably before the lighter hands can loop.
         // Keep rendered-page interaction deferred until those lighter hands establish
         // that login, dynamic content, or an actual page interaction is required.
-        'exec', 'web_search', 'web_read',
+        'exec', 'web_search', 'web_read', 'web_research',
         // 결과물은 주변 기능이 아니라 대화와 같은 Human Experience다. 사용자가 파일·HTML·문서·표를
         // 요청한 뒤에야 tool_search로 찾게 하면, 실제 파일을 만들고도 경로만 말하는 회귀가 생긴다.
         'attachment',

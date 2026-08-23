@@ -1,0 +1,66 @@
+{
+  "schema": "t5.p1-web-research-continuation.v1",
+  "recordedAt": "2026-08-23T15:56:00+09:00",
+  "actualUserData": false,
+  "goal": "multi-source public research reliably reaches the bounded research hand and does not restart broad discovery after sufficient readable sources",
+  "baseline": {
+    "gpt-5.6-terra": {
+      "purposeCompleted": "2/3",
+      "failures": ["activated web_research without executing it"],
+      "extraBroadCallsAfterCompletedResearch": 7,
+      "example": { "wallMs": 38000, "modelTurns": 5, "totalTokens": 87941, "toolCalls": 9 }
+    },
+    "gpt-5.5": {
+      "purposeCompleted": "1/3",
+      "failures": ["one limit_reached after completed research", "one limit_reached without discovering web_research"],
+      "extraBroadCallsAfterCompletedResearch": 16,
+      "examples": [
+        { "wallMs": 50305, "modelTurns": 8, "totalTokens": 230551, "toolCalls": 18, "status": "limit_reached" },
+        { "wallMs": 65201, "modelTurns": 8, "totalTokens": 207293, "toolCalls": 32, "status": "limit_reached" }
+      ]
+    }
+  },
+  "changes": {
+    "corePromotion": "web_research joins web_search and web_read in the normal first model tool surface",
+    "boundedStage": "a completed web_research deactivates itself and broad web_search while preserving exact web_read and conditional browser",
+    "toolSearchConfidence": "exact names and curated search terms are strong; otherwise a name plus another meaningful token or three description tokens are required",
+    "tokenMatching": "partial matches require a four-character prefix relationship; short description tokens do not count toward confidence",
+    "catalogTerms": ["missing official connection candidate blockers", "past conversation history and prior decisions"]
+  },
+  "final": {
+    "initialVisibleTools": [
+      "tool_search", "connection", "memory", "skill", "exec", "web_search", "web_read", "web_research", "attachment"
+    ],
+    "gpt-5.6-terra": {
+      "purposeCompleted": "3/3",
+      "broadSearchAfterResearch": 0,
+      "cleanCounterexample": { "wallMs": 20794, "modelTurns": 2, "totalTokens": 28856, "toolCalls": ["web_research"], "readableSources": 9 }
+    },
+    "gpt-5.5": {
+      "purposeCompleted": "3/3",
+      "broadSearchAfterResearch": 0,
+      "cleanCounterexamples": [
+        { "wallMs": 63253, "modelTurns": 2, "totalTokens": 24058, "toolCalls": ["web_research"], "readableSources": 8 },
+        { "wallMs": 48837, "modelTurns": 2, "totalTokens": 29956, "toolCalls": ["web_research"], "readableSources": 7 }
+      ],
+      "remainingEfficiencyBoundary": "one expression used a no-match tool_search and two non-executing qualification exec stubs after research; it still preserved seven readable sources and completed in five turns"
+    }
+  },
+  "nonGoals": [
+    "new search provider",
+    "semantic or intent router",
+    "closing exact web_read or conditional browser after research",
+    "model-specific prompt stack",
+    "runtime judgment of user-goal completion"
+  ],
+  "evidenceBoundary": {
+    "realPublicNetwork": true,
+    "realModels": ["gpt-5.5", "gpt-5.6-terra"],
+    "isolatedHomeDataWorkspace": true,
+    "productionAccountsOrWrites": false
+  },
+  "verification": {
+    "refoundationTests": { "passed": 503, "failed": 0 },
+    "legacySourceImports": 0
+  }
+}

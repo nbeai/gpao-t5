@@ -66,6 +66,23 @@ CAPTCHA, 사용자 handoff는 모두 `0`이었다. 전체 검사는 `497/497`, l
 남은 경계: 실제 생산 계정의 MCP write는 자동 시험하지 않았고, gpt-5.5 multi-source continuation 비용은
 실제 공개 source 과업에서 다시 반복될 때만 model environment의 한 미달로 연다.
 
+### 2026-08-23 P1 Web Research Continuation
+
+실제 공개 웹의 같은 다중 출처 목적을 세 표현으로 두 모델에 다시 실행했다. 기존 구조는
+gpt-5.6-terra `2/3`, gpt-5.5 `1/3`만 사용자 답까지 끝났고, completed research 뒤 broad search/read 반복과
+schema만 열고 행동 없이 끝나는 실패가 있었다.
+
+- `web_research`를 첫 모델 호출의 기본 Web Hand로 승격해 현재 정상 표면은 core 8개와 `tool_search`, 총 9개다.
+- readable source가 3개 이상인 bounded research는 `web_research·web_search`만 닫고 exact `web_read`와
+  실제 경계 뒤 Browser는 유지한다.
+- lexical discovery는 완전 이름·curated searchTerms를 우선하고, 일반 설명만으로는 세 의미 토큰,
+  이름 매치가 있으면 추가 의미 토큰 하나를 요구한다. 짧은 일반 설명 토큰과 임의 내부 substring은 제외한다.
+- 최종 실제 공개 웹은 두 모델 모두 `3/3` 목적 완료, completed research 뒤 broad `web_search` `0`.
+- terra clean counterexample: 20.8초·2 turns·28,856 tokens·`web_research` 1회·readable source 9.
+- gpt-5.5 clean counterexamples: 63.3초·2 turns·24,058 tokens·source 8,
+  48.8초·2 turns·29,956 tokens·source 7. 모델 생성 wall time 편차는 남겼다.
+- 근거: `refoundation/evidence/p1-web-research-continuation-2026-08-23.json`
+
 Non-goals: 새 검색 공급자·Places API·화면 자동화 엔진·로그인 신분 재설계·설치 패키지 생성.
 
 ## P0-H1 — Human Release Recovery
@@ -210,8 +227,8 @@ Non-goals:
 - 모델 전환 첫 Run에 이전·현재 provider/model/wire와 canonical Conversation 보존 Receipt
 - U2 시점 기본 9개 Core schema만 공개하고 peripheral 도구는 `tool_search` 뒤 가장 관련 있는 하나와
   명시적 의존성만 다음 model turn에 공개; U3 당시 결과물 등록을 Human Experience로 승격해 10개가 됐음
-- P0-H2 현재 첫 모델 호출은 `connection·memory·skill·exec·web_search·web_read·attachment` 7개와
-  확장 능력 발견용 `tool_search` 1개, 총 8개다. `skill`은 실제 snapshot, `web_search`는 사용 가능한
+- P1 현재 첫 모델 호출은 `connection·memory·skill·exec·web_search·web_read·web_research·attachment` 8개와
+  확장 능력 발견용 `tool_search` 1개, 총 9개다. `skill`은 실제 snapshot, 세 Web Hand는 사용 가능한
   provider가 있을 때 등록되며, Browser는 exact URL의 `web_read`가 경계를 관측한 뒤에만 열린다.
 - bounded 도구 자체는 같은 Run에서 다시 열지 않되, 자료 수를 사용자 목적 완료로 승격해 같은 능력군의
   기본 관측 손까지 닫지 않음

@@ -51,11 +51,13 @@ test('서로 섞인 후순위 능력군에서도 단일 목적은 정확한 도�
   const tools = [
     { name: 'automation', description: 'Create, inspect, pause, resume, cancel, or run a durable scheduled task.',
       searchTerms: ['schedule recurring daily weekly monthly future cron reminder', '예약 반복 매일 매주 매월 나중 알림'] },
-    { name: 'session_search', description: 'Search or read the user’s canonical past T5 conversations for exact words, decisions, or prior work.' },
+    { name: 'session_search', description: 'Search or read the user’s canonical past T5 conversations for exact words, decisions, or prior work.',
+      searchTerms: ['past conversation history prior decision transcript', '과거 대화 원문 이전 결정 기록'] },
     { name: 'web_research', description: 'Research a public-web question through focused searches and parallel reading of distinct source domains.',
       searchTerms: ['multi source research', 'current trends evidence', '웹 리서치', '시장 조사', '여러 출처'] },
     { name: 'cli_prepare', description: 'Find and prepare a trusted T5-managed command capability from pinned official releases.' },
-    { name: 'capability_catalog', description: 'Search the trusted bundled catalog when current tools and connections lack a needed capability.' },
+    { name: 'capability_catalog', description: 'Search the trusted bundled catalog when current tools and connections lack a needed capability.',
+      searchTerms: ['official connection capability candidate blocker missing integration'] },
     { name: 'capability_evidence', description: 'Read observed use of prepared methods and managed commands when the user asks whether they are actually being used or remain useful. Reports use, completion, failure, cancellation, recent use, time, and retries.' },
     { name: 'conversation_recall', description: 'Recover an exact range or find text inside omitted historical terminal output.' },
     { name: 'visual_reference', description: 'Find visual or design references and return managed preview images.',
@@ -116,6 +118,24 @@ test('화면 관측을 정확히 찾으면 일반 search 단어가 과거 대화
     query: 'browser navigate public search results and inspect business profile',
   });
   assert.deepEqual(result.activatedTools, ['browser']);
+});
+
+test('일반 web search 한 단어만 겹치면 과거 대화 검색을 후순위 대체제로 열지 않는다', async () => {
+  const result = await makeToolSearchTool({ tools: [
+    { name: 'session_search', description: 'Search canonical past user conversations for exact words and prior decisions.' },
+    { name: 'automation', description: 'Inspect scheduled recurring work.' },
+    { name: 'capability_catalog', description: 'The catalog contains pre-install candidates and exact blockers.' },
+  ] }).execute({ query: 'public web search for current official statistics sources' });
+  assert.equal(result.state, 'no_match');
+  assert.deepEqual(result.activatedTools, []);
+});
+
+test('data 같은 내부 문자열이 candidates에 들어 있다는 이유만으로 capability catalog를 열지 않는다', async () => {
+  const result = await makeToolSearchTool({ tools: [
+    { name: 'capability_catalog', description: 'Search the catalog when current tools do not provide a needed capability. The catalog contains pre-install candidates and exact blockers.',
+      searchTerms: ['official connection capability candidate blocker missing integration'] },
+  ] }).execute({ query: 'current public data about consumer spending' });
+  assert.equal(result.state, 'no_match');
 });
 
 test('현재 후순위 손을 미리 찾으면 비슷한 도구 대신 정확한 선행 관측을 돌려준다', async () => {
@@ -215,12 +235,14 @@ test('완료된 도구는 다시 검색해도 같은 Run에서 재활성화되�
 test('다중 출처 수만으로 웹 목적 완료를 대신하지 않고 exact URL 읽기를 계속 제공한다', async () => {
   let turn = 0;
   const research = { name: 'web_research', description: 'multi source research', capabilityGroup: 'web_observation', deferred: true,
-    parameters: { type: 'object' }, async execute() { return { stopFurtherResearch: true, deactivatedTools: ['web_research'] }; } };
+    parameters: { type: 'object' }, async execute() { return { stopFurtherResearch: true, deactivatedTools: ['web_research', 'web_search'] }; } };
+  const broadSearch = { name: 'web_search', description: 'search public web candidates', capabilityGroup: 'web_observation',
+    parameters: { type: 'object' }, async execute() { throw new Error('broad search must stay closed'); } };
   let exactReads = 0;
   const read = { name: 'web_read', description: 'read public URL', capabilityGroup: 'web_observation',
     parameters: { type: 'object' }, async execute() { exactReads += 1; return { state: 'read', content: { text: '필수 사실' } }; } };
   const search = makeToolSearchTool({ tools: [research, read] });
-  const result = await runAgent({ request: '조사', tools: [search, research, read], model: { async respond({ tools }) {
+  const result = await runAgent({ request: '조사', tools: [search, research, broadSearch, read], model: { async respond({ tools }) {
     turn += 1;
     if (turn === 1) return { text: '', toolCalls: [{ id: 's1', name: 'tool_search', args: { query: 'multi source research' } }] };
     if (turn === 2) return { text: '', toolCalls: [{ id: 'r1', name: 'web_research', args: {} }] };
