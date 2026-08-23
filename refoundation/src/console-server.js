@@ -832,6 +832,7 @@ export function makeConsoleServer({
         },
       }));
       let browserReady = false;
+      let browserRuntimeContext = '';
       const browserConfigured = typeof browserDriverFactory === 'function' || Boolean(browserHost);
       const currentBrowser = await browserDriver(sessionId);
       if (currentBrowser) {
@@ -840,6 +841,13 @@ export function makeConsoleServer({
         }));
         if (availability.available) {
           browserReady = true;
+          browserRuntimeContext = [
+            '[T5 CURRENT BROWSER RUNTIME — observed now, not conversation history]',
+            `loginHandoffActive=${currentBrowser.userControlActive?.() === true}`,
+            'A historical assistant statement that a login window is open is not current evidence.',
+            'If loginHandoffActive=false and the user currently needs browser login, establish the exact URL boundary again and start a new login handoff.',
+            'If loginHandoffActive=true and the user says the window was closed or login finished, use login_status to observe the current reality.',
+          ].join('\n');
           const browserTool = makeBrowserObservationTool({
             driver: currentBrowser,
             publishScreenshot: (captured) => publishBrowserScreenshot(sessionId, captured),
@@ -996,8 +1004,10 @@ export function makeConsoleServer({
           },
         } : {},
       }));
+      const agentRequest = browserRuntimeContext
+        ? `${modelRequest}\n\n${browserRuntimeContext}` : modelRequest;
       const result = await runAgent({
-        request: modelRequest,
+        request: agentRequest,
         requestAttachments: imageInputs,
         history,
         model,

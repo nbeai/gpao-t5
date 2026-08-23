@@ -100,6 +100,8 @@ test('일반 사용자 콘솔은 검색·URL 읽기를 바로 보이고 화면 �
   assert.match(coreBlock, /'web_search'/u);
   assert.match(coreBlock, /'web_read'/u);
   assert.match(coreBlock, /'web_research'/u);
+  assert.match(source, /T5 CURRENT BROWSER RUNTIME/u);
+  assert.match(source, /historical assistant statement that a login window is open is not current evidence/iu);
   assert.doesNotMatch(coreBlock, /'browser'/u);
   assert.doesNotMatch(coreBlock, /'process_start'|'pty_start'|'process_control'/u);
   assert.doesNotMatch(coreBlock, /'session_search'/u);
