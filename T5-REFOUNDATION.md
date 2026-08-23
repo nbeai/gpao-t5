@@ -165,6 +165,17 @@ Telegram-origin 대화가 보존됐다. 로컬 `pkgutil --check-signature`와 `c
 검증기 불일치는 숨기지 않고 별도 경계로 기록한다. 근거는
 `refoundation/evidence/p0-h1-0.1.3-release-closeout-2026-08-23.json`이다.
 
+2026-08-24 0.1.4 설치 RC: W7까지 자격화된 브라우저·artifact 연속성과 D5~D7 문서손을 새 universal package에
+묶었다. 첫 조립은 D5의 `restrict-kordoc-bin.mjs`를 package script 목록이 빠뜨려 실제 `npm ci`에서 실패했고,
+그 exact hook만 추가한 뒤 다시 빌드했다. `156,950,674 bytes`, SHA-256
+`1b0b68a3e9e9946e95a5646d6401eb8ea1b33ab52d660ce3c8471f87686b3efc`, arm64+x86_64, Node v24.14.0,
+sourceDirty false, payload credentials·user data·tests·evidence·legacy runtime 0이다. expanded payload·document CLI·
+agent-browser·Host/Origin guard·private-key scan·packaged console health를 통과했고 `/Applications/GPAO-T5.app`과
+pkg receipt가 0.1.4로 올라갔다. 기존 terra·gpt-5.5 연결을 보존했으며 설치 앱의 자연어 terminal 종단은
+`exec succeeded·actual=true`, `/Users/jyp`를 실제 관측했다. 현재 Developer ID identity가 없어 package는
+unsigned·notarized false·stapled false인 내부 RC이며 정식 배포본으로 주장하지 않는다. 근거는
+`refoundation/evidence/release-0.1.4-installed-rc-2026-08-24.json`이다.
+
 사용자 완료 문장:
 
 > 일반 사용자가 0.1.1에서 성공했던 것처럼, 요청하면 눈앞에 열린 T5 브라우저에서 네이버에 로그인하고

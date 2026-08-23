@@ -1,0 +1,65 @@
+{
+  "schema": "t5.release-0.1.4-installed-rc.v1",
+  "recordedAt": "2026-08-24T01:20:00+09:00",
+  "version": "0.1.4",
+  "releaseState": "unsigned_rc_installed_not_distribution_release",
+  "source": {
+    "packageSourceCommit": "4804dee46adc907eece75bf4fab2438faf1661a0",
+    "packageSourceDirty": false,
+    "versionCommit": "abb038d2",
+    "packagingFixCommit": "4804dee4"
+  },
+  "package": {
+    "path": "dist/GPAO-T5-0.1.4-universal-unsigned.pkg",
+    "bytes": 156950674,
+    "sha256": "1b0b68a3e9e9946e95a5646d6401eb8ea1b33ab52d660ce3c8471f87686b3efc",
+    "architectures": ["arm64", "x86_64"],
+    "node": "v24.14.0",
+    "signing": "unsigned",
+    "notarized": false,
+    "stapled": false
+  },
+  "build": {
+    "firstAttempt": "failed because the D5 postinstall referenced restrict-kordoc-bin.mjs but the package assembly copied only the older script list",
+    "fix": "copy the exact restriction hook and assert it in macOS installer tests",
+    "secondAttempt": "passed with npm audit 0 vulnerabilities and sourceDirty false",
+    "payloadExcludes": ["credentials", "user data", "tests", "evidence", "legacy runtime"]
+  },
+  "verification": {
+    "expandedPayload": true,
+    "universalLauncher": true,
+    "universalNode": true,
+    "documentCli": true,
+    "agentBrowser": true,
+    "localHostOriginGuard": true,
+    "privateKeyScan": "no hits",
+    "packagedConsoleHealth": true
+  },
+  "installed": {
+    "previousVersion": "0.1.3",
+    "bundleVersion": "0.1.4",
+    "receiptVersion": "0.1.4",
+    "path": "/Applications/GPAO-T5.app",
+    "runtimePort": 50203,
+    "health": "ok",
+    "activeModel": "gpt-5.6-terra",
+    "preservedConnections": ["api_key:openai:gpt-5.6-terra", "chatgpt_oauth:gpt-5.5"],
+    "terminalJourney": {
+      "sessionId": "d5fb8c93-90ae-4488-9b39-394c554f315c",
+      "runId": "7700358f-7aad-4c68-914a-c6dd8a2ed134",
+      "request": "observe the current working directory through the terminal",
+      "reply": "/Users/jyp",
+      "runStatus": "completed",
+      "tool": {"name":"exec","outcome":"succeeded","actual":true}
+    },
+    "oldDevelopmentConsolePort50027": "stopped",
+    "installedAppLeftRunning": true
+  },
+  "webBoundary": {
+    "normalWebHands": "existing W8 search, read, bounded research, dynamic boundary, and managed browser behavior preserved",
+    "w9": "no candidate qualified across factual repeatability, positive controls, two models, and waiting-mode human latency",
+    "waitingMode": "minutes are categorically unacceptable for an ordinary web-search request",
+    "delegatedMode": "long work uses a separate progress, intermediate verification, stop, and resume contract",
+    "installerClaim": "0.1.4 does not claim that complex multi-hop Korean waiting-mode research is qualified"
+  }
+}
