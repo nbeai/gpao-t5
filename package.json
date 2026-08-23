@@ -41,6 +41,7 @@
     "refoundation:qualify:document-candidate": "node refoundation/scripts/run-document-candidate-qualification.mjs",
     "refoundation:qualify:document-connection": "node refoundation/scripts/run-qualified-document-connection.mjs",
     "refoundation:qualify:document-structure": "node refoundation/scripts/run-structural-document-qualification.mjs",
+    "refoundation:qualify:deliverable-truth": "node refoundation/scripts/run-deliverable-truth-qualification.mjs",
     "refoundation:notices": "node refoundation/scripts/generate-third-party-notices.mjs",
     "refoundation:qualify:pdf-deliverable": "node refoundation/scripts/run-pdf-deliverable-qualification.mjs",
     "refoundation:qualify:text-tabular": "node refoundation/scripts/run-text-tabular-qualification.mjs",

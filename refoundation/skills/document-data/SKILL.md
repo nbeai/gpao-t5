@@ -1,13 +1,13 @@
 ---
 name: document-data
-description: Inspect XLSX and PDF business documents with source locations, combine their meaning into a new auditable XLSX, and re-open the result for verification.
+description: Inspect XLSX, PDF, and DOCX business documents with source locations; create bounded auditable XLSX or DOCX results; and re-open them for verification.
 ---
 
 # Document and spreadsheet data
 
 ## When to use
 
-Use when XLSX or PDF files are primary business inputs or when the user wants a new XLSX result assembled from them. This procedure supplies a method; the terminal performs the work and the model decides what the documents mean.
+Use when XLSX, PDF, or DOCX files are primary business inputs or when the user wants a new XLSX or DOCX result assembled from them. This procedure supplies a method; the terminal performs the work and the model decides what the documents mean.
 
 ## Observe sources
 
@@ -55,3 +55,11 @@ Minimal specification shape:
 2. Confirm required sheets, headers, typed numbers and dates, formulas and results, source cells, and projection completeness.
 3. Reconcile row counts and key totals with every source. A clean command exit only proves the file was written and reopened, not that the business meaning is correct.
 4. Report the output path, what was reconciled, and any unresolved conflicts. Stop rather than presenting a workbook as complete when required source pages, cells, OCR, formula results, or unit definitions remain unobserved.
+
+## Create a DOCX result
+
+1. Keep source files unchanged and write a bounded JSON spec with `title`, optional `paragraphs`, and actual row/column `tables`.
+2. Run `"$T5_DOCUMENT_CLI" create-docx --spec "ABSOLUTE_SPEC_JSON" --output "ABSOLUTE_OUTPUT_DOCX"`.
+3. The creator writes deterministic OOXML and immediately reopens text and table structure. This does not prove visual readability.
+4. For a customer-facing current-Run DOCX, call attachment `inspect` with `attachmentId=null` and the exact output path. On qualified macOS this supplies a Quick Look page image and isolated no-answer visual transcript.
+5. Register only the same visually checked output, then inspect the registered attachment by its exact ID before claiming completion.

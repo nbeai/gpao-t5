@@ -1919,7 +1919,7 @@ tester audit의 산문은 triage 입력이며 재현 전 완료·실패 증거�
 
 ## D3~W9 — Vertical Capability Hardening Plan
 
-상태: `OWNER_PLANNED · D6 COMPLETE · D7 NEXT` — 기능 수를 늘리는 계획이 아니라, 현재 파일손·웹손이 지저분한 현실을
+상태: `OWNER_PLANNED · D7 COMPLETE · W7 NEXT` — 기능 수를 늘리는 계획이 아니라, 현재 파일손·웹손이 지저분한 현실을
 정확히 읽고 실제 결과까지 끝내는 깊이를 높이는 개발선이다. 아래 순서는 목록 우선순위가 아니라 앞 Gate의
 실제 증거가 다음 Gate를 여는 의존 순서다. 한 번에 하나만 `IN_PROGRESS`로 둔다.
 
@@ -2149,6 +2149,9 @@ merge-aware preview로 닫았다. 구조로 목적이 성립해 모델 pixel 관
 
 ### D7 — Deliverable Truth
 
+상태: `COMPLETE` — Excel·PDF의 기존 실제 반대시험을 유지하고, 새 DOCX의 구조·preview·native render·시각
+전사·재개방을 두 모델에서 추가 자격화했다.
+
 목적: 모델이 이해한 사실이 실제 Excel·PDF·Word 결과와 같고 사람이 읽을 수 있을 때만 완료한다.
 
 검증 순환:
@@ -2168,6 +2171,27 @@ merge-aware preview로 닫았다. 구조로 목적이 성립해 모델 pixel 관
 - 근무시간 계산과 브랜드 Excel 성공 사례는 무회귀 positive control
 
 Non-goals: 모든 문서의 pixel-identical 렌더, 회계·노무 의미 규칙 엔진, 수신자에게 실제 전송.
+
+완료 증거:
+
+- 다중 정산 Excel은 기존 실제 결과 5행·68,300원·40,300/25,000/3,000·행별 source와 누락·억지 귀속·
+  틀린 합계·미검산·원본 변경 반대시험을 재사용했다.
+- 한국어 고객 PDF는 두 모델 모두 extract anchor `6/6`, final SHA와 결속한 PDFium pixels·무정답 시각 전사,
+  false completion `0`을 유지했다.
+- 첫 DOCX baseline은 두 모델 모두 OOXML 본문·표와 추출 anchor가 맞았지만 bundled LibreOffice의 격리
+  Fontconfig가 시스템 한글 font를 찾지 못해 숫자·콜론만 렌더했다. 같은 bytes는 macOS Quick Look에서 한글·표가
+  정상 가시해 문서 실패가 아니라 renderer environment failure로 확정했다.
+- current-Run DOCX visual inspect는 macOS에서 exact path·hash의 Quick Look 첫 페이지 한 장만 모델에 일회성
+  공급한다. 다른 플랫폼·여러 출력·실패는 capability boundary이며 image Base64는 원장에 남기지 않는다.
+- 기존 document-data CLI에 bounded JSON spec 기반 deterministic `create-docx`만 추가했다. 제목·문단·실제 표,
+  500문단·50표·2,000행·20열 상한, 기존 파일 무덮어쓰기, 생성 직후 DOCX 구조 재개방을 강제한다.
+- 최종 두 모델은 source 이해→DOCX 생성→구조 inspect→Quick Look pixel inspect→등록→등록본 재개방을
+  각각 13 model turns·10 tools로 통과했다. terra는 101.7초·696,387 tokens에서 40.6초·147,997 tokens로,
+  gpt-5.5는 156.3초·255,478 tokens에서 120.7초·160,250 tokens로 줄었다. gpt-5.5 비용·시간은 남은 편차다.
+- 근무시간 D4와 출처 URL 3건·중복 0·formula error 0의 비식별 브랜드 Excel을 positive control로 유지했다.
+- Windows DOCX native render는 실기기 전 완료로 주장하지 않으며 bundled LibreOffice 한국어 render는 현재
+  사용자 가독성 영수증으로 채택하지 않는다.
+- 근거: `refoundation/evidence/d7-deliverable-truth-qualification-2026-08-23.json`
 
 ### W7 — Business Browser & Artifact Continuity
 
@@ -3072,7 +3096,8 @@ false completion `0`을 확인했다. D3-T1 범용 계약은 열지 않았다. D
 EUC-KR 호환 text와 CSV/TSV 구조를 열어 D2 기준선을 `3/17→6/17`로 높였고 두 모델의 실제 첨부 과업이
 통과했다. D5는 Kordoc package 전체가 아니라 HWP3/HWP5/HWPX/XLS/DOCX parser 표면만 `split` 연결해
 고정 기준선을 `6/17→10/17`로 높였다. D6는 견적 28 merges와 실제 24시트 XLS의 가로 재료·sheet/cell
-counterexample을 닫고 merge-aware XLSX/XLS preview를 열었다. 다음 한 작업은 D7 Deliverable Truth이며, 이후 W7 →
+counterexample을 닫고 merge-aware XLSX/XLS preview를 열었다. D7은 Excel·PDF truth를 유지하고 DOCX의
+bounded 생성·구조 재개방·Quick Look pixel 검증을 닫았다. 다음 한 작업은 W7 Business Browser & Artifact Continuity이며, 이후
 W8 → W9는 앞 Gate의 실제 증거가 필요성을 유지할 때만 연다.
 
 U4의 I0 밖 나머지는 정본 순서상 아직 열리지 않았다. 다음 개발은 기능 목록에서 자동으로 고르지 않는다.

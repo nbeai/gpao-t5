@@ -126,9 +126,9 @@ function docxParagraph(node) {
 }
 
 function docxTable(node) {
-  const rows = [...(node.childNodes ?? [])].filter((child) => child.nodeType === 1 && child.localName === 'tr');
+  const rows = descendants(node, 'tr');
   return `<table>${rows.map((row, rowIndex) => {
-    const cells = [...(row.childNodes ?? [])].filter((child) => child.nodeType === 1 && child.localName === 'tc');
+    const cells = descendants(row, 'tc');
     const tag = rowIndex === 0 ? 'th' : 'td';
     return `<tr>${cells.map((cell) => `<${tag}>${escapeHtml(textOf(cell))}</${tag}>`).join('')}</tr>`;
   }).join('')}</table>`;

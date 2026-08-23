@@ -5,6 +5,7 @@ import { isAbsolute } from 'node:path';
 import {
   createWorkbookFromSpec, inspectBusinessDocument,
 } from '../src/document-data-inspector.js';
+import { createDocxFromSpec } from '../src/docx-deliverable.js';
 
 function option(args, name) {
   const index = args.indexOf(name);
@@ -35,6 +36,12 @@ async function main(args) {
         spec: 'JSON {sheets:[{name,title?,columns:[{key,header,width?,numberFormat?}],rows:[{key:value}],formulas?:[{cell,formula,result,numberFormat?}]}]}',
         result: 'JSON created flag and a complete re-opened document observation.',
       },
+      {
+        name: 'create-docx',
+        usage: 't5-document create-docx --spec ABSOLUTE_JSON --output ABSOLUTE_DOCX [--replace]',
+        spec: 'JSON {title,paragraphs?:[{text,style?:heading}],tables?:[{columns:[{key,header,width?}],rows:[{key:value}]}]}',
+        result: 'JSON created flag and a complete re-opened DOCX observation.',
+      },
     ],
   };
   if (action === 'inspect') {
@@ -60,7 +67,16 @@ async function main(args) {
     const spec = JSON.parse(await readFile(specPath, 'utf8'));
     return createWorkbookFromSpec({ output, spec, replace: args.includes('--replace') });
   }
-  throw new TypeError('Unknown action. Use inspect or create-xlsx.');
+  if (action === 'create-docx') {
+    const specPath = option(args, '--spec'); const output = option(args, '--output');
+    if (!specPath || !output) throw new TypeError('Usage: t5-document create-docx --spec ABSOLUTE_JSON --output ABSOLUTE_DOCX [--replace]');
+    if (!isAbsolute(specPath)) throw new TypeError('spec path must be absolute');
+    const stat = await lstat(specPath);
+    if (stat.isSymbolicLink() || !stat.isFile()) throw new Error('spec path must be one regular file');
+    if (stat.size > 8 * 1024 * 1024) throw new Error('spec exceeds 8388608 byte limit');
+    return createDocxFromSpec({ output, spec: JSON.parse(await readFile(specPath, 'utf8')), replace: args.includes('--replace') });
+  }
+  throw new TypeError('Unknown action. Use inspect, create-xlsx, or create-docx.');
 }
 
 try {

@@ -10,6 +10,7 @@ import {
   attachmentContext, makeAttachmentTool, modelImageInputs,
 } from '../src/attachment-hand.js';
 import { createDocumentDataFixture } from '../src/document-data-qualification.js';
+import { createGeneratedCompatibilityFixtures } from '../src/document-compatibility-baseline.js';
 
 const SESSION = '33333333-3333-4333-8333-333333333333';
 
@@ -274,5 +275,27 @@ test('현재 Run PDF의 visual inspect는 고정 PDFium 첫 페이지를 PNG로 
   assert.equal(result.observation.modelImageMimeType, 'image/png');
   assert.match(result.observation.sourceSha256, /^[a-f0-9]{64}$/u);
   assert.ok(result.observation.width > 0 && result.observation.height > 0);
+  assert.match(result._modelAttachments[0].image_url, /^data:image\/png;base64,/u);
+});
+
+test('현재 Run DOCX는 macOS Quick Look 첫 페이지를 일회성 픽셀 관측으로 공급한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-attachment-docx-visual-'));
+  const fixtures = await createGeneratedCompatibilityFixtures(join(room, 'fixtures'));
+  const docxPath = fixtures.find((item) => item.caseId === 'modern-docx').path;
+  const store = new AttachmentStore(join(room, 'attachments'));
+  const tool = makeAttachmentTool({
+    store, sessionId: SESSION, workspace: room,
+    authorizeOutputPath: (candidate) => candidate === docxPath,
+    renderDocxPreview: async () => ({ state: 'rendered', bytes: png(120, 160), mimeType: 'image/png', engine: 'macos-quicklook' }),
+    observeImagePixels: async () => ({ text: '한빛상회 계약 검토, 금액 40300. 정상 방향으로 읽힘', model: 'visual-test-model' }),
+  });
+  const result = await tool.execute({
+    action: 'inspect', attachmentId: null, filePath: docxPath,
+    maxChars: null, maxCells: null, maxPages: null,
+  });
+  assert.equal(result.state, 'observed'); assert.equal(result.observation.kind, 'docx_render');
+  assert.equal(result.observation.renderEngine, 'macos-quicklook');
+  assert.equal(result.observation.width, 120); assert.equal(result.observation.height, 160);
+  assert.equal(result.observation.pixelsSuppliedToModel, true);
   assert.match(result._modelAttachments[0].image_url, /^data:image\/png;base64,/u);
 });
