@@ -1,0 +1,36 @@
+{
+  "schema": "t5.p2-memory-skill-operational-measurement.v1",
+  "recordedAt": "2026-08-23T16:38:06+09:00",
+  "actualUserData": false,
+  "model": "gpt-5.6-terra",
+  "memory": {
+    "seededConversationChars": 780000,
+    "durableStored": "2/2",
+    "transientSpeculationSecretRejected": "4/4",
+    "currentRequestWonConflict": true,
+    "conflictMemoryToolCalls": 0,
+    "passed": true,
+    "decision": "do not open task-aware selection, vector memory, or a new memory schema without repeated answer pollution or measured user cost"
+  },
+  "skillAB": {
+    "rounds": 1,
+    "withoutSkill": { "passed": "3/3", "wallMs": 14188, "modelCalls": 6, "totalTokens": 33601, "execCalls": 3, "skillViews": 0 },
+    "withSkill": { "passed": "3/3", "wallMs": 13093, "modelCalls": 6, "totalTokens": 32911, "execCalls": 3, "skillViews": 0 },
+    "deltaWithMinusWithout": { "wallMs": -1095, "totalTokens": -690, "modelCalls": 0, "execCalls": 0 },
+    "interpretation": "the full skill body was unnecessary and stayed closed; one small timing/token difference is not evidence that the skill improved the task"
+  },
+  "managedCli": {
+    "newInstallsOrDownloads": 0,
+    "existingPositiveEvidence": ["jq changed an incorrect baseline result into the verified total", "yt-dlp enabled caption reality and cache reuse"],
+    "decision": "keep the reviewed catalog and do not expand it from capability count alone"
+  },
+  "automationHandoffSoak": {
+    "fullRoundsPassedBeforeTransient": 8,
+    "transient": "one multi-session reply exceeded the test's two-second deadline under repeated suite load",
+    "focusedReproduction": "5/5 passed at about 70ms",
+    "additionalFullRounds": "2/2 passed",
+    "codeChanges": 0,
+    "decision": "do not widen timeouts or change the coordinator without repeated product-state failure"
+  },
+  "nonGoals": ["vector database", "new memory selector", "new skills or CLIs", "background scheduler", "timeout inflation", "automatic skill creation or retirement"]
+}

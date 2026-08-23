@@ -2673,10 +2673,13 @@ Non-goals:
 
 ## 현재 다음 한 작업
 
-Web Hand W0~W6, Document Data Hand D1, Unified Attachment Hand A1까지 완료되어 1차 완성에 도달했다.
-다음 한 작업은 U1-G4의 실제 인간형 멀티턴 시나리오와 판정식을 먼저 고정하는 것이다. SNS 대상과 분석 관점은
-현재 사용자의 사업·취향·목표·요청에서 매번 정하며 고정 persona를 만들지 않는다. 그 밖의
-능력은 기능 목록에서 자동으로 고르지 않는다. 실제 콘솔 사용에서
+Web Hand W0~W6, Document Data Hand D1, Unified Attachment Hand A1, U1-G4까지 완료되어 1차 완성과
+사용자 목적 기반 SNS 분석 종단에 도달했다. 2026-08-23 P0/P1 내부 손·Web continuation·Remote MCP 내구와
+P2 Automation soak·Memory/Skill 가치 측정도 닫았으며, 반복 결함 증거 없이 새 selector·Skill·CLI·scheduler를
+열지 않았다. 근거는 `refoundation/evidence/p2-memory-skill-operational-measurement-2026-08-23.json`이다.
+
+U4의 I0 밖 나머지는 정본 순서상 아직 열리지 않았다. 다음 개발은 기능 목록에서 자동으로 고르지 않는다.
+실제 콘솔 사용에서
 사용자 과업이 실패하거나 불편하면 해당 Run·Receipt를 읽고 모델·손·방법·권한·UI 중 공통 원인을 확정한 뒤
 그 한 축만 연다. 실제 사업자 계정이 준비되기 전에는 Naver 실계정 자격을 완료로 주장하지 않는다.
 Windows 실제 기기와 crash-resilient managed process는 각각 플랫폼·운영 트랙으로 유지한다.
