@@ -7,6 +7,27 @@ import { join } from 'node:path';
 import { makeConsoleServer } from '../src/console-server.js';
 import { sessionNameForOwner } from '../src/agent-browser-driver.js';
 
+const browserBoundaryWebReadOptions = {
+  resolveHost: async () => ['93.184.216.34'],
+  fetchImpl: async () => new Response('rendered page required', {
+    status: 400, headers: { 'content-type': 'text/html; charset=utf-8' },
+  }),
+};
+
+function requestBrowserBoundary(input, url, id) {
+  assert.ok(input.tools.some((tool) => tool.name === 'web_read'));
+  assert.ok(!input.tools.some((tool) => tool.name === 'browser'));
+  return { text: '', toolCalls: [{ id, name: 'web_read', args: { url, maxChars: 20_000 } }] };
+}
+
+function requireBrowserAfterBoundary(input) {
+  const receipt = JSON.parse(input.messages.at(-1).content);
+  assert.equal(receipt.result.state, 'blocked');
+  const browser = input.tools.find((tool) => tool.name === 'browser');
+  assert.ok(browser);
+  return browser;
+}
+
 test('실제 콘솔 모델이 browser navigate의 렌더링 snapshot을 읽고 같은 Run에 Receipt를 남긴다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-browser-observe-console-'));
   const stateDir = join(room, 'state');
@@ -29,12 +50,14 @@ test('실제 콘솔 모델이 browser navigate의 렌더링 snapshot을 읽고 �
     async close() {},
   };
   const server = makeConsoleServer({
-    stateDir, workspace, browserDriverFactory: () => driver,
+    stateDir, workspace, browserDriverFactory: () => driver, webReadOptions: browserBoundaryWebReadOptions,
     modelFactory: () => ({ async respond(input) {
       modelTurn += 1;
       if (modelTurn === 1) {
-        const browser = input.tools.find((tool) => tool.name === 'browser');
-        assert.ok(browser);
+        return requestBrowserBoundary(input, 'https://example.com/app', 'read-app-boundary');
+      }
+      if (modelTurn === 2) {
+        const browser = requireBrowserAfterBoundary(input);
         assert.deepEqual(browser.parameters.properties.action.enum, [
           'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'fill_editable', 'submit',
           'login_start', 'login_status', 'login_cancel', 'download', 'upload',
@@ -67,10 +90,11 @@ test('실제 콘솔 모델이 browser navigate의 렌더링 snapshot을 읽고 �
     assert.match(reply.reply, /사업을 더 쉽게/);
     const run = await fetch(`${base}/runs/${reply.runId}`).then((response) => response.json());
     const completed = run.events.filter((event) => event.type === 'tool_completed');
-    assert.equal(completed.length, 1);
-    assert.equal(completed[0].payload.receipt.actualCall.name, 'browser');
-    assert.equal(completed[0].payload.receipt.result.tab.tabId, 't1');
-    assert.match(completed[0].payload.receipt.result.observation.observationId, /^[0-9a-f]{64}$/);
+    assert.equal(completed.length, 2);
+    assert.equal(completed[0].payload.receipt.actualCall.name, 'web_read');
+    assert.equal(completed[1].payload.receipt.actualCall.name, 'browser');
+    assert.equal(completed[1].payload.receipt.result.tab.tabId, 't1');
+    assert.match(completed[1].payload.receipt.result.observation.observationId, /^[0-9a-f]{64}$/);
   } finally {
     await server.closeBrowsers?.();
     await new Promise((resolve) => server.close(resolve));
@@ -111,11 +135,15 @@ test('콘솔 모델이 download ref를 사용하고 실제 managed file 영수�
   };
   const nulls = { url: null, tabId: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, editableId: null, modalIntent: null, text: null, textFilePath: null, textFileStartLine: null, filePath: null, effect: null };
   const server = makeConsoleServer({
-    stateDir, workspace, browserDriverFactory: () => driver,
+    stateDir, workspace, browserDriverFactory: () => driver, webReadOptions: browserBoundaryWebReadOptions,
     modelFactory: () => ({ async respond(input) {
       phase += 1;
-      if (phase === 1) return { text: '', toolCalls: [{ id: 'open-reports', name: 'browser', args: { action: 'navigate', ...nulls, url: 'https://example.com/reports' } }] };
+      if (phase === 1) return requestBrowserBoundary(input, 'https://example.com/reports', 'read-reports-boundary');
       if (phase === 2) {
+        requireBrowserAfterBoundary(input);
+        return { text: '', toolCalls: [{ id: 'open-reports', name: 'browser', args: { action: 'navigate', ...nulls, url: 'https://example.com/reports' } }] };
+      }
+      if (phase === 3) {
         observed = JSON.parse(input.messages.at(-1).content).result.observation;
         return { text: '', toolCalls: [{ id: 'download-report', name: 'browser', args: {
           action: 'download', ...nulls, tabId: 't1', observationId: observed.observationId, ref: 'e2',
@@ -181,11 +209,15 @@ test('콘솔 upload는 현재 사용자 문장에 적힌 exact path만 file inpu
   };
   const nulls = { url: null, tabId: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, editableId: null, modalIntent: null, text: null, textFilePath: null, textFileStartLine: null, filePath: null, effect: null };
   const server = makeConsoleServer({
-    stateDir, workspace, browserDriverFactory: () => driver,
+    stateDir, workspace, browserDriverFactory: () => driver, webReadOptions: browserBoundaryWebReadOptions,
     modelFactory: () => ({ async respond(input) {
       phase += 1;
-      if (phase === 1) return { text: '', toolCalls: [{ id: 'open-upload', name: 'browser', args: { action: 'navigate', ...nulls, url: 'https://example.com/upload' } }] };
+      if (phase === 1) return requestBrowserBoundary(input, 'https://example.com/upload', 'read-upload-boundary');
       if (phase === 2) {
+        requireBrowserAfterBoundary(input);
+        return { text: '', toolCalls: [{ id: 'open-upload', name: 'browser', args: { action: 'navigate', ...nulls, url: 'https://example.com/upload' } }] };
+      }
+      if (phase === 3) {
         const observation = JSON.parse(input.messages.at(-1).content).result.observation;
         return { text: '', toolCalls: [{ id: 'upload-file', name: 'browser', args: {
           action: 'upload', ...nulls, tabId: 't1', observationId: observation.observationId,
@@ -255,20 +287,28 @@ test('사용자가 visible browser에서 직접 로그인한 뒤 다음 턴 logi
   };
   const nulls = { url: null, tabId: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, editableId: null, modalIntent: null, text: null, textFilePath: null, textFileStartLine: null, filePath: null, effect: null };
   const server = makeConsoleServer({
-    stateDir, workspace, browserDriverFactory: () => driver,
+    stateDir, workspace, browserDriverFactory: () => driver, webReadOptions: browserBoundaryWebReadOptions,
     modelFactory: () => ({ async respond(input) {
       phase += 1;
-      if (phase === 1) return { text: '', toolCalls: [{ id: 'login', name: 'browser', args: {
-        action: 'login_start', ...nulls, url: 'https://example.com/login',
-      } }] };
+      if (phase === 1) return requestBrowserBoundary(input, 'https://example.com/login', 'read-login-boundary');
       if (phase === 2) {
+        requireBrowserAfterBoundary(input);
+        return { text: '', toolCalls: [{ id: 'login', name: 'browser', args: {
+        action: 'login_start', ...nulls, url: 'https://example.com/login',
+        } }] };
+      }
+      if (phase === 3) {
         const receipt = JSON.parse(input.messages.at(-1).content);
         assert.equal(receipt.result.pageObserved, false);
         return { text: '전용 브라우저에서 직접 로그인한 뒤 완료했다고 알려주세요.', toolCalls: [] };
       }
-      if (phase === 3) return { text: '', toolCalls: [{ id: 'login-status', name: 'browser', args: {
-        action: 'login_status', ...nulls, tabId: 't1',
-      } }] };
+      if (phase === 4) return requestBrowserBoundary(input, 'https://example.com/dashboard', 'read-dashboard-boundary');
+      if (phase === 5) {
+        requireBrowserAfterBoundary(input);
+        return { text: '', toolCalls: [{ id: 'login-status', name: 'browser', args: {
+          action: 'login_status', ...nulls, tabId: 't1',
+        } }] };
+      }
       const receipt = JSON.parse(input.messages.at(-1).content);
       assert.match(receipt.result.observation.text, /사업자 대시보드/);
       assert.equal(receipt.result.continuityEstablished, true);
@@ -295,7 +335,7 @@ test('사용자가 visible browser에서 직접 로그인한 뒤 다음 턴 logi
       ['login_start', 'https://example.com/login'], ['login_reveal'], ['login_status'],
     ]);
     const run = await fetch(`${base}/runs/${second.runId}`).then((response) => response.json());
-    const receipt = run.events.find((event) => event.type === 'tool_completed').payload.receipt;
+    const receipt = run.events.filter((event) => event.type === 'tool_completed').at(-1).payload.receipt;
     assert.equal(receipt.result.secretValuesObserved, false);
     assert.equal(JSON.stringify(receipt).includes('password'), false);
   } finally {
@@ -324,7 +364,7 @@ test('browser screenshot Receipt의 previewUrl은 기존 콘솔 markdown에서 �
     async snapshot() { throw new Error('not used'); }, async close() {},
   });
   const server = makeConsoleServer({
-    stateDir, workspace, browserDriverFactory: async (sessionId) => {
+    stateDir, workspace, webReadOptions: browserBoundaryWebReadOptions, browserDriverFactory: async (sessionId) => {
       const directory = join(stateDir, 'browser', sessionNameForOwner(sessionId), 'artifacts');
       const screenshotPath = join(directory, 'browser-11111111-1111-4111-8111-111111111111.png');
       await mkdir(directory, { recursive: true });
@@ -334,10 +374,14 @@ test('browser screenshot Receipt의 previewUrl은 기존 콘솔 markdown에서 �
     modelStatus: () => ({ connected: true, provider: 'test', modelId: 'preview-model' }),
     modelFactory: () => ({ async respond(input) {
       turn += 1;
-      if (turn === 1) return { text: '', toolCalls: [{ id: 'capture-page', name: 'browser', args: {
-        action: 'screenshot', url: null, tabId: 't1', full: null, maxChars: null, fullPage: true,
-        observationId: null, ref: null, text: null, filePath: null, effect: null,
-      } }] };
+      if (turn === 1) return requestBrowserBoundary(input, 'https://example.com/', 'read-preview-boundary');
+      if (turn === 2) {
+        requireBrowserAfterBoundary(input);
+        return { text: '', toolCalls: [{ id: 'capture-page', name: 'browser', args: {
+          action: 'screenshot', url: null, tabId: 't1', full: null, maxChars: null, fullPage: true,
+          observationId: null, ref: null, text: null, filePath: null, effect: null,
+        } }] };
+      }
       const receipt = JSON.parse(input.messages.at(-1).content);
       assert.match(receipt.result.file.previewUrl, /^\/browser-artifacts\/t5-[0-9a-f]{20}\/browser-[0-9a-f-]{36}\.png$/);
       return { text: `![브라우저 미리보기](${receipt.result.file.previewUrl})`, toolCalls: [] };
@@ -456,24 +500,34 @@ test('세 사용자 턴에서 최신 browser ref로 fill 뒤 submit하고 각 �
   };
   const nulls = { url: null, full: null, maxChars: 20_000, fullPage: null, editableId: null, modalIntent: null, text: null, textFilePath: null, textFileStartLine: null, filePath: null, effect: null };
   const server = makeConsoleServer({
-    stateDir, workspace, browserDriverFactory: () => driver,
+    stateDir, workspace, browserDriverFactory: () => driver, webReadOptions: browserBoundaryWebReadOptions,
     modelFactory: () => ({ async respond(input) {
       phase += 1;
-      if (phase === 1) return { text: '', toolCalls: [{ id: 'open-shop', name: 'browser', args: {
-        action: 'navigate', ...nulls, url: 'https://example.com/shop', tabId: null, observationId: null, ref: null,
-      } }] };
+      if (phase === 1) return requestBrowserBoundary(input, 'https://example.com/shop', 'read-shop-boundary');
       if (phase === 2) {
+        requireBrowserAfterBoundary(input);
+        return { text: '', toolCalls: [{ id: 'open-shop', name: 'browser', args: {
+          action: 'navigate', ...nulls, url: 'https://example.com/shop', tabId: null, observationId: null, ref: null,
+        } }] };
+      }
+      if (phase === 3) {
         observed = JSON.parse(input.messages.at(-1).content).result.observation;
         return { text: '가게 이름 입력칸을 확인했어요.', toolCalls: [] };
       }
-      if (phase === 3) return { text: '', toolCalls: [{ id: 'fill-shop', name: 'browser', args: {
-        action: 'fill', ...nulls, tabId: 't1', observationId: observed.observationId,
-        ref: 'e4', text: '봄 카페', effect: {
-          kind: 'external_send', summary: '가게 검색어 입력', targets: ['https://example.com/shop'],
-          reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null,
-        },
-      } }] };
       if (phase === 4) {
+        return requestBrowserBoundary(input, 'https://example.com/shop', 'read-shop-fill-boundary');
+      }
+      if (phase === 5) {
+        requireBrowserAfterBoundary(input);
+        return { text: '', toolCalls: [{ id: 'fill-shop', name: 'browser', args: {
+          action: 'fill', ...nulls, tabId: 't1', observationId: observed.observationId,
+          ref: 'e4', text: '봄 카페', effect: {
+            kind: 'external_send', summary: '가게 검색어 입력', targets: ['https://example.com/shop'],
+            reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null,
+          },
+        } }] };
+      }
+      if (phase === 6) {
         const receipt = JSON.parse(input.messages.at(-1).content);
         assert.equal(receipt.result.state, 'acted');
         assert.equal(receipt.result.action.textChars, 4);
@@ -482,13 +536,17 @@ test('세 사용자 턴에서 최신 browser ref로 fill 뒤 submit하고 각 �
         filled = receipt.result.after;
         return { text: '가게 이름에 “봄 카페”를 입력했고 자동완성 요청도 확인했어요.', toolCalls: [] };
       }
-      if (phase === 5) return { text: '', toolCalls: [{ id: 'submit-shop', name: 'browser', args: {
-        action: 'submit', ...nulls, tabId: 't1', observationId: filled.observationId, ref: 'e5',
-        effect: {
-          kind: 'external_send', summary: '가게 신청 제출', targets: ['https://example.com/shop'],
-          reversible: true, backupAvailable: false, recipientNew: false, approvalToken: null,
-        },
-      } }] };
+      if (phase === 7) return requestBrowserBoundary(input, 'https://example.com/shop', 'read-shop-submit-boundary');
+      if (phase === 8) {
+        requireBrowserAfterBoundary(input);
+        return { text: '', toolCalls: [{ id: 'submit-shop', name: 'browser', args: {
+          action: 'submit', ...nulls, tabId: 't1', observationId: filled.observationId, ref: 'e5',
+          effect: {
+            kind: 'external_send', summary: '가게 신청 제출', targets: ['https://example.com/shop'],
+            reversible: true, backupAvailable: false, recipientNew: false, approvalToken: null,
+          },
+        } }] };
+      }
       const receipt = JSON.parse(input.messages.at(-1).content);
       assert.equal(receipt.result.action.kind, 'submit');
       assert.equal(receipt.result.network.requests[0].method, 'POST');
@@ -506,14 +564,14 @@ test('세 사용자 턴에서 최신 browser ref로 fill 뒤 submit하고 각 �
     assert.match(second.reply, /자동완성 요청/);
     assert.equal(fills, 1);
     const run = await fetch(`${base}/runs/${second.runId}`).then((response) => response.json());
-    const receipt = run.events.find((event) => event.type === 'tool_completed').payload.receipt;
+    const receipt = run.events.filter((event) => event.type === 'tool_completed').at(-1).payload.receipt;
     assert.equal(receipt.actualCall.name, 'browser');
     assert.equal(receipt.result.before.observationId, observed.observationId);
     const third = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: session.id, text: '좋아. 그 내용으로 제출해줘' }) }).then((response) => response.json());
     assert.match(third.reply, /접수 완료/);
     assert.equal(submits, 1);
     const submitRun = await fetch(`${base}/runs/${third.runId}`).then((response) => response.json());
-    const submitReceipt = submitRun.events.find((event) => event.type === 'tool_completed').payload.receipt;
+    const submitReceipt = submitRun.events.filter((event) => event.type === 'tool_completed').at(-1).payload.receipt;
     assert.equal(submitReceipt.result.before.observationId, filled.observationId);
     assert.equal(submitReceipt.result.navigation.to, 'https://example.com/submit');
   } finally {
@@ -550,13 +608,17 @@ test('browser submit 결제 효과는 실제 제출 전에 exact-call 승인으�
   };
   const nulls = { url: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, editableId: null, modalIntent: null, text: null, textFilePath: null, textFileStartLine: null, filePath: null, effect: null };
   const server = makeConsoleServer({
-    stateDir, workspace, browserDriverFactory: () => driver,
+    stateDir, workspace, browserDriverFactory: () => driver, webReadOptions: browserBoundaryWebReadOptions,
     modelFactory: () => ({ async respond(input) {
       phase += 1;
-      if (phase === 1) return { text: '', toolCalls: [{ id: 'open-cart', name: 'browser', args: {
-        action: 'navigate', ...nulls, url: 'https://shop.example/cart',
-      } }] };
+      if (phase === 1) return requestBrowserBoundary(input, 'https://shop.example/cart', 'read-cart-boundary');
       if (phase === 2) {
+        requireBrowserAfterBoundary(input);
+        return { text: '', toolCalls: [{ id: 'open-cart', name: 'browser', args: {
+          action: 'navigate', ...nulls, url: 'https://shop.example/cart',
+        } }] };
+      }
+      if (phase === 3) {
         observationId = JSON.parse(input.messages.at(-1).content).result.observation.observationId;
         return { text: '', toolCalls: [{ id: 'pay', name: 'browser', args: {
           action: 'submit', ...nulls, tabId: 't1', observationId, ref: 'e2',

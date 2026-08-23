@@ -101,6 +101,12 @@ test('연결 진실의 준비된 브라우저 경로는 기존 로그인 handoff
   const server = makeConsoleServer({
     stateDir: join(room, 'state'), workspace: room,
     browserHost: { profile: driver.profile }, browserDriverFactory: () => driver,
+    webReadOptions: {
+      resolveHost: async () => ['142.250.0.1'],
+      fetchImpl: async () => new Response('login-bound rendered page', {
+        status: 400, headers: { 'content-type': 'text/html; charset=utf-8' },
+      }),
+    },
     workspaceConnectionInspectors: [{
       id: 'google-workspace', label: 'Google Workspace', category: 'workspace',
       inspect: async () => ({
@@ -122,8 +128,17 @@ test('연결 진실의 준비된 브라우저 경로는 기존 로그인 handoff
         const connection = JSON.parse(input.messages.at(-1).content).result.connection;
         assert.equal(connection.state, 'needs_connection');
         assert.equal(connection.routes[0].kind, 'browser');
+        assert.equal(input.tools.some((tool) => tool.name === 'browser'), false);
+        return { text: '', toolCalls: [{ id: 'read-google-login-boundary', name: 'web_read', args: {
+          url: connection.routes[0].startUrl, maxChars: 20_000,
+        } }] };
+      }
+      if (turn === 3) {
+        const boundary = JSON.parse(input.messages.at(-1).content);
+        assert.equal(boundary.result.state, 'blocked');
+        assert.equal(input.tools.some((tool) => tool.name === 'browser'), true);
         return { text: '', toolCalls: [{ id: 'start-google-login', name: 'browser', args: {
-          action: 'login_start', ...nulls, url: connection.routes[0].startUrl,
+          action: 'login_start', ...nulls, url: 'https://drive.google.com/',
         } }] };
       }
       const receipt = JSON.parse(input.messages.at(-1).content);
