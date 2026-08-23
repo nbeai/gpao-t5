@@ -1,0 +1,678 @@
+{
+  "schema": "t5.d5-qualified-document-split-connection.v1",
+  "recordedAt": "2026-08-23T11:26:18.844Z",
+  "actualUserData": false,
+  "parser": {
+    "name": "kordoc-read-split",
+    "version": "4.9.1",
+    "sourceCommit": "c3ec5b5358197e488f96e5aa05ef9ad683359352",
+    "tarballSha256": "113154cb8a687822352023b82c610c8ba01325d12dd023e004ac28cde40a3237",
+    "formats": [
+      "hwp3",
+      "hwp5",
+      "hwpx",
+      "xls",
+      "docx"
+    ],
+    "excludedSurfaces": [
+      "pdf",
+      "ocr",
+      "image",
+      "mcp",
+      "cli",
+      "generate",
+      "fill",
+      "patch"
+    ],
+    "isolation": {
+      "process": "node-permission-worker",
+      "input": "stdin-exact-bytes",
+      "filesystemWrite": false,
+      "network": false,
+      "childProcess": false,
+      "workerThreads": false
+    }
+  },
+  "direct": [
+    {
+      "caseId": "paired-hwp3",
+      "recordSha256": "645525c8cd5ec11b1742ba7cfc759f68622861916233b5e982385cdb12f0ced2",
+      "state": "observed",
+      "kind": "qualified_document",
+      "format": "hwp3",
+      "sourceSha256": "645525c8cd5ec11b1742ba7cfc759f68622861916233b5e982385cdb12f0ced2",
+      "textAnchors": [],
+      "tables": 0,
+      "tableCells": 0,
+      "pageCount": null,
+      "coverage": {
+        "totalChars": 21129,
+        "shownChars": 21129,
+        "omittedChars": 0,
+        "truncated": false,
+        "totalBlocks": 305,
+        "shownBlocks": 305,
+        "totalTables": 0,
+        "shownTables": 0,
+        "totalTableCells": 0,
+        "shownTableCells": 0
+      },
+      "parser": {
+        "name": "kordoc-read-split",
+        "version": "4.9.1",
+        "sourceCommit": "c3ec5b5358197e488f96e5aa05ef9ad683359352",
+        "tarballSha256": "113154cb8a687822352023b82c610c8ba01325d12dd023e004ac28cde40a3237",
+        "formats": [
+          "hwp3",
+          "hwp5",
+          "hwpx",
+          "xls",
+          "docx"
+        ],
+        "excludedSurfaces": [
+          "pdf",
+          "ocr",
+          "image",
+          "mcp",
+          "cli",
+          "generate",
+          "fill",
+          "patch"
+        ],
+        "isolation": {
+          "process": "node-permission-worker",
+          "input": "stdin-exact-bytes",
+          "filesystemWrite": false,
+          "network": false,
+          "childProcess": false,
+          "workerThreads": false
+        }
+      }
+    },
+    {
+      "caseId": "paired-hwp5",
+      "recordSha256": "dc2edf4737c110ab16a6c6543bceed9f5648d634a40e180ce3fc2725ec0f21d8",
+      "state": "observed",
+      "kind": "qualified_document",
+      "format": "hwp5",
+      "sourceSha256": "dc2edf4737c110ab16a6c6543bceed9f5648d634a40e180ce3fc2725ec0f21d8",
+      "textAnchors": [],
+      "tables": 6,
+      "tableCells": 80,
+      "pageCount": 16,
+      "coverage": {
+        "totalChars": 21757,
+        "shownChars": 21757,
+        "omittedChars": 0,
+        "truncated": false,
+        "totalBlocks": 102,
+        "shownBlocks": 102,
+        "totalTables": 6,
+        "shownTables": 6,
+        "totalTableCells": 80,
+        "shownTableCells": 80
+      },
+      "parser": {
+        "name": "kordoc-read-split",
+        "version": "4.9.1",
+        "sourceCommit": "c3ec5b5358197e488f96e5aa05ef9ad683359352",
+        "tarballSha256": "113154cb8a687822352023b82c610c8ba01325d12dd023e004ac28cde40a3237",
+        "formats": [
+          "hwp3",
+          "hwp5",
+          "hwpx",
+          "xls",
+          "docx"
+        ],
+        "excludedSurfaces": [
+          "pdf",
+          "ocr",
+          "image",
+          "mcp",
+          "cli",
+          "generate",
+          "fill",
+          "patch"
+        ],
+        "isolation": {
+          "process": "node-permission-worker",
+          "input": "stdin-exact-bytes",
+          "filesystemWrite": false,
+          "network": false,
+          "childProcess": false,
+          "workerThreads": false
+        }
+      }
+    },
+    {
+      "caseId": "paired-hwpx",
+      "recordSha256": "aa043a7df44f9d28893cd75423e8e7b5e8eb2be56d8819d4a4cf39e2d64e5cb1",
+      "state": "observed",
+      "kind": "qualified_document",
+      "format": "hwpx",
+      "sourceSha256": "aa043a7df44f9d28893cd75423e8e7b5e8eb2be56d8819d4a4cf39e2d64e5cb1",
+      "textAnchors": [],
+      "tables": 6,
+      "tableCells": 80,
+      "pageCount": 16,
+      "coverage": {
+        "totalChars": 21813,
+        "shownChars": 21813,
+        "omittedChars": 0,
+        "truncated": false,
+        "totalBlocks": 102,
+        "shownBlocks": 102,
+        "totalTables": 6,
+        "shownTables": 6,
+        "totalTableCells": 80,
+        "shownTableCells": 80
+      },
+      "parser": {
+        "name": "kordoc-read-split",
+        "version": "4.9.1",
+        "sourceCommit": "c3ec5b5358197e488f96e5aa05ef9ad683359352",
+        "tarballSha256": "113154cb8a687822352023b82c610c8ba01325d12dd023e004ac28cde40a3237",
+        "formats": [
+          "hwp3",
+          "hwp5",
+          "hwpx",
+          "xls",
+          "docx"
+        ],
+        "excludedSurfaces": [
+          "pdf",
+          "ocr",
+          "image",
+          "mcp",
+          "cli",
+          "generate",
+          "fill",
+          "patch"
+        ],
+        "isolation": {
+          "process": "node-permission-worker",
+          "input": "stdin-exact-bytes",
+          "filesystemWrite": false,
+          "network": false,
+          "childProcess": false,
+          "workerThreads": false
+        }
+      }
+    },
+    {
+      "caseId": "legacy-xls-biff8-korean",
+      "recordSha256": "69a4180a7b2d8044220ea2b35116c0c1fe3d4b0dd247d025c0dbc0daf211e14b",
+      "state": "observed",
+      "kind": "qualified_document",
+      "format": "xls",
+      "sourceSha256": "69a4180a7b2d8044220ea2b35116c0c1fe3d4b0dd247d025c0dbc0daf211e14b",
+      "textAnchors": [
+        {
+          "anchor": "2025년도 부서별 예산 편성",
+          "matched": true
+        },
+        {
+          "anchor": "기획조정실",
+          "matched": true
+        },
+        {
+          "anchor": "12500000000",
+          "matched": true
+        }
+      ],
+      "tables": 1,
+      "tableCells": 32,
+      "pageCount": 1,
+      "coverage": {
+        "totalChars": 567,
+        "shownChars": 567,
+        "omittedChars": 0,
+        "truncated": false,
+        "totalBlocks": 2,
+        "shownBlocks": 2,
+        "totalTables": 1,
+        "shownTables": 1,
+        "totalTableCells": 32,
+        "shownTableCells": 32
+      },
+      "parser": {
+        "name": "kordoc-read-split",
+        "version": "4.9.1",
+        "sourceCommit": "c3ec5b5358197e488f96e5aa05ef9ad683359352",
+        "tarballSha256": "113154cb8a687822352023b82c610c8ba01325d12dd023e004ac28cde40a3237",
+        "formats": [
+          "hwp3",
+          "hwp5",
+          "hwpx",
+          "xls",
+          "docx"
+        ],
+        "excludedSurfaces": [
+          "pdf",
+          "ocr",
+          "image",
+          "mcp",
+          "cli",
+          "generate",
+          "fill",
+          "patch"
+        ],
+        "isolation": {
+          "process": "node-permission-worker",
+          "input": "stdin-exact-bytes",
+          "filesystemWrite": false,
+          "network": false,
+          "childProcess": false,
+          "workerThreads": false
+        }
+      }
+    },
+    {
+      "caseId": "modern-docx",
+      "recordSha256": "76b83f6cb043357c1fb62c24f8bab67d8c26d737e80f8b0c2aa2466ce51326db",
+      "state": "observed",
+      "kind": "qualified_document",
+      "format": "docx",
+      "sourceSha256": "76b83f6cb043357c1fb62c24f8bab67d8c26d737e80f8b0c2aa2466ce51326db",
+      "textAnchors": [
+        {
+          "anchor": "한빛상회",
+          "matched": true
+        },
+        {
+          "anchor": "40300",
+          "matched": true
+        }
+      ],
+      "tables": 1,
+      "tableCells": 2,
+      "pageCount": null,
+      "coverage": {
+        "totalChars": 40,
+        "shownChars": 40,
+        "omittedChars": 0,
+        "truncated": false,
+        "totalBlocks": 2,
+        "shownBlocks": 2,
+        "totalTables": 1,
+        "shownTables": 1,
+        "totalTableCells": 2,
+        "shownTableCells": 2
+      },
+      "parser": {
+        "name": "kordoc-read-split",
+        "version": "4.9.1",
+        "sourceCommit": "c3ec5b5358197e488f96e5aa05ef9ad683359352",
+        "tarballSha256": "113154cb8a687822352023b82c610c8ba01325d12dd023e004ac28cde40a3237",
+        "formats": [
+          "hwp3",
+          "hwp5",
+          "hwpx",
+          "xls",
+          "docx"
+        ],
+        "excludedSurfaces": [
+          "pdf",
+          "ocr",
+          "image",
+          "mcp",
+          "cli",
+          "generate",
+          "fill",
+          "patch"
+        ],
+        "isolation": {
+          "process": "node-permission-worker",
+          "input": "stdin-exact-bytes",
+          "filesystemWrite": false,
+          "network": false,
+          "childProcess": false,
+          "workerThreads": false
+        }
+      }
+    },
+    {
+      "caseId": "text-pdf",
+      "recordSha256": "d5f354b7d29a463528b58e6699fd7600c7ec8b223d473cd3a82261e07580bd95",
+      "state": "observed",
+      "kind": "pdf",
+      "format": null,
+      "sourceSha256": null,
+      "textAnchors": [
+        {
+          "anchor": "HANBIT SHOP",
+          "matched": false
+        },
+        {
+          "anchor": "40300",
+          "matched": false
+        }
+      ],
+      "tables": null,
+      "tableCells": null,
+      "pageCount": 1,
+      "coverage": null,
+      "parser": null
+    }
+  ],
+  "boundaries": {
+    "encrypted": {
+      "state": "capability_boundary",
+      "trust": "untrusted_external",
+      "instructionAuthority": "none",
+      "observation": {
+        "kind": "qualified_document",
+        "format": "hwp3",
+        "state": "capability_boundary",
+        "reason": "parser_rejected",
+        "errorCode": "ENCRYPTED",
+        "warning": "암호로 보호된 HWP3 문서입니다. password 옵션에 열기 암호를 지정하세요.",
+        "parser": {
+          "name": "kordoc-read-split",
+          "version": "4.9.1",
+          "sourceCommit": "c3ec5b5358197e488f96e5aa05ef9ad683359352",
+          "tarballSha256": "113154cb8a687822352023b82c610c8ba01325d12dd023e004ac28cde40a3237",
+          "formats": [
+            "hwp3",
+            "hwp5",
+            "hwpx",
+            "xls",
+            "docx"
+          ],
+          "excludedSurfaces": [
+            "pdf",
+            "ocr",
+            "image",
+            "mcp",
+            "cli",
+            "generate",
+            "fill",
+            "patch"
+          ],
+          "isolation": {
+            "process": "node-permission-worker",
+            "input": "stdin-exact-bytes",
+            "filesystemWrite": false,
+            "network": false,
+            "childProcess": false,
+            "workerThreads": false
+          }
+        },
+        "sourceSha256": "db743d084efc9e08e839a5b4d978b16b8676434011776e090e4cda43e57304be",
+        "durationMs": 63,
+        "attachmentId": "010db669-49f1-4dc0-80c2-1da17d45a696"
+      }
+    },
+    "corruptHwp3": {
+      "state": "capability_boundary",
+      "trust": "untrusted_external",
+      "instructionAuthority": "none",
+      "observation": {
+        "kind": "qualified_document",
+        "format": "hwp3",
+        "state": "capability_boundary",
+        "reason": "parser_rejected",
+        "errorCode": "CORRUPTED",
+        "warning": "HWP3 압축 해제 실패: unexpected end of file",
+        "parser": {
+          "name": "kordoc-read-split",
+          "version": "4.9.1",
+          "sourceCommit": "c3ec5b5358197e488f96e5aa05ef9ad683359352",
+          "tarballSha256": "113154cb8a687822352023b82c610c8ba01325d12dd023e004ac28cde40a3237",
+          "formats": [
+            "hwp3",
+            "hwp5",
+            "hwpx",
+            "xls",
+            "docx"
+          ],
+          "excludedSurfaces": [
+            "pdf",
+            "ocr",
+            "image",
+            "mcp",
+            "cli",
+            "generate",
+            "fill",
+            "patch"
+          ],
+          "isolation": {
+            "process": "node-permission-worker",
+            "input": "stdin-exact-bytes",
+            "filesystemWrite": false,
+            "network": false,
+            "childProcess": false,
+            "workerThreads": false
+          }
+        },
+        "sourceSha256": "d4ca2d397e8303c1cc7fff5167cfd30dba206d82540a20f37407719dd4f484a5",
+        "durationMs": 64,
+        "attachmentId": "50372654-7f9c-4819-bc3c-ce101362d923"
+      }
+    },
+    "windowsActualDevice": "not_measured",
+    "hwp3Tables": "not_observed",
+    "macrosOleExternalObjects": "explicit warning not qualified"
+  },
+  "baseline": {
+    "cases": 17,
+    "targetReadyCases": 10,
+    "missingCapabilityCounts": {
+      "ocr_completion": 1,
+      "text_content": 5,
+      "format_identity": 4,
+      "tabular_structure": 2
+    },
+    "rows": [
+      {
+        "caseId": "utf8-text",
+        "targetReady": true,
+        "missing": []
+      },
+      {
+        "caseId": "utf8-bom-csv",
+        "targetReady": true,
+        "missing": []
+      },
+      {
+        "caseId": "utf16le-text",
+        "targetReady": true,
+        "missing": []
+      },
+      {
+        "caseId": "cp949-csv",
+        "targetReady": true,
+        "missing": []
+      },
+      {
+        "caseId": "modern-xlsx",
+        "targetReady": true,
+        "missing": []
+      },
+      {
+        "caseId": "text-pdf",
+        "targetReady": true,
+        "missing": []
+      },
+      {
+        "caseId": "textless-pdf",
+        "targetReady": false,
+        "missing": [
+          "ocr_completion"
+        ]
+      },
+      {
+        "caseId": "modern-docx",
+        "targetReady": true,
+        "missing": []
+      },
+      {
+        "caseId": "modern-pptx",
+        "targetReady": false,
+        "missing": [
+          "text_content"
+        ]
+      },
+      {
+        "caseId": "open-document-text",
+        "targetReady": false,
+        "missing": [
+          "format_identity",
+          "text_content"
+        ]
+      },
+      {
+        "caseId": "open-document-sheet",
+        "targetReady": false,
+        "missing": [
+          "format_identity",
+          "text_content",
+          "tabular_structure"
+        ]
+      },
+      {
+        "caseId": "legacy-xls-biff8-korean",
+        "targetReady": true,
+        "missing": []
+      },
+      {
+        "caseId": "legacy-doc-ole2",
+        "targetReady": false,
+        "missing": [
+          "format_identity",
+          "text_content"
+        ]
+      },
+      {
+        "caseId": "legacy-ppt-ole2",
+        "targetReady": false,
+        "missing": [
+          "format_identity",
+          "text_content"
+        ]
+      },
+      {
+        "caseId": "korean-hwp3",
+        "targetReady": false,
+        "missing": [
+          "tabular_structure"
+        ]
+      },
+      {
+        "caseId": "korean-hwp5",
+        "targetReady": true,
+        "missing": []
+      },
+      {
+        "caseId": "korean-hwpx",
+        "targetReady": true,
+        "missing": []
+      }
+    ],
+    "sourceFilesUnchanged": true
+  },
+  "modelTasks": [
+    {
+      "modelId": "gpt-5.6-terra",
+      "id": "same-document-purpose",
+      "answer": "세 문서를 모두 읽어 확인한 결과, **같은 한국어 번역 원문을 HWP 3.0·HWP 5.x·HWPX 형식으로 각각 저장한 문서**로 보입니다. 제목·저자·본문의 6개 장 구성·NAT/IP 터널링 설명·4가지 작업 할당 방식·참고문헌이 일치하며, 그림 번호·서식·표현 방식에만 형식별 차이가 있습니다.  \n\n공통 주제는 리눅스 서버 클러스터를 하나의 가상 서버처럼 제공하기 위한 **IP 계층 부하 분산(NAT, IP 터널링)**과, 확장성·고가용성을 위한 작업 할당 및 장애 조치 방식입니다.",
+      "httpStatus": 200,
+      "runStatus": "completed",
+      "wallMs": 9082,
+      "receipts": 6,
+      "formats": [
+        "hwp3",
+        "hwp5",
+        "hwpx",
+        "hwp3",
+        "hwp5",
+        "hwpx"
+      ],
+      "usage": {
+        "inputTokens": 102107,
+        "outputTokens": 621,
+        "totalTokens": 102728
+      },
+      "passed": true
+    },
+    {
+      "modelId": "gpt-5.6-terra",
+      "id": "business-values",
+      "answer": "추출 결과입니다.\n\n| 항목 | 값 | 출처 |\n|---|---:|---|\n| 예산 제목 | 2025년 예산 | `구형_한국어_예산.xls` |\n| 기획조정실 본예산 | 12,500,000,000원 | `구형_한국어_예산.xls` |\n| 전체 본예산 합계 | 38,100,000,000원 | `구형_한국어_예산.xls` |\n| 거래처 | 한빛상회 | `현재_Word_문서.docx` |\n| 계약 금액 | 40,300원 | `현재_Word_문서.docx` |",
+      "httpStatus": 200,
+      "runStatus": "completed",
+      "wallMs": 4638,
+      "receipts": 2,
+      "formats": [
+        "xls",
+        "docx"
+      ],
+      "usage": {
+        "inputTokens": 12783,
+        "outputTokens": 300,
+        "totalTokens": 13083
+      },
+      "passed": true
+    },
+    {
+      "modelId": "gpt-5.5",
+      "id": "same-document-purpose",
+      "answer": "세 문서를 실제로 열어 본 결과, **같은 원문 「Creating Linux Virtual Servers」의 한글 번역본을 HWP3, HWP5, HWPX 형식으로 각각 저장한 문서로 확인됩니다.** 본문 제목, 저자, 개요, 1~6장 구성, NAT/IP 터널링 기반 리눅스 가상 서버 설명, 참고문헌까지 내용이 대응하며, 차이는 주로 문서 형식·표/그림/제목 표현 방식에서 납니다.\n\n공통 주제는 **리눅스 가상 서버를 이용해 여러 실제 서버의 클러스터를 하나의 고성능·고가용성 가상 서비스처럼 제공하는 방법**입니다. 특히 **NAT와 IP 터널링 기반 부하 분산, 작업 할당 방식, 장애 감지와 백업을 통한 가용성 확보**를 설명합니다.",
+      "httpStatus": 200,
+      "runStatus": "completed",
+      "wallMs": 20690,
+      "receipts": 6,
+      "formats": [
+        "hwp3",
+        "hwp5",
+        "hwpx",
+        "hwp3",
+        "hwp5",
+        "hwpx"
+      ],
+      "usage": {
+        "inputTokens": 124670,
+        "outputTokens": 774,
+        "totalTokens": 125444
+      },
+      "passed": true
+    },
+    {
+      "modelId": "gpt-5.5",
+      "id": "business-values",
+      "answer": "추출 결과입니다.\n\n| 항목 | 값 | 출처 문서 |\n|---|---:|---|\n| 예산 제목 | 2025년 예산 | 구형_한국어_예산.xls |\n| 기획조정실 본예산 | 12,500,000,000 | 구형_한국어_예산.xls |\n| 전체 본예산 합계 | 38,100,000,000 | 구형_한국어_예산.xls |\n| 거래처 | 한빛상회 | 현재_Word_문서.docx |\n| 계약 금액 | 40,300 | 현재_Word_문서.docx |\n\n참고: 예산 문서 안의 표 제목은 **“2025년도 부서별 예산 편성”**으로 확인됩니다.",
+      "httpStatus": 200,
+      "runStatus": "completed",
+      "wallMs": 14421,
+      "receipts": 2,
+      "formats": [
+        "xls",
+        "docx"
+      ],
+      "usage": {
+        "inputTokens": 12790,
+        "outputTokens": 551,
+        "totalTokens": 13341
+      },
+      "passed": true
+    }
+  ],
+  "checks": {
+    "exactDependency": true,
+    "optionalPdfStackAbsent": true,
+    "cliAndMcpBinsAbsent": true,
+    "sourceFilesUnchanged": true,
+    "hwp3TextObservedButTableUnqualified": true,
+    "hwp5Ready": true,
+    "hwpxReady": true,
+    "xlsReady": true,
+    "docxReady": true,
+    "existingPdfUnchanged": true,
+    "encryptedFailsClosed": true,
+    "corruptHwp3Classified": true,
+    "baselineImprovedToTenOfSeventeen": true,
+    "modelTasksPassed": true
+  },
+  "passed": true,
+  "room": null
+}

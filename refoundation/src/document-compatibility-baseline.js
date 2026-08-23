@@ -178,8 +178,9 @@ function detectedFormat(record = {}) {
 export function summarizeCompatibilityObservation(definition, record, inspected) {
   const observation = inspected?.observation ?? null; const pdf = observation?.pdf;
   const workbook = observation?.workbook;
-  const text = ['text', 'tabular_text'].includes(observation?.kind) ? observation.text : null;
-  const format = detectedFormat(record); const observedText = [
+  const qualified = observation?.kind === 'qualified_document' ? observation : null;
+  const text = ['text', 'tabular_text', 'qualified_document'].includes(observation?.kind) ? observation.text : null;
+  const format = qualified?.format ?? detectedFormat(record); const observedText = [
     text, ...(pdf?.pages ?? []).map((page) => page.text),
     ...(workbook?.sheets ?? []).flatMap((sheet) => (sheet.cells ?? []).flatMap((cell) => [cell.text, cell.value, cell.result])),
   ].filter((value) => value != null).join('\n');
@@ -194,8 +195,9 @@ export function summarizeCompatibilityObservation(definition, record, inspected)
     ),
     text_content: contentText,
     tabular_structure: Boolean(workbook?.sheets?.some((sheet) => sheet.cells?.length))
+      || Boolean(qualified?.structure?.tables?.some((table) => table.shownCells > 0))
       || Boolean(observation?.table?.rowCount && observation?.table?.columnCount),
-    page_structure: Boolean(pdf?.pageCount),
+    page_structure: Boolean(pdf?.pageCount) || Number(qualified?.structure?.pageCount ?? 0) > 0,
     ocr_need_detection: pdf?.requiresOcrOrVision === true,
     ocr_completion: false,
   };

@@ -95,7 +95,7 @@ async function copyRuntimeApp(target) {
     join(repo, 'docs', '00-product', 'GPAO-T5-FOUNDER-MANIFESTO-ko.md'),
     join(target, 'docs', '00-product', 'GPAO-T5-FOUNDER-MANIFESTO-ko.md'),
   );
-  run('npm', ['ci', '--omit=dev'], { cwd: refoundation, stdio: 'inherit' });
+  run('npm', ['ci', '--omit=dev', '--omit=optional'], { cwd: refoundation, stdio: 'inherit' });
 }
 
 async function signMachO(app, identity, keychain, entitlements, nodePaths) {

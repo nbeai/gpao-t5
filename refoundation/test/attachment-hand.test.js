@@ -105,6 +105,61 @@ test('PDF·XLSX 첨부는 기존 Document Data Hand의 page·sheet·cell 현실�
   assert.equal(pdf.pdf.pages[0].page, 1);
 });
 
+test('HWP3/HWP5/HWPX/XLS/DOCX는 자격 parser의 bounded 관측만 Attachment Hand에 결속된다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-attachment-qualified-document-'));
+  const store = new AttachmentStore(join(room, 'attachments'));
+  const bytes = Buffer.from('HWP Document File V3.00 fixture body');
+  const record = await store.receive({ sessionId: SESSION, originalName: '구형문서.hwp', bytes });
+  let call = null;
+  const tool = makeAttachmentTool({
+    store, sessionId: SESSION, workspace: room,
+    inspectQualifiedDocumentImpl: async (input) => {
+      call = input;
+      return {
+        kind: 'qualified_document', format: input.format, state: 'observed',
+        sourceSha256: input.sourceSha256, text: '관측한 본문', coverage: { totalChars: 7, shownChars: 7 },
+        structure: { pageCount: null, pages: [], tables: [] }, warnings: [], metadata: {},
+      };
+    },
+  });
+  const result = await tool.execute({
+    action: 'inspect', attachmentId: record.attachmentId, filePath: null,
+    maxChars: 1234, maxCells: 56, maxPages: null,
+  });
+  assert.equal(call.format, 'hwp3');
+  assert.deepEqual(call.bytes, bytes);
+  assert.equal(call.sourceSha256, record.sha256);
+  assert.equal(call.maxChars, 1234); assert.equal(call.maxCells, 56);
+  assert.equal(result.state, 'observed');
+  assert.equal(result.trust, 'untrusted_external');
+  assert.equal(result.instructionAuthority, 'none');
+  assert.equal(result.observation.attachmentId, record.attachmentId);
+  assert.equal(result.observation.text, '관측한 본문');
+});
+
+test('자격 parser가 암호·손상·timeout을 거부하면 Attachment Hand도 읽었다고 승격하지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-attachment-qualified-boundary-'));
+  const store = new AttachmentStore(join(room, 'attachments'));
+  const record = await store.receive({
+    sessionId: SESSION, originalName: '손상.hwp', bytes: Buffer.from('HWP Document File V3.00 bad'),
+  });
+  const tool = makeAttachmentTool({
+    store, sessionId: SESSION, workspace: room,
+    inspectQualifiedDocumentImpl: async () => ({
+      kind: 'qualified_document', format: 'hwp3', state: 'capability_boundary',
+      reason: 'parser_rejected', errorCode: 'CORRUPTED', warning: 'document is damaged',
+    }),
+  });
+  const result = await tool.execute({
+    action: 'inspect', attachmentId: record.attachmentId, filePath: null,
+    maxChars: null, maxCells: null, maxPages: null,
+  });
+  assert.equal(result.state, 'capability_boundary');
+  assert.equal(result.observation.state, 'capability_boundary');
+  assert.equal(result.observation.errorCode, 'CORRUPTED');
+  assert.equal(result.observation.attachmentId, record.attachmentId);
+});
+
 test('archive는 manifest 뒤에만 추출되고 audio·video는 이해한 척하지 않는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-attachment-kinds-'));
   const store = new AttachmentStore(join(room, 'attachments'));

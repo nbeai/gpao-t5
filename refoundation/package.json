@@ -9,7 +9,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "postinstall": "node scripts/prepare-node-pty.mjs"
+    "postinstall": "node scripts/prepare-node-pty.mjs && node scripts/restrict-kordoc-bin.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/client": "2.0.0",
@@ -19,6 +19,7 @@
     "clawpdf": "0.3.0",
     "cron-parser": "5.10.0",
     "fflate": "0.8.3",
+    "kordoc": "4.9.1",
     "linkedom": "0.18.13",
     "node-pty": "1.1.0",
     "playwright-core": "1.62.1",

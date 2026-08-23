@@ -66,7 +66,9 @@ test('현재 실제 Attachment Hand 측정은 식별·내용·구조·OCR 필요
   assert.equal(byId.get('cp949-csv').capabilities.encoding_identity, true);
   assert.equal(byId.get('cp949-csv').capabilities.tabular_structure, true);
   assert.equal(byId.get('modern-docx').capabilities.format_identity, true);
-  assert.equal(byId.get('modern-docx').capabilities.text_content, false);
+  assert.equal(byId.get('modern-docx').capabilities.text_content, true);
+  assert.equal(byId.get('modern-docx').capabilities.tabular_structure, true);
+  assert.equal(byId.get('modern-docx').targetReady, true);
 });
 
 test('기준선 완료와 사용자 목표 준비 완료는 다른 판정이며 receipt identity가 틀리면 기준선도 실패한다', () => {
@@ -87,4 +89,24 @@ test('기준선 완료와 사용자 목표 준비 완료는 다른 판정이며 
   assert.equal(measured.targetReadyCases, 1); assert.equal(measured.missingCapabilityCounts.text_content, 3);
   observations[1].record.sha256 = '0'.repeat(64);
   assert.equal(assessDocumentCompatibilityBaseline(cases, observations).baselineComplete, false);
+});
+
+test('split parser의 명시적 format·text·table·page 관측은 기존 형식과 섞지 않고 평가한다', () => {
+  const definition = {
+    caseId: 'legacy-xls', family: 'spreadsheet', format: 'xls', sha256: 'a'.repeat(64),
+    sourceKind: 'pinned_public_fixture', expectedText: ['기획조정실', '12500000000'],
+    required: ['format_identity', 'text_content', 'tabular_structure'],
+  };
+  const record = { kind: 'binary', mimeType: 'application/octet-stream', bytes: 10, sha256: definition.sha256 };
+  const observed = summarizeCompatibilityObservation(definition, record, {
+    state: 'observed', observation: {
+      kind: 'qualified_document', format: 'xls', text: '기획조정실 12500000000',
+      structure: { pageCount: 1, tables: [{ shownCells: 2 }] },
+    },
+  });
+  assert.equal(observed.detectedFormat, 'xls');
+  assert.equal(observed.capabilities.text_content, true);
+  assert.equal(observed.capabilities.tabular_structure, true);
+  assert.equal(observed.capabilities.page_structure, true);
+  assert.equal(observed.targetReady, true);
 });

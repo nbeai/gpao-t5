@@ -55,7 +55,7 @@ try {
   const evidence = {
     schema: 't5.r7-d2-document-compatibility-baseline.v1',
     recordedAt: new Date().toISOString(), actualUserData: false,
-    scope: 'current T5 attachment and document hands; no candidate parser enabled',
+    scope: 'current T5 attachment and document hands, including any qualified split parser connected in this checkout',
     corpus: {
       cases: cases.length, generated: generated.length, pinnedPublic: pinned.length,
       licenses: [...new Set(pinned.map((item) => item.license))].sort(),
