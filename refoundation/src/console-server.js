@@ -832,6 +832,7 @@ export function makeConsoleServer({
         },
       }));
       let browserReady = false;
+      const browserConfigured = typeof browserDriverFactory === 'function' || Boolean(browserHost);
       const currentBrowser = await browserDriver(sessionId);
       if (currentBrowser) {
         const availability = await currentBrowser.available().catch((error) => ({
@@ -988,7 +989,7 @@ export function makeConsoleServer({
       const searchable = deferredTools.filter((tool) => tool.deferred && tool.name !== 'browser');
       deferredTools.unshift(makeToolSearchTool({
         tools: searchable,
-        prerequisites: browserReady ? {
+        prerequisites: browserConfigured ? {
           browser: {
             tool: 'web_read',
             condition: 'Read the exact destination URL first. Rendered-page interaction becomes available only when that receipt establishes a dynamic, login, or provider-blocked boundary.',

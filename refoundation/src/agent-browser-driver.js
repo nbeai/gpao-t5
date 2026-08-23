@@ -369,6 +369,11 @@ export function makeAgentBrowserDriver({
       } catch (error) {
         const lifecycleRace = /Failed to connect.*No such file|No such file.*Failed to connect|ECONNREFUSED|connection refused/i
           .test(error?.message ?? '');
+        if (lifecycleRace && userControl) {
+          browserHost?.invalidate?.();
+          activeTabId = null; activeTabUrl = null; userControl = false;
+          throw Object.assign(new Error('user_login_window_closed'), { code: 'USER_BROWSER_CLOSED' });
+        }
         if (!lifecycleRace || attempt > 0 || options.signal?.aborted) throw error;
         browserHost?.invalidate?.();
         await new Promise((resolveWait) => setTimeout(resolveWait, 250));
@@ -812,11 +817,22 @@ export function makeAgentBrowserDriver({
       if (!userControl) return {
         state: 'login_handoff_not_active', pageObserved: false, secretValuesObserved: false,
       };
-      await selectTab(tabId, { signal });
-      const secretFieldsPresent = countValue(
-        await command(['get', 'count', VISIBLE_SECRET_FIELD_SELECTOR], { signal }),
-      ) > 0;
-      const tab = await currentTab({ signal });
+      let secretFieldsPresent; let tab;
+      try {
+        await selectTab(tabId, { signal });
+        secretFieldsPresent = countValue(
+          await command(['get', 'count', VISIBLE_SECRET_FIELD_SELECTOR], { signal }),
+        ) > 0;
+        tab = await currentTab({ signal });
+      } catch (error) {
+        if (error?.code !== 'USER_BROWSER_CLOSED'
+          && !/tab_gone:\s*bound tab is gone|target closed|browser.*closed/iu.test(error?.message ?? '')) throw error;
+        activeTabId = null; activeTabUrl = null; userControl = false;
+        return {
+          state: 'user_control_cancelled', reason: 'browser_window_closed',
+          pageObserved: false, secretValuesObserved: false, continuityEstablished: false,
+        };
+      }
       if (secretFieldsPresent) {
         const activation = browserHost ? await browserHost.activate() : { visible: true, application: null };
         return {
@@ -905,12 +921,25 @@ export function makeAgentBrowserDriver({
         try { await currentTab({ signal }); } catch { /* no active tab yet */ }
       }
       const hadActivePage = Boolean(activeTabUrl);
-      const opened = await command(['open', String(url)], { signal });
+      let opened; let recovery = null;
+      try {
+        opened = await command(['open', String(url)], { signal });
+      } catch (error) {
+        if (!/tab_gone:\s*bound tab is gone/iu.test(error?.message ?? '') || signal?.aborted) throw error;
+        const previous = { tabId: activeTabId, url: activeTabUrl };
+        activeTabId = null; activeTabUrl = null;
+        opened = await command(['tab', 'new', String(url)], { signal });
+        const rebound = normalizeTab(opened);
+        activeTabId = rebound.tabId;
+        activeTabUrl = rebound.url || String(url);
+        recovery = { state: 'rebound_new_tab', reason: 'bound_tab_gone', previous };
+      }
       if (hadActivePage) await command(['reload'], { signal });
       const observed = await takeSnapshot({ full: false, signal });
       return {
         tab: normalizeTab({ ...opened, ...observed.tab, url: observed.tab.url || opened.url || url }),
         snapshot: observed.snapshot,
+        ...(recovery ? { recovery } : {}),
       };
     },
     snapshot(options = {}) { return takeSnapshot(options); },

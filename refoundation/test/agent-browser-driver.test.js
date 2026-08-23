@@ -128,6 +128,82 @@ test('재시작 복원 탭과 같은 URL을 navigate하면 stale DOM을 쓰지 �
   assert.deepEqual(calls.map((call) => call[0]), ['tab', 'open', 'reload', 'snapshot', 'tab']);
 });
 
+test('결속된 탭이 사라진 navigate는 같은 profile의 새 탭에 한 번 재결속한다', async () => {
+  const calls = [];
+  const driver = makeAgentBrowserDriver({
+    ownerId: 'gone-tab-recovery', outputDirectory: '/private/tmp',
+    run: async (args) => {
+      const command = args.slice(args.indexOf('--json') + 1); calls.push(command);
+      if (command[0] === 'tab' && command[1] === 'list') return { exitCode: 0, stderr: '', stdout: JSON.stringify({
+        success: true, data: { tabs: [{ tabId: command.length > 2 ? 't2' : 't1', url: command.length > 2 ? 'https://mail.naver.com/' : 'https://www.google.com/maps/search/', active: true }] },
+      }) };
+      if (command[0] === 'open') return { exitCode: 1, stdout: '', stderr: JSON.stringify({
+        success: false, error: 'tab_gone: bound tab is gone (target stale)', code: 'tab_gone',
+      }) };
+      if (command[0] === 'tab' && command[1] === 'new') return { exitCode: 0, stderr: '', stdout: JSON.stringify({
+        success: true, data: { tabId: 't2', targetId: 'target-2', url: command[2], active: true },
+      }) };
+      if (command[0] === 'snapshot') return { exitCode: 0, stderr: '', stdout: JSON.stringify({
+        success: true, data: { tabId: 't2', targetId: 'target-2', url: 'https://mail.naver.com/', snapshot: '- heading "NAVER 로그인"', refs: {} },
+      }) };
+      if (command[0] === 'reload') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{}}' };
+      throw new Error(`unexpected command ${command.join(' ')}`);
+    },
+  });
+  const result = await driver.navigate('https://mail.naver.com/');
+  assert.equal(result.tab.tabId, 't2');
+  assert.match(result.snapshot.text, /NAVER 로그인/u);
+  assert.equal(result.recovery.state, 'rebound_new_tab');
+  assert.equal(result.recovery.previous.url, 'https://www.google.com/maps/search/');
+  assert.deepEqual(calls.slice(0, 4).map((call) => call.slice(0, 2)), [
+    ['tab', 'list'], ['open', 'https://mail.naver.com/'], ['tab', 'new'], ['reload'],
+  ]);
+});
+
+test('tab_gone 외 navigate 실패는 새 탭으로 넓혀 재시도하지 않는다', async () => {
+  const calls = [];
+  const driver = makeAgentBrowserDriver({
+    ownerId: 'bounded-tab-recovery', outputDirectory: '/private/tmp',
+    run: async (args) => {
+      const command = args.slice(args.indexOf('--json') + 1); calls.push(command);
+      if (command[0] === 'tab') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabs":[{"tabId":"t1","url":"https://example.com/","active":true}]}}' };
+      return { exitCode: 1, stdout: '', stderr: 'navigation timeout' };
+    },
+  });
+  await assert.rejects(() => driver.navigate('https://mail.naver.com/'), /navigation timeout/u);
+  assert.equal(calls.some((call) => call[0] === 'tab' && call[1] === 'new'), false);
+});
+
+test('브라우저 전체 종료 뒤 새 navigate 요청은 같은 host profile 연결을 한 번 복구한다', async () => {
+  let currentCdp = 'ws://127.0.0.1:9222/devtools/browser/stale'; let invalidations = 0;
+  const seenCdps = [];
+  const host = {
+    profile: { id: 'default', kind: 'managed_persistent', selected: true },
+    clientNamespace: 'client', clientSocketDirectory: '/private/tmp/t5-browser-reconnect',
+    async connection() { return { cdpUrl: currentCdp }; },
+    invalidate() { invalidations += 1; currentCdp = 'ws://127.0.0.1:9333/devtools/browser/restarted'; },
+  };
+  const driver = makeAgentBrowserDriver({
+    ownerId: 'browser-quit-recovery', outputDirectory: '/private/tmp/browser-quit-recovery', browserHost: host,
+    run: async (args) => {
+      const cdp = args[args.indexOf('--cdp') + 1];
+      seenCdps.push(cdp);
+      const command = args.slice(args.indexOf('--json') + 1);
+      if (cdp.includes('/stale')) return { exitCode: 1, stdout: '', stderr: 'ECONNREFUSED' };
+      if (command[0] === 'tab') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabs":[]}}' };
+      if (command[0] === 'open') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabId":"t2","url":"https://mail.naver.com/"}}' };
+      if (command[0] === 'snapshot') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabId":"t2","url":"https://mail.naver.com/","snapshot":"mail","refs":{}}}' };
+      throw new Error(`unexpected command ${command.join(' ')}`);
+    },
+  });
+  const result = await driver.navigate('https://mail.naver.com/');
+  assert.equal(result.tab.url, 'https://mail.naver.com/');
+  assert.equal(invalidations, 1);
+  assert.ok(seenCdps[0].includes('/stale'));
+  assert.ok(seenCdps.slice(1).every((value) => value.includes('/restarted')));
+  assert.deepEqual(driver.profile, host.profile);
+});
+
 test('status는 session list만 읽고 브라우저를 새로 띄우지 않는다', async () => {
   const calls = [];
   const driver = makeAgentBrowserDriver({
@@ -417,6 +493,36 @@ test('사용자가 login handoff를 취소하면 headed session을 닫고 model 
   assert.equal(cancelled.state, 'user_control_cancelled');
   assert.equal(driver.userControlActive(), false);
   assert.ok(calls.some((command) => command[0] === 'close'));
+});
+
+test('사용자가 login handoff 창을 닫으면 자동 재실행하지 않고 취소로 끝낸다', async () => {
+  let getCalls = 0; let invalidations = 0;
+  const host = {
+    profile: { id: 'default', kind: 'managed_persistent', selected: true },
+    clientNamespace: 'client', clientSocketDirectory: '/private/tmp/t5-login-window-close',
+    async connection() { return { cdpUrl: 'ws://127.0.0.1:9222/devtools/browser/login' }; },
+    async activate() { return { visible: true, application: 'Google Chrome' }; },
+    invalidate() { invalidations += 1; },
+  };
+  const driver = makeAgentBrowserDriver({
+    ownerId: 'login-window-close', outputDirectory: '/private/tmp/login-window-close', browserHost: host,
+    run: async (args) => {
+      const command = args.slice(args.indexOf('--json') + 1);
+      if (command[0] === 'open') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabId":"t1","url":"https://nid.naver.com/"}}' };
+      if (command[0] === 'tab') return { exitCode: 0, stderr: '', stdout: '{"success":true,"data":{"tabs":[{"tabId":"t1","url":"https://nid.naver.com/","active":true}]}}' };
+      if (command[0] === 'get') { getCalls += 1; return { exitCode: 1, stdout: '', stderr: 'ECONNREFUSED' }; }
+      throw new Error(`unexpected command ${command.join(' ')}`);
+    },
+  });
+  await driver.beginUserLogin('https://nid.naver.com/');
+  const status = await driver.loginStatus({ tabId: 't1' });
+  assert.deepEqual(status, {
+    state: 'user_control_cancelled', reason: 'browser_window_closed',
+    pageObserved: false, secretValuesObserved: false, continuityEstablished: false,
+  });
+  assert.equal(getCalls, 1);
+  assert.equal(invalidations, 1);
+  assert.equal(driver.userControlActive(), false);
 });
 
 test('download는 managed root에 새로 완성된 단일 파일의 hash·크기·MIME·source를 관측한다', async () => {
