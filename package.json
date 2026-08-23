@@ -37,6 +37,7 @@
     "refoundation:evidence": "node refoundation/scripts/summarize-live-evidence.mjs",
     "refoundation:qualify:project": "node refoundation/scripts/run-project-qualification.mjs",
     "refoundation:qualify:terminal": "node refoundation/scripts/run-terminal-performance.mjs",
+    "refoundation:baseline:documents": "node refoundation/scripts/run-document-compatibility-baseline.mjs",
     "refoundation:console": "node refoundation/scripts/start-console.mjs",
     "refoundation:audit:backend": "node refoundation/scripts/audit-backend-demand.mjs",
     "refoundation:compare:skills": "node refoundation/scripts/run-skill-value-comparison.mjs",

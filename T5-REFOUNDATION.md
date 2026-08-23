@@ -1870,6 +1870,52 @@ Non-goals:
 - 세무 판단·회계 분개·현금흐름 의미를 런타임이 대신 결정하는 규칙 엔진
 - Windows 실제 Excel 렌더링·파일 연결 완료 주장
 
+## R7-D2 — Document Compatibility Reality Baseline
+
+상태: `BASELINE_COMPLETE · TARGET_NOT_READY` — 오너가 기능 수를 늘리지 않고 현재 파일손이 현실의 구형·
+한국형 문서를 실제로 처리하는 깊이를 높이라고 열었다. 새 파서·OCR·변환기를 넣기 전에 현재 손의 정확한
+지원·부분지원·정지 경계를 같은 corpus로 측정했다.
+
+사용자 완료 문장:
+
+> 사용자가 파일 버전·인코딩·내부 형식을 몰라도 T5가 실제 형식을 알아보고 내용을 읽어 목적을 끝내며,
+> 아직 읽지 못하는 문서는 읽은 척하지 않고 필요한 다음 수단을 정확히 고른다.
+
+이번 Baseline의 일곱 줄:
+
+1. 제품 약속: 사용자는 문서 기술을 배우지 않고 평소 말로 결과를 부탁한다.
+2. 현재 Gate: 기능 구현 전 문서 호환성 현실 측정.
+3. 완료 문장: 지원 성공이 아니라 현재 공통 미달과 후보 시험 범위를 재현 가능하게 확정한다.
+4. 이미 선 증거: XLSX 병합·숨김·수식과 text PDF 페이지 관측, 원본 보존·재개방 검증.
+5. 가장 큰 미달: 인코딩·구형 Office·HWP 계열은 현재 실제 내용 관측 전에 멈춘다.
+6. 이번 변경: 핀 고정 공개 파일과 생성 파일을 동일 Attachment Hand로 관측해 능력별 gap을 분리한다.
+7. Non-goals: Kordoc·LibreOffice·OCR 채택, 모델 문구 패치, 지원 형식 성공 선언.
+
+실제 corpus와 결과:
+
+- 17건: 직접 생성 11건 + exact commit·SHA-256 공개 fixture 6건
+- 범위: UTF-8/BOM·UTF-16LE·CP949, CSV, XLSX·BIFF8 XLS, text/textless PDF,
+  DOCX·OLE2 DOC, PPTX·OLE2 PPT, ODT·ODS, HWP 3·HWP 5·HWPX
+- source hash 변경 0, 공개 fixture digest 불일치·2MiB 초과는 관측 전에 중단
+- 사용자 목표 준비 `3/17`: UTF-8 text, XLSX, text PDF
+- CSV는 UTF-8 본문은 읽지만 표 구조 관측 없음
+- UTF-16LE·CP949는 `binary`로 분류돼 인코딩·본문 관측 없음
+- DOCX·PPTX는 exact 형식 식별 뒤 `document_extractor_not_connected`
+- ODT·ODS·HWPX는 안전 ZIP manifest만 보고 문서 형식·내용으로 승격하지 않음
+- BIFF8 XLS·OLE2 DOC/PPT·HWP 3/5는 `binary` 경계에서 정지
+- textless PDF는 `requiresOcrOrVision:true`를 정확히 반환하지만 OCR 완료는 0
+- 누적 missing: text content 12, format identity 10, tabular structure 8, encoding identity 2,
+  OCR completion 1
+- 근거: `refoundation/evidence/r7-d2-document-compatibility-baseline-2026-08-23.json`
+
+정확한 제한: 이번 측정은 제품의 Attachment·Document Hand 기준선이다. 모델이 사용자 환경에 우연히 설치된
+임의 CLI를 찾아 복구하는 경우까지 T5의 안정된 문서 능력으로 세지 않았다. 사용자 과업 종단과 후보 성능은
+같은 corpus의 baseline/candidate 모델 Run으로 별도 비교해야 한다.
+
+다음 한 작업: 기능을 동시에 넓히지 않고, 가장 큰 한국 사용자 gap을 함께 덮는 Kordoc 후보를 exact version·
+digest·license·크기·플랫폼·보안 경계로 먼저 자격화한다. 같은 HWP 3/5·HWPX·XLS·DOCX·PDF 과업을 현재 T5와
+후보 T5에 실행해 내용·표·출처·경고·속도·설치 부담을 비교한 뒤 채택·폐기·분해를 결정한다.
+
 ## R8-A1 — Unified Attachment Hand · First Complete
 
 사용자가 콘솔에 파일을 직접 첨부하고 결과 파일을 다시 받는 순환을 닫았다. 내부에서는 수신과 전달을
@@ -2677,6 +2723,11 @@ Web Hand W0~W6, Document Data Hand D1, Unified Attachment Hand A1, U1-G4까지 �
 사용자 목적 기반 SNS 분석 종단에 도달했다. 2026-08-23 P0/P1 내부 손·Web continuation·Remote MCP 내구와
 P2 Automation soak·Memory/Skill 가치 측정도 닫았으며, 반복 결함 증거 없이 새 selector·Skill·CLI·scheduler를
 열지 않았다. 근거는 `refoundation/evidence/p2-memory-skill-operational-measurement-2026-08-23.json`이다.
+
+오너가 연 문서 수직 고도화에서 R7-D2 기준선 17건을 완료했고 사용자 목표 준비는 `3/17`이었다. UTF-16LE·
+CP949, 구형 XLS/DOC/PPT, HWP 3/5/HWPX, DOCX/PPTX 내용, ODT/ODS, OCR 완료가 실제 공통 미달로 확정됐다.
+다음 한 작업은 새 형식을 각각 구현하는 것이 아니라 Kordoc 한 후보를 같은 corpus·사용자 과업에서 독립
+자격화해 현재 T5보다 실제로 나은 범위와 비용을 확정하는 것이다. 후보가 이기기 전 제품 코어에는 넣지 않는다.
 
 U4의 I0 밖 나머지는 정본 순서상 아직 열리지 않았다. 다음 개발은 기능 목록에서 자동으로 고르지 않는다.
 실제 콘솔 사용에서

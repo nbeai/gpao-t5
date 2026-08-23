@@ -1,0 +1,1007 @@
+{
+  "schema": "t5.r7-d2-document-compatibility-baseline.v1",
+  "recordedAt": "2026-08-23T08:50:03.019Z",
+  "actualUserData": false,
+  "scope": "current T5 attachment and document hands; no candidate parser enabled",
+  "corpus": {
+    "cases": 17,
+    "generated": 11,
+    "pinnedPublic": 6,
+    "licenses": [
+      "Apache-2.0",
+      "MIT"
+    ],
+    "sourceCommits": [
+      "08830a9453119cd1a47428bc25744b02d7472fb8",
+      "496333b27d21ddb9114ba9ae340bcb895870c9a7",
+      "c3ec5b5358197e488f96e5aa05ef9ad683359352"
+    ]
+  },
+  "sourceFilesUnchanged": true,
+  "observations": [
+    {
+      "caseId": "utf8-text",
+      "family": "text",
+      "expectedFormat": "text",
+      "sourceKind": "generated_fixture",
+      "sourceSha256": "18a88e1ca5217e91569c55bc8e6c5302b73fa5bd6f8ebae1efe3ca84302bad37",
+      "record": {
+        "kind": "text",
+        "mimeType": "text/plain",
+        "bytes": 37,
+        "sha256": "18a88e1ca5217e91569c55bc8e6c5302b73fa5bd6f8ebae1efe3ca84302bad37"
+      },
+      "inspection": {
+        "state": "observed",
+        "observedKind": "text",
+        "capabilityReason": null,
+        "expectedTextAnchors": 2,
+        "matchedTextAnchors": 2
+      },
+      "detectedFormat": "text",
+      "capabilities": {
+        "format_identity": true,
+        "encoding_identity": true,
+        "text_content": true,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "encoding_identity",
+        "text_content"
+      ],
+      "missing": [],
+      "targetReady": true,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "utf8-bom-csv",
+      "family": "text",
+      "expectedFormat": "csv",
+      "sourceKind": "generated_fixture",
+      "sourceSha256": "560a5832c097acf4df05cec3cdbd7be3d83c489ad426b01b25cc885dd0a7bf8c",
+      "record": {
+        "kind": "text",
+        "mimeType": "text/csv",
+        "bytes": 36,
+        "sha256": "560a5832c097acf4df05cec3cdbd7be3d83c489ad426b01b25cc885dd0a7bf8c"
+      },
+      "inspection": {
+        "state": "observed",
+        "observedKind": "text",
+        "capabilityReason": null,
+        "expectedTextAnchors": 2,
+        "matchedTextAnchors": 2
+      },
+      "detectedFormat": "csv",
+      "capabilities": {
+        "format_identity": true,
+        "encoding_identity": true,
+        "text_content": true,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "encoding_identity",
+        "text_content",
+        "tabular_structure"
+      ],
+      "missing": [
+        "tabular_structure"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "utf16le-text",
+      "family": "text",
+      "expectedFormat": "text",
+      "sourceKind": "generated_fixture",
+      "sourceSha256": "c13da4a4d432509fa95cdd2639cd395aed26722178b3c59f3c9937a1592ebbe8",
+      "record": {
+        "kind": "binary",
+        "mimeType": "application/octet-stream",
+        "bytes": 40,
+        "sha256": "c13da4a4d432509fa95cdd2639cd395aed26722178b3c59f3c9937a1592ebbe8"
+      },
+      "inspection": {
+        "state": "capability_boundary",
+        "observedKind": "binary",
+        "capabilityReason": "document_extractor_not_connected",
+        "expectedTextAnchors": 2,
+        "matchedTextAnchors": 0
+      },
+      "detectedFormat": "unknown",
+      "capabilities": {
+        "format_identity": false,
+        "encoding_identity": false,
+        "text_content": false,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "encoding_identity",
+        "text_content"
+      ],
+      "missing": [
+        "format_identity",
+        "encoding_identity",
+        "text_content"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "cp949-csv",
+      "family": "text",
+      "expectedFormat": "csv",
+      "sourceKind": "generated_fixture",
+      "sourceSha256": "7ab29e31edbabfc0db53605c46c2164a7965d0e699ff4f5c92f1ce95e82e1eea",
+      "record": {
+        "kind": "binary",
+        "mimeType": "application/octet-stream",
+        "bytes": 25,
+        "sha256": "7ab29e31edbabfc0db53605c46c2164a7965d0e699ff4f5c92f1ce95e82e1eea"
+      },
+      "inspection": {
+        "state": "capability_boundary",
+        "observedKind": "binary",
+        "capabilityReason": "document_extractor_not_connected",
+        "expectedTextAnchors": 2,
+        "matchedTextAnchors": 0
+      },
+      "detectedFormat": "unknown",
+      "capabilities": {
+        "format_identity": false,
+        "encoding_identity": false,
+        "text_content": false,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "encoding_identity",
+        "text_content",
+        "tabular_structure"
+      ],
+      "missing": [
+        "format_identity",
+        "encoding_identity",
+        "text_content",
+        "tabular_structure"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "modern-xlsx",
+      "family": "spreadsheet",
+      "expectedFormat": "xlsx",
+      "sourceKind": "generated_fixture",
+      "sourceSha256": "6d08e48490acfdb96572f4d252db8a76eda82fc313bd7e6d8cd230960185603a",
+      "record": {
+        "kind": "spreadsheet",
+        "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "bytes": 2431,
+        "sha256": "6d08e48490acfdb96572f4d252db8a76eda82fc313bd7e6d8cd230960185603a"
+      },
+      "inspection": {
+        "state": "observed",
+        "observedKind": "xlsx",
+        "capabilityReason": null,
+        "expectedTextAnchors": 2,
+        "matchedTextAnchors": 2
+      },
+      "detectedFormat": "xlsx",
+      "capabilities": {
+        "format_identity": true,
+        "encoding_identity": null,
+        "text_content": true,
+        "tabular_structure": true,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "text_content",
+        "tabular_structure"
+      ],
+      "missing": [],
+      "targetReady": true,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "text-pdf",
+      "family": "pdf",
+      "expectedFormat": "pdf",
+      "sourceKind": "generated_fixture",
+      "sourceSha256": "d5f354b7d29a463528b58e6699fd7600c7ec8b223d473cd3a82261e07580bd95",
+      "record": {
+        "kind": "pdf",
+        "mimeType": "application/pdf",
+        "bytes": 599,
+        "sha256": "d5f354b7d29a463528b58e6699fd7600c7ec8b223d473cd3a82261e07580bd95"
+      },
+      "inspection": {
+        "state": "observed",
+        "observedKind": "pdf",
+        "capabilityReason": null,
+        "expectedTextAnchors": 2,
+        "matchedTextAnchors": 2
+      },
+      "detectedFormat": "pdf",
+      "capabilities": {
+        "format_identity": true,
+        "encoding_identity": null,
+        "text_content": true,
+        "tabular_structure": false,
+        "page_structure": true,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "text_content",
+        "page_structure"
+      ],
+      "missing": [],
+      "targetReady": true,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "textless-pdf",
+      "family": "pdf",
+      "expectedFormat": "pdf",
+      "sourceKind": "generated_fixture",
+      "sourceSha256": "a74d67f231b4898adc11fb01f1f63fa140b46841bb2635c925bee52e57dffd25",
+      "record": {
+        "kind": "pdf",
+        "mimeType": "application/pdf",
+        "bytes": 543,
+        "sha256": "a74d67f231b4898adc11fb01f1f63fa140b46841bb2635c925bee52e57dffd25"
+      },
+      "inspection": {
+        "state": "observed",
+        "observedKind": "pdf",
+        "capabilityReason": null,
+        "expectedTextAnchors": 0,
+        "matchedTextAnchors": 0
+      },
+      "detectedFormat": "pdf",
+      "capabilities": {
+        "format_identity": true,
+        "encoding_identity": null,
+        "text_content": false,
+        "tabular_structure": false,
+        "page_structure": true,
+        "ocr_need_detection": true,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "ocr_need_detection",
+        "ocr_completion"
+      ],
+      "missing": [
+        "ocr_completion"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "modern-docx",
+      "family": "word_processing",
+      "expectedFormat": "docx",
+      "sourceKind": "generated_fixture",
+      "sourceSha256": "76b83f6cb043357c1fb62c24f8bab67d8c26d737e80f8b0c2aa2466ce51326db",
+      "record": {
+        "kind": "document",
+        "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "bytes": 921,
+        "sha256": "76b83f6cb043357c1fb62c24f8bab67d8c26d737e80f8b0c2aa2466ce51326db"
+      },
+      "inspection": {
+        "state": "capability_boundary",
+        "observedKind": "document",
+        "capabilityReason": "document_extractor_not_connected",
+        "expectedTextAnchors": 2,
+        "matchedTextAnchors": 0
+      },
+      "detectedFormat": "docx",
+      "capabilities": {
+        "format_identity": true,
+        "encoding_identity": null,
+        "text_content": false,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "text_content",
+        "tabular_structure"
+      ],
+      "missing": [
+        "text_content",
+        "tabular_structure"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "modern-pptx",
+      "family": "presentation",
+      "expectedFormat": "pptx",
+      "sourceKind": "generated_fixture",
+      "sourceSha256": "bd6f39a89c334719de1c927b26aafa8efb1eec6be57dd8a4aa4bcf974b40829e",
+      "record": {
+        "kind": "document",
+        "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "bytes": 1114,
+        "sha256": "bd6f39a89c334719de1c927b26aafa8efb1eec6be57dd8a4aa4bcf974b40829e"
+      },
+      "inspection": {
+        "state": "capability_boundary",
+        "observedKind": "document",
+        "capabilityReason": "document_extractor_not_connected",
+        "expectedTextAnchors": 1,
+        "matchedTextAnchors": 0
+      },
+      "detectedFormat": "pptx",
+      "capabilities": {
+        "format_identity": true,
+        "encoding_identity": null,
+        "text_content": false,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "text_content"
+      ],
+      "missing": [
+        "text_content"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "open-document-text",
+      "family": "word_processing",
+      "expectedFormat": "odt",
+      "sourceKind": "generated_fixture",
+      "sourceSha256": "92ff77db372a93432f894c84e90b30f949958244f93c772f47a5dd229017b7e7",
+      "record": {
+        "kind": "archive",
+        "mimeType": "application/zip",
+        "bytes": 721,
+        "sha256": "92ff77db372a93432f894c84e90b30f949958244f93c772f47a5dd229017b7e7"
+      },
+      "inspection": {
+        "state": "observed",
+        "observedKind": null,
+        "capabilityReason": null,
+        "expectedTextAnchors": 2,
+        "matchedTextAnchors": 0
+      },
+      "detectedFormat": "unknown",
+      "capabilities": {
+        "format_identity": false,
+        "encoding_identity": null,
+        "text_content": false,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "text_content"
+      ],
+      "missing": [
+        "format_identity",
+        "text_content"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "open-document-sheet",
+      "family": "spreadsheet",
+      "expectedFormat": "ods",
+      "sourceKind": "generated_fixture",
+      "sourceSha256": "d5f2a0fcc78668b8f4a52f6b31998deb7372ef9cac9f413faa1daeb16818f86f",
+      "record": {
+        "kind": "archive",
+        "mimeType": "application/zip",
+        "bytes": 791,
+        "sha256": "d5f2a0fcc78668b8f4a52f6b31998deb7372ef9cac9f413faa1daeb16818f86f"
+      },
+      "inspection": {
+        "state": "observed",
+        "observedKind": null,
+        "capabilityReason": null,
+        "expectedTextAnchors": 2,
+        "matchedTextAnchors": 0
+      },
+      "detectedFormat": "unknown",
+      "capabilities": {
+        "format_identity": false,
+        "encoding_identity": null,
+        "text_content": false,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "text_content",
+        "tabular_structure"
+      ],
+      "missing": [
+        "format_identity",
+        "text_content",
+        "tabular_structure"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "legacy-xls-biff8-korean",
+      "family": "spreadsheet",
+      "expectedFormat": "xls",
+      "sourceKind": "pinned_public_fixture",
+      "sourceSha256": "69a4180a7b2d8044220ea2b35116c0c1fe3d4b0dd247d025c0dbc0daf211e14b",
+      "record": {
+        "kind": "binary",
+        "mimeType": "application/octet-stream",
+        "bytes": 5632,
+        "sha256": "69a4180a7b2d8044220ea2b35116c0c1fe3d4b0dd247d025c0dbc0daf211e14b"
+      },
+      "inspection": {
+        "state": "capability_boundary",
+        "observedKind": "binary",
+        "capabilityReason": "document_extractor_not_connected",
+        "expectedTextAnchors": 3,
+        "matchedTextAnchors": 0
+      },
+      "detectedFormat": "unknown",
+      "capabilities": {
+        "format_identity": false,
+        "encoding_identity": null,
+        "text_content": false,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "text_content",
+        "tabular_structure"
+      ],
+      "missing": [
+        "format_identity",
+        "text_content",
+        "tabular_structure"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "legacy-doc-ole2",
+      "family": "word_processing",
+      "expectedFormat": "doc",
+      "sourceKind": "pinned_public_fixture",
+      "sourceSha256": "39170c5a103bb0961b269be04da00ae2ae961da6a26f1624f462ac915adaf13e",
+      "record": {
+        "kind": "binary",
+        "mimeType": "application/octet-stream",
+        "bytes": 22016,
+        "sha256": "39170c5a103bb0961b269be04da00ae2ae961da6a26f1624f462ac915adaf13e"
+      },
+      "inspection": {
+        "state": "capability_boundary",
+        "observedKind": "binary",
+        "capabilityReason": "document_extractor_not_connected",
+        "expectedTextAnchors": 0,
+        "matchedTextAnchors": 0
+      },
+      "detectedFormat": "unknown",
+      "capabilities": {
+        "format_identity": false,
+        "encoding_identity": null,
+        "text_content": false,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "text_content"
+      ],
+      "missing": [
+        "format_identity",
+        "text_content"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "legacy-ppt-ole2",
+      "family": "presentation",
+      "expectedFormat": "ppt",
+      "sourceKind": "pinned_public_fixture",
+      "sourceSha256": "7eed4b72a235b4122b07b371fb02fbb5ae95d47dc70592ce37bb6bf4a6e94de4",
+      "record": {
+        "kind": "binary",
+        "mimeType": "application/octet-stream",
+        "bytes": 18432,
+        "sha256": "7eed4b72a235b4122b07b371fb02fbb5ae95d47dc70592ce37bb6bf4a6e94de4"
+      },
+      "inspection": {
+        "state": "capability_boundary",
+        "observedKind": "binary",
+        "capabilityReason": "document_extractor_not_connected",
+        "expectedTextAnchors": 0,
+        "matchedTextAnchors": 0
+      },
+      "detectedFormat": "unknown",
+      "capabilities": {
+        "format_identity": false,
+        "encoding_identity": null,
+        "text_content": false,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "text_content"
+      ],
+      "missing": [
+        "format_identity",
+        "text_content"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "korean-hwp3",
+      "family": "korean_document",
+      "expectedFormat": "hwp3",
+      "sourceKind": "pinned_public_fixture",
+      "sourceSha256": "645525c8cd5ec11b1742ba7cfc759f68622861916233b5e982385cdb12f0ced2",
+      "record": {
+        "kind": "binary",
+        "mimeType": "application/octet-stream",
+        "bytes": 88880,
+        "sha256": "645525c8cd5ec11b1742ba7cfc759f68622861916233b5e982385cdb12f0ced2"
+      },
+      "inspection": {
+        "state": "capability_boundary",
+        "observedKind": "binary",
+        "capabilityReason": "document_extractor_not_connected",
+        "expectedTextAnchors": 0,
+        "matchedTextAnchors": 0
+      },
+      "detectedFormat": "unknown",
+      "capabilities": {
+        "format_identity": false,
+        "encoding_identity": null,
+        "text_content": false,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "text_content",
+        "tabular_structure"
+      ],
+      "missing": [
+        "format_identity",
+        "text_content",
+        "tabular_structure"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "korean-hwp5",
+      "family": "korean_document",
+      "expectedFormat": "hwp5",
+      "sourceKind": "pinned_public_fixture",
+      "sourceSha256": "a34ecb8cde85b6db49c64a954cb7fa5d23b5f49367bc4753c90bfe89a075b50d",
+      "record": {
+        "kind": "binary",
+        "mimeType": "application/octet-stream",
+        "bytes": 247808,
+        "sha256": "a34ecb8cde85b6db49c64a954cb7fa5d23b5f49367bc4753c90bfe89a075b50d"
+      },
+      "inspection": {
+        "state": "capability_boundary",
+        "observedKind": "binary",
+        "capabilityReason": "document_extractor_not_connected",
+        "expectedTextAnchors": 0,
+        "matchedTextAnchors": 0
+      },
+      "detectedFormat": "unknown",
+      "capabilities": {
+        "format_identity": false,
+        "encoding_identity": null,
+        "text_content": false,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "text_content",
+        "tabular_structure"
+      ],
+      "missing": [
+        "format_identity",
+        "text_content",
+        "tabular_structure"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "korean-hwpx",
+      "family": "korean_document",
+      "expectedFormat": "hwpx",
+      "sourceKind": "pinned_public_fixture",
+      "sourceSha256": "20ed90f48c6501cad99f6aa1f82d81d2a2132eb04f2d1d32805ac251749e4d0e",
+      "record": {
+        "kind": "archive",
+        "mimeType": "application/zip",
+        "bytes": 246148,
+        "sha256": "20ed90f48c6501cad99f6aa1f82d81d2a2132eb04f2d1d32805ac251749e4d0e"
+      },
+      "inspection": {
+        "state": "observed",
+        "observedKind": null,
+        "capabilityReason": null,
+        "expectedTextAnchors": 0,
+        "matchedTextAnchors": 0
+      },
+      "detectedFormat": "unknown",
+      "capabilities": {
+        "format_identity": false,
+        "encoding_identity": null,
+        "text_content": false,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "text_content",
+        "tabular_structure"
+      ],
+      "missing": [
+        "format_identity",
+        "text_content",
+        "tabular_structure"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    }
+  ],
+  "verdict": {
+    "schema": "t5.document-compatibility-baseline.v1",
+    "baselineComplete": true,
+    "targetReady": false,
+    "cases": 17,
+    "targetReadyCases": 3,
+    "gaps": [],
+    "missingCapabilityCounts": {
+      "tabular_structure": 8,
+      "format_identity": 10,
+      "encoding_identity": 2,
+      "text_content": 12,
+      "ocr_completion": 1
+    },
+    "rows": [
+      {
+        "caseId": "utf8-text",
+        "family": "text",
+        "checks": {
+          "measured": true,
+          "sourceIdentity": true,
+          "exactReceiptIdentity": true,
+          "truthfulBoundary": true
+        },
+        "measured": true,
+        "targetReady": true,
+        "missing": []
+      },
+      {
+        "caseId": "utf8-bom-csv",
+        "family": "text",
+        "checks": {
+          "measured": true,
+          "sourceIdentity": true,
+          "exactReceiptIdentity": true,
+          "truthfulBoundary": true
+        },
+        "measured": true,
+        "targetReady": false,
+        "missing": [
+          "tabular_structure"
+        ]
+      },
+      {
+        "caseId": "utf16le-text",
+        "family": "text",
+        "checks": {
+          "measured": true,
+          "sourceIdentity": true,
+          "exactReceiptIdentity": true,
+          "truthfulBoundary": true
+        },
+        "measured": true,
+        "targetReady": false,
+        "missing": [
+          "format_identity",
+          "encoding_identity",
+          "text_content"
+        ]
+      },
+      {
+        "caseId": "cp949-csv",
+        "family": "text",
+        "checks": {
+          "measured": true,
+          "sourceIdentity": true,
+          "exactReceiptIdentity": true,
+          "truthfulBoundary": true
+        },
+        "measured": true,
+        "targetReady": false,
+        "missing": [
+          "format_identity",
+          "encoding_identity",
+          "text_content",
+          "tabular_structure"
+        ]
+      },
+      {
+        "caseId": "modern-xlsx",
+        "family": "spreadsheet",
+        "checks": {
+          "measured": true,
+          "sourceIdentity": true,
+          "exactReceiptIdentity": true,
+          "truthfulBoundary": true
+        },
+        "measured": true,
+        "targetReady": true,
+        "missing": []
+      },
+      {
+        "caseId": "text-pdf",
+        "family": "pdf",
+        "checks": {
+          "measured": true,
+          "sourceIdentity": true,
+          "exactReceiptIdentity": true,
+          "truthfulBoundary": true
+        },
+        "measured": true,
+        "targetReady": true,
+        "missing": []
+      },
+      {
+        "caseId": "textless-pdf",
+        "family": "pdf",
+        "checks": {
+          "measured": true,
+          "sourceIdentity": true,
+          "exactReceiptIdentity": true,
+          "truthfulBoundary": true
+        },
+        "measured": true,
+        "targetReady": false,
+        "missing": [
+          "ocr_completion"
+        ]
+      },
+      {
+        "caseId": "modern-docx",
+        "family": "word_processing",
+        "checks": {
+          "measured": true,
+          "sourceIdentity": true,
+          "exactReceiptIdentity": true,
+          "truthfulBoundary": true
+        },
+        "measured": true,
+        "targetReady": false,
+        "missing": [
+          "text_content",
+          "tabular_structure"
+        ]
+      },
+      {
+        "caseId": "modern-pptx",
+        "family": "presentation",
+        "checks": {
+          "measured": true,
+          "sourceIdentity": true,
+          "exactReceiptIdentity": true,
+          "truthfulBoundary": true
+        },
+        "measured": true,
+        "targetReady": false,
+        "missing": [
+          "text_content"
+        ]
+      },
+      {
+        "caseId": "open-document-text",
+        "family": "word_processing",
+        "checks": {
+          "measured": true,
+          "sourceIdentity": true,
+          "exactReceiptIdentity": true,
+          "truthfulBoundary": true
+        },
+        "measured": true,
+        "targetReady": false,
+        "missing": [
+          "format_identity",
+          "text_content"
+        ]
+      },
+      {
+        "caseId": "open-document-sheet",
+        "family": "spreadsheet",
+        "checks": {
+          "measured": true,
+          "sourceIdentity": true,
+          "exactReceiptIdentity": true,
+          "truthfulBoundary": true
+        },
+        "measured": true,
+        "targetReady": false,
+        "missing": [
+          "format_identity",
+          "text_content",
+          "tabular_structure"
+        ]
+      },
+      {
+        "caseId": "legacy-xls-biff8-korean",
+        "family": "spreadsheet",
+        "checks": {
+          "measured": true,
+          "sourceIdentity": true,
+          "exactReceiptIdentity": true,
+          "truthfulBoundary": true
+        },
+        "measured": true,
+        "targetReady": false,
+        "missing": [
+          "format_identity",
+          "text_content",
+          "tabular_structure"
+        ]
+      },
+      {
+        "caseId": "legacy-doc-ole2",
+        "family": "word_processing",
+        "checks": {
+          "measured": true,
+          "sourceIdentity": true,
+          "exactReceiptIdentity": true,
+          "truthfulBoundary": true
+        },
+        "measured": true,
+        "targetReady": false,
+        "missing": [
+          "format_identity",
+          "text_content"
+        ]
+      },
+      {
+        "caseId": "legacy-ppt-ole2",
+        "family": "presentation",
+        "checks": {
+          "measured": true,
+          "sourceIdentity": true,
+          "exactReceiptIdentity": true,
+          "truthfulBoundary": true
+        },
+        "measured": true,
+        "targetReady": false,
+        "missing": [
+          "format_identity",
+          "text_content"
+        ]
+      },
+      {
+        "caseId": "korean-hwp3",
+        "family": "korean_document",
+        "checks": {
+          "measured": true,
+          "sourceIdentity": true,
+          "exactReceiptIdentity": true,
+          "truthfulBoundary": true
+        },
+        "measured": true,
+        "targetReady": false,
+        "missing": [
+          "format_identity",
+          "text_content",
+          "tabular_structure"
+        ]
+      },
+      {
+        "caseId": "korean-hwp5",
+        "family": "korean_document",
+        "checks": {
+          "measured": true,
+          "sourceIdentity": true,
+          "exactReceiptIdentity": true,
+          "truthfulBoundary": true
+        },
+        "measured": true,
+        "targetReady": false,
+        "missing": [
+          "format_identity",
+          "text_content",
+          "tabular_structure"
+        ]
+      },
+      {
+        "caseId": "korean-hwpx",
+        "family": "korean_document",
+        "checks": {
+          "measured": true,
+          "sourceIdentity": true,
+          "exactReceiptIdentity": true,
+          "truthfulBoundary": true
+        },
+        "measured": true,
+        "targetReady": false,
+        "missing": [
+          "format_identity",
+          "text_content",
+          "tabular_structure"
+        ]
+      }
+    ]
+  },
+  "honestBoundary": {
+    "doesNotMeasureModelRecoveryViaArbitraryInstalledCli": true,
+    "doesNotClaimFormatSupportFromIdentificationOnly": true,
+    "doesNotClaimOcrFromNeedDetection": true,
+    "doesNotUseProductionCredentialsOrUserDocuments": true
+  },
+  "room": null,
+  "passed": true
+}
