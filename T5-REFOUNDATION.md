@@ -2630,8 +2630,8 @@ Non-goals:
 
 ## U1-G4 — User-grounded Social Analysis
 
-상태: `IN PROGRESS` — 같은 SNS 자료라도 사장님의 사업·취향·현재 목표에 따라 무엇을 중요하게 볼지가
-달라진다는 제품 원칙을 실제 멀티턴 분석으로 검증한다.
+상태: `COMPLETE` — 같은 SNS 자료라도 현재 사용자의 사업·취향·목표·교정에 따라 무엇을 중요하게 볼지가
+달라지는 3개 인간형 6턴 시나리오를 실제 gpt-5.6-terra에서 검증했다.
 
 사용자 완료 문장:
 
@@ -2659,6 +2659,17 @@ Non-goals:
 - 사용자 교정 전후 초점 변경, source 사실·해석·미확인 범위 유지
 - 목적에 충분한 기존 손만 사용하고 새 능력 준비 0
 - 실제 콘솔 모델 종단과 기존 전체 회귀 유지
+
+완료 증거:
+
+- 같은 Facebook source 하나를 오피스 카페 영업시간 실험, 미니멀 주얼리 참여형 콘텐츠 실험,
+  병원 앞 카페 컨설팅 브리프의 서로 다른 결과 3개로 완성
+- 각 6턴·총 18턴, 사용자의 제약·교정 뒤 분석 초점과 최종 결과가 실제로 변경
+- strict reviewer의 source facts·user facts·goal specificity·correction·coverage·비일반화·행동 비례가 3/3
+- visible comment 표본과 759개 전체·미디어·음성 미관측 경계를 유지하고 capability install 0
+- 첫 실패의 Browser fixture `editables` 누락과 두 번째 실패의 reviewer visible-excerpt 누락을
+  실제 source 계약으로 교정했으며 모델 문구·판정 기준 완화 0
+- 근거: `refoundation/evidence/u1-g4-user-grounded-social-analysis-2026-08-23.json`
 
 ## 현재 다음 한 작업
 

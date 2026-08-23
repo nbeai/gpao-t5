@@ -1,0 +1,49 @@
+{
+  "schema": "t5.u1-g4-user-grounded-social-analysis.v1",
+  "recordedAt": "2026-08-23T16:16:25+09:00",
+  "actualUserData": false,
+  "model": "gpt-5.6-terra",
+  "sharedSource": "https://www.facebook.com/ZUSCoffeeMY/posts/were-changing-our-operating-hours-would-you-like-your-coffee-from1-7am-11pm2-8am/887379952660846/",
+  "scenarioCount": 3,
+  "naturalLanguageTurns": 18,
+  "scenarios": [
+    { "id": "office-cafe-hours", "outcomeType": "operating-hours-experiment", "turns": 6, "passed": true },
+    { "id": "minimal-jewelry-content", "outcomeType": "content-choice-post-experiment", "turns": 6, "passed": true },
+    { "id": "local-business-consulting-brief", "outcomeType": "evidence-limited-client-brief", "turns": 6, "passed": true }
+  ],
+  "reviewDimensions": {
+    "sourceFactsPreserved": "3/3",
+    "userFactsUsed": "3/3",
+    "goalSpecific": "3/3",
+    "correctionApplied": "3/3",
+    "coverageHonest": "3/3",
+    "universalRuleAvoided": "3/3",
+    "actionProportional": "3/3"
+  },
+  "suite": {
+    "sameSourceDifferentOutcomes": true,
+    "capabilityInstalls": 0,
+    "internalTermsExposed": 0,
+    "passed": true
+  },
+  "countertests": [
+    {
+      "failure": "fixture driver lacked the editables observation required by the real Browser Hand",
+      "result": "browser action failed and all three scenarios lost observed source facts"
+    },
+    {
+      "failure": "review source truth contained themes but omitted exact visible comment excerpts present in the full snapshot",
+      "result": "correctly observed commenter names and excerpts were rejected as invented"
+    }
+  ],
+  "changes": [
+    "the fixture now satisfies the real Browser Hand navigate/snapshot/editables contract",
+    "visible comment excerpts are one source of truth shared by the snapshot and strict reviewer",
+    "the scenario prompts, model interaction contract, and seven review dimensions were not relaxed"
+  ],
+  "boundaries": [
+    "the fixture preserves only the visible comment sample, not all 759 comments or complete reply threads",
+    "media pixels and audio remain unobserved",
+    "the scenarios prove purpose-sensitive behavior, not representation of all users or industries"
+  ]
+}

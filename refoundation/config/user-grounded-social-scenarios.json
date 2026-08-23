@@ -15,7 +15,17 @@
       "reactions": "1.2천",
       "commentCount": 759,
       "shareCount": 13,
-      "visibleThemes": ["출근 전 구매", "밤 수요 감소", "직원 휴식", "상권별 차등 운영", "배달 지연"]
+      "visibleThemes": ["출근 전 구매", "밤 수요 감소", "직원 휴식", "상권별 차등 운영", "배달 지연"],
+      "visibleCommentExcerpts": [
+        {"author":"ZUS Coffee","text":"OR 24 HOURS?!"},
+        {"author":"Lee","text":"7am to 9pm. Less people drink coffee at night. Let the worker go home."},
+        {"author":"Teh","text":"7am-11pm, can grab and go before work."},
+        {"author":"Cyn","text":"7am-11pm, easy to grab on the way to work."},
+        {"author":"Ivy","text":"7am, but till 9pm because staff need to rest."},
+        {"author":"Jess","text":"7am if staff are okay; no point opening too late in some areas."},
+        {"author":"Wind","text":"mall 10am-10pm; shop weekday 7am-9pm, weekend 9am-9pm."},
+        {"author":"Charmaine","text":"delivery service is slow."}
+      ]
     }
   },
   "scenarios": [
