@@ -1,0 +1,44 @@
+{
+  "schema": "t5.p1-remote-mcp-durability.v1",
+  "recordedAt": "2026-08-23T16:03:44+09:00",
+  "actualUserData": false,
+  "supportedScope": "verified official Streamable HTTP Remote MCP connections",
+  "countertests": {
+    "readCallHungWithoutToolDeadline": true,
+    "writeCallHungWithoutAmbiguousEffectState": true,
+    "deadClientWasReusedAfterTransportFailure": true
+  },
+  "changes": {
+    "toolDeadline": "Remote MCP calls have a bounded 30 second default with a 10ms to 120s validated range for qualification",
+    "readTimeout": { "state": "remote_timeout", "effectUnknown": false, "retrySafe": true },
+    "writeTimeout": { "state": "remote_effect_unknown", "effectUnknown": true, "retrySafe": false },
+    "ambiguousReplay": "same semantic JSON call is blocked in the current Run even when object key order changes",
+    "transportRecovery": "failed list/call closes and discards the dead client before a later read reconnects",
+    "refreshSerialization": "concurrent expired credential requests share one refresh and the rotated token",
+    "reauth": "invalid_grant removes tokens while preserving reusable registration metadata"
+  },
+  "verification": {
+    "focused": { "passed": 13, "failed": 0 },
+    "refoundation": { "passed": 506, "failed": 0 },
+    "legacySourceImports": 0,
+    "existingFlows": [
+      "Notion schema and bounded result",
+      "Notion read and write authority",
+      "Linear DCR OAuth tools/list and read",
+      "Remote MCP human journey resume"
+    ]
+  },
+  "boundaries": [
+    "a timed-out or transport-failed write is not reported as success or confirmed failure",
+    "the underlying late remote work cannot be cancelled by Promise timeout alone, so the effect remains explicitly unknown",
+    "ambiguous replay blocking is scoped to the live tool instance; restart recovery continues to rely on canonical interrupted receipts and no automatic replay",
+    "production account writes were not exercised"
+  ],
+  "nonGoals": [
+    "stdio or SSE transport",
+    "arbitrary MCP URLs",
+    "marketplace or new connectors",
+    "automatic replay of idempotent or non-idempotent writes",
+    "production account mutation"
+  ]
+}

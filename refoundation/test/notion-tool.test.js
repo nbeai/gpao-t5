@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { makeNotionTool } from '../src/notion-tool.js';
+import { makeRemoteMcpTool } from '../src/remote-mcp-tool.js';
 
 const effect = (kind) => ({
   kind, summary: 'Notion 작업', targets: ['notion'], reversible: true,
@@ -132,4 +133,54 @@ test('Notion 동적 인자는 OpenAI strict schema에서 허용되는 JSON 문�
   await assert.rejects(() => tool.preflight({
     action: 'call', toolName: 'notion-search', argumentsJson: '{broken', effect: null,
   }), /invalid JSON/u);
+});
+
+test('Remote MCP read timeout은 Run을 무한 대기시키지 않고 정직한 실패로 끝난다', async () => {
+  const tool = makeRemoteMcpTool({
+    id: 'fixture', label: 'Fixture', timeoutMs: 20,
+    runtime: {
+      async listTools() { return [{
+        name: 'read_slow', inputSchema: { type: 'object' }, annotations: { readOnlyHint: true },
+      }]; },
+      async callTool() { return new Promise(() => {}); },
+    },
+  });
+  const args = { action: 'call', toolName: 'read_slow', argumentsJson: '{}', effect: effect('observe') };
+  assert.equal((await tool.preflight(args)).allowed, true);
+  const result = await Promise.race([
+    tool.execute(args),
+    new Promise((resolve) => setTimeout(() => resolve({ state: 'hung' }), 100)),
+  ]);
+  assert.equal(result.state, 'remote_timeout');
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.effectUnknown, false);
+});
+
+test('Remote MCP write timeout은 불명확 효과를 남기고 같은 exact call 재실행을 막는다', async () => {
+  let calls = 0;
+  const tool = makeRemoteMcpTool({
+    id: 'fixture', label: 'Fixture', timeoutMs: 20,
+    runtime: {
+      async listTools() { return [{
+        name: 'update_slow', inputSchema: { type: 'object' }, annotations: { readOnlyHint: false },
+      }]; },
+      async callTool() { calls += 1; return new Promise(() => {}); },
+    },
+    authorizeEffect: async () => ({ allowed: true }),
+  });
+  const args = { action: 'call', toolName: 'update_slow', argumentsJson: '{"id":"p1","title":"next"}', effect: effect('external_change') };
+  assert.equal((await tool.preflight(args)).allowed, true);
+  const result = await Promise.race([
+    tool.execute(args),
+    new Promise((resolve) => setTimeout(() => resolve({ state: 'hung' }), 100)),
+  ]);
+  assert.equal(result.state, 'remote_effect_unknown');
+  assert.equal(result.effectUnknown, true);
+  assert.equal(result.retrySafe, false);
+  const replay = await tool.preflight({
+    ...args, argumentsJson: '{"title":"next","id":"p1"}',
+  });
+  assert.equal(replay.allowed, false);
+  assert.equal(replay.result.state, 'ambiguous_remote_effect_not_replayable');
+  assert.equal(calls, 1);
 });

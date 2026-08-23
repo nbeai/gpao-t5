@@ -83,6 +83,22 @@ schema만 열고 행동 없이 끝나는 실패가 있었다.
   48.8초·2 turns·29,956 tokens·source 7. 모델 생성 wall time 편차는 남겼다.
 - 근거: `refoundation/evidence/p1-web-research-continuation-2026-08-23.json`
 
+### 2026-08-23 P1 Remote MCP Durability
+
+현재 지원하는 official Streamable HTTP Remote MCP의 timeout·연결 단절·refresh·불명확 write만 자격화했다.
+
+- read call은 기본 30초 bounded timeout 뒤 `remote_timeout·effectUnknown:false·retrySafe:true`로 끝난다.
+- write/destructive call은 timeout·transport failure 뒤 `remote_effect_unknown·retrySafe:false`이며,
+  같은 의미의 JSON key 순서를 바꿔도 현재 Run에서 exact effect 재실행을 막는다.
+- list/call transport 실패는 죽은 client를 닫고 버려 다음 read가 새 client로 연결된다.
+- 동시에 만료 자격을 요청해도 refresh는 1회이고 회전된 token을 공유한다.
+- `invalid_grant`는 token만 제거하고 재사용 가능한 등록 metadata는 보존하며 연결 상태를 재인증 필요로 내린다.
+- 기존 Notion·Linear OAuth·tools/list·read/write 인간 흐름 유지, 집중 `13/13`.
+- 근거: `refoundation/evidence/p1-remote-mcp-durability-2026-08-23.json`
+
+남은 경계: Promise timeout은 이미 provider에 들어간 작업 자체를 취소할 수 없으므로 write 효과는 unknown으로
+남긴다. 생산 계정 write, stdio·SSE·임의 MCP URL은 열지 않았다.
+
 Non-goals: 새 검색 공급자·Places API·화면 자동화 엔진·로그인 신분 재설계·설치 패키지 생성.
 
 ## P0-H1 — Human Release Recovery

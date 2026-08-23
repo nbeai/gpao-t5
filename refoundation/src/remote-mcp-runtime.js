@@ -38,8 +38,15 @@ export function makeRemoteMcpRuntime({ serverUrl, credential, onUnauthorized, cl
     }).catch((error) => { clientPromise = null; throw error; });
     return clientPromise;
   }
+  async function resetClient() {
+    const active = await clientPromise?.catch(() => null);
+    clientPromise = null; tools = null;
+    await active?.close?.().catch(() => {});
+  }
   async function listTools() {
-    const result = await (await client()).listTools();
+    let result;
+    try { result = await (await client()).listTools(); }
+    catch (error) { await resetClient(); throw error; }
     if (!Array.isArray(result?.tools)) throw new Error('Remote MCP returned no tool list');
     tools = result.tools.map(safeTool); return structuredClone(tools);
   }
@@ -49,12 +56,14 @@ export function makeRemoteMcpRuntime({ serverUrl, credential, onUnauthorized, cl
       const available = tools ?? await listTools();
       if (!available.some((tool) => tool.name === name)) throw new Error('Remote MCP tool not found');
       if (!args || typeof args !== 'object' || Array.isArray(args)) throw new TypeError('Remote MCP arguments must be an object');
-      const result = await (await client()).callTool({ name, arguments: structuredClone(args) });
+      let result;
+      try { result = await (await client()).callTool({ name, arguments: structuredClone(args) }); }
+      catch (error) { await resetClient(); throw error; }
       return { content: Array.isArray(result?.content) ? structuredClone(result.content) : [],
         ...(result?.structuredContent && typeof result.structuredContent === 'object'
           ? { structuredContent: structuredClone(result.structuredContent) } : {}), isError: result?.isError === true };
     },
     invalidate() { tools = null; },
-    async close() { const active = await clientPromise?.catch(() => null); clientPromise = null; tools = null; await active?.close?.(); },
+    async close() { await resetClient(); },
   };
 }

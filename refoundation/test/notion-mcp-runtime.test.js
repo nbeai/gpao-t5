@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { makeNotionMcpRuntime } from '../src/notion-mcp-runtime.js';
+import { makeRemoteMcpRuntime } from '../src/remote-mcp-runtime.js';
 
 test('Notion MCP runtime은 공식 도구 목록·annotations·호출 결과를 원문 구조로 보존한다', async () => {
   const calls = [];
@@ -63,4 +64,29 @@ test('목록에 없는 Notion 도구와 비정상 schema는 remote call 전에 �
   });
   await assert.rejects(() => unknown.callTool({ name: 'notion-missing', arguments: {} }), /tool not found/u);
   assert.equal(calls, 0);
+});
+
+test('Remote MCP transport call 실패 뒤에는 죽은 client를 버리고 다음 read에서 다시 연결한다', async () => {
+  let clients = 0;
+  const runtime = makeRemoteMcpRuntime({
+    serverUrl: 'https://mcp.example.test/mcp', credential: async () => ({ accessToken: 'TOKEN' }),
+    clientFactory: async () => {
+      clients += 1;
+      const current = clients;
+      return {
+        async listTools() { return { tools: [{ name: 'notion-search', inputSchema: { type: 'object' } }] }; },
+        async callTool() {
+          if (current === 1) throw new Error('transport closed');
+          return { content: [{ type: 'text', text: 'reconnected' }], isError: false };
+        },
+        async close() {},
+      };
+    },
+  });
+  await runtime.listTools();
+  await assert.rejects(() => runtime.callTool({ name: 'notion-search', arguments: {} }), /transport closed/u);
+  const result = await runtime.callTool({ name: 'notion-search', arguments: {} });
+  assert.equal(result.content[0].text, 'reconnected');
+  assert.equal(clients, 2);
+  await runtime.close();
 });

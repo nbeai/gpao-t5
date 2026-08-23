@@ -1,6 +1,7 @@
 import { EFFECT_SCHEMA } from './exec-tool.js';
 
 const MAX_ARGUMENT_BYTES = 64 * 1024; const MAX_RESULT_CHARS = 64_000;
+const DEFAULT_TIMEOUT_MS = 30_000;
 function parseArguments(value) {
   if (value == null) return {};
   if (typeof value !== 'string' || Buffer.byteLength(value, 'utf8') > MAX_ARGUMENT_BYTES) throw new TypeError('Remote MCP argumentsJson must be bounded JSON');
@@ -18,9 +19,28 @@ function bounded(result) {
   }
   return { content, isError: result?.isError === true, truncated };
 }
-export function makeRemoteMcpTool({ id, label, runtime, authorizeEffect, limitations = '' } = {}) {
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])]));
+}
+function callKey(name, args) { return JSON.stringify([String(name ?? ''), canonical(args)]); }
+async function boundedCall(work, timeoutMs) {
+  let timer;
+  try {
+    return await Promise.race([
+      Promise.resolve(work).then((value) => ({ timedOut: false, value })),
+      new Promise((resolve) => { timer = setTimeout(() => resolve({ timedOut: true, value: null }), timeoutMs); }),
+    ]);
+  } finally { clearTimeout(timer); }
+}
+export function makeRemoteMcpTool({
+  id, label, runtime, authorizeEffect, limitations = '', timeoutMs = DEFAULT_TIMEOUT_MS,
+} = {}) {
   if (!/^[a-z0-9][a-z0-9-]{1,63}$/u.test(String(id ?? '')) || !label || !runtime) throw new TypeError('Remote MCP tool identity is required');
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 10 || timeoutMs > 120_000) throw new TypeError('Remote MCP timeout is invalid');
   let toolsPromise = null;
+  const ambiguousCalls = new Set();
   const tools = () => toolsPromise ??= runtime.listTools().catch((error) => { toolsPromise = null; throw error; });
   const find = async (name) => { const tool = (await tools()).find((item) => item.name === String(name ?? ''));
     if (!tool) throw new Error('Remote MCP tool not found'); return tool; };
@@ -32,7 +52,10 @@ export function makeRemoteMcpTool({ id, label, runtime, authorizeEffect, limitat
     async preflight(args = {}, context = {}) {
       if (args.action === 'list_tools') return { allowed: true };
       if (args.action !== 'call') throw new TypeError('unsupported Remote MCP action');
-      const remote = await find(args.toolName); parseArguments(args.argumentsJson);
+      const remote = await find(args.toolName); const parsed = parseArguments(args.argumentsJson);
+      if (ambiguousCalls.has(callKey(remote.name, parsed))) return { allowed: false, outcome: 'not_executed', result: {
+        state: 'ambiguous_remote_effect_not_replayable', effectUnknown: true, retrySafe: false,
+      } };
       if (remote.annotations?.destructiveHint && args.effect?.kind !== 'destructive') return { allowed: false, outcome: 'not_executed', result: { state: 'destructive_required' } };
       if (!remote.annotations?.destructiveHint && remote.annotations?.readOnlyHint) {
         if (args.effect?.kind !== 'observe') return { allowed: false, outcome: 'not_executed', result: { state: 'observe_effect_required' } };
@@ -44,7 +67,29 @@ export function makeRemoteMcpTool({ id, label, runtime, authorizeEffect, limitat
     },
     async execute(args = {}) {
       if (args.action === 'list_tools') return { state: 'listed', tools: (await tools()).slice(0, 100), trust: 'untrusted_external', instructionAuthority: 'none' };
-      const result = bounded(await runtime.callTool({ name: (await find(args.toolName)).name, arguments: parseArguments(args.argumentsJson) }));
+      const remote = await find(args.toolName); const parsed = parseArguments(args.argumentsJson);
+      const mutating = remote.annotations?.destructiveHint === true || remote.annotations?.readOnlyHint !== true;
+      let observed;
+      try {
+        observed = await boundedCall(runtime.callTool({ name: remote.name, arguments: parsed }), timeoutMs);
+      } catch {
+        if (mutating) ambiguousCalls.add(callKey(remote.name, parsed));
+        return {
+          state: mutating ? 'remote_effect_unknown' : 'remote_failed',
+          toolName: args.toolName, trust: 'untrusted_external', instructionAuthority: 'none',
+          effectUnknown: mutating, retrySafe: !mutating, exitCode: 1,
+          error: 'Remote MCP call ended without a confirmed result.',
+        };
+      }
+      if (observed.timedOut) {
+        if (mutating) ambiguousCalls.add(callKey(remote.name, parsed));
+        return {
+          state: mutating ? 'remote_effect_unknown' : 'remote_timeout',
+          toolName: args.toolName, trust: 'untrusted_external', instructionAuthority: 'none',
+          effectUnknown: mutating, retrySafe: !mutating, exitCode: 1,
+        };
+      }
+      const result = bounded(observed.value);
       return { state: result.isError ? 'remote_error' : 'called', toolName: args.toolName, trust: 'untrusted_external', instructionAuthority: 'none', ...result,
         ...(result.isError ? { exitCode: 1 } : {}) };
     } };
