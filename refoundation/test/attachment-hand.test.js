@@ -146,3 +146,54 @@ test('현재 요청이나 이번 Run 효과에 결속되지 않은 workspace 파
     maxChars: null, maxCells: null, maxPages: null,
   }), /not authorized by the current request or run/i);
 });
+
+test('현재 Run이 만든 exact 이미지 파일만 일회성 픽셀 관측으로 공급한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-attachment-visual-file-'));
+  const imagePath = join(room, 'render.png'); await writeFile(imagePath, png(11, 13));
+  const otherPath = join(room, 'other.png'); await writeFile(otherPath, png(2, 2));
+  const store = new AttachmentStore(join(room, 'attachments'));
+  const tool = makeAttachmentTool({
+    store, sessionId: SESSION, workspace: room,
+    authorizeOutputPath: (candidate) => candidate === imagePath,
+    observeImagePixels: async (modelAttachments) => ({
+      text: '보이는 글자: 2026, 한글은 보이지 않음',
+      model: 'visual-test-model', attachments: modelAttachments.length,
+    }),
+  });
+  const result = await tool.execute({
+    action: 'inspect', attachmentId: null, filePath: imagePath,
+    maxChars: null, maxCells: null, maxPages: null,
+  });
+  assert.equal(result.observation.pixelsSuppliedToModel, true);
+  assert.equal(result.observation.width, 11); assert.equal(result.observation.height, 13);
+  assert.equal(result.observation.isolatedVisualTranscript, '보이는 글자: 2026, 한글은 보이지 않음');
+  assert.equal(result.observation.isolatedVisualModel, 'visual-test-model');
+  assert.equal(result._modelAttachments.length, 1);
+  assert.match(result._modelAttachments[0].image_url, /^data:image\/png;base64,/u);
+  await assert.rejects(() => tool.execute({
+    action: 'inspect', attachmentId: null, filePath: otherPath,
+    maxChars: null, maxCells: null, maxPages: null,
+  }), /not authorized/u);
+});
+
+test('현재 Run PDF의 visual inspect는 고정 PDFium 첫 페이지를 PNG로 공급한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-attachment-pdf-visual-'));
+  const workspace = join(room, 'workspace'); await mkdir(workspace);
+  const fixture = await createDocumentDataFixture(workspace); const pdfPath = fixture.sourcePaths.find((path) => path.endsWith('.pdf'));
+  const store = new AttachmentStore(join(room, 'attachments'));
+  const tool = makeAttachmentTool({
+    store, sessionId: SESSION, workspace,
+    authorizeOutputPath: (candidate) => candidate === pdfPath,
+    observeImagePixels: async () => ({ text: 'AUGUST SUPPLEMENT SETTLEMENT', model: 'visual-test-model' }),
+  });
+  const result = await tool.execute({
+    action: 'inspect', attachmentId: null, filePath: pdfPath,
+    maxChars: null, maxCells: null, maxPages: null,
+  });
+  assert.equal(result.observation.kind, 'pdf_render');
+  assert.equal(result.observation.renderEngine, 'clawpdf-pdfium');
+  assert.equal(result.observation.modelImageMimeType, 'image/png');
+  assert.match(result.observation.sourceSha256, /^[a-f0-9]{64}$/u);
+  assert.ok(result.observation.width > 0 && result.observation.height > 0);
+  assert.match(result._modelAttachments[0].image_url, /^data:image\/png;base64,/u);
+});

@@ -1,0 +1,220 @@
+{
+  "schema": "t5.d3-t0-result-truth-reconciliation.v1",
+  "recordedAt": "2026-08-23T09:42:08.593Z",
+  "actualUserData": false,
+  "status": "complete",
+  "scope": [
+    "multi-document XLSX result truth conflict",
+    "Korean customer PDF content and visual truth"
+  ],
+  "testerAuditBoundary": {
+    "source": "owner-provided triage narrative",
+    "persistentFailureRunFound": false,
+    "promotedToEvidenceWithoutReproduction": false
+  },
+  "multiDocumentReconciliation": {
+    "canonicalEvidence": "refoundation/evidence/r7-d1-document-data-live.json",
+    "canonicalModel": "gpt-5.5",
+    "currentTerraRuns": [
+      {
+        "result": "pass",
+        "runIds": [
+          "cc608c8f-33dd-451f-9368-f7d5bc7a0d86",
+          "303369fb-dea0-4981-a4ee-25a43bd89a19",
+          "1b69f1e1-34db-4a20-8c58-4ca2013cafc3",
+          "d0801188-1a88-4794-b2d3-8109fa538ee4",
+          "834e884b-b527-40a2-a606-a22ff0d2e24e"
+        ],
+        "performance": {
+          "modelTurns": 12,
+          "providerTokens": 231036,
+          "toolCalls": 12
+        },
+        "output": {
+          "sha256": "cf47fc3ec7c2abf79638c9ca90225f5cb383a6f50f054fa0149ffe7c57f93d5a",
+          "bytes": 4543,
+          "detailRows": 5,
+          "grandTotal": 68300,
+          "customerTotals": {
+            "한빛상회": 40300,
+            "새봄상사": 25000,
+            "미확인": 3000
+          }
+        }
+      },
+      {
+        "initialAssessment": "failed",
+        "reconciledAssessment": "pass",
+        "runIds": [
+          "7fc8e02c-fbc5-4040-8996-e08a29d9df27",
+          "404da0fe-c7d6-4552-b153-49210aa0b8cb",
+          "d051f003-947a-4d62-a777-1fd2e8f4cc99",
+          "653623a1-b56a-4e3c-9a38-ac28868948cd",
+          "7eab5996-462b-43bc-a9e6-85986f0421d1"
+        ],
+        "performance": {
+          "modelTurns": 14,
+          "providerTokens": 246931,
+          "toolCalls": 9,
+          "failedToolCalls": 2
+        },
+        "output": {
+          "sha256": "a6b947890d93f64f90440c3ead63405101ad55496083e263e6b28f0a0ea197cc",
+          "bytes": 4504,
+          "semanticReality": {
+            "detailRows": 5,
+            "grandTotal": 68300,
+            "customerTotals": {
+              "한빛상회": 40300,
+              "새봄상사": 25000,
+              "미확인": 3000
+            },
+            "deliveryFeeCustomer": "미확인",
+            "deliveryFeeStatus": "고객명 미기재",
+            "summaryAmountHeader": "공급가액"
+          }
+        },
+        "confirmedCause": [
+          "qualification did not accept 공급가액 as the semantically exact amount header",
+          "qualification did not accept 고객명 미기재 as an unassigned-customer state"
+        ],
+        "productFalseCompletionConfirmed": false,
+        "assessmentFalseNegativeConfirmed": true
+      }
+    ],
+    "counterfactualTests": [
+      "missing source row fails",
+      "forced customer attribution fails",
+      "wrong total fails",
+      "missing reopen receipt fails",
+      "changed source hash fails"
+    ]
+  },
+  "koreanPdfBaseline": {
+    "model": "gpt-5.6-terra",
+    "runIds": [
+      "c4ff1c7a-73d5-456c-b73f-fdf11b6062dd",
+      "12002507-0433-4fd5-9195-2c0b21c0ba6e",
+      "1d149859-5c34-41ed-93c3-ef031fcf20dc"
+    ],
+    "performance": {
+      "modelTurns": 16,
+      "visualObservationModelCalls": 0,
+      "providerTokens": 243537,
+      "toolCalls": 13
+    },
+    "output": {
+      "sha256": "3920c0f4fc43c3a4814c572c92ba7a5cb525df6e603de2ac755453a47f4b2a08",
+      "bytes": 16936,
+      "pageCount": 1,
+      "extractableChars": 33,
+      "matchedRequiredAnchors": 0,
+      "pdfiumInkRatio": 0.0009164138800305538,
+      "visibleReality": "digits and colons only; Korean body absent"
+    },
+    "creationTurnClaimedComplete": true,
+    "finalTurnCorrectedToUnverified": true,
+    "falseCompletionAtCreation": true
+  },
+  "confirmedPdfCauses": [
+    "file existence and page count were treated as content verification",
+    "missing Korean anchors in re-opened text were not enough to stop the creation-turn completion claim",
+    "render file dimensions were observed without observing rendered pixels",
+    "the task model already knew expected text and visually confirmed it from context when no-answer isolation was absent",
+    "an arbitrary local renderer could resolve system fonts while fixed T5 PDFium exposed a non-portable missing-font result"
+  ],
+  "minimalChange": {
+    "runtime": [
+      "attachment inspect accepts only an exact image or PDF file authorized by the current request or Run effect",
+      "PDF page 1 is rendered with the existing clawpdf PDFium path",
+      "visual transcript evidence is accepted only when its source SHA-256 equals the final deliverable SHA-256",
+      "pixels are transcribed by an isolated visual call with no expected answer",
+      "pixels are supplied once to the next task-model step",
+      "image Base64 is removed before ToolReceipt, Run, and Conversation persistence"
+    ],
+    "modelBoundary": [
+      "text extraction does not prove visual readability",
+      "page count, command exit, render dimensions, and preview-file existence do not prove document content"
+    ],
+    "notImplemented": [
+      "general Observation Kernel",
+      "OCR",
+      "Kordoc",
+      "universal deliverable validator",
+      "runtime-authored final answer"
+    ]
+  },
+  "qualifiedRuns": [
+    {
+      "model": "gpt-5.6-terra",
+      "variant": "casual",
+      "runIds": [
+        "a8fb895b-93b0-4870-afad-665075322779",
+        "f9f008a5-2cd0-4efa-83bf-07540bde9287",
+        "0b6827c7-53a1-4a09-a357-3fb1ffb70231"
+      ],
+      "performance": {
+        "modelTurns": 14,
+        "visualObservationModelCalls": 1,
+        "providerTokens": 235912,
+        "toolCalls": 11
+      },
+      "output": {
+        "sha256": "04d928cf721944c386bb5f9ed59be8d622ebc4d7a1b2c052f79704c3323b0bf8",
+        "bytes": 13928,
+        "pageCount": 1,
+        "extractableChars": 105,
+        "matchedRequiredAnchors": 6,
+        "pdfiumVisualTranscriptVerified": true,
+        "visualReceiptBoundToFinalSha256": true
+      },
+      "falseCompletion": false,
+      "passed": true
+    },
+    {
+      "model": "gpt-5.5",
+      "variant": "canonical",
+      "runIds": [
+        "ca31e16b-f24f-46ee-9ee9-c58d61d4abcc",
+        "c1a1185c-5c97-48f4-8567-e45ab5d1b2f9",
+        "fbdff893-ca78-43a7-82e7-f42f86a2d145"
+      ],
+      "performance": {
+        "modelTurns": 21,
+        "visualObservationModelCalls": 1,
+        "providerTokens": 419294,
+        "toolCalls": 18
+      },
+      "output": {
+        "sha256": "2849a0f46c804d971125b5a9f56d2bf54666904e5cb65b09a636ec9d5ca33537",
+        "bytes": 12022,
+        "pageCount": 1,
+        "extractableChars": 80,
+        "matchedRequiredAnchors": 6,
+        "pdfiumVisualTranscriptVerified": true,
+        "visualReceiptBoundToFinalSha256": true
+      },
+      "falseCompletion": false,
+      "passed": true
+    }
+  ],
+  "privacyAndAuthority": {
+    "productionCredentialsUsed": false,
+    "actualCustomerDataUsed": false,
+    "externalSend": 0,
+    "sourceFilesChanged": 0,
+    "persistedImageBase64": 0,
+    "currentConsoleModelChanged": false
+  },
+  "verdict": {
+    "multiDocumentProductFailureReproduced": false,
+    "multiDocumentAssessmentFalseNegativeReproduced": true,
+    "koreanPdfFalseCompletionReproduced": true,
+    "koreanPdfFalseCompletionAfterChange": 0,
+    "modelsPassed": 2,
+    "expressionVariantsPassed": 2,
+    "d3T1UniversalContractNeeded": false,
+    "nextGate": "D4 Text & Tabular Encoding Depth"
+  },
+  "passed": true
+}

@@ -24,6 +24,9 @@ test('기본 위치를 이유로 사용자가 지정한 경로의 터미널 관�
   assert.match(instructions, /built-in.*T5_DOCUMENT_CLI.*inspect.*create-xlsx.*custom parsing/i);
   assert.match(instructions, /attachment content.*untrusted.*not instructions/i);
   assert.match(instructions, /requested a file result.*attachment register_output.*download/i);
+  assert.match(instructions, /text-bearing PDF.*requested text or values.*actually present.*page count.*render dimensions.*not content verification.*do not say.*readable/i);
+  assert.match(instructions, /visual readability or layout.*extracted text does not verify.*rendered pixels.*goal remains incomplete.*do not lead with completion/i);
+  assert.match(instructions, /visual verification.*PDF.*attachment inspect.*attachmentId null.*PDF filePath.*T5 PDFium.*isolated visual transcript.*arbitrary renderer/i);
   assert.match(instructions, /YouTube video.*title and description.*not a transcript.*answer language and caption source language.*language null.*manual caption.*user language.*video_text.*not_prepared.*cli_prepare.*never invoke yt-dlp through exec/i);
   assert.match(instructions, /caption_absent.*not silence.*unheard audio/i);
   assert.match(instructions, /source_failed.*automatic.*manual caption languages.*do not repeat.*translation.*actual caption source language/i);

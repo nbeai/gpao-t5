@@ -1919,7 +1919,7 @@ tester audit의 산문은 triage 입력이며 재현 전 완료·실패 증거�
 
 ## D3~W9 — Vertical Capability Hardening Plan
 
-상태: `OWNER_PLANNED · D3-T0 NEXT` — 기능 수를 늘리는 계획이 아니라, 현재 파일손·웹손이 지저분한 현실을
+상태: `OWNER_PLANNED · D4 NEXT` — 기능 수를 늘리는 계획이 아니라, 현재 파일손·웹손이 지저분한 현실을
 정확히 읽고 실제 결과까지 끝내는 깊이를 높이는 개발선이다. 아래 순서는 목록 우선순위가 아니라 앞 Gate의
 실제 증거가 다음 Gate를 여는 의존 순서다. 한 번에 하나만 `IN_PROGRESS`로 둔다.
 
@@ -1929,6 +1929,9 @@ tester audit의 산문은 triage 입력이며 재현 전 완료·실패 증거�
 > 결과를 다시 읽어 원래 목적과 대조하며, 본 것·못 본 것·끝낸 것·남은 것을 사실대로 말한다.
 
 ### D3-T0 — Result Truth Reconciliation · P0
+
+상태: `COMPLETE` — 다중 정산의 상충 판정과 한국어 PDF의 실제 false completion을 서로 다른 원인으로
+재현하고, 결과 현실을 모델에 공급하는 최소 경계로 닫았다.
 
 목적: 입력 이해가 맞아도 결과 Excel·PDF와 최종 답이 갈린 실제 false-completion 가족을 먼저 확정한다.
 
@@ -1956,7 +1959,28 @@ tester audit의 산문은 triage 입력이며 재현 전 완료·실패 증거�
 
 Non-goals: Kordoc 채택, 범용 OCR, 모든 결과물 verifier, 모델 답의 사후 문구 교정.
 
+완료 증거:
+
+- tester audit에 대응하는 영속 다중 정산 실패 Run은 찾지 못해 산문을 증거로 승격하지 않음
+- 현재 gpt-5.6-terra 동일 과업 2회: 실제 결과는 두 번 모두 5행·68,300원·40,300/25,000/3,000·행별
+  source가 맞았고, 두 번째 초기 실패는 `공급가액·고객명 미기재`를 판정기가 인정하지 않은 false negative
+- 한국어 PDF baseline: 1페이지·16,936 bytes였지만 한국어 anchor `0/6`, PDFium 화면은 숫자·콜론만 보였고
+  생성 턴이 완료를 주장해 false completion 재현
+- 프롬프트 문구를 두 번 보강해도 같은 조기 완료가 반복되어 세 번째 문구 패치를 중단
+- 모델이 실제로 요청했으나 없었던 `attachment inspect(null, currentRunFilePath)`를 열어, exact Run effect
+  target의 일반 image/PDF만 관측; PDF는 기존 clawpdf PDFium 첫 페이지로 고정
+- 기대 답을 모르는 격리 시각 전사가 text 방향·누락·잘림을 기록하고, pixels는 다음 모델 step에만 공급;
+  Base64의 ToolReceipt·Run·Conversation 지속 `0`
+- 시각 Receipt의 source SHA-256이 최종 download PDF SHA-256과 같을 때만 가독성 증거로 채택
+- gpt-5.6-terra canonical, gpt-5.5 canonical, terra casual 표현 모두 page 1·anchor 6/6·고정 PDFium
+  독립 전사·원본 무변경·download 등록 통과, false completion `0`
+- gpt-5.5 첫 전사의 `합의→할인` 오독과 casual 첫 렌더의 한국어 누락은 다음 고정 전사에서 실제 교정
+- 근거: `refoundation/evidence/d3-t0-result-truth-reconciliation-2026-08-23.json`
+
 ### D3-T1 — Minimal Observation & Verification Contract · conditional
+
+상태: `NOT_OPENED` — D3-T0은 기존 Attachment Receipt의 modality payload와 일회성 model image projection으로
+닫혔다. 공통 header·새 저장소·범용 Kernel을 요구하는 두 번째 독립 결함은 아직 없다.
 
 D3-T0과 뒤의 실제 결함이 같은 관측 결손을 두 번 이상 가리킬 때만 연다. `Observer·Projector·Verifier`라는
 새 거대 계층부터 만들지 않고 기존 파일·웹·브라우저·프로세스 손의 결과에 필요한 최소 사실만 맞춘다.
@@ -2961,10 +2985,11 @@ P2 Automation soak·Memory/Skill 가치 측정도 닫았으며, 반복 결함 �
 오너가 연 문서 수직 고도화에서 R7-D2 기준선 17건을 완료했고 사용자 목표 준비는 `3/17`이었다. UTF-16LE·
 CP949, 구형 XLS/DOC/PPT, HWP 3/5/HWPX, DOCX/PPTX 내용, ODT/ODS, OCR 완료가 실제 공통 미달로 확정됐다.
 tester audit에서 D1과 같은 다중 견적·정산 목적의 모델 완료 주장과 기계 검산 실패가 새 P0 상충 증거로
-제공됐다. 따라서 다음 한 작업은 `D3-T0 Result Truth Reconciliation`이다. 대응 Run·Receipt·prompt dump·
-결과 파일을 찾아 D1 성공 증거와 차이를 확정하고, 찾지 못하면 같은 redacted/synthetic 과업으로 실패 원본을
-재현한다. 원인 확정 전 Kordoc·OCR·새 verifier를 제품에 넣지 않는다. 이후 순서는 D3-T1 conditional → D4 →
-D5 → D6 → D7 → W7 → W8 → W9이며, 앞 Gate의 실제 증거가 필요성을 유지할 때만 다음을 연다.
+제공됐으나 D3-T0 재현에서 실제 다중 정산 결과는 맞고 판정기가 동등 헤더·상태 표현을 놓친 false negative로
+확정됐다. 별도의 한국어 고객 PDF에서는 파일·페이지·렌더 크기만 보고 완료한 실제 false completion을
+재현했고, current-Run exact image/PDF의 고정 PDFium render와 무정답 격리 시각 전사로 두 모델·두 표현에서
+false completion `0`을 확인했다. D3-T1 범용 계약은 열지 않는다. 다음 한 작업은 `D4 Text & Tabular Encoding
+Depth`이며, 이후 D5 → D6 → D7 → W7 → W8 → W9는 앞 Gate의 실제 증거가 필요성을 유지할 때만 연다.
 
 U4의 I0 밖 나머지는 정본 순서상 아직 열리지 않았다. 다음 개발은 기능 목록에서 자동으로 고르지 않는다.
 실제 콘솔 사용에서

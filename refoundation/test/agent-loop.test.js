@@ -20,6 +20,28 @@ test('현재 사용자 첨부의 provider input은 agent loop 첫 모델 호출�
   assert.deepEqual(calls[0].at(-1).modelAttachments, attachments);
   assert.deepEqual(result.transcript.at(0).modelAttachments, attachments);
 });
+
+test('도구가 관측한 현재 Run 이미지는 다음 모델 호출에만 공급하고 Receipt에는 base64를 남기지 않는다', async () => {
+  let turn = 0; const events = [];
+  const image = { type: 'input_image', detail: 'high', image_url: 'data:image/png;base64,aW1hZ2U=' };
+  const model = { async respond(input) {
+    turn += 1;
+    if (turn === 1) return { text: '', toolCalls: [{ id: 'visual', name: 'observe_image', args: {} }] };
+    assert.equal(input.messages.at(-2).role, 'tool');
+    assert.equal(input.messages.at(-1).role, 'user');
+    assert.deepEqual(input.messages.at(-1).modelAttachments, [image]);
+    assert.doesNotMatch(input.messages.at(-2).content, /base64|aW1hZ2U/u);
+    return { text: '렌더 픽셀을 확인했습니다.', toolCalls: [] };
+  } };
+  const result = await runAgent({
+    request: '결과 이미지를 확인해', model,
+    tools: [{ name: 'observe_image', description: 'observe', parameters: { type: 'object' }, async execute() { return { state: 'observed', _modelAttachments: [image] }; } }],
+    onEvent: (event) => events.push(event),
+  });
+  assert.equal(result.answer, '렌더 픽셀을 확인했습니다.');
+  assert.doesNotMatch(JSON.stringify(result.receipts), /base64|aW1hZ2U/u);
+  assert.doesNotMatch(JSON.stringify(events.filter((event) => event.type === 'tool_end')), /base64|aW1hZ2U/u);
+});
 import { makeExecTool } from '../src/exec-tool.js';
 
 async function withWorkspace(fn) {

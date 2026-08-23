@@ -226,7 +226,7 @@ export function assessDocumentDataQualification({
     ['월'], ['고객'], ['품목'], ['금액', '금액 결과', '공급가액'],
   ]);
   const summary = semanticTable(outputObservation, '고객별요약', ['고객']);
-  const summaryAmountHeaders = ['금액합계', '금액', '합계 결과', '공급가액 합계', '공급가액합계'];
+  const summaryAmountHeaders = ['금액합계', '금액', '합계 결과', '공급가액', '공급가액 합계', '공급가액합계'];
   const detailRows = detail.rows.filter((row) => /^2026-08$/.test(String(firstValue(row, ['월']) ?? ''))
     && String(firstValue(row, ['품목']) ?? '').trim());
   const detailAmounts = detailRows.map((row) => numeric(firstCell(row, ['금액', '금액 결과', '공급가액'])));
@@ -281,7 +281,7 @@ export function assessDocumentDataQualification({
       && detailRows.filter((row) => firstValue(row, ['고객']) === '새봄상사').length === 1,
     unownedFeePreserved: Boolean(unidentified)
       && /배송비|Delivery Fee/i.test(String(firstValue(unidentified, ['품목']) ?? ''))
-      && /확인\s*필요|미확인|공란[\s\S]*(?:귀속|배정|연결|붙이)[\s\S]*(?:않|안|보류)/.test(
+      && /확인\s*필요|미확인|미기재|공란[\s\S]*(?:귀속|배정|연결|붙이)[\s\S]*(?:않|안|보류)/.test(
         String(firstValue(unidentified, ['검토상태', '확인상태', '통합상태', '상태']) ?? ''),
       ),
     rowSourcesTraceable: sourceTexts.filter((value) => (

@@ -128,6 +128,17 @@ test('고객 공란을 임의 귀속하지 않았다는 검토 상태도 미확�
   assert.equal(assessDocumentDataQualification(input).passed, true);
 });
 
+test('공급가액 헤더와 고객명 미기재는 같은 금액·미확인 의미로 판정한다', () => {
+  const input = passingInput();
+  const detail = input.outputObservation.workbook.sheets[0].cells;
+  detail.find((cell) => cell.address === 'H6').value = '고객명 미기재';
+  detail.find((cell) => cell.address === 'H6').text = '고객명 미기재';
+  const summary = input.outputObservation.workbook.sheets[1].cells;
+  summary.find((cell) => cell.address === 'B2').value = '공급가액';
+  summary.find((cell) => cell.address === 'B2').text = '공급가액';
+  assert.equal(assessDocumentDataQualification(input).passed, true);
+});
+
 test('PDF 출처의 한국어 페이지 표현도 추적 가능한 원본 위치로 판정한다', () => {
   for (const page of ['페이지 1', '1페이지']) {
     const input = passingInput();
