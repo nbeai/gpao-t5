@@ -1,0 +1,87 @@
+{
+  "schema": "t5.w8-korean-web-work-baseline.v1",
+  "recordedAt": "2026-08-23T13:45:00.000Z",
+  "goal": "Measure whether the current Web Hand completes bounded Korean multi-hop and closed-set work accurately, completely, honestly, and efficiently before changing the product.",
+  "actualUserData": false,
+  "benchmarkBoundary": {
+    "kBrowseComp": "Two deterministically selected items from the official 300-item verified JSONL, graded for gold-answer equivalence by a separate model. This is not an official leaderboard run or a representative full-benchmark score.",
+    "koWideSearch": "The official gated gold was not accessed. Two T5-authored public Korean policy tasks adopt item, cell, and whole-row completeness only; no Ko-WideSearch score is claimed.",
+    "browserIncluded": false,
+    "benchmarkContaminationSourcesBlocked": true,
+    "sourceAuthorityForKBrowseComp": "not scored because the pinned public JSONL contains no source URL, expected trajectory, or checklist fields despite the repository README description"
+  },
+  "officialSources": {
+    "kBrowseComp": {
+      "repository": "https://github.com/prometheus-eval/K-BrowseComp",
+      "commit": "9f9737f96896ecbf66a5866bbee370d40d373d50",
+      "datasetSha256": "90349c25c32ba84053d8cf54b72b8e5f3117ab65489ce260cec33bb4a02fef33",
+      "selectedIndexes": [62, 29]
+    },
+    "koWideSearch": {
+      "repository": "https://github.com/minstar/Ko-widesearch",
+      "commit": "6e33fb4d3d6468c733aa5f67612bfee277908747",
+      "publicRelease": "project page and figures only; gated gold and runnable scorer absent from the pinned repository"
+    }
+  },
+  "baseline": [
+    {
+      "model": "gpt-5.6-terra",
+      "kBrowseComp": {
+        "correct": 1,
+        "total": 2,
+        "accuracy": 0.5,
+        "samples": [
+          {"index":62,"correct":true,"wallMs":105201,"modelTurns":15,"tokens":676223,"toolCounts":{"web_research":1,"tool_search":1,"exec":10,"web_read":8}},
+          {"index":29,"correct":false,"wallMs":108051,"modelTurns":31,"tokens":1931770,"toolCounts":{"web_research":1,"tool_search":1,"exec":27,"web_read":1}}
+        ]
+      },
+      "closedSetWork": {"purposeComplete":2,"total":2,"meanItemF1":1,"meanCellF1":1,"meanRowF1":1,"meanOfficialSourceF1":1},
+      "total": {"wallMs":268038,"modelTurns":53,"toolCalls":58,"tokens":2712486},
+      "rawEvidenceSha256": "d84eb2e0099a78a8e65f1ad4c8822699186ce5117ac76a67e4627e76dffb9db2"
+    },
+    {
+      "model": "gpt-5.5",
+      "kBrowseComp": {
+        "correct": 1,
+        "total": 2,
+        "accuracy": 0.5,
+        "samples": [
+          {"index":62,"correct":true,"wallMs":262944,"modelTurns":32,"tokens":2645506,"toolCounts":{"web_research":1,"web_read":12,"tool_search":1,"exec":18}},
+          {"index":29,"correct":false,"wallMs":102884,"modelTurns":18,"tokens":678149,"toolCounts":{"web_research":1,"web_read":15,"exec":1,"tool_search":1}}
+        ]
+      },
+      "closedSetWork": {"purposeComplete":2,"total":2,"meanItemF1":1,"meanCellF1":1,"meanRowF1":1,"meanOfficialSourceF1":1},
+      "total": {"wallMs":475396,"modelTurns":59,"toolCalls":61,"tokens":3470296},
+      "rawEvidenceSha256": "000046dc50dbfe6704323ecce34970ce8b38e9afb031e8bdb56578042d9fd516"
+    }
+  ],
+  "repeatedDefect": {
+    "observedInBothModels": true,
+    "cause": "A completed web_research batch with 9 to 10 readable sources deactivated broad web_search while the multi-hop user purpose was still incomplete. Both models then used exec or many exact reads to recover missing branches, causing large receipt projection and context growth.",
+    "falseCompletion": 0,
+    "wrongFinalAnswerFamily": "Both models answered K-BrowseComp sample 29 with 38.8 percent instead of the gold-equivalent 18.8 percent after selecting the wrong evidence chain.",
+    "performanceBoundary": "The two hard tasks dominate 93 to 97 percent of each model's measured tokens; the closed-set official tasks complete exactly with far fewer turns."
+  },
+  "rejectedChange": {
+    "change": "Keep web_search visible after a completed web_research batch and instruct the model to continue only a focused missing branch.",
+    "result": "rejected and reverted",
+    "terraCounterexample": {
+      "kBrowseCompCorrect": 0,
+      "kBrowseCompTotal": 2,
+      "closedSetPurposeComplete": 2,
+      "totalWallMs": 532062,
+      "totalModelTurns": 41,
+      "totalToolCalls": 57,
+      "totalTokens": 2716302,
+      "observedFailure": "exec bypass disappeared but was replaced by 27 focused web_search calls across the two hard tasks; accuracy fell and wall time nearly doubled"
+    },
+    "rawEvidenceSha256": "44210ec8a63b2ae8c3e4a4626475cc338a843a730477482c0bda1b324612da86"
+  },
+  "verdict": {
+    "w8BaselineComplete": true,
+    "productBehaviorChanged": false,
+    "strength": "Both models completed both Korean official closed-set work tasks with exact item, cell, whole-row, and official-source scores.",
+    "shortfall": "The current bounded research continuation is not adequate for hard multi-hop Korean web work: both models scored 1 of 2 and paid very high context and wall-time costs.",
+    "next": "W9 must test a bounded evidence-branch continuation that preserves missing-branch identity and budgets follow-up discovery; simply reopening web_search is explicitly disqualified."
+  }
+}

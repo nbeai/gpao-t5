@@ -1919,7 +1919,7 @@ tester audit의 산문은 triage 입력이며 재현 전 완료·실패 증거�
 
 ## D3~W9 — Vertical Capability Hardening Plan
 
-상태: `OWNER_PLANNED · W7 COMPLETE · W8 NEXT` — 기능 수를 늘리는 계획이 아니라, 현재 파일손·웹손이 지저분한 현실을
+상태: `OWNER_PLANNED · W8 COMPLETE · W9 NEXT` — 기능 수를 늘리는 계획이 아니라, 현재 파일손·웹손이 지저분한 현실을
 정확히 읽고 실제 결과까지 끝내는 깊이를 높이는 개발선이다. 아래 순서는 목록 우선순위가 아니라 앞 Gate의
 실제 증거가 다음 Gate를 여는 의존 순서다. 한 번에 하나만 `IN_PROGRESS`로 둔다.
 
@@ -2234,6 +2234,9 @@ artifact 지속성을 분리해 두 모델의 loopback 사업자 종단을 통�
 
 ### W8 — Korean Web Work Baseline
 
+상태: `COMPLETE` — 공식 자료의 공개 경계를 먼저 고정하고, 두 모델의 현재 한국어 웹 과업 정확도·완전성·
+경로·비용 기준선을 제품 변경 전에 측정했다.
+
 목적: 검색 가능 여부가 아니라 한국 사용자의 조사 목적을 빠짐없이 끝내는 현재 Web Hand 성능을 고정한다.
 
 고정하기 전에 답을 보지 않고 대표 표본을 선정한다.
@@ -2245,6 +2248,26 @@ artifact 지속성을 분리해 두 모델의 loopback 사업자 종단을 통�
 
 평가: final purpose, fact precision, item/row completeness, source authority/freshness, coverage honesty, duplicate,
 wall time, model turns, tool calls, tokens. 출처 수와 검색 횟수는 성공 지표가 아니다.
+
+완료 증거:
+
+- K-BrowseComp 공식 verified 300건에서 문제·정답을 보지 않고 type/category 층을 먼저 정한 뒤 deterministic
+  hash로 2건을 봉인했다. 두 모델 모두 `1/2`; 같은 금융·공공정책 표본에서 잘못된 증거 사슬로 38.8%를
+  답해 gold-equivalent 18.8%에 실패했다. 2건은 전체 benchmark 대표 점수나 공식 leaderboard 점수가 아니다.
+- Ko-WideSearch는 공식 gold가 gated이고 pinned 공개 저장소에 실행 scorer·task data가 없어 점수를 주장하지
+  않았다. 대신 그 item·cell·whole-row 원리로 만든 최저임금 5행과 한국은행 금리변경 4행 공개 실무 과업은
+  두 모델 모두 item/cell/row/공식 source F1 `1.0`, 목적 `2/2`를 통과했다.
+- 어려운 두 과업에서 `web_research`가 9~10개 readable source 뒤 `web_search`를 닫았지만 목적은 미달이었고,
+  두 모델 모두 `exec` 또는 많은 exact read로 빠졌다. 전체는 terra 268.0초·53 turns·58 tools·2,712,486 tokens,
+  gpt-5.5 475.4초·59 turns·61 tools·3,470,296 tokens였다. false completion은 0이지만 정확도와 비용은 미달이다.
+- 단순히 `web_search`를 다시 열고 좁은 후속 검색을 지시한 반대변경은 terra에서 K-BrowseComp `1/2→0/2`,
+  wall 268.0초→532.1초가 됐고 어려운 두 과업의 `web_search`가 27회로 늘어 폐기·원복했다. 제품 동작 변경은 없다.
+- 공식 repository commit·dataset hash·표본 hash·평가기 반대시험과 세 실행 digest는
+  `refoundation/evidence/w8-korean-web-work-baseline-2026-08-23.json`에 있다.
+
+남은 경계: browser는 이 기준선에 넣지 않았고, K-BrowseComp 2건으로 전체 한국 웹 성능을 일반화하지 않는다.
+W9는 단순 재검색 재개방이 아니라 미확인 evidence branch의 identity·coverage·follow-up budget을 작게 보존하는
+후보를 먼저 반대시험한다. 현재 성공한 짧은 공개 실무 과업을 느리게 만들면 채택하지 않는다.
 
 ### W9 — Adaptive Korean Web Observation
 
@@ -3123,8 +3146,9 @@ EUC-KR 호환 text와 CSV/TSV 구조를 열어 D2 기준선을 `3/17→6/17`로 
 고정 기준선을 `6/17→10/17`로 높였다. D6는 견적 28 merges와 실제 24시트 XLS의 가로 재료·sheet/cell
 counterexample을 닫고 merge-aware XLSX/XLS preview를 열었다. D7은 Excel·PDF truth를 유지하고 DOCX의
 bounded 생성·구조 재개방·Quick Look pixel 검증을 닫았다. W7은 harness path 주입을 제거하고 stable
-download attachmentId의 다음 턴 upload·원래 이름·hash·재시작 지속을 두 모델에서 닫았다. 다음 한 작업은 W8 Korean Web Work Baseline이며, 이후
-W8 → W9는 앞 Gate의 실제 증거가 필요성을 유지할 때만 연다.
+download attachmentId의 다음 턴 upload·원래 이름·hash·재시작 지속을 두 모델에서 닫았다. W8은 공식 한국어
+웹 benchmark의 공개 경계를 지키며 현재 정확도·완전성·비용 기준선을 고정했고, 단순 검색 재개방이 더 나쁜
+루프라는 반대증거까지 남겼다. 다음 한 작업은 W9 bounded evidence-branch continuation 후보 자격화다.
 
 U4의 I0 밖 나머지는 정본 순서상 아직 열리지 않았다. 다음 개발은 기능 목록에서 자동으로 고르지 않는다.
 실제 콘솔 사용에서

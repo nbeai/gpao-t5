@@ -1,0 +1,32 @@
+{
+  "schema": "t5.w8-korean-web-shape-gold.v1",
+  "createdAfterPromptSeal": true,
+  "observedAt": "2026-08-23T13:20:00.000Z",
+  "tasks": [
+    {
+      "id": "minimum-wage-2022-2026",
+      "keyColumn": "적용 연도",
+      "sourceHosts": ["minimumwage.go.kr", "www.minimumwage.go.kr", "moel.go.kr", "www.moel.go.kr"],
+      "coverageNote": "월 환산액은 주 40시간과 유급주휴를 포함한 월 209시간 기준이다.",
+      "rows": [
+        {"적용 연도":"2022", "시간급":"9160", "월 환산액":"1914440", "전년 대비 인상률":"5.05", "공식 출처 URL":"https://www.minimumwage.go.kr/minWage/policy/decisionMain.do"},
+        {"적용 연도":"2023", "시간급":"9620", "월 환산액":"2010580", "전년 대비 인상률":"5.0", "공식 출처 URL":"https://www.minimumwage.go.kr/minWage/policy/decisionMain.do"},
+        {"적용 연도":"2024", "시간급":"9860", "월 환산액":"2060740", "전년 대비 인상률":"2.5", "공식 출처 URL":"https://www.minimumwage.go.kr/minWage/policy/decisionMain.do"},
+        {"적용 연도":"2025", "시간급":"10030", "월 환산액":"2096270", "전년 대비 인상률":"1.7", "공식 출처 URL":"https://www.minimumwage.go.kr/minWage/policy/decisionMain.do"},
+        {"적용 연도":"2026", "시간급":"10320", "월 환산액":"2156880", "전년 대비 인상률":"2.9", "공식 출처 URL":"https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=18144"}
+      ]
+    },
+    {
+      "id": "bok-rate-changes-2024-2025",
+      "keyColumn": "결정일",
+      "sourceHosts": ["bok.or.kr", "www.bok.or.kr"],
+      "coverageNote": "한국은행 기준금리 추이의 변경일만 포함하고 동결 회의는 제외한다.",
+      "rows": [
+        {"결정일":"2024-10-11", "변경 전 금리":"3.50", "변경 후 금리":"3.25", "변동폭":"-0.25", "한국은행 공식 출처 URL":"https://www.bok.or.kr/portal/singl/baseRate/list.do?menuNo=200676"},
+        {"결정일":"2024-11-28", "변경 전 금리":"3.25", "변경 후 금리":"3.00", "변동폭":"-0.25", "한국은행 공식 출처 URL":"https://www.bok.or.kr/portal/singl/baseRate/list.do?menuNo=200676"},
+        {"결정일":"2025-02-25", "변경 전 금리":"3.00", "변경 후 금리":"2.75", "변동폭":"-0.25", "한국은행 공식 출처 URL":"https://www.bok.or.kr/portal/singl/baseRate/list.do?menuNo=200676"},
+        {"결정일":"2025-05-29", "변경 전 금리":"2.75", "변경 후 금리":"2.50", "변동폭":"-0.25", "한국은행 공식 출처 URL":"https://www.bok.or.kr/portal/singl/baseRate/list.do?menuNo=200676"}
+      ]
+    }
+  ]
+}
