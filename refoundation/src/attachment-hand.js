@@ -1,14 +1,16 @@
 import { createHash } from 'node:crypto';
 import { lstat, readFile, realpath } from 'node:fs/promises';
-import { isAbsolute, join, resolve } from 'node:path';
+import { extname, isAbsolute, join, resolve } from 'node:path';
 
 import { openPdf } from 'clawpdf';
 import { inspectZipArchive, extractSafeZip } from './archive-safety.js';
 import { detectAttachmentType } from './attachment-store.js';
 import { inspectBusinessDocument } from './document-data-inspector.js';
+import { decodeTextDocument, inspectDelimitedText } from './text-document-observer.js';
 
 const DEFAULT_TEXT_CHARS = 64_000;
 const MAX_MODEL_IMAGE_BYTES = 20 * 1024 * 1024;
+const MAX_TABULAR_TEXT_BYTES = 8 * 1024 * 1024;
 
 export function attachmentContext(records = []) {
   if (!records.length) return '';
@@ -20,6 +22,7 @@ export function attachmentContext(records = []) {
       `name=${JSON.stringify(record.originalName)}`,
       `kind=${record.kind}`,
       `mime=${record.mimeType}`,
+      ...(record.encoding ? [`encoding=${record.encoding}`] : []),
       `bytes=${record.bytes}`,
       `sha256=${record.sha256}`,
       `managedPath=${JSON.stringify(record.storedPath)}`,
@@ -180,10 +183,25 @@ export function makeAttachmentTool({
       if (args.action !== 'inspect') throw new Error(`unknown attachment action: ${args.action}`);
 
       if (record.kind === 'text') {
-        const text = bytes.toString('utf8');
+        const text = decodeTextDocument(bytes, record.encoding ?? 'utf-8');
         const maxChars = args.maxChars ?? DEFAULT_TEXT_CHARS;
+        const extension = extname(record.originalName).toLowerCase();
+        if (['.csv', '.tsv'].includes(extension)) {
+          const table = bytes.length <= MAX_TABULAR_TEXT_BYTES
+            ? inspectDelimitedText(text, { delimiter: extension === '.tsv' ? '\t' : ',' }) : null;
+          return trustedObservation({
+            kind: 'tabular_text', attachmentId: record.attachmentId,
+            encoding: record.encoding ?? 'utf-8', encodingEvidence: record.encodingEvidence ?? null,
+            text: text.slice(0, maxChars), totalChars: text.length,
+            shownChars: Math.min(text.length, maxChars), truncated: text.length > maxChars,
+            omittedChars: Math.max(0, text.length - maxChars),
+            table,
+            ...(table ? {} : { tableBoundary: 'tabular_text_size_limit' }),
+          });
+        }
         return trustedObservation({
           kind: 'text', attachmentId: record.attachmentId,
+          encoding: record.encoding ?? 'utf-8', encodingEvidence: record.encodingEvidence ?? null,
           text: text.slice(0, maxChars), totalChars: text.length,
           shownChars: Math.min(text.length, maxChars),
           truncated: text.length > maxChars,

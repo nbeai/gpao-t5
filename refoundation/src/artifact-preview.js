@@ -5,6 +5,7 @@ import { DOMParser } from 'linkedom';
 
 import { inspectZipArchive } from './archive-safety.js';
 import { inspectBusinessDocument } from './document-data-inspector.js';
+import { decodeTextDocument } from './text-document-observer.js';
 
 const MAX_WEB_BYTES = 5 * 1024 * 1024;
 const MAX_DOCX_BYTES = 32 * 1024 * 1024;
@@ -219,7 +220,7 @@ function parseCsv(text) {
 
 function renderCsv(record, bytes) {
   if (bytes.length > MAX_CSV_BYTES) throw Object.assign(new Error('CSV preview size limit exceeded'), { status: 413 });
-  const rows = parseCsv(bytes.toString('utf8'));
+  const rows = parseCsv(decodeTextDocument(bytes, record.encoding ?? 'utf-8'));
   const body = rows.map((row, rowIndex) => {
     const tag = rowIndex === 0 ? 'th' : 'td';
     return `<tr>${row.map((cell) => `<${tag}>${escapeHtml(cell)}</${tag}>`).join('')}</tr>`;

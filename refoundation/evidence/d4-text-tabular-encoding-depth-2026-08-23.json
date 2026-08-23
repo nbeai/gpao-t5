@@ -1,0 +1,139 @@
+{
+  "schema": "t5.d4-text-tabular-encoding-depth.v1",
+  "recordedAt": "2026-08-23T10:12:23.820Z",
+  "actualUserData": false,
+  "status": "complete",
+  "baseline": {
+    "evidence": "refoundation/evidence/r7-d2-document-compatibility-baseline-2026-08-23.json",
+    "cases": 17,
+    "targetReadyBefore": 3,
+    "targetReadyAfter": 6,
+    "newlyReady": [
+      "utf8-bom-csv",
+      "utf16le-text",
+      "cp949-csv"
+    ],
+    "unchangedBoundaries": [
+      "textless PDF OCR",
+      "DOCX/PPTX input content",
+      "ODT/ODS",
+      "BIFF8 XLS and OLE2 DOC/PPT",
+      "HWP 3/5 and HWPX"
+    ],
+    "sourceFilesChanged": 0
+  },
+  "implementation": {
+    "newRuntimePackages": 0,
+    "supportedEvidence": [
+      "UTF-8 strict decode with optional BOM",
+      "UTF-16LE and UTF-16BE with mandatory BOM and exact native round-trip",
+      "WHATWG euc-kr strict decode for CP949/EUC-KR-compatible Korean text extensions",
+      "CSV/TSV quoted fields, escaped quotes, CRLF, empty cells, irregular rows, and projection"
+    ],
+    "legacyKoreanBoundary": {
+      "storedEncoding": "windows-949-compatible",
+      "candidates": ["cp949", "euc-kr"],
+      "ambiguous": true,
+      "strictDecode": true,
+      "replacementCharacters": 0,
+      "nativeRoundTrip": "not_available_in_native_runtime",
+      "requirements": [
+        "text-like .txt/.csv/.tsv/.log extension",
+        "no NUL bytes",
+        "printable ratio above 0.95",
+        "at least one Hangul character"
+      ]
+    },
+    "tabularProjection": {
+      "maxStructuredBytes": 8388608,
+      "maxShownRows": 500,
+      "maxShownColumns": 100,
+      "reports": [
+        "delimiter",
+        "header and shown rows",
+        "total and shown rows/columns",
+        "empty cells",
+        "irregular rows",
+        "malformed quoted field",
+        "omitted rows/columns"
+      ]
+    },
+    "originalBytesAndSha256Preserved": true,
+    "cp949CsvArtifactPreviewDecoded": true
+  },
+  "counterexamples": [
+    "legacy Korean bytes with .bin extension remain binary",
+    "incomplete CP949 lead byte remains binary",
+    "NUL/binary CSV remains binary",
+    "odd UTF-16 BOM payload remains binary",
+    "malformed open quote is reported",
+    "row and column truncation is explicit",
+    "missing one attachment observation fails the human task",
+    "wrong 65,300 total fails",
+    "invented zero-minute break fails",
+    "changed source hash fails"
+  ],
+  "liveRuns": [
+    {
+      "model": "gpt-5.6-terra",
+      "provider": "openai",
+      "variant": "casual",
+      "runIds": [
+        "fe0764a4-7ed0-4c23-9328-b8b27c6a625a",
+        "7bc17c19-0ebe-4533-8bdf-0ddb4be8ad70"
+      ],
+      "performance": {
+        "modelTurns": 3,
+        "providerTokens": 19888,
+        "toolCalls": 3
+      },
+      "result": {
+        "hanbit": 40300,
+        "saebom": 25000,
+        "total": 65300,
+        "recordedHours": 4.5,
+        "breakInclusion": "unconfirmed",
+        "sourceHashesChanged": 0
+      },
+      "passed": true
+    },
+    {
+      "model": "gpt-5.5",
+      "provider": "chatgpt_oauth",
+      "variant": "canonical",
+      "runIds": [
+        "f81c7665-0913-4e42-97e7-d744eb89f694",
+        "ca4ca71b-9c54-4f22-afd9-4f6e295a1ac6"
+      ],
+      "performance": {
+        "modelTurns": 3,
+        "providerTokens": 20265,
+        "toolCalls": 3
+      },
+      "result": {
+        "hanbit": 40300,
+        "saebom": 25000,
+        "total": 65300,
+        "recordedHours": 4.5,
+        "breakInclusion": "unconfirmed",
+        "sourceHashesChanged": 0
+      },
+      "passed": true
+    }
+  ],
+  "privacyAndAuthority": {
+    "actualCustomerDataUsed": false,
+    "productionCredentialsUsed": false,
+    "externalSend": 0,
+    "currentConsoleModelChanged": false,
+    "temporaryComparisonConnectionDeleted": true
+  },
+  "verdict": {
+    "modelsPassed": 2,
+    "expressionVariantsPassed": 2,
+    "newDocumentBaselineCasesReady": 3,
+    "documentBaselineReady": "6/17",
+    "nextGate": "D5 Korean & Legacy Document Candidate Qualification"
+  },
+  "passed": true
+}

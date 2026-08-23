@@ -60,7 +60,11 @@ test('현재 실제 Attachment Hand 측정은 식별·내용·구조·OCR 필요
   assert.equal(byId.get('text-pdf').capabilities.page_structure, true);
   assert.equal(byId.get('textless-pdf').capabilities.ocr_need_detection, true);
   assert.equal(byId.get('textless-pdf').capabilities.ocr_completion, false);
-  assert.equal(byId.get('cp949-csv').capabilities.text_content, false);
+  assert.equal(byId.get('utf8-bom-csv').capabilities.tabular_structure, true);
+  assert.equal(byId.get('utf16le-text').targetReady, true);
+  assert.equal(byId.get('cp949-csv').capabilities.text_content, true);
+  assert.equal(byId.get('cp949-csv').capabilities.encoding_identity, true);
+  assert.equal(byId.get('cp949-csv').capabilities.tabular_structure, true);
   assert.equal(byId.get('modern-docx').capabilities.format_identity, true);
   assert.equal(byId.get('modern-docx').capabilities.text_content, false);
 });

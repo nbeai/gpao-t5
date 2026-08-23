@@ -56,6 +56,30 @@ test('attachment inspect는 text를 bounded untrusted content로 돌려준다', 
   assert.doesNotMatch(result.observation.text, /END/);
 });
 
+test('UTF-16LE·CP949 CSV는 원본 encoding 근거와 표 구조를 같은 첨부 관측으로 돌려준다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-attachment-encoded-text-'));
+  const store = new AttachmentStore(join(room, 'attachments'));
+  const utf16 = await store.receive({
+    sessionId: SESSION, originalName: '메모.txt',
+    bytes: Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('고객 한빛상회', 'utf16le')]),
+  });
+  const cp949 = await store.receive({
+    sessionId: SESSION, originalName: '정산.csv',
+    bytes: Buffer.from('b0edb0b42cb1ddbed70ac7d1bafbbbf3c8b82c34303330300a', 'hex'),
+  });
+  assert.equal(utf16.encoding, 'utf-16le'); assert.equal(cp949.encoding, 'windows-949-compatible');
+  assert.match(attachmentContext([cp949]), /encoding=windows-949-compatible/u);
+  const tool = makeAttachmentTool({ store, sessionId: SESSION, workspace: room });
+  const text = await tool.execute({ action: 'inspect', attachmentId: utf16.attachmentId, filePath: null, maxChars: 100, maxCells: null, maxPages: null });
+  const table = await tool.execute({ action: 'inspect', attachmentId: cp949.attachmentId, filePath: null, maxChars: 100, maxCells: null, maxPages: null });
+  assert.equal(text.observation.text, '고객 한빛상회');
+  assert.equal(text.observation.encodingEvidence.roundTrip, 'exact');
+  assert.equal(table.observation.kind, 'tabular_text');
+  assert.deepEqual(table.observation.table.header, ['고객', '금액']);
+  assert.deepEqual(table.observation.table.rows, [['한빛상회', '40300']]);
+  assert.deepEqual(table.observation.encodingEvidence.candidates, ['cp949', 'euc-kr']);
+});
+
 test('PDF·XLSX 첨부는 기존 Document Data Hand의 page·sheet·cell 현실을 재사용한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-attachment-docs-'));
   const workspace = join(room, 'workspace');

@@ -98,6 +98,16 @@ test('CSV 결과물은 따옴표와 쉼표를 보존해 표로 보여준다', as
   assert.equal(result.kind, 'spreadsheet');
   assert.match(result.body, /한빛상회/);
   assert.match(result.body, /서울, 강남/);
+
+  const cp949 = Buffer.from('b0edb0b42cb1ddbed70ac7d1bafbbbf3c8b82c34303330300a', 'hex');
+  const legacy = await renderAttachmentPreview({
+    record: record({
+      originalName: '구형.csv', mimeType: 'text/csv', kind: 'text',
+      encoding: 'windows-949-compatible', bytes: cp949.length,
+    }),
+    bytes: cp949,
+  });
+  assert.match(legacy.body, /한빛상회/); assert.match(legacy.body, /40300/);
 });
 
 test('빌드된 React·여러 파일 웹앱은 index.html 정적 꾸러미만 격리 preview한다', () => {

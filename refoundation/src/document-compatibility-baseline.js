@@ -177,7 +177,8 @@ function detectedFormat(record = {}) {
 
 export function summarizeCompatibilityObservation(definition, record, inspected) {
   const observation = inspected?.observation ?? null; const pdf = observation?.pdf;
-  const workbook = observation?.workbook; const text = observation?.kind === 'text' ? observation.text : null;
+  const workbook = observation?.workbook;
+  const text = ['text', 'tabular_text'].includes(observation?.kind) ? observation.text : null;
   const format = detectedFormat(record); const observedText = [
     text, ...(pdf?.pages ?? []).map((page) => page.text),
     ...(workbook?.sheets ?? []).flatMap((sheet) => (sheet.cells ?? []).flatMap((cell) => [cell.text, cell.value, cell.result])),
@@ -187,9 +188,13 @@ export function summarizeCompatibilityObservation(definition, record, inspected)
   const structure = Boolean(workbook?.sheets?.length) || Boolean(pdf?.pageCount);
   const capabilities = {
     format_identity: format === definition.format,
-    encoding_identity: definition.encoding == null ? null : record.kind === 'text' && definition.encoding === 'utf-8',
+    encoding_identity: definition.encoding == null ? null : record.kind === 'text' && (
+      record.encoding === definition.encoding
+      || definition.encoding === 'cp949' && record.encoding === 'windows-949-compatible'
+    ),
     text_content: contentText,
-    tabular_structure: Boolean(workbook?.sheets?.some((sheet) => sheet.cells?.length)),
+    tabular_structure: Boolean(workbook?.sheets?.some((sheet) => sheet.cells?.length))
+      || Boolean(observation?.table?.rowCount && observation?.table?.columnCount),
     page_structure: Boolean(pdf?.pageCount),
     ocr_need_detection: pdf?.requiresOcrOrVision === true,
     ocr_completion: false,

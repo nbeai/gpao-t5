@@ -6,6 +6,7 @@ import { basename, dirname, extname, join, relative, resolve, sep } from 'node:p
 
 import { inspectZipArchive } from './archive-safety.js';
 import { artifactPreviewMetadata } from './artifact-preview.js';
+import { detectTextDocument } from './text-document-observer.js';
 
 const SCHEMA = 't5.attachment-event.v1';
 const DEFAULT_MAX_FILE_BYTES = 128 * 1024 * 1024;
@@ -25,16 +26,6 @@ function safeName(value) {
   const leaf = String(value ?? '').replace(/\\/g, '/').split('/').at(-1)
     .replace(/[\u0000-\u001f\u007f]/g, '').normalize('NFC').trim();
   return (leaf || 'attachment').slice(0, 180);
-}
-
-function printableText(bytes) {
-  if (!bytes.length || bytes.includes(0)) return false;
-  let text;
-  try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
-  catch { return false; }
-  const printable = [...text].filter((character) => character === '\n' || character === '\r'
-    || character === '\t' || character.codePointAt(0) >= 0x20).length;
-  return printable / Math.max(1, [...text].length) > 0.95;
 }
 
 function zipContains(bytes, name) {
@@ -79,15 +70,23 @@ export function detectAttachmentType(bytesInput, originalName = '') {
   if (bytes.length >= 12 && bytes.subarray(4, 8).toString('ascii') === 'ftyp') {
     return { mimeType: 'video/mp4', kind: 'video', extension: '.mp4' };
   }
-  if (printableText(bytes)) {
+  const textDocument = detectTextDocument(bytes, originalName);
+  if (textDocument) {
     const mimeType = ['.html', '.htm'].includes(extension) ? 'text/html'
       : extension === '.svg' ? 'image/svg+xml'
       : extension === '.csv' ? 'text/csv'
+      : extension === '.tsv' ? 'text/tab-separated-values'
       : extension === '.md' ? 'text/markdown'
         : extension === '.json' ? 'application/json' : 'text/plain';
     const kind = ['.html', '.htm'].includes(extension) ? 'web'
       : extension === '.svg' ? 'vector' : 'text';
-    return { mimeType, kind, extension: extension || '.txt' };
+    return {
+      mimeType, kind, extension: extension || '.txt',
+      ...(kind === 'text' ? {
+        encoding: textDocument.encoding,
+        encodingEvidence: textDocument.evidence,
+      } : {}),
+    };
   }
   return { mimeType: 'application/octet-stream', kind: 'binary', extension: '.bin' };
 }
@@ -100,6 +99,8 @@ function publicRecord(record) {
     originalName: record.originalName,
     mimeType: record.mimeType,
     kind: record.kind,
+    ...(record.encoding ? { encoding: record.encoding } : {}),
+    ...(record.encodingEvidence ? { encodingEvidence: clone(record.encodingEvidence) } : {}),
     bytes: record.bytes,
     sha256: record.sha256,
     createdAt: record.createdAt,
@@ -267,6 +268,8 @@ export class AttachmentStore {
         originalName: safeName(originalName),
         declaredMime: declaredMime ? String(declaredMime).slice(0, 200) : null,
         mimeType: detected.mimeType, kind: detected.kind,
+        ...(detected.encoding ? { encoding: detected.encoding } : {}),
+        ...(detected.encodingEvidence ? { encodingEvidence: detected.encodingEvidence } : {}),
         bytes: total, sha256: digest, storedPath: await realpath(storedPath),
         createdAt: new Date().toISOString(),
         ...(direction === 'output' ? {

@@ -1919,7 +1919,7 @@ tester audit의 산문은 triage 입력이며 재현 전 완료·실패 증거�
 
 ## D3~W9 — Vertical Capability Hardening Plan
 
-상태: `OWNER_PLANNED · D4 NEXT` — 기능 수를 늘리는 계획이 아니라, 현재 파일손·웹손이 지저분한 현실을
+상태: `OWNER_PLANNED · D5 NEXT` — 기능 수를 늘리는 계획이 아니라, 현재 파일손·웹손이 지저분한 현실을
 정확히 읽고 실제 결과까지 끝내는 깊이를 높이는 개발선이다. 아래 순서는 목록 우선순위가 아니라 앞 Gate의
 실제 증거가 다음 Gate를 여는 의존 순서다. 한 번에 하나만 `IN_PROGRESS`로 둔다.
 
@@ -2006,6 +2006,9 @@ D3-T0과 뒤의 실제 결함이 같은 관측 결손을 두 번 이상 가리�
 
 ### D4 — Text & Tabular Encoding Depth
 
+상태: `COMPLETE` — 새 package 없이 BOM·strict decode·bounded legacy Korean 후보와 CSV/TSV 구조 관측을
+기존 Attachment Hand에 연결했다.
+
 목적: 새 대형 dependency 없이 한국 현장에서 흔한 UTF-16LE·CP949/EUC-KR text/CSV와 UTF-8 CSV의 표 구조를
 읽는다.
 
@@ -2018,6 +2021,20 @@ D3-T0과 뒤의 실제 결함이 같은 관측 결손을 두 번 이상 가리�
 
 통과 조건: D2의 UTF-16LE·CP949·UTF-8 CSV 3건과 반대 인코딩·깨진 byte가 통과하고, 잘못된 한글·숫자·열
 이동 `0`; 새로운 binary package가 필요하면 이 Gate에서 중단하고 후보 비교로 전환.
+
+완료 증거:
+
+- UTF-8/BOM strict, UTF-16LE/BE BOM+exact round-trip; 무BOM UTF-16은 추측하지 않음
+- CP949/EUC-KR 공통 byte는 `windows-949-compatible`, 후보 둘·ambiguous·strict decode·replacement 0을
+  보존하고 native encoder가 없어 round-trip 미측정임을 명시
+- legacy Korean은 text 계열 확장자·NUL 0·printable 95% 초과·Hangul 1자 이상일 때만 승격
+- CSV/TSV quote·escaped quote·CRLF·빈 셀·불균일 열·malformed quote·전체/표시/생략 구조 관측
+- 8MiB를 넘는 tabular text는 본문과 hash를 유지하되 구조화 크기 경계 표시
+- CP949 CSV 결과 preview도 같은 encoding으로 표시
+- D2 17건 사용자 목표 준비 `3/17→6/17`; 기존 구형 Office·HWP·OCR 경계 변화 0
+- 실제 모델: terra casual·gpt-5.5 canonical 모두 3 model turns·3 tools로 40,300·25,000·65,300원,
+  4.5시간·휴게 포함 미확인을 정확히 답하고 원본 hash 변경 0
+- 근거: `refoundation/evidence/d4-text-tabular-encoding-depth-2026-08-23.json`
 
 ### D5 — Korean & Legacy Document Candidate Qualification
 
@@ -2988,8 +3005,10 @@ tester audit에서 D1과 같은 다중 견적·정산 목적의 모델 완료 �
 제공됐으나 D3-T0 재현에서 실제 다중 정산 결과는 맞고 판정기가 동등 헤더·상태 표현을 놓친 false negative로
 확정됐다. 별도의 한국어 고객 PDF에서는 파일·페이지·렌더 크기만 보고 완료한 실제 false completion을
 재현했고, current-Run exact image/PDF의 고정 PDFium render와 무정답 격리 시각 전사로 두 모델·두 표현에서
-false completion `0`을 확인했다. D3-T1 범용 계약은 열지 않는다. 다음 한 작업은 `D4 Text & Tabular Encoding
-Depth`이며, 이후 D5 → D6 → D7 → W7 → W8 → W9는 앞 Gate의 실제 증거가 필요성을 유지할 때만 연다.
+false completion `0`을 확인했다. D3-T1 범용 계약은 열지 않았다. D4는 새 package 없이 UTF-16LE·CP949/
+EUC-KR 호환 text와 CSV/TSV 구조를 열어 D2 기준선을 `3/17→6/17`로 높였고 두 모델의 실제 첨부 과업이
+통과했다. 다음 한 작업은 `D5 Korean & Legacy Document Candidate Qualification`이며, 이후 D6 → D7 → W7 →
+W8 → W9는 앞 Gate의 실제 증거가 필요성을 유지할 때만 연다.
 
 U4의 I0 밖 나머지는 정본 순서상 아직 열리지 않았다. 다음 개발은 기능 목록에서 자동으로 고르지 않는다.
 실제 콘솔 사용에서
