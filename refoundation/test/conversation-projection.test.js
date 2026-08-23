@@ -201,6 +201,11 @@ test('과거 browser receipt는 사실을 보존하되 마지막 탭 상태만 �
       mimeType: 'application/pdf', trust: 'user_selected_local',
     },
   });
+  latest.result.artifact = {
+    attachmentId: 'download-artifact-1', originalName: 'settlement.pdf',
+    storedPath: '/managed/attachments/settlement.pdf', bytes: 34,
+    sha256: 'd'.repeat(64), mimeType: 'application/pdf', direction: 'input',
+  };
   const messages = [
     { role: 'tool', toolCallId: 'browser-old', name: 'browser', content: JSON.stringify(old) },
     { role: 'tool', toolCallId: 'browser-latest', name: 'browser', content: JSON.stringify(latest) },
@@ -227,8 +232,10 @@ test('과거 browser receipt는 사실을 보존하되 마지막 탭 상태만 �
   assert.equal(latestCompact.result.network.requests[0].status, 200);
   assert.equal(latestCompact.result.file.path, '/tmp/settlement.pdf');
   assert.equal(latestCompact.result.file.sha256, 'd'.repeat(64));
+  assert.equal(latestCompact.result.artifact.attachmentId, 'download-artifact-1');
+  assert.equal(latestCompact.result.artifact.storedPath, '/managed/attachments/settlement.pdf');
   assert.doesNotMatch(projected[1].content, /requestedCall|profile|target-1/);
-  assert.ok(Buffer.byteLength(projected[1].content) < Buffer.byteLength(messages[1].content) * 0.85);
+  assert.ok(Buffer.byteLength(projected[1].content) < Buffer.byteLength(messages[1].content) * 0.95);
 });
 
 test('modal discard의 requested effect와 destructive actual effect를 과거 Browser truth에 보존한다', () => {

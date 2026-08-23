@@ -140,6 +140,8 @@ function compactBrowserResult(result, options) {
     'visible', 'inputOwner', 'modelActionsBlocked', 'resumedHeadless',
   ]);
   if (handoff) compact.handoff = handoff;
+  const loginBoundary = pickObject(result.loginBoundary, ['state', 'nextAction', 'url']);
+  if (loginBoundary) compact.loginBoundary = loginBoundary;
   const before = pickObject(result.before, options.preserveInteractionState
     ? ['observationId', 'ref', 'refFact'] : ['refFact']);
   if (before) {
@@ -162,6 +164,10 @@ function compactBrowserResult(result, options) {
   if (effectTruth) compact.effectTruth = effectTruth;
   const file = pickObject(result.file, ['path', 'bytes', 'sha256', 'mimeType', 'trust']);
   if (file) compact.file = file;
+  const artifact = pickObject(result.artifact, [
+    'attachmentId', 'originalName', 'storedPath', 'bytes', 'sha256', 'mimeType', 'direction',
+  ]);
+  if (artifact) compact.artifact = artifact;
   const source = pickObject(result.source, ['address', 'queryOmitted']);
   if (source) compact.source = source;
   return { result: compact, recoverable: [] };

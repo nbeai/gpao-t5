@@ -74,6 +74,7 @@ function fixtureDriver() {
         : { type: 'button', autocomplete: null, href: null, download: null };
       return { element, secretFieldCount: 0, fileInputCount: 0 };
     },
+    async pageSecretFacts() { return { secretFieldCount: 0, secretValuesObserved: false }; },
     async click(options) {
       calls.push(['click', options]);
       return {
@@ -159,6 +160,8 @@ test('browser W5 schema는 download·upload를 열고 credential·cookie 기능�
     'login_start', 'login_status', 'login_cancel', 'download', 'upload',
   ]);
   assert.ok(tool.parameters.required.includes('filePath'));
+  assert.ok(tool.parameters.required.includes('attachmentId'));
+  assert.ok(Object.hasOwn(tool.parameters.properties, 'attachmentId'));
   assert.ok(tool.parameters.required.includes('editableId'));
   assert.ok(tool.parameters.required.includes('modalIntent'));
   assert.ok(tool.parameters.required.includes('textFilePath'));
@@ -308,6 +311,21 @@ test('navigate는 실제 탭과 같은 snapshot의 observationId·refs를 한 Re
   assert.deepEqual(driver.calls, [
     ['navigate', 'https://example.com/'], ['editables', { tabId: 't1' }],
   ]);
+});
+
+test('navigate가 secret field를 보면 사용자 handoff가 아니라 login_start 경계를 반환한다', async () => {
+  const driver = fixtureDriver(); driver.pageSecretFacts = async () => ({ secretFieldCount: 1, secretValuesObserved: false });
+  const tool = makeBrowserObservationTool({ driver });
+  const result = await tool.execute({
+    action: 'navigate', url: 'https://example.com/login', tabId: null,
+    full: null, maxChars: 20_000, fullPage: null,
+  });
+  assert.equal(result.state, 'observed'); assert.equal(result.secretFieldsPresent, true);
+  assert.equal(result.secretValuesObserved, false);
+  assert.deepEqual(result.loginBoundary, {
+    state: 'user_login_required', nextAction: 'login_start', url: 'https://example.com/login',
+  });
+  assert.equal(result.handoff, undefined);
 });
 
 test('snapshot은 관측 범위와 잘림을 숨기지 않고 ref를 해당 observation에만 묶는다', async () => {
@@ -593,6 +611,32 @@ test('upload는 현재 사용자 요청의 exact path·file input·external_send
   assert.match(result.after.text, /report\.pdf/);
   const call = driver.calls.find((item) => item[0] === 'upload');
   assert.equal(call[1].expectedSha256, 'e'.repeat(64));
+});
+
+test('upload는 prior browser download의 exact attachmentId를 managed path·hash로 해석한다', async () => {
+  const path = '/managed/attachments/download.pdf'; const driver = fixtureDriver();
+  const registry = makeBrowserObservationRegistry();
+  const tool = makeBrowserObservationTool({
+    driver, observationRegistry: registry,
+    resolveUploadArtifact: async (attachmentId) => attachmentId === 'download-1' ? {
+      attachmentId, path, bytes: 25, sha256: 'e'.repeat(64), mimeType: 'application/pdf', trust: 'untrusted_external',
+    } : null,
+    authorizeEffect: async () => ({ allowed: true }),
+  });
+  const before = await tool.execute({ action: 'navigate', url: 'https://example.com/', tabId: null, full: null, maxChars: 20_000, fullPage: null });
+  const args = {
+    action: 'upload', url: null, tabId: 't1', full: null, maxChars: 5000, fullPage: null,
+    observationId: before.observation.observationId, ref: 'e8', text: null,
+    filePath: null, attachmentId: 'download-1', effect: effect('external_send'),
+  };
+  assert.deepEqual(await tool.preflight(args), { allowed: true });
+  const ambiguous = await tool.preflight({ ...args, filePath: '/also/path.pdf' });
+  assert.equal(ambiguous.allowed, false); assert.equal(ambiguous.result.state, 'upload_source_ambiguous');
+  const missing = await tool.preflight({ ...args, attachmentId: 'missing' });
+  assert.equal(missing.allowed, false); assert.equal(missing.result.state, 'upload_artifact_not_authorized');
+  const result = await tool.execute(args); const call = driver.calls.find((item) => item[0] === 'upload');
+  assert.equal(call[1].filePath, path); assert.equal(call[1].expectedSha256, 'e'.repeat(64));
+  assert.equal(result.artifact.attachmentId, 'download-1');
 });
 
 test('upload는 사용자 요청에 없는 경로·file이 아닌 ref·새 상대를 실행 전에 막는다', async () => {

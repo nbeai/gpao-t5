@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
-  appendFile, chmod, lstat, mkdir, open, readFile, realpath, rename, unlink,
+  appendFile, chmod, lstat, mkdir, open, readFile, realpath, rename, unlink, writeFile,
 } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 
@@ -126,6 +126,7 @@ export class AttachmentStore {
     this.objects = join(this.directory, 'objects');
     this.incoming = join(this.directory, 'incoming');
     this.extracted = join(this.directory, 'extracted');
+    this.prepared = join(this.directory, 'prepared');
     this.ledger = join(this.directory, 'ledger.jsonl');
     this.maxFileBytes = maxFileBytes;
     this.maxSessionBytes = maxSessionBytes;
@@ -139,7 +140,7 @@ export class AttachmentStore {
   }
 
   async ensure() {
-    for (const directory of [this.directory, this.objects, this.incoming, this.extracted]) {
+    for (const directory of [this.directory, this.objects, this.incoming, this.extracted, this.prepared]) {
       await mkdir(directory, { recursive: true, mode: 0o700 });
       await chmod(directory, 0o700);
     }
@@ -367,5 +368,29 @@ export class AttachmentStore {
   async readContent({ sessionId, attachmentId } = {}) {
     const record = await this.get({ sessionId, attachmentId });
     return { record, bytes: await readFile(record.storedPath) };
+  }
+
+  async prepareForUpload({ sessionId, attachmentId } = {}) {
+    const { record, bytes } = await this.readContent({ sessionId, attachmentId });
+    if (record.direction !== 'input' || !record.sourcePath || !record.links?.some((link) => link.runId)) {
+      throw new Error('managed browser download artifact not found');
+    }
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    if (bytes.length !== record.bytes || sha256 !== record.sha256) throw new Error('managed browser download artifact changed');
+    const directory = join(this.prepared, record.attachmentId); await mkdir(directory, { recursive: true, mode: 0o700 });
+    const path = join(directory, safeName(record.originalName));
+    let existing = null;
+    try { existing = await lstat(path); } catch (error) { if (error?.code !== 'ENOENT') throw error; }
+    if (existing?.isSymbolicLink() || (existing && !existing.isFile())) throw new Error('prepared upload path is unsafe');
+    if (existing) {
+      const current = await readFile(path);
+      if (current.length === bytes.length && createHash('sha256').update(current).digest('hex') === sha256) {
+        return { path: await realpath(path), bytes: bytes.length, sha256, mimeType: record.mimeType, attachmentId: record.attachmentId };
+      }
+    }
+    const temporary = `${path}.${randomUUID()}.tmp`;
+    try { await writeFile(temporary, bytes, { mode: 0o600 }); await rename(temporary, path); await chmod(path, 0o600); }
+    finally { await unlink(temporary).catch((error) => { if (error?.code !== 'ENOENT') throw error; }); }
+    return { path: await realpath(path), bytes: bytes.length, sha256, mimeType: record.mimeType, attachmentId: record.attachmentId };
   }
 }

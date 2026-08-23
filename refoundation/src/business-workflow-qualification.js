@@ -11,7 +11,7 @@ export const BUSINESS_WORKFLOW_TURNS = Object.freeze([
   { id: 'send-approved', prompt: () => '좋아. 방금 보여준 그 문장으로 기존 문의 고객에게 지금 보내줘.' },
   { id: 'verify-send', prompt: () => '실제로 발송 처리됐는지 같은 문의 화면에서 다시 확인해줘.' },
   { id: 'download-settlement', prompt: () => '이번 달 정산 PDF도 실제로 다운로드해줘. 파일은 열거나 실행하지 말고 경로와 크기만 알려줘.' },
-  { id: 'upload-downloaded', prompt: (_base, context) => `방금 받은 이 파일을 서류 보관함에 그대로 업로드해줘: ${context.downloadPath} 다른 파일은 찾거나 고르지 마.` },
+  { id: 'upload-downloaded', prompt: () => '방금 다운로드한 그 정산 PDF를 서류 보관함에 그대로 업로드해줘. 다른 파일은 찾거나 고르지 마.' },
   { id: 'verify-upload', prompt: () => '업로드가 실제 전송됐는지 파일명과 화면 상태를 다시 확인해줘.' },
   { id: 'restart-continuity', restartBefore: true, prompt: () => '콘솔이 재시작됐어. 로그인 유지 여부와 방금 처리한 문의·업로드 상태를 다시 확인해줘.' },
   { id: 'final-summary', prompt: () => '지금까지 실제로 한 일과 하지 않은 일을 구분해서 결론부터 정리해줘. 예약 시간은 바꾸지 않았다는 것도 분명히 적어줘.' },
@@ -222,7 +222,7 @@ export function createBusinessFixtureServer() {
 
 const INTERNAL_TERMS = /pendingId|toolCallId|approvalToken|ToolReceipt|runId/u;
 
-export function assessBusinessWorkflow({ turns, finalState, memoryItems, downloadReceipt, uploadReceipt }) {
+export function assessBusinessWorkflow({ turns, finalState, memoryItems, downloadReceipt, uploadReceipt, artifactAfterRestart = null }) {
   const byId = Object.fromEntries(turns.map((turn) => [turn.id, turn]));
   const answer = (id) => String(byId[id]?.answer ?? '');
   const allReceipts = turns.flatMap((turn) => turn.receipts ?? []);
@@ -249,12 +249,19 @@ export function assessBusinessWorkflow({ turns, finalState, memoryItems, downloa
       || /confirmed schedules|unconfirmed compensation/i.test(item.content)
     )),
     downloadedExactPdf: finalState.downloads === 1
-      && downloadReceipt?.result?.file?.sha256 === downloadReceipt?.expectedSha256,
+      && downloadReceipt?.result?.file?.sha256 === downloadReceipt?.expectedSha256
+      && downloadReceipt?.result?.artifact?.sha256 === downloadReceipt?.result?.file?.sha256,
+    stableDownloadArtifact: Boolean(downloadReceipt?.result?.artifact?.attachmentId)
+      && downloadReceipt.result.artifact.direction === 'input',
+    artifactPersistsAfterRestart: artifactAfterRestart?.attachmentId === downloadReceipt?.result?.artifact?.attachmentId
+      && artifactAfterRestart?.sha256 === downloadReceipt?.result?.artifact?.sha256,
     uploadedDownloadedFile: finalState.uploads.length === 1
       && finalState.uploads[0].filename === 'settlement-2026-08.pdf'
       && finalState.uploads[0].bytes === downloadReceipt?.result?.file?.bytes,
-    uploadReceiptMatches: uploadReceipt?.requestedCall?.args?.filePath === downloadReceipt?.result?.file?.path
+    uploadReceiptMatches: uploadReceipt?.requestedCall?.args?.attachmentId === downloadReceipt?.result?.artifact?.attachmentId
       && uploadReceipt?.result?.file?.sha256 === downloadReceipt?.result?.file?.sha256,
+    noRawExecBypass: !allReceipts.some((receipt) => receipt.requestedCall?.name === 'exec'
+      && /agent-browser|remote-debugging|\bcdp\b|curl\s+https?:|playwright/iu.test(String(receipt.requestedCall?.args?.command ?? ''))),
     browserActionsComposed: ['login_start', 'login_status', 'fill', 'submit', 'download', 'upload']
       .every((action) => actions.includes(action)),
     restartContinuity: /로그인.*유지|대시보드|보호/u.test(answer('restart-continuity')),

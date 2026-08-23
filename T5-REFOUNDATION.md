@@ -1919,7 +1919,7 @@ tester audit의 산문은 triage 입력이며 재현 전 완료·실패 증거�
 
 ## D3~W9 — Vertical Capability Hardening Plan
 
-상태: `OWNER_PLANNED · D7 COMPLETE · W7 NEXT` — 기능 수를 늘리는 계획이 아니라, 현재 파일손·웹손이 지저분한 현실을
+상태: `OWNER_PLANNED · W7 COMPLETE · W8 NEXT` — 기능 수를 늘리는 계획이 아니라, 현재 파일손·웹손이 지저분한 현실을
 정확히 읽고 실제 결과까지 끝내는 깊이를 높이는 개발선이다. 아래 순서는 목록 우선순위가 아니라 앞 Gate의
 실제 증거가 다음 Gate를 여는 의존 순서다. 한 번에 하나만 `IN_PROGRESS`로 둔다.
 
@@ -2195,6 +2195,9 @@ Non-goals: 모든 문서의 pixel-identical 렌더, 회계·노무 의미 규칙
 
 ### W7 — Business Browser & Artifact Continuity
 
+상태: `COMPLETE` — tester의 `download path=null` 결손을 stable Attachment identity로 닫고, 로그인 상태와
+artifact 지속성을 분리해 두 모델의 loopback 사업자 종단을 통과했다.
+
 목적: 로그인 업무와 다운로드→다음 턴→업로드→재시작을 같은 exact 대상·artifact identity로 이어간다.
 
 순서:
@@ -2206,6 +2209,28 @@ Non-goals: 모든 문서의 pixel-identical 렌더, 회계·노무 의미 규칙
 
 통과 조건: 비밀값 모델 관측 0, 잘못된 고객/주문 선택 0, download/upload hash 일치, 외부 write 불명확
 재시도 0, 재시작 뒤 목적·로그인·artifact 현재 상태 일치. 실계정 없이 Smart Store 가능 주장 금지.
+
+완료 증거:
+
+- 이전 W6 성공은 시험 harness가 download path를 다음 사용자 문장에 직접 삽입해 tester의 `path=null` 실패를
+  가렸다. W7은 다음 턴을 “방금 다운로드한 그 정산 PDF”로만 요청하고 path 주입을 제거했다.
+- Browser download 성공 시 exact bytes·size·SHA-256을 AttachmentStore input artifact로 복사하고 Run에 결속한다.
+  과거 Browser receipt projection도 attachmentId·원래 이름·managed path·hash를 다음 모델 context에 보존한다.
+- upload는 현재 문장의 exact local path 또는 prior managed browser download의 exact attachmentId 하나만 받는다.
+  둘을 함께 주거나 다른 Session/일반 첨부/변경된 bytes면 실행 전에 멈춘다.
+- upload 직전 content-addressed object를 다시 hash하고 원래 파일명 `settlement-2026-08.pdf`의 0600 managed copy로
+  재료화한다. 사이트에는 임시 `content.pdf`가 아니라 원래 이름과 같은 34 bytes가 전송됐다.
+- navigate가 visible secret field를 만나면 사용자 로그인 handoff로 꾸미지 않고
+  `secretFieldsPresent → login_start` 경계를 반환한다. 비밀값은 관측하지 않는다.
+- gpt-5.6-terra·gpt-5.5 모두 14 자연어 turns에서 동명이인 예약 정지, 예약 변경 0, FAQ preview,
+  기존 문의 답장 1회, 같은 화면 발송 확인, PDF download→자연어 다음 턴 upload→화면/서버 확인,
+  재시작 뒤 artifact hash 지속을 통과했다. raw agent-browser/CDP/curl 우회 0.
+- terra는 57 model turns·44 tools·874,198 tokens, gpt-5.5는 47 turns·33 tools·651,027 tokens였다.
+  목적은 달성했지만 단순 loopback 업무치고 높은 context·Browser 왕복은 W8/W9 전 남은 성능 편차다.
+- session-only 로그인은 반복에 따라 유지되거나 재로그인이 필요했고 두 모델 모두 실제 현재 상태를 보고했다.
+  artifact는 로그인과 독립적으로 재시작 뒤 유지됐다.
+- 실제 Smart Store/Cafe24 계정과 생산 외부 write는 시험하지 않았으므로 가능하다고 주장하지 않는다.
+- 근거: `refoundation/evidence/w7-business-browser-artifact-continuity-2026-08-23.json`
 
 ### W8 — Korean Web Work Baseline
 
@@ -3097,7 +3122,8 @@ EUC-KR 호환 text와 CSV/TSV 구조를 열어 D2 기준선을 `3/17→6/17`로 
 통과했다. D5는 Kordoc package 전체가 아니라 HWP3/HWP5/HWPX/XLS/DOCX parser 표면만 `split` 연결해
 고정 기준선을 `6/17→10/17`로 높였다. D6는 견적 28 merges와 실제 24시트 XLS의 가로 재료·sheet/cell
 counterexample을 닫고 merge-aware XLSX/XLS preview를 열었다. D7은 Excel·PDF truth를 유지하고 DOCX의
-bounded 생성·구조 재개방·Quick Look pixel 검증을 닫았다. 다음 한 작업은 W7 Business Browser & Artifact Continuity이며, 이후
+bounded 생성·구조 재개방·Quick Look pixel 검증을 닫았다. W7은 harness path 주입을 제거하고 stable
+download attachmentId의 다음 턴 upload·원래 이름·hash·재시작 지속을 두 모델에서 닫았다. 다음 한 작업은 W8 Korean Web Work Baseline이며, 이후
 W8 → W9는 앞 Gate의 실제 증거가 필요성을 유지할 때만 연다.
 
 U4의 I0 밖 나머지는 정본 순서상 아직 열리지 않았다. 다음 개발은 기능 목록에서 자동으로 고르지 않는다.

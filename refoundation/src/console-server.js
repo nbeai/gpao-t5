@@ -1,7 +1,7 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { runAgent } from './agent-loop.js';
@@ -847,6 +847,10 @@ export function makeConsoleServer({
               (!options.trigger || options.trigger === 'user')
               && requestContainsExactPath(text, candidate)
             ),
+            resolveUploadArtifact: async (attachmentId) => {
+              const prepared = await attachments.prepareForUpload({ sessionId, attachmentId });
+              return { ...prepared, trust: 'untrusted_external' };
+            },
             authorizeEffect: (args, authorityContext) => effectPreflight({
               toolName: 'browser', args, ownerId: sessionId,
               requiredEffect: authorityContext?.requiredEffect ?? null,
@@ -860,6 +864,29 @@ export function makeConsoleServer({
           browserTool.relatedTools = ['web_read'];
           browserTool.capabilityGroup = 'web_observation';
           browserTool.searchTerms = ['browser rendered page screenshot login dynamic website', '브라우저 화면 로그인 동적 페이지'];
+          const executeBrowser = browserTool.execute.bind(browserTool);
+          browserTool.execute = async (args, context) => {
+            const observed = await executeBrowser(args, context);
+            if (args.action !== 'download' || observed?.state !== 'acted' || !observed.file?.path) return observed;
+            try {
+              const bytes = await readFile(observed.file.path);
+              const sha256 = createHash('sha256').update(bytes).digest('hex');
+              if (bytes.length !== observed.file.bytes || sha256 !== observed.file.sha256) {
+                return { ...observed, artifactRegistration: { state: 'failed', reason: 'download_file_identity_changed' } };
+              }
+              const artifact = await attachments.receive({
+                sessionId, originalName: basename(observed.file.path), bytes,
+                direction: 'input', sourcePath: observed.file.path,
+              });
+              await attachments.link({
+                sessionId, attachmentIds: [artifact.attachmentId],
+                messageId: `${run.runId}:browser-download:${artifact.attachmentId}`, runId: run.runId,
+              });
+              return { ...observed, artifact, artifactRegistration: { state: 'registered' } };
+            } catch (error) {
+              return { ...observed, artifactRegistration: { state: 'failed', reason: error?.message ?? String(error) } };
+            }
+          };
           offeredTools.unshift(browserTool);
         }
       }

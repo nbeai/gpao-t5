@@ -64,6 +64,26 @@ test('첨부는 Message·Run에 append-only로 연결되고 재시작 뒤 복원
   }]);
 });
 
+test('browser download artifact는 원래 파일명의 managed upload copy로 재료화되고 hash를 유지한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-attachment-browser-upload-'));
+  const store = new AttachmentStore(join(room, 'attachments')); const bytes = Buffer.from('%PDF-1.7\nroundtrip');
+  const record = await store.receive({
+    sessionId: SESSION_A, originalName: 'settlement-2026-08.pdf', bytes,
+    direction: 'input', sourcePath: join(room, 'browser-downloads', 'settlement-2026-08.pdf'),
+  });
+  await store.link({
+    sessionId: SESSION_A, attachmentIds: [record.attachmentId],
+    messageId: 'run-download:artifact', runId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  });
+  const prepared = await store.prepareForUpload({ sessionId: SESSION_A, attachmentId: record.attachmentId });
+  assert.equal(prepared.path.split('/').at(-1), 'settlement-2026-08.pdf');
+  assert.equal(prepared.sha256, record.sha256); assert.deepEqual(await readFile(prepared.path), bytes);
+  const repeated = await new AttachmentStore(join(room, 'attachments')).prepareForUpload({
+    sessionId: SESSION_A, attachmentId: record.attachmentId,
+  });
+  assert.deepEqual(repeated, prepared);
+});
+
 test('파일 상한과 Session 누적 상한은 partial object와 거짓 record를 남기지 않는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-attachment-limit-'));
   const store = new AttachmentStore(join(room, 'attachments'), { maxFileBytes: 8, maxSessionBytes: 10 });

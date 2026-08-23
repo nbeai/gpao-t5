@@ -39,10 +39,14 @@ function passingInput() {
     };
   });
   const file = { path: '/private/tmp/settlement-2026-08.pdf', bytes: 37, sha256: 'a'.repeat(64) };
-  const downloadReceipt = { ...receipt('download', { file }), expectedSha256: file.sha256 };
+  const artifact = {
+    attachmentId: '11111111-1111-4111-8111-111111111111', direction: 'input',
+    storedPath: '/managed/settlement-2026-08.pdf', bytes: file.bytes, sha256: file.sha256,
+  };
+  const downloadReceipt = { ...receipt('download', { file, artifact }), expectedSha256: file.sha256 };
   const uploadReceipt = {
     ...receipt('upload', { file }),
-    requestedCall: { name: 'browser', args: { action: 'upload', filePath: file.path } },
+    requestedCall: { name: 'browser', args: { action: 'upload', filePath: null, attachmentId: artifact.attachmentId } },
   };
   turns.find((turn) => turn.id === 'download-settlement').receipts = [downloadReceipt];
   turns.find((turn) => turn.id === 'upload-downloaded').receipts = [uploadReceipt];
@@ -53,7 +57,7 @@ function passingInput() {
       downloads: 1, uploads: [{ filename: 'settlement-2026-08.pdf', bytes: file.bytes }],
     },
     memoryItems: [{ content: 'For delivery delays, mention only confirmed schedules and do not promise unconfirmed compensation.' }],
-    downloadReceipt, uploadReceipt,
+    downloadReceipt, uploadReceipt, artifactAfterRestart: artifact,
   };
 }
 
@@ -67,7 +71,7 @@ test('W6-A는 실제 사람이 이어 말할 긴 사업자 흐름과 별도 memo
     'restart-continuity', 'final-summary',
   ]);
   for (const turn of BUSINESS_WORKFLOW_TURNS) {
-    assert.doesNotMatch(turn.prompt('https://shop.invalid', { downloadPath: '/tmp/report.pdf' }), /ToolReceipt|pendingId|observationId/u);
+    assert.doesNotMatch(turn.prompt('https://shop.invalid', {}), /ToolReceipt|pendingId|observationId|\/tmp\/report/u);
   }
 });
 
@@ -84,7 +88,7 @@ test('결과 문장만 그럴듯해도 조기 전송·예약 변경·페이지 �
     (input) => { input.turns.find((turn) => turn.id === 'draft-only').stateAfter.replies.push('too early'); },
     (input) => { input.finalState.reservationMutations = 1; },
     (input) => { input.turns.find((turn) => turn.id === 'verify-send').answer += ' LEAK-DO-NOT-REPEAT'; },
-    (input) => { input.uploadReceipt.requestedCall.args.filePath = '/private/tmp/other.pdf'; },
+    (input) => { input.uploadReceipt.requestedCall.args.attachmentId = 'other-artifact'; },
   ]) {
     const input = passingInput();
     mutate(input);

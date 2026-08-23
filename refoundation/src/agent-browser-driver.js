@@ -763,6 +763,13 @@ export function makeAgentBrowserDriver({
     elementFacts,
     modalControlFacts,
     submitFacts,
+    async pageSecretFacts({ tabId, signal } = {}) {
+      await selectTab(tabId, { signal });
+      return {
+        secretFieldCount: countValue(await command(['get', 'count', VISIBLE_SECRET_FIELD_SELECTOR], { signal })),
+        secretValuesObserved: false,
+      };
+    },
     readTextFile,
     uploadFileFacts: uploadFileFact,
     async beginUserLogin(url, { signal } = {}) {

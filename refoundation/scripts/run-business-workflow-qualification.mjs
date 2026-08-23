@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -15,11 +15,14 @@ import { makeConsoleModelAccess } from '../src/console-model-factory.js';
 import { makeConsoleServer } from '../src/console-server.js';
 
 const runFile = promisify(execFile);
+function option(name) { const index = process.argv.indexOf(name); return index < 0 ? null : process.argv[index + 1]; }
 const keep = process.argv.includes('--keep');
+const requestedModelId = option('--model-id');
+const evidencePath = option('--evidence') ? resolve(option('--evidence')) : null;
 const room = await mkdtemp(join(tmpdir(), 't5-w6-business-'));
 const stateDir = join(room, 'state');
 const workspace = join(room, 'workspace');
-const connectionFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
+const sourceConnectionFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
 await Promise.all([mkdir(stateDir, { recursive: true }), mkdir(workspace, { recursive: true })]);
 
@@ -47,12 +50,18 @@ async function closeConsole(reason) {
   consoleBase = null;
 }
 
+let connectionFile = sourceConnectionFile;
+if (requestedModelId) {
+  const stored = JSON.parse(await readFile(sourceConnectionFile, 'utf8')); stored.activeId = requestedModelId;
+  connectionFile = join(room, 'model-connection.json'); await writeFile(connectionFile, JSON.stringify(stored), { mode: 0o600 });
+}
 const access = makeConsoleModelAccess({ connectionFile, stateDir });
 const computer = discoverComputerEnvironment({ userHome: workspace });
 
 async function startConsole() {
   consoleServer = makeConsoleServer({
     stateDir, workspace, computerEnvironment: computer,
+    webReadOptions: { allowPrivateUrls: true },
     modelFactory: (context) => access.model(context), modelStatus: () => access.status(),
     browserDriverFactory: (sessionId) => makeAgentBrowserDriver({
       ownerId: sessionId,
@@ -84,9 +93,11 @@ async function siteState(siteBase) {
 }
 
 async function executeTurn(sessionId, id, prompt, siteBase) {
+  process.stderr.write(`[w7] ${requestedModelId ?? 'active-model'} ${id}\n`);
   const response = await fetch(`${consoleBase}/turn`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ sessionId, text: prompt }),
+    signal: AbortSignal.timeout(120_000),
   });
   const surface = await response.json();
   const run = await runDetails(surface.runId);
@@ -136,7 +147,6 @@ try {
   );
 
   const mainSession = await createSession();
-  const context = { downloadPath: null };
   let downloadReceipt = null;
   let uploadReceipt = null;
 
@@ -145,17 +155,19 @@ try {
       await closeConsole('w6_business_restart');
       await startConsole();
     }
-    const prompt = definition.prompt(siteBase, context);
+    const prompt = definition.prompt(siteBase, {});
     const turn = await executeTurn(mainSession.id, definition.id, prompt, siteBase);
     results.push(turn);
     if (turn.httpStatus !== 200 || turn.runStatus !== 'completed' || !turn.answer.trim()) break;
     if (definition.id === 'login-and-overview') {
       const loginStart = turn.receipts.find((receipt) => receipt.requestedCall?.args?.action === 'login_start');
-      if (loginStart) await simulateUserLogin(mainSession.id);
+      const observedLoginPage = turn.receipts.some((receipt) => receipt.requestedCall?.name === 'browser'
+        && receipt.requestedCall?.args?.action === 'navigate'
+        && /\/login(?:$|[?#])/u.test(String(receipt.result?.tab?.url ?? receipt.result?.observation?.refScope?.url ?? '')));
+      if (loginStart || observedLoginPage) await simulateUserLogin(mainSession.id);
     }
     if (definition.id === 'download-settlement') {
       downloadReceipt = turn.receipts.find((receipt) => receipt.requestedCall?.args?.action === 'download') ?? null;
-      if (downloadReceipt?.result?.file?.path) context.downloadPath = downloadReceipt.result.file.path;
     }
     if (definition.id === 'upload-downloaded') {
       uploadReceipt = turn.receipts.find((receipt) => receipt.requestedCall?.args?.action === 'upload') ?? null;
@@ -165,9 +177,13 @@ try {
   const memory = await fetch(`${consoleBase}/memory/state`).then((response) => response.json());
   const finalState = await siteState(siteBase);
   if (downloadReceipt) downloadReceipt.expectedSha256 = fixture.pdf.sha256;
+  const artifactAfterRestart = downloadReceipt?.result?.artifact?.attachmentId
+    ? await consoleServer.attachmentStore.get({
+      sessionId: mainSession.id, attachmentId: downloadReceipt.result.artifact.attachmentId,
+    }) : null;
   const verdict = assessBusinessWorkflow({
     turns: results, finalState, memoryItems: memory.items,
-    downloadReceipt, uploadReceipt,
+    downloadReceipt, uploadReceipt, artifactAfterRestart,
   });
   const connection = await access.status();
   const performance = summarizeQualificationPerformance([
@@ -199,11 +215,12 @@ try {
       uploads: finalState.uploads,
     },
     fileRoundTrip: downloadReceipt && uploadReceipt ? {
-      downloadPath: downloadReceipt.result.file.path,
+      attachmentId: downloadReceipt.result.artifact?.attachmentId ?? null,
       bytes: downloadReceipt.result.file.bytes,
       sha256: downloadReceipt.result.file.sha256,
-      uploadPathMatched: uploadReceipt.requestedCall.args.filePath === downloadReceipt.result.file.path,
+      uploadArtifactMatched: uploadReceipt.requestedCall.args.attachmentId === downloadReceipt.result.artifact?.attachmentId,
       uploadShaMatched: uploadReceipt.result.file.sha256 === downloadReceipt.result.file.sha256,
+      artifactPersistedAfterRestart: artifactAfterRestart?.sha256 === downloadReceipt.result.artifact?.sha256,
     } : null,
     turns: results.map((turn) => ({
       id: turn.id, answer: turn.answer,
@@ -219,7 +236,9 @@ try {
     room: keep ? room : null,
     passed: verdict.passed,
   };
-  console.log(JSON.stringify(evidence, null, 2));
+  const serialized = `${JSON.stringify(evidence, null, 2)}\n`;
+  if (evidencePath) { await mkdir(dirname(evidencePath), { recursive: true }); await writeFile(evidencePath, serialized, 'utf8'); }
+  process.stdout.write(serialized);
   if (!evidence.passed) process.exitCode = 1;
 } finally {
   await closeConsole('w6_business_shutdown').catch(() => {});

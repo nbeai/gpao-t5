@@ -63,6 +63,7 @@
     "refoundation:compare:interaction-long": "node refoundation/scripts/run-interaction-long-conversation.mjs",
     "refoundation:qualify:human-scenarios": "node refoundation/scripts/run-human-scenarios.mjs",
     "refoundation:qualify:business-workflow": "node refoundation/scripts/run-business-workflow-qualification.mjs",
+    "refoundation:summarize:business-continuity": "node refoundation/scripts/summarize-business-artifact-continuity.mjs",
     "refoundation:qualify:document-data": "node refoundation/scripts/run-document-data-qualification.mjs",
     "refoundation:qualify:attachments": "node refoundation/scripts/run-attachment-qualification.mjs",
     "refoundation:qualify:restart-hygiene": "node refoundation/scripts/run-incomplete-tool-restart-qualification.mjs",

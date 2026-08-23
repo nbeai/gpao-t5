@@ -83,6 +83,7 @@ export function makeBrowserObservationTool({
   observationRegistry = makeBrowserObservationRegistry(),
   authorizeEffect,
   authorizeUploadPath,
+  resolveUploadArtifact,
 } = {}) {
   if (!driver || typeof driver.available !== 'function') throw new TypeError('browser driver is required');
   const tool = {
@@ -111,6 +112,7 @@ export function makeBrowserObservationTool({
         textFilePath: { type: ['string', 'null'], description: 'Exact user-provided local UTF-8 text path for fill or fill_editable when the runtime should read and hash the text without making the model copy it; otherwise null. This is not file upload.' },
         textFileStartLine: { type: ['integer', 'null'], minimum: 1, description: 'Optional 1-based first line to use from textFilePath; null when no text file is used.' },
         filePath: { type: ['string', 'null'], description: 'Exact absolute user-provided path for upload, otherwise null.' },
+        attachmentId: { type: ['string', 'null'], description: 'For upload only: exact managed attachmentId from a prior browser download in this conversation when the user refers to that file; otherwise null.' },
         effect: {
           description: 'For click/fill/submit/download/upload, targets must contain the exact current page URL or origin only; never append an element label or description.',
           anyOf: [EFFECT_SCHEMA, { type: 'null' }],
@@ -118,7 +120,8 @@ export function makeBrowserObservationTool({
       },
       required: [
         'action', 'url', 'tabId', 'full', 'maxChars', 'fullPage',
-        'observationId', 'ref', 'editableId', 'modalIntent', 'text', 'textFilePath', 'textFileStartLine', 'filePath', 'effect',
+        'observationId', 'ref', 'editableId', 'modalIntent', 'text', 'textFilePath', 'textFileStartLine',
+        'filePath', 'attachmentId', 'effect',
       ],
       additionalProperties: false,
     },
@@ -184,9 +187,17 @@ export function makeBrowserObservationTool({
           tabId: value.tab?.tabId, ...(context.signal ? { signal: context.signal } : {}),
         });
         value.snapshot.editables = editableValue.editables;
-        return observationResult(
+        const observed = observationResult(
           driver, value, args.maxChars ?? DEFAULT_MAX_CHARS, observationRegistry,
         );
+        const secretFacts = typeof driver.pageSecretFacts === 'function'
+          ? await driver.pageSecretFacts({ tabId: value.tab?.tabId, ...(context.signal ? { signal: context.signal } : {}) })
+          : { secretFieldCount: 0, secretValuesObserved: false };
+        if (Number(secretFacts.secretFieldCount ?? 0) > 0) return {
+          ...observed, secretFieldsPresent: true, secretValuesObserved: false,
+          loginBoundary: { state: 'user_login_required', nextAction: 'login_start', url: observed.tab.url },
+        };
+        return observed;
       }
       if (args.action === 'snapshot') {
         const value = await driver.snapshot({
@@ -212,7 +223,7 @@ export function makeBrowserObservationTool({
           ...(args.action === 'fill' ? { text: safety.textSource?.text ?? args.text } : {}),
           ...(args.action === 'fill_editable' ? { text: safety.textSource?.text ?? args.text } : {}),
           ...(args.action === 'upload' ? {
-            filePath: args.filePath, expectedSha256: safety.fileFacts?.sha256,
+            filePath: safety.fileFacts?.path ?? args.filePath, expectedSha256: safety.fileFacts?.sha256,
           } : {}),
           signal: context.signal,
         });
@@ -257,6 +268,13 @@ export function makeBrowserObservationTool({
           network: structuredClone(acted.network ?? { totalRequests: 0, truncated: false, requests: [] }),
           ...(['download', 'upload'].includes(args.action) ? {
             file: structuredClone(acted.file), source: structuredClone(acted.source),
+          } : {}),
+          ...(args.action === 'upload' && safety.fileFacts?.attachmentId ? {
+            artifact: {
+              attachmentId: safety.fileFacts.attachmentId,
+              path: safety.fileFacts.path, bytes: safety.fileFacts.bytes,
+              sha256: safety.fileFacts.sha256, mimeType: safety.fileFacts.mimeType,
+            },
           } : {}),
         };
       }
@@ -430,7 +448,13 @@ export function makeBrowserObservationTool({
       if (String(elementFacts.type ?? '').toLowerCase() !== 'file') {
         return { ...blocked('ref_not_file_input'), binding };
       }
-      if (!args.filePath || typeof authorizeUploadPath !== 'function'
+      if (args.filePath != null && args.attachmentId != null) return { ...blocked('upload_source_ambiguous'), binding };
+      if (args.attachmentId != null) {
+        if (typeof resolveUploadArtifact !== 'function') return { ...blocked('upload_artifact_not_authorized'), binding };
+        try { fileFacts = await resolveUploadArtifact(args.attachmentId, context); }
+        catch (error) { return { ...blocked('upload_artifact_not_authorized', { reason: error?.message ?? String(error) }), binding }; }
+        if (!fileFacts?.path || !fileFacts?.sha256) return { ...blocked('upload_artifact_not_authorized'), binding };
+      } else if (!args.filePath || typeof authorizeUploadPath !== 'function'
         || await authorizeUploadPath(args.filePath, context) !== true) {
         return { ...blocked('upload_path_not_user_authorized'), binding };
       }
@@ -440,9 +464,11 @@ export function makeBrowserObservationTool({
       if (args.effect.recipientNew === true) {
         return { ...blocked('upload_new_recipient_not_open'), binding };
       }
-      try { fileFacts = await driver.uploadFileFacts(args.filePath); }
-      catch (error) {
-        return { ...blocked('upload_file_rejected', { reason: error?.message ?? String(error) }), binding };
+      if (!fileFacts) {
+        try { fileFacts = await driver.uploadFileFacts(args.filePath); }
+        catch (error) {
+          return { ...blocked('upload_file_rejected', { reason: error?.message ?? String(error) }), binding };
+        }
       }
     }
     if (includeAuthority && typeof authorizeEffect === 'function') {

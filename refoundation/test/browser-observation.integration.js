@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -107,8 +108,10 @@ test('콘솔 모델이 download ref를 사용하고 실제 managed file 영수�
   const stateDir = join(room, 'state');
   const workspace = join(room, 'workspace');
   const file = join(stateDir, 'browser', 'fixture', 'downloads', 'report.pdf');
+  const fileBytes = Buffer.from('%PDF-1.7\nconsole-download');
+  const fileSha256 = createHash('sha256').update(fileBytes).digest('hex');
   await Promise.all([mkdir(workspace, { recursive: true }), mkdir(join(stateDir, 'browser', 'fixture', 'downloads'), { recursive: true })]);
-  await writeFile(file, Buffer.from('%PDF-1.7\nconsole-download'), { mode: 0o600 });
+  await writeFile(file, fileBytes, { mode: 0o600 });
   let phase = 0;
   let observed;
   const driver = {
@@ -125,7 +128,7 @@ test('콘솔 모델이 download ref를 사용하고 실제 managed file 영수�
       tab: { tabId: 't1', targetId: 'target-1', title: '보고서', url: 'https://example.com/reports' },
       snapshot: { text: '- link "월간 보고서" [ref=e2]', refs: { e2: { role: 'link', name: '월간 보고서' } }, totalChars: 30, truncated: false },
       network: { totalRequests: 1, truncated: false, requests: [{ method: 'GET', address: 'https://example.com/report.pdf', resourceType: 'Document', status: 200, mimeType: 'application/pdf' }] },
-      file: { path: file, bytes: 25, sha256: 'd'.repeat(64), mimeType: 'application/pdf', trust: 'untrusted_external' },
+      file: { path: file, bytes: fileBytes.length, sha256: fileSha256, mimeType: 'application/pdf', trust: 'untrusted_external' },
       source: { address: 'https://example.com/report.pdf', queryOmitted: false },
     }; },
     async status() { return { state: 'ready' }; }, async profiles() { return { profiles: [this.profile] }; },
@@ -151,7 +154,8 @@ test('콘솔 모델이 download ref를 사용하고 실제 managed file 영수�
         } }] };
       }
       const receipt = JSON.parse(input.messages.at(-1).content);
-      assert.equal(receipt.result.file.sha256, 'd'.repeat(64));
+      assert.equal(receipt.result.file.sha256, fileSha256);
+      assert.equal(receipt.result.artifact.sha256, fileSha256);
       return { text: `다운로드했습니다: ${receipt.result.file.path} (${receipt.result.file.bytes} bytes)`, toolCalls: [] };
     } }),
   });
@@ -166,6 +170,13 @@ test('콘솔 모델이 download ref를 사용하고 실제 managed file 영수�
     assert.equal(receipt.actualCall.name, 'browser');
     assert.equal(receipt.result.file.trust, 'untrusted_external');
     assert.equal(receipt.result.before.observationId, observed.observationId);
+    assert.equal(receipt.result.artifactRegistration.state, 'registered');
+    assert.equal(receipt.result.artifact.direction, 'input');
+    assert.equal(receipt.result.artifact.sha256, fileSha256);
+    const managed = await server.attachmentStore.get({
+      sessionId: session.id, attachmentId: receipt.result.artifact.attachmentId,
+    });
+    assert.equal(managed.sha256, fileSha256); assert.ok(managed.links.some((link) => link.runId === reply.runId));
   } finally {
     await server.closeBrowsers();
     await new Promise((resolve) => server.close(resolve));
