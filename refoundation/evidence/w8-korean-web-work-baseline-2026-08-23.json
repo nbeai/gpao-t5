@@ -4,7 +4,7 @@
   "goal": "Measure whether the current Web Hand completes bounded Korean multi-hop and closed-set work accurately, completely, honestly, and efficiently before changing the product.",
   "actualUserData": false,
   "benchmarkBoundary": {
-    "kBrowseComp": "Two deterministically selected items from the official 300-item verified JSONL, graded for gold-answer equivalence by a separate model. This is not an official leaderboard run or a representative full-benchmark score.",
+    "kBrowseComp": "Two deterministically selected items from the official 300-item verified JSONL. Official-gold equivalence and current-public-fact adjudication are reported separately because sample 29's released gold conflicts with observed market data. This is not an official leaderboard run or a representative full-benchmark score.",
     "koWideSearch": "The official gated gold was not accessed. Two T5-authored public Korean policy tasks adopt item, cell, and whole-row completeness only; no Ko-WideSearch score is claimed.",
     "browserIncluded": false,
     "benchmarkContaminationSourcesBlocked": true,
@@ -27,12 +27,14 @@
     {
       "model": "gpt-5.6-terra",
       "kBrowseComp": {
-        "correct": 1,
+        "officialGoldCorrect": 1,
+        "currentPublicFactCorrect": 2,
         "total": 2,
-        "accuracy": 0.5,
+        "officialGoldAccuracy": 0.5,
+        "currentPublicFactAccuracy": 1,
         "samples": [
-          {"index":62,"correct":true,"wallMs":105201,"modelTurns":15,"tokens":676223,"toolCounts":{"web_research":1,"tool_search":1,"exec":10,"web_read":8}},
-          {"index":29,"correct":false,"wallMs":108051,"modelTurns":31,"tokens":1931770,"toolCounts":{"web_research":1,"tool_search":1,"exec":27,"web_read":1}}
+          {"index":62,"officialGoldCorrect":true,"currentPublicFactCorrect":true,"wallMs":105201,"modelTurns":15,"tokens":676223,"toolCounts":{"web_research":1,"tool_search":1,"exec":10,"web_read":8}},
+          {"index":29,"officialGoldCorrect":false,"currentPublicFactCorrect":true,"wallMs":108051,"modelTurns":31,"tokens":1931770,"toolCounts":{"web_research":1,"tool_search":1,"exec":27,"web_read":1}}
         ]
       },
       "closedSetWork": {"purposeComplete":2,"total":2,"meanItemF1":1,"meanCellF1":1,"meanRowF1":1,"meanOfficialSourceF1":1},
@@ -42,12 +44,14 @@
     {
       "model": "gpt-5.5",
       "kBrowseComp": {
-        "correct": 1,
+        "officialGoldCorrect": 1,
+        "currentPublicFactCorrect": 2,
         "total": 2,
-        "accuracy": 0.5,
+        "officialGoldAccuracy": 0.5,
+        "currentPublicFactAccuracy": 1,
         "samples": [
-          {"index":62,"correct":true,"wallMs":262944,"modelTurns":32,"tokens":2645506,"toolCounts":{"web_research":1,"web_read":12,"tool_search":1,"exec":18}},
-          {"index":29,"correct":false,"wallMs":102884,"modelTurns":18,"tokens":678149,"toolCounts":{"web_research":1,"web_read":15,"exec":1,"tool_search":1}}
+          {"index":62,"officialGoldCorrect":true,"currentPublicFactCorrect":true,"wallMs":262944,"modelTurns":32,"tokens":2645506,"toolCounts":{"web_research":1,"web_read":12,"tool_search":1,"exec":18}},
+          {"index":29,"officialGoldCorrect":false,"currentPublicFactCorrect":true,"wallMs":102884,"modelTurns":18,"tokens":678149,"toolCounts":{"web_research":1,"web_read":15,"exec":1,"tool_search":1}}
         ]
       },
       "closedSetWork": {"purposeComplete":2,"total":2,"meanItemF1":1,"meanCellF1":1,"meanRowF1":1,"meanOfficialSourceF1":1},
@@ -59,7 +63,14 @@
     "observedInBothModels": true,
     "cause": "A completed web_research batch with 9 to 10 readable sources deactivated broad web_search while the multi-hop user purpose was still incomplete. Both models then used exec or many exact reads to recover missing branches, causing large receipt projection and context growth.",
     "falseCompletion": 0,
-    "wrongFinalAnswerFamily": "Both models answered K-BrowseComp sample 29 with 38.8 percent instead of the gold-equivalent 18.8 percent after selecting the wrong evidence chain.",
+    "goldConflict": {
+      "sampleIndex": 29,
+      "releasedGold": "18.8%",
+      "currentPublicFactAnswer": "38.8%",
+      "observedCloses": [{"date":"2026-01-02","close":128500},{"date":"2026-04-02","close":178400}],
+      "calculation": "(178400 / 128500 - 1) * 100 = 38.832685, rounded as requested to 38.8%",
+      "source": "https://api.finance.naver.com/siseJson.naver?symbol=005930&requestType=1&startTime=20260102&endTime=20260402&timeframe=day"
+    },
     "performanceBoundary": "The two hard tasks dominate 93 to 97 percent of each model's measured tokens; the closed-set official tasks complete exactly with far fewer turns."
   },
   "rejectedChange": {
@@ -73,15 +84,15 @@
       "totalModelTurns": 41,
       "totalToolCalls": 57,
       "totalTokens": 2716302,
-      "observedFailure": "exec bypass disappeared but was replaced by 27 focused web_search calls across the two hard tasks; accuracy fell and wall time nearly doubled"
+      "observedFailure": "exec bypass disappeared but was replaced by 27 focused web_search calls across the two hard tasks; current-public-fact accuracy fell from 2/2 to 1/2 and wall time nearly doubled"
     },
     "rawEvidenceSha256": "44210ec8a63b2ae8c3e4a4626475cc338a843a730477482c0bda1b324612da86"
   },
   "verdict": {
     "w8BaselineComplete": true,
     "productBehaviorChanged": false,
-    "strength": "Both models completed both Korean official closed-set work tasks with exact item, cell, whole-row, and official-source scores.",
-    "shortfall": "The current bounded research continuation is not adequate for hard multi-hop Korean web work: both models scored 1 of 2 and paid very high context and wall-time costs.",
+    "strength": "Both models completed both Korean official closed-set work tasks with exact item, cell, whole-row, and official-source scores, and both matched the currently observed public facts on the two sealed K-BrowseComp questions.",
+    "shortfall": "The current bounded research continuation reaches the facts but pays very high context and wall-time costs on hard multi-hop Korean web work.",
     "next": "W9 must test a bounded evidence-branch continuation that preserves missing-branch identity and budgets follow-up discovery; simply reopening web_search is explicitly disqualified."
   }
 }

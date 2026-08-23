@@ -24,7 +24,18 @@
         "category": "금융/경제/공공정책",
         "selectionKey": "4b074b6cccb078c9ca12f4ac8e786ddf7045700ed349632700fa1f1eab7d87a3",
         "problemSha256": "752064130f123b4b6a8247537232724af59559b87541ac2f1326d41b54855293",
-        "answerSha256": "75b43a8f356ef3ebf4fe0420684f287adeb6a88a2cedc6686843cd680cb0d273"
+        "answerSha256": "75b43a8f356ef3ebf4fe0420684f287adeb6a88a2cedc6686843cd680cb0d273",
+        "currentPublicFactAdjudication": {
+          "status": "official_gold_conflict",
+          "adjudicatedAnswer": "38.8%",
+          "reason": "The question asks for Samsung Electronics 005930 close-to-close change. Current public daily data reports 128500 on 2026-01-02 and 178400 on 2026-04-02; (178400 / 128500 - 1) * 100 = 38.832685, rounded as requested to 38.8%.",
+          "source": "https://api.finance.naver.com/siseJson.naver?symbol=005930&requestType=1&startTime=20260102&endTime=20260402&timeframe=day",
+          "observed": [
+            {"date":"2026-01-02","close":128500,"responseSha256":"31b1aac53bb5f09fc4427a4df59dfc35f9a82b810352fffee55ab06afc130dec"},
+            {"date":"2026-04-02","close":178400,"responseSha256":"8c412d5dc7dc1f463a56573bd971cdedd094cd41c7e21667e610c089857a0c6b"}
+          ],
+          "observedAt": "2026-08-23T14:35:00.000Z"
+        }
       }
     ],
     "releaseBoundary": "The pinned JSONL contains problem, answer, type, and category only. It does not contain the README-described expected trajectory, source URLs, or checklist fields."

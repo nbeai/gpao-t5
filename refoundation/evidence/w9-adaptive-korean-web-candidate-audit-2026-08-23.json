@@ -1,0 +1,68 @@
+{
+  "schema": "t5.w9-adaptive-korean-web-candidate-audit.v1",
+  "recordedAt": "2026-08-23T14:52:00.000Z",
+  "productBehaviorChanged": false,
+  "baselineCorrection": {
+    "sampleIndex": 29,
+    "releasedGold": "18.8%",
+    "currentPublicFactAnswer": "38.8%",
+    "observedCloses": [{"date":"2026-01-02","close":128500},{"date":"2026-04-02","close":178400}],
+    "calculation": "(178400 / 128500 - 1) * 100 = 38.832685, rounded to 38.8%",
+    "source": "https://api.finance.naver.com/siseJson.naver?symbol=005930&requestType=1&startTime=20260102&endTime=20260402&timeframe=day",
+    "responseDigests": [
+      "31b1aac53bb5f09fc4427a4df59dfc35f9a82b810352fffee55ab06afc130dec",
+      "8c412d5dc7dc1f463a56573bd971cdedd094cd41c7e21667e610c089857a0c6b"
+    ],
+    "effect": "W8 current-public-fact accuracy is 2/2 for both models; official-gold equivalence remains separately reported as 1/2."
+  },
+  "candidates": [
+    {
+      "id": "branch-diverse-selection",
+      "change": "prefer one returned source per focused query even when several are on the same host",
+      "terra": {"currentPublicFactCorrect":1,"total":2,"shapeComplete":2,"shapeTotal":2,"wallMs":168220,"modelTurns":19,"toolCalls":20,"tokens":419121},
+      "disposition": "rejected_reverted",
+      "reason": "independent-domain diversity changed and the person question became wrong",
+      "rawEvidenceSha256": "9383ccdf311fd936c30e51d4ec1967724e557f4b424aff9f111f78f8f7df87f2"
+    },
+    {
+      "id": "exact-continuation-handles",
+      "change": "preserve one unreturned exact candidate URL for each focused query while keeping the original source selection",
+      "terra": {"currentPublicFactCorrect":1,"total":2,"shapeComplete":2,"shapeTotal":2,"wallMs":343290,"modelTurns":33,"toolCalls":41,"tokens":1477522},
+      "disposition": "rejected_reverted",
+      "reason": "the person question remained wrong and the finance path again expanded",
+      "rawEvidenceSha256": "af86302938d36b12541ecd838d40b1a497cacc3fc7ae567810a0e378b7e98066"
+    },
+    {
+      "id": "two-batch-followup-budget",
+      "change": "allow one additional bounded web_research batch while keeping broad web_search closed",
+      "terra": {"currentPublicFactCorrect":1,"total":2,"shapeComplete":1,"shapeTotal":2,"wallMs":185942,"modelTurns":18,"toolCalls":20,"tokens":385242},
+      "disposition": "rejected_reverted",
+      "reason": "the person question failed and an existing closed-set positive control regressed",
+      "rawEvidenceSha256": "1487791f837a8cab7c2c91e0397e98b9e5508120c65286879f204e2f9ae02263"
+    },
+    {
+      "id": "previously-read-receipt-projection",
+      "change": "show the full web_research result once, then compact only its repeated model projection while preserving exact URLs and the full Run receipt",
+      "runs": [
+        {"model":"gpt-5.6-terra","currentPublicFactCorrect":2,"total":2,"shapeComplete":2,"shapeTotal":2,"wallMs":403291,"modelTurns":44,"toolCalls":50,"tokens":1897700,"rawEvidenceSha256":"b62f8226b80c455f58a1db075da394f710043026dc35565f164ab97dc19f938d"},
+        {"model":"gpt-5.5","currentPublicFactCorrect":2,"total":2,"shapeComplete":2,"shapeTotal":2,"wallMs":495783,"modelTurns":62,"toolCalls":63,"tokens":2471066,"rawEvidenceSha256":"1e02c7b3028931da31f143619e87a8091d2fd32be59515f1cbac4d2c071b1985"},
+        {"model":"gpt-5.6-terra","repeat":2,"currentPublicFactCorrect":0,"total":2,"shapeComplete":2,"shapeTotal":2,"wallMs":219312,"modelTurns":29,"toolCalls":47,"tokens":829591,"rawEvidenceSha256":"30d8bcc7fb73fb9220b7dae3433b0978521456af63f6d486903f81aba272de17"}
+      ],
+      "disposition": "rejected_reverted",
+      "reason": "token reduction was material but fact accuracy did not survive an exact repeat"
+    }
+  ],
+  "evaluationHardening": {
+    "adopted": true,
+    "changes": [
+      "official-gold equivalence and current-public-fact adjudication are separate fields",
+      "gold-conflict source values and response digests are pinned after the pre-sealed sample selection",
+      "the runner accepts one to three isolated repeats so a one-off model outcome cannot qualify a product change"
+    ]
+  },
+  "next": {
+    "gate": "W9 remains in progress",
+    "work": "Measure provider and query-result variance on a larger sealed current-fact sample before proposing another runtime change.",
+    "nonGoals": ["site-specific selectors", "vendor-name routing", "unbounded second research loops", "shipping a token-only optimization that fails factual repeats"]
+  }
+}

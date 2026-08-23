@@ -1919,7 +1919,7 @@ tester audit의 산문은 triage 입력이며 재현 전 완료·실패 증거�
 
 ## D3~W9 — Vertical Capability Hardening Plan
 
-상태: `OWNER_PLANNED · W8 COMPLETE · W9 NEXT` — 기능 수를 늘리는 계획이 아니라, 현재 파일손·웹손이 지저분한 현실을
+상태: `OWNER_PLANNED · W8 COMPLETE · W9 IN_PROGRESS` — 기능 수를 늘리는 계획이 아니라, 현재 파일손·웹손이 지저분한 현실을
 정확히 읽고 실제 결과까지 끝내는 깊이를 높이는 개발선이다. 아래 순서는 목록 우선순위가 아니라 앞 Gate의
 실제 증거가 다음 Gate를 여는 의존 순서다. 한 번에 하나만 `IN_PROGRESS`로 둔다.
 
@@ -2252,16 +2252,21 @@ wall time, model turns, tool calls, tokens. 출처 수와 검색 횟수는 성�
 완료 증거:
 
 - K-BrowseComp 공식 verified 300건에서 문제·정답을 보지 않고 type/category 층을 먼저 정한 뒤 deterministic
-  hash로 2건을 봉인했다. 두 모델 모두 `1/2`; 같은 금융·공공정책 표본에서 잘못된 증거 사슬로 38.8%를
-  답해 gold-equivalent 18.8%에 실패했다. 2건은 전체 benchmark 대표 점수나 공식 leaderboard 점수가 아니다.
+  hash로 2건을 봉인했다. 공개 gold 기준은 두 모델 모두 `1/2`였지만, 실패로 분류한 금융·공공정책 표본의
+  현재 일별 시세를 다시 확인하자 2026-01-02 종가 128,500원, 2026-04-02 종가 178,400원으로 `(178400 /
+  128500 - 1) × 100 = 38.832685%`였다. 질문의 반올림 조건에는 두 모델의 38.8%가 맞고 공개 gold 18.8%와
+  충돌한다. 따라서 현재 공개 사실 판정은 두 모델 `2/2`; 2건은 전체 benchmark 대표 점수나 공식 leaderboard
+  점수가 아니다.
 - Ko-WideSearch는 공식 gold가 gated이고 pinned 공개 저장소에 실행 scorer·task data가 없어 점수를 주장하지
   않았다. 대신 그 item·cell·whole-row 원리로 만든 최저임금 5행과 한국은행 금리변경 4행 공개 실무 과업은
   두 모델 모두 item/cell/row/공식 source F1 `1.0`, 목적 `2/2`를 통과했다.
-- 어려운 두 과업에서 `web_research`가 9~10개 readable source 뒤 `web_search`를 닫았지만 목적은 미달이었고,
-  두 모델 모두 `exec` 또는 많은 exact read로 빠졌다. 전체는 terra 268.0초·53 turns·58 tools·2,712,486 tokens,
-  gpt-5.5 475.4초·59 turns·61 tools·3,470,296 tokens였다. false completion은 0이지만 정확도와 비용은 미달이다.
-- 단순히 `web_search`를 다시 열고 좁은 후속 검색을 지시한 반대변경은 terra에서 K-BrowseComp `1/2→0/2`,
-  wall 268.0초→532.1초가 됐고 어려운 두 과업의 `web_search`가 27회로 늘어 폐기·원복했다. 제품 동작 변경은 없다.
+- 어려운 두 과업에서 `web_research`가 9~10개 readable source 뒤 `web_search`를 닫은 후 두 모델 모두 `exec`
+  또는 많은 exact read로 이어졌다. 현재 공개 사실은 맞췄지만 전체는 terra 268.0초·53 turns·58 tools·
+  2,712,486 tokens, gpt-5.5 475.4초·59 turns·61 tools·3,470,296 tokens였다. false completion은 0이고 남은
+  실제 미달은 정확도가 아니라 비용·경로다.
+- 단순히 `web_search`를 다시 열고 좁은 후속 검색을 지시한 반대변경은 terra의 현재 공개 사실 정확도를
+  `2/2→1/2`로 낮추고 wall 268.0초→532.1초, 어려운 두 과업의 `web_search` 27회가 되어 폐기·원복했다.
+  제품 동작 변경은 없다.
 - 공식 repository commit·dataset hash·표본 hash·평가기 반대시험과 세 실행 digest는
   `refoundation/evidence/w8-korean-web-work-baseline-2026-08-23.json`에 있다.
 
@@ -2270,6 +2275,9 @@ W9는 단순 재검색 재개방이 아니라 미확인 evidence branch의 ident
 후보를 먼저 반대시험한다. 현재 성공한 짧은 공개 실무 과업을 느리게 만들면 채택하지 않는다.
 
 ### W9 — Adaptive Korean Web Observation
+
+상태: `IN_PROGRESS · INITIAL CANDIDATES REJECTED` — W8의 공개 gold 충돌을 교정했고, 네 후보를 같은 봉인
+과업에서 반대시험했으나 사실 정확도 반복 조건을 만족한 제품 변경은 아직 없다.
 
 목적: 한국 사이트별 selector를 쌓지 않고 현재 읽기 사다리의 정확도와 속도를 높인다.
 
@@ -2286,6 +2294,21 @@ W9는 단순 재검색 재개방이 아니라 미확인 evidence branch의 ident
   만들지 않음
 - K-BrowseComp/Ko-WideSearch 기준선보다 목적 정확도·completeness가 오르고 무의미한 broad search·full
   snapshot·로그인 handoff가 줄어야 채택
+
+현재 증거:
+
+- 반복 실패로 보았던 K-BrowseComp 금융 표본은 현재 시세 128,500원→178,400원, 증가율 38.8%로 두 모델의
+  답이 맞고 공개 gold 18.8%가 충돌했다. 평가기는 official-gold와 current-public-fact 판정을 분리했다.
+- query별 same-host 우선, exact continuation handle, 두 번째 bounded batch 후보는 current fact 정확도 또는
+  기존 폐쇄집합 positive control을 떨어뜨려 모두 폐기·원복했다.
+- 한 번 읽은 연구 Receipt의 반복 prompt만 축약한 후보는 첫 terra·gpt-5.5에서 current fact·positive control
+  `2/2`를 유지하며 tokens를 약 29~30% 줄였지만, terra exact 반복에서 current fact `0/2`로 무너져 원복했다.
+- 제품 동작 변경은 0이다. 대신 gold-conflict 근거와 1~3회 격리 반복 자격화를 W8 runner에 넣어 한 번의
+  우연한 결과나 잘못된 gold로 코어를 고치는 일을 막았다.
+- 근거: `refoundation/evidence/w9-adaptive-korean-web-candidate-audit-2026-08-23.json`
+
+다음 한 작업: 더 큰 sealed current-fact 표본에서 같은 query의 provider 결과·후보 순서·모델 선택 변동을
+분리 측정한다. 변동 원인을 확정하기 전 selector·vendor router·두 번째 연구 루프를 다시 구현하지 않는다.
 
 ### Field Release Gate
 

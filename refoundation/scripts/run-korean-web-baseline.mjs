@@ -17,8 +17,12 @@ function option(name) { const index = process.argv.indexOf(name); return index <
 const datasetPath = option('--dataset') ? resolve(option('--dataset')) : null;
 const evidencePath = option('--evidence') ? resolve(option('--evidence')) : null;
 const requestedModelId = option('--model-id');
+const repeatCount = Number(option('--repeats') ?? 1);
 const keep = process.argv.includes('--keep');
 if (!datasetPath) throw new TypeError('--dataset must point to the pinned K-BrowseComp JSONL');
+if (!Number.isInteger(repeatCount) || repeatCount < 1 || repeatCount > 3) {
+  throw new TypeError('--repeats must be an integer between 1 and 3');
+}
 
 const configRoot = resolve(new URL('../config/', import.meta.url).pathname);
 const selection = JSON.parse(await readFile(join(configRoot, 'w8-korean-web-baseline.json'), 'utf8'));
@@ -116,47 +120,61 @@ for (const modelId of modelIds) {
   });
   const base = await listen(server);
   try {
-    const kBrowseComp = [];
-    for (const sample of selection.kBrowseComp.samples) {
-      process.stderr.write(`[w8] ${modelId} K-BrowseComp ${sample.index}\n`);
-      const source = dataset[sample.index]; const result = await executeTurn(base, source.problem);
-      kBrowseComp.push({ sample, gold: source.answer, ...result });
+    for (let repeat = 1; repeat <= repeatCount; repeat += 1) {
+      const kBrowseComp = [];
+      for (const sample of selection.kBrowseComp.samples) {
+        process.stderr.write(`[w8] ${modelId} repeat ${repeat}/${repeatCount} K-BrowseComp ${sample.index}\n`);
+        const source = dataset[sample.index]; const result = await executeTurn(base, source.problem);
+        kBrowseComp.push({ sample, gold: source.answer, ...result });
+      }
+      const shape = [];
+      for (const task of shapeTasks.tasks) {
+        process.stderr.write(`[w8] ${modelId} repeat ${repeat}/${repeatCount} shape ${task.id}\n`);
+        const gold = shapeGold.tasks.find((entry) => entry.id === task.id);
+        const result = await executeTurn(base, task.prompt);
+        shape.push({ task, score: scoreClosedSetTable({ answer: result.answer, task, gold }), ...result });
+      }
+      results.push({ modelId, repeat, kBrowseComp, shape });
     }
-    const shape = [];
-    for (const task of shapeTasks.tasks) {
-      process.stderr.write(`[w8] ${modelId} shape ${task.id}\n`);
-      const gold = shapeGold.tasks.find((entry) => entry.id === task.id);
-      const result = await executeTurn(base, task.prompt);
-      shape.push({ task, score: scoreClosedSetTable({ answer: result.answer, task, gold }), ...result });
-    }
-    results.push({ modelId, kBrowseComp, shape });
   } finally { await close(server); }
 }
 
 const graderConnectionFile = await privateConnection('api_key:openai:gpt-5.6-terra', 'grader');
 const graderAccess = makeConsoleModelAccess({ connectionFile: graderConnectionFile, stateDir: join(room, 'grader-model') });
+async function gradeShortAnswer({ question, expectedAnswer, answer, label }) {
+  const reviewer = await graderAccess.model({
+    sessionId: `w8-grader-${label}-${randomUUID()}`, workspace: join(room, 'grader-workspace'), computer: {},
+    instructionsOverride: [
+      'You strictly grade one Korean short-answer web research result against a supplied expected answer.',
+      'Ignore harmless punctuation, spacing, romanization, Hanja, and an explanatory appositive that preserves the same referent.',
+      'If the response gives multiple materially different candidates, no final answer, or contradicts the expected answer, mark correct false.',
+      'Do not solve the question. Return only JSON with correct boolean, extractedFinalAnswer string, and one-sentence reason.',
+    ].join('\n'),
+  });
+  const response = await reviewer.respond({ messages: [{ role: 'user', content: JSON.stringify({
+    question, expectedAnswer, response: answer,
+  }) }], tools: [] });
+  return parseJsonObject(response.text);
+}
 for (const model of results) {
   for (const result of model.kBrowseComp) {
-    const reviewer = await graderAccess.model({
-      sessionId: `w8-grader-${randomUUID()}`, workspace: join(room, 'grader-workspace'), computer: {},
-      instructionsOverride: [
-        'You strictly grade one Korean short-answer web research result against a supplied gold answer.',
-        'Ignore harmless punctuation, spacing, romanization, Hanja, and an explanatory appositive that preserves the same referent.',
-        'If the response gives multiple materially different candidates, no final answer, or contradicts the gold, mark correct false.',
-        'Do not solve the question. Return only JSON with correct boolean, extractedFinalAnswer string, and one-sentence reason.',
-      ].join('\n'),
+    const question = dataset[result.sample.index].problem;
+    result.officialGoldGrading = await gradeShortAnswer({
+      question, expectedAnswer: result.gold, answer: result.answer, label: 'official',
     });
-    const response = await reviewer.respond({ messages: [{ role: 'user', content: JSON.stringify({
-      question: dataset[result.sample.index].problem, goldAnswer: result.gold, response: result.answer,
-    }) }], tools: [] });
-    result.grading = parseJsonObject(response.text);
+    const adjudication = result.sample.currentPublicFactAdjudication;
+    result.currentPublicFactGrading = adjudication ? await gradeShortAnswer({
+      question, expectedAnswer: adjudication.adjudicatedAnswer, answer: result.answer, label: 'adjudicated',
+    }) : result.officialGoldGrading;
   }
 }
 
 const publicResults = results.map((model) => ({
-  modelId: model.modelId,
+  modelId: model.modelId, repeat: model.repeat,
   kBrowseComp: model.kBrowseComp.map((result) => ({
-    sample: result.sample, answer: result.answer, grading: result.grading,
+    sample: result.sample, answer: result.answer,
+    officialGoldGrading: result.officialGoldGrading,
+    currentPublicFactGrading: result.currentPublicFactGrading,
     httpStatus: result.httpStatus, runStatus: result.runStatus, wallMs: result.wallMs, performance: result.performance,
     contaminatedObservation: result.performance.observedUrls.some(contaminated),
   })),
@@ -166,10 +184,13 @@ const publicResults = results.map((model) => ({
   })),
 }));
 for (const model of publicResults) {
-  const kCorrect = model.kBrowseComp.filter((result) => result.grading?.correct === true).length;
+  const officialCorrect = model.kBrowseComp.filter((result) => result.officialGoldGrading?.correct === true).length;
+  const currentFactCorrect = model.kBrowseComp.filter((result) => result.currentPublicFactGrading?.correct === true).length;
   model.summary = {
-    kBrowseCompCorrect: kCorrect, kBrowseCompTotal: model.kBrowseComp.length,
-    kBrowseCompAccuracy: model.kBrowseComp.length ? kCorrect / model.kBrowseComp.length : 0,
+    kBrowseCompOfficialGoldCorrect: officialCorrect, kBrowseCompCurrentPublicFactCorrect: currentFactCorrect,
+    kBrowseCompTotal: model.kBrowseComp.length,
+    kBrowseCompOfficialGoldAccuracy: model.kBrowseComp.length ? officialCorrect / model.kBrowseComp.length : 0,
+    kBrowseCompCurrentPublicFactAccuracy: model.kBrowseComp.length ? currentFactCorrect / model.kBrowseComp.length : 0,
     shapePurposeComplete: model.shape.filter((result) => result.score.exactPurposeComplete).length,
     shapeTotal: model.shape.length,
     meanItemF1: model.shape.reduce((sum, result) => sum + result.score.item.f1, 0) / model.shape.length,
@@ -184,7 +205,7 @@ for (const model of publicResults) {
 const evidence = {
   schema: 't5.w8-korean-web-baseline.v1', recordedAt: new Date().toISOString(), actualUserData: false,
   benchmarkBoundary: {
-    kBrowseComp: 'official verified data subset with T5 local gold-equivalence grading; not an official leaderboard run',
+    kBrowseComp: 'official verified data subset with official-gold equivalence and pinned current-public-fact adjudication reported separately; not an official leaderboard run',
     koWideSearch: 'official methodology only; gated gold not accessed and no official score claimed',
     contaminationSourcesBlocked: true, browserIncluded: false,
   },
@@ -193,6 +214,7 @@ const evidence = {
     datasetSha256: selection.kBrowseComp.datasetSha256,
     selectedIndexes: selection.kBrowseComp.samples.map((sample) => sample.index),
   },
+  repeatCount,
   results: publicResults,
   executionComplete: publicResults.every((model) => model.kBrowseComp.every((result) => result.runStatus === 'completed'
     && !result.contaminatedObservation) && model.shape.every((result) => result.runStatus === 'completed')),
