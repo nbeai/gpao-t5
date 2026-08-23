@@ -1,0 +1,47 @@
+{
+  "schema": "t5.w9-web-variance-probes.v1",
+  "sealedAt": "2026-08-23T14:58:38.000Z",
+  "purpose": "Separate fixed-query provider variance from model query planning and final evidence choice. These probes are evaluation inputs, not product routing rules.",
+  "repeats": 3,
+  "tasks": [
+    {
+      "id": "kbc-62-person",
+      "source": {"suite":"K-BrowseComp verified","index":62,"problemSha256":"cb880135016fb594c9a50406d44b94b8cf6303f9ca97c51aee364daff46b977d"},
+      "currentPublicFactAnswer": "남영준",
+      "queries": [
+        "중앙대학교 문헌정보학과 명예교수 한국도서관협회 회장",
+        "한국도서관협회 역대 회장 중앙대학교 교수",
+        "YTN 중앙대 교수 4차 산업혁명 미래 교육 인터뷰",
+        "문화체육관광부 한국도서관협회 법인설립허가 1956"
+      ]
+    },
+    {
+      "id": "kbc-29-stock-change",
+      "source": {"suite":"K-BrowseComp verified","index":29,"problemSha256":"752064130f123b4b6a8247537232724af59559b87541ac2f1326d41b54855293"},
+      "currentPublicFactAnswer": "38.8%",
+      "queries": [
+        "2026년 1분기 영업이익 전년 대비 755% 국내 기업",
+        "삼성전자 2026년 4월 12일 목표주가 증권사 순위",
+        "IBK투자증권 모회사",
+        "삼성전자 2026년 1월 2일 4월 2일 종가"
+      ]
+    },
+    {
+      "id": "minimum-wage-2022-2026",
+      "source": {"suite":"T5 closed-set public policy","promptSha256":"df56fc83815bfa5329cdd43265de824a2df7de4b68da275b37bc0ce00449808b"},
+      "queries": [
+        "site:minimumwage.go.kr 연도별 최저임금 결정현황 2022 2026",
+        "site:moel.go.kr 2026 최저임금 10320 월 209시간"
+      ]
+    },
+    {
+      "id": "bok-rate-changes-2024-2025",
+      "source": {"suite":"T5 closed-set public policy","promptSha256":"c90414ef8dd5c0f96d5286655820a146c23c900eafe25439e4c5a87e65f2f547"},
+      "queries": [
+        "site:bok.or.kr 한국은행 기준금리 추이 2024 2025",
+        "site:bok.or.kr 통화정책방향 2024 10월 11월 기준금리",
+        "site:bok.or.kr 통화정책방향 2025 2월 5월 기준금리"
+      ]
+    }
+  ]
+}
