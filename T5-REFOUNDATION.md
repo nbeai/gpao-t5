@@ -58,11 +58,14 @@ P0를 닫았다. 이어 “더 상세하게”에서 첫 답을 정정한 사실
 - 근거: `refoundation/evidence/p0-public-web-completion-2026-08-24.json`,
   `refoundation/evidence/p0-human-completion-2026-08-24.json`.
 
-0.1.8 source version·installer metadata·package 검사는 일치하도록 준비했다. 서명·공증·설치 패키지 생성과
-현재 `/Applications` 설치본 변경은 수행하지 않았다. 다음 오너 지시 “정식 설치패키지 만들어”가 오면 이
-깨끗한 검증선에서만 package를 만든다. 공식 Node arm64·x64 archive와 SHASUMS 검증, Application·Installer
-인증서/개인 키 짝, notary API history까지 비밀번호 없이 확인한 준비 근거는
-`refoundation/evidence/release-0.1.8-ready-2026-08-24.json`이다.
+0.1.8 source version·installer metadata·package 검사는 일치하도록 준비했고, 오너의 “정식 설치패키지 만들어”
+지시 뒤 clean commit `4e18530f`에서 정식 universal package를 생성했다. Application deep strict 서명과
+Installer trusted timestamp, Apple notary submission `a1bc3bd0-0189-4a53-b2f7-ed8ef4a6b1ca`의 `Accepted`,
+1,905-byte ticket trailer, stapler validation, Gatekeeper `Notarized Developer ID`, ticket 포함 package 재개방과
+packaged console health가 모두 통과했다. 최종 파일은 `dist/GPAO-T5-0.1.8-universal.pkg`, `156,894,597 bytes`,
+SHA-256 `9fe2506271e65412cf64449fa4121a5651aefec173dca17f1a0289547868bf50`이다. 현재 `/Applications`의 0.1.7과
+사용자 상태는 변경하지 않았다. 준비 근거는 `refoundation/evidence/release-0.1.8-ready-2026-08-24.json`,
+정식 package 근거는 `refoundation/evidence/release-0.1.8-closeout-2026-08-24.json`이다.
 
 ## P0-H2 — Web Foundation Recovery
 

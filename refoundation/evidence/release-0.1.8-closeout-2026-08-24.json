@@ -1,0 +1,56 @@
+{
+  "schema": "t5.release-closeout.v1",
+  "recordedAt": "2026-08-23T18:44:00Z",
+  "version": "0.1.8",
+  "sourceCommit": "4e18530ff2f80c27bca25116da1b9249fe28411d",
+  "sourceDirty": false,
+  "sourceScope": "packaged-inputs",
+  "package": {
+    "path": "dist/GPAO-T5-0.1.8-universal.pkg",
+    "bytes": 156894597,
+    "sha256": "9fe2506271e65412cf64449fa4121a5651aefec173dca17f1a0289547868bf50",
+    "architectures": [
+      "arm64",
+      "x86_64"
+    ],
+    "node": "v24.14.0",
+    "credentialsIncluded": false,
+    "userDataIncluded": false,
+    "testsIncluded": false,
+    "legacyRuntimeIncluded": false
+  },
+  "signing": {
+    "application": "Developer ID Application: Project Beai Co.,Ltd (5WC35NK3LA)",
+    "installer": "Developer ID Installer: Project Beai Co.,Ltd (5WC35NK3LA)",
+    "hardenedRuntime": true,
+    "trustedTimestamp": true,
+    "applicationDeepStrictVerified": true,
+    "packageSignatureVerified": true
+  },
+  "notarization": {
+    "submissionId": "a1bc3bd0-0189-4a53-b2f7-ed8ef4a6b1ca",
+    "status": "Accepted",
+    "ticketBytes": 1905,
+    "ticketTrailer": "t8lr-v1-type2",
+    "staplerValidation": true,
+    "gatekeeper": "Notarized Developer ID"
+  },
+  "verification": {
+    "expandedPayload": true,
+    "universalLauncher": true,
+    "arm64Runtime": true,
+    "x64Runtime": true,
+    "documentCli": true,
+    "agentBrowser": true,
+    "packagedConsoleHealth": true,
+    "localConsoleIdentityGuard": true,
+    "privateKeyScan": true,
+    "finalTicketedPackageReopened": true
+  },
+  "installation": {
+    "performed": false,
+    "currentInstalledVersion": "0.1.7",
+    "userStateChanged": false
+  },
+  "passed": true
+}
