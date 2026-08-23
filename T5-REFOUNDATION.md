@@ -1912,9 +1912,243 @@ Non-goals:
 임의 CLI를 찾아 복구하는 경우까지 T5의 안정된 문서 능력으로 세지 않았다. 사용자 과업 종단과 후보 성능은
 같은 corpus의 baseline/candidate 모델 Run으로 별도 비교해야 한다.
 
-다음 한 작업: 기능을 동시에 넓히지 않고, 가장 큰 한국 사용자 gap을 함께 덮는 Kordoc 후보를 exact version·
-digest·license·크기·플랫폼·보안 경계로 먼저 자격화한다. 같은 HWP 3/5·HWPX·XLS·DOCX·PDF 과업을 현재 T5와
-후보 T5에 실행해 내용·표·출처·경고·속도·설치 부담을 비교한 뒤 채택·폐기·분해를 결정한다.
+다음 한 작업: 오너가 제공한 tester audit에서 D1과 같은 다중 견적·정산 과업이 모델 답으로는 성공했으나
+기계 검산은 실패한 상충 증거가 생겼다. Kordoc을 붙이기 전에 해당 Run·Receipt·prompt dump·결과 파일을
+찾아 같은 실패를 재현하고, 정본의 D1 성공 증거와 실행 환경·모델 입력·판정기의 무엇이 달랐는지 확정한다.
+tester audit의 산문은 triage 입력이며 재현 전 완료·실패 증거로 승격하지 않는다.
+
+## D3~W9 — Vertical Capability Hardening Plan
+
+상태: `OWNER_PLANNED · D3-T0 NEXT` — 기능 수를 늘리는 계획이 아니라, 현재 파일손·웹손이 지저분한 현실을
+정확히 읽고 실제 결과까지 끝내는 깊이를 높이는 개발선이다. 아래 순서는 목록 우선순위가 아니라 앞 Gate의
+실제 증거가 다음 Gate를 여는 의존 순서다. 한 번에 하나만 `IN_PROGRESS`로 둔다.
+
+공통 사용자 약속:
+
+> 사용자가 평소 말로 복잡한 일을 맡기면 T5가 정확한 대상을 찾아 필요한 만큼 읽고, 실제로 실행한 뒤
+> 결과를 다시 읽어 원래 목적과 대조하며, 본 것·못 본 것·끝낸 것·남은 것을 사실대로 말한다.
+
+### D3-T0 — Result Truth Reconciliation · P0
+
+목적: 입력 이해가 맞아도 결과 Excel·PDF와 최종 답이 갈린 실제 false-completion 가족을 먼저 확정한다.
+
+선행 triage:
+
+- 다중 견적·정산: 모델은 5건·68,300원·출처 재검산 완료를 주장했으나 기계 검산은 행·고객 의미·미지정
+  배송비·출처·합계를 모두 실패로 판정
+- 고객용 PDF: 파일·1페이지는 생성됐으나 렌더에서 한글 대부분이 보이지 않고 추출 본문도 43자뿐인데
+  본문 포함 완료를 주장
+- D1 정본에는 같은 3문서 과업의 논리곱 18/18 성공 증거가 있어 현재 truth가 충돌함
+
+먼저 할 일:
+
+1. audit에 대응하는 실제 Run·Receipt·prompt dump·결과 artifact와 판정 입력을 찾는다.
+2. 찾지 못하면 같은 redacted/synthetic 자료와 사용자 문장으로 실패 원본을 새로 만든다.
+3. D1 성공 Run과 실패 Run의 모델 입력·도구 결과·결과 bytes·재개방 관측·판정기를 한 축씩 대조한다.
+4. 원인이 확정되기 전 parser·prompt·verifier를 고치지 않는다.
+
+통과 조건:
+
+- 같은 목적의 성공/실패 차이를 설명하는 실제 원인 하나 이상 확정
+- 결과 파일에서 실제 행·값·수식·출처 또는 렌더 본문을 제거하면 검사가 반드시 실패
+- gpt-5.6-terra·gpt-5.5와 표현 변형에서 근거 없는 완료 `0`
+- 요청·모델 주장·도구 실행·파일 현실·사용자 목적 달성을 별도 evidence로 보존
+
+Non-goals: Kordoc 채택, 범용 OCR, 모든 결과물 verifier, 모델 답의 사후 문구 교정.
+
+### D3-T1 — Minimal Observation & Verification Contract · conditional
+
+D3-T0과 뒤의 실제 결함이 같은 관측 결손을 두 번 이상 가리킬 때만 연다. `Observer·Projector·Verifier`라는
+새 거대 계층부터 만들지 않고 기존 파일·웹·브라우저·프로세스 손의 결과에 필요한 최소 사실만 맞춘다.
+
+후보 공통 사실:
+
+- identity: exact 대상·버전·hash·tab/frame/session·artifact family/version
+- structure: 페이지·시트·영역·병합·숨김·수식·form·modal·process exit
+- representation: structure 관측과 실제 render/screen 관측을 구분
+- coverage: total·shown·omitted·truncated·missing과 관측 시각
+- provenance: 파일·시트·셀·페이지·URL·화면 ref·Receipt
+- continuation: 필요한 부분만 다시 읽을 bounded handle
+- verification: 요청 결과·실제 결과·원본 사이에서 기계적으로 확인한 사실과 미확인
+
+경계:
+
+- 런타임은 `B4가 빈칸`과 위치를 공급하고 `담당자 미확인`의 업무 의미는 모델이 판단
+- 모델의 완료 주장을 boolean validator가 대신 쓰지 않으며 최종 답 저작권은 모델에 유지
+- 모든 손을 한 schema로 강제하지 않고 공통 header와 modality별 payload를 우선 검토
+
+통과 조건: 결손을 제거하면 실제 반대시험이 빨개지고, 전체 prompt 크기·모델 왕복·wall time이 불필요하게
+늘지 않으며, 기존 Receipt와 상태를 중복하는 새 원장을 만들지 않음.
+
+### D4 — Text & Tabular Encoding Depth
+
+목적: 새 대형 dependency 없이 한국 현장에서 흔한 UTF-16LE·CP949/EUC-KR text/CSV와 UTF-8 CSV의 표 구조를
+읽는다.
+
+최소 범위:
+
+- BOM·strict decode·replacement/round-trip 근거와 원래 encoding 보존
+- 모호한 무BOM byte는 추측 성공으로 승격하지 않고 후보와 불확실성 반환
+- CSV delimiter·quote·CRLF·빈 셀·행/열 수·전체/생략 범위 관측
+- 원본 bytes/hash는 그대로 두고 모델에는 bounded normalized text/table 공급
+
+통과 조건: D2의 UTF-16LE·CP949·UTF-8 CSV 3건과 반대 인코딩·깨진 byte가 통과하고, 잘못된 한글·숫자·열
+이동 `0`; 새로운 binary package가 필요하면 이 Gate에서 중단하고 후보 비교로 전환.
+
+### D5 — Korean & Legacy Document Candidate Qualification
+
+목적: Kordoc을 제품에 넣기 전에 현재 T5와 같은 corpus·사용자 목적에서 독립 자격화한다.
+
+후보 고정:
+
+- exact package version·source commit·artifact digest·license·설치 bytes·optional dependency
+- HWP 3/5·HWPX·BIFF8 XLS·DOCX·PDF만 먼저 평가; 후보가 지원하지 않는 DOC·PPT·ODT·ODS를 이름 때문에
+  동시에 해결하려 하지 않음
+- 공개 README의 자체 corpus 수치는 참고만 하고 T5의 고정 fixture·redacted tester counterexample로 재측정
+
+비교 항목:
+
+- exact format·암호화·손상·macro/OLE/external object 경계
+- 고정 본문 anchor·표 행/열/병합·각주·이미지·페이지·source coordinate
+- 부분 파싱 경고와 본/못 본 범위
+- cold/warm wall time·peak memory·설치/download bytes·model turns·tokens
+- macOS/POSIX 실제 실행; Windows는 실기기 전 완료 주장 금지
+
+통과 뒤 처분은 셋 중 하나뿐이다.
+
+1. `adopt`: managed capability로 exact revision을 준비·제거·복원 가능하게 연결
+2. `split`: 이긴 형식/관측기만 좁게 채택
+3. `reject`: 현재 손보다 못하거나 비용·안전 경계가 맞지 않으면 폐기
+
+### D6 — Structural + Visual Document Reading
+
+목적: 셀·텍스트를 읽는 것과 사람이 보는 문서를 읽는 것의 차이를 닫는다.
+
+실제 과업:
+
+- 28개 병합 영역을 가진 redacted 견적서: 고객·행사·요청·메뉴·수량·단가·금액 결속
+- 24시트 구형 레시피: 한 행에 나란한 재료를 수량·단위로 오인하지 않고 원본표현 보존
+- source sheet/cell/page가 실제 원본과 일치하고 정규화한 표기는 변환 사실을 남김
+
+관측 사다리:
+
+```text
+파일·시트·사용영역·병합·수식 요약
+→ 의미 영역 후보
+→ 필요한 셀·라벨·수식
+→ 구조 충돌·복잡한 병합일 때만 render
+→ 구조와 화면을 모델이 함께 해석
+```
+
+통과 조건: 셀만 보는 반대군보다 사용자 목적 정확도가 실제로 높고, 모든 단순 XLSX에 render를 강제하지
+않으며, 잘못된 source coordinate·조용한 표기 변경·가로 20열 같은 사용 불가 결과 `0`.
+
+### D7 — Deliverable Truth
+
+목적: 모델이 이해한 사실이 실제 Excel·PDF·Word 결과와 같고 사람이 읽을 수 있을 때만 완료한다.
+
+검증 순환:
+
+```text
+원본 관측 → 모델의 의미 정규화 → 결과 생성
+→ 구조 재개방 → 원본과 행·값·수식·출처 대조
+→ 사람이 받을 결과면 render/visual 관측
+→ 미달이면 수정 또는 부분 실패 → 모델 최종 답
+```
+
+필수 counterexample:
+
+- 3문서 통합 5건·68,300원·고객별 40,300/25,000/3,000·행별 source
+- 한국어 고객 PDF: font 포함, 페이지 render에서 본문 가시, 추출 본문과 요청 핵심 anchor 일치
+- 결과 셀·PDF glyph·source를 제거한 반대시험에서 완료 불가
+- 근무시간 계산과 브랜드 Excel 성공 사례는 무회귀 positive control
+
+Non-goals: 모든 문서의 pixel-identical 렌더, 회계·노무 의미 규칙 엔진, 수신자에게 실제 전송.
+
+### W7 — Business Browser & Artifact Continuity
+
+목적: 로그인 업무와 다운로드→다음 턴→업로드→재시작을 같은 exact 대상·artifact identity로 이어간다.
+
+순서:
+
+1. loopback fixture에서 login identity·주문/예약/문의 exact 대상·download artifact·upload hash·재시작 복원
+2. 직전 download path가 `null`이 되는 tester 실패와 Browser 대신 exec로 우회한 원인 재현
+3. 실제 계정은 오너가 준비한 Naver/Smart Store 또는 Cafe24 한 표면만 별도 qualification
+4. 공식 Connector가 Browser보다 안정적인지는 실제 API 권한·coverage·속도로 비교한 뒤 결정
+
+통과 조건: 비밀값 모델 관측 0, 잘못된 고객/주문 선택 0, download/upload hash 일치, 외부 write 불명확
+재시도 0, 재시작 뒤 목적·로그인·artifact 현재 상태 일치. 실계정 없이 Smart Store 가능 주장 금지.
+
+### W8 — Korean Web Work Baseline
+
+목적: 검색 가능 여부가 아니라 한국 사용자의 조사 목적을 빠짐없이 끝내는 현재 Web Hand 성능을 고정한다.
+
+고정하기 전에 답을 보지 않고 대표 표본을 선정한다.
+
+- K-BrowseComp: 한국 웹 multi-hop·parallel evidence의 bounded verified subset
+- Ko-WideSearch: 폐쇄 집합의 item·column·row completeness bounded subset
+- 현재 positive control: 공개 브랜드 3개 콘텐츠·중복 URL 0·출처/날짜/조사범위 Excel
+- 한국 실무: 업체·장소, 공고·공공데이터, 가격/정책 비교처럼 비로그인 공개 과업
+
+평가: final purpose, fact precision, item/row completeness, source authority/freshness, coverage honesty, duplicate,
+wall time, model turns, tool calls, tokens. 출처 수와 검색 횟수는 성공 지표가 아니다.
+
+### W9 — Adaptive Korean Web Observation
+
+목적: 한국 사이트별 selector를 쌓지 않고 현재 읽기 사다리의 정확도와 속도를 높인다.
+
+```text
+공식 API·구조화 사실
+→ web_search/web_research 발견
+→ exact URL web_read
+→ dynamic·login·block 경계 뒤 DOM/접근성 Browser
+→ DOM에 필수 사실이 없을 때만 visual/full 1회
+→ 행동 뒤 변경된 화면·network·외부 효과 재관측
+```
+
+- Naver Search/DataLab·Kakao Local·공공데이터 등 공식 표면은 후보 자료이며 vendor 이름 정규식 라우터로
+  만들지 않음
+- K-BrowseComp/Ko-WideSearch 기준선보다 목적 정확도·completeness가 오르고 무의미한 broad search·full
+  snapshot·로그인 handoff가 줄어야 채택
+
+### Field Release Gate
+
+D3~W9의 내부 검사가 아니라 tester의 실제 시작점에서 다음이 성립할 때 해당 영역을 연다.
+
+- 사용자가 도구·형식·내부 경로를 설명하지 않고 평소 말로 시작
+- 진행 중→성공/부분 실패→현재 적용 상태를 이해
+- 결과 파일을 실제 앱에서 열고 핵심 값·가독성·출처를 확인
+- 같은 목적의 표현 변형과 두 모델에서 false completion 0
+- 설치본·재시작·다음 대화에서도 같은 지원 경계
+
+Automation·대량 Connector·Multi-agent는 위 수동 단일 과업이 안정된 뒤 실제 반복 수요가 증명한 경우만 연다.
+
+### 공통 성능 원장
+
+모든 Gate는 변경 전 baseline을 먼저 고정하고 다음을 같은 단위로 남긴다.
+
+| 축 | 기록할 사실 |
+| --- | --- |
+| 목적 | 완전 달성·부분 달성·실패와 미달 항목 |
+| 진실성 | false completion, 본/못 본 범위, 요청·실행·효과 분리 |
+| 정확성 | identity·값·행·표·페이지·source·render anchor |
+| 효율 | wall time·model turns·tool calls·tokens·중복 관측 |
+| 준비 부담 | download/install bytes·cold/warm·memory·재사용·제거/복원 |
+| 사용자 부담 | 질문·승인·로그인 handoff·수동 교정 |
+| 운영 | restart·모델 전환·플랫폼·외부 효과 불명확·복구 |
+
+기본 모델 비교는 현재 연결된 `gpt-5.6-terra`와 `gpt-5.5`로 하되, 모델 차이를 런타임 성공으로 꾸미지
+않는다. 후보 비교는 동일 목적·동일 corpus·동일 모델·동일 판정기를 사용한다.
+
+### 이 개발선의 중단선
+
+- 같은 결함 가족에 세 번째 국소 패치를 붙이려 함
+- 범용 `Observation Kernel` 타입·저장소부터 만들고 실제 실패가 소비하지 않음
+- 포맷·vendor·사이트 이름 정규식으로 모델의 의미 판단을 대체함
+- README의 지원 목록·추출 문자 수·도구 성공을 사용자 목적 완료로 승격함
+- 모든 PDF에 OCR, 모든 Excel에 render, 모든 웹에 Browser/full snapshot을 기본 적용함
+- 후보 설치를 product support로 기록하고 remove·restore·플랫폼·보안 경계를 측정하지 않음
+- 단위 검사는 통과하지만 실제 모델 과업이나 결과 앱 재개방이 실패함
 
 ## R8-A1 — Unified Attachment Hand · First Complete
 
@@ -2726,8 +2960,11 @@ P2 Automation soak·Memory/Skill 가치 측정도 닫았으며, 반복 결함 �
 
 오너가 연 문서 수직 고도화에서 R7-D2 기준선 17건을 완료했고 사용자 목표 준비는 `3/17`이었다. UTF-16LE·
 CP949, 구형 XLS/DOC/PPT, HWP 3/5/HWPX, DOCX/PPTX 내용, ODT/ODS, OCR 완료가 실제 공통 미달로 확정됐다.
-다음 한 작업은 새 형식을 각각 구현하는 것이 아니라 Kordoc 한 후보를 같은 corpus·사용자 과업에서 독립
-자격화해 현재 T5보다 실제로 나은 범위와 비용을 확정하는 것이다. 후보가 이기기 전 제품 코어에는 넣지 않는다.
+tester audit에서 D1과 같은 다중 견적·정산 목적의 모델 완료 주장과 기계 검산 실패가 새 P0 상충 증거로
+제공됐다. 따라서 다음 한 작업은 `D3-T0 Result Truth Reconciliation`이다. 대응 Run·Receipt·prompt dump·
+결과 파일을 찾아 D1 성공 증거와 차이를 확정하고, 찾지 못하면 같은 redacted/synthetic 과업으로 실패 원본을
+재현한다. 원인 확정 전 Kordoc·OCR·새 verifier를 제품에 넣지 않는다. 이후 순서는 D3-T1 conditional → D4 →
+D5 → D6 → D7 → W7 → W8 → W9이며, 앞 Gate의 실제 증거가 필요성을 유지할 때만 다음을 연다.
 
 U4의 I0 밖 나머지는 정본 순서상 아직 열리지 않았다. 다음 개발은 기능 목록에서 자동으로 고르지 않는다.
 실제 콘솔 사용에서
