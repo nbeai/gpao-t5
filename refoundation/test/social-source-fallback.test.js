@@ -77,7 +77,9 @@ test('공개 페이지 정적 읽기가 막히면 같은 Run에서 기존 브라
         assert.ok(input.tools.some((tool) => tool.name === 'web_read'));
         assert.ok(!input.tools.some((tool) => tool.name === 'browser'));
         return { text: '', toolCalls: [{
-        id: 'read-social-static', name: 'web_read', args: { url: postUrl, maxChars: 12_000 },
+        id: 'read-social-static', name: 'web_read', args: {
+          url: postUrl, maxChars: 12_000, visibleBrowser: 'user_interaction',
+        },
       }] };
       }
       const receipt = JSON.parse(input.messages.at(-1).content);

@@ -4,8 +4,8 @@ export function makeAutomationTool({ store, scheduler, sessionId, authorizeEffec
   if (!store || !scheduler || !sessionId) throw new TypeError('automation tool inputs are required');
   return {
     name: 'automation',
-    searchTerms: ['schedule recurring daily weekly monthly future cron reminder', '예약 반복 매일 매주 매월 나중 알림'],
-    description: 'Create, inspect, pause, resume, cancel, or run a durable scheduled task. Use this when the user asks for a future, repeated, daily, weekly, monthly, or timed action. Store the user goal as a normal prompt; every scheduled Run re-evaluates current tools and authority, so old approvals are never reused. list and inspect are read-only. Creating or changing a schedule is a reversible T5-local change, not system crontab.',
+    searchTerms: ['schedule recurring daily weekly monthly future task cancel schedule', '예약 반복 매일 매주 매월 나중 작업 예약 취소'],
+    description: 'Create, inspect, pause, resume, cancel, or run a durable scheduled T5 task. This schedules a future T5 model Run only: it does not create or prove a macOS, Windows, phone, calendar, email, messenger, or other notification by itself. Do not use it for an ambiguous “remind/tell me” request until the user’s delivery surface is known. When the user explicitly asks for an operating-system notification, use the operating system through exec and verify that exact notification schedule instead of this tool. Store an actual T5 agent goal as a normal prompt; every scheduled Run re-evaluates current tools and authority, so old approvals are never reused. list and inspect are read-only. Creating or changing a schedule is a reversible T5-local change, not system crontab.',
     parameters: { type: 'object', additionalProperties: false, properties: {
       action: { type: 'string', enum: ['list', 'inspect', 'create', 'pause', 'resume', 'cancel', 'run_now'] },
       jobId: { type: ['string', 'null'] }, name: { type: ['string', 'null'] }, prompt: { type: ['string', 'null'] },

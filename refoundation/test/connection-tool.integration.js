@@ -130,7 +130,7 @@ test('연결 진실의 준비된 브라우저 경로는 기존 로그인 handoff
         assert.equal(connection.routes[0].kind, 'browser');
         assert.equal(input.tools.some((tool) => tool.name === 'browser'), false);
         return { text: '', toolCalls: [{ id: 'read-google-login-boundary', name: 'web_read', args: {
-          url: connection.routes[0].startUrl, maxChars: 20_000,
+          url: connection.routes[0].startUrl, maxChars: 20_000, visibleBrowser: 'user_interaction',
         } }] };
       }
       if (turn === 3) {

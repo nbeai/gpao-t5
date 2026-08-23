@@ -215,6 +215,15 @@ export function commonHumanChecks(turns) {
   };
 }
 
+function cateringWithinCap(answer) {
+  const text = String(answer ?? '').replaceAll(',', '');
+  const amounts = [...text.matchAll(/(?:음식(?:·음료)?|케이터링)[^\d]{0,24}(\d+(?:\.\d+)?)\s*만\s*원/gu)]
+    .map((match) => Number(match[1])).filter(Number.isFinite);
+  return amounts.some((amount) => amount > 0 && amount <= 84)
+    && /28\s*명/u.test(text)
+    && /(?:1인당|28\s*명\s*[×÷]|[×÷]\s*28\s*명)/u.test(text);
+}
+
 export function assessHumanScenario({ definition, turns, fixture, observations }) {
   const common = commonHumanChecks(turns);
   let checks;
@@ -225,10 +234,11 @@ export function assessHumanScenario({ definition, turns, fixture, observations }
       ...common,
       initialAnswerDensity: answer(1).length <= 2_500 && answer(2).length <= 2_500,
       correctedAttendees: /28|스물여덟/u.test(answer(3)) && !/35명으로/u.test(final),
-      cateringMath: /84\s*만|840[,.]?000/u.test(answer(5)),
+      cateringMath: cateringWithinCap(answer(5)),
       temporaryTable: /\|/u.test(answer(11)) && !/^\s*\|/u.test(answer(12)),
       correctedResponsibility: /입장/u.test(answer(16)) && !/전체 현장 운영을 맡/u.test(answer(16)),
-      separatedState: /정해|확정/u.test(answer(17)) && /미정|안 정/u.test(answer(17)),
+      separatedState: /정해|확정/u.test(answer(17))
+        && /미정|안 정|아직\s*정해지지/u.test(answer(17)),
       urgentThreeLines: final.split('\n').filter((line) => line.trim()).length <= 4,
       noComputerTools: turns.every((turn) => turn.computerToolCalls === 0),
     };
@@ -264,7 +274,9 @@ export function assessHumanScenario({ definition, turns, fixture, observations }
       reminderCreated: observations[3].notificationConfigured,
       conciseWhenAsked: answer(5).split(/(?<=[.!?])\s+/u).filter(Boolean).length <= 2,
       reminderCancelled: !observations[7].notificationConfigured,
-      recalledCancelledWork: /알림|스트레칭/u.test(answer(10)) && /취소|없/u.test(answer(10)),
+      recalledCancelledWork: /스트레칭/u.test(answer(10))
+        && /(?:오후\s*)?(?:4|네)\s*시/u.test(answer(10))
+        && /취소/u.test(answer(10)),
       didNotRecreate: !observations.at(-1).notificationConfigured,
       keptOnlyUsefulMemory: finalMemory.some((item) => (
         /커피|샷|coffee|espresso|extra\s+shot/iu.test(item.content)

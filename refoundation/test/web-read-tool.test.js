@@ -65,6 +65,22 @@ test('web_read는 redirect 원주소와 최종주소를 모두 남기고 최종 
   assert.equal(result.content.truncated, false);
 });
 
+test('web_read는 최신성 검증에 필요한 기사 발행·수정 시각의 실제 metadata를 보존한다', async () => {
+  const tool = makeWebReadTool({
+    resolveHost: async () => ['93.184.216.34'],
+    fetchImpl: async () => new Response(`<html><head><title>오늘 기사</title>
+      <script type="application/ld+json">{"@type":"NewsArticle","datePublished":"2026-08-24T08:30:00+09:00","dateModified":"2026-08-24T09:10:00+09:00"}</script>
+      </head><body><article><h1>오늘 기사</h1><p>${'실제로 읽은 최신 기사 본문입니다. '.repeat(20)}</p></article></body></html>`, {
+      status: 200, headers: { 'content-type': 'text/html; charset=utf-8' },
+    }),
+  });
+  const result = await tool.execute({ url: 'https://example.com/news', maxChars: 5_000 });
+  assert.equal(result.state, 'read');
+  assert.equal(result.source.publishedAt, '2026-08-24T08:30:00+09:00');
+  assert.equal(result.source.modifiedAt, '2026-08-24T09:10:00+09:00');
+  assert.equal(result.source.dateSource, 'json_ld');
+});
+
 test('web_read는 resolver가 밝힌 읽기 좋은 주소를 쓰되 원주소와 전략을 보존한다', async () => {
   const seen = [];
   const tool = makeWebReadTool({
@@ -116,7 +132,16 @@ test('web_read는 로그인벽과 동적 껍데기를 읽기 성공으로 꾸미
     const result = await tool.execute({ url: 'https://example.com/account', maxChars: 10_000 });
     assert.equal(result.state, 'login_required');
     assert.equal(result.content, null);
-    assert.deepEqual(result.activatedTools, ['browser']);
+    assert.equal(result.activatedTools, undefined);
+    assert.deepEqual(result.visibleBrowser, {
+      mode: 'never', activated: false,
+      reason: 'visible_browser_not_requested_for_this_user_task',
+    });
+    const interactive = await tool.execute({
+      url: 'https://example.com/account', maxChars: 10_000, visibleBrowser: 'user_interaction',
+    });
+    assert.deepEqual(interactive.activatedTools, ['browser']);
+    assert.deepEqual(interactive.visibleBrowser, { mode: 'user_interaction', activated: true });
   });
 
   await t.test('자바스크립트 껍데기', async () => {
@@ -130,7 +155,13 @@ test('web_read는 로그인벽과 동적 껍데기를 읽기 성공으로 꾸미
     assert.equal(result.state, 'dynamic_required');
     assert.equal(result.content, null);
     assert.equal(result.capabilityBoundary.required, 'browser_render');
-    assert.deepEqual(result.activatedTools, ['browser']);
+    assert.equal(result.capabilityBoundary.available, false);
+    assert.equal(result.activatedTools, undefined);
+    const interactive = await tool.execute({
+      url: 'https://example.com/app', maxChars: 10_000, visibleBrowser: 'user_interaction',
+    });
+    assert.equal(interactive.capabilityBoundary.available, true);
+    assert.deepEqual(interactive.activatedTools, ['browser']);
   });
 
   await t.test('큰 동적 페이지에서 footer 일부만 읽힌 경우', async () => {
@@ -145,9 +176,16 @@ test('web_read는 로그인벽과 동적 껍데기를 읽기 성공으로 꾸미
     assert.match(result.content.text, /이용약관/);
     assert.equal(result.source.coverage.kind, 'partial_dynamic');
     assert.equal(result.source.coverage.browserMayRevealMore, true);
-    assert.deepEqual(result.activatedTools, ['browser']);
+    assert.equal(result.activatedTools, undefined);
     assert.deepEqual(result.capabilityBoundary, {
       required: 'browser_render', available: false, staticObservationExhausted: true,
+    });
+    const interactive = await tool.execute({
+      url: 'https://example.com/owner', maxChars: 10_000, visibleBrowser: 'user_interaction',
+    });
+    assert.deepEqual(interactive.activatedTools, ['browser']);
+    assert.deepEqual(interactive.capabilityBoundary, {
+      required: 'browser_render', available: true, staticObservationExhausted: true,
     });
   });
 });

@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `P0-H2 WEB FOUNDATION RECOVERY — COMPLETE` (다음 배포 개발선)
+현재 Gate: `P0-H3 HUMAN COMPLETION & VISIBLE BROWSER BOUNDARY — COMPLETE` (`0.1.8` 패키징 준비)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -19,10 +19,55 @@ legacy T5                 refoundation T5
 
 새 코어가 실제 사용자 과업에서 legacy와 비교군을 이긴 뒤 검증된 부품만 이식한다.
 
+## P0-H3 — Human Completion & Visible Browser Boundary
+
+상태: `COMPLETE` — 설치된 0.1.7에서 평범한 “오늘 러우 전쟁 관련 최신 뉴스 하나만 알려줘”가
+Reuters 401 뒤 관리 Chrome과 CAPTCHA를 눈앞에 열고, 읽지 못한 오래된 hub snippet을 최신 뉴스로 답한 실제
+P0를 닫았다. 이어 “더 상세하게”에서 첫 답을 정정한 사실로 후보 발견과 사용자 결과 완성을 분리했다.
+
+현재 계약:
+
+- 일반 뉴스·검색·조사·공개정보·이미지 발견은 가시 브라우저를 열지 않는다. `web_read`의
+  `visibleBrowser` 기본값은 `never`이며 HTTP block·login·dynamic 경계만으로 Browser를 공개하지 않는다.
+- 사용자가 로그인·업로드·다운로드·페이지 조작·live interface 열기를 실제로 요청한 경우에만 모델이
+  `visibleBrowser=user_interaction`을 선언하고, exact destination의 실제 경계 뒤 Browser를 연다.
+- “찾아봐·확인해봐·분석해봐·요약해줘”는 공개정보 결과 요청이지 가시 화면 조작 요청이 아니다.
+- 현재 시각·날짜·timezone은 매 Run의 비지속 runtime 현실로 공급한다. 최신 뉴스는 날짜를 포함한 두 focused
+  query의 bounded research 1회, 실제 읽힌 기사 본문과 발행 시각, 결과 설명과 원문 출처가 모두 있어야 한다.
+- 이미지·시각 참고자료는 링크 목록이 아니라 `visual_reference`의 실제 관리 preview 3~5개와 원문 출처를
+  대화에 바로 표시한다. 일반 이미지 발견의 Browser screenshot 우회는 폐기했다.
+- T5 자동화는 미래 T5 Run이고 운영체제 알림이 아니다. 전달 표면이 없는 “알려줘”는 한 번만 묻고,
+  운영체제 알림을 명시하면 현재 OS의 scheduler·notification을 실제 생성·재관측·취소한다.
+- 과거 대화 회상은 빈 Memory를 부재 증거로 쓰지 않고 canonical `session_search`를 사용한다. 실제 모델이
+  정확히 발견하고도 사용 전에 진행 문장으로 끝낸 반례 때문에 `visual_reference·session_search`는 기존
+  peripheral 기능을 늘리지 않고 기본 결과·문맥 손으로 승격했다.
+- 현재 첫 모델 호출은 `connection·memory·skill·exec·web_search·web_read·web_research·visual_reference·
+  attachment·session_search` 10개와 확장 발견용 `tool_search` 1개, 총 11개다. Browser는 계속 deferred다.
+
+실제 사용자 결과:
+
+- 같은 뉴스 한 문장: Terra 22.5초, gpt-5.5 21.5초, 각각 `web_research` 1회·최근 발행 기사·원문 출처,
+  가시 Browser 이동 `0`; 첫 답 뒤집힘·hub snippet 완료·원문 미확인 완료 `0`.
+- “한옥 카페 인테리어 참고 이미지 3개”: Terra 24.8초, gpt-5.5 22.3초, 두 모델 모두 관리 preview 3개와
+  서로 대응하는 원문 출처 3개를 첫 답에 표시, 가시 Browser 이동 `0`.
+- 격리 인간 여정 41턴: 행사 계획의 교정·계산·보류·형식 전환 18턴, 실제 파일 최신본·충돌·저장·재개방·
+  원본 보존·되돌리기 12턴, 전달 표면 질문·OS 알림 생성/확인/취소·새 대화 회상·유용한 Memory 11턴 모두 통과.
+- 새 코어 전체 회귀 `574/574`, legacy source import `0`.
+- 실제 package와 같은 `--omit=dev --omit=optional` 생산 의존성 audit는 취약점 `0`이다. 개발 설치의 kordoc
+  optional AI/OCR 전이 의존성에는 high advisory 5건이 보이지만 package build는 그 optional tree를 설치하지 않는다.
+- 근거: `refoundation/evidence/p0-public-web-completion-2026-08-24.json`,
+  `refoundation/evidence/p0-human-completion-2026-08-24.json`.
+
+0.1.8 source version·installer metadata·package 검사는 일치하도록 준비했다. 서명·공증·설치 패키지 생성과
+현재 `/Applications` 설치본 변경은 수행하지 않았다. 다음 오너 지시 “정식 설치패키지 만들어”가 오면 이
+깨끗한 검증선에서만 package를 만든다.
+
 ## P0-H2 — Web Foundation Recovery
 
 상태: `COMPLETE` — 8월 22일 adaptive tool 노출에서 `web_search·web_read`가 숨고 화면 조작만
 기본으로 올라가, 공개 Google 검색이 자동 트래픽 차단과 사용자 handoff로 끝난 실제 퇴보를 복구했다.
+아래의 “exact URL 경계 뒤 자동 Browser 공개”는 당시 복구 계약이며, 일반 공개정보까지 가시 Browser로
+올린 결함이 8월 24일 P0-H3에서 확인되어 현재 계약으로 대체됐다.
 
 복원 계약:
 
@@ -198,6 +243,10 @@ Gatekeeper `Notarized Developer ID`, 설치 앱 deep codesign을 통과했다. �
 찾은 뒤 exit 65를 내고 기존 0.1.3에도 같은 결과를 내는 로컬 경계로 남겼다. 근거는
 `refoundation/evidence/p0-browser-lifecycle-0.1.7-installed-2026-08-24.json`이다.
 
+0.1.7은 이후 평범한 공개 뉴스 조회에서 Reuters 401을 가시 Browser와 CAPTCHA로 자동 승격하고, 읽지 못한
+hub snippet을 최신 보도로 답한 P0가 실제 사용자 대화에서 확인돼 배포 적격을 철회했다. 서명·공증 사실은
+유효하지만 현재 제품 완료 근거가 아니며, P0-H3의 0.1.8 준비선이 이를 대체한다.
+
 사용자 완료 문장:
 
 > 일반 사용자가 0.1.1에서 성공했던 것처럼, 요청하면 눈앞에 열린 T5 브라우저에서 네이버에 로그인하고
@@ -276,9 +325,9 @@ Non-goals:
 - 모델 전환 첫 Run에 이전·현재 provider/model/wire와 canonical Conversation 보존 Receipt
 - U2 시점 기본 9개 Core schema만 공개하고 peripheral 도구는 `tool_search` 뒤 가장 관련 있는 하나와
   명시적 의존성만 다음 model turn에 공개; U3 당시 결과물 등록을 Human Experience로 승격해 10개가 됐음
-- P1 현재 첫 모델 호출은 `connection·memory·skill·exec·web_search·web_read·web_research·attachment` 8개와
-  확장 능력 발견용 `tool_search` 1개, 총 9개다. `skill`은 실제 snapshot, 세 Web Hand는 사용 가능한
-  provider가 있을 때 등록되며, Browser는 exact URL의 `web_read`가 경계를 관측한 뒤에만 열린다.
+- P0-H3 현재 첫 모델 호출은 기본 결과·문맥 손을 포함한 core 10개와 `tool_search` 1개, 총 11개다.
+  `skill`은 실제 snapshot, Web Hand는 사용 가능한 provider가 있을 때 등록되며, Browser는 사용자가 요청한
+  interaction-scoped `web_read`가 실제 경계를 관측한 뒤에만 열린다.
 - bounded 도구 자체는 같은 Run에서 다시 열지 않되, 자료 수를 사용자 목적 완료로 승격해 같은 능력군의
   기본 관측 손까지 닫지 않음
 - OpenAI API 검색이 없을 때 Naver→DuckDuckGo→Bing 공개 후보 경로, 공급자 실패는 같은 질의의 다음

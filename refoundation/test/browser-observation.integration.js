@@ -18,7 +18,9 @@ const browserBoundaryWebReadOptions = {
 function requestBrowserBoundary(input, url, id) {
   assert.ok(input.tools.some((tool) => tool.name === 'web_read'));
   assert.ok(!input.tools.some((tool) => tool.name === 'browser'));
-  return { text: '', toolCalls: [{ id, name: 'web_read', args: { url, maxChars: 20_000 } }] };
+  return { text: '', toolCalls: [{ id, name: 'web_read', args: {
+    url, maxChars: 20_000, visibleBrowser: 'user_interaction',
+  } }] };
 }
 
 function requireBrowserAfterBoundary(input) {

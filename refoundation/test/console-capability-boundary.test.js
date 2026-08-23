@@ -56,11 +56,13 @@ test('macOS 환경은 사용자에게 같은 파일명이 분해형일 수 있�
   assert.match(instructions, /visually identical.*different.*code points/i);
 });
 
-test('정확한 공개 페이지의 정적 관측이 막히면 기존 브라우저 손으로 한 번 전환하고 보이는 범위만 사용한다', () => {
+test('가시 브라우저는 사용자가 요청한 화면 상호작용 경계에서만 열리고 일반 읽기 실패로 열리지 않는다', () => {
   const instructions = consoleInstructions('/Users/example', {
     platform: 'darwin', architecture: 'arm64', commandFamily: 'posix', commandProgram: '/bin/zsh',
   });
-  assert.match(instructions, /exact public page.*blocked.*empty.*browser.*once/i);
+  assert.match(instructions, /visibleBrowser=user_interaction only when the user asked to operate.*log in.*upload\/download.*open\/show.*live interface/i);
+  assert.match(instructions, /ordinary news.*search.*research.*fact lookup.*source reading.*visibleBrowser=never.*must never open a visible browser/i);
+  assert.match(instructions, /exact URL.*selected search candidate.*provider block.*not by itself permission.*visible browser/i);
   assert.match(instructions, /visible.*subset.*not.*complete dataset/i);
   assert.match(instructions, /do not repeat.*same static request/i);
   assert.match(instructions, /public content.*already visible.*login banner.*do not require login/i);
@@ -100,11 +102,12 @@ test('일반 사용자 콘솔은 검색·URL 읽기를 바로 보이고 화면 �
   assert.match(coreBlock, /'web_search'/u);
   assert.match(coreBlock, /'web_read'/u);
   assert.match(coreBlock, /'web_research'/u);
+  assert.match(coreBlock, /'visual_reference'/u);
   assert.match(source, /T5 CURRENT BROWSER RUNTIME/u);
   assert.match(source, /historical assistant statement that a login window is open is not current evidence/iu);
   assert.doesNotMatch(coreBlock, /'browser'/u);
   assert.doesNotMatch(coreBlock, /'process_start'|'pty_start'|'process_control'/u);
-  assert.doesNotMatch(coreBlock, /'session_search'/u);
+  assert.match(coreBlock, /'session_search'/u);
   assert.match(source, /Do not use this tool to navigate search-engine result pages/u);
   assert.match(source, /searchable = deferredTools\.filter\(\(tool\) => tool\.deferred && tool\.name !== 'browser'\)/u);
 });
@@ -117,9 +120,15 @@ test('공개 정보 검색은 검색엔진 화면보다 검색→URL 읽기를 �
   assert.match(instructions, /confirm, inspect, analyze, or summarize.*snippets alone are not completion/i);
   assert.match(instructions, /refine the web search once.*read the best exact candidate/i);
   assert.match(instructions, /Google business or place profile.*Google Maps destination.*maps\/search\/\?api=1.*Do not use.*google\.com\/search/i);
-  assert.match(instructions, /Maps place destination.*exact service destination.*web_read receipt.*activates browser.*navigate that same Maps URL once/i);
-  assert.match(instructions, /Missing search candidates alone are not a browser boundary/i);
-  assert.match(instructions, /browser only.*page interaction.*login-bound.*dynamic.*static observation/i);
+  assert.match(instructions, /Google Maps destination.*visibleBrowser=never.*another public source.*do not open a visible browser.*explicitly asked/i);
+  assert.match(instructions, /missing search candidates.*not by itself permission.*visible browser/i);
+  assert.match(instructions, /browser only when the user asked for page interaction.*login-bound.*dynamic.*static observation/i);
+  assert.match(instructions, /current or latest news.*exactly two.*current local date.*sourceLimit 4/i);
+  assert.match(instructions, /search snippet.*topic hub.*observed publication date.*readable article body.*does not establish the latest news/i);
+  assert.match(instructions, /synthesized result first.*source links.*candidate list alone is not a completed/i);
+  assert.match(instructions, /remind me.*no delivery surface.*Ask one direct question.*operating-system notification.*use exec.*inspect the installed schedule/i);
+  assert.match(instructions, /T5 automation receipt is not proof of an OS notification.*cancel.*same turn.*verify absence/i);
+  assert.match(instructions, /previous conversation.*use session_search.*empty memory result is not evidence.*past event did not occur/i);
 });
 
 test('콘솔 종료는 관리 Chrome의 bounded close가 끝날 시간을 실제로 기다린다', async () => {

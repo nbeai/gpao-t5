@@ -1,0 +1,185 @@
+{
+  "schema": "t5.public-web-completion-qualification.v1",
+  "recordedAt": "2026-08-23T18:07:09.473Z",
+  "results": [
+    {
+      "modelId": "api_key:openai:gpt-5.6-terra",
+      "news": {
+        "prompt": "오늘 러우 전쟁 관련 최신 뉴스 하나만 알려줘",
+        "wallMs": 22463,
+        "httpStatus": 200,
+        "surfaceError": null,
+        "answer": "**젤렌스키 대통령은 우크라이나가 드니프로페트로우스크주의 대부분을 탈환했으며, 러시아가 점령한 면적은 약 10㎢만 남았다고 밝혔습니다.** 동시에 러시아의 탄도미사일 공격에 대응할 패트리엇 요격미사일이 부족하고, 서방 지원도 최근 수년간 줄었다고 말했습니다.  \n— 8월 23일 보도 기준, [AP 뉴스](https://apnews.com/article/russia-ukraine-war-zelenskyy-fedorov-15d84a5a1f52e376ffdf98082cdf9712)",
+        "score": {
+          "passed": true,
+          "checks": {
+            "completed": true,
+            "underThirtySeconds": true,
+            "visibleBrowserNavigations": true,
+            "oneBoundedResearch": true,
+            "readableSource": true,
+            "currentYearQuery": true,
+            "twoFocusedQueries": true,
+            "citesReadSource": true,
+            "citesRecentDatedSource": true,
+            "usefulFirstAnswer": true,
+            "noCandidateDisclaimer": true
+          },
+          "readableSources": [
+            {
+              "url": "https://apnews.com/article/russia-ukraine-war-zelenskyy-fedorov-15d84a5a1f52e376ffdf98082cdf9712",
+              "publishedAt": "2026-08-23T09:23:36Z",
+              "modifiedAt": "2026-08-23T16:16:25Z"
+            },
+            {
+              "url": "https://acleddata.com/update/ukraine-war-situation-update-1-7-august-2026",
+              "publishedAt": null,
+              "modifiedAt": null
+            },
+            {
+              "url": "https://www.channelnewsasia.com/topic/russia-ukraine-war",
+              "publishedAt": null,
+              "modifiedAt": null
+            },
+            {
+              "url": "https://www.aljazeera.com/news/2025/8/24/russia-ukraine-war-list-of-key-events-day-1277",
+              "publishedAt": "2025-08-24T01:57:57Z",
+              "modifiedAt": "2025-08-24T02:42:38Z"
+            }
+          ],
+          "queries": [
+            "Russia Ukraine war latest news August 24 2026",
+            "Ukraine Russia war developments August 24 2026"
+          ]
+        }
+      },
+      "images": {
+        "prompt": "한국적인 한옥 카페 인테리어 참고 이미지 3개 찾아서 바로 보여줘",
+        "wallMs": 24798,
+        "httpStatus": 200,
+        "surfaceError": null,
+        "answer": "한옥의 목재·기와·좌식 분위기를 참고하기 좋은 이미지 3개입니다.\n\n1. **한옥 카페 실내 분위기**\n   ![한옥 카페 인테리어]( /attachments/34f6ac67-b3d5-4b41-9ef3-07fc3366b231/content?sessionId=75df0d9f-1926-4a79-a7c0-78d961a8a597&inline=1 )\n   [원본 보기](https://www.lemon8-app.com/experience/hanok-cafe-seoul-interior?region=us)\n\n2. **전통 요소를 현대 카페에 적용한 사례**\n   ![서울 카페 인테리어]( /attachments/ba34f5c2-9ac2-481d-a2fa-067660e83799/content?sessionId=75df0d9f-1926-4a79-a7c0-78d961a8a597&inline=1 )\n   [원본 보기](https://www.seoultourism.org/seoul-cafe-guide/)\n\n3. **좌식 공간 중심의 한옥 찻집 스타일**\n   ![한옥 카페 좌식 인테리어]( /attachments/b576b868-cd50-47b4-b171-6d9f172bb1e2/content?sessionId=75df0d9f-1926-4a79-a7c0-78d961a8a597&inline=1 )\n   [원본 보기](https://mykoreanstory.com/korean-cafe-culture/)",
+        "score": {
+          "passed": true,
+          "checks": {
+            "completed": true,
+            "underThirtySeconds": true,
+            "visibleBrowserNavigations": true,
+            "previewedThree": true,
+            "embedsThreePreviews": true,
+            "citesThreeSources": true
+          },
+          "previews": [
+            {
+              "title": "Hanok Cafe Interiors | 2026 real user experience on Lemon8",
+              "sourceUrl": "https://www.lemon8-app.com/experience/hanok-cafe-seoul-interior?region=us",
+              "previewUrl": "/attachments/34f6ac67-b3d5-4b41-9ef3-07fc3366b231/content?sessionId=75df0d9f-1926-4a79-a7c0-78d961a8a597&inline=1"
+            },
+            {
+              "title": "Seoul Cafe Guide: Best Coffee Shops & Themed Cafes",
+              "sourceUrl": "https://www.seoultourism.org/seoul-cafe-guide/",
+              "previewUrl": "/attachments/ba34f5c2-9ac2-481d-a2fa-067660e83799/content?sessionId=75df0d9f-1926-4a79-a7c0-78d961a8a597&inline=1"
+            },
+            {
+              "title": "Korean Cafe Culture: Why It Feels So Different from Europe",
+              "sourceUrl": "https://mykoreanstory.com/korean-cafe-culture/",
+              "previewUrl": "/attachments/b576b868-cd50-47b4-b171-6d9f172bb1e2/content?sessionId=75df0d9f-1926-4a79-a7c0-78d961a8a597&inline=1"
+            }
+          ]
+        }
+      },
+      "serverErrors": [],
+      "passed": true
+    },
+    {
+      "modelId": "chatgpt_oauth:gpt-5.5",
+      "news": {
+        "prompt": "오늘 러우 전쟁 관련 최신 뉴스 하나만 알려줘",
+        "wallMs": 21501,
+        "httpStatus": 200,
+        "surfaceError": null,
+        "answer": "오늘 확인된 최신 보도 하나는 **젤렌스키 우크라이나 대통령이 해임된 국방장관 미하일로 페도로프와의 갈등, 방공 미사일 부족, 전황을 공개적으로 설명했다**는 AP 보도입니다.\n\n핵심은 이렇습니다.\n\n- 젤렌스키는 전시 중 선거 실시가 “국가를 갈라놓을 위험”이 크다고 말했습니다.\n- 우크라이나가 러시아 탄도미사일을 막는 데 필요한 **패트리엇 방공 미사일 부족**이 심해지고 있다고 밝혔습니다.\n- 동시에 우크라이나군이 **드니프로페트로우스크 지역을 거의 탈환했으며**, 러시아가 장악한 곳은 약 10㎢ 정도만 남았다고 주장했습니다.\n\n출처: AP, 2026-08-23 보도  \nhttps://apnews.com/article/russia-ukraine-war-zelenskyy-fedorov-15d84a5a1f52e376ffdf98082cdf9712",
+        "score": {
+          "passed": true,
+          "checks": {
+            "completed": true,
+            "underThirtySeconds": true,
+            "visibleBrowserNavigations": true,
+            "oneBoundedResearch": true,
+            "readableSource": true,
+            "currentYearQuery": true,
+            "twoFocusedQueries": true,
+            "citesReadSource": true,
+            "citesRecentDatedSource": true,
+            "usefulFirstAnswer": true,
+            "noCandidateDisclaimer": true
+          },
+          "readableSources": [
+            {
+              "url": "https://apnews.com/article/russia-ukraine-war-zelenskyy-fedorov-15d84a5a1f52e376ffdf98082cdf9712",
+              "publishedAt": "2026-08-23T09:23:36Z",
+              "modifiedAt": "2026-08-23T16:16:25Z"
+            },
+            {
+              "url": "https://openrss.org/www.reuters.com/world/ukraine-russia-war/",
+              "publishedAt": null,
+              "modifiedAt": null
+            },
+            {
+              "url": "https://www.channelnewsasia.com/topic/russia-ukraine-war",
+              "publishedAt": null,
+              "modifiedAt": null
+            },
+            {
+              "url": "https://en.wikipedia.org/wiki/Timeline_of_the_Russo-Ukrainian_war_%281_August_%E2%80%93_31_December_2024%29",
+              "publishedAt": "2024-08-01T13:15:25Z",
+              "modifiedAt": "2026-08-18T08:51:22Z"
+            }
+          ],
+          "queries": [
+            "2026-08-24 Russia Ukraine war latest news",
+            "2026-08-24 Ukraine Russia war latest Reuters"
+          ]
+        }
+      },
+      "images": {
+        "prompt": "한국적인 한옥 카페 인테리어 참고 이미지 3개 찾아서 바로 보여줘",
+        "wallMs": 22261,
+        "httpStatus": 200,
+        "surfaceError": null,
+        "answer": "아래 3개 바로 참고하면 돼요.\n\n### 1. 한옥 구조감이 강한 카페 인테리어  \n![한옥 인테리어 카페](/attachments/4fd01b74-c5fc-453b-a165-86c5a2a1ed8a/content?sessionId=24935762-20c5-4ee0-a361-3d81824e2438&inline=1)  \n출처: [필름메이커스 커뮤니티](https://www.filmmakers.co.kr/locationBank/4651420)\n\n### 2. 우드톤·로스터리 분위기 참고  \n![로스터리 인테리어 참고](/attachments/086c44c2-c271-40f1-a2b2-33e757563916/content?sessionId=24935762-20c5-4ee0-a361-3d81824e2438&inline=1)  \n출처: [큐플레이스](https://www.qplace.kr/photos?search=%EB%A1%9C%EC%8A%A4%ED%84%B0%EB%A6%AC)\n\n### 3. 전통 요소를 현대적으로 섞은 카페 분위기  \n![전통 감성 카페 인테리어](/attachments/d5d06f36-9de8-4045-bf3f-ed1c9b1f9754/content?sessionId=24935762-20c5-4ee0-a361-3d81824e2438&inline=1)  \n출처: [매일경제](https://www.mk.co.kr/news/business/8502085)",
+        "score": {
+          "passed": true,
+          "checks": {
+            "completed": true,
+            "underThirtySeconds": true,
+            "visibleBrowserNavigations": true,
+            "previewedThree": true,
+            "embedsThreePreviews": true,
+            "citesThreeSources": true
+          },
+          "previews": [
+            {
+              "title": "한옥 인테리어 카페(올림픽 공원역 부근) - 필름메이커스 커뮤니티",
+              "sourceUrl": "https://www.filmmakers.co.kr/locationBank/4651420",
+              "previewUrl": "/attachments/4fd01b74-c5fc-453b-a165-86c5a2a1ed8a/content?sessionId=24935762-20c5-4ee0-a361-3d81824e2438&inline=1"
+            },
+            {
+              "title": "매장 인테리어 사진 '로스터리' 검색 결과 | 큐플레이스",
+              "sourceUrl": "https://www.qplace.kr/photos?search=%EB%A1%9C%EC%8A%A4%ED%84%B0%EB%A6%AC",
+              "previewUrl": "/attachments/086c44c2-c271-40f1-a2b2-33e757563916/content?sessionId=24935762-20c5-4ee0-a361-3d81824e2438&inline=1"
+            },
+            {
+              "title": "\"인★갬성\" 요즘 뜨는 이색 인테리어 카페 가보니 - 매일경제",
+              "sourceUrl": "https://www.mk.co.kr/news/business/8502085",
+              "previewUrl": "/attachments/d5d06f36-9de8-4045-bf3f-ed1c9b1f9754/content?sessionId=24935762-20c5-4ee0-a361-3d81824e2438&inline=1"
+            }
+          ]
+        }
+      },
+      "serverErrors": [],
+      "passed": true
+    }
+  ],
+  "passed": true
+}

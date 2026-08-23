@@ -66,7 +66,7 @@ export function makeVisualReferenceTool({
       'visual references', 'design examples', 'reference images', 'browser screenshot',
       '시각 참고자료', '디자인 참고 이미지', '인스타그램 피드',
     ],
-    description: 'Find 3 to 5 visual or design references and return T5-managed preview images bound to verified source pages. It uses page preview metadata and parallel downloads first; use the browser only for missing references whose rendered layout is essential. A previewed or already_satisfied result means the visual-reference goal is complete: show those previews and do not call this tool again in the same Run. Do not use this for ordinary factual web research or image generation.',
+    description: 'Find 3 to 5 visual or design references and return T5-managed preview images bound to verified source pages. A previewed or already_satisfied result means the visual-reference goal is complete: embed those previewUrl images in the answer with source links and do not call another web or browser tool. If fewer previews are available, show only those and state the shortfall; do not open a visible browser for ordinary image discovery. Do not use this for ordinary factual web research or image generation.',
     parameters: {
       type: 'object', additionalProperties: false,
       properties: {

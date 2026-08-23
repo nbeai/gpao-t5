@@ -868,7 +868,7 @@ export function makeConsoleServer({
           browserTool.description = [
             browserTool.description,
             'Do not use this tool to navigate search-engine result pages or replace ordinary public web lookup.',
-            'Use it for explicit page interaction or an exact destination whose required content was shown by web_read to need rendered or login-bound observation.',
+            'Use it only after the user requested page interaction and an interaction-scoped web_read showed that exact destination needs rendered or login-bound observation.',
           ].join(' ');
           browserTool.relatedTools = ['web_read'];
           browserTool.capabilityGroup = 'web_observation';
@@ -985,6 +985,12 @@ export function makeConsoleServer({
         // Keep rendered-page interaction deferred until those lighter hands establish
         // that login, dynamic content, or an actual page interaction is required.
         'exec', 'web_search', 'web_read', 'web_research',
+        // 사용자가 이미지를 찾아 보여 달라고 했는데 링크나 진행 문장으로 끝나는 것은 결과가 아니다.
+        // 기존 visual_reference를 기본 Web Hand에 두어 관리 preview와 출처까지 한 Run에서 완성한다.
+        'visual_reference',
+        // 과거 대화 회상은 기억의 부가 기능이 아니라 지속적인 개인 조력자의 기본 문맥 손이다.
+        // 실제 모델이 tool_search로 정확히 발견하고도 사용 전 진행 문장으로 끝난 반례 때문에 기본에 둔다.
+        'session_search',
         // 결과물은 주변 기능이 아니라 대화와 같은 Human Experience다. 사용자가 파일·HTML·문서·표를
         // 요청한 뒤에야 tool_search로 찾게 하면, 실제 파일을 만들고도 경로만 말하는 회귀가 생긴다.
         'attachment',
@@ -1000,12 +1006,20 @@ export function makeConsoleServer({
         prerequisites: browserConfigured ? {
           browser: {
             tool: 'web_read',
-            condition: 'Read the exact destination URL first. Rendered-page interaction becomes available only when that receipt establishes a dynamic, login, or provider-blocked boundary.',
+            condition: 'The user must have requested visible page interaction. Read that exact destination with visibleBrowser=user_interaction first; ordinary lookup and source-reading failures never open a visible browser.',
           },
         } : {},
       }));
-      const agentRequest = browserRuntimeContext
-        ? `${modelRequest}\n\n${browserRuntimeContext}` : modelRequest;
+      const localNow = new Date();
+      const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const localTimeContext = [
+        '[T5 CURRENT LOCAL TIME — observed now, not conversation history]',
+        `iso=${localNow.toISOString()}`,
+        `local=${localNow.toLocaleString('sv-SE', { timeZone: localTimeZone })}`,
+        `timeZone=${localTimeZone}`,
+      ].join('\n');
+      const runtimeContexts = [localTimeContext, browserRuntimeContext].filter(Boolean).join('\n\n');
+      const agentRequest = `${modelRequest}\n\n${runtimeContexts}`;
       const result = await runAgent({
         request: agentRequest,
         requestAttachments: imageInputs,

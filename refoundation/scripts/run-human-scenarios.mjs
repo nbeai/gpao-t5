@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 
@@ -15,11 +15,14 @@ import {
 const keep = process.argv.includes('--keep');
 const scenarioIndex = process.argv.indexOf('--scenario');
 const scenarioId = scenarioIndex >= 0 ? process.argv[scenarioIndex + 1] : null;
+const evidenceIndex = process.argv.indexOf('--evidence');
+const evidencePath = evidenceIndex >= 0 ? resolve(process.argv[evidenceIndex + 1]) : null;
 const selectedScenarios = scenarioId
   ? HUMAN_SCENARIOS.filter((scenario) => scenario.id === scenarioId) : HUMAN_SCENARIOS;
 if (scenarioId && !selectedScenarios.length) throw new TypeError(`unknown --scenario: ${scenarioId}`);
 const connectionFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
+const modelStatus = await makeConsoleModelAccess({ connectionFile, stateDir: join(tmpdir(), 't5-r4-model-status') }).status();
 
 async function listen(server) {
   await new Promise((resolveListen, reject) => {
@@ -145,10 +148,12 @@ try {
 
 const evidence = {
   schema: 't5.r4-human-scenarios.v1', recordedAt: new Date().toISOString(),
-  model: 'gpt-5.5', actualUserData: false,
+  model: modelStatus.modelId, actualUserData: false,
   scenarioCount: results.length, naturalLanguageTurns: results.reduce((sum, row) => sum + row.turns, 0),
   results, passed: results.every((row) => row.passed),
 };
-console.log(JSON.stringify(evidence, null, 2));
+const serialized = `${JSON.stringify(evidence, null, 2)}\n`;
+if (evidencePath) await writeFile(evidencePath, serialized, { mode: 0o600 });
+console.log(serialized.trimEnd());
 if (!keep) await Promise.all(rooms.map((room) => rm(room, { recursive: true, force: true })));
 if (!evidence.passed) process.exitCode = 1;

@@ -84,7 +84,12 @@ export function makeStoredOpenAIWebSearchProvider({
         }],
         tool_choice: 'required',
         include: ['web_search_call.results', 'web_search_call.action.sources'],
-        input: `Search the public web for this exact query and consult useful candidate sources: ${query}`,
+        input: [
+          `Search the public web for this exact query: ${query}`,
+          'Return ranked source pages that directly answer the query.',
+          'For today/latest/current requests, prioritize genuinely recent dated articles or primary updates.',
+          'Do not rank topic hubs, category pages, search pages, generic indexes, or unrelated aggregators above a directly relevant dated source.',
+        ].join(' '),
         store: false,
       };
       let response;

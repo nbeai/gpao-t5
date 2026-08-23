@@ -247,12 +247,46 @@ function htmlFragmentText(value) {
   return compactText(document.body?.textContent ?? '');
 }
 
+function jsonLdDates(document) {
+  for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
+    let parsed;
+    try { parsed = JSON.parse(script.textContent ?? ''); } catch { continue; }
+    const queue = Array.isArray(parsed) ? [...parsed] : [parsed];
+    while (queue.length) {
+      const node = queue.shift();
+      if (!node || typeof node !== 'object') continue;
+      if (typeof node.datePublished === 'string') return {
+        publishedAt: node.datePublished,
+        modifiedAt: typeof node.dateModified === 'string' ? node.dateModified : null,
+        dateSource: 'json_ld',
+      };
+      for (const value of Object.values(node)) {
+        if (value && typeof value === 'object') queue.push(...(Array.isArray(value) ? value : [value]));
+      }
+    }
+  }
+  return { publishedAt: null, modifiedAt: null, dateSource: null };
+}
+
+function metaDate(document, selectors) {
+  return document.querySelector(selectors)?.getAttribute('content')?.trim() || null;
+}
+
 function htmlFacts(html, url) {
   const { document } = parseHTML(html);
   const title = compactText(document.querySelector('title')?.textContent ?? '');
   const canonicalRaw = document.querySelector('link[rel~="canonical"]')?.getAttribute('href');
   const previewRaw = document.querySelector('meta[property="og:image"], meta[name="twitter:image"], meta[property="twitter:image"]')
     ?.getAttribute('content');
+  const structuredDates = jsonLdDates(document);
+  const publishedAt = structuredDates.publishedAt ?? metaDate(document, [
+    'meta[property="article:published_time"]', 'meta[name="article:published_time"]',
+    'meta[name="parsely-pub-date"]', 'meta[name="pub_date"]', 'meta[name="date"]',
+  ].join(','));
+  const modifiedAt = structuredDates.modifiedAt ?? metaDate(document, [
+    'meta[property="article:modified_time"]', 'meta[name="article:modified_time"]',
+    'meta[name="last-modified"]',
+  ].join(','));
   let canonicalUrl = null;
   if (canonicalRaw) {
     try { canonicalUrl = normalizeWebUrl(new URL(canonicalRaw, url).href); } catch { canonicalUrl = null; }
@@ -277,7 +311,8 @@ function htmlFacts(html, url) {
   const text = readable?.text || visibleFallback;
   return {
     title: readable?.title || title,
-    canonicalUrl, previewImageUrl,
+    canonicalUrl, previewImageUrl, publishedAt, modifiedAt,
+    dateSource: structuredDates.dateSource ?? (publishedAt || modifiedAt ? 'meta' : null),
     text,
     loginWall: passwordField && text.length < 1_000,
     dynamicShell: text.length < 120 && scripts > 0,
@@ -303,6 +338,20 @@ function responseState(status) {
   return null;
 }
 
+const VISIBLE_BROWSER_MODES = new Set(['never', 'user_interaction']);
+
+function visibleBrowserBoundary(mode) {
+  return mode === 'user_interaction' ? {
+    activatedTools: ['browser'],
+    visibleBrowser: { mode, activated: true },
+  } : {
+    visibleBrowser: {
+      mode: 'never', activated: false,
+      reason: 'visible_browser_not_requested_for_this_user_task',
+    },
+  };
+}
+
 export function makeWebReadTool({
   fetchImpl = globalThis.fetch,
   resolveHost = defaultResolveHost,
@@ -323,13 +372,22 @@ export function makeWebReadTool({
       properties: {
         url: { type: 'string', description: 'Exact page URL selected from the request or web_search candidates.' },
         maxChars: { type: ['integer', 'null'], minimum: 500, maximum: MAX_OUTPUT_CHARS },
+        visibleBrowser: {
+          type: ['string', 'null'],
+          enum: ['never', 'user_interaction', null],
+          description: 'Defaults to never. Use user_interaction only when the user asked to operate, log in to, upload/download from, or explicitly open/show the live interface of this exact page. Words such as find, check, inspect, analyze, or summarize public information are ordinary lookup and must use never. News, search, research, fact lookup, and source reading must use never; a static read failure must not open a visible browser.',
+        },
       },
-      required: ['url', 'maxChars'],
+      required: ['url', 'maxChars', 'visibleBrowser'],
       additionalProperties: false,
     },
     async execute(args = {}, context = {}) {
       const requestedUrl = normalizeWebUrl(args.url);
       const maxChars = args.maxChars == null ? DEFAULT_MAX_CHARS : Number(args.maxChars);
+      const visibleBrowser = args.visibleBrowser ?? 'never';
+      if (!VISIBLE_BROWSER_MODES.has(visibleBrowser)) {
+        throw new TypeError('visibleBrowser must be never or user_interaction');
+      }
       if (!Number.isInteger(maxChars) || maxChars < 500 || maxChars > MAX_OUTPUT_CHARS) {
         throw new TypeError(`maxChars must be an integer between 500 and ${MAX_OUTPUT_CHARS}`);
       }
@@ -402,7 +460,7 @@ export function makeWebReadTool({
         const terminalState = responseState(response.status);
         if (terminalState) return {
           state: terminalState, source: sourceBase, content: null,
-          activatedTools: ['browser'],
+          ...visibleBrowserBoundary(visibleBrowser),
         };
         const disposition = String(response.headers.get('content-disposition') ?? '');
         let decodedDisposition = disposition;
@@ -433,6 +491,9 @@ export function makeWebReadTool({
           source.title = facts.title;
           source.canonicalUrl = facts.canonicalUrl;
           source.previewImageUrl = facts.previewImageUrl;
+          source.publishedAt = facts.publishedAt;
+          source.modifiedAt = facts.modifiedAt;
+          source.dateSource = facts.dateSource;
           source.embeddedData = {
             present: Boolean(embedded.text), itemCount: embedded.itemCount,
             observedChars: embedded.observedChars,
@@ -440,13 +501,15 @@ export function makeWebReadTool({
             itemLimitReached: embedded.itemLimitReached,
           };
           if (facts.loginWall) return {
-            state: 'login_required', source, content: null, activatedTools: ['browser'],
+            state: 'login_required', source, content: null,
+            ...visibleBrowserBoundary(visibleBrowser),
           };
           if (facts.dynamicShell && !embedded.text) return {
             state: 'dynamic_required', source, content: null,
-            activatedTools: ['browser'],
+            ...visibleBrowserBoundary(visibleBrowser),
             capabilityBoundary: {
-              required: 'browser_render', available: false, staticObservationExhausted: true,
+              required: 'browser_render', available: visibleBrowser === 'user_interaction',
+              staticObservationExhausted: true,
             },
           };
           if (!combinedText) return { state: 'empty', source, content: null };
@@ -459,9 +522,10 @@ export function makeWebReadTool({
             return {
               state: 'partial_dynamic', source,
               content: { format: 'text', ...contentWindow(combinedText, maxChars) },
-              activatedTools: ['browser'],
+              ...visibleBrowserBoundary(visibleBrowser),
               capabilityBoundary: {
-                required: 'browser_render', available: false, staticObservationExhausted: true,
+                required: 'browser_render', available: visibleBrowser === 'user_interaction',
+                staticObservationExhausted: true,
               },
             };
           }
