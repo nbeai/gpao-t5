@@ -141,13 +141,19 @@ for (const modelId of modelIds) {
 
 const graderConnectionFile = await privateConnection('api_key:openai:gpt-5.6-terra', 'grader');
 const graderAccess = makeConsoleModelAccess({ connectionFile: graderConnectionFile, stateDir: join(room, 'grader-model') });
-async function gradeShortAnswer({ question, expectedAnswer, answer, label }) {
+async function gradeShortAnswer({ question, expectedAnswer, answer, label, answerOnly = false }) {
   const reviewer = await graderAccess.model({
     sessionId: `w8-grader-${label}-${randomUUID()}`, workspace: join(room, 'grader-workspace'), computer: {},
     instructionsOverride: [
       'You strictly grade one Korean short-answer web research result against a supplied expected answer.',
       'Ignore harmless punctuation, spacing, romanization, Hanja, and an explanatory appositive that preserves the same referent.',
-      'If the response gives multiple materially different candidates, no final answer, or contradicts the expected answer, mark correct false.',
+      ...(answerOnly ? [
+        'Grade only whether the response gives the supplied adjudicated expected answer for the adjudicated answer field.',
+        'Do not fail a clear expected numeric or named answer because the response honestly reports ambiguity in a different supporting field of the broader question.',
+        'Fail only if the adjudicated answer itself is absent, contradictory, or has multiple materially different alternatives.',
+      ] : [
+        'If the response gives multiple materially different candidates, no final answer, or contradicts the expected answer, mark correct false.',
+      ]),
       'Do not solve the question. Return only JSON with correct boolean, extractedFinalAnswer string, and one-sentence reason.',
     ].join('\n'),
   });
@@ -164,7 +170,8 @@ for (const model of results) {
     });
     const adjudication = result.sample.currentPublicFactAdjudication;
     result.currentPublicFactGrading = adjudication ? await gradeShortAnswer({
-      question, expectedAnswer: adjudication.adjudicatedAnswer, answer: result.answer, label: 'adjudicated',
+      question, expectedAnswer: adjudication.adjudicatedAnswer, answer: result.answer,
+      label: 'adjudicated', answerOnly: true,
     }) : result.officialGoldGrading;
   }
 }

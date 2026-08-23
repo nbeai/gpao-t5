@@ -2276,8 +2276,9 @@ W9는 단순 재검색 재개방이 아니라 미확인 evidence branch의 ident
 
 ### W9 — Adaptive Korean Web Observation
 
-상태: `IN_PROGRESS · INITIAL CANDIDATES REJECTED` — W8의 공개 gold 충돌을 교정했고, 네 후보를 같은 봉인
-과업에서 반대시험했으나 사실 정확도 반복 조건을 만족한 제품 변경은 아직 없다.
+상태: `IN_PROGRESS · STOP LINE REACHED · NO PRODUCT CHANGE QUALIFIED` — W8의 공개 gold 충돌을 교정했고,
+후보들을 같은 봉인 과업에서 반대시험했으나 사실 정확도·두 모델·positive control·인간 시간 경계를 함께
+만족한 제품 변경은 아직 없다. 같은 patch family를 더 얹지 않는다.
 
 목적: 한국 사이트별 selector를 쌓지 않고 현재 읽기 사다리의 정확도와 속도를 높인다.
 
@@ -2303,12 +2304,30 @@ W9는 단순 재검색 재개방이 아니라 미확인 evidence branch의 ident
   기존 폐쇄집합 positive control을 떨어뜨려 모두 폐기·원복했다.
 - 한 번 읽은 연구 Receipt의 반복 prompt만 축약한 후보는 첫 terra·gpt-5.5에서 current fact·positive control
   `2/2`를 유지하며 tokens를 약 29~30% 줄였지만, terra exact 반복에서 current fact `0/2`로 무너져 원복했다.
+- 같은 요청의 query plan은 두 모델·두 과업 모두 exact agreement `0`; OpenAI Search도 고정 query 8개 중
+  절반에서 후보가 흔들렸고 최저 set Jaccard는 `0.0476`이었다. Naver는 정상 응답한 사람 query에서 안정적이고
+  관련성이 높았지만 burst 차단, Bing은 빠르고 안정적이어도 한국어 관련성이 낮아 단순 공급자 교체는 폐기했다.
+- dual-sample consensus는 Terra 반복이 current fact `0/2→2/2`, discovery→evidence 단계는 `0/2·0/2`와
+  positive control 1회 퇴보, 모델의 Naver 선택+default fallback은 Terra를 유지했지만 gpt-5.5 첫 과업이
+  300초를 넘겨 모두 폐기·원복했다.
+- 질문 동반 source extraction은 full Receipt·projection 분리·지시 권한 0·실패 시 원문 복귀 경계까지
+  성립했지만 첫 hard task 약 3분, 반복 약 2.5분이 걸렸다. 오너는 둘 다 사람이 웹 검색에 기다릴 수 없는
+  시간으로 확정했고 gpt-5.5 전에 시험을 종료·원복했다.
+- 시간 상한은 작업 모드별 계약이다. “검색해봐”처럼 사용자가 화면 앞에서 기다리는 대기형 과업은 수십 초급
+  절대 상한을 적용한다. 명시적으로 맡기고 떠나는 위임형 조사·결과물은 같은 짧은 상한으로 자르지 않고 실제
+  진행 가시성·중간 확인·멈춤·재개·정직한 완료를 요구한다.
 - 제품 동작 변경은 0이다. 대신 gold-conflict 근거와 1~3회 격리 반복 자격화를 W8 runner에 넣어 한 번의
   우연한 결과나 잘못된 gold로 코어를 고치는 일을 막았다.
 - 근거: `refoundation/evidence/w9-adaptive-korean-web-candidate-audit-2026-08-23.json`
 
-다음 한 작업: 더 큰 sealed current-fact 표본에서 같은 query의 provider 결과·후보 순서·모델 선택 변동을
-분리 측정한다. 변동 원인을 확정하기 전 selector·vendor router·두 번째 연구 루프를 다시 구현하지 않는다.
+중단선: W9의 같은 patch family에 새 후보를 더 붙이지 않는다. 다음 구현 전에 일반 사용자의 일상 웹 과업
+표본과 인간 latency budget을 먼저 봉인한다. 그 시간을 구조적으로 만족할 설계 근거가 없으면 W9 코어를
+고치지 않는다. K-BrowseComp 추가 연마, 사후 blind truncation, selector, vendor router, 두 번째 연구 루프,
+직렬 추출 모델, Gate 밖 다중 에이전트는 열지 않는다.
+
+향후 구조 근거: 한 context의 직렬 후보들이 진실성과 대기 시간을 함께 만족하지 못한 뒤 남은 병렬 branch
+격리는 별도 위임·시간축 트랙의 후보 근거다. 이는 W9에서 Multi-agent를 열었다는 뜻이 아니며, 해당 Gate와
+일상 사용자 증거가 열리기 전 구현하지 않는다.
 
 ### Field Release Gate
 

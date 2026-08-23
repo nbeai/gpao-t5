@@ -60,9 +60,67 @@
       "the runner accepts one to three isolated repeats so a one-off model outcome cannot qualify a product change"
     ]
   },
+  "varianceIsolation": {
+    "queryPlanning": {
+      "finding": "Exact query-set agreement was zero for both models on both hard tasks. Mean lexical query-set Jaccard ranged from 0 to 0.1333, although the plans were often semantically similar.",
+      "importantFailure": "Both models initially focused the stock task on identifying the +755% company and usually omitted downstream target-price, parent-company, and dated-close queries that depend on the discovered identity.",
+      "rawEvidenceSha256": "9f208e496510e9455731e6484cdd6afde6dfc328ecbf0c883ff7d9900a8a969d"
+    },
+    "providers": {
+      "openai": "Relevant but unstable on four of eight fixed queries; worst top-1 agreement 0 and set Jaccard 0.0476.",
+      "naver": "Three Korean person queries were perfectly stable while available, but burst repetition triggered failures and later finance queries were unavailable.",
+      "duckduckgo": "Partially relevant, then repeated-query failures made the finance probes unavailable.",
+      "bing": "Available and fast, but several stable Korean results were irrelevant; stability alone was not quality.",
+      "rawEvidenceSha256": [
+        "5973dcd3175c3dc4da183799192041d578260f247012d64310558d206725fec2",
+        "3f8778b4946d580fa01d9d3ea98bec82c232ba373830ec8ce590860f800f18e8"
+      ]
+    }
+  },
+  "laterCandidates": [
+    {
+      "id": "dual-sample-provider-consensus",
+      "result": "rejected_reverted",
+      "reason": "Pairwise consensus improved fixed-query set overlap offline, but live Terra repeats produced current-public-fact accuracy 0/2 then 2/2; the person choice remained unstable.",
+      "rawEvidenceSha256": "638ba3239e5151569b517e6aadfbed63fabe1608f5eb5da9e6832ff16726828a"
+    },
+    {
+      "id": "model-declared-discovery-evidence-stages",
+      "result": "rejected_reverted",
+      "reason": "Stage classification became stable after clarification, but two live Terra repeats both scored current-public-fact 0/2 and one closed-set positive control regressed.",
+      "queryPlanSha256": "83282adf9a4a4062288086027955f3c3a2fc261bcacd4731c2c758645d93c7ee",
+      "rawEvidenceSha256": "3fd523e4b4b1057bd97900ccfb78774f9722d2833bd8ee8debe3674766640416"
+    },
+    {
+      "id": "model-chosen-korean-provider-with-default-fallback",
+      "result": "rejected_reverted",
+      "reason": "Terra kept the current facts in both repeats after adjudication correction and reduced cost, but gpt-5.5 exceeded the 300-second boundary on its first task.",
+      "queryPlanSha256": "297310d1ab4e2a45794be2957f9aa79134556081e978f846f12a9a09e3ed0986",
+      "terraRawEvidenceSha256": "2b5265c5bc060a872dad7335de8534ec90b5a7894cb03ccb842fa93100d3eff3"
+    },
+    {
+      "id": "question-conditioned-source-extraction",
+      "result": "rejected_reverted",
+      "reason": "The full source Receipt and instruction-authority boundary were preserved, but the added extraction model made the first hard task take about three minutes and the repeat about two and a half minutes. The owner defined both durations as categorically unacceptable for web search, so the run was terminated before gpt-5.5 qualification.",
+      "rawEvidence": "not promoted because the qualification was intentionally terminated at the user-time stop line"
+    }
+  ],
+  "ownerTimeBoundary": {
+    "recordedAt": "2026-08-24T00:00:00+09:00",
+    "statement": "300 seconds and 2.5 minutes are both categorically unacceptable for what a human experiences as web search.",
+    "modes": {
+      "waiting": "The user remains in front of the conversation for a request such as search this. This requires an absolute human latency ceiling in the tens-of-seconds class.",
+      "delegated": "The user explicitly hands off a long investigation or deliverable and leaves. This is governed by visible progress, intermediate verification, stop, resume, and honest completion rather than the same short ceiling."
+    },
+    "effect": "Accuracy or token reduction cannot qualify this waiting-mode W9 candidate after it crosses the human waiting boundary. The candidate loop stops instead of opening another architecture in the same Gate."
+  },
+  "futureStructuralConvergence": {
+    "observation": "After serial search, provider selection, staged search, projection, and serial extraction all failed a conjunction of truth and human time, branch-parallel isolated investigation remains a plausible way to reduce waiting wall time.",
+    "boundary": "This is recorded only as future evidence for the already-separate delegation and time-axis track. W9 does not open multi-agent implementation or treat parallelism as qualified."
+  },
   "next": {
-    "gate": "W9 remains in progress",
-    "work": "Measure provider and query-result variance on a larger sealed current-fact sample before proposing another runtime change.",
-    "nonGoals": ["site-specific selectors", "vendor-name routing", "unbounded second research loops", "shipping a token-only optimization that fails factual repeats"]
+    "gate": "W9 remains incomplete; the current patch family reached its stop line with no qualified product change.",
+    "work": "Before any new W9 implementation, seal a waiting-mode everyday-web latency budget and representative field sample. Keep delegated long-form research under its separate progress, intermediate verification, stop, and resume contract.",
+    "nonGoals": ["more K-BrowseComp tuning in this patch family", "site-specific selectors", "vendor-name routing", "unbounded second research loops", "multi-agent isolation before its Gate", "serial extraction models that move cost instead of removing it"]
   }
 }
