@@ -1919,7 +1919,7 @@ tester audit의 산문은 triage 입력이며 재현 전 완료·실패 증거�
 
 ## D3~W9 — Vertical Capability Hardening Plan
 
-상태: `OWNER_PLANNED · D5 NEXT` — 기능 수를 늘리는 계획이 아니라, 현재 파일손·웹손이 지저분한 현실을
+상태: `OWNER_PLANNED · D5 QUALIFIED · SPLIT CONNECTION NEXT` — 기능 수를 늘리는 계획이 아니라, 현재 파일손·웹손이 지저분한 현실을
 정확히 읽고 실제 결과까지 끝내는 깊이를 높이는 개발선이다. 아래 순서는 목록 우선순위가 아니라 앞 Gate의
 실제 증거가 다음 Gate를 여는 의존 순서다. 한 번에 하나만 `IN_PROGRESS`로 둔다.
 
@@ -2038,6 +2038,9 @@ D3-T0과 뒤의 실제 결함이 같은 관측 결손을 두 번 이상 가리�
 
 ### D5 — Korean & Legacy Document Candidate Qualification
 
+상태: `QUALIFIED · DISPOSITION SPLIT` — 후보 package 전체를 제품에 넣지 않고 실제로 이긴 parser 표면만
+다음 한 작업에서 좁게 연결한다.
+
 목적: Kordoc을 제품에 넣기 전에 현재 T5와 같은 corpus·사용자 목적에서 독립 자격화한다.
 
 후보 고정:
@@ -2060,6 +2063,28 @@ D3-T0과 뒤의 실제 결함이 같은 관측 결손을 두 번 이상 가리�
 1. `adopt`: managed capability로 exact revision을 준비·제거·복원 가능하게 연결
 2. `split`: 이긴 형식/관측기만 좁게 채택
 3. `reject`: 현재 손보다 못하거나 비용·안전 경계가 맞지 않으면 폐기
+
+자격화 결과:
+
+- Kordoc `4.9.1`, source `c3ec5b5358197e488f96e5aa05ef9ad683359352`, MIT, npm tarball SHA-256
+  `113154cb8a687822352023b82c610c8ba01325d12dd023e004ac28cde40a3237`로 고정했다. tarball은
+  3,289,476 bytes, package unpacked 12,119,609 bytes, optional dependency를 뺀 격리 설치는 디스크
+  42,676,224 bytes였다.
+- 같은 원문의 HWP3·HWP5·HWPX token Jaccard는 `0.9921~0.9994`; HWP5·HWPX는 16쪽·표 6개를 보존했고,
+  BIFF8 XLS는 한국어 anchor `3/3`, DOCX는 본문 `2/2`와 표를 보존했다. 현재 T5는 이 다섯 형식 모두
+  사용자 목표 준비가 아니었고 기존 PDF만 준비 상태였다.
+- 후보 parser cold/warm은 형식별 `60~90ms`, peak RSS `77~99MB`; gpt-5.6-terra·gpt-5.5의 동일 문서 판단과
+  한국 업무 숫자 추출 네 과업은 모두 통과했다.
+- 암호 HWP3는 `ENCRYPTED`로 닫혔고 손상 HWP5·HWPX는 `CORRUPTED`로 닫혔다. 잘린 HWP3도 실행은
+  fail-closed였지만 일반 손상을 `DECOMPRESSION_BOMB`으로 잘못 분류했다.
+- 후보의 optional PDF 경로는 `pdfjs-dist`가 없어 실패했고 현재 T5 PDF보다 못했다. OCR·image optional stack,
+  package의 MCP/CLI 전체, DOC·PPT·ODT·ODS, Windows 실기기, macro·OLE·external object 명시 경고는 자격화하지 않았다.
+- 판정은 `split`: HWP3/HWP5/HWPX/XLS/DOCX 읽기 표면만 후보이며 text·CSV·TSV·XLSX·PDF는 기존 손을 유지한다.
+  근거: `refoundation/evidence/d5-korean-legacy-document-candidate-qualification-2026-08-23.json`
+
+다음 한 작업: exact revision의 위 다섯 parser만 격리·bounded input/output·원본 hash·부분 경고와 함께 기존
+Attachment Hand 뒤에 연결하고, PDF/OCR/MCP/생성 기능은 연결하지 않는다. 연결 후 같은 corpus와 실제 콘솔에서
+재검증하기 전에는 사용자 지원 완료로 올리지 않는다.
 
 ### D6 — Structural + Visual Document Reading
 
@@ -3007,7 +3032,8 @@ tester audit에서 D1과 같은 다중 견적·정산 목적의 모델 완료 �
 재현했고, current-Run exact image/PDF의 고정 PDFium render와 무정답 격리 시각 전사로 두 모델·두 표현에서
 false completion `0`을 확인했다. D3-T1 범용 계약은 열지 않았다. D4는 새 package 없이 UTF-16LE·CP949/
 EUC-KR 호환 text와 CSV/TSV 구조를 열어 D2 기준선을 `3/17→6/17`로 높였고 두 모델의 실제 첨부 과업이
-통과했다. 다음 한 작업은 `D5 Korean & Legacy Document Candidate Qualification`이며, 이후 D6 → D7 → W7 →
+통과했다. D5는 Kordoc package 전체가 아니라 HWP3/HWP5/HWPX/XLS/DOCX parser 표면만 `split` 판정했다.
+다음 한 작업은 이 다섯 표면의 좁은 연결이며, 이후 D6 → D7 → W7 →
 W8 → W9는 앞 Gate의 실제 증거가 필요성을 유지할 때만 연다.
 
 U4의 I0 밖 나머지는 정본 순서상 아직 열리지 않았다. 다음 개발은 기능 목록에서 자동으로 고르지 않는다.

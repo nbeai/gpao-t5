@@ -38,6 +38,7 @@
     "refoundation:qualify:project": "node refoundation/scripts/run-project-qualification.mjs",
     "refoundation:qualify:terminal": "node refoundation/scripts/run-terminal-performance.mjs",
     "refoundation:baseline:documents": "node refoundation/scripts/run-document-compatibility-baseline.mjs",
+    "refoundation:qualify:document-candidate": "node refoundation/scripts/run-document-candidate-qualification.mjs",
     "refoundation:qualify:pdf-deliverable": "node refoundation/scripts/run-pdf-deliverable-qualification.mjs",
     "refoundation:qualify:text-tabular": "node refoundation/scripts/run-text-tabular-qualification.mjs",
     "refoundation:console": "node refoundation/scripts/start-console.mjs",

@@ -1,0 +1,1094 @@
+{
+  "schema": "t5.d5-korean-legacy-document-candidate-qualification.v1",
+  "recordedAt": "2026-08-23T10:34:05.226Z",
+  "actualUserData": false,
+  "candidate": {
+    "name": "kordoc",
+    "version": "4.9.1",
+    "sourceCommit": "c3ec5b5358197e488f96e5aa05ef9ad683359352",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/kordoc/-/kordoc-4.9.1.tgz",
+    "tarballSha256": "113154cb8a687822352023b82c610c8ba01325d12dd023e004ac28cde40a3237",
+    "npmIntegrity": "sha512-kGwqIZNu6JAoOmseQqTcKeozuWBdJa5aZUxjfHbuFfSStBOGMuK1Ochb8VqCOhxabMmNZ1tJlkjVeltoWaDVTQ==",
+    "packedBytes": 3289476,
+    "unpackedBytes": 12119609,
+    "installedDiskBytesWithoutOptionalDependencies": 42676224,
+    "nodeEngine": ">=18",
+    "declaredDependencies": {
+      "@modelcontextprotocol/sdk": "^1.29.0",
+      "@xmldom/xmldom": "^0.9.10",
+      "cfb": "1.2.2",
+      "commander": "^13.0.0",
+      "jszip": "^3.10.1",
+      "markdown-it": "^14.3.0",
+      "zod": "^3.23.0"
+    },
+    "optionalDependenciesOmitted": {
+      "@huggingface/transformers": "^4.1.0",
+      "@hyzyla/pdfium": "^2.1.0",
+      "onnxruntime-node": "^1.24.0",
+      "pdfjs-dist": "^4.10.38",
+      "sharp": "^0.35.0"
+    }
+  },
+  "corpus": [
+    {
+      "caseId": "paired-hwp3",
+      "format": "hwp3",
+      "fileName": "같은내용_HWP3.hwp",
+      "url": "https://raw.githubusercontent.com/edwardkim/rhwp/496333b27d21ddb9114ba9ae340bcb895870c9a7/samples/hwp3-sample.hwp",
+      "sha256": "645525c8cd5ec11b1742ba7cfc759f68622861916233b5e982385cdb12f0ced2",
+      "sourceCommit": "496333b27d21ddb9114ba9ae340bcb895870c9a7",
+      "license": "MIT",
+      "required": [
+        "content"
+      ],
+      "bytes": 88880,
+      "sourceKind": "pinned_public_fixture"
+    },
+    {
+      "caseId": "paired-hwp5",
+      "format": "hwp5",
+      "fileName": "같은내용_HWP5.hwp",
+      "url": "https://raw.githubusercontent.com/edwardkim/rhwp/496333b27d21ddb9114ba9ae340bcb895870c9a7/samples/hwp3-sample-hwp5.hwp",
+      "sha256": "dc2edf4737c110ab16a6c6543bceed9f5648d634a40e180ce3fc2725ec0f21d8",
+      "sourceCommit": "496333b27d21ddb9114ba9ae340bcb895870c9a7",
+      "license": "MIT",
+      "required": [
+        "content",
+        "page_structure",
+        "table_structure"
+      ],
+      "bytes": 111616,
+      "sourceKind": "pinned_public_fixture"
+    },
+    {
+      "caseId": "paired-hwpx",
+      "format": "hwpx",
+      "fileName": "같은내용_HWPX.hwpx",
+      "url": "https://raw.githubusercontent.com/edwardkim/rhwp/496333b27d21ddb9114ba9ae340bcb895870c9a7/samples/hwp3-sample-hwpx.hwpx",
+      "sha256": "aa043a7df44f9d28893cd75423e8e7b5e8eb2be56d8819d4a4cf39e2d64e5cb1",
+      "sourceCommit": "496333b27d21ddb9114ba9ae340bcb895870c9a7",
+      "license": "MIT",
+      "required": [
+        "content",
+        "page_structure",
+        "table_structure"
+      ],
+      "bytes": 108286,
+      "sourceKind": "pinned_public_fixture"
+    },
+    {
+      "caseId": "encrypted-hwp3",
+      "format": "hwp3",
+      "fileName": "암호_HWP3.hwp",
+      "url": "https://raw.githubusercontent.com/edwardkim/rhwp/496333b27d21ddb9114ba9ae340bcb895870c9a7/samples/HWP3-password-123456.hwp",
+      "sha256": "db743d084efc9e08e839a5b4d978b16b8676434011776e090e4cda43e57304be",
+      "sourceCommit": "496333b27d21ddb9114ba9ae340bcb895870c9a7",
+      "license": "MIT",
+      "required": [
+        "encrypted_boundary"
+      ],
+      "bytes": 101244,
+      "sourceKind": "pinned_public_fixture"
+    },
+    {
+      "caseId": "legacy-xls-biff8-korean",
+      "format": "xls",
+      "fileName": "구형_한국어_예산.xls",
+      "url": "https://raw.githubusercontent.com/chrisryugj/kordoc/c3ec5b5358197e488f96e5aa05ef9ad683359352/tests/fixtures/xls/budget.xls",
+      "sha256": "69a4180a7b2d8044220ea2b35116c0c1fe3d4b0dd247d025c0dbc0daf211e14b",
+      "sourceCommit": "c3ec5b5358197e488f96e5aa05ef9ad683359352",
+      "license": "MIT",
+      "expectedText": [
+        "2025년도 부서별 예산 편성",
+        "기획조정실",
+        "12500000000"
+      ],
+      "required": [
+        "content",
+        "table_structure"
+      ],
+      "bytes": 5632,
+      "sourceKind": "pinned_public_fixture"
+    },
+    {
+      "caseId": "text-pdf",
+      "family": "pdf",
+      "format": "pdf",
+      "fileName": "텍스트_PDF.pdf",
+      "bytes": 599,
+      "expectedText": [
+        "HANBIT SHOP",
+        "40300"
+      ],
+      "required": [
+        "content",
+        "page_structure"
+      ],
+      "sha256": "d5f354b7d29a463528b58e6699fd7600c7ec8b223d473cd3a82261e07580bd95",
+      "sourceKind": "generated_fixture"
+    },
+    {
+      "caseId": "modern-docx",
+      "family": "word_processing",
+      "format": "docx",
+      "fileName": "현재_Word_문서.docx",
+      "bytes": 921,
+      "expectedText": [
+        "한빛상회",
+        "40300"
+      ],
+      "required": [
+        "content",
+        "table_structure"
+      ],
+      "sha256": "76b83f6cb043357c1fb62c24f8bab67d8c26d737e80f8b0c2aa2466ce51326db",
+      "sourceKind": "generated_fixture"
+    }
+  ],
+  "sourceFilesUnchanged": true,
+  "currentT5": [
+    {
+      "caseId": "paired-hwp3",
+      "expectedFormat": "hwp3",
+      "sourceKind": "pinned_public_fixture",
+      "sourceSha256": "645525c8cd5ec11b1742ba7cfc759f68622861916233b5e982385cdb12f0ced2",
+      "record": {
+        "kind": "binary",
+        "mimeType": "application/octet-stream",
+        "bytes": 88880,
+        "sha256": "645525c8cd5ec11b1742ba7cfc759f68622861916233b5e982385cdb12f0ced2"
+      },
+      "inspection": {
+        "state": "capability_boundary",
+        "observedKind": "binary",
+        "capabilityReason": "document_extractor_not_connected",
+        "expectedTextAnchors": 0,
+        "matchedTextAnchors": 0
+      },
+      "detectedFormat": "unknown",
+      "capabilities": {
+        "format_identity": false,
+        "encoding_identity": null,
+        "text_content": false,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "text_content"
+      ],
+      "missing": [
+        "format_identity",
+        "text_content"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "paired-hwp5",
+      "expectedFormat": "hwp5",
+      "sourceKind": "pinned_public_fixture",
+      "sourceSha256": "dc2edf4737c110ab16a6c6543bceed9f5648d634a40e180ce3fc2725ec0f21d8",
+      "record": {
+        "kind": "binary",
+        "mimeType": "application/octet-stream",
+        "bytes": 111616,
+        "sha256": "dc2edf4737c110ab16a6c6543bceed9f5648d634a40e180ce3fc2725ec0f21d8"
+      },
+      "inspection": {
+        "state": "capability_boundary",
+        "observedKind": "binary",
+        "capabilityReason": "document_extractor_not_connected",
+        "expectedTextAnchors": 0,
+        "matchedTextAnchors": 0
+      },
+      "detectedFormat": "unknown",
+      "capabilities": {
+        "format_identity": false,
+        "encoding_identity": null,
+        "text_content": false,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "text_content"
+      ],
+      "missing": [
+        "format_identity",
+        "text_content"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "paired-hwpx",
+      "expectedFormat": "hwpx",
+      "sourceKind": "pinned_public_fixture",
+      "sourceSha256": "aa043a7df44f9d28893cd75423e8e7b5e8eb2be56d8819d4a4cf39e2d64e5cb1",
+      "record": {
+        "kind": "archive",
+        "mimeType": "application/zip",
+        "bytes": 108286,
+        "sha256": "aa043a7df44f9d28893cd75423e8e7b5e8eb2be56d8819d4a4cf39e2d64e5cb1"
+      },
+      "inspection": {
+        "state": "observed",
+        "observedKind": null,
+        "capabilityReason": null,
+        "expectedTextAnchors": 0,
+        "matchedTextAnchors": 0
+      },
+      "detectedFormat": "unknown",
+      "capabilities": {
+        "format_identity": false,
+        "encoding_identity": null,
+        "text_content": false,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "text_content"
+      ],
+      "missing": [
+        "format_identity",
+        "text_content"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "legacy-xls-biff8-korean",
+      "expectedFormat": "xls",
+      "sourceKind": "pinned_public_fixture",
+      "sourceSha256": "69a4180a7b2d8044220ea2b35116c0c1fe3d4b0dd247d025c0dbc0daf211e14b",
+      "record": {
+        "kind": "binary",
+        "mimeType": "application/octet-stream",
+        "bytes": 5632,
+        "sha256": "69a4180a7b2d8044220ea2b35116c0c1fe3d4b0dd247d025c0dbc0daf211e14b"
+      },
+      "inspection": {
+        "state": "capability_boundary",
+        "observedKind": "binary",
+        "capabilityReason": "document_extractor_not_connected",
+        "expectedTextAnchors": 3,
+        "matchedTextAnchors": 0
+      },
+      "detectedFormat": "unknown",
+      "capabilities": {
+        "format_identity": false,
+        "encoding_identity": null,
+        "text_content": false,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "text_content"
+      ],
+      "missing": [
+        "format_identity",
+        "text_content"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "text-pdf",
+      "family": "pdf",
+      "expectedFormat": "pdf",
+      "sourceKind": "generated_fixture",
+      "sourceSha256": "d5f354b7d29a463528b58e6699fd7600c7ec8b223d473cd3a82261e07580bd95",
+      "record": {
+        "kind": "pdf",
+        "mimeType": "application/pdf",
+        "bytes": 599,
+        "sha256": "d5f354b7d29a463528b58e6699fd7600c7ec8b223d473cd3a82261e07580bd95"
+      },
+      "inspection": {
+        "state": "observed",
+        "observedKind": "pdf",
+        "capabilityReason": null,
+        "expectedTextAnchors": 2,
+        "matchedTextAnchors": 2
+      },
+      "detectedFormat": "pdf",
+      "capabilities": {
+        "format_identity": true,
+        "encoding_identity": null,
+        "text_content": true,
+        "tabular_structure": false,
+        "page_structure": true,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "text_content",
+        "page_structure"
+      ],
+      "missing": [],
+      "targetReady": true,
+      "truthfulBoundary": true
+    },
+    {
+      "caseId": "modern-docx",
+      "family": "word_processing",
+      "expectedFormat": "docx",
+      "sourceKind": "generated_fixture",
+      "sourceSha256": "76b83f6cb043357c1fb62c24f8bab67d8c26d737e80f8b0c2aa2466ce51326db",
+      "record": {
+        "kind": "document",
+        "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "bytes": 921,
+        "sha256": "76b83f6cb043357c1fb62c24f8bab67d8c26d737e80f8b0c2aa2466ce51326db"
+      },
+      "inspection": {
+        "state": "capability_boundary",
+        "observedKind": "document",
+        "capabilityReason": "document_extractor_not_connected",
+        "expectedTextAnchors": 2,
+        "matchedTextAnchors": 0
+      },
+      "detectedFormat": "docx",
+      "capabilities": {
+        "format_identity": true,
+        "encoding_identity": null,
+        "text_content": false,
+        "tabular_structure": false,
+        "page_structure": false,
+        "ocr_need_detection": false,
+        "ocr_completion": false
+      },
+      "required": [
+        "format_identity",
+        "text_content",
+        "tabular_structure"
+      ],
+      "missing": [
+        "text_content",
+        "tabular_structure"
+      ],
+      "targetReady": false,
+      "truthfulBoundary": true
+    }
+  ],
+  "candidateObservations": [
+    {
+      "caseId": "paired-hwp3",
+      "expectedFormat": "hwp3",
+      "sourceSha256": "645525c8cd5ec11b1742ba7cfc759f68622861916233b5e982385cdb12f0ced2",
+      "success": true,
+      "reportedFormat": "hwp3",
+      "markdownChars": 21129,
+      "uniqueWordTokens": 1759,
+      "blockCounts": {
+        "paragraph": 305
+      },
+      "pageCount": null,
+      "warnings": [],
+      "error": null,
+      "errorCode": null,
+      "boundaryAccuracy": null,
+      "anchors": {
+        "expected": 0,
+        "matched": 0
+      },
+      "capabilities": {
+        "content": true,
+        "table_structure": false,
+        "page_structure": false,
+        "encrypted_boundary": false,
+        "corrupted_boundary": false
+      },
+      "required": [
+        "content"
+      ],
+      "missing": [],
+      "targetReady": true,
+      "performance": {
+        "cold": {
+          "wallMs": 60,
+          "peakResidentBytes": 81707008,
+          "processExitCode": 0
+        },
+        "warm": {
+          "wallMs": 60,
+          "peakResidentBytes": 81739776,
+          "processExitCode": 0
+        }
+      },
+      "markdownSha256": "dac95add1e5337876719eb1c4c00db1833f8a83401857f493015b952067538a4",
+      "projection": "￼Creating Linux Virtual Servers\n\nWensong Zhang, Shiyao Jin, Quanyuan Wu\n\nNational Laboratory for Parallel & Distributed Processing\n\nChangsha, Hunan 410073, China\n\nwensong@iinchina.net\n\nhttp://proxy.iinchina.net/~wensong\n\n개  요\n\n빠른 넷트웍에 연결된 서버(server)들의 클러스터(cluster)는 성능이 뛰어나고 (high performance) 가용성이 높은 (highly available) 서버를 구축하는데 유효한 구조임이 판명되고 있다. 이러한 형태의 느슨하게 연관된 구조는 단일 프로세서(processor) 시스템이나 엄격한 다중 프로세서 시스템보다 확장성이 뛰어나고 (more scalable) 비용-효율성이 좋으며 (more cost-effective) 신뢰성이 높다 (more reliable).\n\n이 글은 어떻게 리눅스 가상 서버들을 만드는지 설명하고 있다. 가상 서버는 실제 서버들의 클러스터에 구축된 성능이 뛰어나고 가용성이 높은 서버이다. 두가지 방법의 IP-계층 부하 분산 방식(load balancing)이 클러스터의 병렬 서비스를 단일 IP 주소상에 하나의 가상 서비스로 보이도록 개발되었다. 하나는 넷트웍 주소 번역(Network Address Translation; NAT)에 의한 가상 서버이고, 다른 하나는 IP 터널링(IP tunneling)에 의한 가상 서버이다. 현재 네가지 작업 할당 방식들(scheduling algorithms)이 각기 다른 응용 상황에 맞춰 개발되어 있다. 확장성은 클러스터에 노드(node)를 투명하게 추가하거나 제거하는 방법으로 이루어진다. 높은 가용성은 노드 또는 데몬(deamon)의 장애(failure)나 시스템의 구조 변화를 적절히 감지해냄으로써 이루어진다.\n\n번역 : 리눅스코리아(주) 개발팀 이선중\n\n1. 소개\n\n인터넷의 폭발적 성장과 인터넷이 우리 생활에서 차지하는 중요도가 커짐에 따라 인터넷의 정보 전송량도 극적으로 증가하고 있어 매년 100%를 넘는 증가가 이루어진다. 유명한 인터넷 사이트의 부하(load)가 급격히 증가하고 있고 이미 하루에 억대의 방문(hit)을 받는 곳도 있다. 점점 더 많은 관리자들이 그들 서버의 성능상 병목 문제와 직면하고 있지만 서버의 액세스(access) 용량을 늘려도 얼마 지나지 않아 쉽게 과부하가 되어버린다. 요즘은 점점 더 많은 회사들이 그들의 사업을 인터넷상으로 옮기고 있어 서버가 제공하는 서비스의 어떠한 단절/중단도 사업상 손실을 의미하게 되었다. 이러한 서버들의 높은 가용성 (availability)은 점점 더 중요해지고 있다. 그러므로 확장성이 있고(scalable) 높은 가용성을 가진 서버에 대한 요구가 절실히 증가하고 있다. 이러한 형태의 서버들의 필요 조건을 요약하자면 다음과 같다:\n\n* 추가 확장성\n\n* 높은 가용성\n\n* 비용-효율성\n\n서버를 더 높은 성능의 서버로 개선(upgrade)하는 단일 서버 솔루션(solution)은 이 필요 조건을 맞추기에 한계가 있다. 개선 작업이 복잡하고 원래의 기계가 낭비될 수도 있다. 만일 요구(request)가 증가된다면 오래 지나지 않아 과부하가 되어 더 높은 성능의 서버로 다시 개선해주어야한다. 이 서버에 장애가 일어나면 전체 시스템에 영향을 미치는 곳(single point of failure)이다. 개선해야할 목표가 높아지면 높아질수록 비용이 더욱 더 많이 든다.\n\n빠른 넷트웍에 연결된 서버들의 클러스터는 성능이 뛰어나고 가용성이 높은 서버를 구축하는데 유효한 구조임이 판명되고 있다. 이러한 형태의 느슨하게 연관된 구조는 단일 프로세서 시스템이나 엄격한 다중 프로세서 시스템보다 확장성이 뛰어나고 비용-효율성이 좋으며  신뢰성이 높다. 그러나 클러스터내 병렬 서비스의 투명성(transparency), 확장성, 그리고 높은 가용성을 제공해야하는 어려움이 있다.\n\n이 글은 어떻게 리눅스 가상 "
+    },
+    {
+      "caseId": "paired-hwp5",
+      "expectedFormat": "hwp5",
+      "sourceSha256": "dc2edf4737c110ab16a6c6543bceed9f5648d634a40e180ce3fc2725ec0f21d8",
+      "success": true,
+      "reportedFormat": "hwp",
+      "markdownChars": 21757,
+      "uniqueWordTokens": 1772,
+      "blockCounts": {
+        "paragraph": 74,
+        "heading": 17,
+        "image": 5,
+        "table": 6
+      },
+      "pageCount": 16,
+      "warnings": [],
+      "error": null,
+      "errorCode": null,
+      "boundaryAccuracy": null,
+      "anchors": {
+        "expected": 0,
+        "matched": 0
+      },
+      "capabilities": {
+        "content": true,
+        "table_structure": true,
+        "page_structure": true,
+        "encrypted_boundary": false,
+        "corrupted_boundary": false
+      },
+      "required": [
+        "content",
+        "page_structure",
+        "table_structure"
+      ],
+      "missing": [],
+      "targetReady": true,
+      "performance": {
+        "cold": {
+          "wallMs": 70,
+          "peakResidentBytes": 82804736,
+          "processExitCode": 0
+        },
+        "warm": {
+          "wallMs": 70,
+          "peakResidentBytes": 82903040,
+          "processExitCode": 0
+        }
+      },
+      "markdownSha256": "a2a51bafda984342adc878bc4427d40c1ce15c9659c7577181a161b42e4751b6",
+      "projection": "Creating Linux Virtual Servers\n\nWensong Zhang, Shiyao Jin, Quanyuan Wu\n\nNational Laboratory for Parallel & Distributed Processing\n\nChangsha, Hunan 410073, China\n\nwensong@iinchina.net\n\nhttp://proxy.iinchina.net/\\~wensong\n\n\n## 개 요\n\n빠른 넷트웍에 연결된 서버(server)들의 클러스터(cluster)는 성능이 뛰어나고 (high performance) 가용성이 높은 (highly available) 서버를 구축하는데 유효한 구조임이 판명되고 있다. 이러한 형태의 느슨하게 연관된 구조는 단일 프로세서(processor) 시스템이나 엄격한 다중 프로세서 시스템보다 확장성이 뛰어나고 (more scalable) 비용-효율성이 좋으며 (more cost-effective) 신뢰성이 높다 (more reliable).\n\n이 글은 어떻게 리눅스 가상 서버들을 만드는지 설명하고 있다. 가상 서버는 실제 서버들의 클러스터에 구축된 성능이 뛰어나고 가용성이 높은 서버이다. 두가지 방법의 IP-계층 부하 분산 방식(load balancing)이 클러스터의 병렬 서비스를 단일 IP 주소상에 하나의 가상 서비스로 보이도록 개발되었다. 하나는 넷트웍 주소 번역(Network Address Translation; NAT)에 의한 가상 서버이고, 다른 하나는 IP 터널링(IP tunneling)에 의한 가상 서버이다. 현재 네가지 작업 할당 방식들(scheduling algorithms)이 각기 다른 응용 상황에 맞춰 개발되어 있다. 확장성은 클러스터에 노드(node)를 투명하게 추가하거나 제거하는 방법으로 이루어진다. 높은 가용성은 노드 또는 데몬(deamon)의 장애(failure)나 시스템의 구조 변화를 적절히 감지해냄으로써 이루어진다.\n\n번역 : 리눅스코리아(주) 개발팀 이선중\n\n\n# 1. 소개\n\n인터넷의 폭발적 성장과 인터넷이 우리 생활에서 차지하는 중요도가 커짐에 따라 인터넷의 정보 전송량도 극적으로 증가하고 있어 매년 100%를 넘는 증가가 이루어진다. 유명한 인터넷 사이트의 부하(load)가 급격히 증가하고 있고 이미 하루에 억대의 방문(hit)을 받는 곳도 있다. 점점 더 많은 관리자들이 그들 서버의 성능상 병목 문제와 직면하고 있지만 서버의 액세스(access) 용량을 늘려도 얼마 지나지 않아 쉽게 과부하가 되어버린다. 요즘은 점점 더 많은 회사들이 그들의 사업을 인터넷상으로 옮기고 있어 서버가 제공하는 서비스의 어떠한 단절/중단도 사업상 손실을 의미하게 되었다. 이러한 서버들의 높은 가용성 (availability)은 점점 더 중요해지고 있다. 그러므로 확장성이 있고(scalable) 높은 가용성을 가진 서버에 대한 요구가 절실히 증가하고 있다. 이러한 형태의 서버들의 필요 조건을 요약하자면 다음과 같다:\n\n\\* 추가 확장성\n\n\\* 높은 가용성\n\n\\* 비용-효율성\n\n서버를 더 높은 성능의 서버로 개선(upgrade)하는 단일 서버 솔루션(solution)은 이 필요 조건을 맞추기에 한계가 있다. 개선 작업이 복잡하고 원래의 기계가 낭비될 수도 있다. 만일 요구(request)가 증가된다면 오래 지나지 않아 과부하가 되어 더 높은 성능의 서버로 다시 개선해주어야한다. 이 서버에 장애가 일어나면 전체 시스템에 영향을 미치는 곳(single point of failure)이다. 개선해야할 목표가 높아지면 높아질수록 비용이 더욱 더 많이 든다.\n\n빠른 넷트웍에 연결된 서버들의 클러스터는 성능이 뛰어나고 가용성이 높은 서버를 구축하는데 유효한 구조임이 판명되고 있다. 이러한 형태의 느슨하게 연관된 구조는 단일 프로세서 시스템이나 엄격한 다중 프로세서 시스템보다 확장성이 뛰어나고 비용-효율성이 좋으며 신뢰성이 높다. 그러나 클러스터내 병렬 서비스의 투명성(transparency), 확장성, 그리고 높은 가용성을 제공해야하는 어려움이 있다.\n\n이 글은 어떻게"
+    },
+    {
+      "caseId": "paired-hwpx",
+      "expectedFormat": "hwpx",
+      "sourceSha256": "aa043a7df44f9d28893cd75423e8e7b5e8eb2be56d8819d4a4cf39e2d64e5cb1",
+      "success": true,
+      "reportedFormat": "hwpx",
+      "markdownChars": 21813,
+      "uniqueWordTokens": 1771,
+      "blockCounts": {
+        "paragraph": 91,
+        "image": 5,
+        "table": 6
+      },
+      "pageCount": 16,
+      "warnings": [],
+      "error": null,
+      "errorCode": null,
+      "boundaryAccuracy": null,
+      "anchors": {
+        "expected": 0,
+        "matched": 0
+      },
+      "capabilities": {
+        "content": true,
+        "table_structure": true,
+        "page_structure": true,
+        "encrypted_boundary": false,
+        "corrupted_boundary": false
+      },
+      "required": [
+        "content",
+        "page_structure",
+        "table_structure"
+      ],
+      "missing": [],
+      "targetReady": true,
+      "performance": {
+        "cold": {
+          "wallMs": 90,
+          "peakResidentBytes": 98975744,
+          "processExitCode": 0
+        },
+        "warm": {
+          "wallMs": 90,
+          "peakResidentBytes": 98942976,
+          "processExitCode": 0
+        }
+      },
+      "markdownSha256": "b4960d8f5291a838c6e28b51b63885c1f54ff6f9cc8fbf29f763f33155def2f8",
+      "projection": "**Creating Linux Virtual Servers**\n\n*Wensong Zhang, Shiyao Jin, Quanyuan Wu*\n\nNational Laboratory for Parallel & Distributed Processing\n\nChangsha, Hunan 410073, China\n\nwensong@iinchina.net\n\n**http://proxy.iinchina.net/\\~wensong**\n\n개 요\n\n빠른 넷트웍에 연결된 서버(server)들의 클러스터(cluster)는 성능이 뛰어나고 (high performance) 가용성이 높은 (highly available) 서버를 구축하는데 유효한 구조임이 판명되고 있다. 이러한 형태의 느슨하게 연관된 구조는 단일 프로세서(processor) 시스템이나 엄격한 다중 프로세서 시스템보다 확장성이 뛰어나고 (more scalable) 비용-효율성이 좋으며 (more cost-effective) 신뢰성이 높다 (more reliable).\n\n이 글은 어떻게 리눅스 가상 서버들을 만드는지 설명하고 있다. 가상 서버는 실제 서버들의 클러스터에 구축된 성능이 뛰어나고 가용성이 높은 서버이다. 두가지 방법의 IP-계층 부하 분산 방식(load balancing)이 클러스터의 병렬 서비스를 단일 IP 주소상에 하나의 가상 서비스로 보이도록 개발되었다. 하나는 넷트웍 주소 번역(Network Address Translation; NAT)에 의한 가상 서버이고, 다른 하나는 IP 터널링(IP tunneling)에 의한 가상 서버이다. 현재 네가지 작업 할당 방식들(scheduling algorithms)이 각기 다른 응용 상황에 맞춰 개발되어 있다. 확장성은 클러스터에 노드(node)를 투명하게 추가하거나 제거하는 방법으로 이루어진다. 높은 가용성은 노드 또는 데몬(deamon)의 장애(failure)나 시스템의 구조 변화를 적절히 감지해냄으로써 이루어진다.\n\n번역 : 리눅스코리아(주) 개발팀 이선중\n\n**1. 소개**\n\n인터넷의 폭발적 성장과 인터넷이 우리 생활에서 차지하는 중요도가 커짐에 따라 인터넷의 정보 전송량도 극적으로 증가하고 있어 매년 100%를 넘는 증가가 이루어진다. 유명한 인터넷 사이트의 부하(load)가 급격히 증가하고 있고 이미 하루에 억대의 방문(hit)을 받는 곳도 있다. 점점 더 많은 관리자들이 그들 서버의 성능상 병목 문제와 직면하고 있지만 서버의 액세스(access) 용량을 늘려도 얼마 지나지 않아 쉽게 과부하가 되어버린다. 요즘은 점점 더 많은 회사들이 그들의 사업을 인터넷상으로 옮기고 있어 서버가 제공하는 서비스의 어떠한 단절/중단도 사업상 손실을 의미하게 되었다. 이러한 서버들의 높은 가용성 (availability)은 점점 더 중요해지고 있다. 그러므로 확장성이 있고(scalable) 높은 가용성을 가진 서버에 대한 요구가 절실히 증가하고 있다. 이러한 형태의 서버들의 필요 조건을 요약하자면 다음과 같다:\n\n\\* 추가 확장성\n\n\\* 높은 가용성\n\n\\* 비용-효율성\n\n서버를 더 높은 성능의 서버로 개선(upgrade)하는 단일 서버 솔루션(solution)은 이 필요 조건을 맞추기에 한계가 있다. 개선 작업이 복잡하고 원래의 기계가 낭비될 수도 있다. 만일 요구(request)가 증가된다면 오래 지나지 않아 과부하가 되어 더 높은 성능의 서버로 다시 개선해주어야한다. 이 서버에 장애가 일어나면 전체 시스템에 영향을 미치는 곳(single point of failure)이다. 개선해야할 목표가 높아지면 높아질수록 비용이 더욱 더 많이 든다.\n\n빠른 넷트웍에 연결된 서버들의 클러스터는 성능이 뛰어나고 가용성이 높은 서버를 구축하는데 유효한 구조임이 판명되고 있다. 이러한 형태의 느슨하게 연관된 구조는 단일 프로세서 시스템이나 엄격한 다중 프로세서 시스템보다 확장성이 뛰어나고 비용-효율성이 좋으며 신뢰성이 높다. 그러나 클러스터내 병렬 서비스의 투명성(transparency), 확장성, 그리고 높은 가용성을 제공해야하는 어려움이 있다.\n\n이"
+    },
+    {
+      "caseId": "encrypted-hwp3",
+      "expectedFormat": "hwp3",
+      "sourceSha256": "db743d084efc9e08e839a5b4d978b16b8676434011776e090e4cda43e57304be",
+      "success": false,
+      "reportedFormat": "hwp3",
+      "markdownChars": 0,
+      "uniqueWordTokens": 0,
+      "blockCounts": {},
+      "pageCount": null,
+      "warnings": [],
+      "error": "암호로 보호된 HWP3 문서입니다. password 옵션에 열기 암호를 지정하세요.",
+      "errorCode": "ENCRYPTED",
+      "boundaryAccuracy": null,
+      "anchors": {
+        "expected": 0,
+        "matched": 0
+      },
+      "capabilities": {
+        "content": false,
+        "table_structure": false,
+        "page_structure": false,
+        "encrypted_boundary": true,
+        "corrupted_boundary": false
+      },
+      "required": [
+        "encrypted_boundary"
+      ],
+      "missing": [],
+      "targetReady": true,
+      "performance": {
+        "cold": {
+          "wallMs": 60,
+          "peakResidentBytes": 77086720,
+          "processExitCode": 1
+        },
+        "warm": {
+          "wallMs": 60,
+          "peakResidentBytes": 77381632,
+          "processExitCode": 1
+        }
+      },
+      "markdownSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "projection": ""
+    },
+    {
+      "caseId": "legacy-xls-biff8-korean",
+      "expectedFormat": "xls",
+      "sourceSha256": "69a4180a7b2d8044220ea2b35116c0c1fe3d4b0dd247d025c0dbc0daf211e14b",
+      "success": true,
+      "reportedFormat": "xls",
+      "markdownChars": 567,
+      "uniqueWordTokens": 43,
+      "blockCounts": {
+        "heading": 1,
+        "table": 1
+      },
+      "pageCount": 1,
+      "warnings": [],
+      "error": null,
+      "errorCode": null,
+      "boundaryAccuracy": null,
+      "anchors": {
+        "expected": 3,
+        "matched": 3
+      },
+      "capabilities": {
+        "content": true,
+        "table_structure": true,
+        "page_structure": true,
+        "encrypted_boundary": false,
+        "corrupted_boundary": false
+      },
+      "required": [
+        "content",
+        "table_structure"
+      ],
+      "missing": [],
+      "targetReady": true,
+      "performance": {
+        "cold": {
+          "wallMs": 60,
+          "peakResidentBytes": 77594624,
+          "processExitCode": 0
+        },
+        "warm": {
+          "wallMs": 60,
+          "peakResidentBytes": 77447168,
+          "processExitCode": 0
+        }
+      },
+      "markdownSha256": "b52e80249fae63a14c057f68555f6bee897a74d2b8d4077c3b053c64cd345fdd",
+      "projection": "## 2025년 예산\n\n<table>\n<tr><th colspan=\"4\">2025년도 부서별 예산 편성</th></tr>\n<tr><td>부서</td><td>본예산</td><td>추경</td><td>집행률(%)</td></tr>\n<tr><td>기획조정실</td><td>12500000000</td><td>500000000</td><td>87.3</td></tr>\n<tr><td>재정담당관</td><td>8300000000</td><td>-200000000</td><td>92.1</td></tr>\n<tr><td>총무과</td><td>5400000000</td><td>0</td><td>78.5</td></tr>\n<tr><td>정보통신과</td><td>9800000000</td><td>1200000000</td><td>65.2</td></tr>\n<tr><td>감사담당관</td><td>2100000000</td><td>-50000000</td><td>95.8</td></tr>\n<tr><td>합계</td><td>38100000000</td><td>1450000000</td><td></td></tr>\n</table>"
+    },
+    {
+      "caseId": "text-pdf",
+      "expectedFormat": "pdf",
+      "sourceSha256": "d5f354b7d29a463528b58e6699fd7600c7ec8b223d473cd3a82261e07580bd95",
+      "success": false,
+      "reportedFormat": "pdf",
+      "markdownChars": 0,
+      "uniqueWordTokens": 0,
+      "blockCounts": {},
+      "pageCount": null,
+      "warnings": [],
+      "error": "PDF 파싱에 pdfjs-dist가 필요합니다. 설치: npm install pdfjs-dist",
+      "errorCode": "MISSING_DEPENDENCY",
+      "boundaryAccuracy": null,
+      "anchors": {
+        "expected": 2,
+        "matched": 0
+      },
+      "capabilities": {
+        "content": false,
+        "table_structure": false,
+        "page_structure": false,
+        "encrypted_boundary": false,
+        "corrupted_boundary": false
+      },
+      "required": [
+        "content",
+        "page_structure"
+      ],
+      "missing": [
+        "content",
+        "page_structure"
+      ],
+      "targetReady": false,
+      "performance": {
+        "cold": {
+          "wallMs": 60,
+          "peakResidentBytes": 77611008,
+          "processExitCode": 1
+        },
+        "warm": {
+          "wallMs": 60,
+          "peakResidentBytes": 77611008,
+          "processExitCode": 1
+        }
+      },
+      "markdownSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "projection": ""
+    },
+    {
+      "caseId": "modern-docx",
+      "expectedFormat": "docx",
+      "sourceSha256": "76b83f6cb043357c1fb62c24f8bab67d8c26d737e80f8b0c2aa2466ce51326db",
+      "success": true,
+      "reportedFormat": "docx",
+      "markdownChars": 40,
+      "uniqueWordTokens": 5,
+      "blockCounts": {
+        "paragraph": 1,
+        "table": 1
+      },
+      "pageCount": null,
+      "warnings": [],
+      "error": null,
+      "errorCode": null,
+      "boundaryAccuracy": null,
+      "anchors": {
+        "expected": 2,
+        "matched": 2
+      },
+      "capabilities": {
+        "content": true,
+        "table_structure": true,
+        "page_structure": false,
+        "encrypted_boundary": false,
+        "corrupted_boundary": false
+      },
+      "required": [
+        "content",
+        "table_structure"
+      ],
+      "missing": [],
+      "targetReady": true,
+      "performance": {
+        "cold": {
+          "wallMs": 60,
+          "peakResidentBytes": 77529088,
+          "processExitCode": 0
+        },
+        "warm": {
+          "wallMs": 60,
+          "peakResidentBytes": 77692928,
+          "processExitCode": 0
+        }
+      },
+      "markdownSha256": "59dbf687ec8130461f41e992892ddde29c61555c9d9b3cc2024bf7f713db895e",
+      "projection": "한빛상회 계약 검토\n\n| 금액 | 40300 |\n| --- | --- |"
+    }
+  ],
+  "corruptObservations": [
+    {
+      "caseId": "corrupt-hwp3",
+      "expectedFormat": "hwp3",
+      "sourceSha256": "d4ca2d397e8303c1cc7fff5167cfd30dba206d82540a20f37407719dd4f484a5",
+      "success": false,
+      "reportedFormat": "hwp3",
+      "markdownChars": 0,
+      "uniqueWordTokens": 0,
+      "blockCounts": {},
+      "pageCount": null,
+      "warnings": [],
+      "error": "HWP3 압축 해제 실패: unexpected end of file",
+      "errorCode": "DECOMPRESSION_BOMB",
+      "boundaryAccuracy": "fail_closed_misclassified",
+      "anchors": {
+        "expected": 0,
+        "matched": 0
+      },
+      "capabilities": {
+        "content": false,
+        "table_structure": false,
+        "page_structure": false,
+        "encrypted_boundary": false,
+        "corrupted_boundary": true
+      },
+      "required": [
+        "corrupted_boundary"
+      ],
+      "missing": [],
+      "targetReady": true,
+      "performance": {
+        "wallMs": 60,
+        "peakResidentBytes": 77791232,
+        "processExitCode": 1
+      },
+      "markdownSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "projection": ""
+    },
+    {
+      "caseId": "corrupt-hwp5",
+      "expectedFormat": "hwp5",
+      "sourceSha256": "7ea6bdb8c2b7b0565e9e2fda809274e790d2ab14732b93d1ef5eebe63dd40028",
+      "success": false,
+      "reportedFormat": "hwp",
+      "markdownChars": 0,
+      "uniqueWordTokens": 0,
+      "blockCounts": {},
+      "pageCount": null,
+      "warnings": [],
+      "error": "HWP 시그니처 불일치",
+      "errorCode": "CORRUPTED",
+      "boundaryAccuracy": "exact",
+      "anchors": {
+        "expected": 0,
+        "matched": 0
+      },
+      "capabilities": {
+        "content": false,
+        "table_structure": false,
+        "page_structure": false,
+        "encrypted_boundary": false,
+        "corrupted_boundary": true
+      },
+      "required": [
+        "corrupted_boundary"
+      ],
+      "missing": [],
+      "targetReady": true,
+      "performance": {
+        "wallMs": 60,
+        "peakResidentBytes": 77283328,
+        "processExitCode": 1
+      },
+      "markdownSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "projection": ""
+    },
+    {
+      "caseId": "corrupt-hwpx",
+      "expectedFormat": "hwpx",
+      "sourceSha256": "3a5546654ae4b760e27fe1a5259d59063f3a2e64848495f6aae8d7b963029195",
+      "success": false,
+      "reportedFormat": "hwpx",
+      "markdownChars": 0,
+      "uniqueWordTokens": 0,
+      "blockCounts": {},
+      "pageCount": null,
+      "warnings": [],
+      "error": "손상된 HWPX에서 섹션 데이터를 복구할 수 없습니다",
+      "errorCode": "CORRUPTED",
+      "boundaryAccuracy": "exact",
+      "anchors": {
+        "expected": 0,
+        "matched": 0
+      },
+      "capabilities": {
+        "content": false,
+        "table_structure": false,
+        "page_structure": false,
+        "encrypted_boundary": false,
+        "corrupted_boundary": true
+      },
+      "required": [
+        "corrupted_boundary"
+      ],
+      "missing": [],
+      "targetReady": true,
+      "performance": {
+        "wallMs": 60,
+        "peakResidentBytes": 77430784,
+        "processExitCode": 1
+      },
+      "markdownSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "projection": ""
+    }
+  ],
+  "modelTasks": [
+    {
+      "modelId": "gpt-5.6-terra",
+      "taskId": "paired-hwp-purpose",
+      "wallMs": 2115,
+      "answer": "세 관측은 제목·저자·본문이 일치하므로 같은 문서로 판단된다. 문서는 리눅스 서버 클러스터를 하나의 가상 서버처럼 제공하기 위한 NAT·IP 터널링 기반 부하 분산, 작업 할당, 확장성 및 고가용성 방식을 다룬다.",
+      "passed": true,
+      "usage": {
+        "input_tokens": 5777,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 5774
+        },
+        "output_tokens": 77,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 5854
+      }
+    },
+    {
+      "modelId": "gpt-5.6-terra",
+      "taskId": "korean-business-values",
+      "wallMs": 1198,
+      "answer": "- 예산 제목: 2025년 예산\n- 기획조정실 본예산: 12,500,000,000\n- 전체 본예산 합계: 38,100,000,000\n- 거래처: 한빛상회\n- 계약 금액: 40,300",
+      "passed": true,
+      "usage": {
+        "input_tokens": 412,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 70,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 482
+      }
+    },
+    {
+      "modelId": "gpt-5.5",
+      "taskId": "paired-hwp-purpose",
+      "wallMs": 3724,
+      "answer": "세 관측은 제목, 저자, 초록, 본문 구성과 내용이 거의 동일하므로 같은 문서로 판단됩니다.  \n문서 주제는 서버 클러스터를 이용해 고성능·고가용성 리눅스 가상 서버를 구축하는 방법이며, NAT/IP 터널링 기반 부하 분산, 스케줄링 알고리즘, 확장성 및 장애 대응을 다룹니다.",
+      "passed": true,
+      "usage": {
+        "input_tokens": 5777,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 4864
+        },
+        "output_tokens": 140,
+        "output_tokens_details": {
+          "reasoning_tokens": 41
+        },
+        "total_tokens": 5917
+      }
+    },
+    {
+      "modelId": "gpt-5.5",
+      "taskId": "korean-business-values",
+      "wallMs": 4496,
+      "answer": "- 예산 제목: 2025년도 부서별 예산 편성\n- 기획조정실 본예산: 12500000000\n- 전체 본예산 합계: 38100000000\n- 거래처: 한빛상회\n- 계약 금액: 40300",
+      "passed": true,
+      "usage": {
+        "input_tokens": 412,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 187,
+        "output_tokens_details": {
+          "reasoning_tokens": 117
+        },
+        "total_tokens": 599
+      }
+    }
+  ],
+  "performanceRows": [
+    {
+      "caseId": "paired-hwp3",
+      "cold": {
+        "wallMs": 60,
+        "peakResidentBytes": 81707008,
+        "processExitCode": 0
+      },
+      "warm": {
+        "wallMs": 60,
+        "peakResidentBytes": 81739776,
+        "processExitCode": 0
+      }
+    },
+    {
+      "caseId": "paired-hwp5",
+      "cold": {
+        "wallMs": 70,
+        "peakResidentBytes": 82804736,
+        "processExitCode": 0
+      },
+      "warm": {
+        "wallMs": 70,
+        "peakResidentBytes": 82903040,
+        "processExitCode": 0
+      }
+    },
+    {
+      "caseId": "paired-hwpx",
+      "cold": {
+        "wallMs": 90,
+        "peakResidentBytes": 98975744,
+        "processExitCode": 0
+      },
+      "warm": {
+        "wallMs": 90,
+        "peakResidentBytes": 98942976,
+        "processExitCode": 0
+      }
+    },
+    {
+      "caseId": "encrypted-hwp3",
+      "cold": {
+        "wallMs": 60,
+        "peakResidentBytes": 77086720,
+        "processExitCode": 1
+      },
+      "warm": {
+        "wallMs": 60,
+        "peakResidentBytes": 77381632,
+        "processExitCode": 1
+      }
+    },
+    {
+      "caseId": "legacy-xls-biff8-korean",
+      "cold": {
+        "wallMs": 60,
+        "peakResidentBytes": 77594624,
+        "processExitCode": 0
+      },
+      "warm": {
+        "wallMs": 60,
+        "peakResidentBytes": 77447168,
+        "processExitCode": 0
+      }
+    },
+    {
+      "caseId": "text-pdf",
+      "cold": {
+        "wallMs": 60,
+        "peakResidentBytes": 77611008,
+        "processExitCode": 1
+      },
+      "warm": {
+        "wallMs": 60,
+        "peakResidentBytes": 77611008,
+        "processExitCode": 1
+      }
+    },
+    {
+      "caseId": "modern-docx",
+      "cold": {
+        "wallMs": 60,
+        "peakResidentBytes": 77529088,
+        "processExitCode": 0
+      },
+      "warm": {
+        "wallMs": 60,
+        "peakResidentBytes": 77692928,
+        "processExitCode": 0
+      }
+    }
+  ],
+  "unqualifiedBoundaries": {
+    "windowsActualDevice": "not_measured",
+    "macrosOleExternalObjects": "read-only parser did not execute objects, but explicit detection/warning was not qualified",
+    "optionalPdfOcrImageStack": "not installed or measured",
+    "docPptOdtOds": "out of D5 candidate scope",
+    "hwp3TruncationClassification": "fails closed but labels ordinary truncation as DECOMPRESSION_BOMB"
+  },
+  "verdict": {
+    "schema": "t5.document-candidate-qualification.v1",
+    "checks": {
+      "exactCandidateIdentity": true,
+      "sameContentAcrossHwpGenerations": true,
+      "hwpFamilyReady": true,
+      "xlsReady": true,
+      "docxReady": true,
+      "encryptedFailsClosed": true,
+      "corruptFilesFailClosed": true,
+      "sourceFilesUnchanged": true,
+      "macActuallyMeasured": true,
+      "actualModelTasksPassed": true
+    },
+    "passed": true,
+    "disposition": "split",
+    "qualifiedFormats": [
+      "hwp3",
+      "hwp5",
+      "hwpx",
+      "xls",
+      "docx"
+    ],
+    "keepCurrentPaths": [
+      "text",
+      "csv",
+      "tsv",
+      "xlsx",
+      "pdf"
+    ],
+    "currentReady": {
+      "paired-hwp3": false,
+      "paired-hwp5": false,
+      "paired-hwpx": false,
+      "legacy-xls-biff8-korean": false,
+      "text-pdf": true,
+      "modern-docx": false
+    },
+    "pairSimilarity": {
+      "hwp3ToHwp5": {
+        "leftTokens": 1759,
+        "rightTokens": 1772,
+        "intersection": 1759,
+        "jaccard": 0.9926636568848759,
+        "leftCoverage": 1,
+        "rightCoverage": 0.9926636568848759
+      },
+      "hwp3ToHwpx": {
+        "leftTokens": 1759,
+        "rightTokens": 1771,
+        "intersection": 1758,
+        "jaccard": 0.9920993227990971,
+        "leftCoverage": 0.9994314951677089,
+        "rightCoverage": 0.9926595143986449
+      },
+      "hwp5ToHwpx": {
+        "leftTokens": 1772,
+        "rightTokens": 1771,
+        "intersection": 1771,
+        "jaccard": 0.9994356659142212,
+        "leftCoverage": 0.9994356659142212,
+        "rightCoverage": 1
+      }
+    },
+    "reason": "HWP3/HWP5/HWPX/XLS/DOCX parser surfaces qualify, but the package-wide CLI/MCP/OCR/PDF surface is broader than the measured need."
+  },
+  "room": null,
+  "passed": true
+}
