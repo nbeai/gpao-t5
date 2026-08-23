@@ -1919,7 +1919,7 @@ tester audit의 산문은 triage 입력이며 재현 전 완료·실패 증거�
 
 ## D3~W9 — Vertical Capability Hardening Plan
 
-상태: `OWNER_PLANNED · D5 COMPLETE · D6 NEXT` — 기능 수를 늘리는 계획이 아니라, 현재 파일손·웹손이 지저분한 현실을
+상태: `OWNER_PLANNED · D6 COMPLETE · D7 NEXT` — 기능 수를 늘리는 계획이 아니라, 현재 파일손·웹손이 지저분한 현실을
 정확히 읽고 실제 결과까지 끝내는 깊이를 높이는 개발선이다. 아래 순서는 목록 우선순위가 아니라 앞 Gate의
 실제 증거가 다음 Gate를 여는 의존 순서다. 한 번에 하나만 `IN_PROGRESS`로 둔다.
 
@@ -2105,6 +2105,9 @@ D3-T0과 뒤의 실제 결함이 같은 관측 결손을 두 번 이상 가리�
 
 ### D6 — Structural + Visual Document Reading
 
+상태: `COMPLETE` — tester의 두 구조 오인 counterexample을 exact cell·merge·sheet projection과 사람용
+merge-aware preview로 닫았다. 구조로 목적이 성립해 모델 pixel 관측은 사용하지 않았다.
+
 목적: 셀·텍스트를 읽는 것과 사람이 보는 문서를 읽는 것의 차이를 닫는다.
 
 실제 과업:
@@ -2125,6 +2128,24 @@ D3-T0과 뒤의 실제 결함이 같은 관측 결손을 두 번 이상 가리�
 
 통과 조건: 셀만 보는 반대군보다 사용자 목적 정확도가 실제로 높고, 모든 단순 XLSX에 render를 강제하지
 않으며, 잘못된 source coordinate·조용한 표기 변경·가로 20열 같은 사용 불가 결과 `0`.
+
+완료 증거:
+
+- tester 견적 구조를 개인정보 없이 재현한 `Sheet1!A1:G28` fixture는 merge 28개, `E24=C24*D24`,
+  수량 85·단가 27,000·금액 2,295,000과 담당자·배송비·부가세 미확인을 보존했다.
+- XLSX preview가 merge master만 그리고 원본 `rowspan·colspan` 28개를 사용하도록 고쳐, 셀을 각각 늘어놓던
+  이전 화면과 사람 화면의 차이를 제거했다.
+- 실제 24시트 tester XLS는 로컬 permission worker에서만 읽었고 외부 모델에는 전송하지 않았다. 첫 시트
+  `끼니강성미샘!A9:D9`를 `불린녹말 | 마는녹말 | 밀가루 | 계란흰자1개` 네 독립 셀로 복구했으며,
+  잘못된 `CV3·CV14` 대신 실제 sheet·A1 coordinate를 보존했다.
+- 실제 XLS도 대화에서 bounded merge-aware HTML preview를 제공하며 목표 시트·A9:D9와 AA 이후 열 이름까지
+  표시한다. 모델에는 실제 원본 대신 같은 24시트·목표 행만 가진 비식별 fixture를 사용했다.
+- gpt-5.6-terra·gpt-5.5 모두 견적과 recipe 두 과업 `4/4`: 고객·행사·요청·메뉴·금액·미확인·source를
+  정확히 답하고 네 가로 재료를 수량·단위로 오인하지 않았다. terra는 12.3초/14,464 tokens와
+  5.1초/15,083 tokens, gpt-5.5는 25.6초/14,669 tokens와 19.5초/15,710 tokens였다.
+- 구조 관측만으로 두 목적이 성립해 모델 pixel 관측은 강제하지 않았다. 전체 2,045행 recipe DB 생성·검산은
+  이 Gate에서 하지 않았고 D7 결과물 진실 범위로 남긴다.
+- 근거: `refoundation/evidence/d6-structural-visual-document-qualification-2026-08-23.json`
 
 ### D7 — Deliverable Truth
 
@@ -3050,7 +3071,8 @@ tester audit에서 D1과 같은 다중 견적·정산 목적의 모델 완료 �
 false completion `0`을 확인했다. D3-T1 범용 계약은 열지 않았다. D4는 새 package 없이 UTF-16LE·CP949/
 EUC-KR 호환 text와 CSV/TSV 구조를 열어 D2 기준선을 `3/17→6/17`로 높였고 두 모델의 실제 첨부 과업이
 통과했다. D5는 Kordoc package 전체가 아니라 HWP3/HWP5/HWPX/XLS/DOCX parser 표면만 `split` 연결해
-고정 기준선을 `6/17→10/17`로 높였다. 다음 한 작업은 D6 Structural + Visual Document Reading이며, 이후 D7 → W7 →
+고정 기준선을 `6/17→10/17`로 높였다. D6는 견적 28 merges와 실제 24시트 XLS의 가로 재료·sheet/cell
+counterexample을 닫고 merge-aware XLSX/XLS preview를 열었다. 다음 한 작업은 D7 Deliverable Truth이며, 이후 W7 →
 W8 → W9는 앞 Gate의 실제 증거가 필요성을 유지할 때만 연다.
 
 U4의 I0 밖 나머지는 정본 순서상 아직 열리지 않았다. 다음 개발은 기능 목록에서 자동으로 고르지 않는다.

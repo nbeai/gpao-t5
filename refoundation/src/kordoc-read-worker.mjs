@@ -24,26 +24,36 @@ function exactFormat(buffer, requested) {
   return false;
 }
 
-function boundedCell(cell = {}) {
+function columnName(index) {
+  let value = index; let output = '';
+  while (value > 0) { value -= 1; output = String.fromCharCode(65 + (value % 26)) + output; value = Math.floor(value / 26); }
+  return output;
+}
+
+function boundedCell(cell = {}, row, column) {
   return {
+    row, column, address: `${columnName(column)}${row}`,
     text: String(cell.text ?? ''),
     colSpan: Math.max(1, Number(cell.colSpan) || 1),
     rowSpan: Math.max(1, Number(cell.rowSpan) || 1),
   };
 }
 
-function boundedTable(block = {}, remainingCells) {
+function boundedTable(block = {}, remainingCells, sheetName = null) {
   const source = block.table ?? {}; const rows = []; let shownCells = 0;
-  for (const row of source.cells ?? []) {
+  for (const [rowIndex, row] of (source.cells ?? []).entries()) {
     if (shownCells >= remainingCells) break;
-    const shown = row.slice(0, Math.max(0, remainingCells - shownCells)).map(boundedCell);
+    const shown = row.slice(0, Math.max(0, remainingCells - shownCells))
+      .map((cell, columnIndex) => boundedCell(cell, rowIndex + 1, columnIndex + 1));
     rows.push(shown); shownCells += shown.length;
   }
   const totalCells = (source.cells ?? []).reduce((sum, row) => sum + row.length, 0);
   return {
     pageNumber: block.pageNumber ?? null,
+    sheetName,
     rows: Number(source.rows) || (source.cells ?? []).length,
     columns: Number(source.cols) || Math.max(0, ...(source.cells ?? []).map((row) => row.length)),
+    sourceRange: `A1:${columnName(Number(source.cols) || Math.max(1, ...(source.cells ?? []).map((row) => row.length)))}${Number(source.rows) || (source.cells ?? []).length}`,
     hasHeader: source.hasHeader === true, cells: rows,
     totalCells, shownCells, truncated: shownCells < totalCells,
   };
@@ -51,10 +61,13 @@ function boundedTable(block = {}, remainingCells) {
 
 function project(result, { format, maxChars, maxCells }) {
   const markdown = String(result.markdown ?? ''); const blocks = result.blocks ?? [];
+  const xlsSheetNames = new Map(format === 'xls' ? blocks.filter((block) => block?.type === 'heading' && block.pageNumber)
+    .map((block) => [block.pageNumber, String(block.text ?? '')]) : []);
   const tables = []; let shownCells = 0;
   for (const block of blocks) {
     if (block?.type !== 'table' || tables.length >= MAX_TABLES || shownCells >= maxCells) continue;
-    const table = boundedTable(block, maxCells - shownCells); shownCells += table.shownCells; tables.push(table);
+    const table = boundedTable(block, maxCells - shownCells, xlsSheetNames.get(block.pageNumber) ?? null);
+    shownCells += table.shownCells; tables.push(table);
   }
   const pages = Array.isArray(result.pages) ? result.pages.map((page) => ({
     pageNumber: page.pageNumber, chars: String(page.markdown ?? '').length,

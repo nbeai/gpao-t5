@@ -1,0 +1,137 @@
+{
+  "schema": "t5.d6-structural-visual-document-qualification.v1",
+  "recordedAt": "2026-08-23T11:45:16.676Z",
+  "actualUserData": true,
+  "sources": {
+    "quote": {
+      "kind": "generated_redacted_fixture",
+      "sha256": "b2f9e105e138417a364c0aa7a89e6e1b07f93db50fef23301310988c9e42f710",
+      "merges": 28
+    },
+    "recipe": {
+      "kind": "local_tester_source",
+      "sha256": "252ba94599ebb39123b2959e4a66251edf604a1b5f491eae00b04c74b14541f5",
+      "persistedInEvidence": false,
+      "transmittedToExternalModel": false,
+      "sheets": 24
+    },
+    "modelRecipeFixture": {
+      "kind": "generated_redacted_fixture",
+      "sha256": "c6aeeedd89e1a354c3a7bcf6249aad63a27da0b8023a6c6dcc26837f4f4b38c2",
+      "sheets": 24
+    }
+  },
+  "observations": {
+    "quote": {
+      "sheetName": "Sheet1",
+      "merges": 28,
+      "formula": "C24*D24",
+      "previewMergeAttributes": 28
+    },
+    "recipe": {
+      "sheetName": "끼니강성미샘",
+      "addresses": [
+        "A9",
+        "B9",
+        "C9",
+        "D9"
+      ],
+      "values": [
+        "불린녹말",
+        "마는녹말",
+        "밀가루",
+        "계란흰자1개"
+      ],
+      "semanticRoles": [
+        "parallel_source_item",
+        "parallel_source_item",
+        "parallel_source_item",
+        "parallel_source_item"
+      ],
+      "totalChars": 245554,
+      "tables": 23,
+      "previewShowsTarget": true
+    }
+  },
+  "modelTasks": [
+    {
+      "modelId": "gpt-5.6-terra",
+      "id": "merged-quote",
+      "answer": "## 고객·행사 정보\n- **고객(업체명):** 한빛상회 — `Sheet1!B3`\n- **행사일:** 2026-09-01(화) — `Sheet1!B6`\n- **도착시간:** 12시 30분 도착 — `Sheet1!B7`\n- **배송지:** 대전시 중구 테스트로 1, 1층 로비 — `Sheet1!B8`\n- **고객 담당자:** 값 없음 — `Sheet1!B4`\n\n## 요청사항·비고\n- **비고:** 당일 카드결제 — `Sheet1!B9`\n- **요청사항:** 요청사항: 고등학생 도시락, 탄수화물·단백질 균형, 주스 포함 — `Sheet1!B10`\n\n## 메뉴\n- **메뉴 제목:** ** 케이터링 행사 도시락 ** — `Sheet1!B13`\n- 미니버거 — `Sheet1!B14`\n- 닭강정과 샐러드 — `Sheet1!B15`\n- 주먹밥 — `Sheet1!B16`\n- 계절 과일 — `Sheet1!B17`\n- 오렌지 주스 — `Sheet1!B18`\n\n## 견적 품목·금액 확인\n| 품목 | 수량 | 단가 | 금액 | 원본 위치 |\n|---|---:|---:|---:|---|\n| 행사 도시락 | 85 | 27000 | 2295000 | 품목 `Sheet1!B24` / 수량 `C24` / 단가 `D24` / 금액 `E24` |\n| 배송비 | 값 없음 | 값 없음 | 값 없음 | 품목 `Sheet1!B25` / 수량 `C25` / 단가 `D25` / 금액 `E25` |\n\n- **행사 도시락 금액 수식:** `C24*D24` → `85*27000 = 2295000` — `Sheet1!E24`  \n  → 수식 결과가 일치합니다.\n- **합계 수식:** `SUM(E24:E25)` → `2295000` — `Sheet1!D26`  \n  → 배송비 금액 셀 `E25`가 비어 있어 현재 합계는 행사 도시락 금액과 같습니다.\n- **부가세:** 미확인 — `Sheet1!A27`\n- **배송비:** 미확인 — `Sheet1!A27`",
+      "wallMs": 12297,
+      "httpStatus": 200,
+      "runStatus": "completed",
+      "receipts": 1,
+      "observedKinds": [
+        "xlsx"
+      ],
+      "usage": 14464,
+      "passed": true
+    },
+    {
+      "modelId": "gpt-5.6-terra",
+      "id": "horizontal-recipe-row",
+      "answer": "`끼니강성미샘` 시트의 불린녹말 행은 **9행**이며, A9:D9 원문은 다음과 같습니다.\n\n| 셀 | 원문 |\n|---|---|\n| `끼니강성미샘!A9` | `불린녹말` |\n| `끼니강성미샘!B9` | `마는녹말` |\n| `끼니강성미샘!C9` | `밀가루` |\n| `끼니강성미샘!D9` | `계란흰자1개` |\n\n네 칸 모두 문자열로 실제 입력되어 있고 병합 셀도 아닙니다. 따라서 A9:D9는 **서로 나란히 놓인 재료 항목들**로 읽는 것이 맞습니다.  \n수량·단위 열로 확인되는 별도 값은 없습니다. `계란흰자1개`에는 재료명과 `1개`가 붙어 있으나, 독립된 수량 또는 단위 열로 분리되어 있지는 않습니다 — `끼니강성미샘!A9:D9`.",
+      "wallMs": 5122,
+      "httpStatus": 200,
+      "runStatus": "completed",
+      "receipts": 1,
+      "observedKinds": [
+        "xlsx"
+      ],
+      "usage": 15083,
+      "passed": true
+    },
+    {
+      "modelId": "gpt-5.5",
+      "id": "merged-quote",
+      "answer": "아래는 원본 구조 기준으로 구분한 내용입니다. 비어 있거나 “미확인”으로 적힌 값은 채우지 않았습니다.\n\n## 1) 기본 정보\n\n| 구분 | 값 | 원본 위치 |\n|---|---:|---|\n| 문서 제목 | 견적서 | Sheet1!A1 |\n| 견적일 | 2026-08-20(목) | Sheet1!B2 |\n| 고객 / 업체명 | 한빛상회 | Sheet1!B3 |\n| 고객 담당자 | 빈 값 | Sheet1!A4 옆 값 없음 |\n| 고객 연락처 | 010-0000-0000 | Sheet1!B5 |\n| 행사일 | 2026-09-01(화) | Sheet1!B6 |\n| 도착시간 / 행사시간 | 12시 30분 도착 | Sheet1!B7 |\n| 배송지 | 대전시 중구 테스트로 1, 1층 로비 | Sheet1!B8 |\n| 비고 | 당일 카드결제 | Sheet1!B9 |\n| 요청사항 | 요청사항: 고등학생 도시락, 탄수화물·단백질 균형, 주스 포함 | Sheet1!B10 |\n\n## 2) 공급자 / 상호 정보\n\n| 구분 | 값 | 원본 위치 |\n|---|---:|---|\n| 상호명 | 테스트케이터링 | Sheet1!D2 |\n| 담당자 | 홍길동 | Sheet1!D3 |\n| 주소 | 대전시 서구 샘플로 10 | Sheet1!D4 |\n| 사업자번호 | 000-00-00000 | Sheet1!D5 |\n| 홈페이지 | https://example.invalid | Sheet1!D6 |\n| 연락처 | 010-0000-0000 | Sheet1!D7 |\n\n※ 고객 담당자 칸은 Sheet1!A4에 “담당자” 라벨만 있고 값은 비어 있습니다. Sheet1!D3의 “홍길동”은 오른쪽 공급자 정보 영역의 담당자로 보입니다.\n\n## 3) 메뉴 세부 내역\n\n| 구분 | 원문 | 원본 위치 |\n|---|---|---|\n| 메뉴 제목 | ** 케이터링 행사 도시락 ** | Sheet1!B13 |\n| 메뉴 | 미니버거 | Sheet1!B14 |\n| 메뉴 | 닭강정과 샐러드 | Sheet1!B15 |\n| 메뉴 | 주먹밥 | Sheet1!B16 |\n| 메뉴 | 계절 과일 | Sheet1!B17 |\n| 메뉴 | 오렌지 주스 | Sheet1!B18 |\n\n## 4) 금액 표\n\n| 번호 | 품목 | 수량 | 단가 | 금액 | 비고 | 원본 위치 |\n|---:|---|---:|---:|---:|---|---|\n| 1 | 행사 도시락 | 85 | 27000 | 2295000 | 빈 값 | Sheet1!A24:E24 |\n| 2 | 배송비 | 빈 값 | 빈 값 | 빈 값 | 빈 값 | Sheet1!A25:B25 |\n\n## 5) 수식 확인\n\n| 항목 | 표시값 | 수식 | 확인 내용 | 원본 위치 |\n|---|---:|---|---|---|\n| 행사 도시락 금액 | 2295000 | `C24*D24` | `85 * 27000 = 2295000`으로 일치 | Sheet1!E24 |\n| 합계 | 2295000 | `SUM(E24:E25)` | E24는 2295000, E25는 빈 값이라 합계 2295000으로 표시됨 | Sheet1!D26 |\n\n## 6) 비어 있거나 미확인인 값\n\n| 항목 | 상태 | 원본 위치 |\n|---|---|---|\n| 고객 담당자 | 값 없음 | Sheet1!A4 옆 값 없음 |\n| 배송비 | 금액 없음 | Sheet1!B25 및 금액 칸 E25 없음 |\n| 부가세 | 미확인 | Sheet1!A27 |\n| 배송비 | 미확인 | Sheet1!A27 |\n\n원문 메모:  \n`* 개인정보·계좌정보는 제거했습니다.`  \n`* 부가세와 배송비는 미확인입니다.`  \n출처: Sheet1!A27",
+      "wallMs": 25622,
+      "httpStatus": 200,
+      "runStatus": "completed",
+      "receipts": 1,
+      "observedKinds": [
+        "xlsx"
+      ],
+      "usage": 14669,
+      "passed": true
+    },
+    {
+      "modelId": "gpt-5.5",
+      "id": "horizontal-recipe-row",
+      "answer": "확인 결과, `끼니강성미샘` 시트의 `9행`은 `A9:D9`가 수량·단위 열로 나뉜 구조라기보다 **서로 나란한 재료명들이 가로로 배치된 행**으로 보입니다.\n\n`끼니강성미샘` 시트 `A9:D9` 원문 그대로:\n\n- `끼니강성미샘!A9`: `불린녹말`\n- `끼니강성미샘!B9`: `마는녹말`\n- `끼니강성미샘!C9`: `밀가루`\n- `끼니강성미샘!D9`: `계란흰자1개`\n\n구조 확인:\n\n- `A9`, `B9`, `C9`, `D9`는 각각 독립 셀이고 병합되어 있지 않습니다.\n- `A9:D9` 안에서 별도의 “수량 열”, “단위 열”로 확인되는 셀은 없습니다.\n- `D9`의 `계란흰자1개`는 수량·단위 표현이 같은 셀 안에 붙어 있는 형태입니다.\n\n수량·단위 확인:\n\n- `불린녹말` 수량: **미확인** — `끼니강성미샘!A9`\n- `불린녹말` 단위: **미확인** — `끼니강성미샘!A9`",
+      "wallMs": 19485,
+      "httpStatus": 200,
+      "runStatus": "completed",
+      "receipts": 1,
+      "observedKinds": [
+        "xlsx"
+      ],
+      "usage": 15710,
+      "passed": true
+    }
+  ],
+  "sourceFilesUnchanged": true,
+  "verdict": {
+    "checks": {
+      "quoteHasExactMerges": true,
+      "quoteMeaningBoundToCells": true,
+      "quoteFormulaPreserved": true,
+      "quoteUnknownsRemainUnknown": true,
+      "quotePreviewHonorsMerges": true,
+      "recipeRowKeptHorizontal": true,
+      "recipeNotRelabeledAsQuantityUnit": true,
+      "recipePreviewShowsSameStructure": true,
+      "modelTasksPassed": true,
+      "sourceFilesUnchanged": true
+    },
+    "passed": true
+  },
+  "unverified": {
+    "fullRecipeStandardizationRows": "not_generated",
+    "visualPixelsSuppliedToModel": false,
+    "reason": "both fixed counterexamples passed from explicit structure; merge-aware preview was rendered for the human surface"
+  },
+  "room": null,
+  "passed": true
+}

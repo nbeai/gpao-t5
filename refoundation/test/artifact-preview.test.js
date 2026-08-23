@@ -14,7 +14,7 @@ import { makeBarChart, makeBarSeries, makeChartSpace } from '@office-kit/xlsx/ch
 import { addChartAt } from '@office-kit/xlsx/drawing';
 import { workbookToBytes } from '@office-kit/xlsx/io';
 import { addWorksheet, createWorkbook } from '@office-kit/xlsx/workbook';
-import { setCell } from '@office-kit/xlsx/worksheet';
+import { mergeCells, setCell } from '@office-kit/xlsx/worksheet';
 
 function record(overrides = {}) {
   return {
@@ -88,6 +88,23 @@ test('XLSX 결과물은 실제 재개방된 셀·수식과 시트명을 표로 �
   assert.match(result.body, /한빛상회/);
   assert.match(result.body, /33000/);
   assert.match(result.body, /SUM\(B3:B3\)/);
+});
+
+test('XLSX preview는 병합 master만 그리고 원본 rowspan·colspan을 보존한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-artifact-merged-preview-'));
+  const file = join(room, '병합견적.xlsx');
+  const workbook = createWorkbook(); const sheet = addWorksheet(workbook, 'Sheet1');
+  setCell(sheet, 1, 1, '견적서'); mergeCells(sheet, 'A1:F1');
+  setCell(sheet, 2, 1, '업체명'); setCell(sheet, 2, 2, '한빛상회'); mergeCells(sheet, 'B2:C2');
+  setCell(sheet, 2, 4, '상호명'); mergeCells(sheet, 'D2:F2');
+  await writeFile(file, await workbookToBytes(workbook)); const bytes = await readFile(file);
+  const result = await renderAttachmentPreview({
+    record: record({ originalName: '병합견적.xlsx', kind: 'spreadsheet', storedPath: file, bytes: bytes.length }), bytes,
+  });
+  assert.match(result.body, /<td colspan="6"><span class="cell-address">A1<\/span>견적서<\/td>/u);
+  assert.match(result.body, /<td colspan="2"><span class="cell-address">B2<\/span>한빛상회<\/td>/u);
+  assert.match(result.body, /<td colspan="3"><span class="cell-address">D2<\/span>상호명<\/td>/u);
+  assert.equal((result.body.match(/한빛상회/gu) ?? []).length, 1);
 });
 
 test('CSV 결과물은 따옴표와 쉼표를 보존해 표로 보여준다', async () => {

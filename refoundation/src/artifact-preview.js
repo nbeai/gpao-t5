@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { extname } from 'node:path';
 
 import { strFromU8, unzipSync } from 'fflate';
@@ -5,6 +6,7 @@ import { DOMParser } from 'linkedom';
 
 import { inspectZipArchive } from './archive-safety.js';
 import { inspectBusinessDocument } from './document-data-inspector.js';
+import { inspectQualifiedDocument } from './qualified-document-parser.js';
 import { decodeTextDocument } from './text-document-observer.js';
 
 const MAX_WEB_BYTES = 5 * 1024 * 1024;
@@ -54,7 +56,7 @@ export function artifactPreviewKind(record = {}) {
   // 실제 저장소는 bytes로 MIME을 정하지만, 이름과 MIME이 충돌한 오래된 원장도 있다.
   // 구체적인 파일 형식을 먼저 고르고 broad text/html·document kind는 그다음에 본다.
   if (ext === '.docx') return 'document';
-  if (['.xlsx', '.xlsm', '.xltx', '.csv'].includes(ext)) return 'spreadsheet';
+  if (['.xlsx', '.xlsm', '.xltx', '.xls', '.csv'].includes(ext)) return 'spreadsheet';
   if (ext === '.pdf') return 'pdf';
   if (ext === '.svg') return 'vector';
   if (['.html', '.htm'].includes(ext)) return 'web';
@@ -167,19 +169,52 @@ function renderWorkbookChart(chart) {
   return `<section class="artifact-chart" data-chart-kind="${escapeHtml(chart.kind)}"><h3>${escapeHtml(chart.title ?? `차트 ${chart.index}`)}</h3>${content}</section>`;
 }
 
+function columnIndex(label) {
+  let value = 0;
+  for (const character of String(label).toUpperCase()) value = value * 26 + character.charCodeAt(0) - 64;
+  return value;
+}
+
+function columnLabel(index) {
+  let value = index; let output = '';
+  while (value > 0) { value -= 1; output = String.fromCharCode(65 + (value % 26)) + output; value = Math.floor(value / 26); }
+  return output;
+}
+
+function mergedLayout(ranges = []) {
+  const masters = new Map(); const covered = new Set();
+  for (const range of ranges) {
+    const match = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/u.exec(String(range));
+    if (!match) continue;
+    const minColumn = columnIndex(match[1]); const minRow = Number(match[2]);
+    const maxColumn = columnIndex(match[3]); const maxRow = Number(match[4]);
+    masters.set(`${minRow}:${minColumn}`, {
+      rowSpan: maxRow - minRow + 1, columnSpan: maxColumn - minColumn + 1,
+    });
+    for (let row = minRow; row <= maxRow; row += 1) for (let column = minColumn; column <= maxColumn; column += 1) {
+      if (row !== minRow || column !== minColumn) covered.add(`${row}:${column}`);
+    }
+  }
+  return { masters, covered };
+}
+
 function renderWorkbookSheet(sheet) {
   const cells = new Map(sheet.cells.map((cell) => [`${cell.row}:${cell.column}`, cell]));
+  const merges = mergedLayout(sheet.merges);
   const rows = Math.min(sheet.rowCount, MAX_SHEET_ROWS);
   const columns = Math.min(sheet.columnCount, MAX_SHEET_COLUMNS);
-  const head = `<tr><th></th>${Array.from({ length: columns }, (_, index) => `<th>${escapeHtml(String.fromCharCode(65 + index))}</th>`).join('')}</tr>`;
+  const head = `<tr><th></th>${Array.from({ length: columns }, (_, index) => `<th>${escapeHtml(columnLabel(index + 1))}</th>`).join('')}</tr>`;
   const body = Array.from({ length: rows }, (_, rowIndex) => {
     const row = rowIndex + 1;
     return `<tr><th>${row}</th>${Array.from({ length: columns }, (_, columnIndex) => {
-      const cell = cells.get(`${row}:${columnIndex + 1}`);
-      if (!cell) return '<td></td>';
+      const key = `${row}:${columnIndex + 1}`;
+      if (merges.covered.has(key)) return '';
+      const cell = cells.get(key); const merged = merges.masters.get(key);
+      const span = merged ? `${merged.rowSpan > 1 ? ` rowspan="${merged.rowSpan}"` : ''}${merged.columnSpan > 1 ? ` colspan="${merged.columnSpan}"` : ''}` : '';
+      if (!cell) return `<td${span}></td>`;
       const value = cell.text || (cell.value == null ? '' : String(cell.value));
       const formula = cell.formula ? `<span class="formula">=${escapeHtml(cell.formula)}</span>` : '';
-      return `<td><span class="cell-address">${escapeHtml(cell.address)}</span>${escapeHtml(value)}${formula}</td>`;
+      return `<td${span}><span class="cell-address">${escapeHtml(cell.address)}</span>${escapeHtml(value)}${formula}</td>`;
     }).join('')}</tr>`;
   }).join('');
   const omitted = sheet.rowCount > rows || sheet.columnCount > columns
@@ -196,6 +231,37 @@ async function renderXlsx(record) {
   const notice = observed.projection.truncated
     ? `<p class="notice">큰 문서라 일부 셀만 미리 보여요. 다운로드한 원본에는 전체 내용이 있습니다.</p>` : '';
   return officeDocument(record.originalName, notice + sheets.map(renderWorkbookSheet).join(''));
+}
+
+function renderQualifiedTable(table) {
+  const covered = new Set(); const rows = Math.min(table.cells.length, MAX_SHEET_ROWS);
+  const body = Array.from({ length: rows }, (_, rowIndex) => {
+    const row = table.cells[rowIndex] ?? [];
+    const cells = row.slice(0, MAX_SHEET_COLUMNS).map((cell, columnIndex) => {
+      const key = `${rowIndex + 1}:${columnIndex + 1}`; if (covered.has(key)) return '';
+      const rowSpan = Math.max(1, Number(cell.rowSpan) || 1); const columnSpan = Math.max(1, Number(cell.colSpan) || 1);
+      for (let r = rowIndex + 1; r < rowIndex + rowSpan + 1; r += 1) for (let c = columnIndex + 1; c < columnIndex + columnSpan + 1; c += 1) {
+        if (r !== rowIndex + 1 || c !== columnIndex + 1) covered.add(`${r}:${c}`);
+      }
+      const span = `${rowSpan > 1 ? ` rowspan="${rowSpan}"` : ''}${columnSpan > 1 ? ` colspan="${columnSpan}"` : ''}`;
+      return `<td${span}><span class="cell-address">${escapeHtml(cell.address)}</span>${escapeHtml(cell.text)}</td>`;
+    }).join('');
+    return `<tr><th>${rowIndex + 1}</th>${cells}</tr>`;
+  }).join('');
+  const columns = Math.min(table.columns, MAX_SHEET_COLUMNS);
+  const head = `<tr><th></th>${Array.from({ length: columns }, (_, index) => `<th>${escapeHtml(columnLabel(index + 1))}</th>`).join('')}</tr>`;
+  const omitted = table.truncated || table.rows > rows || table.columns > columns
+    ? '<p class="notice">큰 시트라 일부 셀만 미리 보여요. 원본 파일에는 전체 내용이 있습니다.</p>' : '';
+  return `<section class="sheet"><h2>${escapeHtml(table.sheetName ?? `시트 ${table.pageNumber ?? ''}`)}</h2>${omitted}<table>${head}${body}</table></section>`;
+}
+
+async function renderXls(record, bytes) {
+  const observed = await inspectQualifiedDocument({
+    bytes, format: 'xls', sourceSha256: createHash('sha256').update(bytes).digest('hex'),
+    maxChars: 1, maxCells: MAX_SHEET_ROWS * MAX_SHEET_COLUMNS,
+  });
+  if (observed.state !== 'observed') throw Object.assign(new Error('legacy spreadsheet preview is unavailable'), { status: 415 });
+  return officeDocument(record.originalName, observed.structure.tables.map(renderQualifiedTable).join(''));
 }
 
 function parseCsv(text) {
@@ -248,7 +314,8 @@ export async function renderAttachmentPreview({ record, bytes } = {}) {
   };
   if (kind === 'spreadsheet') return {
     kind, contentType: 'text/html; charset=utf-8', contentSecurityPolicy: OFFICE_CSP,
-    body: extension(record) === '.csv' ? renderCsv(record, content) : await renderXlsx(record),
+    body: extension(record) === '.csv' ? renderCsv(record, content)
+      : extension(record) === '.xls' ? await renderXls(record, content) : await renderXlsx(record),
   };
   throw Object.assign(new Error('preview uses the original managed content'), { status: 409 });
 }

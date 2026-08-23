@@ -59,6 +59,8 @@ test('DOCX worker는 exact bytes를 읽기 전용으로 관측하고 본문·표
   assert.match(observed.text, /한빛상회 계약 검토/u);
   assert.equal(observed.structure.tables[0].rows, 1);
   assert.deepEqual(observed.structure.tables[0].cells[0].map((cell) => cell.text), ['금액', '40300']);
+  assert.deepEqual(observed.structure.tables[0].cells[0].map((cell) => cell.address), ['A1', 'B1']);
+  assert.equal(observed.structure.tables[0].sourceRange, 'A1:B1');
   assert.equal(observed.coverage.truncated, false);
   assert.equal(observed.sourceSha256, definition.sha256);
   assert.equal(observed.parser.version, '4.9.1');
