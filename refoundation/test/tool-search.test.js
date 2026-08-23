@@ -47,6 +47,65 @@ test('한 번의 검색은 가장 관련 있는 도구 하나와 그 명시적 �
   assert.deepEqual(result.activatedTools, ['web_research']);
 });
 
+test('서로 섞인 후순위 능력군에서도 단일 목적은 정확한 도구 하나만 연다', async () => {
+  const tools = [
+    { name: 'automation', description: 'Create, inspect, pause, resume, cancel, or run a durable scheduled task.',
+      searchTerms: ['schedule recurring daily weekly monthly future cron reminder', '예약 반복 매일 매주 매월 나중 알림'] },
+    { name: 'session_search', description: 'Search or read the user’s canonical past T5 conversations for exact words, decisions, or prior work.' },
+    { name: 'web_research', description: 'Research a public-web question through focused searches and parallel reading of distinct source domains.',
+      searchTerms: ['multi source research', 'current trends evidence', '웹 리서치', '시장 조사', '여러 출처'] },
+    { name: 'cli_prepare', description: 'Find and prepare a trusted T5-managed command capability from pinned official releases.' },
+    { name: 'capability_catalog', description: 'Search the trusted bundled catalog when current tools and connections lack a needed capability.' },
+    { name: 'capability_evidence', description: 'Read observed use of prepared methods and managed commands when the user asks whether they are actually being used or remain useful. Reports use, completion, failure, cancellation, recent use, time, and retries.' },
+    { name: 'conversation_recall', description: 'Recover an exact range or find text inside omitted historical terminal output.' },
+    { name: 'visual_reference', description: 'Find visual or design references and return managed preview images.',
+      searchTerms: ['visual references', 'design examples', 'reference images'] },
+  ];
+  const search = makeToolSearchTool({ tools });
+  assert.match(search.description, /official candidates for a missing connection/u);
+  assert.match(search.description, /evidence of whether a prepared skill or managed command was actually used/u);
+  const cases = [
+    ['future recurring automation schedule', 'automation'],
+    ['past conversation decision search', 'session_search'],
+    ['multi source web research', 'web_research'],
+    ['prepare trusted managed cli command', 'cli_prepare'],
+    ['find unavailable official connection capability candidate', 'capability_catalog'],
+    ['inspect whether managed skills are actually used', 'capability_evidence'],
+    ['recover omitted historical terminal output', 'conversation_recall'],
+    ['design reference preview images', 'visual_reference'],
+  ];
+  for (const [query, expected] of cases) {
+    const result = await search.execute({ query });
+    assert.deepEqual(result.activatedTools, [expected], query);
+  }
+});
+
+test('대화 중 목적이 바뀌면 이미 연 도구가 다른 후순위 능력 발견을 가로막지 않는다', async () => {
+  let turn = 0;
+  const automation = { name: 'automation', description: 'future recurring automation schedule', deferred: true,
+    parameters: { type: 'object' }, async execute() { return { state: 'listed' }; } };
+  const sessionSearch = { name: 'session_search', description: 'past conversation decision search', deferred: true,
+    parameters: { type: 'object' }, async execute() { return { state: 'searched' }; } };
+  const search = makeToolSearchTool({ tools: [automation, sessionSearch] });
+  const result = await runAgent({ request: '지난 결정을 찾은 뒤 예약 작업도 확인해줘', tools: [search, automation, sessionSearch],
+    model: { async respond({ tools }) {
+      turn += 1;
+      if (turn === 1) return { text: '', toolCalls: [{ id: 's1', name: 'tool_search', args: { query: 'past conversation decision search' } }] };
+      if (turn === 2) return { text: '', toolCalls: [{ id: 'history', name: 'session_search', args: {} }] };
+      if (turn === 3) return { text: '', toolCalls: [{ id: 's2', name: 'tool_search', args: { query: 'future recurring automation schedule' } }] };
+      if (turn === 4) {
+        assert.deepEqual(tools.map((tool) => tool.name), ['tool_search', 'session_search', 'automation']);
+        return { text: '', toolCalls: [{ id: 'jobs', name: 'automation', args: {} }] };
+      }
+      return { text: '과거 결정과 예약 작업을 함께 확인했어요.', toolCalls: [] };
+    } },
+  });
+  assert.deepEqual(result.receipts.map((receipt) => receipt.actualCall?.name), [
+    'tool_search', 'session_search', 'tool_search', 'automation',
+  ]);
+  assert.equal(result.answer, '과거 결정과 예약 작업을 함께 확인했어요.');
+});
+
 test('화면 관측을 정확히 찾으면 일반 search 단어가 과거 대화 검색을 잘못 열지 않는다', async () => {
   const tools = [
     { name: 'browser', description: 'Render and interact with a public web page.',
@@ -153,21 +212,25 @@ test('완료된 도구는 다시 검색해도 같은 Run에서 재활성화되�
   assert.equal(result.answer, '조사 완료');
 });
 
-test('충분한 다중 출처 관측 뒤에는 같은 웹 그룹의 다른 도구도 다시 열리지 않는다', async () => {
+test('다중 출처 수만으로 웹 목적 완료를 대신하지 않고 exact URL 읽기를 계속 제공한다', async () => {
   let turn = 0;
   const research = { name: 'web_research', description: 'multi source research', capabilityGroup: 'web_observation', deferred: true,
-    parameters: { type: 'object' }, async execute() { return { stopFurtherResearch: true, completedCapabilityGroups: ['web_observation'] }; } };
-  const read = { name: 'web_read', description: 'read public URL', capabilityGroup: 'web_observation', deferred: true,
-    parameters: { type: 'object' }, async execute() { throw new Error('must stay closed'); } };
+    parameters: { type: 'object' }, async execute() { return { stopFurtherResearch: true, deactivatedTools: ['web_research'] }; } };
+  let exactReads = 0;
+  const read = { name: 'web_read', description: 'read public URL', capabilityGroup: 'web_observation',
+    parameters: { type: 'object' }, async execute() { exactReads += 1; return { state: 'read', content: { text: '필수 사실' } }; } };
   const search = makeToolSearchTool({ tools: [research, read] });
   const result = await runAgent({ request: '조사', tools: [search, research, read], model: { async respond({ tools }) {
     turn += 1;
     if (turn === 1) return { text: '', toolCalls: [{ id: 's1', name: 'tool_search', args: { query: 'multi source research' } }] };
     if (turn === 2) return { text: '', toolCalls: [{ id: 'r1', name: 'web_research', args: {} }] };
-    if (turn === 3) return { text: '', toolCalls: [{ id: 's2', name: 'tool_search', args: { query: 'read public URL' } }] };
-    assert.deepEqual(tools.map((tool) => tool.name), ['tool_search']);
+    if (turn === 3) {
+      assert.deepEqual(tools.map((tool) => tool.name), ['tool_search', 'web_read']);
+      return { text: '', toolCalls: [{ id: 'read', name: 'web_read', args: {} }] };
+    }
     return { text: '근거를 정리했어요.', toolCalls: [] };
   } } });
-  assert.equal(result.receipts.at(-1).result.state, 'no_match');
+  assert.equal(exactReads, 1);
+  assert.equal(result.receipts.at(-1).result.state, 'read');
   assert.equal(result.answer, '근거를 정리했어요.');
 });

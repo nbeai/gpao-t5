@@ -64,11 +64,19 @@ test('연결된 Notion 손은 도구 발견→검색→페이지 읽기→수정
       if (turn === 2) return { text: '', toolCalls: [{
         id: 'search-notion', name: 'notion', args: {
           ...base, action: 'call', toolName: 'notion-search', argumentsJson: JSON.stringify({ query: '주간 회의' }),
+          effect: {
+            kind: 'observe', summary: 'Notion에서 주간 회의 검색', targets: ['notion'],
+            reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null,
+          },
         },
       }] };
       if (turn === 3) return { text: '', toolCalls: [{
         id: 'fetch-notion', name: 'notion', args: {
           ...base, action: 'call', toolName: 'notion-fetch', argumentsJson: JSON.stringify({ id: 'page-1' }),
+          effect: {
+            kind: 'observe', summary: 'Notion 주간 회의 읽기', targets: ['notion'],
+            reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null,
+          },
         },
       }] };
       if (turn === 4) return { text: '', toolCalls: [{

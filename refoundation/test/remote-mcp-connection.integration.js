@@ -38,7 +38,10 @@ test('범용 Remote MCP는 DCR·사용자 OAuth·tools/list 확인 뒤에만 연
   const tool = await connection.makeTool({ authorizeEffect: async () => ({ allowed: true }) });
   const listed = await tool.execute({ action: 'list_tools', toolName: null, argumentsJson: null, effect: null });
   assert.equal(listed.tools[0].name, 'list_issues');
-  const result = await tool.execute({ action: 'call', toolName: 'list_issues', argumentsJson: '{}', effect: null });
+  const observe = { kind: 'observe', summary: '오늘 업무 조회', targets: ['linear'], reversible: true,
+    backupAvailable: true, recipientNew: false, approvalToken: null };
+  assert.equal((await tool.preflight({ action: 'call', toolName: 'list_issues', argumentsJson: '{}', effect: observe })).allowed, true);
+  const result = await tool.execute({ action: 'call', toolName: 'list_issues', argumentsJson: '{}', effect: observe });
   assert.match(result.content[0].text, /오늘 견적 확인/u); assert.deepEqual(runtimeCalls, [{ name: 'list_issues', arguments: {} }]);
   assert.equal(calls.some((call) => call.url.endsWith('/register')), true);
   assert.doesNotMatch(JSON.stringify(await connection.inspect()), /ACCESS|REFRESH|LINEAR-CODE/u);

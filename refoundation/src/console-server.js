@@ -474,6 +474,11 @@ export function makeConsoleServer({
       allowed: false, outcome: 'not_executed',
       result: { state: 'effect_declaration_required' },
     };
+    const mismatch = effectDeclarationMismatch(args.command, effect);
+    if (mismatch) return {
+      allowed: false, outcome: 'not_executed',
+      result: { state: 'effect_declaration_mismatch', reason: mismatch, declaredEffect: effect },
+    };
     const boundary = boundaryForEffect(effect, { requiredEffect });
     if (!boundary) return { allowed: true };
     if (boundary === 'secret_input') return {
@@ -491,11 +496,6 @@ export function makeConsoleServer({
         result: { state: 'authority_invalid', pendingId: effect.approvalToken, reason: consumed.reason },
       };
     }
-    const mismatch = effectDeclarationMismatch(args.command, effect);
-    if (mismatch) return {
-      allowed: false, outcome: 'not_executed',
-      result: { state: 'effect_declaration_mismatch', reason: mismatch, declaredEffect: effect },
-    };
     let proposal = await authority.findActiveCall(ownerId, toolName, args);
     if (!proposal) proposal = await authority.propose({ sessionId: ownerId, toolName, args });
     return {

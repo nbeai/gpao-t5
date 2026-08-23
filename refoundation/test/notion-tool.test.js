@@ -8,7 +8,7 @@ const effect = (kind) => ({
   backupAvailable: true, recipientNew: false, approvalToken: null,
 });
 
-test('Notion 도구 목록의 readOnlyHint가 true인 조회는 추가 효과 선언 없이 호출된다', async () => {
+test('Notion readOnlyHint 조회도 모델의 observe 선언 뒤에만 호출된다', async () => {
   const calls = [];
   const runtime = {
     async listTools() { return [{
@@ -20,11 +20,17 @@ test('Notion 도구 목록의 readOnlyHint가 true인 조회는 추가 효과 �
     }; },
   };
   const tool = makeNotionTool({ runtime, authorizeEffect: async () => { throw new Error('must not authorize'); } });
-  assert.equal((await tool.preflight({
+  const missing = await tool.preflight({
     action: 'call', toolName: 'notion-search', argumentsJson: JSON.stringify({ query: '회의록' }), effect: null,
+  });
+  assert.equal(missing.allowed, false);
+  assert.equal(missing.result.state, 'observe_effect_required');
+  assert.equal(calls.length, 0);
+  assert.equal((await tool.preflight({
+    action: 'call', toolName: 'notion-search', argumentsJson: JSON.stringify({ query: '회의록' }), effect: effect('observe'),
   })).allowed, true);
   const result = await tool.execute({
-    action: 'call', toolName: 'notion-search', argumentsJson: JSON.stringify({ query: '회의록' }), effect: null,
+    action: 'call', toolName: 'notion-search', argumentsJson: JSON.stringify({ query: '회의록' }), effect: effect('observe'),
   });
   assert.equal(result.state, 'called');
   assert.equal(result.trust, 'untrusted_external');
@@ -89,6 +95,26 @@ test('destructiveHint 도구는 external_change로 낮출 수 없고 원격 오�
   });
   assert.equal(large.truncated, true);
   assert.ok(JSON.stringify(large.content).length < 70_000);
+});
+
+test('서로 충돌하는 readOnly·destructive annotation은 파괴 경계를 우선한다', async () => {
+  let calls = 0;
+  const tool = makeNotionTool({
+    runtime: {
+      async listTools() { return [{
+        name: 'notion-conflicting-tool', inputSchema: { type: 'object' },
+        annotations: { readOnlyHint: true, destructiveHint: true },
+      }]; },
+      async callTool() { calls += 1; return { content: [], isError: false }; },
+    },
+    authorizeEffect: async () => ({ allowed: true }),
+  });
+  const lowered = await tool.preflight({
+    action: 'call', toolName: 'notion-conflicting-tool', argumentsJson: '{}', effect: effect('observe'),
+  });
+  assert.equal(lowered.allowed, false);
+  assert.equal(lowered.result.state, 'destructive_required');
+  assert.equal(calls, 0);
 });
 
 test('Notion 동적 인자는 OpenAI strict schema에서 허용되는 JSON 문자열로만 전달된다', async () => {

@@ -42,7 +42,10 @@ test('사용자는 Linear를 한 번 요청하고 로그인 허용 뒤 원래 �
       if (turn === 2) return { text: '', toolCalls: [{ id: 'connect-linear', name: 'connection', args: { action: 'start', id: 'linear', actionId: null } }] };
       if (turn === 3) return { text: 'Linear 로그인 화면에서 허용해 주세요. 끝나면 원래 부탁을 이어갈게요.', toolCalls: [] };
       if (turn === 4) return { text: '', toolCalls: [{ id: 'list-tools', name: 'linear', args: { action: 'list_tools', toolName: null, argumentsJson: null, effect: null } }] };
-      if (turn === 5) return { text: '', toolCalls: [{ id: 'issues', name: 'linear', args: { action: 'call', toolName: 'list_issues', argumentsJson: '{}', effect: null } }] };
+      if (turn === 5) return { text: '', toolCalls: [{ id: 'issues', name: 'linear', args: { action: 'call', toolName: 'list_issues', argumentsJson: '{}', effect: {
+        kind: 'observe', summary: 'Linear의 오늘 마감 업무 조회', targets: ['linear'],
+        reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null,
+      } } }] };
       return { text: '오늘 마감 업무는 견적 검토예요.', toolCalls: [] };
     } }) });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });

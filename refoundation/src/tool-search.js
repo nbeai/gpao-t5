@@ -1,12 +1,18 @@
 function tokens(value) { return String(value ?? '').toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []; }
 
+function tokenMatches(left, right) {
+  if (left === right) return true;
+  return Math.min(left.length, right.length) >= 4
+    && (left.includes(right) || right.includes(left));
+}
+
 function publicTool(tool) { return { name: tool.name, description: tool.description }; }
 
 export function makeToolSearchTool({ tools = [], prerequisites = {} } = {}) {
   const candidates = tools.filter((tool) => tool?.name && tool?.description);
   return {
     name: 'tool_search',
-    description: 'Find and activate a specialized T5 tool only when the current request needs a capability whose schema is not already visible. Search by the user goal, such as multi-source web research, visual references, browser login, documents, automation, connected apps, or managed capability setup. The matched tool schemas become available on the next model turn. Do not use this for ordinary conversation or work already covered by visible tools.',
+    description: 'Find and activate a specialized T5 tool only when the current request needs a capability whose schema is not already visible. Search by the user goal, such as multi-source web research, visual references, browser login, documents, automation, official candidates for a missing connection, managed capability setup, or evidence of whether a prepared skill or managed command was actually used. The matched tool schemas become available on the next model turn. Do not use this for ordinary conversation or work already covered by visible tools.',
     parameters: { type: 'object', additionalProperties: false, properties: {
       query: { type: 'string', description: 'Short capability query based on the user goal.' },
     }, required: ['query'] },
@@ -28,13 +34,13 @@ export function makeToolSearchTool({ tools = [], prerequisites = {} } = {}) {
         // Prefer a capability whose complete name is present in the goal over a compound
         // tool that happens to share one generic token such as "search".
         const completeNameMatch = name.length && name.every((nameToken) => (
-          wanted.some((wantedToken) => nameToken.includes(wantedToken) || wantedToken.includes(nameToken))
+          wanted.some((wantedToken) => tokenMatches(nameToken, wantedToken))
         ));
         if (completeNameMatch) score += 8;
         for (const token of wanted) {
-          if (name.some((value) => value.includes(token) || token.includes(value))) score += 4;
-          else if (searchTerms.some((value) => value.includes(token) || token.includes(value))) score += 3;
-          else if (description.some((value) => value.includes(token) || token.includes(value))) score += 1;
+          if (name.some((value) => tokenMatches(value, token))) score += 4;
+          else if (searchTerms.some((value) => tokenMatches(value, token))) score += 3;
+          else if (description.some((value) => tokenMatches(value, token))) score += 1;
         }
         return { tool, score };
       }).filter((entry) => entry.score > 0)

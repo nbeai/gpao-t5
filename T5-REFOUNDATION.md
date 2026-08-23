@@ -41,6 +41,31 @@ legacy T5                 refoundation T5
 CAPTCHA, 사용자 handoff는 모두 `0`이었다. 전체 검사는 `497/497`, legacy import는 `0`이다. 근거는
 `refoundation/evidence/p0-h2-web-foundation-recovery-2026-08-23.json`이다.
 
+### 2026-08-23 P0/P1 Agent Internal Boundary Hardening
+
+오너가 에이전트 내부 손 전체 감사에서 확인된 P0 권한·종료 경계와 P1 혼합 라우팅 검증을 별도로 열었다.
+새 기능·라우터·능력군을 만들지 않고 다음 네 미달만 닫았다.
+
+- Terminal은 `rm·find -delete·POST/전송`의 낮은 효과 위장 검사를 승인 필요 여부보다 먼저 수행한다.
+  실제 콘솔 반대시험에서 `observe`로 위장한 임시 파일 삭제는 `actualCall:null·not_executed`, 파일은 보존됐다.
+- `web_research`는 충분한 출처 뒤 자기 자신만 닫고, 출처 수를 사용자 목적 완료로 승격해
+  `web_search·web_read·browser` 전체를 닫지 않는다. 모델이 목적 미달이면 exact URL 읽기를 계속할 수 있다.
+- Remote MCP는 read-only 호출도 모델의 명시적 `observe` 효과를 요구하고,
+  `readOnlyHint·destructiveHint`가 충돌하면 파괴 경계를 우선한다.
+- 혼합 deferred 도구 8개 단일 목적과 대화 중 목적 전환 반대시험이 통과했다. 짧은 `are`가 `prepare`에
+  높은 이름 점수로 붙던 부분문자열 오선택은 완전 일치를 유지하고 4자 이상 부분 일치만 허용해 제거했다.
+- 실제 격리 모델 routing-only 7축에서 gpt-5.6-terra·gpt-5.5 모두 필요한 능력을 7/7 발견했다.
+  capability 사용 증거는 두 모델 모두 처음 `exec·memory`로 빗나갔으나 `tool_search`가 해당 표면을
+  설명하도록 한 번 보강한 뒤 `tool_search → capability_evidence`, 3 turns로 교정됐다.
+- gpt-5.5 다중 출처 Run은 첫 입력 8개 → `tool_search` → 다음 입력 `web_research` 공개 순서는 맞았지만,
+  격리 stub 뒤 기본 웹손을 추가 사용해 gpt-5.6-terra보다 continuation 효율 편차가 남았다. 효과 없는
+  `web_search` 문구 패치는 폐기했고 라우터 재설계 근거로 승격하지 않았다.
+- 전체 검사 `501/501`, legacy source import `0`.
+- 근거: `refoundation/evidence/p0-p1-agent-internal-boundary-hardening-2026-08-23.json`
+
+남은 경계: 실제 생산 계정의 MCP write는 자동 시험하지 않았고, gpt-5.5 multi-source continuation 비용은
+실제 공개 source 과업에서 다시 반복될 때만 model environment의 한 미달로 연다.
+
 Non-goals: 새 검색 공급자·Places API·화면 자동화 엔진·로그인 신분 재설계·설치 패키지 생성.
 
 ## P0-H1 — Human Release Recovery
@@ -184,8 +209,12 @@ Non-goals:
 - 설정 화면에 현재 모델의 도구·이미지·스트리밍 실제 adapter 경계 표시
 - 모델 전환 첫 Run에 이전·현재 provider/model/wire와 canonical Conversation 보존 Receipt
 - U2 시점 기본 9개 Core schema만 공개하고 peripheral 도구는 `tool_search` 뒤 가장 관련 있는 하나와
-  명시적 의존성만 다음 model turn에 공개; U3에서 결과물 등록을 Human Experience로 승격해 현재 Core는
-  attachment를 포함한 10개이며, 완료된 capability group은 같은 Run에서 다시 열지 않음
+  명시적 의존성만 다음 model turn에 공개; U3 당시 결과물 등록을 Human Experience로 승격해 10개가 됐음
+- P0-H2 현재 첫 모델 호출은 `connection·memory·skill·exec·web_search·web_read·attachment` 7개와
+  확장 능력 발견용 `tool_search` 1개, 총 8개다. `skill`은 실제 snapshot, `web_search`는 사용 가능한
+  provider가 있을 때 등록되며, Browser는 exact URL의 `web_read`가 경계를 관측한 뒤에만 열린다.
+- bounded 도구 자체는 같은 Run에서 다시 열지 않되, 자료 수를 사용자 목적 완료로 승격해 같은 능력군의
+  기본 관측 손까지 닫지 않음
 - OpenAI API 검색이 없을 때 Naver→DuckDuckGo→Bing 공개 후보 경로, 공급자 실패는 같은 질의의 다음
   실제 공급자로 bounded 전환
 - `web_research`: 최대 4개 관점 검색과 서로 다른 도메인 최대 10개 병렬 관측, HTML·JSON·text·PDF
@@ -203,7 +232,7 @@ Non-goals:
 - 웹 리서치: 173,932ms·22 model turns·23 tools → 38,363ms·3 turns·2 tools
 - 시각 참고자료: 244,273ms·21 turns → 20,231ms·3 turns, 관리 preview 3개 실제 표시
 - 1분 반복 자동화: 생성→정시 실행→재시작 복원→원래 대화 전달→지금 실행→멈춤→재개→취소 성립
-- U2 초기 tool schema: 19개·20,719 bytes → 9개·8,435 bytes; U3 현재는 결과물 손 포함 10개·9,518 bytes
+- U2 초기 tool schema: 19개·20,719 bytes → 9개·8,435 bytes; U3 당시 결과물 손 포함 10개·9,518 bytes
 - 근거: `refoundation/evidence/u2-model-web-automation-live-2026-08-22.json`
 
 미확인·경계:

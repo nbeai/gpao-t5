@@ -1,0 +1,90 @@
+{
+  "schema": "t5.p0-p1-agent-internal-boundary-hardening.v1",
+  "recordedAt": "2026-08-23T15:13:18+09:00",
+  "sourceCommitBefore": "aba98d92c1c65679625427043259b89396164bfc",
+  "actualUserData": false,
+  "scope": [
+    "terminal_effect_preflight_order",
+    "web_research_capability_completion_boundary",
+    "remote_mcp_annotation_authority",
+    "mixed_deferred_tool_routing"
+  ],
+  "nonGoals": [
+    "new_router_or_intent_engine",
+    "new_capability_group",
+    "new_connector_or_mcp_transport",
+    "parallel_tool_execution",
+    "ui_memory_automation_or_u1_g4_changes"
+  ],
+  "countertestsBeforeChange": {
+    "terminalObserveDisguisedDeleteExecuted": true,
+    "webResearchClosedFoundationalWebGroupAfterThreeReadableSources": true,
+    "remoteMcpReadOnlyAcceptedMissingObserveEffect": true,
+    "remoteMcpConflictingReadOnlyDestructivePreferredReadOnly": true,
+    "failed": 3,
+    "webBoundaryFailedSeparately": 1
+  },
+  "changes": {
+    "terminal": "effectDeclarationMismatch now runs before the no-approval fast path",
+    "web": "web_research deactivates only itself and no longer marks web_observation complete from source count",
+    "remoteMcp": "destructiveHint wins annotation conflicts and readOnlyHint requires explicit observe",
+    "toolSearch": "substring matching requires four characters unless tokens are equal; the public search surface now names missing official candidates and prepared-capability usage evidence",
+    "canonicalToolCount": "current normal first model call is seven core tools plus tool_search, total eight"
+  },
+  "focusedVerification": {
+    "authorityWebMcpRouting": { "passed": 31, "failed": 0 },
+    "remoteMcpHumanJourneys": { "passed": 4, "failed": 0 },
+    "deterministicRoutingSingleGoals": "8/8",
+    "deterministicPurposeShift": "passed"
+  },
+  "actualModelRouting": {
+    "initialVisibleTools": [
+      "tool_search", "connection", "memory", "skill", "exec", "web_search", "web_read", "attachment"
+    ],
+    "gpt-5.6-terra": {
+      "passed": "7/7",
+      "cases": {
+        "past_conversation": { "route": ["tool_search", "session_search"], "modelTurns": 4 },
+        "scheduled_work": { "route": ["tool_search", "automation"], "modelTurns": 3 },
+        "multi_source_research": { "route": ["tool_search", "web_research"], "modelTurns": 4 },
+        "managed_cli": { "route": ["tool_search", "cli_prepare"], "modelTurns": 3 },
+        "missing_connection_candidate": { "route": ["connection", "tool_search", "capability_catalog"], "modelTurns": 4 },
+        "capability_use_evidence": { "route": ["tool_search", "capability_evidence"], "modelTurns": 3 },
+        "remote_mcp_observe": { "route": ["connection", "tool_search", "linear.list_tools", "linear.call(observe)"], "modelTurns": 5 }
+      }
+    },
+    "gpt-5.5": {
+      "passed": "7/7 routing discovery",
+      "cases": {
+        "past_conversation": { "route": ["tool_search", "session_search"], "modelTurns": 4 },
+        "scheduled_work": { "route": ["tool_search", "automation"], "modelTurns": 3 },
+        "multi_source_research": {
+          "route": ["tool_search", "web_research", "web_search", "web_search", "web_read", "exec"],
+          "modelTurns": 7,
+          "routingPassed": true,
+          "efficiencyBoundary": "three earlier isolated attempts ended in bounded repeated web_search after the correct web_research activation; the final prompt-dump run completed"
+        },
+        "managed_cli": { "route": ["exec", "exec", "tool_search", "cli_prepare"], "modelTurns": 4 },
+        "missing_connection_candidate": { "route": ["connection", "tool_search", "capability_catalog"], "modelTurns": 4 },
+        "capability_use_evidence": { "route": ["tool_search", "capability_evidence"], "modelTurns": 3 },
+        "remote_mcp_observe": { "route": ["connection", "tool_search", "linear.list_tools", "linear.call(observe)"], "modelTurns": 5 }
+      }
+    },
+    "interpretation": {
+      "commonRoutingDefectFixed": "capability use evidence was initially missed by both models and passed after one tool_search description correction",
+      "promptDumpReviewed": "the final gpt-5.5 multi-source run exposed eight initial tools, then activated web_research on the second model input before later fallback calls",
+      "modelSpecificRemainingFailure": "gpt-5.5 routing discovery passed, but multi-source continuation was less stable and less efficient than gpt-5.6-terra in the isolated stub qualification",
+      "ineffectivePatchRemoved": true,
+      "routerRedesignAuthorized": false
+    }
+  },
+  "fullRegressionBeforeEvidenceWrite": {
+    "refoundationTests": { "passed": 501, "failed": 0 },
+    "legacySourceImports": 0
+  },
+  "unverified": [
+    "gpt-5.5 multi-source end-to-end efficiency remains below gpt-5.6-terra in the isolated stub qualification",
+    "actual production-account MCP write effects were not exercised",
+    "Windows and Linux physical-device behavior remains unmeasured"
+  ]
+}

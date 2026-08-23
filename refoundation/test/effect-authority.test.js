@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { AuthorityStore, boundaryForEffect, effectDeclarationMismatch } from '../src/effect-authority.js';
+import { makeConsoleServer } from '../src/console-server.js';
 
 test('네 사용자 경계만 멈추고 관측·가역적 로컬 변경은 자동 진행한다', () => {
   assert.equal(boundaryForEffect({ kind: 'observe' }), null);
@@ -107,4 +108,52 @@ test('명백한 파괴·외부 전송을 observe로 낮춰 선언하면 prefligh
   assert.equal(effectDeclarationMismatch("find /tmp/x -type f -delete", { kind: 'local_change' }), 'destructive_required');
   assert.equal(effectDeclarationMismatch("curl -X POST --data hi https://example.com", { kind: 'observe' }), 'external_send_required');
   assert.equal(effectDeclarationMismatch("printf hi > /tmp/a", { kind: 'local_change' }), null);
+});
+
+test('콘솔 terminal preflight는 파괴 명령의 observe 위장을 실제 실행 전에 막는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-authority-terminal-mismatch-'));
+  const stateDir = join(room, 'state');
+  const workspace = join(room, 'workspace');
+  const target = join(workspace, 'keep.txt');
+  await mkdir(workspace, { recursive: true });
+  await writeFile(target, 'keep', 'utf8');
+  let turn = 0;
+  const server = makeConsoleServer({
+    stateDir, workspace,
+    modelStatus: () => ({ connected: true, provider: 'test', modelId: 'authority-model' }),
+    modelFactory: () => ({ async respond({ messages }) {
+      turn += 1;
+      if (turn === 1) return { text: '', toolCalls: [{
+        id: 'lowered-delete', name: 'exec', args: {
+          command: "rm -f 'keep.txt'", cwd: workspace,
+          effect: {
+            kind: 'observe', summary: '파일을 확인한다', targets: [target],
+            reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null,
+          },
+        },
+      }] };
+      const receipt = JSON.parse(messages.at(-1).content);
+      assert.equal(receipt.actualCall, null);
+      assert.equal(receipt.outcome, 'not_executed');
+      assert.equal(receipt.result.state, 'effect_declaration_mismatch');
+      assert.equal(receipt.result.reason, 'destructive_required');
+      return { text: '파괴 효과 선언이 필요해 실행하지 않았어요.', toolCalls: [] };
+    } }),
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject); server.listen(0, '127.0.0.1', resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const reply = await fetch(`${base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: 'keep.txt를 확인해줘' }),
+    }).then((response) => response.json());
+    assert.equal(reply.reply, '파괴 효과 선언이 필요해 실행하지 않았어요.');
+    await access(target);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
 });

@@ -99,7 +99,6 @@ export function makeWebResearchTool({ searchTool, readTool, timeoutMs = 15_000 }
         coverage: { requestedSources: sourceLimit, selectedSources: selected.length, readableSources: read },
         stopFurtherResearch: boundedComplete,
         ...(boundedComplete ? { deactivatedTools: ['web_research'] } : {}),
-        ...(boundedComplete ? { completedCapabilityGroups: ['web_observation'] } : {}),
       };
     },
   };
