@@ -188,11 +188,14 @@ Chrome 전체 종료는 다음 명시적 요청에서 host를 재시작하며, l
 `userControlActive`를 모델에 비지속 공급해 과거 handoff 문장을 현재 사실로 승격하지 않는다. 설치 앱의 같은
 실패 대화에서 재시작 뒤 `login_status:not_active → navigate → login_start`를 실제 실행했고, 관리 Chrome PID만
 종료한 뒤 `login_status:user_control_cancelled`, Chrome 재실행 0, T5 health true를 확인했다. 단위 `571/571`,
-통합 `96/96`, legacy import `0`이다. package는 `156,951,131 bytes`, SHA-256
-`648df2ff695b86caa9dcb221d2971fa2d9b5ed6b63cbd7c1802f2611a37882ea`, sourceDirty false이며
+통합 `96/96`, legacy import `0`이다. 최종 package는 `156,892,217 bytes`, SHA-256
+`ded1c12bb37510d72ad4f5e6536ed9b2e363425d90993110f6992c082dc3ad94`, sourceDirty false이며
 `/Applications/GPAO-T5.app`과 receipt가 0.1.7이다. 두 별도 인간 최종 사용 세션의 설치본 제작 찬성도
-참고했지만 이후 실제 P0를 닫은 뒤에만 패키지를 다시 만들었다. 현재 Developer ID identity가 없어 unsigned·
-notarized false·stapled false인 내부 RC이며 정식 배포본으로 주장하지 않는다. 근거는
+참고했지만 이후 실제 P0를 닫은 뒤에만 패키지를 다시 만들었다. handoff의 기존 Application·Installer identity로
+hardened runtime·trusted timestamp 서명했고 Apple notary submission `c9b50aad-cb1a-4a12-9cfe-992a2280aae0`은
+`Accepted·Ready for distribution`이다. 1,905-byte ticket을 package trailer에 포함했으며 package와 설치 앱은
+Gatekeeper `Notarized Developer ID`, 설치 앱 deep codesign을 통과했다. 현재 macOS의 `stapler validate`는 ticket을
+찾은 뒤 exit 65를 내고 기존 0.1.3에도 같은 결과를 내는 로컬 경계로 남겼다. 근거는
 `refoundation/evidence/p0-browser-lifecycle-0.1.7-installed-2026-08-24.json`이다.
 
 사용자 완료 문장:
