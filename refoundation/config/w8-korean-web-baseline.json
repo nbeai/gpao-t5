@@ -1,0 +1,47 @@
+{
+  "schema": "t5.w8-korean-web-baseline-selection.v1",
+  "sealedAt": "2026-08-23T13:13:52.000Z",
+  "selectionRule": "Select the lowest SHA-256 of t5-w8-v1:index:type:category inside each predeclared stratum. Problem and answer text are not inspected before sealing.",
+  "kBrowseComp": {
+    "repository": "https://github.com/prometheus-eval/K-BrowseComp",
+    "repositoryCommit": "9f9737f96896ecbf66a5866bbee370d40d373d50",
+    "datasetPath": "search_evals/datasets/ko_browsecomp.jsonl",
+    "datasetSha256": "90349c25c32ba84053d8cf54b72b8e5f3117ab65489ce260cec33bb4a02fef33",
+    "datasetBytes": 151449,
+    "officialGoldScoringEligible": true,
+    "samples": [
+      {
+        "index": 62,
+        "type": "parallel",
+        "category": "교통/장소/지역",
+        "selectionKey": "07c643bad9d7335522e39416c958901ee78e66ffa790bd1d3a7d498de57c438e",
+        "problemSha256": "cb880135016fb594c9a50406d44b94b8cf6303f9ca97c51aee364daff46b977d",
+        "answerSha256": "5ac9153a502094eafa0b0eaf3b7360b55bc69f83900ae689d07b1a2eebd013e8"
+      },
+      {
+        "index": 29,
+        "type": "multi-hop",
+        "category": "금융/경제/공공정책",
+        "selectionKey": "4b074b6cccb078c9ca12f4ac8e786ddf7045700ed349632700fa1f1eab7d87a3",
+        "problemSha256": "752064130f123b4b6a8247537232724af59559b87541ac2f1326d41b54855293",
+        "answerSha256": "75b43a8f356ef3ebf4fe0420684f287adeb6a88a2cedc6686843cd680cb0d273"
+      }
+    ],
+    "releaseBoundary": "The pinned JSONL contains problem, answer, type, and category only. It does not contain the README-described expected trajectory, source URLs, or checklist fields."
+  },
+  "koWideSearch": {
+    "repository": "https://github.com/minstar/Ko-widesearch",
+    "repositoryCommit": "6e33fb4d3d6468c733aa5f67612bfee277908747",
+    "readmeSha256": "3a8d09adc353cbe2411e380f27c7bc127a7229cf169981c7fc00a29a8e94db87",
+    "projectPageSha256": "ca2aa6eb719d80670524c37628f5b0de33837df5461b48527b42a6fec78149b3",
+    "officialGoldScoringEligible": false,
+    "releaseBoundary": "The official gold tables are gated and the pinned public repository contains the project page and figures but no runnable scorer or task data. T5 must not report a Ko-WideSearch score without authorized gold data.",
+    "adoptedEvaluationShape": [
+      "closed-set item precision and recall",
+      "column-level factual completeness",
+      "whole-row completeness",
+      "normalization-aware comparison",
+      "source and coverage honesty"
+    ]
+  }
+}
