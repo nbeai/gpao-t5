@@ -1,0 +1,24 @@
+{
+  "schema": "t5.w8-korean-web-shape-tasks.v1",
+  "sealedAt": "2026-08-23T13:14:44.000Z",
+  "officialKoWideSearchScore": false,
+  "purpose": "Public Korean work tasks that adopt Ko-WideSearch item, column, and row completeness without using or claiming access to its gated gold data.",
+  "tasks": [
+    {
+      "id": "minimum-wage-2022-2026",
+      "kind": "closed_set_official_policy",
+      "prompt": "최저임금위원회나 고용노동부의 공식 공개 자료를 기준으로 2022년부터 2026년까지 각 적용 연도의 최저임금을 빠짐없이 표로 정리해줘. 열은 적용 연도, 시간급, 월 환산액, 전년 대비 인상률, 값을 확인한 공식 출처 URL로 해줘. 월 환산액의 기준 시간도 밝혀주고, 공식 자료에서 직접 확인하지 못한 값은 추측하지 말고 표시해줘.",
+      "promptSha256": "df56fc83815bfa5329cdd43265de824a2df7de4b68da275b37bc0ce00449808b",
+      "expectedRows": 5,
+      "requiredColumns": ["적용 연도", "시간급", "월 환산액", "전년 대비 인상률", "공식 출처 URL"]
+    },
+    {
+      "id": "bok-rate-changes-2024-2025",
+      "kind": "closed_set_cross_source_policy",
+      "prompt": "한국은행 공식 공개 자료를 기준으로 2024년 1월 1일부터 2025년 12월 31일까지 기준금리가 실제로 변경된 모든 결정일을 빠짐없이 찾아 표로 정리해줘. 열은 결정일, 변경 전 금리, 변경 후 금리, 변동폭, 해당 결정을 확인한 한국은행 공식 출처 URL로 해줘. 동결 회의는 행에 넣지 말고, 조사 범위와 누락 가능성도 밝혀줘.",
+      "promptSha256": "c90414ef8dd5c0f96d5286655820a146c23c900eafe25439e4c5a87e65f2f547",
+      "expectedRows": null,
+      "requiredColumns": ["결정일", "변경 전 금리", "변경 후 금리", "변동폭", "한국은행 공식 출처 URL"]
+    }
+  ]
+}
