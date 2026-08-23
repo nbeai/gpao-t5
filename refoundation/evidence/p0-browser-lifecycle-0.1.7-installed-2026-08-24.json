@@ -1,0 +1,91 @@
+{
+  "schema": "t5.p0-browser-lifecycle-0.1.7-installed.v1",
+  "recordedAt": "2026-08-24T02:20:00+09:00",
+  "goal": "A user may close a T5-managed tab, the whole managed Chrome window, or a login handoff at any time; the persistent identity survives but windows, processes, tabs, and CDP bindings are disposable.",
+  "failureOriginal": {
+    "sessionId": "3260bb98-0cc9-4935-8793-89f8fa166a4c",
+    "runs": [
+      "326d908b-e6d5-460e-a53e-147c27114de3",
+      "2aba9183-3cc0-4346-aebf-4d931ff0ca6d",
+      "697c20ed-947e-4890-88a2-8dc13585ccf1",
+      "111255e5-1a38-4d6f-8646-43abb045e2dd"
+    ],
+    "observed": "browser navigate remained bound to a gone Google Maps target and returned tab_gone; later turns hid Browser and claimed no reconnection path"
+  },
+  "changes": [
+    "navigate retries exactly one new tab in the same managed profile only for tab_gone",
+    "a dead managed Chrome process is invalidated and restarted on the next explicit browser request",
+    "closing a login window is user cancellation and never triggers automatic reopening",
+    "handoff-blocked actions return nextAction login_status",
+    "each Run supplies current userControlActive truth so historical assistant claims cannot become current browser state",
+    "Browser prerequisite discovery remains available when the capability is configured even if the process is currently closed"
+  ],
+  "negativeBoundaries": [
+    "non-tab_gone navigation errors do not broaden into new-tab retries",
+    "no browser window is reopened after the user says it was closed and asks only for current status",
+    "session-only login loss after full Chrome exit is reported rather than hidden",
+    "the managed profile is not reset and user Chrome is not controlled"
+  ],
+  "liveInstalledJourney": {
+    "version": "0.1.7",
+    "sessionId": "3260bb98-0cc9-4935-8793-89f8fa166a4c",
+    "afterAppRestart": {
+      "runId": "62e89adb-ef3b-48f1-96bb-40e89db2f471",
+      "tools": [
+        "web_read:login_required",
+        "browser.login_status:login_handoff_not_active",
+        "browser.navigate:observed",
+        "browser.login_start:user_control_required"
+      ],
+      "result": "historical handoff was rejected as current truth and a new visible handoff was actually opened"
+    },
+    "afterUserClosedLoginWindow": {
+      "runId": "962a65ed-a518-42a3-be73-10b81417d4c5",
+      "tools": [
+        "web_read:login_required",
+        "browser.login_status:user_control_cancelled"
+      ],
+      "reason": "browser_window_closed",
+      "managedChromeRemaining": false,
+      "t5AppHealth": true,
+      "reopenedWindow": false
+    },
+    "priorPositiveControls": {
+      "loggedInMailboxRun": "bfadbd06-4c41-45e5-8e8f-159305c40eb4",
+      "closedTabReopenRun": "8bcb929e-9425-43f4-a25d-ab398fe58ce1",
+      "fullChromeRestartRun": "701bf06a-e17b-452b-9065-0a0804596991"
+    }
+  },
+  "humanEvidence": {
+    "ownerReportedFinalUserSessions": 2,
+    "ownerReportedDisposition": "both supported producing the installer",
+    "boundary": "the later browser lifecycle counterexample was still fixed and requalified before final packaging"
+  },
+  "tests": {
+    "unit": {"passed":571,"failed":0},
+    "integration": {"passed":96,"failed":0},
+    "legacyImports": 0
+  },
+  "package": {
+    "version": "0.1.7",
+    "path": "dist/GPAO-T5-0.1.7-universal-unsigned.pkg",
+    "bytes": 156951131,
+    "sha256": "648df2ff695b86caa9dcb221d2971fa2d9b5ed6b63cbd7c1802f2611a37882ea",
+    "sourceCommit": "a65179ffdd9eaf8f3b343498929dafc34b79a693",
+    "sourceDirty": false,
+    "architectures": ["arm64", "x86_64"],
+    "node": "v24.14.0",
+    "signing": "unsigned",
+    "notarized": false,
+    "stapled": false,
+    "installedBundleVersion": "0.1.7",
+    "installedReceiptVersion": "0.1.7",
+    "installedHealth": true,
+    "preservedModelConnections": ["gpt-5.6-terra", "gpt-5.5"]
+  },
+  "disposition": {
+    "browserLifecycle": "qualified",
+    "release": "installed internal unsigned RC; not a signed or notarized distribution release",
+    "supersedes": ["0.1.4 installed RC", "0.1.5 installed RC", "0.1.6 installed RC"]
+  }
+}

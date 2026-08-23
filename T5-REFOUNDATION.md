@@ -174,7 +174,26 @@ agent-browser·Host/Origin guard·private-key scan·packaged console health를 �
 pkg receipt가 0.1.4로 올라갔다. 기존 terra·gpt-5.5 연결을 보존했으며 설치 앱의 자연어 terminal 종단은
 `exec succeeded·actual=true`, `/Users/jyp`를 실제 관측했다. 현재 Developer ID identity가 없어 package는
 unsigned·notarized false·stapled false인 내부 RC이며 정식 배포본으로 주장하지 않는다. 근거는
-`refoundation/evidence/release-0.1.4-installed-rc-2026-08-24.json`이다.
+ `refoundation/evidence/release-0.1.4-installed-rc-2026-08-24.json`이다.
+
+0.1.4 설치 뒤 실제 사용자 대화에서 이전 Google Maps 탭 target이 사라진 후 Naver Mail navigate가
+`tab_gone`으로 끝나고, 다음 턴들에서 새 탭·재연결 경로가 사라지는 P0 회귀가 확인됐다. 0.1.4는 배포 적격을
+철회했다. 중간 0.1.5·0.1.6에서 tab/process 복구와 handoff nextAction을 각각 확인했지만, 앱 재시작 뒤 과거
+assistant의 “로그인 창이 열려 있다”는 문장을 현재 사실로 오인하는 결손까지 발견해 최종본으로 두지 않았다.
+
+2026-08-24 0.1.7 설치 RC: 지속 대상은 profile·cookie·artifact identity이고 Chrome process·window·tab·CDP는
+사용자가 언제든 닫을 수 있는 disposable 현실로 고쳤다. `tab_gone`만 같은 profile의 새 탭에 1회 재결속하고,
+Chrome 전체 종료는 다음 명시적 요청에서 host를 재시작하며, login handoff 중 창 닫힘은
+`user_control_cancelled·browser_window_closed`로 끝나 창을 다시 열지 않는다. 매 Run의 실제
+`userControlActive`를 모델에 비지속 공급해 과거 handoff 문장을 현재 사실로 승격하지 않는다. 설치 앱의 같은
+실패 대화에서 재시작 뒤 `login_status:not_active → navigate → login_start`를 실제 실행했고, 관리 Chrome PID만
+종료한 뒤 `login_status:user_control_cancelled`, Chrome 재실행 0, T5 health true를 확인했다. 단위 `571/571`,
+통합 `96/96`, legacy import `0`이다. package는 `156,951,131 bytes`, SHA-256
+`648df2ff695b86caa9dcb221d2971fa2d9b5ed6b63cbd7c1802f2611a37882ea`, sourceDirty false이며
+`/Applications/GPAO-T5.app`과 receipt가 0.1.7이다. 두 별도 인간 최종 사용 세션의 설치본 제작 찬성도
+참고했지만 이후 실제 P0를 닫은 뒤에만 패키지를 다시 만들었다. 현재 Developer ID identity가 없어 unsigned·
+notarized false·stapled false인 내부 RC이며 정식 배포본으로 주장하지 않는다. 근거는
+`refoundation/evidence/p0-browser-lifecycle-0.1.7-installed-2026-08-24.json`이다.
 
 사용자 완료 문장:
 
