@@ -6,6 +6,7 @@ test('macOS team installer starts the console first and lets the user choose a m
   const build = await readFile(new URL('../scripts/build-macos-installer.mjs', import.meta.url), 'utf8');
   const launcher = await readFile(new URL('../scripts/macos-launcher.m', import.meta.url), 'utf8');
   assert.match(build, /refoundation[\s\S]*start-console\.mjs/u);
+  assert.match(build, /restrict-kordoc-bin\.mjs/u);
   assert.match(build, /node-arm64/u);
   assert.match(build, /node-x64/u);
   assert.match(build, /COPYRIGHT/u);

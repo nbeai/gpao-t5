@@ -82,7 +82,9 @@ async function copyRuntimeApp(target) {
       recursive: true, dereference: false,
     });
   }
-  for (const script of ['start-console.mjs', 'connect-chatgpt.mjs', 'prepare-node-pty.mjs']) {
+  for (const script of [
+    'start-console.mjs', 'connect-chatgpt.mjs', 'prepare-node-pty.mjs', 'restrict-kordoc-bin.mjs',
+  ]) {
     await copyFile(join(repo, 'refoundation', 'scripts', script), join(refoundation, 'scripts', script));
   }
   for (const file of ['index.html', 'markdown.js', 'approval-state.js']) {
