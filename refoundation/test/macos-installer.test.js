@@ -35,9 +35,9 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.doesNotMatch(verifier, /'-l', 'BEGIN \(RSA \)\?PRIVATE KEY/u);
 });
 
-test('5차 macOS package version은 제품 version 0.1.5와 일치한다', async () => {
+test('6차 macOS package version은 제품 version 0.1.6과 일치한다', async () => {
   const packageMetadata = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
   const build = await readFile(new URL('../scripts/build-macos-installer.mjs', import.meta.url), 'utf8');
-  assert.equal(packageMetadata.version, '0.1.5');
-  assert.match(build, /version:\s*'0\.1\.5'/u);
+  assert.equal(packageMetadata.version, '0.1.6');
+  assert.match(build, /version:\s*'0\.1\.6'/u);
 });

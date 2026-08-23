@@ -272,9 +272,12 @@ test('login handoff 중에는 page content와 action을 모델에 열지 않고 
   assert.equal(started.pageObserved, false);
   const blockedSnapshot = await tool.execute({ action: 'snapshot', ...common, url: null, tabId: 't1' });
   assert.equal(blockedSnapshot.state, 'user_control_in_progress');
+  assert.equal(blockedSnapshot.nextAction, 'login_status');
+  assert.equal(blockedSnapshot.reason, 'login_handoff_requires_status_check');
   assert.equal(blockedSnapshot.effect, 'not_executed');
   const blockedTabs = await tool.execute({ action: 'tabs', ...common, url: null });
   assert.equal(blockedTabs.state, 'user_control_in_progress');
+  assert.equal(blockedTabs.nextAction, 'login_status');
   const waiting = await tool.execute({ action: 'login_status', ...common, url: null, tabId: 't1' });
   assert.equal(waiting.state, 'user_action_required');
   assert.equal(waiting.observation, undefined);

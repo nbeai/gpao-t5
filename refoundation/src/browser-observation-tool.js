@@ -135,7 +135,8 @@ export function makeBrowserObservationTool({
       const safeDuringHandoff = new Set(['status', 'profiles', 'login_status', 'login_cancel']);
       if (userControlActive && !safeDuringHandoff.has(args.action)) return {
         state: 'user_control_in_progress', effect: 'not_executed', pageObserved: false,
-        secretValuesObserved: false,
+        secretValuesObserved: false, nextAction: 'login_status',
+        reason: 'login_handoff_requires_status_check',
       };
       if (args.action === 'status') return {
         ...(await driver.status(context.signal ? { signal: context.signal } : {})), effect: 'observe', profile: profileOf(driver),
