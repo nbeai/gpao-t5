@@ -47,6 +47,58 @@ test('한 번의 검색은 가장 관련 있는 도구 하나와 그 명시적 �
   assert.deepEqual(result.activatedTools, ['web_research']);
 });
 
+test('화면 관측을 정확히 찾으면 일반 search 단어가 과거 대화 검색을 잘못 열지 않는다', async () => {
+  const tools = [
+    { name: 'browser', description: 'Render and interact with a public web page.',
+      searchTerms: ['browser rendered page dynamic website'] },
+    { name: 'session_search', description: 'Search canonical past user conversations.' },
+  ];
+  const result = await makeToolSearchTool({ tools }).execute({
+    query: 'browser navigate public search results and inspect business profile',
+  });
+  assert.deepEqual(result.activatedTools, ['browser']);
+});
+
+test('현재 후순위 손을 미리 찾으면 비슷한 도구 대신 정확한 선행 관측을 돌려준다', async () => {
+  const search = makeToolSearchTool({
+    tools: [{ name: 'automation', description: 'Automate future interaction work.' }],
+    prerequisites: { browser: { tool: 'web_read', condition: 'exact URL boundary first' } },
+  });
+  const result = await search.execute({
+    query: 'browser interaction to inspect a public business profile',
+  });
+  assert.equal(result.state, 'prerequisite_required');
+  assert.equal(result.requestedTool, 'browser');
+  assert.deepEqual(result.activatedTools, []);
+  assert.deepEqual(result.tools, []);
+  assert.deepEqual(result.prerequisite, { tool: 'web_read', condition: 'exact URL boundary first' });
+});
+
+test('URL 읽기가 정적 관측 소진을 증명하면 다음 모델 턴에 화면 관측만 자동으로 열린다', async () => {
+  let turn = 0;
+  const read = { name: 'web_read', description: 'Read an exact public URL.', parameters: { type: 'object' },
+    async execute() { return { state: 'dynamic_required', activatedTools: ['browser'], capabilityBoundary: {
+      required: 'browser_render', available: false, staticObservationExhausted: true,
+    } }; } };
+  const browser = { name: 'browser', description: 'Render an exact dynamic page.', deferred: true,
+    parameters: { type: 'object' }, async execute() { return { state: 'observed' }; } };
+  const result = await runAgent({ request: '이 주소 내용을 확인해줘', tools: [read, browser],
+    model: { async respond({ tools }) {
+      turn += 1;
+      if (turn === 1) {
+        assert.deepEqual(tools.map((tool) => tool.name), ['web_read']);
+        return { text: '', toolCalls: [{ id: 'read', name: 'web_read', args: {} }] };
+      }
+      if (turn === 2) {
+        assert.deepEqual(tools.map((tool) => tool.name), ['web_read', 'browser']);
+        return { text: '', toolCalls: [{ id: 'render', name: 'browser', args: {} }] };
+      }
+      return { text: '동적 페이지를 확인했어요.', toolCalls: [] };
+    } } });
+  assert.equal(result.answer, '동적 페이지를 확인했어요.');
+  assert.deepEqual(result.receipts.map((receipt) => receipt.actualCall.name), ['web_read', 'browser']);
+});
+
 test('모델이 수단을 섞어 검색해도 사용자 결과에 맞는 시각 참고자료 손을 우선한다', async () => {
   const tools = [
     { name: 'web_read', description: 'Read one exact public URL.' },

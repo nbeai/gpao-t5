@@ -73,28 +73,25 @@ test('공개 페이지 정적 읽기가 막히면 같은 Run에서 기존 브라
     browserDriverFactory: () => driver,
     modelFactory: () => ({ async respond(input) {
       modelTurn += 1;
-      if (modelTurn === 1) return { text: '', toolCalls: [{
-        id: 'find-web-tools', name: 'tool_search', args: { query: 'exact public URL browser rendered page' },
-      }] };
-      const receipt = JSON.parse(input.messages.at(-1).content);
-      if (modelTurn === 2) {
-        assert.equal(receipt.result.state, 'activated');
+      if (modelTurn === 1) {
         assert.ok(input.tools.some((tool) => tool.name === 'web_read'));
-        assert.ok(input.tools.some((tool) => tool.name === 'browser'));
+        assert.ok(!input.tools.some((tool) => tool.name === 'browser'));
         return { text: '', toolCalls: [{
         id: 'read-social-static', name: 'web_read', args: { url: postUrl, maxChars: 12_000 },
       }] };
       }
-      if (modelTurn === 3) {
+      const receipt = JSON.parse(input.messages.at(-1).content);
+      if (modelTurn === 2) {
         assert.equal(receipt.result.state, 'blocked');
         assert.equal(receipt.result.source.status, 400);
+        assert.ok(input.tools.some((tool) => tool.name === 'browser'));
         return { text: '', toolCalls: [{
           id: 'render-social-page', name: 'browser',
           args: { action: 'navigate', url: postUrl, ...browserArgs },
         }] };
       }
       assert.equal(receipt.result.state, 'observed');
-      if (modelTurn === 4) {
+      if (modelTurn === 3) {
         assert.match(receipt.result.observation.text, /댓글 759개/);
         assert.doesNotMatch(receipt.result.observation.text, /changing our operating hours/i);
         return { text: '', toolCalls: [{
@@ -127,7 +124,7 @@ test('공개 페이지 정적 읽기가 막히면 같은 Run에서 기존 브라
     const run = await fetch(`${base}/runs/${reply.runId}`).then((response) => response.json());
     const calls = run.events.filter((event) => event.type === 'tool_completed')
       .map((event) => event.payload.receipt.actualCall.name);
-    assert.deepEqual(calls, ['tool_search', 'web_read', 'browser', 'browser']);
+    assert.deepEqual(calls, ['web_read', 'browser', 'browser']);
   } finally {
     await server.closeBrowsers?.();
     await new Promise((resolve) => server.close(resolve));

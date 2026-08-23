@@ -400,7 +400,10 @@ export function makeWebReadTool({
           ...(readStrategy ? { readStrategy } : {}),
         };
         const terminalState = responseState(response.status);
-        if (terminalState) return { state: terminalState, source: sourceBase, content: null };
+        if (terminalState) return {
+          state: terminalState, source: sourceBase, content: null,
+          activatedTools: ['browser'],
+        };
         const disposition = String(response.headers.get('content-disposition') ?? '');
         let decodedDisposition = disposition;
         try { decodedDisposition = decodeURIComponent(disposition); } catch { /* preserve observed header */ }
@@ -436,9 +439,12 @@ export function makeWebReadTool({
             outputTruncated: embedded.outputTruncated,
             itemLimitReached: embedded.itemLimitReached,
           };
-          if (facts.loginWall) return { state: 'login_required', source, content: null };
+          if (facts.loginWall) return {
+            state: 'login_required', source, content: null, activatedTools: ['browser'],
+          };
           if (facts.dynamicShell && !embedded.text) return {
             state: 'dynamic_required', source, content: null,
+            activatedTools: ['browser'],
             capabilityBoundary: {
               required: 'browser_render', available: false, staticObservationExhausted: true,
             },
@@ -453,6 +459,7 @@ export function makeWebReadTool({
             return {
               state: 'partial_dynamic', source,
               content: { format: 'text', ...contentWindow(combinedText, maxChars) },
+              activatedTools: ['browser'],
               capabilityBoundary: {
                 required: 'browser_render', available: false, staticObservationExhausted: true,
               },

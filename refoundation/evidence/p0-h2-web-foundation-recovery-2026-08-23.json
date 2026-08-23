@@ -1,0 +1,74 @@
+{
+  "schema": "t5.p0-h2.web-foundation-recovery.v1",
+  "recordedAt": "2026-08-23T04:02:03.000Z",
+  "userFailure": {
+    "request": "구글에서 복주회복병원 검색해서 비즈니스 프로필 확인해봐;.",
+    "failedRoute": ["browser.navigate:https://www.google.com/search"],
+    "failedOutcome": "google_automated_traffic_block_then_user_handoff",
+    "causeCommits": ["3110d191", "4f7c003f"]
+  },
+  "comparisonPrinciples": [
+    {
+      "product": "OpenClaw",
+      "source": "https://docs.openclaw.ai/tools/web",
+      "adopted": "web_search and web_fetch are lightweight web hands; rendered interaction is for JS-heavy or login work"
+    },
+    {
+      "product": "Hermes Agent",
+      "source": "https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/browser.md",
+      "adopted": "simple information retrieval prefers web_search or web_extract because they are faster and cheaper"
+    },
+    {
+      "product": "OpenAI Responses/Codex",
+      "source": "https://developers.openai.com/api/reference/cli/resources/beta/subresources/responses",
+      "adopted": "web search and computer interaction are distinct tool capabilities"
+    },
+    {
+      "product": "Claude Code",
+      "source": "https://docs.anthropic.com/ko/docs/claude-code/iam",
+      "adopted": "WebFetch is a first-class permission surface while browser automation remains an external MCP capability"
+    }
+  ],
+  "restoredContract": {
+    "coreTools": ["web_search", "web_read"],
+    "deferredTool": "browser",
+    "generalDiscovery": "browser excluded",
+    "prerequisite": "exact URL web_read receipt",
+    "activationStates": ["blocked", "login_required", "rate_limited", "dynamic_required", "partial_dynamic"],
+    "googlePlaceMethod": "web_search exact identity and location -> stable Google Maps api=1 destination -> web_read -> rendered observation only on explicit boundary",
+    "compactRecovery": "one full snapshot on the same tab when required page facts are omitted"
+  },
+  "liveQualification": [
+    {
+      "model": "gpt-5.6-terra",
+      "runId": "f0f28826-ed9b-4daf-aec0-d0be9349399a",
+      "wallMs": 22519,
+      "modelTurns": 5,
+      "toolCalls": ["web_search", "web_read", "browser.navigate", "browser.snapshot(full=true)"],
+      "toolStates": ["candidates", "partial_dynamic", "observed", "observed"],
+      "totalTokens": 56166,
+      "goalCompleted": true,
+      "googleSearchResultsPage": false,
+      "captcha": false,
+      "userHandoff": false
+    },
+    {
+      "model": "gpt-5.5",
+      "runId": "e5d99eea-2350-4049-b3c0-058a14d26a84",
+      "wallMs": 40430,
+      "modelTurns": 5,
+      "toolCalls": ["web_search", "web_read", "browser.navigate", "browser.snapshot(full=true)"],
+      "toolStates": ["candidates", "partial_dynamic", "observed", "observed"],
+      "totalTokens": 60975,
+      "goalCompleted": true,
+      "googleSearchResultsPage": false,
+      "captcha": false,
+      "userHandoff": false
+    }
+  ],
+  "regression": {
+    "targeted": { "passed": 35, "failed": 0 },
+    "refoundation": { "passed": 497, "failed": 0 },
+    "legacyImports": 0
+  }
+}

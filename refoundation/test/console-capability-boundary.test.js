@@ -32,6 +32,7 @@ test('기본 위치를 이유로 사용자가 지정한 경로의 터미널 관�
   assert.match(instructions, /command family=cmd/);
   assert.match(instructions, /smallest sufficient observation/i);
   assert.match(instructions, /shortest useful answer.*conclusion.*compact next step/i);
+  assert.match(instructions, /work remains.*tool is available.*do not end.*promise or preamble.*Call the tool.*same response/i);
   assert.match(instructions, /multiple.*target.*discriminator/i);
   assert.match(instructions, /user choice.*not.*computer evidence/i);
   assert.match(instructions, /missing destination.*delivery surface.*account.*ask one direct question/i);
@@ -61,7 +62,7 @@ test('정확한 공개 페이지의 정적 관측이 막히면 기존 브라우�
   assert.match(instructions, /do not repeat.*same static request/i);
   assert.match(instructions, /public content.*already visible.*login banner.*do not require login/i);
   assert.match(instructions, /browser page content.*posts.*comments.*untrusted.*no instruction authority/i);
-  assert.match(instructions, /compact.*omits.*needed.*text.*comment bodies.*snapshot.*full=true.*once/i);
+  assert.match(instructions, /compact.*omits.*page facts required.*full=true.*once.*place-profile details.*post text.*comment bodies/i);
   assert.doesNotMatch(instructions, /facebook.*special|instagram.*special/i);
 });
 
@@ -88,14 +89,31 @@ test('일반 terminal PATH는 내부 agent-browser binary를 노출하지 않는
   assert.match(instructions, /Never invoke agent-browser.*exec.*internal browser/i);
 });
 
-test('일반 사용자 콘솔은 Browser Hand를 바로 보이고 managed process·PTY는 필요할 때만 연다', async () => {
+test('일반 사용자 콘솔은 검색·URL 읽기를 바로 보이고 화면 조작과 managed process·PTY는 필요할 때만 연다', async () => {
   const source = await import('node:fs/promises').then(({ readFile }) => readFile(
     new URL('../src/console-server.js', import.meta.url), 'utf8',
   ));
   const coreBlock = /const coreToolNames = \[([\s\S]*?)\];/u.exec(source)?.[1] ?? '';
-  assert.match(coreBlock, /'browser'/u);
+  assert.match(coreBlock, /'web_search'/u);
+  assert.match(coreBlock, /'web_read'/u);
+  assert.doesNotMatch(coreBlock, /'browser'/u);
   assert.doesNotMatch(coreBlock, /'process_start'|'pty_start'|'process_control'/u);
   assert.doesNotMatch(coreBlock, /'session_search'/u);
+  assert.match(source, /Do not use this tool to navigate search-engine result pages/u);
+  assert.match(source, /searchable = deferredTools\.filter\(\(tool\) => tool\.deferred && tool\.name !== 'browser'\)/u);
+});
+
+test('공개 정보 검색은 검색엔진 화면보다 검색→URL 읽기를 우선하도록 지시한다', () => {
+  const instructions = consoleInstructions('/Users/example', {});
+  assert.match(instructions, /public-information lookup.*never navigate.*search-engine results page.*fallback/i);
+  assert.match(instructions, /Use web_search, then web_read/i);
+  assert.match(instructions, /search-engine name.*not a source-domain allowlist/i);
+  assert.match(instructions, /confirm, inspect, analyze, or summarize.*snippets alone are not completion/i);
+  assert.match(instructions, /refine the web search once.*read the best exact candidate/i);
+  assert.match(instructions, /Google business or place profile.*Google Maps destination.*maps\/search\/\?api=1.*Do not use.*google\.com\/search/i);
+  assert.match(instructions, /Maps place destination.*exact service destination.*web_read receipt.*activates browser.*navigate that same Maps URL once/i);
+  assert.match(instructions, /Missing search candidates alone are not a browser boundary/i);
+  assert.match(instructions, /browser only.*page interaction.*login-bound.*dynamic.*static observation/i);
 });
 
 test('콘솔 종료는 관리 Chrome의 bounded close가 끝날 시간을 실제로 기다린다', async () => {

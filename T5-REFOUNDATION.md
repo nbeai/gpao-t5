@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `U4-I0 BEAI-DERIVED INTERACTION CORE — COMPLETE` (다음 배포 개발선)
+현재 Gate: `P0-H2 WEB FOUNDATION RECOVERY — COMPLETE` (다음 배포 개발선)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -18,6 +18,30 @@ legacy T5                 refoundation T5
 ```
 
 새 코어가 실제 사용자 과업에서 legacy와 비교군을 이긴 뒤 검증된 부품만 이식한다.
+
+## P0-H2 — Web Foundation Recovery
+
+상태: `COMPLETE` — 8월 22일 adaptive tool 노출에서 `web_search·web_read`가 숨고 화면 조작만
+기본으로 올라가, 공개 Google 검색이 자동 트래픽 차단과 사용자 handoff로 끝난 실제 퇴보를 복구했다.
+
+복원 계약:
+
+- `web_search·web_read`는 일반 사용자의 기본 웹 관측 손으로 첫 모델 턴에 항상 보임
+- 화면 조작은 일반 `tool_search` 후보에서도 제외하고, exact URL의 `web_read`가
+  block·login·dynamic·partial_dynamic 경계를 실제로 반환한 뒤에만 다음 모델 턴에 열림
+- 모델이 후순위 손을 미리 찾으면 비슷한 자동화·과거대화 도구를 잘못 주지 않고 exact URL 선행 읽기
+  prerequisite만 반환
+- 검색엔진 이름은 source domain 제한으로 해석하지 않고, Google 업체·장소는 식별된 이름·위치로 안정된
+  Google Maps 목적 주소를 구성해 `search → read → 필요시 rendered observation` 순서로 확인
+- 축약 관측에 사용자 목적의 필수 사실이 없으면 같은 탭의 full snapshot을 한 번 사용하고 재탐색·새로고침하지 않음
+
+실제 동일 사용자 문장 `구글에서 복주회복병원 검색해서 비즈니스 프로필 확인해봐;.`에서
+`gpt-5.6-terra`와 `gpt-5.5` 모두 `web_search → web_read(partial_dynamic) → navigate → full snapshot`
+네 호출로 상호·업종·주소·전화·웹사이트·영업상태·접근성·평점을 확인했다. 일반 Google 검색결과 화면,
+CAPTCHA, 사용자 handoff는 모두 `0`이었다. 전체 검사는 `497/497`, legacy import는 `0`이다. 근거는
+`refoundation/evidence/p0-h2-web-foundation-recovery-2026-08-23.json`이다.
+
+Non-goals: 새 검색 공급자·Places API·화면 자동화 엔진·로그인 신분 재설계·설치 패키지 생성.
 
 ## P0-H1 — Human Release Recovery
 

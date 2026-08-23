@@ -116,6 +116,7 @@ test('web_read는 로그인벽과 동적 껍데기를 읽기 성공으로 꾸미
     const result = await tool.execute({ url: 'https://example.com/account', maxChars: 10_000 });
     assert.equal(result.state, 'login_required');
     assert.equal(result.content, null);
+    assert.deepEqual(result.activatedTools, ['browser']);
   });
 
   await t.test('자바스크립트 껍데기', async () => {
@@ -129,6 +130,7 @@ test('web_read는 로그인벽과 동적 껍데기를 읽기 성공으로 꾸미
     assert.equal(result.state, 'dynamic_required');
     assert.equal(result.content, null);
     assert.equal(result.capabilityBoundary.required, 'browser_render');
+    assert.deepEqual(result.activatedTools, ['browser']);
   });
 
   await t.test('큰 동적 페이지에서 footer 일부만 읽힌 경우', async () => {
@@ -143,6 +145,7 @@ test('web_read는 로그인벽과 동적 껍데기를 읽기 성공으로 꾸미
     assert.match(result.content.text, /이용약관/);
     assert.equal(result.source.coverage.kind, 'partial_dynamic');
     assert.equal(result.source.coverage.browserMayRevealMore, true);
+    assert.deepEqual(result.activatedTools, ['browser']);
     assert.deepEqual(result.capabilityBoundary, {
       required: 'browser_render', available: false, staticObservationExhausted: true,
     });

@@ -2,7 +2,7 @@ function tokens(value) { return String(value ?? '').toLocaleLowerCase().match(/[
 
 function publicTool(tool) { return { name: tool.name, description: tool.description }; }
 
-export function makeToolSearchTool({ tools = [] } = {}) {
+export function makeToolSearchTool({ tools = [], prerequisites = {} } = {}) {
   const candidates = tools.filter((tool) => tool?.name && tool?.description);
   return {
     name: 'tool_search',
@@ -13,9 +13,24 @@ export function makeToolSearchTool({ tools = [] } = {}) {
     async execute({ query } = {}) {
       const wanted = [...new Set(tokens(query))];
       if (!wanted.length) throw new TypeError('tool search query is required');
+      for (const [name, prerequisite] of Object.entries(prerequisites)) {
+        const requiredName = tokens(name);
+        if (requiredName.length && requiredName.every((token) => wanted.includes(token))) {
+          return {
+            state: 'prerequisite_required', query: String(query), activatedTools: [],
+            requestedTool: name, prerequisite: structuredClone(prerequisite), tools: [],
+          };
+        }
+      }
       const ranked = candidates.map((tool) => {
         const name = tokens(tool.name); const description = tokens(tool.description);
         const searchTerms = tokens(tool.searchTerms?.join?.(' ') ?? ''); let score = 0;
+        // Prefer a capability whose complete name is present in the goal over a compound
+        // tool that happens to share one generic token such as "search".
+        const completeNameMatch = name.length && name.every((nameToken) => (
+          wanted.some((wantedToken) => nameToken.includes(wantedToken) || wantedToken.includes(nameToken))
+        ));
+        if (completeNameMatch) score += 8;
         for (const token of wanted) {
           if (name.some((value) => value.includes(token) || token.includes(value))) score += 4;
           else if (searchTerms.some((value) => value.includes(token) || token.includes(value))) score += 3;

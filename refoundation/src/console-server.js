@@ -820,6 +820,11 @@ export function makeConsoleServer({
               requiredEffect: authorityContext?.requiredEffect ?? null,
             }),
           });
+          browserTool.description = [
+            browserTool.description,
+            'Do not use this tool to navigate search-engine result pages or replace ordinary public web lookup.',
+            'Use it for explicit page interaction or an exact destination whose required content was shown by web_read to need rendered or login-bound observation.',
+          ].join(' ');
           browserTool.relatedTools = ['web_read'];
           browserTool.capabilityGroup = 'web_observation';
           browserTool.searchTerms = ['browser rendered page screenshot login dynamic website', '브라우저 화면 로그인 동적 페이지'];
@@ -906,9 +911,10 @@ export function makeConsoleServer({
       }));
       const coreToolNames = [
         'connection', 'memory', 'skill',
-        // Browser is a primary hand for ordinary users. Requiring every model to discover it
-        // through tool_search made provider variance choose terminal preparation instead.
-        'exec', 'browser',
+        // Public-web search and exact URL reading are foundational observation hands.
+        // Keep rendered-page interaction deferred until those lighter hands establish
+        // that login, dynamic content, or an actual page interaction is required.
+        'exec', 'web_search', 'web_read',
         // 결과물은 주변 기능이 아니라 대화와 같은 Human Experience다. 사용자가 파일·HTML·문서·표를
         // 요청한 뒤에야 tool_search로 찾게 하면, 실제 파일을 만들고도 경로만 말하는 회귀가 생긴다.
         'attachment',
@@ -916,8 +922,18 @@ export function makeConsoleServer({
       const deferredTools = deferTools(offeredTools, {
         coreNames: coreToolNames, includeAttachment: attachmentIds.length > 0,
       });
-      const searchable = deferredTools.filter((tool) => tool.deferred);
-      deferredTools.unshift(makeToolSearchTool({ tools: searchable }));
+      // Rendered-page interaction is not a generally discoverable shortcut. It is promoted
+      // by web_read only after an exact URL establishes a rendered/login boundary.
+      const searchable = deferredTools.filter((tool) => tool.deferred && tool.name !== 'browser');
+      deferredTools.unshift(makeToolSearchTool({
+        tools: searchable,
+        prerequisites: browserReady ? {
+          browser: {
+            tool: 'web_read',
+            condition: 'Read the exact destination URL first. Rendered-page interaction becomes available only when that receipt establishes a dynamic, login, or provider-blocked boundary.',
+          },
+        } : {},
+      }));
       const result = await runAgent({
         request: modelRequest,
         requestAttachments: imageInputs,
