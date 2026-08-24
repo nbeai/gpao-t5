@@ -125,6 +125,25 @@ test('대화 상태 다시 준비는 모델 없이 임시 작업·승인을 정�
   } finally { await testApp.close(); }
 });
 
+test('대화 상태 다시 준비는 terminal failed Run이 남긴 durable Work claim도 해제한다', async () => {
+  const testApp = await app();
+  try {
+    const session = (await post(testApp.base, '/sessions', {})).body;
+    const work = await testApp.server.workStore.create({ sessionId: session.id, sourceMessageId: 'failed:user' });
+    const failedRun = await testApp.server.runLedger.start({ sessionId: session.id, request: 'failed turn' });
+    await testApp.server.workStore.claimExecution({ workId: work.workId, revision: 1, runId: failedRun.runId });
+    await failedRun.finish('failed', { reason: 'provider_error' });
+    const recovered = await post(testApp.base, '/sessions/recover', { sessionId: session.id, mode: 'reset' });
+    assert.equal(recovered.status, 200);
+    const state = await testApp.server.workStore.read();
+    assert.equal(state.claims.find((claim) => claim.runId === failedRun.runId)?.state, 'released');
+    const runs = await testApp.server.runLedger.list({ sessionId: session.id });
+    const recovery = await testApp.server.runLedger.read(runs.find((run) => run.request === 'conversation recovery').runId);
+    assert.equal(recovery.events.find((event) => event.type === 'conversation_recovered')
+      .payload.releasedWorkClaims, 1);
+  } finally { await testApp.close(); }
+});
+
 test('새 대화에서 이어가기는 미완료 호출을 복사하지 않고 원본 연결만 남긴다', async () => {
   const testApp = await app();
   try {

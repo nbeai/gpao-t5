@@ -529,6 +529,20 @@ export function makeConsoleServer({
       for (let attempt = 0; attempt < 20 && running.has(sessionId); attempt += 1) {
         await new Promise((resolveWait) => setTimeout(resolveWait, 25));
       }
+      const workState = await workStore.read();
+      const sessionWorkIds = new Set(workState.works.filter((work) => work.sessionId === sessionId)
+        .map((work) => work.workId));
+      const releasedClaims = [];
+      if (!running.has(sessionId)) {
+        for (const claim of workState.claims.filter((item) => item.state === 'active'
+          && sessionWorkIds.has(item.workId))) {
+          const ownerRun = await runLedger.read(claim.runId).catch(() => null);
+          if (!ownerRun || !['failed', 'cancelled', 'interrupted'].includes(ownerRun.status)) continue;
+          const released = await workStore.releaseExecution({ runId: claim.runId,
+            reason: 'user_recovered_terminal_run' });
+          if (released.released) releasedClaims.push(claim.runId);
+        }
+      }
       await sessions.append(sessionId, {
         role: 'system_event', runId: recoveryRun.runId,
         event: {
@@ -548,6 +562,7 @@ export function makeConsoleServer({
       const facts = {
         mode, discardedStreams, withdrawnApprovals: withdrawnApprovalIds.length,
         connectionHandoffsCancelled,
+        releasedWorkClaims: releasedClaims.length,
         activityCleared: Boolean(clearedActivity), browserHandoffCancelled,
         previousRunStillStopping: running.has(sessionId),
         continued: Boolean(newSession),
@@ -2186,12 +2201,23 @@ export function makeConsoleServer({
           sourceExpressionsReused: evaluated.evaluation.sourceExpressionsReused,
           falsePositiveCount: evaluated.evaluation.nearMissShouldTrigger ? 1 : 0,
           falseNegativeCount: pairEvaluations.some((item) => !item.samePurpose) ? 1 : 0 };
-        const replay = qualifyLearningReplay({ comparison,
-          baselineEligibility: { sources: report.sources.filter((source) => baselinePointers
-            .some((pointer) => pointer.runId === source.pointer.runId)) },
-          candidateEligibility: { sources: report.sources.filter((source) => candidatePointers
-            .some((pointer) => pointer.runId === source.pointer.runId)) },
-          pairEvaluations, triggerEvaluation });
+        let replay;
+        try {
+          replay = qualifyLearningReplay({ comparison,
+            baselineEligibility: { sources: report.sources.filter((source) => baselinePointers
+              .some((pointer) => pointer.runId === source.pointer.runId)) },
+            candidateEligibility: { sources: report.sources.filter((source) => candidatePointers
+              .some((pointer) => pointer.runId === source.pointer.runId)) },
+            pairEvaluations, triggerEvaluation });
+        } catch (error) {
+          if (!String(error?.code ?? '').startsWith('learning_replay_')) throw error;
+          await capabilityLifecycle.append('learning_replay_rejected', {
+            proposalId, kind: 'skill', id: proposal.id, lifecycleAction: 'activate', state: 'rejected',
+            sourceRunId: evaluated.evaluatorRunId, rejectionReason: error.code,
+            recoverable: true, candidateRevision: proposal.candidateRevision,
+          });
+          return false;
+        }
         replay.recommendAfterIndependentFieldSuccess = evaluated.evaluation.recommendAfterIndependentFieldSuccess;
         await learningCandidates.recordReplay(proposalId, replay, evaluated.evaluatorRunId);
         proposal = await capabilityLifecycle.current(proposalId);

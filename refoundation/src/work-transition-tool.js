@@ -5,7 +5,7 @@ export function makeWorkTransitionTool({ store, sessionId, runId = null,
     name: 'work_control',
     informationAlwaysVisible: true,
     informationFamily: 'continuity',
-    description: 'Use only when the presented user message must change durable Work scheduling: defer it until the current result is delivered, start an independent Work, cancel the current Work, or resume an exact paused Work. Do not call this for ordinary corrections, additions, constraints, or format changes; those continue in the current Work automatically. If the user explicitly requires a separate answer only after the current result is delivered, call defer_after_delivery. If you keep an admitted request in the current Work, complete it in the current final answer and never promise an untracked later answer.',
+    description: 'Use only when the presented user message must change durable Work scheduling: defer it until the current result is delivered, start an independent Work, cancel the current Work, or resume an exact paused Work. Do not call this for ordinary corrections, additions, constraints, or format changes; those continue in the current Work automatically.',
     parameters: { type: 'object', additionalProperties: false, properties: {
       action: { type: 'string', enum: [
         'defer_after_delivery', 'start_independent_work', 'cancel_current_work', 'resume_paused_work',

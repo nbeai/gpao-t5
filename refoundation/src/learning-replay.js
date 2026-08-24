@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 function hash(value) { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
+function reject(code, message) { const error = new Error(message); error.code = code; throw error; }
 function eligible(report) { return new Set((report?.sources ?? []).filter((source) => source.eligible)
   .map((source) => source.pointer.runId)); }
 function metric(arm, name) {
@@ -12,10 +13,10 @@ export function qualifyLearningReplay({ comparison, baselineEligibility, candida
   pairEvaluations = [], triggerEvaluation = null } = {}) {
   const baselineRuns = comparison?.baseline?.runs ?? []; const candidateRuns = comparison?.candidate?.runs ?? [];
   if (baselineRuns.length < 2 || baselineRuns.length !== candidateRuns.length
-    || pairEvaluations.length !== baselineRuns.length) throw new Error('paired repeated replay is required');
+    || pairEvaluations.length !== baselineRuns.length) reject('learning_replay_pairing_failed', 'paired repeated replay is required');
   const baselineSet = eligible(baselineEligibility); const candidateSet = eligible(candidateEligibility);
   if (baselineRuns.some((run) => !baselineSet.has(run.runId))
-    || candidateRuns.some((run) => !candidateSet.has(run.runId))) throw new Error('replay Work source is ineligible');
+    || candidateRuns.some((run) => !candidateSet.has(run.runId))) reject('learning_replay_source_ineligible', 'replay Work source is ineligible');
   const seen = new Set();
   for (const item of pairEvaluations) {
     const key = `${item.baselineRunId}:${item.candidateRunId}`;
@@ -24,14 +25,14 @@ export function qualifyLearningReplay({ comparison, baselineEligibility, candida
       || item.samePurpose !== true || item.baselineCorrect !== true || item.candidateCorrect !== true
       || item.baselineComplete !== true || item.candidateComplete !== true
       || item.userCorrectionPreserved !== true || !item.evaluatorRunId || !item.evaluationDigest) {
-      throw new Error('replay purpose or correctness verification failed');
+      reject('learning_replay_correctness_failed', 'replay purpose or correctness verification failed');
     }
     seen.add(key);
   }
   if (!triggerEvaluation || triggerEvaluation.sourceExpressionsReused !== false
     || triggerEvaluation.falsePositiveCount !== 0 || triggerEvaluation.falseNegativeCount !== 0
     || !triggerEvaluation.evaluatorRunId || !triggerEvaluation.evaluationDigest) {
-    throw new Error('replay trigger holdout failed');
+    reject('learning_replay_trigger_failed', 'replay trigger holdout failed');
   }
   const measured = ['durationMs', 'modelTurns', 'toolCalls', 'failedToolCalls', 'notExecutedToolCalls']
     .filter((name) => Number.isFinite(metric(comparison.baseline, name))
@@ -40,7 +41,7 @@ export function qualifyLearningReplay({ comparison, baselineEligibility, candida
     metric(comparison.candidate, name) <= metric(comparison.baseline, name)
   ));
   const improved = measured.filter((name) => metric(comparison.candidate, name) < metric(comparison.baseline, name));
-  if (!noWorse || !improved.length) throw new Error('replay has no Pareto improvement');
+  if (!noWorse || !improved.length) reject('learning_replay_pareto_failed', 'replay has no Pareto improvement');
   const evidence = { baselineRunIds: baselineRuns.map((run) => run.runId),
     candidateRunIds: candidateRuns.map((run) => run.runId),
     evaluations: pairEvaluations.map((item) => structuredClone(item)), triggerEvaluation,
