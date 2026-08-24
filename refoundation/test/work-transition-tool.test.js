@@ -18,7 +18,8 @@ test('relation은 모델 tool 인자에서만 결정되고 runtime은 revision�
   const input = await store.admitInput({ sessionId: 'session', messageId: 'm2' });
   const tool = makeWorkTransitionTool({ store, sessionId: 'session' });
   const result = await tool.execute({ decisions: [{ inputId: input.inputId,
-    relation: 'followup', cancelCurrent: false }] });
+    relation: 'preserve_current_result_then_add', currentResultDisposition: 'preserve_then_add',
+    executionTiming: 'after_current_result', cancelCurrent: false }] });
   assert.equal(result.classified[0].relation, 'followup');
   const state = await store.read(); assert.equal(state.inputs[0].relation, 'followup');
   assert.equal(state.works[0].revision, 2);
@@ -29,7 +30,8 @@ test('new_work는 기존 Work를 paused로 남기고 새 identity에 input을 �
   const input = await store.admitInput({ sessionId: 'session', messageId: 'm2' });
   const tool = makeWorkTransitionTool({ store, sessionId: 'session' });
   const result = await tool.execute({ decisions: [{ inputId: input.inputId,
-    relation: 'new_work', cancelCurrent: false }] });
+    relation: 'independent_new_work', currentResultDisposition: 'independent',
+    executionTiming: 'separate_work', cancelCurrent: false }] });
   const state = await store.read();
   assert.equal(state.works.find((item) => item.workId === work.workId).status, 'paused');
   assert.notEqual(result.classified[0].workId, work.workId);
@@ -38,8 +40,8 @@ test('new_work는 기존 Work를 paused로 남기고 새 identity에 input을 �
 
 test('cancel과 cancelCurrent new_work는 명시적 모델 결정에서만 실행 중 프로세스를 멈춘다', async () => {
   for (const decision of [
-    { relation: 'cancel', cancelCurrent: false },
-    { relation: 'new_work', cancelCurrent: true },
+    { relation: 'cancel_current_work', currentResultDisposition: 'stop', executionTiming: 'stop', cancelCurrent: false },
+    { relation: 'independent_new_work', currentResultDisposition: 'independent', executionTiming: 'separate_work', cancelCurrent: true },
   ]) {
     const { store } = await fixture(); let stops = 0;
     const input = await store.admitInput({ sessionId: 'session', messageId: 'm2' });
@@ -61,7 +63,8 @@ test('classified followup은 restart 후에도 queued로 복원되고 exact Run�
   const { directory, store } = await fixture();
   const input = await store.admitInput({ sessionId: 'session', messageId: 'm2' });
   await makeWorkTransitionTool({ store, sessionId: 'session' }).execute({ decisions: [{
-    inputId: input.inputId, relation: 'followup', cancelCurrent: false,
+    inputId: input.inputId, relation: 'preserve_current_result_then_add', currentResultDisposition: 'preserve_then_add',
+    executionTiming: 'after_current_result', cancelCurrent: false,
   }] });
   const restarted = new WorkStore(directory);
   assert.deepEqual((await restarted.queuedInputs('session')).map((item) => item.inputId), [input.inputId]);

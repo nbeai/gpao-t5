@@ -9,10 +9,19 @@ function sessionOrigin(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new TypeError('session origin must be an object');
   }
-  const channel = String(value.channel ?? '').trim();
+  const channel = String(value.channel ?? value.provider ?? '').trim();
   const chatId = String(value.chatId ?? '').trim();
   if (!channel || !chatId) throw new TypeError('session origin requires channel and chatId');
-  return { channel, chatId };
+  const result = { channel, chatId };
+  if (value.threadId != null) result.threadId = String(value.threadId);
+  if (value.senderId != null || value.userId != null) result.senderId = String(value.senderId ?? value.userId);
+  if (value.sourceMessageId != null || value.messageId != null) {
+    result.sourceMessageId = String(value.sourceMessageId ?? value.messageId);
+  }
+  if (value.replyIdentity != null || value.replyTo != null) {
+    result.replyIdentity = clone(value.replyIdentity ?? value.replyTo);
+  }
+  return result;
 }
 
 function continuationSource(value) {

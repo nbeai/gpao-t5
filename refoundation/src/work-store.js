@@ -39,9 +39,19 @@ export class WorkStore {
     for (const event of events) {
       if (event.type === 'work_created') works.set(event.workId, { workId: event.workId,
         sessionId: event.sessionId, revision: 1, status: 'active', sourceMessageId: event.sourceMessageId });
-      if (event.type === 'input_admitted') inputs.set(event.inputId, { inputId: event.inputId,
+      if (event.type === 'input_admission_prepared') inputs.set(event.inputId, { inputId: event.inputId,
         sessionId: event.sessionId, messageId: event.messageId, origin: event.origin,
-        attachmentIds: event.attachmentIds ?? [], source: event.source ?? {}, state: 'admitted' });
+        attachmentIds: event.attachmentIds ?? [], source: event.source ?? {}, state: 'prepared' });
+      if (event.type === 'input_admitted') {
+        const input = inputs.get(event.inputId);
+        if (input) input.state = 'admitted';
+        else inputs.set(event.inputId, { inputId: event.inputId, sessionId: event.sessionId,
+          messageId: event.messageId, origin: event.origin, attachmentIds: event.attachmentIds ?? [],
+          source: event.source ?? {}, state: 'admitted' });
+      }
+      if (event.type === 'input_admission_aborted') {
+        const input = inputs.get(event.inputId); if (input) input.state = 'aborted';
+      }
       if (event.type === 'input_classified') {
         const input = inputs.get(event.inputId); if (input) Object.assign(input,
           { state: 'classified', relation: event.relation, workId: event.workId, revision: event.revision });
@@ -66,7 +76,13 @@ export class WorkStore {
       if (event.type === 'completion_proposed') proposals.set(event.runId, {
         runId: event.runId, workId: event.workId, revision: event.revision,
         proposedOutcome: event.proposedOutcome, verifiedOutcome: event.verifiedOutcome,
+        blockerDigest: event.blockerDigest ?? null, blockers: event.blockers ?? [],
       });
+      if (event.type === 'completion_verified') {
+        const proposal = proposals.get(event.runId); if (proposal) Object.assign(proposal,
+          { verifiedOutcome: event.verifiedOutcome, blockerDigest: event.blockerDigest,
+            blockers: event.blockers ?? [] });
+      }
     }
     return { events: clone(events), works: clone([...works.values()]), inputs: clone([...inputs.values()]),
       claims: clone([...claims.values()]), proposals: clone([...proposals.values()]) };
@@ -93,11 +109,28 @@ export class WorkStore {
       && ['followup', 'new_work'].includes(input.relation)
     ));
   }
-  async admitInput({ sessionId, messageId, origin = 'console', attachmentIds = [], source = {} }) {
-    const inputId = this.makeId(); await this.append('input_admitted', {
+  async prepareInputAdmission({ sessionId, messageId, origin = 'console', attachmentIds = [], source = {} }) {
+    const inputId = this.makeId(); await this.append('input_admission_prepared', {
       inputId, sessionId, messageId, origin, attachmentIds: [...attachmentIds].map(String), source,
     });
+    return { inputId, state: 'prepared' };
+  }
+  async commitInputAdmission(inputId) {
+    const state = await this.read(); const input = state.inputs.find((item) => item.inputId === inputId);
+    if (!input || input.state !== 'prepared') throw new Error('work input admission is not prepared');
+    await this.append('input_admitted', { inputId });
     return { inputId, state: 'admitted' };
+  }
+  async abortInputAdmission(inputId, reason = 'admission_failed') {
+    const state = await this.read(); const input = state.inputs.find((item) => item.inputId === inputId);
+    if (!input || input.state === 'aborted') return { inputId, state: 'aborted' };
+    if (input.state !== 'prepared') throw new Error('committed work input cannot be aborted');
+    await this.append('input_admission_aborted', { inputId, reason });
+    return { inputId, state: 'aborted' };
+  }
+  async admitInput(fields) {
+    const prepared = await this.prepareInputAdmission(fields);
+    return this.commitInputAdmission(prepared.inputId);
   }
   async classifyInput({ inputId, relation, workId, expectedRevision }) {
     if (!RELATIONS.has(relation)) throw new TypeError('invalid work relation');
@@ -109,12 +142,22 @@ export class WorkStore {
     await this.append('input_classified', { inputId, relation, workId, revision, expectedRevision });
     return { workId, revision, relation };
   }
-  async proposeCompletion({ workId, revision, runId, proposedOutcome = 'unresolved', verifiedOutcome = 'unresolved' }) {
+  async proposeCompletion({ workId, revision, runId, proposedOutcome = 'unresolved',
+    verifiedOutcome = 'unresolved', blockerDigest = null, blockers = [] }) {
     const state = await this.read(); const work = state.works.find((item) => item.workId === workId);
     if (!work || work.revision !== revision) throw new Error('stale work revision');
     const claim = state.claims.find((item) => item.runId === runId);
     if (!claim || claim.workId !== workId || claim.revision !== revision) throw new Error('work execution claim mismatch');
-    return this.append('completion_proposed', { workId, revision, runId, proposedOutcome, verifiedOutcome });
+    return this.append('completion_proposed', { workId, revision, runId, proposedOutcome, verifiedOutcome,
+      blockerDigest, blockers });
+  }
+  async verifyCompletion({ workId, revision, runId, verifiedOutcome, blockerDigest, blockers = [] }) {
+    const state = await this.read(); const proposal = state.proposals.find((item) => item.runId === runId);
+    if (!proposal || proposal.workId !== workId || proposal.revision !== revision) {
+      throw new Error('completion proposal mismatch');
+    }
+    return this.append('completion_verified', { workId, revision, runId, verifiedOutcome,
+      blockerDigest, blockers });
   }
   async settle({ workId, revision, outcome, runId }) {
     if (!OUTCOMES.has(outcome)) throw new TypeError('invalid work outcome');
@@ -141,6 +184,9 @@ export class WorkStore {
       if (existing.workId !== workId) throw new Error('work execution claim mismatch');
       if (existing.revision === revision) return existing;
     }
+    const owner = state.claims.find((item) => item.workId === workId && item.revision === revision
+      && !state.events.some((event) => event.type === 'work_settled' && event.runId === item.runId));
+    if (owner && owner.runId !== runId) throw new Error('work revision execution already claimed');
     await this.append('execution_claimed', { workId, revision, runId });
     return { workId, revision, runId };
   }

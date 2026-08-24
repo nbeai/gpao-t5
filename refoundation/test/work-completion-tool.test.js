@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WorkStore } from '../src/work-store.js';
 import { makeWorkCompletionTool } from '../src/work-completion-tool.js';
+import { evaluateWorkCompletion } from '../src/work-completion-evaluator.js';
 
 async function fixture() {
   const store = new WorkStore(await mkdtemp(join(tmpdir(), 't5-work-completion-')));
@@ -29,5 +30,22 @@ test('effect unknown·failed Receipt가 있으면 모델 achieved 제안도 unre
     const { tool } = await fixture();
     const result = await tool.execute({ outcome: 'achieved' }, { priorReceipts: [receipt] });
     assert.equal(result.verifiedOutcome, 'unresolved');
+  }
+});
+
+test('approval·handoff·delivery 미달은 proposal과 final이 공유하는 blocker digest로 unresolved가 된다', () => {
+  const cases = [
+    { receipts: [{ outcome: 'succeeded', result: { state: 'approval_required' } }], blocker: 'approval_pending' },
+    { receipts: [{ outcome: 'succeeded', result: { state: 'handoff_required' } }], blocker: 'handoff_pending' },
+    { receipts: [{ outcome: 'succeeded', result: { delivered: false } }], blocker: 'delivery_missing' },
+    { facts: { approvalPending: true, handoffPending: true, deliveryMissing: true }, blocker: 'approval_pending' },
+  ];
+  for (const fixture of cases) {
+    const first = evaluateWorkCompletion({ proposedOutcome: 'achieved',
+      receipts: fixture.receipts ?? [], facts: fixture.facts ?? {} });
+    const second = evaluateWorkCompletion({ proposedOutcome: 'achieved',
+      receipts: fixture.receipts ?? [], facts: fixture.facts ?? {} });
+    assert.equal(first.verifiedOutcome, 'unresolved'); assert.ok(first.blockers.includes(fixture.blocker));
+    assert.equal(first.blockerDigest, second.blockerDigest);
   }
 });

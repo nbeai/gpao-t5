@@ -10,14 +10,14 @@ export function makeWorkCompletionTool({ store, runId } = {}) {
       const work = await store.workForRun(runId);
       if (!work || work.revision !== work.claimedRevision) throw new Error('stale work revision');
       const receipts = context.priorReceipts ?? [];
-      const blockers = receipts.filter((receipt) => receipt.outcome === 'unknown'
-        || receipt.result?.effectUnknown === true || receipt.result?.state === 'approval_required'
-        || receipt.outcome === 'failed');
-      const verifiedOutcome = args.outcome === 'achieved' && blockers.length === 0 ? 'achieved' : 'unresolved';
+      const evaluation = evaluateWorkCompletion({ proposedOutcome: args.outcome, receipts });
       await store.proposeCompletion({ workId: work.workId, revision: work.revision, runId,
-        proposedOutcome: args.outcome, verifiedOutcome });
+        proposedOutcome: args.outcome, verifiedOutcome: evaluation.verifiedOutcome,
+        blockerDigest: evaluation.blockerDigest, blockers: evaluation.blockers });
       return { state: 'proposal_recorded', proposedOutcome: args.outcome,
-        verifiedOutcome, blockerReceipts: blockers.length };
+        verifiedOutcome: evaluation.verifiedOutcome, blockerReceipts: evaluation.blockers.length,
+        blockerDigest: evaluation.blockerDigest };
     },
   };
 }
+import { evaluateWorkCompletion } from './work-completion-evaluator.js';

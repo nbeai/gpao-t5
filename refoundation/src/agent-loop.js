@@ -228,7 +228,7 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [],
  *   focusToolSurface?:boolean,
  *   resourceSituationMode?:'off'|'current-v1',
  *   activeOptimizationMode?:'off'|'model-selected-v1',
- *   takeAdmittedWorkInputs?:()=>Promise<Array<{inputId:string,text:string}>>,
+ *   takeAdmittedWorkInputs?:()=>Promise<Array<{inputId:string,text:string,attachmentIds?:string[],source?:object,modelAttachments?:object[]}>>,
  *   onEvent?:(event:object)=>void|Promise<void>,
  * }} input
  */
@@ -315,8 +315,10 @@ export async function runAgent({
       transcript.push({ role: 'user', content: [
         '[T5 NEWLY ADMITTED USER MESSAGE — classify against the current user purpose before acting]',
         `inputId=${input.inputId}`,
+        `envelope=${JSON.stringify({ attachmentIds: input.attachmentIds ?? [], source: input.source ?? {} })}`,
         String(input.text ?? ''),
-      ].join('\n') });
+      ].join('\n'), ...(input.modelAttachments?.length
+        ? { modelAttachments: structuredClone(input.modelAttachments) } : {}) });
     }
     await onEvent?.({ type: 'model_start', turn: modelTurns });
     const informationFacts = measureModelInformation({

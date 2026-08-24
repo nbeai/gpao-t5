@@ -79,12 +79,15 @@
       "humanConsoleQualificationReady": true
     },
     "bWorkConversationContinuity": {
-      "status": "complete",
+      "status": "repaired_complete_after_human_fail",
       "evidence": "s2-b-work-conversation-continuity-2026-08-24.json",
       "durableBusyInputAdmission": true,
       "modelOwnsRelationJudgment": true,
       "revisionAwareExecution": true,
-      "restartRestoresPendingAndQueued": true
+      "restartRestoresPendingAndQueued": true,
+      "atomicAdmissionPrepareCommit": true,
+      "humanFailureRepairMatrixPassed": 24,
+      "humanFailureRepairMatrixTotal": 24
     },
     "cMemoryPortfolio": {
       "status": "complete",

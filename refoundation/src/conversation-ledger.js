@@ -118,7 +118,9 @@ export class ConversationLedger {
       throw error;
     }
     const events = parseEvents(text, id);
-    const entries = events.filter((event) => event.type === 'message').map((event) => ({
+    const aborted = new Set(events.filter((event) => event.type === 'message_aborted')
+      .map((event) => event.messageId));
+    const entries = events.filter((event) => event.type === 'message' && !aborted.has(event.messageId)).map((event) => ({
       messageId: event.messageId,
       runId: event.runId ?? null,
       turn: event.turn ?? null,
@@ -162,6 +164,21 @@ export class ConversationLedger {
         ...(Number.isInteger(turn) ? { turn } : {}),
         message: clone(message),
       };
+      await appendFile(this.file(id), `${JSON.stringify(event)}\n`, { encoding: 'utf8', mode: 0o600 });
+      return clone(event);
+    });
+  }
+
+  async abortMessage({ sessionId, messageId, inputId, reason = 'admission_failed' } = {}) {
+    const id = safeSessionId(sessionId); const target = String(messageId ?? '').trim();
+    if (!target || !String(inputId ?? '').trim()) throw new TypeError('message and input identity are required');
+    return this.serialize(async () => {
+      const current = await this.read(id);
+      const events = parseEvents(await readFile(this.file(id), 'utf8'), id);
+      if (events.some((event) => event.type === 'message_aborted' && event.messageId === target)) return null;
+      const event = { schema: SCHEMA, sessionId: id, sequence: events.length + 1,
+        recordedAt: new Date().toISOString(), type: 'message_aborted', messageId: target,
+        inputId: String(inputId), reason: String(reason) };
       await appendFile(this.file(id), `${JSON.stringify(event)}\n`, { encoding: 'utf8', mode: 0o600 });
       return clone(event);
     });

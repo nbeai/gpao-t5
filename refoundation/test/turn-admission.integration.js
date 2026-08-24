@@ -25,7 +25,8 @@ test('실행 중 같은 대화의 새 발화는 의미 판단 전 Conversation·
       const admitted = input.messages.find((message) => /T5 NEWLY ADMITTED USER MESSAGE/u.test(message.content));
       const inputId = /inputId=([^\n]+)/u.exec(admitted.content)[1];
       return { text: '', toolCalls: [{ id: 'classify', name: 'work_transition', args: {
-        decisions: [{ inputId, relation: 'steer', cancelCurrent: false }],
+        decisions: [{ inputId, relation: 'modify_current_result_now', currentResultDisposition: 'replace_or_modify',
+          executionTiming: 'current_run', cancelCurrent: false }],
       } }] };
     }
     return { text: '교정을 반영해 완료했습니다.', toolCalls: [] };
@@ -88,7 +89,8 @@ test('followup으로 분류된 admitted input은 현재 Run 정산 후 exact 새
       const admitted = input.messages.find((message) => /T5 NEWLY ADMITTED USER MESSAGE/u.test(message.content));
       const inputId = /inputId=([^\n]+)/u.exec(admitted.content)[1];
       return { text: '', toolCalls: [{ id: 'followup', name: 'work_transition', args: {
-        decisions: [{ inputId, relation: 'followup', cancelCurrent: false }],
+        decisions: [{ inputId, relation: 'preserve_current_result_then_add', currentResultDisposition: 'preserve_then_add',
+          executionTiming: 'after_current_result', cancelCurrent: false }],
       } }] };
     }
     if (turn === 3) return { text: '첫 작업을 마치고 후속을 이어갈게요.', toolCalls: [] };

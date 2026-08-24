@@ -183,8 +183,14 @@ export class AttachmentStore {
       } else if (event.type === 'linked') {
         for (const attachmentId of event.payload.attachmentIds) {
           const record = records.get(attachmentId);
-          if (record) record.links.push({ messageId: event.payload.messageId, runId: event.payload.runId });
+          if (record) record.links.push({ messageId: event.payload.messageId,
+            runId: event.payload.runId ?? null,
+            ...(event.payload.inputId == null ? {} : { inputId: event.payload.inputId }) });
         }
+      } else if (event.type === 'input_link_aborted') {
+        for (const record of records.values()) record.links = record.links.filter(
+          (link) => link.inputId !== event.payload.inputId,
+        );
       } else if (event.type === 'discarded') {
         records.delete(event.payload.attachmentId);
       }
@@ -316,9 +322,11 @@ export class AttachmentStore {
     return { ...clone(record), ...publicRecord(record) };
   }
 
-  async link({ sessionId, attachmentIds = [], messageId, runId } = {}) {
+  async link({ sessionId, attachmentIds = [], messageId, runId = null, inputId = null } = {}) {
     const owner = safeUuid(sessionId, 'session');
-    if (!String(messageId ?? '').trim() || !String(runId ?? '').trim()) throw new TypeError('messageId and runId are required');
+    if (!String(messageId ?? '').trim() || (!String(runId ?? '').trim() && !String(inputId ?? '').trim())) {
+      throw new TypeError('messageId and runId or inputId are required');
+    }
     const ids = [...new Set(attachmentIds.map((id) => safeUuid(id, 'attachment')))];
     return this.serialize(async () => {
       const records = this.recordsFrom(await this.events());
@@ -326,8 +334,18 @@ export class AttachmentStore {
         const record = records.get(id);
         if (!record || record.sessionId !== owner) throw Object.assign(new Error('attachment not found'), { status: 404 });
       }
-      await this.append('linked', { sessionId: owner, attachmentIds: ids, messageId: String(messageId), runId: String(runId) });
+      await this.append('linked', { sessionId: owner, attachmentIds: ids, messageId: String(messageId),
+        runId: runId == null ? null : String(runId), inputId: inputId == null ? null : String(inputId) });
       return Promise.all(ids.map((attachmentId) => this.get({ sessionId: owner, attachmentId })));
+    });
+  }
+
+  async abortInputLink({ sessionId, inputId } = {}) {
+    const owner = safeUuid(sessionId, 'session'); const id = String(inputId ?? '').trim();
+    if (!id) throw new TypeError('inputId is required');
+    return this.serialize(async () => {
+      await this.append('input_link_aborted', { sessionId: owner, inputId: id });
+      return { inputId: id, state: 'aborted' };
     });
   }
 

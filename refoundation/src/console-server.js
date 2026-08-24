@@ -33,6 +33,7 @@ import { ConversationLedger } from './conversation-ledger.js';
 import { WorkStore } from './work-store.js';
 import { makeWorkTransitionTool } from './work-transition-tool.js';
 import { makeWorkCompletionTool } from './work-completion-tool.js';
+import { evaluateWorkCompletion } from './work-completion-evaluator.js';
 import { selectMemoryPortfolio, workingMemoryProjection } from './memory-portfolio.js';
 import { projectHistoricalConversationEntries } from './conversation-projection.js';
 import { makeConversationRecallTool } from './conversation-recall-tool.js';
@@ -331,6 +332,34 @@ export function makeConsoleServer({
   const resourceController = new ResourceController(resourceLedger);
   const authority = new AuthorityStore(join(stateDir, 'authority'));
   const attachments = attachmentStore ?? new AttachmentStore(join(stateDir, 'attachments'));
+  async function recoverPreparedAdmissions() {
+    const state = await workStore.read(); const recovered = [];
+    for (const input of state.inputs.filter((item) => item.state === 'prepared')) {
+      let complete = false;
+      try {
+        const conversation = await conversations.read(input.sessionId);
+        const messagePresent = conversation.entries.some((entry) => entry.messageId === input.messageId);
+        const records = await Promise.all((input.attachmentIds ?? []).map((attachmentId) => (
+          attachments.get({ sessionId: input.sessionId, attachmentId })
+        )));
+        const linksPresent = records.every((record) => record.links.some((link) => (
+          link.inputId === input.inputId && link.messageId === input.messageId
+        )));
+        complete = messagePresent && linksPresent;
+      } catch { complete = false; }
+      if (complete) {
+        await workStore.commitInputAdmission(input.inputId); recovered.push({ inputId: input.inputId, state: 'admitted' });
+      } else {
+        await conversations.abortMessage({ sessionId: input.sessionId, messageId: input.messageId,
+          inputId: input.inputId, reason: 'restart_incomplete_admission' }).catch(() => {});
+        await attachments.abortInputLink({ sessionId: input.sessionId, inputId: input.inputId }).catch(() => {});
+        await workStore.abortInputAdmission(input.inputId, 'restart_incomplete_admission');
+        recovered.push({ inputId: input.inputId, state: 'aborted' });
+      }
+    }
+    return recovered;
+  }
+  const admissionRecovery = recoverPreparedAdmissions().catch((error) => { onError?.(error); return []; });
   const computer = computerEnvironment ?? discoverComputerEnvironment({ userHome: workspace });
   const computerFacts = publicComputerFacts(computer);
   const processes = processRegistry ?? new ManagedProcessRegistry({ platform: computer.platform });
@@ -1149,7 +1178,8 @@ export function makeConsoleServer({
         coreNames: coreToolNames, includeAttachment: attachmentIds.length > 0,
       }).map((tool) => ({
         ...tool, informationFamily: informationFamily(tool.name),
-        informationAlwaysVisible: ['exec', 'attachment', 'connection', 'web_read'].includes(tool.name)
+        informationAlwaysVisible: tool.informationAlwaysVisible === true
+          || ['exec', 'attachment', 'connection', 'web_read'].includes(tool.name)
           || (projection.historicalRecallRequired && tool.name === 'session_search'),
       }));
       // Rendered-page interaction is not a generally discoverable shortcut. It is promoted
@@ -1200,9 +1230,14 @@ export function makeConsoleServer({
           const pending = await workStore.pendingInputs(sessionId);
           if (!pending.length) return [];
           const conversation = await conversations.read(sessionId);
-          return pending.map((input) => ({
-            inputId: input.inputId,
-            text: conversation.entries.find((entry) => entry.messageId === input.messageId)?.message.content ?? '',
+          return Promise.all(pending.map(async (input) => {
+            const entry = conversation.entries.find((candidate) => candidate.messageId === input.messageId);
+            const records = await Promise.all((input.attachmentIds ?? []).map((attachmentId) => (
+              attachments.get({ sessionId, attachmentId })
+            )));
+            return { inputId: input.inputId, text: entry?.message.content ?? '',
+              attachmentIds: input.attachmentIds ?? [], source: input.source ?? {},
+              modelAttachments: await modelImageInputs({ store: attachments, sessionId, records }) };
           }));
         },
         onEvent: async (event) => {
@@ -1434,16 +1469,23 @@ export function makeConsoleServer({
       if (settledWork && settledWork.revision === settledWork.claimedRevision
         && settledWork.status === 'active') {
         const proposal = await workStore.proposalForRun(run.runId);
-        const unresolved = !proposal || proposal.verifiedOutcome !== 'achieved'
-          || Boolean(approvalReceipt || browserHandoff || connectionHandoff
-          || result.receipts.some((receipt) => receipt.outcome === 'unknown'
-            || receipt.result?.effectUnknown === true)
-          || surfaceResult.channelDelivery?.sent === false);
+        const evaluation = evaluateWorkCompletion({
+          proposedOutcome: proposal?.proposedOutcome ?? 'unresolved', receipts: result.receipts,
+          facts: { approvalPending: Boolean(approvalReceipt),
+            handoffPending: Boolean(browserHandoff || connectionHandoff),
+            deliveryMissing: surfaceResult.channelDelivery?.sent === false },
+        });
+        if (proposal) await workStore.verifyCompletion({ workId: settledWork.workId,
+          revision: settledWork.revision, runId: run.runId,
+          verifiedOutcome: evaluation.verifiedOutcome, blockerDigest: evaluation.blockerDigest,
+          blockers: evaluation.blockers });
+        const unresolved = evaluation.verifiedOutcome !== 'achieved';
         await workStore.settle({ workId: settledWork.workId, revision: settledWork.revision,
           outcome: unresolved ? 'unresolved' : 'achieved', runId: run.runId });
         await run.append({ type: unresolved ? 'work_unresolved' : 'work_settled', stepId: 'work-settlement',
           payload: { workId: settledWork.workId, revision: settledWork.revision,
-            outcome: unresolved ? 'unresolved' : 'achieved' } });
+            outcome: unresolved ? 'unresolved' : 'achieved',
+            blockerDigest: evaluation.blockerDigest, blockers: evaluation.blockers } });
       }
       await sessions.append(sessionId, { role: 'assistant', result: surfaceResult });
       surfacePersisted = true;
@@ -1907,6 +1949,7 @@ export function makeConsoleServer({
         res.end(JSON.stringify({ error: '이 요청으로는 T5에 연결할 수 없어요.' }));
         return;
       }
+      await admissionRecovery;
       if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
         const source = await readFile(resolve(uiRoot, 'index.html'), 'utf8');
         const withRuntime = source.replace(
@@ -2327,21 +2370,40 @@ export function makeConsoleServer({
           const admittedAttachments = await Promise.all(admittedAttachmentIds.map((attachmentId) => (
             attachments.get({ sessionId: input.sessionId, attachmentId })
           )));
-          await conversations.appendMessage({ sessionId: input.sessionId, messageId,
-            message: { role: 'user', content: String(input.text),
-              ...(admittedAttachments.length ? { attachments: admittedAttachments.map(attachmentSurface) } : {}) } });
-          if (admittedAttachmentIds.length) await attachments.link({
-            sessionId: input.sessionId, attachmentIds: admittedAttachmentIds, messageId, runId: null,
-          });
-          await sessions.append(input.sessionId, { role: 'user', text: String(input.text), admitted: true,
-            ...(admittedAttachments.length ? { attachments: admittedAttachments.map(attachmentSurface) } : {}) });
-          const admitted = await workStore.admitInput({
+          const source = {
+            channel: input.source?.channel ?? session.origin?.channel ?? 'console',
+            chatId: input.source?.chatId ?? session.origin?.chatId ?? null,
+            threadId: input.source?.threadId ?? session.origin?.threadId ?? null,
+            senderId: input.source?.senderId ?? session.origin?.senderId ?? null,
+            sourceMessageId: input.source?.sourceMessageId ?? session.origin?.sourceMessageId ?? null,
+            replyIdentity: structuredClone(input.source?.replyIdentity ?? session.origin?.replyIdentity ?? null),
+            admissionTime: { activeRun: true, currentResultProduced: false },
+          };
+          const prepared = await workStore.prepareInputAdmission({
             sessionId: input.sessionId, messageId, origin: session.origin?.channel ?? 'console',
-            attachmentIds: admittedAttachmentIds,
-            source: { channel: session.origin?.channel ?? 'console',
-              senderId: session.origin?.senderId ?? null, replyTo: session.origin?.replyTo ?? null },
+            attachmentIds: admittedAttachmentIds, source,
           });
-          json(res, 202, { admitted: true, inputId: admitted.inputId, state: 'pending_model_judgment' }); return;
+          try {
+            if (admittedAttachmentIds.length) await attachments.link({
+              sessionId: input.sessionId, attachmentIds: admittedAttachmentIds, messageId,
+              inputId: prepared.inputId,
+            });
+            await conversations.appendMessage({ sessionId: input.sessionId, messageId,
+              message: { role: 'user', content: String(input.text),
+                ...(admittedAttachments.length ? { attachments: admittedAttachments.map(attachmentSurface) } : {}) } });
+            const admitted = await workStore.commitInputAdmission(prepared.inputId);
+            await sessions.append(input.sessionId, { role: 'user', text: String(input.text), admitted: true,
+              source,
+              ...(admittedAttachments.length ? { attachments: admittedAttachments.map(attachmentSurface) } : {}) });
+            json(res, 202, { admitted: true, inputId: admitted.inputId, state: 'pending_model_judgment' }); return;
+          } catch (error) {
+            await conversations.abortMessage({ sessionId: input.sessionId, messageId,
+              inputId: prepared.inputId, reason: error?.message }).catch(() => {});
+            await attachments.abortInputLink({ sessionId: input.sessionId,
+              inputId: prepared.inputId }).catch(() => {});
+            await workStore.abortInputAdmission(prepared.inputId, error?.message).catch(() => {});
+            throw error;
+          }
         }
         const streamId = randomUUID();
         const measurementId = randomUUID();
@@ -2677,6 +2739,7 @@ export function makeConsoleServer({
   server.capabilityHandoffLedger = capabilityHandoffs;
   server.capabilityLifecycleLedger = capabilityLifecycle;
   server.attachmentStore = attachments;
+  server.recoverPreparedAdmissions = () => admissionRecovery;
   server.messengerGateway = messenger;
   server.messengerStateStore = messengerState;
   server.messengerCredentialStore = messengerCredentials;

@@ -1,7 +1,7 @@
 # T5 Second Completion — Current Development Source
 
 상태: `SECOND_COMPLETION_ACTIVE`
-현재 Gate: `S2-C COMPLETE · S2-D READY`
+현재 Gate: `S2-B REPAIRED COMPLETE · S2-C COMPLETE · S2-D READY`
 기준 source: `81f29d23`
 배포 상태: `0.1.8 REVOKED · 새 package 생성 금지`
 
@@ -469,6 +469,15 @@ projection이고, Episode는 settlement의 Conversation message·Run pointer이�
 실제 Terra 자격에서 durable preference·Work decision만 보존하고 one-off·비밀·추측·해결된 오류를
 제외했으며, 새 세션의 현재 교정이 기존 선호를 이겼다. 근거:
 `refoundation/evidence/s2-c-memory-portfolio-2026-08-24.json`
+
+S2-B 인간 종단 재자격 — REPAIRED COMPLETE. `fa528923` 뒤 실제 console에서 확인된 attachment
+admission 500, envelope·sender·reply 유실, Hand focus 뒤 Completion Proposal 소실,
+proposal·settlement blocker 불일치, followup 오분류를 B-R1~R5로 복구했다. Busy input은 inputId
+prepare→attachment input link→Conversation append→commit 뒤에만 202가 되며 실패·불완전 restart는 live
+partial state 없이 abort된다. 모델은 admission 시점·현재 결과 보존·실행 시간을 보고 의미 중심 선택값으로
+steer·followup·new work·cancel을 결정한다. Terra·gpt-5.5 24개 실제 console matrix가 24/24였고,
+전체 새 코어 689/689·기본 제품 통합 103/103을 통과했다. 근거:
+`refoundation/evidence/s2-b-work-conversation-continuity-2026-08-24.json`.
 
 ### S2-D — Time Continuity
 
