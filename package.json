@@ -1,6 +1,6 @@
 {
   "name": "gpao-t5",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": true,
   "type": "module",
   "description": "GPAO-T5 Original AI Operating System — local development build",
