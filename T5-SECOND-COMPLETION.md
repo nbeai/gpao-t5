@@ -1,7 +1,7 @@
 # T5 Second Completion — Current Development Source
 
 상태: `SECOND_COMPLETION_ACTIVE`
-현재 Gate: `S2-B REPAIRED COMPLETE · S2-C COMPLETE · S2-D READY`
+현재 Gate: `S2-C REPAIR QUALIFIED · FINAL INTEGRATION BLOCKED`
 기준 source: `81f29d23`
 배포 상태: `0.1.8 REVOKED · 새 package 생성 금지`
 
@@ -460,7 +460,7 @@ Situation: 매번 관측하는 휘발성 현실, Memory 아님
 통과: 사용자 교정 반영 100%, 잘못된 현재 상황 승격 0, Episode 원문 중복 0, 관련 후보 recall 유지,
 불필요 Memory token 감소, restart·모델 전환 뒤 같은 Work 재개.
 
-S2-C — COMPLETE. MemoryLedger는 User·Work 현재값의 source message·session·Run·Work revision·subject를
+S2-C — REPAIR QUALIFIED, NOT COMPLETE. MemoryLedger는 User·Work 현재값의 source message·session·Run·Work revision·subject를
 보존한다. 모델에는 현재 요청과 subject가 관련된 User Memory와 exact current Work revision의 Work
 Memory만 결정론적으로 투영한다. 같은 subject의 충돌은 최신 source revision이 이기며, 현재 사용자
 교정은 저장된 선호보다 우선한다. 완료·취소·다른 Work 기억은 원장에는 남지만 현재 model
@@ -468,7 +468,13 @@ Context에서 자동 demotion된다. Working Memory는 Work identity·revision·
 projection이고, Episode는 settlement의 Conversation message·Run pointer이며 원문을 복제하지 않는다. 78만자
 실제 Terra 자격에서 durable preference·Work decision만 보존하고 one-off·비밀·추측·해결된 오류를
 제외했으며, 새 세션의 현재 교정이 기존 선호를 이겼다. 근거:
-`refoundation/evidence/s2-c-memory-portfolio-2026-08-24.json`
+`refoundation/evidence/s2-c-memory-portfolio-2026-08-24.json`. 사전 live audit에서 런타임 2글자
+의미 선택, 서로 다른 Work revision의 사용자 기억 최신성 비교, 제품에 연결되지 않은 Episode pointer가
+확인돼 COMPLETE 판정을 철회했다. 런타임 의미 선택을 제거하고 subject pointer→주 모델 exact read,
+독립 subject revision/source order, 실제 `session_search episodes→episode_read` 경로로 교정했다.
+Terra·gpt-5.5 78만 자 라이브 자격과 새 코어 692/692는 통과했다. 다만 기본 제품 통합은 C 경로가
+모두 통과했어도 기존 capability-handoff 동시 재개의 비결정 실패로 104/105이므로 COMPLETE와 D 진입은
+아직 잠근다.
 
 S2-B 인간 종단 재자격 — REPAIRED COMPLETE. `fa528923` 뒤 실제 console에서 확인된 attachment
 admission 500, envelope·sender·reply 유실, Hand focus 뒤 Completion Proposal 소실,

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -10,11 +10,13 @@ import { ConsoleSessionStore } from '../src/console-session-store.js';
 import { ConversationLedger } from '../src/conversation-ledger.js';
 
 const keep = process.argv.includes('--keep');
+const modelIndex = process.argv.indexOf('--model-id');
+const requestedModelId = modelIndex >= 0 ? process.argv[modelIndex + 1] : null;
 const room = await mkdtemp(join(tmpdir(), 't5-memory-selection-'));
 const stateDir = join(room, 'state');
 const workspace = join(room, 'workspace');
 const isolatedHome = join(room, 'home');
-const connectionFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
+const sourceConnectionFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
 const keepCodes = ['SAFE-PREF-7391', 'WORK-DECISION-4488'];
 const rejectCodes = ['ONCE-ONLY-8426', 'TEMP-ERROR-5521', 'SPECULATION-6612', 'SECRET-9911'];
@@ -75,6 +77,7 @@ async function listen(server) {
 }
 
 async function turn(base, sessionId, text) {
+  const startedAt = performance.now();
   const response = await fetch(`${base}/turn`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ sessionId, text }),
@@ -82,6 +85,13 @@ async function turn(base, sessionId, text) {
   const surface = await response.json();
   const run = surface.runId
     ? await fetch(`${base}/runs/${surface.runId}`).then((result) => result.json()) : null;
+  const modelEvents = run?.events?.filter((event) => event.type === 'model_completed') ?? [];
+  const toolEvents = run?.events?.filter((event) => event.type === 'tool_completed') ?? [];
+  const usage = modelEvents.reduce((sum, event) => ({ inputTokens: sum.inputTokens
+    + Number(event.payload?.response?.usage?.input_tokens ?? 0), outputTokens: sum.outputTokens
+    + Number(event.payload?.response?.usage?.output_tokens ?? 0), totalTokens: sum.totalTokens
+    + Number(event.payload?.response?.usage?.total_tokens ?? 0) }),
+  { inputTokens: 0, outputTokens: 0, totalTokens: 0 });
   return {
     httpStatus: response.status, runId: surface.runId ?? null,
     runStatus: run?.status ?? 'unknown', answer: String(surface.reply ?? ''),
@@ -90,11 +100,19 @@ async function turn(base, sessionId, text) {
     memoryToolCalls: run?.events?.filter((event) => (
       event.type === 'tool_completed' && event.payload?.receipt?.requestedCall?.name === 'memory'
     )).length ?? null,
+    modelCalls: modelEvents.length, toolCalls: toolEvents.length, usage,
+    wallMs: Number((performance.now() - startedAt).toFixed(3)),
     error: response.ok ? null : (surface.error ?? 'turn failed'),
   };
 }
 
 await Promise.all([stateDir, workspace, isolatedHome].map((path) => mkdir(path, { recursive: true })));
+let connectionFile = sourceConnectionFile;
+if (requestedModelId) {
+  const stored = JSON.parse(await readFile(sourceConnectionFile, 'utf8')); stored.activeId = requestedModelId;
+  connectionFile = join(room, 'model-connection.json');
+  await writeFile(connectionFile, JSON.stringify(stored), { mode: 0o600 });
+}
 const previousHome = process.env.T5_REFOUNDATION_HOME;
 process.env.T5_REFOUNDATION_HOME = isolatedHome;
 const access = makeConsoleModelAccess({ connectionFile, stateDir });
@@ -124,6 +142,13 @@ try {
     && keepCodes.every((code) => stored.includes(code))
     && rejectCodes.every((code) => !stored.includes(code));
 
+  const recallSession = await sessions.create();
+  const recall = await turn(base, recallSession.id,
+    '내가 명시한 평소 답변 첫 줄 선호 코드를 기억에서 확인해서 정확히 말해.');
+  recall.passed = recall.httpStatus === 200 && recall.runStatus === 'completed'
+    && recall.memoryToolCalls >= 1 && recall.answer.includes('SAFE-PREF-7391')
+    && rejectCodes.every((code) => !recall.answer.includes(code));
+
   const conflictSession = await sessions.create();
   const conflict = await turn(base, conflictSession.id, [
     '저장된 평소 답변 선호는 이번 요청에 적용하지 마.',
@@ -139,8 +164,8 @@ try {
     sourceSessionId: source.id, seededConversationChars: 780000,
     expectedStoredCodes: keepCodes, expectedRejectedCodes: rejectCodes,
     storedItems: memory.items.map((item) => ({ kind: item.kind, content: item.content })),
-    selection, conflict,
-    passed: selection.passed && conflict.passed,
+    selection, recall, conflict,
+    passed: selection.passed && recall.passed && conflict.passed,
     room: keep ? room : null,
   };
   console.log(JSON.stringify(result, null, 2));

@@ -34,7 +34,7 @@ import { WorkStore } from './work-store.js';
 import { makeWorkTransitionTool } from './work-transition-tool.js';
 import { makeWorkCompletionTool } from './work-completion-tool.js';
 import { evaluateWorkCompletion } from './work-completion-evaluator.js';
-import { selectMemoryPortfolio, workingMemoryProjection } from './memory-portfolio.js';
+import { memoryCandidateProjection, selectMemoryPortfolio, workingMemoryProjection } from './memory-portfolio.js';
 import { projectHistoricalConversationEntries } from './conversation-projection.js';
 import { makeConversationRecallTool } from './conversation-recall-tool.js';
 import {
@@ -647,6 +647,7 @@ export function makeConsoleServer({
     const memoryPortfolio = selectMemoryPortfolio({
       items: memorySnapshot.items, request: text, currentWork: preexistingWork,
     });
+    const memoryCandidates = memoryCandidateProjection(memorySnapshot.items);
     let canonicalConversation = await conversations.read(sessionId);
     if (options.admittedInput) {
       canonicalConversation = {
@@ -895,6 +896,7 @@ export function makeConsoleServer({
         }
       }
       const history = projection.messages;
+      if (memoryCandidates) history.push(memoryCandidates);
       if (!options.admittedInput) {
         await conversations.appendMessage({
           sessionId, messageId: `${run.runId}:user`, runId: run.runId,
@@ -1153,7 +1155,7 @@ export function makeConsoleServer({
             ? { workId: activeWork.workId, revision: activeWork.revision } : {}) },
       }));
       offeredTools.unshift(makeSessionSearchTool({
-        ledger: conversations, sessions, currentSessionId: sessionId,
+        ledger: conversations, sessions, workStore, runLedger, currentSessionId: sessionId,
       }));
       offeredTools.unshift(makeConnectionTool({
         doctor: connectionDoctor, startConnection: startConnectionForTool,

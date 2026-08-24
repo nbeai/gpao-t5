@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { ConsoleSessionStore } from '../src/console-session-store.js';
 import { ConversationLedger } from '../src/conversation-ledger.js';
 import { makeSessionSearchTool } from '../src/session-search-tool.js';
+import { RunLedger } from '../src/run-ledger.js';
+import { WorkStore } from '../src/work-store.js';
 
 async function addMessage(ledger, sessionId, messageId, role, content, extra = {}) {
   await ledger.appendMessage({
@@ -166,4 +168,30 @@ test('canonical 원장이 아직 없는 C0 이전 Session은 legacy UI transcrip
   } finally {
     await rm(room, { recursive: true, force: true });
   }
+});
+
+test('settled Episode는 pointer 목록 뒤 exact Work·Run으로 Conversation과 Run 사실을 회수한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-session-episode-'));
+  try {
+    const sessions = new ConsoleSessionStore(room); const session = await sessions.create();
+    const ledger = new ConversationLedger(join(room, 'conversations')); await ledger.ensure({ sessionId: session.id });
+    await addMessage(ledger, session.id, 'episode-source', 'user', '고객 보고서를 완성해줘.');
+    const runs = new RunLedger(join(room, 'runs'));
+    const run = await runs.start({ sessionId: session.id, request: '고객 보고서' });
+    await run.append({ type: 'model_completed', payload: { response: { text: '완료' } } });
+    await run.finish('completed');
+    const works = new WorkStore(join(room, 'work')); const work = await works.create({
+      sessionId: session.id, sourceMessageId: 'episode-source' });
+    await works.claimExecution({ workId: work.workId, revision: 1, runId: run.runId });
+    await works.settle({ workId: work.workId, revision: 1, outcome: 'achieved', runId: run.runId });
+    const tool = makeSessionSearchTool({ ledger, sessions, workStore: works, runLedger: runs });
+    const listed = await tool.execute({ action: 'episodes', limit: 5 });
+    assert.equal(listed.episodes[0].workId, work.workId); assert.equal(listed.episodes[0].runId, run.runId);
+    assert.equal('content' in listed.episodes[0], false);
+    const recalled = await tool.execute({ action: 'episode_read', workId: work.workId,
+      runId: run.runId, window: 2, includeTools: false });
+    assert.equal(recalled.episode.sourceMessageId, 'episode-source');
+    assert.equal(recalled.run.status, 'completed'); assert.equal(recalled.run.modelCalls, 1);
+    assert.match(recalled.messages[0].content, /고객 보고서/u);
+  } finally { await rm(room, { recursive: true, force: true }); }
 });

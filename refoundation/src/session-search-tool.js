@@ -1,3 +1,5 @@
+import { episodePointers } from './memory-portfolio.js';
+
 const DEFAULT_LIMIT = 5;
 const MAX_LIMIT = 10;
 const DEFAULT_WINDOW = 5;
@@ -120,7 +122,8 @@ async function conversationView(ledger, session) {
   }
 }
 
-export function makeSessionSearchTool({ ledger, sessions, currentSessionId = null } = {}) {
+export function makeSessionSearchTool({ ledger, sessions, workStore = null, runLedger = null,
+  currentSessionId = null } = {}) {
   if (!ledger || !sessions) throw new TypeError('conversation ledger and session store are required');
   return {
     name: 'session_search',
@@ -129,23 +132,46 @@ export function makeSessionSearchTool({ ledger, sessions, currentSessionId = nul
       'past conversation history prior decision transcript',
       '과거 대화 원문 이전 결정 기록',
     ],
-    description: 'Search or read the user’s canonical past T5 conversations. Use search for exact words, phrases, paths, decisions, or prior work; then use read with the returned sessionId and messageId for surrounding canonical context. Use browse only when the user names no topic. Default search covers user and assistant text; set includeTools=true only when exact terminal/tool observations are needed. Session history says what was observed then, not what an external file, app, account, or website contains now—inspect a named current source first when accessible. Do not claim no prior conversation before searching.',
+    description: 'Search or read canonical past T5 conversations and settled Episode pointers. Use search for exact words or prior work, then read for surrounding canonical context. Use episodes to list settled Work·Run·Message pointers without transcript content, then episode_read with exact workId and runId to recover its bounded source conversation and Run outcome facts. Use browse only when the user names no topic. Session history says what was observed then, not current external reality. Do not claim no prior conversation or Episode before searching.',
     parameters: {
       type: 'object', additionalProperties: false,
       properties: {
-        action: { type: 'string', enum: ['search', 'read', 'browse'] },
+        action: { type: 'string', enum: ['search', 'read', 'browse', 'episodes', 'episode_read'] },
         query: { type: ['string', 'null'], maxLength: MAX_QUERY_CHARS },
         sessionId: { type: ['string', 'null'] },
         messageId: { type: ['string', 'null'] },
         limit: { type: ['integer', 'null'], minimum: 1, maximum: MAX_LIMIT },
         window: { type: ['integer', 'null'], minimum: 1, maximum: MAX_WINDOW },
         includeTools: { type: ['boolean', 'null'] },
+        workId: { type: ['string', 'null'] },
+        runId: { type: ['string', 'null'] },
       },
-      required: ['action', 'query', 'sessionId', 'messageId', 'limit', 'window', 'includeTools'],
+      required: ['action', 'query', 'sessionId', 'messageId', 'limit', 'window', 'includeTools', 'workId', 'runId'],
     },
-    async execute({ action, query, sessionId, messageId, limit, window, includeTools }) {
+    async execute({ action, query, sessionId, messageId, limit, window, includeTools, workId, runId }) {
       const available = await visibleSessions(sessions);
       const byId = new Map(available.map((session) => [session.id, session]));
+      if (action === 'episodes' || action === 'episode_read') {
+        if (!workStore || !runLedger) throw new Error('episode retrieval is unavailable');
+        const pointers = episodePointers(await workStore.read());
+        if (action === 'episodes') return { state: 'episodes',
+          episodes: pointers.filter((pointer) => byId.has(pointer.sessionId))
+            .sort((left, right) => String(right.recordedAt).localeCompare(String(left.recordedAt)))
+            .slice(0, Number.isInteger(limit) ? limit : DEFAULT_LIMIT) };
+        const pointer = pointers.find((item) => item.workId === String(workId ?? '')
+          && item.runId === String(runId ?? ''));
+        if (!pointer || !byId.has(pointer.sessionId)) throw new Error('episode not found');
+        const session = byId.get(pointer.sessionId); const conversation = await conversationView(ledger, session);
+        const anchorIndex = conversation.entries.findIndex((entry) => entry.messageId === pointer.sourceMessageId);
+        const bounded = anchorIndex < 0 ? { messages: [], truncated: false }
+          : boundedMessages(conversation.entries, anchorIndex,
+            Number.isInteger(window) ? window : DEFAULT_WINDOW, includeTools === true);
+        const run = await runLedger.read(pointer.runId);
+        return { state: 'episode_read', episode: pointer, ...bounded,
+          run: { runId: run.runId, status: run.status, startedAt: run.startedAt, endedAt: run.endedAt,
+            modelCalls: run.events.filter((event) => event.type === 'model_completed').length,
+            toolCalls: run.events.filter((event) => event.type === 'tool_completed').length } };
+      }
       if (action === 'browse') {
         const count = Number.isInteger(limit) ? limit : DEFAULT_LIMIT;
         return {

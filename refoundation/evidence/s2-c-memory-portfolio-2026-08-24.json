@@ -2,7 +2,8 @@
   "schema":"t5.s2-c-memory-portfolio.v1",
   "recordedAt":"2026-08-24T22:30:00+09:00",
   "gate":"S2-C_MEMORY_PORTFOLIO",
-  "status":"complete",
+  "status":"repair_qualified_integration_blocked",
+  "structuralFailures":["runtime_two_character_semantic_selection","cross_work_revision_used_as_user_memory_recency","episode_pointer_not_connected_to_product_retrieval"],
   "goal":"Recall only sourced current memory relevant to the user purpose, derive Working Memory and Episode pointers without duplicating canonical history, and let current correction win.",
   "actualUserFailures":["all_active_memory_injected_every_call","cancelled_work_remains_current_until_model_cleanup","missing_source_revision_conflict","episode_kind_absent"],
   "comparisonPrinciples":{
@@ -14,39 +15,53 @@
   "implemented":{
     "userMemory":"sourced facts preferences decisions",
     "workingMemory":"derived work revision and pending input pointers",
-    "episode":"work settlement message and run pointers",
+    "episode":"product-connected settled Work message and Run pointers",
     "situationStoredAsMemory":false,
     "allMemoryInjected":false,
     "workMemoryRequiresExactCurrentRevision":true,
     "sameSubjectLatestRevisionWins":true,
+    "runtimeSemanticSelection":false,
+    "automaticUserMemoryRequiresExplicitAlwaysRelevant":true,
+    "mainModelSelectsSubjectPointerThenExactRead":true,
+    "subjectRevisionIndependentOfWorkRevision":true,
+    "episodeProductRetrieval":"session_search episodes to episode_read",
     "completedCancelledOtherWorkAutoDemoted":true,
     "episodeRawConversationDuplicated":false,
     "selectionModelAdded":false
   },
   "actualModelQualification":{
-    "model":"gpt-5.6-terra","seededConversationChars":780000,"selectionPassed":true,"conflictPassed":true,
+    "seededConversationCharsPerModel":780000,
+    "terra":{"selectionPassed":true,"exactReadPassed":true,"conflictPassed":true,"modelCalls":16,"toolCalls":5,"totalTokens":281105,"wallMs":68796.873,"recallMemoryCalls":1},
+    "gpt55":{"selectionPassed":true,"exactReadPassed":true,"conflictPassed":true,"modelCalls":17,"toolCalls":6,"totalTokens":291910,"wallMs":154581.244,"recallMemoryCalls":2},
     "kept":["SAFE-PREF-7391","WORK-DECISION-4488"],
     "rejected":["ONCE-ONLY-8426","TEMP-ERROR-5521","SPECULATION-6612","SECRET-9911"],
     "currentCorrectionAnswer":"CURRENT-WINS-7733"
   },
   "verification":{
-    "focusedAfterFinalFixPassed":11,
-    "refoundationUnitCleanBeforeFinalFixPassed":686,
-    "defaultProductIntegrationAfterFinalFixPassed":99,
-    "ptyResizeIsolatedAfterFullSuiteTimingFailurePassed":1,
+    "focusedRepairPassed":20,
+    "refoundationUnitPassed":692,
+    "defaultProductIntegrationPassed":104,
+    "defaultProductIntegrationTotal":105,
+    "cProductIntegrationPassed":2,
+    "capabilityHandoffIsolatedPassed":5,
+    "remoteMcpHumanJourneyIsolatedPassed":1,
     "failuresInCPaths":0,
     "visibleBrowserLiveExecuted":false
   },
   "observations":[
-    "The final full unit rerun reached the existing PTY resize test and stalled after its timing assertion; the exact test passed 1/1 in isolation. No C path failed.",
-    "C actual-model qualification was run with gpt-5.6-terra; a separate gpt-5.5 C qualification was not run in this development session."
+    "The prior completion was wrong because result selection was tested without proving that the main model, rather than runtime string similarity, owned relevance; Work revision semantics and Episode call sites were not audited.",
+    "All C paths and both actual models passed. The official integration suite remains non-green because the existing capability-handoff concurrent-resume test intermittently records one of two resumed handoffs under the full suite while passing 5/5 in isolation.",
+    "gpt-5.5 used two memory calls for exact recall versus Terra one; no fixed cap or runtime selection rule was added."
   ],
   "artifacts":{
-    "memoryLedgerSha256":"869f0d3ceb2b816a7a463ce1f8ddac5b6e5e294c17480a3997bc199d1f33f452",
-    "memoryToolSha256":"6ef25b7e1fa92a73e799b827171d3b95fa2d98cd42c2497bad37a5ac89d58996",
-    "memoryPortfolioSha256":"01bc37728c4523e39b0654d9a3ecb118887dd00d9366d796b1dc223a2813d717",
-    "consoleServerSha256":"8d141225cf6cc3465ec1e1f5326bfd972fdf929ebb076d492d0196a266db2d4c",
-    "portfolioTestSha256":"bc3558a182c1f4d5c9221a0edf2fdd37c9d45d6724a02ad8725f2cc923857697"
+    "memoryLedgerSha256":"6d8df58fd6d17881bd73dd7412a0e4446ada3f5791ca44c616070a8fb620f5ed",
+    "memoryToolSha256":"70871bb45516c0380005735d25aaf7534187fdea10e273048e7fb3ed7973e06d",
+    "memoryPortfolioSha256":"b5d47fbe1a1b7357110492fdf3d6560f827c3e1e63bbd7c9334767c235ef864b",
+    "sessionSearchSha256":"0989dab46e3691b8815d79b1588e391ae131a2bb6b751cf120b64ee557bdeafc",
+    "consoleServerSha256":"bf80ff79ad0e3d49b93c666847e993b1f7df04fe18e86508a60787c4480ea93e",
+    "qualificationSha256":"54daffd188c78475143993d0b89f1b39b4643f36ea25e0271ec4d6b28e7fcbb3",
+    "portfolioTestSha256":"46822de6a4cc3122a51f0cfd20943e260625b1ce666affcb3f2bbc041847022d",
+    "productIntegrationSha256":"c8773471c1bc8e1d79094e72d31c1423d865055d38828921939406cc09d01106"
   },
   "nonGoals":["new_embedding_service","vector_only_recall","fixed_persona","time_continuity","learning","new_connector","browser"],
   "productBehaviorChanged":true

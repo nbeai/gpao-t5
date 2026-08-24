@@ -57,3 +57,16 @@ test('memory는 사실·선호·결정 두 kind와 bounded content만 받는다'
     await rm(room, { recursive: true, force: true });
   }
 });
+
+test('사용자 subject revision은 서로 다른 Work revision 숫자와 독립적으로 증가한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-memory-subject-revision-'));
+  try {
+    const ledger = new MemoryLedger(room); await ledger.ensure();
+    const old = await ledger.add({ kind: 'user', content: '답변은 길게', subjects: ['답변 형식'],
+      source: { workId: 'old-work', revision: 9 } });
+    const current = await ledger.add({ kind: 'user', content: '답변은 짧게', subjects: ['답변 형식'],
+      source: { workId: 'new-work', revision: 1 } });
+    assert.equal(old.subjectRevision, 1); assert.equal(current.subjectRevision, 2);
+    assert.ok(current.sourceOrder > old.sourceOrder);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});

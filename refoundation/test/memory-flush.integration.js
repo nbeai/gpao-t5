@@ -40,6 +40,7 @@ test('checkpoint 전 memory-only review가 durable memory를 만들고 새 Sessi
   await mkdir(workspace, { recursive: true });
   const { sessions, session, ledger } = await seededSession(stateDir);
   let memoryCalls = 0;
+  let mainCalls = 0;
   const server = makeConsoleServer({
     stateDir, workspace,
     checkpointTriggerBytes: 1, checkpointTailBytes: 200,
@@ -58,7 +59,17 @@ test('checkpoint 전 memory-only review가 durable memory를 만들고 새 Sessi
         };
         return { text: 'MEMORY_FLUSH_DONE', toolCalls: [] };
       }
-      const recalled = input.messages.some((message) => /PERSISTENT MEMORY/.test(message.content));
+      mainCalls += 1;
+      const candidate = input.messages.find((message) => /USER MEMORY CANDIDATES/.test(message.content));
+      const recalled = input.messages.some((message) => message.role === 'tool'
+        && /결론을 먼저/.test(message.content));
+      if (candidate && !recalled) {
+        const memoryId = /"memoryId":"([^"]+)"/u.exec(candidate.content)[1];
+        return { text: '', toolCalls: [{ id: 'memory-read', name: 'memory', args: {
+          action: 'read', memoryIds: [memoryId], memoryId: null, kind: null, content: null,
+          subjects: null, alwaysRelevant: null,
+        } }] };
+      }
       return { text: recalled ? '기억을 이어받았습니다.' : '첫 작업 완료', toolCalls: [] };
     } }),
   });
@@ -82,6 +93,7 @@ test('checkpoint 전 memory-only review가 durable memory를 만들고 새 Sessi
       body: JSON.stringify({ sessionId: next.id, text: '내 답변 선호를 기억해?' }),
     }).then((response) => response.json());
     assert.equal(second.reply, '기억을 이어받았습니다.');
+    assert.equal(mainCalls, 3, '첫 작업 1회와 새 Session candidate→read 2회');
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await rm(room, { recursive: true, force: true });

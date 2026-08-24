@@ -10,7 +10,7 @@
   "secondCompletion": {
     "active": true,
     "sourceOfTruth": "T5-SECOND-COMPLETION.md",
-    "currentGate": "S2-D_TIME_CONTINUITY_READY",
+    "currentGate": "S2-C_REPAIR_QUALIFIED_INTEGRATION_BLOCKED",
     "firstProductChange": "shadow_resource_accounting_and_control",
     "a0IncidentFixtures": {
       "status": "complete",
@@ -90,7 +90,7 @@
       "humanFailureRepairMatrixTotal": 24
     },
     "cMemoryPortfolio": {
-      "status": "complete",
+      "status": "repair_qualified_integration_blocked",
       "evidence": "s2-c-memory-portfolio-2026-08-24.json",
       "userCorrectionWins": true,
       "workMemoryExactRevision": true,

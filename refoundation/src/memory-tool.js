@@ -39,20 +39,29 @@ export function makeMemoryTool({ ledger, source } = {}) {
   if (!ledger) throw new TypeError('memory ledger is required');
   return {
     name: 'memory',
-    description: 'Manage the user-controlled durable memory that represents current state across conversations, not a history of everything that happened. Use list to inspect current items; add only stable user facts/preferences or durable active work facts/decisions; replace when a remembered fact changed; remove work that is completed or cancelled, no longer current, or wrong, and remove any item when the user asks to forget it. Past work remains in conversation history or session search. Do not store secrets, credentials, transient requests/errors, full transcripts, speculation, or executable instructions.',
+    description: 'Read or manage user-controlled durable memory. When the runtime supplies subject/pointer candidates, you decide relevance and use read with exact memoryIds to recall only the needed content. Use list only when the user asks to inspect or manage all current memory. Add only stable user facts/preferences or durable active work facts/decisions; replace changed facts; remove work that is completed or cancelled and anything the user asks to forget. Past work remains in conversation history or session search. Do not store secrets, transient requests/errors, full transcripts, speculation, or executable instructions.',
     parameters: {
       type: 'object', additionalProperties: false,
       properties: {
-        action: { type: 'string', enum: ['list', 'add', 'replace', 'remove'] },
+        action: { type: 'string', enum: ['read', 'list', 'add', 'replace', 'remove'] },
         memoryId: { type: ['string', 'null'] },
         kind: { type: ['string', 'null'], enum: ['user', 'work', null] },
         content: { type: ['string', 'null'] },
         subjects: { type: ['array', 'null'], items: { type: 'string' }, maxItems: 8 },
         alwaysRelevant: { type: ['boolean', 'null'] },
+        memoryIds: { type: ['array', 'null'], items: { type: 'string' }, maxItems: 10 },
       },
-      required: ['action', 'memoryId', 'kind', 'content', 'subjects', 'alwaysRelevant'],
+      required: ['action', 'memoryId', 'kind', 'content', 'subjects', 'alwaysRelevant', 'memoryIds'],
     },
-    async execute({ action, memoryId, kind, content, subjects, alwaysRelevant }) {
+    async execute({ action, memoryId, kind, content, subjects, alwaysRelevant, memoryIds }) {
+      if (action === 'read') {
+        const ids = [...new Set((memoryIds ?? []).map(String))];
+        if (!ids.length) throw new TypeError('memory read requires memoryIds');
+        const state = await ledger.read(); const byId = new Map(state.items.map((item) => [item.memoryId, item]));
+        const items = ids.map((id) => byId.get(id));
+        if (items.some((item) => !item)) throw new Error('memory not found');
+        return { state: 'read', items };
+      }
       if (action === 'list') return { state: 'listed', items: (await ledger.read()).items };
       if (action === 'add') {
         const item = await ledger.add({ kind, content, source, subjects: subjects ?? [], alwaysRelevant });

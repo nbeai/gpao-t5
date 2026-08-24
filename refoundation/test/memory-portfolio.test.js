@@ -1,24 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { selectMemoryPortfolio, workingMemoryProjection, episodePointers } from '../src/memory-portfolio.js';
+import { memoryCandidateProjection, selectMemoryPortfolio, workingMemoryProjection,
+  episodePointers } from '../src/memory-portfolio.js';
 
-test('현재 요청과 관련된 User Memory와 exact Work revision만 자동 투영한다', () => {
+test('자동 투영은 명시적 User Memory와 exact Work revision만 사용하고 의미 후보는 pointer로 남긴다', () => {
   const items = [
-    { memoryId: 'coffee', kind: 'user', content: '사용자는 산미 있는 커피를 좋아한다.', subjects: ['커피'] },
+    { memoryId: 'coffee', kind: 'user', content: '사용자는 산미 있는 커피를 좋아한다.', subjects: ['커피'], alwaysRelevant: true },
     { memoryId: 'code', kind: 'user', content: '코드 답은 간결하게.', subjects: ['코드'] },
     { memoryId: 'old-work', kind: 'work', content: '예전 일', source: { workId: 'w', revision: 1 } },
     { memoryId: 'current-work', kind: 'work', content: '현재 일', source: { workId: 'w', revision: 2 } },
   ];
-  assert.deepEqual(selectMemoryPortfolio({ items, request: '커피 추천', currentWork: { workId: 'w', revision: 2 } })
+  assert.deepEqual(selectMemoryPortfolio({ items, currentWork: { workId: 'w', revision: 2 } })
     .map((item) => item.memoryId), ['coffee', 'current-work']);
+  const candidate = memoryCandidateProjection(items);
+  assert.match(candidate.content, /"memoryId":"code"/u); assert.doesNotMatch(candidate.content, /코드 답은/u);
 });
 
-test('같은 subject의 최신 교정 revision이 과거 기억을 대체한다', () => {
-  const selected = selectMemoryPortfolio({ request: '답변 형식', items: [
-    { memoryId: 'old', kind: 'user', content: '길게', subjects: ['답변'], source: { revision: 1 } },
-    { memoryId: 'new', kind: 'user', content: '간결하게', subjects: ['답변'], source: { revision: 2 } },
-  ] });
-  assert.deepEqual(selected.map((item) => item.memoryId), ['new']);
+test('프로젝트 subject는 프로그램 분석 요청에 런타임 의미 선택되지 않는다', () => {
+  const items = [{ memoryId: 'project', kind: 'user', content: '프로젝트 기억', subjects: ['프로젝트'],
+    subjectRevision: 1, sourceOrder: 1 }];
+  assert.deepEqual(selectMemoryPortfolio({ items, request: '프로그램 분석' }), []);
+  assert.match(memoryCandidateProjection(items).content, /프로젝트/u);
+});
+
+test('같은 subject 최신성은 서로 다른 Work revision이 아니라 subject revision과 source order를 쓴다', () => {
+  const candidate = memoryCandidateProjection([
+    { memoryId: 'old', kind: 'user', content: '길게', subjects: ['답변'],
+      subjectRevision: 1, sourceOrder: 4, source: { workId: 'old-work', revision: 9 } },
+    { memoryId: 'new', kind: 'user', content: '짧게', subjects: ['답변'],
+      subjectRevision: 2, sourceOrder: 8, source: { workId: 'new-work', revision: 1 } },
+  ]);
+  assert.match(candidate.content, /"memoryId":"new"/u); assert.doesNotMatch(candidate.content, /"memoryId":"old"/u);
 });
 
 test('Working Memory와 Episode는 원문을 복제하지 않고 Work·Run·Message pointer만 남긴다', () => {
@@ -28,6 +40,6 @@ test('Working Memory와 Episode는 원문을 복제하지 않고 Work·Run·Mess
   assert.deepEqual(workingMemoryProjection(state, 'w'), { workId: 'w', revision: 2,
     status: 'active', pendingInputIds: ['i1'] });
   assert.deepEqual(episodePointers(state), [{ workId: 'w', revision: 1, outcome: 'achieved',
-    runId: 'r1', sourceMessageId: 'm1' }]);
+    runId: 'r1', sessionId: null, sourceMessageId: 'm1', recordedAt: null }]);
   assert.doesNotMatch(JSON.stringify(episodePointers(state)), /content|text|receipt/u);
 });

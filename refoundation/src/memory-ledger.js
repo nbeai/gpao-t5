@@ -7,6 +7,7 @@ const KINDS = new Set(['user', 'work']);
 
 function clone(value) { return value == null ? value : structuredClone(value); }
 function bytes(value) { return Buffer.byteLength(String(value ?? ''), 'utf8'); }
+function primarySubject(subjects, memoryId = '') { return subjects?.[0] ? String(subjects[0]) : `memory:${memoryId}`; }
 
 function normalizedContent(content) {
   const value = String(content ?? '').trim();
@@ -43,6 +44,7 @@ function project(events) {
       current.set(event.memoryId, {
         memoryId: event.memoryId, kind: event.kind, content: event.content,
         subjects: clone(event.subjects ?? []), alwaysRelevant: event.alwaysRelevant === true,
+        subjectRevision: Number(event.subjectRevision ?? 1), sourceOrder: Number(event.sourceOrder ?? event.sequence),
         source: clone(event.source ?? null), createdAt: event.recordedAt, updatedAt: event.recordedAt,
       });
     } else if (event.type === 'memory_replaced') {
@@ -52,6 +54,8 @@ function project(events) {
         ...previous, kind: event.kind, content: event.content,
         subjects: clone(event.subjects ?? previous.subjects ?? []),
         alwaysRelevant: event.alwaysRelevant === true,
+        subjectRevision: Number(event.subjectRevision ?? (previous.subjectRevision + 1)),
+        sourceOrder: Number(event.sourceOrder ?? event.sequence),
         source: clone(event.source ?? null), updatedAt: event.recordedAt,
       });
     } else if (event.type === 'memory_removed') {
@@ -127,19 +131,26 @@ export class MemoryLedger {
       if (duplicate) return clone(duplicate);
       this.validateCapacity([...current.items, { kind: nextKind, content: nextContent }]);
       const memoryId = randomUUID();
+      const normalizedSubjects = [...subjects].map(String).slice(0, 8);
+      const key = primarySubject(normalizedSubjects, memoryId);
+      const subjectRevision = Math.max(0, ...current.items.filter((item) => (
+        primarySubject(item.subjects, item.memoryId) === key
+      )).map((item) => Number(item.subjectRevision ?? 0))) + 1;
       const event = await this.append('memory_added', {
         memoryId, kind: nextKind, content: nextContent, source,
-        subjects: [...subjects].map(String).slice(0, 8), alwaysRelevant: alwaysRelevant === true,
+        subjects: normalizedSubjects, alwaysRelevant: alwaysRelevant === true,
+        subjectRevision, sourceOrder: current.events.length + 1,
       });
       return {
         memoryId, kind: nextKind, content: nextContent, source: clone(source),
-        subjects: [...subjects].map(String).slice(0, 8), alwaysRelevant: alwaysRelevant === true,
+        subjects: normalizedSubjects, alwaysRelevant: alwaysRelevant === true,
+        subjectRevision, sourceOrder: event.sourceOrder,
         createdAt: event.recordedAt, updatedAt: event.recordedAt,
       };
     });
   }
 
-  async replace({ memoryId, kind, content, source = null, subjects = null, alwaysRelevant = false } = {}) {
+  async replace({ memoryId, kind, content, source = null, subjects = null, alwaysRelevant = null } = {}) {
     const id = String(memoryId ?? '');
     const nextContent = normalizedContent(content);
     if (bytes(nextContent) > this.maxEntryBytes) throw new Error('memory entry is too large');
@@ -152,13 +163,21 @@ export class MemoryLedger {
       const nextItems = current.items.map((item) => item.memoryId === id
         ? { ...item, kind: nextKind, content: nextContent } : item);
       this.validateCapacity(nextItems);
+      const normalizedSubjects = subjects == null ? previous.subjects : [...subjects].map(String).slice(0, 8);
+      const key = primarySubject(normalizedSubjects, id);
+      const subjectRevision = Math.max(Number(previous.subjectRevision ?? 0),
+        ...current.items.filter((item) => item.memoryId !== id
+          && primarySubject(item.subjects, item.memoryId) === key)
+          .map((item) => Number(item.subjectRevision ?? 0))) + 1;
       const event = await this.append('memory_replaced', {
         memoryId: id, kind: nextKind, content: nextContent, source,
-        subjects: subjects == null ? previous.subjects : [...subjects].map(String).slice(0, 8),
-        alwaysRelevant: alwaysRelevant === true,
+        subjects: normalizedSubjects,
+        alwaysRelevant: alwaysRelevant == null ? previous.alwaysRelevant === true : alwaysRelevant === true,
+        subjectRevision, sourceOrder: current.events.length + 1,
       });
       return { ...previous, kind: nextKind, content: nextContent, source: clone(source),
-        subjects: clone(event.subjects), alwaysRelevant: event.alwaysRelevant, updatedAt: event.recordedAt };
+        subjects: clone(event.subjects), alwaysRelevant: event.alwaysRelevant,
+        subjectRevision, sourceOrder: event.sourceOrder, updatedAt: event.recordedAt };
     });
   }
 

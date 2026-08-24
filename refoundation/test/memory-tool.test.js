@@ -21,6 +21,8 @@ test('memory 도구 하나로 자연어 대화가 add·list·replace·remove 현
       action: 'add', memoryId: null, kind: 'user', content: '사용자는 한국어 답변을 선호한다.',
     });
     assert.equal(added.state, 'added');
+    const recalled = await tool.execute({ action: 'read', memoryIds: [added.item.memoryId] });
+    assert.equal(recalled.items[0].content, '사용자는 한국어 답변을 선호한다.');
     const listed = await tool.execute({ action: 'list', memoryId: null, kind: null, content: null });
     assert.equal(listed.items.length, 1);
     await tool.execute({
