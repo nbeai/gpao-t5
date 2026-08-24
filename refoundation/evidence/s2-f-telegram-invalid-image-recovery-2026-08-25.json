@@ -1,0 +1,29 @@
+{
+  "schema": "t5.s2-f.telegram-invalid-image-recovery.v1",
+  "recordedAt": "2026-08-25",
+  "sourceCommit": "31834fdd",
+  "incidentFixture": {
+    "kind": "telegram-document-declared-png",
+    "bytes": 122,
+    "sha256": "560b4819a4f1fa02fc0d4d38ef4e330c2377e6f676de0ce4a03e1b95cd4c5729",
+    "contentStored": false,
+    "failure": "PNG magic and IHDR were present but the IDAT stream was structurally invalid"
+  },
+  "repairs": [
+    "Only structurally qualified image bytes enter provider input_image",
+    "Unqualified image records retain attachment identity and inspect visibility",
+    "A failed provider Run releases its exact Work execution claim without settling the Work achieved",
+    "A delivered Telegram failure surface records terminal delivery and exact message IDs"
+  ],
+  "counterTests": [
+    "The exact 122-byte incident digest is not injected while XLSX, DOCX, and PDF are inspected in one Turn",
+    "A provider failure delivery records a Telegram message ID and the next message in the same Session reaches the model",
+    "A valid generated PNG remains an input_image positive control"
+  ],
+  "verification": {
+    "focused": { "passed": 65, "failed": 0 },
+    "refoundationCheck": { "passed": 743, "failed": 0 },
+    "productIntegration": { "passed": 129, "failed": 0 },
+    "actualAccountModel": "not_run_actual_account_credential_test_forbidden"
+  }
+}

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { deflateSync } from 'node:zlib';
 import { strToU8, zipSync } from 'fflate';
 
 import { AttachmentStore } from '../src/attachment-store.js';
@@ -15,11 +16,24 @@ import { createGeneratedCompatibilityFixtures } from '../src/document-compatibil
 const SESSION = '33333333-3333-4333-8333-333333333333';
 
 function png(width = 4, height = 3) {
-  const bytes = Buffer.alloc(24);
-  Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex').copy(bytes);
-  bytes.writeUInt32BE(width, 16);
-  bytes.writeUInt32BE(height, 20);
-  return bytes;
+  const crc = (input) => {
+    let value = 0xffffffff;
+    for (const byte of input) {
+      value ^= byte;
+      for (let bit = 0; bit < 8; bit += 1) value = (value >>> 1) ^ (0xedb88320 & -(value & 1));
+    }
+    return (value ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, data) => {
+    const name = Buffer.from(type); const output = Buffer.alloc(data.length + 12);
+    output.writeUInt32BE(data.length); name.copy(output, 4); data.copy(output, 8);
+    output.writeUInt32BE(crc(Buffer.concat([name, data])), data.length + 8); return output;
+  };
+  const header = Buffer.alloc(13); header.writeUInt32BE(width); header.writeUInt32BE(height, 4);
+  header[8] = 8; header[9] = 2;
+  const pixels = Buffer.alloc(height * (1 + width * 3));
+  return Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), chunk('IHDR', header),
+    chunk('IDAT', deflateSync(pixels)), chunk('IEND', Buffer.alloc(0))]);
 }
 
 test('현재 턴 attachment context는 원본 내용 대신 identity·경로·신뢰 경계를 모델에 준다', async () => {
@@ -208,6 +222,24 @@ test('현재 턴 image만 provider input으로 만들고 결과 파일은 다운
   assert.equal(registered.state, 'registered');
   assert.equal(registered.artifact.direction, 'output');
   assert.match(registered.artifact.downloadUrl, /\/attachments\//);
+});
+
+test('magic header만 있는 손상 PNG는 identity와 inspect 경로에 남고 provider input_image에는 들어가지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-attachment-invalid-image-'));
+  const store = new AttachmentStore(join(room, 'attachments'));
+  const invalid = Buffer.from(
+    '89504e470d0a1a0a0000000d4948445200000040000000400802000000250be6890000000b4944415478daedcf010d0000080320d73ff4ade11c5420135bce39b95c2e974be572b95c2e97cbe572b95c2e97cbe572b95c2e97cbe572b95c2e97cbe572b95c2ed76b0104dcdcbdbe0000000049454e44ae426082',
+    'hex',
+  );
+  const record = await store.receive({ sessionId: SESSION, originalName: 'brand-color.png', bytes: invalid });
+  assert.equal(record.kind, 'image');
+  assert.deepEqual(await modelImageInputs({ store, sessionId: SESSION, records: [record] }), []);
+  const tool = makeAttachmentTool({ store, sessionId: SESSION, workspace: room });
+  const inspected = await tool.execute({ action: 'inspect', attachmentId: record.attachmentId,
+    filePath: null, maxChars: null, maxCells: null, maxPages: null });
+  assert.equal(inspected.observation.attachmentId, record.attachmentId);
+  assert.equal(inspected.observation.modelInputAvailable, false);
+  assert.equal(inspected.observation.modelInputReason, 'provider_image_bytes_invalid');
 });
 
 test('현재 요청이나 이번 Run 효과에 결속되지 않은 workspace 파일은 결과 artifact로 등록하지 않는다', async () => {

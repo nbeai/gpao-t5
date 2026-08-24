@@ -71,3 +71,14 @@ test('같은 Work revision의 동시 실행 claim은 하나만 열리고 정산 
   await store.settle({ workId: work.workId, revision: 1, outcome: 'unresolved', runId: 'run-a' });
   await store.claimExecution({ workId: work.workId, revision: 1, runId: 'run-b' });
 });
+
+test('provider 실패 Run의 execution claim을 release하면 같은 Work의 다음 사용자 Run이 실행된다', async () => {
+  const store = new WorkStore(await mkdtemp(join(tmpdir(), 't5-work-claim-release-')));
+  const work = await store.create({ sessionId: 'session', sourceMessageId: 'message' });
+  await store.claimExecution({ workId: work.workId, revision: 1, runId: 'failed-run' });
+  const released = await store.releaseExecution({ runId: 'failed-run', reason: 'provider_http_error' });
+  assert.equal(released.released, true);
+  assert.equal((await store.read()).works[0].status, 'active');
+  await store.claimExecution({ workId: work.workId, revision: 1, runId: 'next-user-run' });
+  assert.equal((await store.workForRun('next-user-run')).claimedRevision, 1);
+});

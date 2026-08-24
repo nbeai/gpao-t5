@@ -134,7 +134,11 @@ export class WorkStore {
         const work = works.get(event.workId); if (work) work.status = event.status;
       }
       if (event.type === 'execution_claimed') claims.set(event.runId,
-        { runId: event.runId, workId: event.workId, revision: event.revision });
+        { runId: event.runId, workId: event.workId, revision: event.revision, state: 'active' });
+      if (event.type === 'execution_released') {
+        const claim = claims.get(event.runId);
+        if (claim) Object.assign(claim, { state: 'released', reason: event.reason });
+      }
       if (event.type === 'completion_proposed') proposals.set(event.runId, {
         runId: event.runId, workId: event.workId, revision: event.revision,
         proposedOutcome: event.proposedOutcome, verifiedOutcome: event.verifiedOutcome,
@@ -351,7 +355,9 @@ export class WorkStore {
     const state = await this.read(); const work = state.works.find((item) => item.workId === workId);
     if (!work || work.revision !== revision) throw new Error('stale work revision');
     const claim = state.claims.find((item) => item.runId === runId);
-    if (!claim || claim.workId !== workId || claim.revision !== revision) throw new Error('work execution claim mismatch');
+    if (!claim || claim.state !== 'active' || claim.workId !== workId || claim.revision !== revision) {
+      throw new Error('work execution claim mismatch');
+    }
     return this.append('completion_proposed', { workId, revision, runId, proposedOutcome, verifiedOutcome,
       blockerDigest, blockers });
   }
@@ -368,7 +374,7 @@ export class WorkStore {
     const state = await this.read(); const work = state.works.find((item) => item.workId === workId);
     if (!work || work.revision !== revision) throw new Error('stale work revision');
     const claim = state.claims.filter((item) => item.runId === runId).at(-1);
-    if (!claim || claim.workId !== workId || claim.revision !== revision) {
+    if (!claim || claim.state !== 'active' || claim.workId !== workId || claim.revision !== revision) {
       throw new Error('work execution claim mismatch');
     }
     return this.append('work_settled', { workId, revision, outcome, runId });
@@ -383,16 +389,27 @@ export class WorkStore {
   async claimExecution({ workId, revision, runId }) {
     const state = await this.read(); const work = state.works.find((item) => item.workId === workId);
     if (!work || work.revision !== revision) throw new Error('stale work revision');
-    const existing = state.claims.find((item) => item.runId === runId);
+    const existing = state.claims.find((item) => item.runId === runId && item.state === 'active');
     if (existing) {
       if (existing.workId !== workId) throw new Error('work execution claim mismatch');
       if (existing.revision === revision) return existing;
     }
-    const owner = state.claims.find((item) => item.workId === workId && item.revision === revision
+    const owner = state.claims.find((item) => item.state === 'active' && item.workId === workId
+      && item.revision === revision
       && !state.events.some((event) => event.type === 'work_settled' && event.runId === item.runId));
     if (owner && owner.runId !== runId) throw new Error('work revision execution already claimed');
     await this.append('execution_claimed', { workId, revision, runId });
     return { workId, revision, runId };
+  }
+  async releaseExecution({ runId, reason = 'run_failed' }) {
+    const state = await this.read();
+    const claim = state.claims.find((item) => item.runId === runId && item.state === 'active');
+    if (!claim || state.events.some((event) => event.type === 'work_settled' && event.runId === runId)) {
+      return { runId, released: false };
+    }
+    await this.append('execution_released', { runId, workId: claim.workId,
+      revision: claim.revision, reason: String(reason).slice(0, 120) });
+    return { ...claim, state: 'released', reason: String(reason).slice(0, 120), released: true };
   }
   async workForRun(runId) {
     const state = await this.read(); const claim = state.claims.filter((item) => item.runId === runId).at(-1);

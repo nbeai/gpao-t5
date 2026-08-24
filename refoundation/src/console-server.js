@@ -1713,15 +1713,53 @@ export function makeConsoleServer({
         session, currentUserText: text, currentResult: failureSurface, evidence: recoveryEvidence,
       });
       if (recovery) failureSurface.recovery = { ...recovery, recoveryId: run.runId };
-      const pendingReadyResult = (await workStore.read()).results.find((item) => (
-        item.runId === run.runId && item.state === 'pending_surface'
-      ));
-      if (!surfacePersisted && !pendingReadyResult) {
+      const releasedClaim = await workStore.releaseExecution({
+        runId: run.runId, reason: error?.code ?? 'turn_failed',
+      }).catch(() => ({ released: false }));
+      const existingResult = (await workStore.read()).results.find((item) => item.runId === run.runId);
+      if (!surfacePersisted && !existingResult) {
+        const failureDigest = createHash('sha256').update(JSON.stringify(failureSurface)).digest('hex');
+        await workStore.recordResultReady({ runId: run.runId, sessionId,
+          workId: releasedClaim.workId ?? null, revision: releasedClaim.revision ?? null,
+          objectiveOutcome: 'unresolved', resultDigest: failureDigest, surfaceResult: failureSurface }).catch(() => {});
         await sessions.append(sessionId, { role: 'assistant', result: failureSurface }).catch(() => {});
         surfacePersisted = true;
+        await workStore.markResultSurfacePersisted(run.runId).catch(() => {});
         await run.append({
           type: 'surface_persisted', payload: { role: 'assistant', kind: 'error' },
         }).catch(() => {});
+        let failureDelivery = { provider: 'console', state: 'persisted' };
+        if (typeof options.deliverSurface === 'function') {
+          await workStore.markResultDeliveryStarted(run.runId,
+            { provider: 'telegram', state: 'started' }).catch(() => {});
+          try {
+            const delivered = await options.deliverSurface({ reply: failureSurface.reply, artifactIds: [] });
+            failureDelivery = delivered?.sent ? {
+              provider: 'telegram', state: 'sent',
+              messageIds: structuredClone(delivered.messageIds ?? []),
+              files: structuredClone(delivered.files ?? []),
+            } : { provider: 'telegram', state: 'failed', reason: 'not_sent' };
+          } catch (deliveryError) {
+            failureDelivery = {
+              provider: 'telegram', state: deliveryError?.effectUnknown ? 'unknown' : 'failed',
+              reason: deliveryError?.code ?? 'telegram_delivery_failed',
+              retrySafe: deliveryError?.retrySafe !== false,
+            };
+          }
+          failureSurface.channelDelivery = {
+            provider: 'telegram', sent: failureDelivery.state === 'sent', state: failureDelivery.state,
+            ...(failureDelivery.messageIds ? { messageIds: failureDelivery.messageIds } : {}),
+            ...(failureDelivery.files ? { files: failureDelivery.files } : {}),
+            ...(failureDelivery.reason ? { reason: failureDelivery.reason } : {}),
+          };
+          await run.append({ type: failureDelivery.state === 'sent'
+            ? 'channel_delivery_completed' : failureDelivery.state === 'unknown'
+              ? 'channel_delivery_unknown' : 'channel_delivery_failed', stepId: 'telegram-delivery',
+          payload: failureSurface.channelDelivery }).catch(() => {});
+        }
+        await workStore.markResultDeliveryTerminal(run.runId, failureDelivery).catch(() => {});
+        await run.append({ type: 'delivery_terminal', stepId: 'result-delivery',
+          payload: failureDelivery }).catch(() => {});
       }
       if (!runFinished) {
         await run.finish('failed', { error: error?.message ?? String(error) }).catch(() => {});

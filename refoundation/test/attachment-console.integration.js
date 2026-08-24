@@ -1,19 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { deflateSync } from 'node:zlib';
 
 import { strToU8, zipSync } from 'fflate';
 
 import { makeConsoleServer } from '../src/console-server.js';
+import { createGeneratedCompatibilityFixtures } from '../src/document-compatibility-baseline.js';
 
 function png(width = 3, height = 2) {
-  const bytes = Buffer.alloc(24);
-  Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex').copy(bytes);
-  bytes.writeUInt32BE(width, 16);
-  bytes.writeUInt32BE(height, 20);
-  return bytes;
+  const crc = (input) => {
+    let value = 0xffffffff;
+    for (const byte of input) {
+      value ^= byte;
+      for (let bit = 0; bit < 8; bit += 1) value = (value >>> 1) ^ (0xedb88320 & -(value & 1));
+    }
+    return (value ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, data) => {
+    const name = Buffer.from(type); const output = Buffer.alloc(data.length + 12);
+    output.writeUInt32BE(data.length); name.copy(output, 4); data.copy(output, 8);
+    output.writeUInt32BE(crc(Buffer.concat([name, data])), data.length + 8); return output;
+  };
+  const header = Buffer.alloc(13); header.writeUInt32BE(width); header.writeUInt32BE(height, 4);
+  header[8] = 8; header[9] = 2;
+  return Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), chunk('IHDR', header),
+    chunk('IDAT', deflateSync(Buffer.alloc(height * (1 + width * 3)))), chunk('IEND', Buffer.alloc(0))]);
 }
 
 async function fixtureServer(modelFactory) {
@@ -113,6 +127,52 @@ test('현재 이미지 첨부만 모델 input_image로 전달되고 과거 trans
     const conversation = await app.server.conversationLedger.read(session.id);
     assert.doesNotMatch(JSON.stringify(conversation), /data:image|aW1hZ2U/);
     assert.equal(conversation.entries[0].message.attachments[0].kind, 'image');
+  } finally { await app.close(); }
+});
+
+test('Telegram incident의 손상 PNG는 자동 주입하지 않고 XLSX·DOCX·PDF 세 문서는 같은 Turn에서 읽는다', async () => {
+  let modelTurn = 0;
+  const app = await fixtureServer(() => ({ async respond(input) {
+    modelTurn += 1;
+    if (modelTurn === 1) {
+      const current = input.messages.at(-1);
+      assert.deepEqual(current.modelAttachments ?? [], []);
+      const records = [...current.content.matchAll(/attachmentId=([0-9a-f-]+).*?name="([^"]+)"/gu)];
+      assert.equal(records.length, 4);
+      const attachment = input.tools.find((tool) => tool.name === 'attachment');
+      assert.ok(attachment);
+      return { text: '', toolCalls: records.filter((match) => /\.(?:xlsx|docx|pdf)$/u.test(match[2]))
+        .map((match, index) => ({ id: `inspect-${index}`, name: 'attachment', args: {
+          action: 'inspect', attachmentId: match[1], filePath: null,
+          maxChars: 4_000, maxCells: 2_000, maxPages: 10,
+        } })) };
+    }
+    const receipts = input.messages.filter((message) => message.role === 'tool').map((message) => message.content);
+    assert.equal(receipts.length, 3);
+    assert.ok(receipts.map(JSON.parse).every((receipt) => receipt.result?.state === 'observed'));
+    assert.match(receipts.join('\n'), /40300/u);
+    return { text: '엑셀·워드·PDF 세 파일을 모두 읽었고 손상 이미지는 내용 확인 대상으로 남겼어요.', toolCalls: [] };
+  } }));
+  try {
+    const session = await newSession(app.base);
+    const fixtures = await createGeneratedCompatibilityFixtures(join(app.room, 'documents'));
+    const wanted = fixtures.filter((item) => ['modern-xlsx', 'modern-docx', 'text-pdf'].includes(item.caseId));
+    const uploaded = [];
+    for (const item of wanted) uploaded.push((await upload(app.base, session.id,
+      item.fileName, 'application/octet-stream', await readFile(item.path))).body);
+    const invalidPng = Buffer.from(
+      '89504e470d0a1a0a0000000d4948445200000040000000400802000000250be6890000000b4944415478daedcf010d0000080320d73ff4ade11c5420135bce39b95c2e974be572b95c2e97cbe572b95c2e97cbe572b95c2e97cbe572b95c2e97cbe572b95c2ed76b0104dcdcbdbe0000000049454e44ae426082',
+      'hex',
+    );
+    uploaded.push((await upload(app.base, session.id, '브랜드_색상.png', 'image/png', invalidPng)).body);
+    const response = await fetch(`${app.base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: '이 네 파일을 각각 실제로 읽고 핵심을 한 답으로 정리해줘.',
+        attachmentIds: uploaded.map((item) => item.attachmentId) }),
+    });
+    const payload = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(payload));
+    assert.match(payload.reply, /세 파일을 모두 읽었/u);
   } finally { await app.close(); }
 });
 

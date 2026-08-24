@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { lstat, readFile, realpath } from 'node:fs/promises';
 import { extname, isAbsolute, join, resolve } from 'node:path';
+import { inflateSync } from 'node:zlib';
 
 import { openPdf } from 'clawpdf';
 import { inspectZipArchive, extractSafeZip } from './archive-safety.js';
@@ -13,6 +14,80 @@ import { decodeTextDocument, inspectDelimitedText } from './text-document-observ
 const DEFAULT_TEXT_CHARS = 64_000;
 const MAX_MODEL_IMAGE_BYTES = 20 * 1024 * 1024;
 const MAX_TABULAR_TEXT_BYTES = 8 * 1024 * 1024;
+
+function qualifiedPng(bytes) {
+  if (bytes.length < 45 || !bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) return false;
+  let offset = 8; let header = null; let sawData = false; let sawEnd = false;
+  const compressed = [];
+  while (offset + 12 <= bytes.length) {
+    const length = bytes.readUInt32BE(offset);
+    if (length > bytes.length - offset - 12) return false;
+    const type = bytes.subarray(offset + 4, offset + 8).toString('ascii');
+    const data = bytes.subarray(offset + 8, offset + 8 + length);
+    offset += length + 12;
+    if (type === 'IHDR') {
+      if (header || length !== 13 || sawData) return false;
+      header = data;
+      const width = data.readUInt32BE(0); const height = data.readUInt32BE(4);
+      const allowedDepths = { 0: [1, 2, 4, 8, 16], 2: [8, 16], 3: [1, 2, 4, 8], 4: [8, 16], 6: [8, 16] };
+      if (!width || !height || !allowedDepths[data[9]]?.includes(data[8])
+        || data[10] !== 0 || data[11] !== 0 || ![0, 1].includes(data[12])) return false;
+    } else if (type === 'IDAT') {
+      if (!header || sawEnd) return false;
+      sawData = true; compressed.push(data);
+    } else if (type === 'IEND') {
+      if (length !== 0 || !sawData) return false;
+      sawEnd = true; break;
+    }
+  }
+  if (!header || !sawEnd || offset !== bytes.length) return false;
+  try { return inflateSync(Buffer.concat(compressed), { maxOutputLength: MAX_MODEL_IMAGE_BYTES * 8 }).length > 0; }
+  catch { return false; }
+}
+
+function qualifiedJpeg(bytes) {
+  if (bytes.length < 16 || bytes[0] !== 0xff || bytes[1] !== 0xd8
+    || bytes.at(-2) !== 0xff || bytes.at(-1) !== 0xd9) return false;
+  let offset = 2; let sawFrame = false; let sawScan = false;
+  while (offset + 1 < bytes.length - 2) {
+    if (bytes[offset] !== 0xff) { if (!sawScan) return false; offset += 1; continue; }
+    while (bytes[offset] === 0xff) offset += 1;
+    const marker = bytes[offset++];
+    if (marker === 0x00 || marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+    if (marker === 0xd9) break;
+    if (offset + 2 > bytes.length) return false;
+    const length = bytes.readUInt16BE(offset);
+    if (length < 2 || offset + length > bytes.length) return false;
+    if ([0xc0, 0xc1, 0xc2].includes(marker)) {
+      if (length < 8 || !bytes.readUInt16BE(offset + 3) || !bytes.readUInt16BE(offset + 5)) return false;
+      sawFrame = true;
+    }
+    if (marker === 0xda) sawScan = true;
+    offset += length;
+  }
+  return sawFrame && sawScan;
+}
+
+function qualifiedGif(bytes) {
+  if (bytes.length < 14 || !/^GIF8[79]a$/u.test(bytes.subarray(0, 6).toString('ascii'))
+    || !bytes.readUInt16LE(6) || !bytes.readUInt16LE(8) || bytes.at(-1) !== 0x3b) return false;
+  return bytes.includes(0x2c);
+}
+
+function qualifiedWebp(bytes) {
+  if (bytes.length < 20 || bytes.subarray(0, 4).toString('ascii') !== 'RIFF'
+    || bytes.subarray(8, 12).toString('ascii') !== 'WEBP' || bytes.readUInt32LE(4) + 8 !== bytes.length) return false;
+  return ['VP8 ', 'VP8L', 'VP8X'].includes(bytes.subarray(12, 16).toString('ascii'));
+}
+
+export function qualifyProviderImage(bytesInput, mimeType) {
+  const bytes = Buffer.from(bytesInput ?? []);
+  const eligible = mimeType === 'image/png' ? qualifiedPng(bytes)
+    : mimeType === 'image/jpeg' ? qualifiedJpeg(bytes)
+      : mimeType === 'image/gif' ? qualifiedGif(bytes)
+        : mimeType === 'image/webp' ? qualifiedWebp(bytes) : false;
+  return { eligible, mimeType, reason: eligible ? null : 'provider_image_bytes_invalid' };
+}
 
 export function attachmentContext(records = []) {
   if (!records.length) return '';
@@ -103,6 +178,15 @@ async function inspectAuthorizedImageFile(filePath, authorizeOutputPath, observe
     observationKind = 'docx_render'; renderEngine = rendered.engine;
   } else if (detected.kind !== 'image') throw new Error('visual observation requires a supported image, PDF, or DOCX file');
   if (visualBytes.length > MAX_MODEL_IMAGE_BYTES) throw new Error('rendered visual observation exceeds model input limit');
+  const providerImage = qualifyProviderImage(visualBytes, visualMime);
+  if (!providerImage.eligible) return {
+    state: 'capability_boundary', trust: 'untrusted_external', instructionAuthority: 'none',
+    observation: {
+      kind: observationKind, source: 'current_run_file', path, sourceMimeType: detected.mimeType,
+      bytes: bytes.length, sourceSha256: createHash('sha256').update(bytes).digest('hex'),
+      pixelsSuppliedToModel: false, reason: providerImage.reason,
+    },
+  };
   const modelAttachments = [{
     type: 'input_image', detail: 'high', image_url: `data:${visualMime};base64,${visualBytes.toString('base64')}`,
   }];
@@ -129,6 +213,7 @@ export async function modelImageInputs({ store, sessionId, records = [] } = {}) 
     const { record, bytes } = await store.readContent({
       sessionId, attachmentId: candidate.attachmentId,
     });
+    if (!qualifyProviderImage(bytes, record.mimeType).eligible) continue;
     inputs.push({
       type: 'input_image', detail: 'auto',
       image_url: `data:${record.mimeType};base64,${bytes.toString('base64')}`,
@@ -249,11 +334,13 @@ export function makeAttachmentTool({
         }));
       }
       if (record.kind === 'image') {
+        const providerImage = qualifyProviderImage(bytes, record.mimeType);
         return trustedObservation({
           kind: 'image', attachmentId: record.attachmentId,
           mimeType: record.mimeType, bytes: record.bytes,
           ...imageDimensions(bytes, record.mimeType),
-          modelInputAvailable: record.bytes <= MAX_MODEL_IMAGE_BYTES,
+          modelInputAvailable: record.bytes <= MAX_MODEL_IMAGE_BYTES && providerImage.eligible,
+          ...(providerImage.eligible ? {} : { modelInputReason: providerImage.reason }),
         });
       }
       if (record.kind === 'archive') return trustedObservation(inspectZipArchive(bytes));

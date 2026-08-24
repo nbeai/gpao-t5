@@ -108,6 +108,75 @@ test('Telegram에서 생긴 대화에 콘솔로 이어 말하면 같은 Telegram
   }
 });
 
+test('provider 실패 안내도 Telegram delivery receipt로 닫히고 같은 Session 다음 발화가 모델에 도달한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-provider-failure-release-'));
+  const deliveries = []; let poll = 0; let modelCalls = 0;
+  const messages = ['첨부를 읽어줘', '그럼 다음 질문에 답해줘'];
+  const provider = {
+    id: 'telegram', inboundMode: 'long_polling',
+    async validate() { return { id: '77', username: 't5_fixture_bot' }; },
+    async poll({ signal }) {
+      if (poll < messages.length) {
+        poll += 1;
+        return [{ updateId: poll, message: {
+          provider: 'telegram', updateId: poll, messageId: String(poll), chatId: '555', threadId: null,
+          userId: '42', username: 'owner', text: messages[poll - 1], isDirectMessage: true,
+        } }];
+      }
+      await new Promise((resolve) => signal?.addEventListener('abort', resolve, { once: true }));
+      return [];
+    },
+    startTyping() { return { stop() {} }; },
+    async sendReply(input) {
+      deliveries.push(String(input.text)); const messageId = String(700 + deliveries.length);
+      return { sent: true, provider: 'telegram', chatId: input.chatId,
+        messageId, messageIds: [messageId], chunks: 1 };
+    },
+  };
+  const server = makeConsoleServer({
+    stateDir: room, workspace: room, messengerProviderFactory: () => provider,
+    modelFactory: () => ({ async respond() {
+      modelCalls += 1;
+      if (modelCalls === 1) throw Object.assign(new Error('provider rejected input'), {
+        code: 'provider_http_error',
+      });
+      return { text: '두 번째 요청은 정상적으로 받았어요.', toolCalls: [] };
+    } }),
+    modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
+  });
+  await new Promise((resolveListen, reject) => {
+    server.once('error', reject); server.listen(0, '127.0.0.1', resolveListen);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const connected = await fetch(`${base}/channels/connect`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ provider: 'telegram', token: 'fixture-token' }),
+    });
+    assert.equal(connected.status, 200);
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const second = await server.messengerStateStore.ingress('telegram', 2);
+      if (second?.state === 'completed') break;
+      await new Promise((resolveWait) => setTimeout(resolveWait, 10));
+    }
+    const first = await server.messengerStateStore.ingress('telegram', 1);
+    const second = await server.messengerStateStore.ingress('telegram', 2);
+    assert.equal(first.state, 'completed');
+    assert.equal(first.failedTurn, true);
+    assert.equal(first.messageIds.length, 1);
+    assert.equal(second.state, 'completed');
+    assert.equal(modelCalls, 2);
+    assert.equal(deliveries.length, 2);
+    assert.match(deliveries[1], /두 번째 요청/u);
+    const work = await server.workStore.read();
+    assert.ok(work.claims.some((claim) => claim.state === 'released'));
+    assert.equal(work.claims.length, 2);
+  } finally {
+    await server.closeMessengers();
+    await new Promise((resolveClose) => server.close(resolveClose));
+  }
+});
+
 test('T5를 재시작해도 첫 Telegram 사용자는 같은 콘솔 대화로 이어지고 중복 답장하지 않는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-messenger-console-restart-'));
   const deliveries = [];

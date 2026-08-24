@@ -441,6 +441,17 @@ export function makeMessengerGateway({
         log('messenger_inbound_failed', { provider, code });
         if (adopted) {
           const failure = error?.surfaceResult;
+          if (failure?.channelDelivery?.sent === true
+            && (failure.channelDelivery.messageIds ?? []).length > 0) {
+            replied += 1;
+            await stateStore.markIngress(provider, updateId, 'completed', {
+              sessionId, completedAt: Date.now(), failedTurn: true,
+              messageIds: structuredClone(failure.channelDelivery.messageIds),
+              files: structuredClone(failure.channelDelivery.files ?? []),
+            });
+            nextOffset = await stateStore.saveOffset(provider, acknowledgedOffset);
+            continue;
+          }
           const failureText = failure?.reply
             ? `${failure.reply}${failure.nextSafeAction ? `\n\n${failure.nextSafeAction}` : ''}`
             : undefined;
