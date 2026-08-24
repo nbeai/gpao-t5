@@ -24,6 +24,11 @@
 2차 완성은 기능 확장이 아니라 현재 코어의 원리가 복합·장기 사용자 목적에서도 예외 없이 작동하도록
 연결·고도화하는 `Core Completion & Hardening`이다.
 
+대화창은 사용자와 T5가 함께 공유하는 유일한 제품 세계다. 사용자가 말한 것, T5가 이해한 것, 실제로 한 일,
+현재 상태와 결과가 이 세계에서 끊기지 않아야 한다. Terminal이 현실에서 무엇인가를 할 수 있게 하는 가장
+기초적인 Hand라면, 그다음 기반은 Conversation·Situation·Work·Evidence·Memory·Capability를 현재 목적에
+맞게 모델에 공급하는 `Information Control`이다.
+
 ### 사용자 완료 문장
 
 > 사용자가 평소 말로 목적을 말하면 T5는 현재 상황·기억·능력·권한·자원을 정확히 구성해 모델의 능력을
@@ -179,19 +184,46 @@ WorkStore · Instruction Compiler · Queue · Automation 의미 변경
 Memory·Capability 변경 · Browser·UI · Multi-agent · 새 Connector
 ```
 
-### S2-A2 — Dense Model Environment
+### S2-A2 — Information Control
 
-활성 Hand·현재 Situation·관련 Memory·Evidence만 주입한다. stable constitution과 prompt cache를 보존하고
-비활성 지침·중복 tool 설명·반복 원문을 제거한다. canonical Receipt는 보존하며 큰 결과에는 exact recall
-handle을 준다. W9 blind truncation·extraction model·shared cache·branch research는 열지 않는다.
+Conversation 전체나 Memory 전체를 넣지 않고 모델 호출 직전에 다음을 조립한다.
 
-통과: authority·effect·coverage·교정 손실 0, recall digest 일치, positive control 무회귀, 모델 왕복 증가 0,
-uncached input·wall time 감소, Terra·gpt-5.5 반복.
+```text
+Stable Constitution
+→ 현재 사용자 발화·교정
+→ 현재 Run과 조건부 Situation
+→ 관련 Evidence·미확인 effect
+→ 출처 있는 Memory 후보
+→ 현재 ready Capability와 활성 Tool Definition
+```
 
-### S2-B — Durable Correction & Recovery
+Conversation은 공동 세계의 canonical 사건, ContextReceipt는 모델이 실제로 본 입력, Context Compiler는 둘
+사이의 파생 제어면이다. A2 첫 단계는 현재 발화·Run을 사용하고, B가 선 뒤 Work 목적·revision을 같은 입력
+계약에 추가한다.
 
-append-only WorkStore, Work revision 출처, 최소 Situation, durable input·steer·followup·cancel, failure 종류,
-Completion Proposal·Settlement를 연결한다.
+Information Control 구현:
+
+- stable constitution과 prompt cache 보존
+- 비활성 Hand 지침·중복 tool 설명·반복 tool 원문 제거
+- canonical Receipt 전량 보존, 큰 결과는 identity·coverage·head/tail·exact recall handle로 투영
+- Memory 후보는 exact 대상 identity·source·scope·최신 revision·사용자 교정을 기준으로 결정론적 검색
+- 후보를 현재 목적에 사용할지와 충돌의 의미는 주 모델이 판단
+- 과거 assistant 문장으로 현재 시간·로그인·연결·process를 추론하지 않고 Situation에서 관측
+
+W9 blind truncation·별도 extraction model·shared cache·branch research·vector-only Memory 선택은 열지 않는다.
+
+통과:
+
+- authority·effect·coverage·사용자 교정 손실 0, recall digest 일치
+- 현재 목적 유지·잘못된 과거 사실 주입·불필요 Memory·반복 tool output을 각각 계측
+- 비활성 Hand guidance 0, 모델 왕복 증가 0
+- current fact·폐쇄집합·Terminal·Document·Web positive control 무회귀
+- uncached input·wall time 감소, Terra·gpt-5.5 반복
+
+### S2-B — Work & Conversation Continuity
+
+append-only WorkStore, Work revision 출처, 최소 Situation, durable input·steer·followup·new_work·cancel,
+failure 종류, Completion Proposal·Settlement를 연결한다.
 
 ```text
 deterministic: 같은 route+args 재실행 0
@@ -201,7 +233,27 @@ effect unknown: 재실행 0, 현실 재관측만 허용
 
 통과: 교정·입력 유실 0, restart 복원, premature stop 0, 거짓 성공 0, 모델 userAnswer 재작성 0.
 
-### S2-C — Time Continuity
+### S2-C — Memory Portfolio
+
+새 만능 Memory 저장소를 만들지 않고 기존 정본의 역할과 모델 주입 경계를 완성한다.
+
+```text
+User Memory: 사용자가 말한 사실·선호·결정
+Working Memory: 현재 Work의 결정·미확인·재개 지점 projection
+Episode: Conversation·Run·Receipt를 가리키는 과거 경험 색인
+Skill: 실제 과업에서 검증된 방법
+Capability Memory: 현재 사용 가능성·요건·과거 성능
+Situation: 매번 관측하는 휘발성 현실, Memory 아님
+```
+
+모든 Memory 후보는 source message·scope·recordedAt·revision·conflict를 보존한다. 사용자 교정이 과거 기억보다
+우선하며, Memory 부재를 과거 사건 부재로 사용하지 않는다. 전체 Memory 주입·고정 Persona·출처 없는 추론
+지속·새 의미 선택 모델은 금지한다.
+
+통과: 사용자 교정 반영 100%, 잘못된 현재 상황 승격 0, Episode 원문 중복 0, 관련 후보 recall 유지,
+불필요 Memory token 감소, restart·모델 전환 뒤 같은 Work 재개.
+
+### S2-D — Time Continuity
 
 Automation occurrence를 workId·resource scope에 결속하고 execution·objective·delivery를 분리한다. 실행 시점
 Situation·Capability·authority를 다시 확인하고 claim heartbeat·stale worker 폐기·crash fencing을 적용한다.
@@ -209,21 +261,31 @@ Situation·Capability·authority를 다시 확인하고 claim heartbeat·stale w
 통과: recursive automation·모델 종료 성공·delivery 실패 성공·unknown effect retry 0, fault injection,
 Telegram loopback, Terra·gpt-5.5 동일 여정.
 
-### S2-D — Connected Reality
+### S2-E — Learning
 
-실제 사용자 Episode가 연 공식 API·MCP·CLI·Connector·Messenger 하나씩만 자격화한다.
+검증된 Work Settlement와 Episode pointer에서만 방법 후보를 만든다.
+
+```text
+반복 Work → 성공·교정 Evidence → 방법 후보 → 격리 replay
+→ baseline A/B → 실제 반복 과업 → Skill·Capability 승격 → 회귀 rollback
+```
+
+모델 주장만으로 Episode 성공, 실패 방법 승격, 사용자 교정 누락, Core 자동 수정은 0이다. 학습은 설명·교정·
+시간·목적당 비용을 줄이고 정확도를 유지할 때만 승격한다.
+
+### S2-F — Hand & Connected Reality
+
+Information Control·Work·Memory·Time·Learning 기반이 선 뒤, 실제 사용자 Episode가 연 Hand·공식 API·MCP·
+CLI·Connector·Messenger 하나씩만 자격화한다.
 
 ```text
 connection truth → resource identity → authority → execution
 → acknowledgement → read-after-write → delivery
 ```
 
-### S2-E — Growth
+긴급 P0 복구 외의 넓은 Web·Connection·App 기능 확장은 앞선 정보 기반보다 먼저 열지 않는다.
 
-검증된 Work·Episode pointer에서 방법 후보를 만들고 격리 replay·baseline A/B·실제 반복 과업 뒤에만
-Skill·Capability로 승격한다. 실패 방법 승격·Core 자동 수정은 0이다.
-
-### S2-F — UI-only Hand — NOT OPEN
+### S2-G — UI-only Hand — NOT OPEN
 
 전용 Browser를 다시 만들지 않는다. 반복 실수요·공식 대안 부재·exact user-owned surface·bounded observation·
 secret user control·full authority·잔류 process/window 0·비교군 우위가 함께 증명될 때만 별도 Gate로 연다.
@@ -247,7 +309,7 @@ AND false completion 0
 AND 실행 가능한 미시도 route가 남은 blocked 0
 ```
 
-새 package는 S2-A~E의 열린 완료 문장, Terminal·Document 무회귀, 공개 웹 가시 Browser 0, resource control
+새 package는 S2-A0~E와 실제로 열린 F Gate의 완료 문장, Terminal·Document 무회귀, 공개 웹 가시 Browser 0, resource control
 우회 0, 상태 단일 정본, 외부 효과·중복 실행 회귀 0, 비교군 Gate, 설치·재시작·상태 보존, 서명·공증·rollback,
 미측정 핵심 사용자 여정 0이 모두 성립한 뒤에만 만든다.
 

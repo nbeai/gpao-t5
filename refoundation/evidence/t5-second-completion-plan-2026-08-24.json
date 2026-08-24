@@ -1,6 +1,6 @@
 {
   "schema": "t5.second-completion-plan.v1",
-  "recordedAt": "2026-08-24T13:38:49+09:00",
+  "recordedAt": "2026-08-24T14:02:04+09:00",
   "firstCompletion": {
     "declared": true,
     "sourceCommit": "81f29d23",
@@ -25,6 +25,26 @@
         "qualified_catastrophic_fuse"
       ]
     },
+    "informationFoundation": {
+      "conversationIsSharedWorld": true,
+      "priority": [
+        "ResourceControl",
+        "InformationControl",
+        "WorkConversationContinuity",
+        "MemoryPortfolio",
+        "TimeContinuity",
+        "Learning",
+        "HandConnectedReality"
+      ],
+      "memoryKinds": [
+        "UserMemory",
+        "WorkingMemoryProjection",
+        "EpisodePointer",
+        "Skill",
+        "CapabilityMemory"
+      ],
+      "situationIsMemory": false
+    },
     "newCanonicalStoresAllowed": [
       "ResourceLedger",
       "WorkStore"
@@ -32,12 +52,13 @@
     "gateOrder": [
       "S2-A0_INCIDENT_REFERENCE_FIXTURES",
       "S2-A1_RESOURCE_CONTROL",
-      "S2-A2_DENSE_MODEL_ENVIRONMENT",
-      "S2-B_DURABLE_CORRECTION_RECOVERY",
-      "S2-C_TIME_CONTINUITY",
-      "S2-D_CONNECTED_REALITY",
-      "S2-E_GROWTH",
-      "S2-F_UI_ONLY_HAND_NOT_OPEN"
+      "S2-A2_INFORMATION_CONTROL",
+      "S2-B_WORK_CONVERSATION_CONTINUITY",
+      "S2-C_MEMORY_PORTFOLIO",
+      "S2-D_TIME_CONTINUITY",
+      "S2-E_LEARNING",
+      "S2-F_HAND_CONNECTED_REALITY",
+      "S2-G_UI_ONLY_HAND_NOT_OPEN"
     ],
     "firstGateNonGoals": [
       "WorkStore",
