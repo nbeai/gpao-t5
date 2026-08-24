@@ -5,6 +5,9 @@ import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { makeConsoleModelAccess } from '../src/console-model-factory.js';
 import { makeConsoleServer } from '../src/console-server.js';
+import {
+  assessBQualificationCase, selectBQualificationCases, validateBHoldout,
+} from '../src/b-transition-qualification.js';
 
 function option(name) { const index = process.argv.indexOf(name); return index < 0 ? null : process.argv[index + 1]; }
 const holdoutPath = option('--holdout');
@@ -14,25 +17,16 @@ const onePerState = process.argv.includes('--one-per-state');
 const keep = process.argv.includes('--keep'); const requestedCaseId = option('--case-id');
 const caseTimeoutMs = Number(option('--case-timeout-ms') ?? 120_000);
 const holdoutBytes = await readFile(resolve(holdoutPath)); const holdout = JSON.parse(holdoutBytes);
-const controls = new Set([null, 'defer_after_delivery', 'start_independent_work',
-  'cancel_current_work', 'resume_paused_work']);
-if (!Number.isInteger(repeats) || repeats < 1 || !Array.isArray(holdout.cases) || !holdout.cases.length) {
+if (!Number.isInteger(repeats) || repeats < 1) {
   throw new Error('valid holdout cases and repeats are required');
 }
-for (const item of holdout.cases) if (!item.id || !item.initialRequest || !item.admittedText
-  || !controls.has(item.expectedControl) || !Number.isInteger(item.expectedWorks)
-  || !Number.isInteger(item.expectedRuns)
-  || !Array.isArray(item.mustInclude) || !Array.isArray(item.mustNotInclude ?? [])) {
-  throw new Error('invalid blind holdout case');
-}
+validateBHoldout(holdout);
 
 const sourceConnectionFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
 const models = requestedModel ? [requestedModel]
   : ['api_key:openai:gpt-5.6-terra', 'chatgpt_oauth:gpt-5.5'];
-let cases = onePerState ? holdout.cases.filter((item, index, all) => all.findIndex((candidate) => (
-  candidate.expectedControl === item.expectedControl
-)) === index) : holdout.cases;
+let cases = selectBQualificationCases(holdout.cases, { onePerState });
 if (requestedCaseId) cases = cases.filter((item) => item.id === requestedCaseId);
 const room = await mkdtemp(join(tmpdir(), 't5-b-semantic-live-')); const results = [];
 async function listen(server) {
@@ -125,11 +119,19 @@ for (const modelId of models) {
       }
       if (!earlyFailure && input?.state !== 'executed') earlyFailure = new Error('input_not_terminal');
       const sessionState = await fetch(`${base}/sessions/${session.id}`).then((response) => response.json());
-      const surface = (sessionState.transcript ?? []).filter((entry) => entry.role === 'assistant')
-        .map((entry) => entry.result?.reply ?? '').join('\n');
+      const surfaces = (sessionState.transcript ?? []).filter((entry) => entry.role === 'assistant')
+        .map((entry) => entry.result?.reply ?? '');
       const workState = await server.workStore.read(); const sessionWorks = workState.works
         .filter((work) => work.sessionId === session.id);
       const runs = await server.runLedger.list({ sessionId: session.id });
+      const sessionWorkIds = new Set(sessionWorks.map((work) => work.workId));
+      const sessionRunIds = new Set(runs.map((run) => run.runId));
+      const scopedWorkState = {
+        works: sessionWorks,
+        results: workState.results.filter((result) => sessionRunIds.has(result.runId)),
+        events: workState.events.filter((event) => sessionWorkIds.has(event.workId)
+          || sessionRunIds.has(event.runId) || event.inputId === admitted.inputId),
+      };
       const modelEvents = runs.flatMap((run) => run.events.filter((event) => event.type === 'model_completed'));
       const toolEvents = runs.flatMap((run) => run.events.filter((event) => event.type === 'tool_completed'));
       const usage = modelEvents.reduce((sum, event) => ({
@@ -141,20 +143,35 @@ for (const modelId of models) {
         event.payload?.receipt?.requestedCall?.name === 'work_control'
       ));
       const actualControl = controlCalls.at(-1)?.payload?.receipt?.requestedCall?.args?.action ?? null;
-      const surfacePassed = item.mustInclude.every((marker) => surface.includes(marker))
-        && (item.mustNotInclude ?? []).every((marker) => !surface.includes(marker));
-      const passed = !earlyFailure && admittedResponse.status === 202 && actualControl === item.expectedControl
-        && input?.state === 'executed' && sessionWorks.length === item.expectedWorks
-        && runs.length === item.expectedRuns && surfacePassed;
-      results.push({ modelId, caseId: item.id, repeat, expectedControl: item.expectedControl,
+      const assessment = assessBQualificationCase(item, {
+        admittedStatus: admittedResponse.status, actualControl, input,
+        surfaces, workState: scopedWorkState, runs,
+      });
+      const passed = !earlyFailure && assessment.passed;
+      const toolTrace = toolEvents.map((event) => ({
+        name: event.payload?.receipt?.requestedCall?.name ?? null,
+        action: event.payload?.receipt?.requestedCall?.args?.action ?? null,
+        outcome: event.payload?.receipt?.outcome ?? null,
+        resultState: event.payload?.receipt?.result?.state ?? null,
+      }));
+      const runTrace = [...runs].toSorted((left, right) => left.startedAt.localeCompare(right.startedAt)).map((run) => ({
+        runId: run.runId, trigger: run.metadata?.trigger ?? null, status: run.status,
+        modelCalls: run.events.filter((event) => event.type === 'model_completed').length,
+        toolCalls: run.events.filter((event) => event.type === 'tool_completed').length,
+      }));
+      results.push({ modelId, caseId: item.id, state: item.state, repeat, expectedControl: item.expectedControl,
         actualControl, inputDisposition: input?.disposition ?? null, inputState: input?.state ?? null,
         works: sessionWorks.length, runs: runs.length, modelCalls: modelEvents.length,
         toolCalls: toolEvents.length, usage, wallMs: Number((performance.now() - began).toFixed(3)),
-        surfacePassed, failure: earlyFailure?.message ?? null, passed });
+        checks: assessment.checks, diagnostics: { ...assessment.diagnostics,
+          surfaceChars: surfaces.map((surface) => surface.length), toolTrace, runTrace },
+        failure: earlyFailure?.message ?? null, passed });
+      process.stderr.write(`${JSON.stringify({ progress: true, modelId, state: item.state,
+        repeat, passed, wallMs: Number((performance.now() - began).toFixed(3)) })}\n`);
       if (earlyFailure) break qualification;
     }
   } finally {
-    await server.closeMessengers(); server.closeWakeStreams(); await server.closeBrowsers();
+    await server.closeMessengers(); server.closeWakeStreams(); server.closeModelConnections(); await server.closeBrowsers();
     await server.managedProcesses.stopAll('qualification_finished');
     await new Promise((resolveClose) => server.close(resolveClose));
   }
@@ -166,5 +183,6 @@ const report = { schema: 't5.s2-b-semantic-holdout-live.v1', recordedAt: new Dat
     passed: results.filter((item) => item.modelId === modelId && item.passed).length,
     total: results.filter((item) => item.modelId === modelId).length,
   }])) };
-process.stdout.write(`${JSON.stringify(report, null, 2)}\n`); if (!keep) await rm(room, { recursive: true, force: true });
-if (!report.passed) process.exitCode = 1;
+await new Promise((resolveWrite) => process.stdout.write(`${JSON.stringify(report, null, 2)}\n`, resolveWrite));
+if (!keep) await rm(room, { recursive: true, force: true });
+process.exit(report.passed ? 0 : 1);

@@ -68,6 +68,7 @@ export class WorkStore {
         const input = inputs.get(event.inputId); if (input) Object.assign(input, {
           state: 'scheduled', disposition: 'deferred_after_delivery', schedule: 'after_current_delivery',
           workId: event.workId, baseRevision: event.baseRevision, revision: null,
+          deferredByRunId: event.runId ?? null,
         });
       }
       if (event.type === 'input_forked_to_work' || event.type === 'input_resumed_on_work') {
@@ -99,6 +100,7 @@ export class WorkStore {
         const input = inputs.get(event.inputId); if (input) Object.assign(input, {
           state: 'scheduled', meaning: event.meaning, schedule: 'after_current_delivery',
           workId: event.workId, baseRevision: event.baseRevision, revision: null,
+          deferredByRunId: event.runId ?? null,
         });
       }
       if (event.type === 'input_schedule_activated') {

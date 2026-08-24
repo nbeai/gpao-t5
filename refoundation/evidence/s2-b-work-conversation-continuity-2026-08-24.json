@@ -1,8 +1,8 @@
 {
   "schema": "t5.s2-b-work-conversation-continuity.v1",
-  "recordedAt": "2026-08-24T22:10:00+09:00",
+  "recordedAt": "2026-08-25T04:29:04+09:00",
   "gate": "S2-B_WORK_CONVERSATION_CONTINUITY",
-  "status": "f01_to_f05_and_process_wake_repaired_f06_reopened",
+  "status": "final_exception_surface_piece_open_no_further_attempt",
   "previousCompletionCommit": "fa528923",
   "humanFailWorkOrder": "docs/03-verification/T5-S2-B-HUMAN-FAIL-REPAIR-WORK-ORDER-2026-08-24-ko.md",
   "humanFailures": ["B-F01","B-F02","B-F03","B-F04","B-F05","B-F06"],
@@ -33,12 +33,13 @@
     "achievedRequiresExplicitModelProposalAndNoBlockerReceipts": true,
     "unknownEffectBlindReplay": 0,
     "restartPendingAndQueuedRecovery": true,
+    "deferredActivationRequiresConfirmedDelivery": true,
     "windowsOrWslIdentityInCore": false
   },
   "counterexamples": {
     "busyInput": {"before":"409_before_conversation","after":"202_durable_admission","inputLoss":0},
     "staleRun": {"proposalRejected":true,"settlementRejected":true},
-    "deliveryFirstExtension": {"baseRevisionStableUntilSurface":true,"activatedRevisionAfterDelivery":true,"executionClaims":1},
+    "deliveryFirstExtension": {"baseRevisionStableUntilSurface":true,"activatedRevisionAfterDelivery":true,"failedOrUnknownDeliveryActivation":0,"executionClaims":1},
     "withinWorkExtension": {"sameWork":true,"sameRun":true,"extraRun":0,"inputTerminal":"executed"},
     "newWork": {"priorWork":"paused_or_cancelled","newIdentity":true},
     "cancel": {"requiresModelDecision":true,"processStopObserved":true},
@@ -66,7 +67,7 @@
     "revokedActualConsoleMatrix": {"previouslyPassed":24,"total":24,"revoked":true,"reason":"The failed qualification phrase was copied into the tool few-shot and reused in the evaluation, so the result did not prove semantic generalization."}
   },
   "semanticContinuityRework": {
-    "status":"deterministic_repair_complete_blind_human_qualification_pending",
+    "status":"deterministic_repair_complete_final_exception_surface_piece_open",
     "promptExamplesAdded":0,"runtimeLanguageRulesAdded":0,"classificationRetriesAdded":0,"modelSpecificPromptsAdded":0,
     "meaningSchedulingSeparated":true,
     "deterministicConsoleStates":{"passed":5,"total":5,"reviseWithin":true,"extendWithin":true,"extendAfterDelivery":true,"independent":true,"cancel":true},
@@ -76,10 +77,27 @@
     "stoppedBlindIncident":{"terraRunFailed":6,"terraInputsExecuted":8,"terraInputs":10,"gpt55UnterminatedRuns":1,"gpt55InputsExecuted":9,"gpt55Inputs":10,"isolatedStateRemoved":true},
     "blindV1Diagnostic":{"terraPassed":2,"terraTotal":10,"gpt55Passed":1,"gpt55Total":10,"promotedToEvidence":false},
     "blindV2TerraPilot":{"holdoutSha256":"01828db210193e0373e4e790d7396c43a40289ccdb7f654d7b6964ce0819563b","expressionsPrinted":false,"passed":1,"total":5,"expandedToTwoModels":false,"expandedToRepeatsTwo":false,"promotedToFinalQualification":false},
-    "finalHumanQualificationPending":true
+    "finalHumanQualificationPending":true,
+    "lastPieceFinalAttempt": {
+      "holdoutSha256":"379b9462723df9d39c9dec17580c8504c696ab00f9013d96646fd9da1c4cf7b1",
+      "expressionsPrinted":false,
+      "promptOrModelSpecificPatchAfterFreeze":false,
+      "terraRawPassed":4,
+      "terraCorrectedPassed":3,
+      "total":5,
+      "passedStates":["revise_current","extend_current","cancel"],
+      "openStates": {
+        "defer_after_delivery":"Work 1, Run 2, confirmed delivery before activation and two surfaces were correct; the second surface did not satisfy the grounded deferred result marker.",
+        "independent":"Work 2, Run 2 and old-Work relinquishment were correct; the transition surface already contained the new-purpose marker before the independent Run."
+      },
+      "sharedOpenPiece":"An exception-controlled admitted input is durably scheduled correctly but is not reliably separated between the current transition surface and the later Work surface.",
+      "gpt55Expanded":false,
+      "repeatsTwoExpanded":false,
+      "noFurtherAttempt":true
+    }
   },
   "classifierFreeInterventionProtocol": {
-    "status":"deterministic_complete_terra_pilot_unstable_final_qualification_pending",
+    "status":"deterministic_complete_exception_surface_separation_unqualified",
     "mandatorySemanticClassifier":false,
     "defaultPath":"presented_batch_to_current_work_revision",
     "exceptionControls":["defer_after_delivery","start_independent_work","cancel_current_work","resume_paused_work"],
@@ -89,16 +107,22 @@
     "publication":{"states":["result_ready_pending_surface","surface_persisted","delivery_terminal"],"surfaceCrashModelRerun":0,"deliveryDispatchCrashBlindRetry":0},
     "deterministicConsole":{"revise":true,"extend":true,"deferAfterDelivery":true,"independent":true,"cancel":true,"resumePaused":true,"modelCallAdmission":true,"toolCallAdmission":true,"orderedBatch":true,"rebatch":true,"surfaceCrashRecovery":true,"deliveryUnknownRecovery":true},
     "terraPilot":{"matrixPassed":4,"matrixTotal":5,"deliveryFirstStructurePassed":true,"deliveryFirstSurfacePassed":false,"deliveryFirstImmediateSingleRecheckPassed":true,"stableFiveOfFive":false},
-    "gpt55PilotExecuted":false,"blindQualificationExecuted":false,"finalHumanQualificationPending":true
+    "gpt55PilotExecuted":false,"blindQualificationExecuted":true,"finalHumanQualificationPending":true
   },
-  "verification": {"refoundationUnitPassed":694,"defaultProductIntegrationPassed":114,"defaultProductIntegrationFailed":0,"visibleBrowserLiveExecuted":false,"browserWindowsOpened":0},
+  "finalComparisonStudy": {
+    "openClawCommit":"bf83a4dde8f00e5d330bd00de79cb0232fe6ae09",
+    "hermesCommit":"74ad422d50e6d76e26ba5ce3b4d2a4d520e923dd",
+    "adopted":["ack_before_dequeue","started_vs_unstarted_tool_boundary","fifo_identity","lease_then_ack_or_release","separate_steer_queue_interrupt_states","transition_scaffolding_not_user_surface"],
+    "rejected":["user_configured_queue_modes","runtime_language_classifier","fixed_debounce_as_semantic_truth","prompt_example_accumulation"]
+  },
+  "verification": {"bFocusedPassed":27,"refoundationUnitPassed":740,"refoundationUnitFailed":0,"defaultProductIntegrationPassed":128,"defaultProductIntegrationFailed":0,"visibleBrowserLiveExecuted":false,"browserWindowsOpened":0},
   "artifacts": {
-    "workStoreSha256":"a18a67d0a52ba006c8f35933bd6eaef10f8017c8032469e471b2ddf9a2f9d72a",
+    "workStoreSha256":"4f1d8348b33fb4634ef2e401d2d62d01669074b8669826db765251e1301a8ea8",
     "workTransitionToolSha256":"7cf79afb848fc118bd8ea955f802f4e65d72da1faa0594b5ff2a95eb98f7904f",
     "workCompletionToolSha256":"d36eff5ac550de5ddcb2da667758a568935cfb0a6e2ffb55f3817d7dcdaadcf3",
     "workCompletionEvaluatorSha256":"939f9b647421bdd4a77d6b8bcba6d0f34ebf78958ec3cd2b294250ac2d31ca5d",
     "agentLoopSha256":"a18f65027de57181f06cd397023652267d2d275f5d64ceb7760aa1fc10ddb824",
-    "consoleServerSha256":"dadfea73ef8834549c40db33373e1f893a1b2641f30fcbda9326d257637ead05",
+    "consoleServerSha256":"a56eb43c80174a866090cb51e0e3010d2359b43cf254e11c7b21389038e45bfc",
     "managedProcessSha256":"94915fbe643cecdfb0141c62ab0be61e989a663f1925bb4fc9764b9d4a01376b",
     "runLedgerSha256":"66b9d3ac88c8f4fcb80661c076c2201833a6d7460fd5675529e18ac36e387c6f",
     "incrementalUserProjectionSha256":"a993e2bb42ace77fb702c0b8255f7e5eb293f56f9218cfd69de0e4c87d7f3073",
@@ -107,7 +131,8 @@
     "anthropicMessagesSha256":"f796588747e546479d4f06d4461d9401c475e9c2638a5af2500666245f471076",
     "geminiGenerateContentSha256":"f164ceb53e9a9fe6d5167f78e4d573529413d639a4f663a6a69b4c5054e0912d",
     "upstageChatSha256":"8999c0470dccb174e4842c6e1d6bc5191ce2e173a506e16a5b46a6aa045fd47f",
-    "semanticQualificationRunnerSha256":"c792a65000d3fdb9708f445c85066d2b483786d5b335034b7b4f79b619fbff03",
+    "semanticQualificationRunnerSha256":"d71481e2fb0485cc8aef3b9331d875aa62140e7e365413e6d0a6758078c77868",
+    "semanticQualificationEvaluatorSha256":"e66c51e72b6c700d0fe81b82b2b78ccbbcfdcf57cca080e153e84145cdc07779",
     "processWakeIntegrationSha256":"e58bfe6b9986e40f8a09d1282709cc8907b769e25b797c15775b41f0b525fa19",
     "conversationLedgerSha256":"3261746e03e889807f1d071019d3028305b94c15fe4544ae90281e7175f0540b",
     "attachmentStoreSha256":"5f4807453899598627618c251a033b9f08658b634f39e09caabdd82fe94d8fc3",
@@ -118,7 +143,8 @@
     "workStoreTestSha256":"4ea5538473c3997904c886cdbc5c75195ae431c2030c9309b1d67bc05084c67b",
     "workTransitionTestSha256":"f8610963907423b03179f9be2ca24fb73d7af6681f0ecdb1cc074b901058ac26",
     "workCompletionTestSha256":"c72b0a3b6465dcc628a3c07fd07e611c39688d7d14e2f922ac1c3d4fb4cc739a",
-    "admissionIntegrationSha256":"c9a404854b5761b76f03861af52f1a6a948412c8127453e57b578528314cf26d"
+    "admissionIntegrationSha256":"defa6340d4232a7982170ab79615855e6a3388abc019388dd230382ea5fa1925",
+    "semanticQualificationTestSha256":"1083c26c5c6b20eea332167996fa842dd457457653c3b4cd30a7bd81cf72236c"
   },
   "nonGoals":["memory_portfolio","time_continuity","telegram_attachment_expansion","notion_connector_expansion","browser","new_package"],
   "productBehaviorChanged": true

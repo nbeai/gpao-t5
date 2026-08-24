@@ -322,10 +322,23 @@ export function makeConsoleServer({
   const conversations = new ConversationLedger(join(stateDir, 'conversations'));
   const workStore = new WorkStore(join(stateDir, 'work'));
   const scheduledWorkInputs = new Set();
+  function confirmedDeferredDelivery(input, state) {
+    const result = input.deferredByRunId
+      ? state.results.find((candidate) => candidate.runId === input.deferredByRunId)
+      : state.results.filter((candidate) => candidate.workId === input.workId
+        && candidate.revision === input.baseRevision).at(-1);
+    if (!result || result.state !== 'delivery_terminal') return false;
+    return result.delivery?.sent === true
+      || ['persisted', 'sent', 'delivered', 'succeeded'].includes(result.delivery?.state);
+  }
   async function scheduleNextWorkInput(sessionId) {
     let queued = (await workStore.queuedInputs(sessionId)).find((input) => !scheduledWorkInputs.has(input.inputId));
     if (!queued || running.has(sessionId)) return false;
-    if (queued.state === 'scheduled') queued = await workStore.activateScheduledInput(queued.inputId);
+    if (queued.state === 'scheduled') {
+      const state = await workStore.read();
+      if (!confirmedDeferredDelivery(queued, state)) return false;
+      queued = await workStore.activateScheduledInput(queued.inputId);
+    }
     const conversation = await conversations.read(sessionId); const entry = conversation.entries
       .find((candidate) => candidate.messageId === queued.messageId);
     if (!entry?.message?.content) return false;

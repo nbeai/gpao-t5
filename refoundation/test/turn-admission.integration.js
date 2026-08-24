@@ -533,3 +533,53 @@ test('followup input은 surface 전 pending이고 exact surface receipt 뒤에�
   } finally { release?.(); allowSurface?.();
     await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true }); }
 });
+
+test('현재 Telegram delivery가 failed이면 after-delivery input을 다음 Run으로 조기 활성화하지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-deferred-after-failed-delivery-'));
+  const stateDir = join(room, 'state'); const workspace = join(room, 'workspace'); await mkdir(workspace);
+  const sessions = new ConsoleSessionStore(stateDir);
+  const session = await sessions.create({ origin: { channel: 'telegram', chatId: 'owner-chat' } });
+  let turn = 0; let entered; const started = new Promise((resolve) => { entered = resolve; });
+  let release; const gate = new Promise((resolve) => { release = resolve; }); let followupRuns = 0;
+  const provider = {
+    id: 'telegram', inboundMode: 'long_polling',
+    async validate() { return { id: '77', username: 'fixture_bot' }; },
+    async sendReply() { const error = new Error('ack unavailable'); error.code = 'telegram_delivery_unknown';
+      error.effectUnknown = true; error.retrySafe = false; throw error; },
+  };
+  const server = makeConsoleServer({ stateDir, workspace, messengerProviderFactory: () => provider,
+    modelFactory: () => ({ async respond() {
+      turn += 1;
+      if (turn === 1) { entered(); await gate; return { text: 'STALE', toolCalls: [] }; }
+      if (turn === 2) return { text: '', toolCalls: [{ id: 'defer', name: 'work_control', args: {
+        action: 'defer_after_delivery', currentWorkDisposition: null, targetWorkId: null,
+      } }] };
+      if (turn === 3) return { text: '먼저 요청한 결과입니다.', toolCalls: [] };
+      followupRuns += 1; return { text: '후속 작업이 조기 실행됐습니다.', toolCalls: [] };
+    } }), modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }) });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    await server.messengerGateway.connect({ provider: 'telegram', token: 'fixture-token' });
+    await server.messengerStateStore.bind('telegram', 'owner-chat', session.id);
+    const first = await fetch(`${base}/turn/stream-start`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: '먼저 결과를 만들어줘' }) }).then((response) => response.json());
+    const stream = fetch(`${base}/turn/stream?streamId=${first.streamId}`).then((response) => response.text());
+    await started;
+    const admitted = await fetch(`${base}/turn/stream-start`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: '첫 답을 전달한 뒤 다음 답에서 표를 만들어줘' }) })
+      .then((response) => response.json());
+    release(); await stream; await new Promise((resolve) => setTimeout(resolve, 100));
+    const state = await server.workStore.read();
+    const input = state.inputs.find((item) => item.inputId === admitted.inputId);
+    assert.equal(state.results[0].delivery.state, 'failed');
+    assert.equal(input.state, 'scheduled');
+    assert.equal(input.baseRevision, 1);
+    assert.equal(input.deferredByRunId, state.results[0].runId);
+    assert.equal(followupRuns, 0);
+    assert.equal((await server.runLedger.list({ sessionId: session.id })).length, 1);
+  } finally {
+    release?.(); await server.closeMessengers(); await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});

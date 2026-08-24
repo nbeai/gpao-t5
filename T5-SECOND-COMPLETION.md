@@ -1,7 +1,7 @@
 # T5 Second Completion — Current Development Source
 
 상태: `SECOND_COMPLETION_ACTIVE`
-현재 Gate: `S2-E HUMAN REOPENED · S2-F HUMAN REOPENED`
+현재 Gate: `S2-B FINAL EXCEPTION-SURFACE PIECE OPEN · NO FURTHER ATTEMPT · S2-E/F HUMAN REOPENED`
 기준 source: `bb0cc0fb`
 배포 상태: `0.1.8 REVOKED · 새 package 생성 금지`
 
@@ -423,15 +423,17 @@ effect unknown: 재실행 0, 현실 재관측만 허용
 
 통과: 교정·입력 유실 0, restart 복원, premature stop 0, 거짓 성공 0, 모델 userAnswer 재작성 0.
 
-S2-B — PARTIAL REPAIR, F06 REOPENED. 실행 중 새 사용자 입력은 기존 409 거부 전에 Conversation message와 Work input
-pointer로 durable admission된다. 다음 주 모델 boundary에서 모델이 `steer·followup·new_work·cancel`을
-`work_transition`으로 선택하고 runtime은 append-only revision·execution claim만 집행한다. B-F01~F05와
-process wake 복구는 유지한다. 다만 실패 문장을 tool few-shot에 넣고 같은 문장으로 재시험한 24/24는
-일반화 증거가 아니므로 철회한다. stale Run은
-최신 Work revision을 propose·settle할 수 없고, classification 전 pending과 classification 후 queued input은 restart 후
-복원된다. 모델 완료 문장은 Completion Proposal이며 approval·handoff·effect unknown·delivery 실패가
-남으면 `unresolved`, 요구 영수증이 정산된 경우에만 `achieved`다. Terra는 자연어 교정을
-내부 용어 노출은 0이어야 한다. 근거: `refoundation/evidence/s2-b-work-conversation-continuity-2026-08-24.json`
+S2-B — FINAL EXCEPTION-SURFACE PIECE OPEN. 실행 중 입력의 durable admission, ordered mailbox, 같은 Work 기본 적용,
+revision claim, cancel, restart, pending surface, exact delivery 정산은 유지한다. 비교군의 ack-before-dequeue 원리를
+이식해 `after_delivery` 입력은 exact 선행 delivery가 `persisted·sent·delivered·succeeded`일 때만 활성화하며
+failed·unknown에서는 scheduled로 남긴다. 최신 전체 검사는 코어 740/740, 제품 통합 128/128이다.
+
+마지막 blind Terra 5상태에서 revise·extend·cancel은 통과했다. defer는 Work 1·Run 2·delivery 뒤 activation·두
+surface가 모두 정확했지만 두 번째 surface가 deferred 사용자 결과를 충족하지 못했다. independent는 Work 2·Run
+2·이전 Work relinquishment가 정확했지만 전환 surface가 새 목적 결과를 먼저 포함했다. 남은 한 조각은
+`예외 control로 분리된 입력을 현재 transition surface와 later Work surface에서 실제로 분리하는 것`이다.
+오너 결정에 따라 이 시도를 마지막으로 하며 prompt·구조 patch나 추가 blind 확장은 하지 않는다. 근거:
+`refoundation/evidence/s2-b-work-conversation-continuity-2026-08-24.json`.
 
 필수 semantic classifier는 제거한다. 실행 중 입력은 ordered active mailbox boundary에서 원문 user message로
 전부 공급하며, 별도 control이 없으면 batch 전체를 같은 Work의 R+1·현재 Run에 적용한다. 예외적인
@@ -439,7 +441,7 @@ process wake 복구는 유지한다. 다만 실패 문장을 tool few-shot에 �
 durable scheduling을 바꾼다. model call 중 새 admission은 아직 실행하지 않은 response/tool을 supersede하고,
 tool 실행 중 admission은 시작한 Hand만 정산하며 tail은 실행하지 않는다. 결과 publication은
 `result_ready_pending_surface→surface_persisted→delivery_terminal`로 분리하고 crash 뒤 모델·도구 재실행 없이
-exact result를 복구한다. D는 Terra·gpt-5.5·blind 인간 종단 자격 전까지 잠근다.
+exact result를 복구한다. D의 이미 승인된 완료 상태는 이 B 마지막 자격 결과로 되돌리지 않는다.
 
 admission은 본문만이 아니라 Conversation pointer·attachment identity·channel·sender·reply identity를 함께
 보존하고 queued 실행에서 같은 사용자 입력을 history와 current request에 중복 투영하지 않는다.
@@ -483,13 +485,14 @@ Terra·gpt-5.5 78만 자 라이브 자격과 새 코어 692/692를 통과했다.
 publication race도 durable terminal state를 사용자 surface보다 먼저 기록하도록 교정해 기본 제품 통합
 105/105를 통과했다.
 
-S2-B 인간 종단 재자격 — F01~F05 + PROCESS WAKE REPAIRED, F06 REOPENED. `fa528923` 뒤 실제 console에서 확인된 attachment
+S2-B 인간 종단 재자격 — F01~F05 + PROCESS WAKE REPAIRED, FINAL EXCEPTION-SURFACE PIECE OPEN. `fa528923` 뒤 실제 console에서 확인된 attachment
 admission 500, envelope·sender·reply 유실, Hand focus 뒤 Completion Proposal 소실,
 proposal·settlement blocker 불일치, followup 오분류를 B-R1~R5로 복구했다. Busy input은 inputId
 prepare→attachment input link→Conversation append→commit 뒤에만 202가 되며 실패·불완전 restart는 live
 partial state 없이 abort된다. 모델은 admission 시점·현재 결과 보존·실행 시간을 보고 의미 중심 선택값으로
 classifier-free mailbox·exception control·publication deterministic 종단은 완료됐다. 기존 Terra·gpt-5.5 24/24는
-prompt와 시험에 같은 실패 문장을 사용했으므로 폐기했다. 근거:
+prompt와 시험에 같은 실패 문장을 사용했으므로 폐기했다. 마지막 blind attempt는 원문을 저장·출력하지 않았고
+Terra에서 revise·extend·cancel만 최종 통과했다. 추가 시도는 하지 않는다. 근거:
 `refoundation/evidence/s2-b-work-conversation-continuity-2026-08-24.json`.
 
 ### S2-D — Time Continuity
@@ -598,7 +601,8 @@ AND 실행 가능한 미시도 route가 남은 blocked 0
 
 ## 8. 현재 작업 시작점
 
-S2-A~D는 승인된 종료점을 유지한다. S2-E와 S2-F는 구현·기계·좁은 실제 모델 자격은 통과했지만 통합
+S2-A·C·D는 승인된 종료점을 유지한다. S2-B는 위 exception-surface 한 조각이 열린 상태로 더 시도하지 않는다.
+S2-E와 S2-F는 구현·기계·좁은 실제 모델 자격은 통과했지만 통합
 인간 종단에서 각각 실제 사용자 성능 미달이 확인돼 재개방됐다. G와 package는 계속 잠근다.
 
 ```text
@@ -624,7 +628,7 @@ T5 application·account·transport·permission·resource identity
 Terra·gpt-5.5 실제 verified-write 자격을 통과했다. 실제 모델 자격은 각각 8.1초·17.4초였고 write는
 각 1회, exact readback은 1회·2회였다. 가시 Browser 호출은 0이다.
 
-다음 작업은 두 경계를 섞지 않고 좁게 복구하는 것이다. E는 reviewer가 verified method trace를 실제 후보에
+다음 작업은 B를 다시 여는 것이 아니라 E·F 두 경계를 섞지 않고 좁게 복구하는 것이다. E는 reviewer가 verified method trace를 실제 후보에
 보존하고 관련 자연어 Work가 별도 검색 없이 trial을 선택하는 경계를, F는 기존 로컬 파일의 exact output
 등록 실패 원인과 provider-owned sendDocument 연결을 먼저 닫는다. 각 Terra 인간 종단이 통과할 때만
 gpt-5.5로 확장하며, 수정 전에는 G·전체 테스터 회귀·package를 열지 않는다.
