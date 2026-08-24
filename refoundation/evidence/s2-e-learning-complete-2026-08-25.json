@@ -1,0 +1,53 @@
+{
+  "schema": "t5.s2-e-learning-complete-evidence.v1",
+  "gate": "S2-E",
+  "recordedAt": "2026-08-25T04:10:00+09:00",
+  "userOutcome": "Repeated achieved Work can produce one proposal-only learned procedure, trial it without activation, compare exact baseline and candidate Work with a near-miss, promote only after an independent achieved field Work, and recoverably archive the exact learned revision after a regression.",
+  "productJourney": {
+    "baselineWorks": 2,
+    "backgroundProposal": 1,
+    "nearMissTrigger": false,
+    "candidateReplayWorks": 2,
+    "independentFieldWorks": 1,
+    "promotion": "qualified_exact_revision",
+    "regressionRollback": "recoverable_archive",
+    "foregroundBlockedByReviewer": false,
+    "recursiveLearning": false
+  },
+  "actualModels": [
+    { "model": "gpt-5.6-terra", "reviewerPassed": true, "reviewerWallMs": 12125,
+      "reviewerModelTurns": 2, "reviewerToolCalls": 1,
+      "evaluatorModelTurns": 2, "evaluatorToolCalls": 1, "evaluationPassed": true },
+    { "model": "gpt-5.5", "reviewerPassed": true, "reviewerWallMs": 12937,
+      "reviewerModelTurns": 2, "reviewerToolCalls": 1,
+      "evaluatorModelTurns": 2, "evaluatorToolCalls": 1, "evaluationPassed": true }
+  ],
+  "invariants": {
+    "runCompletionFalseLearning": 0,
+    "unresolvedOrUnknownSourceLearning": 0,
+    "differentPurposePromotion": 0,
+    "fasterButWrongPromotion": 0,
+    "sourceExpressionHoldoutReuse": 0,
+    "reviewerExternalTools": 0,
+    "reviewerActiveWrites": 0,
+    "duplicatePendingOrActiveLearningProposal": 0,
+    "partialActivationAfterFailure": 0,
+    "regressedLearnedRevisionLeftActive": 0,
+    "visibleBrowserWindows": 0
+  },
+  "platformBoundary": {
+    "coreUsesOsPathPidOrSignalAsLearningIdentity": false,
+    "proposalPublication": { "atomicity": "process_atomic", "powerLossDurability": "unknown" },
+    "activePublication": { "atomicity": "process_atomic", "powerLossDurability": "unknown" }
+  },
+  "verification": {
+    "learningFocused": { "passed": 33, "failed": 0 },
+    "refoundationCheck": { "passed": 728, "failed": 0 },
+    "productIntegration": { "passed": 121, "failed": 0 },
+    "visibleBrowserLiveExecuted": false,
+    "externalUserDataUsed": false,
+    "externalWriteExecuted": false
+  },
+  "humanQualificationReady": true,
+  "status": "S2_E_IMPLEMENTATION_AND_MODEL_QUALIFICATION_COMPLETE"
+}

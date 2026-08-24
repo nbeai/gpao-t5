@@ -7,6 +7,7 @@ import { makeConsoleModelAccess } from '../src/console-model-factory.js';
 import { CapabilityLifecycleLedger } from '../src/capability-lifecycle.js';
 import { LearningCandidateStore } from '../src/learning-candidate.js';
 import { runLearningReview } from '../src/learning-review.js';
+import { runLearningEvaluation } from '../src/learning-evaluator.js';
 
 function option(name) { const index = process.argv.indexOf(name); return index < 0 ? null : process.argv[index + 1]; }
 const selected = option('--model-id');
@@ -44,13 +45,32 @@ for (const modelId of models) {
     const proposals = await ledger.list(); const proposal = proposals[0] ?? null;
     const activeAbsent = await stat(join(stateDir, 'managed-skills', 'active'))
       .then(() => false).catch(() => true);
+    const evaluatorModel = await access.model({ sessionId: `evaluation-${modelId}`, workspace: modelRoom,
+      computer: { platform: process.platform, architecture: process.arch }, instructionsOverride: [
+        'You are T5 isolated learning evaluator. Use only the evaluation tool.',
+        'Preserve correctness and completeness; do not prefer a faster wrong candidate.',
+      ].join('\n') });
+    const evaluated = await runLearningEvaluation({ model: evaluatorModel, pairs: [1, 2].map((index) => ({
+      baseline: { objective: `Recover durable result case ${index}`, result: 'Recovered and verified artifact',
+        modelTurns: 6, toolCalls: 5 },
+      candidate: { objective: `Recover durable result holdout ${index}`, result: 'Recovered and verified artifact',
+        modelTurns: 4, toolCalls: 3 },
+    })), nearMiss: { objective: 'Rename a calendar title', candidateProcedureRelevant: false } });
+    const evaluationPassed = evaluated.evaluation.pairs.every((pair) => pair.samePurpose
+      && pair.baselineCorrect && pair.candidateCorrect && pair.baselineComplete
+      && pair.candidateComplete && pair.userCorrectionPreserved)
+      && evaluated.evaluation.nearMissShouldTrigger === false
+      && evaluated.evaluation.sourceExpressionsReused === false
+      && evaluated.evaluation.recommendAfterIndependentFieldSuccess === true;
     const passed = reviewed.status === 'completed' && proposals.length === 1
       && proposal.state === 'candidate' && proposal.sourcePointers?.length === 2
-      && activeAbsent;
+      && activeAbsent && evaluationPassed;
     results.push({ modelId, passed, wallMs: Math.round(performance.now() - began),
       modelTurns: reviewed.modelTurns, toolCalls: reviewed.toolCalls,
       proposals: proposals.length, state: proposal?.state ?? null,
       sourcePointers: proposal?.sourcePointers?.length ?? 0, activeWrites: 0,
+      evaluatorModelTurns: evaluated.modelTurns, evaluatorToolCalls: evaluated.toolCalls,
+      evaluationPassed,
       ...(!passed ? { toolOutcomes: reviewed.toolOutcomes } : {}) });
   } catch (error) {
     results.push({ modelId, passed: false, wallMs: Math.round(performance.now() - began),

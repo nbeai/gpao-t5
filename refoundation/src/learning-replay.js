@@ -43,9 +43,7 @@ export function qualifyLearningReplay({ comparison, baselineEligibility, candida
   if (!noWorse || !improved.length) throw new Error('replay has no Pareto improvement');
   const evidence = { baselineRunIds: baselineRuns.map((run) => run.runId),
     candidateRunIds: candidateRuns.map((run) => run.runId),
-    evaluations: pairEvaluations.map((item) => ({ baselineRunId: item.baselineRunId,
-      candidateRunId: item.candidateRunId, evaluatorRunId: item.evaluatorRunId,
-      evaluationDigest: item.evaluationDigest })), triggerEvaluation,
+    evaluations: pairEvaluations.map((item) => structuredClone(item)), triggerEvaluation,
     performance: { measured, noWorse, improved } };
   return { state: 'replay_qualified', digest: hash(evidence), evidence,
     comparison: { ...structuredClone(comparison), comparisonBoundary: {

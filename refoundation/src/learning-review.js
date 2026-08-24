@@ -14,7 +14,7 @@ function evidenceText(episodes) {
 }
 
 export async function runLearningReview({ episodes = [], model, candidateStore, reviewRunId,
-  signal = null } = {}) {
+  signal = null, resourceRun = null } = {}) {
   if (episodes.length < 2 || !model || !candidateStore || !reviewRunId) {
     throw new TypeError('learning review inputs are required');
   }
@@ -30,7 +30,8 @@ export async function runLearningReview({ episodes = [], model, candidateStore, 
     'If no reusable method is proven, abstain and answer NOTHING_TO_LEARN.',
     '', evidenceText(episodes),
   ].join('\n');
-  const result = await runAgent({ request, model, tools: [tool], signal });
+  const result = await runAgent({ request, model, tools: [tool], signal, resourceRun,
+    resourcePurpose: 'learning_review' });
   const proposals = result.receipts.filter((receipt) => receipt.requestedCall?.name === 'learning_candidate'
     && receipt.outcome === 'succeeded');
   if (proposals.length > 1) throw new Error('learning reviewer created multiple proposals');

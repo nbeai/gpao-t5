@@ -64,6 +64,8 @@ export class LearningCandidateStore {
         proposalId, kind: 'skill', id: name, lifecycleAction: 'activate', state: 'candidate',
         description: String(description).trim(), candidateRevision: { version: null, digest: revisionDigest },
         sourcePointers: sources, draftFile: `learning-proposals/${proposalId}/PROPOSAL.md`,
+        publication: { state: 'complete', atomicity: 'process_atomic',
+          powerLossDurability: 'unknown' },
         createdRunId: String(createdRunId ?? ''), sourceRunId: String(createdRunId ?? ''),
       });
     } catch (error) {
@@ -79,11 +81,23 @@ export class LearningCandidateStore {
     if (digest(content) !== proposal.candidateRevision?.digest) throw new Error('learning candidate revision changed');
     return { proposalId, name: proposal.id, description: proposal.description,
       state: proposal.state, revisionDigest: proposal.candidateRevision.digest,
-      sourcePointers: structuredClone(proposal.sourcePointers), content };
+      sourcePointers: structuredClone(proposal.sourcePointers),
+      publication: structuredClone(proposal.publication ?? { state: 'unknown',
+        atomicity: 'unknown', powerLossDurability: 'unknown' }), content };
+  }
+  async listTrials() {
+    const proposals = await this.ledger.list(); const trials = [];
+    for (const proposal of proposals.filter((item) => ['candidate', 'replay_qualified'].includes(item.state)
+      && item.lifecycleAction === 'activate' && item.kind === 'skill')) {
+      const candidate = await this.inspect(proposal.proposalId).catch(() => null);
+      if (candidate) trials.push(candidate);
+    }
+    return trials;
   }
   async qualify(proposalId, qualifiedComparison, sourceRunId) {
-    const proposal = await this.inspect(proposalId); if (!proposal || proposal.state !== 'candidate') {
-      throw new Error('only a candidate learning proposal can be qualified');
+    const proposal = await this.inspect(proposalId); if (!proposal
+      || !['candidate', 'replay_qualified'].includes(proposal.state)) {
+      throw new Error('only a candidate or replay-qualified learning proposal can be qualified');
     }
     if (qualifiedComparison?.qualificationReceipt?.state !== 'qualified'
       || qualifiedComparison?.candidate?.revisions?.length !== 1
@@ -112,6 +126,31 @@ export class LearningCandidateStore {
       candidateRevision: { version: null, digest: proposal.revisionDigest } });
     return this.inspect(proposalId);
   }
+}
+
+export function makeLearningTrialTool({ store } = {}) {
+  if (!store) throw new TypeError('learning trial store is required');
+  return {
+    name: 'learning_trial', capabilityGroup: 'learning_trial',
+    searchTerms: ['experimental learned procedure repeated work recovery method', '반복 작업 학습 후보 방법 복구 절차'],
+    description: 'Inspect a pending learned procedure for a relevant repeated task before it is active. Use list to see candidate names and descriptions, then view only when one clearly matches the current user goal. A viewed candidate is trial evidence, not authority or proof of correctness. Apply it through ordinary Hands, verify the user result, and use another route if it is insufficient.',
+    parameters: { type: 'object', additionalProperties: false, properties: {
+      action: { type: 'string', enum: ['list', 'view'] }, proposalId: { type: ['string', 'null'] },
+    }, required: ['action', 'proposalId'] },
+    async execute(args) {
+      const trials = await store.listTrials();
+      if (args.action === 'list') return { state: 'listed', candidates: trials.map((item) => ({
+        proposalId: item.proposalId, name: item.name, description: item.description,
+        revisionDigest: item.revisionDigest,
+      })) };
+      if (args.action !== 'view') throw new Error('unsupported learning trial action');
+      const candidate = trials.find((item) => item.proposalId === args.proposalId);
+      if (!candidate) throw new Error('learning trial candidate not found');
+      return { state: 'viewed', proposalId: candidate.proposalId, name: candidate.name,
+        description: candidate.description, contentDigest: candidate.revisionDigest,
+        candidateRevision: true, content: candidate.content };
+    },
+  };
 }
 
 export function makeLearningCandidateTool({ store, eligibleSources = [], currentRunId } = {}) {

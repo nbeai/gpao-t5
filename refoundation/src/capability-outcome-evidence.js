@@ -24,6 +24,11 @@ function observations(receipt) {
     const ref = capabilityRef('skill', receipt.result?.name, null, receipt.result?.contentDigest);
     if (ref) found.push({ ...ref, relation: 'used' });
   }
+  if (receipt?.outcome === 'succeeded' && name === 'learning_trial' && action === 'view') {
+    const ref = capabilityRef('skill', receipt.result?.name, null, receipt.result?.contentDigest);
+    if (ref) found.push({ ...ref, relation: 'used', candidate: true,
+      proposalId: receipt.result?.proposalId ?? null });
+  }
   if (receipt?.outcome === 'succeeded' && name === 'capability_prepare' && ['install', 'restore'].includes(action)) {
     const ref = capabilityRef('skill', receipt.result?.name, receipt.result?.contentDigest);
     if (ref) found.push({ ...ref, relation: 'prepared' });

@@ -208,7 +208,9 @@ test('independent 전환은 현재 Run을 completion 없이 닫고 새 Work를 �
     release(); await stream;
     for (let attempt = 0; attempt < 100; attempt += 1) {
       const view = await fetch(`${base}/sessions/${session.id}`).then((response) => response.json());
-      if (JSON.stringify(view).includes('SCHEDULE-731')) break;
+      const work = await server.workStore.read();
+      const current = work.inputs.find((item) => item.inputId === admitted.inputId);
+      if (JSON.stringify(view).includes('SCHEDULE-731') && current?.state === 'executed') break;
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
     const state = await server.workStore.read(); const input = state.inputs.find((item) => item.inputId === admitted.inputId);

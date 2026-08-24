@@ -38,7 +38,9 @@ export class ManagedSkillStore {
         await rename(source, join(this.trash, `${name}-failed-${Date.now()}`)).catch(() => {});
         throw error;
       }
-      return { state: 'activated', name, proposalId, digest: revisionDigest, recoverable: true };
+      return { state: 'activated', name, proposalId, digest: revisionDigest, recoverable: true,
+        publication: { state: 'complete', atomicity: 'process_atomic',
+          powerLossDurability: 'unknown' } };
     });
   }
   async install(name) { return this.serialize(async () => { await this.ensure(); const { metadata, content, policy } = this.entry(name);

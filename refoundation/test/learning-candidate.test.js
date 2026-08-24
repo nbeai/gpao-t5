@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { CapabilityLifecycleLedger, makeCapabilityLifecycleTool } from '../src/capability-lifecycle.js';
-import { LearningCandidateStore, makeLearningCandidateTool } from '../src/learning-candidate.js';
+import { LearningCandidateStore, makeLearningCandidateTool, makeLearningTrialTool } from '../src/learning-candidate.js';
 import { qualifyLearningComparison } from '../src/learning-qualification.js';
 import { qualifyLearningReplay } from '../src/learning-replay.js';
 import { ManagedSkillStore } from '../src/managed-skill-store.js';
@@ -36,6 +36,8 @@ test('reviewer는 서로 다른 eligible Episode에서 pending proposal만 만�
       sourceRunIds: ['run-1', 'run-2'] });
     assert.equal(proposal.state, 'candidate'); assert.equal(proposal.sourcePointers.length, 2);
     assert.equal(proposal.revisionDigest.length, 64);
+    assert.deepEqual(proposal.publication, { state: 'complete', atomicity: 'process_atomic',
+      powerLossDurability: 'unknown' });
     assert.equal((await ledger.current('proposal-1')).events.length, 1);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
@@ -193,5 +195,21 @@ test('active publish 뒤 managed lifecycle append가 실패해도 learned Skill�
     await assert.rejects(() => managed.activateLearned({ name: 'recover-report-work', content: skill,
       proposalId: 'proposal', revisionDigest }), /injected/u);
     assert.equal((await managed.activeRevision('recover-report-work')).active, false);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('pending candidate는 별도 trial 도구에서만 list·view되고 active Skill을 바꾸지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-learning-trial-'));
+  try {
+    const ledger = new CapabilityLifecycleLedger(room); const store = new LearningCandidateStore({ ledger,
+      makeId: () => 'trial-proposal' });
+    await store.stage({ name: 'recover-report-work', description: 'Recover and verify interrupted report work.',
+      content: skill, sourcePointers: [source(1), source(2)], createdRunId: 'review' });
+    const tool = makeLearningTrialTool({ store });
+    const listed = await tool.execute({ action: 'list', proposalId: null });
+    assert.equal(listed.candidates.length, 1); assert.equal('content' in listed.candidates[0], false);
+    const viewed = await tool.execute({ action: 'view', proposalId: 'trial-proposal' });
+    assert.equal(viewed.candidateRevision, true); assert.equal(viewed.content, skill);
+    assert.equal((await ledger.current('trial-proposal')).state, 'candidate');
   } finally { await rm(room, { recursive: true, force: true }); }
 });
