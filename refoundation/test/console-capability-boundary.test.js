@@ -125,6 +125,7 @@ test('공개 정보 검색은 검색엔진 화면보다 검색→URL 읽기를 �
   assert.match(instructions, /browser only when the user asked for page interaction.*login-bound.*dynamic.*static observation/i);
   assert.match(instructions, /current or latest news.*exactly two.*current local date.*sourceLimit 4.*requested item count.*maximum of 6/i);
   assert.match(instructions, /search snippet.*topic hub.*observed publication date.*readable article body.*does not establish the latest news/i);
+  assert.match(instructions, /directOriginalLabelAllowed=false.*never label.*original.*direct source.*wire-service original/i);
   assert.match(instructions, /synthesized result first.*source links.*candidate list alone is not a completed/i);
   assert.match(instructions, /remind me.*no delivery surface.*Ask one direct question.*operating-system notification.*use exec.*inspect the installed schedule/i);
   assert.match(instructions, /T5 automation receipt is not proof of an OS notification.*cancel.*same turn.*verify absence/i);

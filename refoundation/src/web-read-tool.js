@@ -456,6 +456,16 @@ export function makeWebReadTool({
         const sourceBase = {
           requestedUrl, finalUrl: currentUrl, redirects, contentType: type || 'unknown',
           status: response.status, trust: 'untrusted_external', observedAt: new Date().toISOString(),
+          provenance: {
+            responsePublisher: {
+              kind: 'observed_response_host', url: currentUrl,
+              host: new URL(currentUrl).hostname.toLowerCase(),
+            },
+            contentAttribution: {
+              kind: 'untrusted_page_claims', instructionAuthority: 'none',
+              exactOriginalUrlObserved: false,
+            },
+          },
           ...(readStrategy ? { readStrategy } : {}),
         };
         const terminalState = responseState(response.status);
@@ -491,6 +501,10 @@ export function makeWebReadTool({
             : facts.text;
           source.title = facts.title;
           source.canonicalUrl = facts.canonicalUrl;
+          if (facts.canonicalUrl) source.provenance.canonicalPublisher = {
+            kind: 'page_declared_canonical_host', url: facts.canonicalUrl,
+            host: new URL(facts.canonicalUrl).hostname.toLowerCase(),
+          };
           source.previewImageUrl = facts.previewImageUrl;
           source.publishedAt = facts.publishedAt;
           source.modifiedAt = facts.modifiedAt;

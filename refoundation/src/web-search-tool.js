@@ -25,6 +25,29 @@ function normalizeLimit(value) {
   return number;
 }
 
+function normalizePreviewImages(row) {
+  const fields = [
+    ['imageUrl', row?.imageUrl], ['image_url', row?.image_url],
+    ['thumbnailUrl', row?.thumbnailUrl], ['thumbnail_url', row?.thumbnail_url],
+    ['image.url', row?.image?.url], ['thumbnail.url', row?.thumbnail?.url],
+  ];
+  const seen = new Set(); const images = [];
+  for (const [providerField, rawUrl] of fields) {
+    const url = normalizeCandidateUrl(rawUrl);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    const container = providerField.startsWith('thumbnail') ? row?.thumbnail : row?.image;
+    const width = Number(container?.width ?? row?.imageWidth ?? row?.image_width);
+    const height = Number(container?.height ?? row?.imageHeight ?? row?.image_height);
+    images.push({
+      url, provenance: 'search_provider_result', providerField,
+      ...(Number.isInteger(width) && width > 0 ? { width } : {}),
+      ...(Number.isInteger(height) && height > 0 ? { height } : {}),
+    });
+  }
+  return images;
+}
+
 function normalizeResults(rows, limit, domains = []) {
   const seen = new Set();
   const candidates = [];
@@ -36,6 +59,7 @@ function normalizeResults(rows, limit, domains = []) {
       if (!domains.some((domain) => host === domain || host.endsWith(`.${domain}`))) continue;
     }
     seen.add(url);
+    const previewImages = normalizePreviewImages(row);
     candidates.push({
       rank: candidates.length + 1,
       title: String(row?.title ?? '').trim(),
@@ -46,7 +70,11 @@ function normalizeResults(rows, limit, domains = []) {
       trust: 'untrusted_external', instructionAuthority: 'none',
       ...(row?.publishedAt ? { publishedAt: String(row.publishedAt) } : {}),
       ...(row?.sourceType ? { sourceType: String(row.sourceType) } : {}),
-      ...(normalizeCandidateUrl(row?.imageUrl) ? { previewImageUrl: normalizeCandidateUrl(row.imageUrl) } : {}),
+      ...(previewImages.length ? {
+        previewImages,
+        // Compatibility for callers predating the typed provider-image projection.
+        previewImageUrl: previewImages[0].url,
+      } : {}),
     });
     if (candidates.length >= limit) break;
   }

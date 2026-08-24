@@ -8,7 +8,8 @@ test('시각 참고자료 요청은 링크 목록이 아니라 관리 preview와
   assert.match(instructions, /find images or visual\/design references/i);
   assert.match(instructions, /do not stop at links or a text list/i);
   assert.match(instructions, /Use visual_reference.*embed each returned previewUrl.*actual Markdown image/iu);
-  assert.match(instructions, /original source page link/iu);
+  assert.match(instructions, /observed source-page link/iu);
+  assert.match(instructions, /verificationMissing=true.*state the shortfall/iu);
   assert.match(instructions, /fewer than requested.*state the shortfall/iu);
   assert.match(instructions, /ordinary image discovery must not open a visible browser/iu);
 });

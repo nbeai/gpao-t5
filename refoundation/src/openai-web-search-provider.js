@@ -37,6 +37,16 @@ function searchSources(output = [], limit = 8) {
         url,
         snippet: String(source?.snippet ?? '').trim(),
         sourceType: String(source?.type ?? 'url'),
+        ...(source?.image_url ? { image_url: source.image_url } : {}),
+        ...(source?.imageUrl ? { imageUrl: source.imageUrl } : {}),
+        ...(source?.thumbnail_url ? { thumbnail_url: source.thumbnail_url } : {}),
+        ...(source?.thumbnailUrl ? { thumbnailUrl: source.thumbnailUrl } : {}),
+        ...(source?.image?.url ? { image: {
+          url: source.image.url, width: source.image.width, height: source.image.height,
+        } } : {}),
+        ...(source?.thumbnail?.url ? { thumbnail: {
+          url: source.thumbnail.url, width: source.thumbnail.width, height: source.thumbnail.height,
+        } } : {}),
       });
       if (rows.length >= limit) return rows;
     }

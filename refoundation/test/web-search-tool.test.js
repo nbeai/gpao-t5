@@ -13,7 +13,10 @@ test('web_search는 후보만 돌려주고 어느 주소도 대신 읽지 않는
       return [
         { title: '첫 자료', url: 'https://example.com/a?utm_source=test', snippet: '첫 설명' },
         { title: '첫 자료 중복', url: 'https://example.com/a?utm_source=other', snippet: '중복' },
-        { title: '둘째 자료', url: 'https://other.example.com/b', snippet: '둘째 설명', imageUrl: 'https://img.example.org/b.jpg' },
+        { title: '둘째 자료', url: 'https://other.example.com/b', snippet: '둘째 설명',
+          image_url: 'https://img.example.org/b.jpg', thumbnail: {
+            url: 'https://img.example.org/b-thumb.jpg', width: 320, height: 180,
+          } },
       ];
     },
   };
@@ -31,6 +34,11 @@ test('web_search는 후보만 돌려주고 어느 주소도 대신 읽지 않는
   assert.equal(result.candidates[0].url, 'https://example.com/a');
   assert.equal(result.candidates[0].instructionAuthority, 'none');
   assert.equal(result.candidates[1].previewImageUrl, 'https://img.example.org/b.jpg');
+  assert.deepEqual(result.candidates[1].previewImages, [
+    { url: 'https://img.example.org/b.jpg', provenance: 'search_provider_result', providerField: 'image_url' },
+    { url: 'https://img.example.org/b-thumb.jpg', provenance: 'search_provider_result',
+      providerField: 'thumbnail.url', width: 320, height: 180 },
+  ]);
   assert.equal(result.observedPageContent, false);
 });
 

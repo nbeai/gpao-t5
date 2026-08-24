@@ -10,12 +10,67 @@ function distinctCandidates(candidates, limit) {
   return selected;
 }
 
+function hostFact(kind, rawUrl) {
+  if (!rawUrl) return null;
+  try {
+    const url = new URL(rawUrl);
+    return { kind, url: url.href, host: url.hostname.toLowerCase() };
+  } catch { return null; }
+}
+
+function sourceProvenance(candidate, observation) {
+  const observed = observation?.source?.provenance ?? {};
+  const responsePublisher = observed.responsePublisher
+    ?? hostFact('observed_response_host', observation?.source?.finalUrl);
+  const canonicalPublisher = observed.canonicalPublisher
+    ?? hostFact('page_declared_canonical_host', observation?.source?.canonicalUrl);
+  const exactOriginalPublisher = hostFact('observed_exact_original_url', observed.exactOriginalUrl);
+  const exactOriginalUrl = exactOriginalPublisher?.url ?? null;
+  return {
+    schema: 't5.web-source-provenance.v1',
+    candidatePublisher: hostFact('search_candidate_host', candidate.url),
+    responsePublisher,
+    canonicalPublisher,
+    contentAttribution: {
+      ...(observed.contentAttribution ?? {}),
+      kind: 'untrusted_page_claims', instructionAuthority: 'none',
+      ...(Array.isArray(observation?.source?.contentAttributionClaims)
+        ? { claims: observation.source.contentAttributionClaims }
+        : {}),
+    },
+    exactOriginalUrl,
+    exactOriginalPublisher,
+    directOriginalLabelAllowed: Boolean(exactOriginalUrl),
+    ...(!exactOriginalUrl ? { verificationMissing: 'exact_original_url_not_observed' } : {}),
+  };
+}
+
+function candidatePreviewImages(candidate, observation) {
+  const images = []; const seen = new Set();
+  for (const image of candidate.previewImages ?? []) {
+    if (!image?.url || seen.has(image.url)) continue;
+    seen.add(image.url); images.push({ ...image });
+  }
+  if (candidate.previewImageUrl && !seen.has(candidate.previewImageUrl)) {
+    seen.add(candidate.previewImageUrl); images.push({
+      url: candidate.previewImageUrl, provenance: 'search_provider_result',
+      providerField: 'legacy_previewImageUrl',
+    });
+  }
+  const pageImage = observation?.source?.previewImageUrl;
+  if (pageImage && !seen.has(pageImage)) images.push({
+    url: pageImage, provenance: 'source_page_metadata', providerField: 'og_or_twitter_image',
+  });
+  return images;
+}
+
 function compactObservation(candidate, observation) {
   return {
     rank: candidate.rank, title: candidate.title, candidateUrl: candidate.url,
     snippet: candidate.snippet, state: observation?.state ?? 'failed',
     ...(candidate.previewImageUrl ? { candidatePreviewImageUrl: candidate.previewImageUrl } : {}),
     source: observation?.source ?? null,
+    provenance: sourceProvenance(candidate, observation),
     ...(observation?.reason ? { reason: observation.reason } : {}),
     ...(observation?.content ? {
       content: {
@@ -92,11 +147,18 @@ export function makeWebResearchTool({ searchTool, readTool, timeoutMs = 15_000 }
       const read = readable.length;
       const sources = [...readable.slice(0, sourceLimit), ...unreadable.slice(0, 2)];
       const boundedComplete = read >= 3;
+      const selectedPreviewMetadata = selected.map((candidate, index) => ({
+        rank: candidate.rank, title: candidate.title, candidateUrl: candidate.url,
+        sourceUrl: observations[index]?.source?.finalUrl ?? candidate.url,
+        provenance: observations[index]?.provenance,
+        images: candidatePreviewImages(candidate, observations[index]),
+      }));
       return {
         state: read ? 'researched' : 'no_readable_sources', query,
         providers: [...new Map(searches.filter((item) => item.provider).map((item) => [item.provider.id, item.provider])).values()],
         queries, candidateCount: candidates.length,
         selectedCount: selected.length, readableCount: read, sources,
+        selectedPreviewMetadata,
         observedPageContent: read > 0,
         coverage: { requestedSources: sourceLimit, selectedSources: selected.length, readableSources: read },
         stopFurtherResearch: boundedComplete,

@@ -1,0 +1,71 @@
+{
+  "schema": "t5.s2-web-evidence-repair.v1",
+  "recordedAt": "2026-08-25T06:50:48+09:00",
+  "baseCommit": "31834fdd728fff50d3f6746471a66c46d65338cd",
+  "scope": {
+    "failures": [
+      "observed publisher host and page-body wire attribution could be presented as one direct original source",
+      "visual references discarded search-provider image fields outside the readable web-research subset"
+    ],
+    "nonGoals": [
+      "visible Browser",
+      "new search provider",
+      "UI redesign",
+      "Gate expansion"
+    ]
+  },
+  "contracts": {
+    "sourceProvenance": {
+      "schema": "t5.web-source-provenance.v1",
+      "separates": [
+        "search candidate host",
+        "observed response host",
+        "page-declared canonical host",
+        "untrusted page-content attribution claims",
+        "exact original URL observation"
+      ],
+      "directOriginalWithoutExactUrl": false
+    },
+    "visualReference": {
+      "providerImageFieldsPreserved": true,
+      "allSelectedPreviewMetadataProjected": true,
+      "pipelineStages": ["candidate", "fetch", "qualification", "attachment"],
+      "failureCodesPreserved": true,
+      "zeroPreviewZeroFailureAllowed": false,
+      "noPreviewsVerificationMissing": true
+    }
+  },
+  "counterTests": {
+    "reutersRepublish": {
+      "observedHost": "localnews.example",
+      "claimedWireOrigin": "Reuters",
+      "exactOriginalUrl": null,
+      "directOriginalLabelAllowed": false,
+      "passed": true
+    },
+    "zeroPreviewMetadata": {
+      "previewCount": 0,
+      "failureCount": 3,
+      "failureCode": "preview_metadata_missing",
+      "verificationMissing": true,
+      "passed": true
+    },
+    "threeProviderAndOgImages": {
+      "selectedMetadataCount": 4,
+      "managedPreviewCount": 3,
+      "stagesObserved": ["candidate", "fetch", "qualification", "attachment"],
+      "passed": true
+    }
+  },
+  "qualification": {
+    "focused": { "passed": 42, "failed": 0 },
+    "refoundationCheck": { "passed": 745, "failed": 0 },
+    "productIntegration": {
+      "passed": 128,
+      "failed": 0,
+      "visibleBrowserLiveExecuted": false,
+      "observation": "An unrelated Remote MCP timing assertion failed once, passed alone, then the complete 128-case rerun passed."
+    }
+  },
+  "passed": true
+}

@@ -25,7 +25,9 @@ test('OpenAI search provider는 저장된 API 연결로 hosted search sources만
         output: [
           { type: 'web_search_call', results: [
             { type: 'url', url: 'https://example.com/one', title: '첫 소식', snippet: '첫 설명' },
-            { type: 'url', url: 'https://example.org/two', title: '둘째 소식', snippet: '둘째 설명' },
+            { type: 'url', url: 'https://example.org/two', title: '둘째 소식', snippet: '둘째 설명',
+              image_url: 'https://images.example.org/full.jpg',
+              thumbnail: { url: 'https://images.example.org/thumb.jpg', width: 640, height: 360 } },
           ], action: { type: 'search', query: '가게 소식', sources: [
             { type: 'url', url: 'https://example.com/one' },
             { type: 'url', url: 'https://example.org/two' },
@@ -48,7 +50,9 @@ test('OpenAI search provider는 저장된 API 연결로 hosted search sources만
   assert.deepEqual(requests[0].body.include, ['web_search_call.results', 'web_search_call.action.sources']);
   assert.deepEqual(rows, [
     { title: '첫 소식', url: 'https://example.com/one', snippet: '첫 설명', sourceType: 'url' },
-    { title: '둘째 소식', url: 'https://example.org/two', snippet: '둘째 설명', sourceType: 'url' },
+    { title: '둘째 소식', url: 'https://example.org/two', snippet: '둘째 설명', sourceType: 'url',
+      image_url: 'https://images.example.org/full.jpg',
+      thumbnail: { url: 'https://images.example.org/thumb.jpg', width: 640, height: 360 } },
   ]);
 });
 
