@@ -5,6 +5,8 @@ export function deriveResourceReport(events = []) {
     scopes: 0, reservations: 0, committed: 0, released: 0, unknown: 0, unsettled: 0,
     requestBytesReserved: 0, providerTokensCommitted: 0,
     modelCallsObserved: 0, toolCallsObserved: 0, internalCallsObserved: 0, wallMsObserved: 0,
+    anomalyCandidates: 0, pathologyCandidates: 0, efficiencyCandidates: 0,
+    reliabilityCandidates: 0,
   };
   for (const event of events) {
     if (event.type === 'ScopeCreated') report.scopes += 1;
@@ -27,6 +29,12 @@ export function deriveResourceReport(events = []) {
       report.toolCallsObserved += Number(event.payload.resources?.toolCalls ?? 0);
       report.internalCallsObserved += Number(event.payload.resources?.internalCalls ?? 0);
       report.wallMsObserved += Number(event.payload.resources?.wallMs ?? 0);
+    }
+    if (event.type === 'AnomalyRecorded') {
+      report.anomalyCandidates += 1;
+      if (event.payload.category === 'pathology_candidate') report.pathologyCandidates += 1;
+      if (event.payload.category === 'efficiency_candidate') report.efficiencyCandidates += 1;
+      if (event.payload.category === 'reliability_candidate') report.reliabilityCandidates += 1;
     }
   }
   report.unsettled = [...reservations].filter(([id]) => !settlements.has(id)).length;

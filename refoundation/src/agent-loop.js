@@ -1,3 +1,5 @@
+import { evidenceFingerprint } from './resource-evidence.js';
+
 const DEFAULT_MAX_MODEL_TURNS = 16;
 const DEFAULT_MAX_TOOL_CALLS = 24;
 const DEFAULT_MAX_FAILED_TOOL_CALLS = 4;
@@ -408,6 +410,7 @@ export async function runAgent({
       await resourceRun?.observeTool({
         turn: modelTurns, toolCallId: receipt.toolCallId || `${modelTurns}:${call?.name}`,
         name: call?.name ?? 'unknown', outcome: receipt.outcome, startedAt: toolResourceStartedAt,
+        evidenceFingerprint: evidenceFingerprint(receipt),
       }).catch(() => {});
       if (receipt.outcome === 'failed') {
         failedToolCalls += 1;

@@ -1,0 +1,165 @@
+{
+  "schema": "t5.s2-a1-2-anomaly-shadow.v1",
+  "recordedAt": "2026-08-24T16:46:03+09:00",
+  "gate": "S2-A1_RESOURCE_CONTROL",
+  "stage": "A1-2_ANOMALY_SHADOW",
+  "goal": "Distinguish evidence-free pathology candidates from evidence-bearing efficiency and reliability candidates without changing model or user behavior.",
+  "closePoint": "A0 replay, repeated-evidence counterexample, 11-model-10-tool positive control, intended cancel, and live public Web all produce content-free candidates with zero intervention.",
+  "userOutcome": {
+    "newVisibleFeature": false,
+    "modelContextChanged": false,
+    "userAnswerChanged": false,
+    "toolChoiceChanged": false,
+    "fixedCapsChanged": false,
+    "runtimeIntervention": false
+  },
+  "candidateSemantics": {
+    "pathologyCandidate": "No novel Evidence or only repeated Evidence while model/context work continues.",
+    "efficiencyCandidate": "Novel Evidence continues while request or function-output projection grows.",
+    "reliabilityCandidate": "Provider retry or unknown settlement is observed without declaring pathology.",
+    "callCountAloneIsPathology": false,
+    "candidateIsControlAction": false
+  },
+  "implemented": {
+    "contentFreeAnomalyEvent": true,
+    "transientEvidenceFingerprintOnly": true,
+    "fingerprintStreamsWithoutResultClone": true,
+    "persistedFingerprint": false,
+    "volatileReceiptIdentityIgnored": true,
+    "toolEvidenceStates": ["new", "repeated", "none"],
+    "mainProgressSeparatedFromHostedChildCalls": true,
+    "requestProjectionGrowthObserved": true,
+    "functionOutputNondecreasingProjectionObserved": true,
+    "retryAndUnknownSeparatedFromPathology": true,
+    "modelAndUserSurfacesUntouched": true
+  },
+  "a0Replay": {
+    "runs": 19,
+    "modelCalls": 107,
+    "providerTokens": 10146162,
+    "requestBytes": 43239237,
+    "multiCallRuns": 15,
+    "singleCallRuns": 4,
+    "multiCallEfficiencyCandidates": 15,
+    "firstEfficiencyCandidateModelCall": 2,
+    "pathologyCandidates": 0,
+    "reasonPathologyNotInvented": "The sanitized A0 fixture preserves new receipt counts and request curves but not original result fingerprints. It proves early projection-growth candidates, while historical repeated Browser attribution remains separate forensic evidence."
+  },
+  "counterexamples": {
+    "sameEvidenceWithGrowingContext": {
+      "category": "pathology_candidate",
+      "novelEvidence": 1,
+      "repeatedEvidence": 1,
+      "intervalsWithoutNewEvidence": 1,
+      "contextGrowthWithoutNewEvidenceBytes": 100,
+      "intervention": false
+    },
+    "elevenModelTenToolNovelResearch": {
+      "category": "efficiency_candidate",
+      "novelEvidence": 10,
+      "pathologyCandidates": 0,
+      "intervention": false
+    },
+    "intendedCancelUnknown": {
+      "category": "reliability_candidate",
+      "pathologyCandidates": 0,
+      "intervention": false
+    }
+  },
+  "liveWebQualification": {
+    "model": "gpt-5.5",
+    "isolatedDataOnly": true,
+    "browserCalls": 0,
+    "approvalEvents": 0,
+    "internalResourceTermsInAnswer": 0,
+    "runs": [
+      {
+        "wallMs": 78901.36,
+        "userFactsCorrect": true,
+        "resourceModelCalls": 11,
+        "runLedgerMainModelCalls": 8,
+        "toolCalls": 9,
+        "novelEvidence": 8,
+        "repeatedEvidence": 0,
+        "noEvidence": 1,
+        "category": "pathology_candidate",
+        "firstEfficiencyCandidateModelCall": 3,
+        "firstPathologyCandidateModelCall": 7,
+        "contextGrowthWithoutNewEvidenceBytes": 6424,
+        "requestProjectionGrowthBytes": 62326,
+        "priorRequestBytesAtGrowth": 456000,
+        "priorFunctionOutputBytesAtNondecreasingProjection": 142765,
+        "providerTokens": 178248,
+        "requestBytes": 559531,
+        "unsettled": 0,
+        "qualificationObservation": "The answer used the official developers.openai.com domain, which the first checker failed to recognize. The product result was correct; the checker was narrowed incorrectly."
+      },
+      {
+        "wallMs": 52546.556,
+        "userFactsCorrect": true,
+        "officialSourceHost": "developers.openai.com",
+        "resourceModelCalls": 9,
+        "runLedgerMainModelCalls": 6,
+        "toolCalls": 7,
+        "novelEvidence": 7,
+        "repeatedEvidence": 0,
+        "noEvidence": 0,
+        "category": "efficiency_candidate",
+        "firstEfficiencyCandidateModelCall": 3,
+        "firstPathologyCandidateModelCall": 0,
+        "requestProjectionGrowthBytes": 52069,
+        "priorRequestBytesAtGrowth": 297267,
+        "priorFunctionOutputBytesAtNondecreasingProjection": 82328,
+        "providerTokens": 137099,
+        "requestBytes": 390519,
+        "unsettled": 0
+      }
+    ],
+    "speedObservation": "52.5-78.9 seconds remains a clear user-experience deficit. A1-2 records the candidate facts and does not optimize or stop the route."
+  },
+  "overheadMeasurement": {
+    "anomalyAppendMeanMs": 0.187,
+    "anomalyAppendP95Ms": 0.519,
+    "fingerprintMeanMsFor16KbReceipt": 0.019,
+    "deriveMeanMs": 0.000176,
+    "newLatencyThresholdCreated": false
+  },
+  "platformBoundary": {
+    "evidence": "s2-a1-platform-boundary-seal-2026-08-24.json",
+    "openClawSourceCommit": "e085fa1a3ffd32d0ea6917e1e6fb4ecbffbb77d2",
+    "runScopeNotPidOrSignal": true,
+    "windowsFeatureImplemented": false,
+    "copiedWslArchitecture": false
+  },
+  "verification": {
+    "focusedTestsPassed": 27,
+    "refoundationUnitPassed": 627,
+    "refoundationUnitFailed": 0,
+    "defaultProductIntegrationPassed": 93,
+    "defaultProductIntegrationFailed": 0,
+    "integrationTransientObservation": "One full run observed the existing concurrent capability-handoff check resume one of two sessions. The isolated test immediately passed 5/5 and the next unchanged full integration passed 93/93; no A1-2 code path was implicated.",
+    "visibleBrowserLiveExecuted": false,
+    "legacySourceImports": 0
+  },
+  "notImplemented": [
+    "resource_situation_model_input",
+    "active_optimization",
+    "fixed_cap_removal",
+    "runtime_stop_or_route_change",
+    "information_projection_change",
+    "browser_or_ui",
+    "windows_runtime",
+    "new_package"
+  ],
+  "artifacts": {
+    "anomalyShadowSha256": "1331d52e10463e8cab8c3254d1893b91bb513bfffd0c836343aecc5b143ee9c0",
+    "evidenceFingerprintSha256": "0394b75ab53c795b04db3a0db8a9f40acdce31a5f7468245edd84368a4150367",
+    "resourceControllerSha256": "ec12cd44c8676fbc2c791de73501231ae7f86240561b09324327054945930797",
+    "resourceLedgerSha256": "136af6d7162812bd5b76cd274dd4a3c6a59c056477a46a9cebcda8326935fd53",
+    "resourceReportSha256": "64232cb6a0a45f71afb54dfc01b8e79d8eac2305f4f69f7d0b0a837f08bf834e",
+    "agentLoopSha256": "d4faf439737773f5a66d08e3294898de5706d68de3edf7db37faa859d189ebf9",
+    "testSha256": "73d79504160781b827680232da71f392cd6f8562fb519649f2fb46d51bf82f3a"
+  },
+  "productBehaviorChanged": false,
+  "newPackageCreated": false
+}

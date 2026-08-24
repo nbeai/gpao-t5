@@ -227,6 +227,17 @@ export class ResourceLedger {
     });
   }
 
+  recordAnomaly({ scopeId, dedupeKey, category, signals, metrics, shadow = true }) {
+    return this.append({
+      type: 'AnomalyRecorded', scopeId, dedupeKey,
+      payload: {
+        category: identifier(category, 'anomaly category'),
+        signals: Array.isArray(signals) ? signals.map((value) => identifier(value, 'anomaly signal')) : [],
+        metrics: normalizedPayload(metrics), shadow: shadow === true, intervention: false,
+      },
+    });
+  }
+
   closeScope({ scopeId, dedupeKey, status }) {
     return this.append({
       type: 'ScopeClosed', scopeId, dedupeKey,

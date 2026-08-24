@@ -1,6 +1,6 @@
 {
   "schema": "t5.second-completion-plan.v1",
-  "recordedAt": "2026-08-24T16:12:39+09:00",
+  "recordedAt": "2026-08-24T16:46:03+09:00",
   "firstCompletion": {
     "declared": true,
     "sourceCommit": "81f29d23",
@@ -10,7 +10,7 @@
   "secondCompletion": {
     "active": true,
     "sourceOfTruth": "T5-SECOND-COMPLETION.md",
-    "currentGate": "S2-A1_RESOURCE_CONTROL_A1_2_READY",
+    "currentGate": "S2-A1_RESOURCE_CONTROL_A1_3_READY",
     "firstProductChange": "shadow_resource_accounting_and_control",
     "a0IncidentFixtures": {
       "status": "complete",
@@ -37,6 +37,14 @@
       "storageFailureDegradesWithoutBlockingWork": true,
       "hostedSearchChildModelAccounted": true,
       "humanConsoleQualified": true
+    },
+    "a1AnomalyShadow": {
+      "status": "complete",
+      "evidence": "s2-a1-2-anomaly-shadow-2026-08-24.json",
+      "modelContextChanged": false,
+      "userAnswerChanged": false,
+      "runtimeIntervention": false,
+      "fixedCapsChanged": false
     },
     "browserIncident": {
       "dedicatedProfileIsDirectCause": false,

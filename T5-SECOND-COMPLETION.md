@@ -1,7 +1,7 @@
 # T5 Second Completion — Current Development Source
 
 상태: `SECOND_COMPLETION_ACTIVE`
-현재 Gate: `S2-A1 RESOURCE CONTROL — A1-1 COMPLETE · A1-2 READY`
+현재 Gate: `S2-A1 RESOURCE CONTROL — A1-2 COMPLETE · A1-3 READY`
 기준 source: `81f29d23`
 배포 상태: `0.1.8 REVOKED · 새 package 생성 금지`
 
@@ -238,7 +238,7 @@ catastrophic fuse는 shadow 실측과 positive control 없이 수치를 고정�
 
 ```text
 A1-1 exact accounting shadow — COMPLETE
-→ A1-2 anomaly shadow
+→ A1-2 anomaly shadow — COMPLETE
 → A1-3 모델에 Resource Situation 공급
 → A1-4 능동 최적화
 → A1-5 검증된 병적 폭주에만 최후 개입
@@ -252,6 +252,19 @@ crash·cancel unknown, tool wall/call 관측, checkpoint·memory flush·visual o
 Resource 문구 0, reservation 23 = 관측 model call 23, commit 22 + cancel unknown 1, 미정산 0을 확인했다.
 모델 Context·사용자 답·상한·도구 선택·UI는 바꾸지 않았다. 근거:
 `refoundation/evidence/s2-a1-1-exact-accounting-shadow-2026-08-24.json`
+
+A1-2는 도구 결과의 transient fingerprint를 현재 Run 안에서만 비교하고 원장에는 `new·repeated·none`만
+남긴다. 새 Evidence가 없거나 같은 Evidence만 반복되는 중 Context가 증가할 때만 pathology 후보이며, 새
+Evidence가 계속 생기는 긴 연구는 request·function-output projection이 커져도 efficiency 후보로 분리한다.
+provider retry와 cancel·crash unknown은 reliability 후보라서 병적 반복으로 승격하지 않는다. 모든 후보는
+content-free shadow이고 모델 Context·답·도구·상한·중단을 바꾸지 않는다.
+
+A0의 19 Run·107 call exact curve에서는 15개 다중 호출 Run이 두 번째 호출부터 efficiency 후보가 됐지만,
+정제 fixture에 원본 결과 fingerprint가 없으므로 pathology라고 소급 단정하지 않았다. 실제 gpt-5.5 공개 Web
+두 표본은 52.5~78.9초였고, 첫 표본은 새 Evidence 없는 구간 1개를 모델 7회째 pathology 후보로, 두 번째는
+새 Evidence 7개를 가진 efficiency 후보로 구별했다. Browser·승인·미정산·내부 Resource 문구는 0이었다.
+속도는 여전히 제품 미달이지만 A1-2에서는 관측만 하고 고치거나 중단하지 않는다. 근거:
+`refoundation/evidence/s2-a1-2-anomaly-shadow-2026-08-24.json`
 
 통과 조건:
 
@@ -409,16 +422,17 @@ AND 실행 가능한 미시도 route가 남은 blocked 0
 
 ## 7. 현재 작업 시작점
 
-S2-A0와 A1-1 exact accounting shadow는 완료했다. 다음 한 작업은 제품 행동을 바꾸지 않는 A1-2 anomaly
-shadow다. A1-1 측정을 보지 않고 수치·중단·최적화를 먼저 고정하지 않는다.
+S2-A0, A1-1 exact accounting shadow, A1-2 anomaly shadow를 완료했다. 다음 한 작업은 모델이 성능을
+최대로 활용하도록 content-free Resource Situation을 공급하는 A1-3다. A1-2 후보를 고정 상한이나 런타임
+중단으로 바꾸지 않는다.
 
-A1-1 완료 범위:
+A1-2 완료 범위:
 
 ```text
-새 파일: resource-ledger.js · resource-controller.js · resource-event-storage.js · resource-report.js
-연결: agent-loop.js · console-server.js · model adapters
-검사: provider prefetch reservation · hosted search child call · retry·parallel·crash·cancel·idempotency
-      · storage degraded · A0 replay · platform storage · Terra/gpt-5.5 실제 콘솔
+새 파일: resource-anomaly-shadow.js · resource-evidence.js
+연결: agent-loop.js · resource-controller.js · resource-ledger.js · resource-report.js
+검사: 반복 Evidence pathology · 11/10 새 Evidence positive control · cancel reliability · A0 19/107 replay
+      · gpt-5.5 공개 Web 두 표본 · 플랫폼 반대시험 · 계측 부담
 ```
 
 다음 작업 비목표:

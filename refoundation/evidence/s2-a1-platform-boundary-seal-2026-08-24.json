@@ -1,6 +1,6 @@
 {
   "schema": "t5.s2-a1-platform-boundary-seal.v1",
-  "recordedAt": "2026-08-24T15:24:50+09:00",
+  "recordedAt": "2026-08-24T16:46:03+09:00",
   "gate": "S2-A1_RESOURCE_CONTROL",
   "source": {
     "repository": "https://github.com/openclaw/openclaw",
@@ -45,6 +45,35 @@
     "reservation_commit_release_unknown_semantics_are_platform_independent",
     "windows_and_wsl_are_not_implemented_in_this_gate"
   ],
+  "a1_2Review": {
+    "sourceCommit": "e085fa1a3ffd32d0ea6917e1e6fb4ecbffbb77d2",
+    "files": [
+      {"name":"src/agents/tool-loop-detection.ts","sha256":"35fd13a56ca9a785d40b8431efb14a3429e77753e7c5ce76928b3dda0a308bf0"},
+      {"name":"src/agents/tool-loop-detection-config.ts","sha256":"a0b64518afe10534011d80f5d900451f68a6c35136955c5ee8ab5e7fd07679aa"},
+      {"name":"src/infra/wsl.ts","sha256":"5e0d7bc8a7d2f2419c48d7087ebf4dc71fd2ff05ea91b533b7acd1e81db89db1"},
+      {"name":"src/daemon/systemd.test.ts","sha256":"348c9f19bcd814efe02943a61787f8512b60ae6f449b1bbe6792733593aefbcd"},
+      {"name":"src/infra/net/undici-family-policy.ts","sha256":"7469f7aa25ca7429ff4374b1febd072afed2f1aef85fabf183e538ff6293c60d"}
+    ],
+    "adopted": [
+      "run_scoped_history_not_process_identity",
+      "no_progress_requires_stable_outcome_evidence",
+      "observation_and_intervention_are_separate",
+      "volatile_result_identity_does_not_count_as_progress"
+    ],
+    "notAdopted": [
+      "fixed_warning_critical_and_circuit_breaker_counts",
+      "tool_name_or_call_count_as_runaway_truth",
+      "windows_process_or_wsl_lifecycle_as_resource_identity",
+      "persisted_content_digest"
+    ],
+    "additionalFailureCases": [
+      "wsl_systemd_wrapper_only_status_failure",
+      "wsl2_ipv6_auto_family_connectivity_failure",
+      "wsl_or_vm_clock_drift_causing_oauth_slow_down_timeout"
+    ],
+    "windowsFeatureImplemented": false,
+    "copiedWslArchitecture": false
+  },
   "copiedWslArchitecture": false,
   "windowsFeatureImplemented": false,
   "productBehaviorChangedByResearch": false
