@@ -1,0 +1,35 @@
+{
+  "schema": "t5.s2-e-learning-review-live-evidence.v1",
+  "gate": "S2-E-I3",
+  "recordedAt": "2026-08-25T03:45:00+09:00",
+  "contract": {
+    "sources": "two distinct eligible achieved Episode pointers",
+    "tools": ["learning_candidate"],
+    "activeWrites": 0,
+    "externalTools": 0,
+    "candidateLimit": 1
+  },
+  "actualModels": [
+    { "model": "gpt-5.6-terra", "passed": true, "wallMs": 5068,
+      "modelTurns": 2, "toolCalls": 1, "proposals": 1, "sourcePointers": 2, "activeWrites": 0 },
+    { "model": "gpt-5.5", "passed": true, "wallMs": 8198,
+      "modelTurns": 2, "toolCalls": 1, "proposals": 1, "sourcePointers": 2, "activeWrites": 0 }
+  ],
+  "discarded": [
+    "duplicate description in tool arguments and Skill frontmatter",
+    "free-form reproduction of runtime-known source Run identities",
+    "provider-incompatible uniqueItems schema keyword"
+  ],
+  "verification": {
+    "focused": { "passed": 23, "failed": 0 },
+    "refoundationCheck": { "passed": 723, "failed": 0 },
+    "visibleBrowserLiveExecuted": false,
+    "externalWriteExecuted": false
+  },
+  "pending": [
+    "product background admission after repeated real Work",
+    "actual candidate replay and trigger holdout",
+    "scoped field trial and final promotion rollback"
+  ],
+  "status": "REVIEWER_LIVE_PASS_HUMAN_QUALIFICATION_NOT_YET_OPEN"
+}

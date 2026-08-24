@@ -32,7 +32,7 @@ test('reviewer는 서로 다른 eligible Episode에서 pending proposal만 만�
     const tool = makeLearningCandidateTool({ store, eligibleSources: [source(1), source(2)], currentRunId: 'review-run' });
     assert.deepEqual(tool.parameters.properties.action.enum, ['propose']);
     const proposal = await tool.execute({ action: 'propose', name: 'recover-report-work',
-      description: 'Recover and verify interrupted report work.', content: skill,
+      content: skill,
       sourceRunIds: ['run-1', 'run-2'] });
     assert.equal(proposal.state, 'candidate'); assert.equal(proposal.sourcePointers.length, 2);
     assert.equal(proposal.revisionDigest.length, 64);
@@ -47,12 +47,12 @@ test('ineligible·중복 Work·credential content는 proposal 사건을 만들�
     const badSourceTool = makeLearningCandidateTool({ store,
       eligibleSources: [source(1), source(2, false)], currentRunId: 'review' });
     await assert.rejects(() => badSourceTool.execute({ action: 'propose', name: 'recover-report-work',
-      description: 'Recover and verify interrupted report work.', content: skill,
+      content: skill,
       sourceRunIds: ['run-1', 'run-2'] }), /not eligible/u);
     const secret = skill.replace('Observe the last durable result', 'Use Authorization: Bearer secret-token-value-1234567890');
     const tool = makeLearningCandidateTool({ store, eligibleSources: [source(1), source(2)], currentRunId: 'review' });
     await assert.rejects(() => tool.execute({ action: 'propose', name: 'recover-report-work',
-      description: 'Recover and verify interrupted report work.', content: secret,
+      content: secret,
       sourceRunIds: ['run-1', 'run-2'] }), /credential/u);
     assert.deepEqual(await ledger.events(), []);
   } finally { await rm(room, { recursive: true, force: true }); }
