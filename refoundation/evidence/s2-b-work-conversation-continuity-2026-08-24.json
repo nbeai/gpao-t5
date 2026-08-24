@@ -4,6 +4,7 @@
   "gate": "S2-B_WORK_CONVERSATION_CONTINUITY",
   "status": "final_exception_surface_piece_open_no_further_attempt",
   "previousCompletionCommit": "fa528923",
+  "finalAttemptCommit": "106300c5",
   "humanFailWorkOrder": "docs/03-verification/T5-S2-B-HUMAN-FAIL-REPAIR-WORK-ORDER-2026-08-24-ko.md",
   "humanFailures": ["B-F01","B-F02","B-F03","B-F04","B-F05","B-F06"],
   "goal": "Durably admit ordinary user input during work and let the main model bind it to append-only Work revisions without input loss, stale settlement, or false completion.",
