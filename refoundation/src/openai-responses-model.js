@@ -122,7 +122,9 @@ export function makeOpenAIResponsesModel({
     id: model,
     async respond({
       messages = [], tools = [], toolChoice = null, signal, onContextReceipt, resourceObserver,
+      runtimeContext = '',
     } = {}) {
+      const requestInstructions = runtimeContext ? `${instructions}\n\n${runtimeContext}` : instructions;
       if (!started) {
         input.push(...initialInput(messages));
         for (const message of messages) {
@@ -143,7 +145,7 @@ export function makeOpenAIResponsesModel({
 
       const body = {
         model,
-        instructions,
+        instructions: requestInstructions,
         input: structuredClone(input),
         tools: apiTools(tools),
         ...(toolChoice?.requiredToolName ? { tool_choice: 'required' } : {}),
@@ -151,7 +153,7 @@ export function makeOpenAIResponsesModel({
         store: false,
       };
       const contextReceipt = makeContextReceipt({
-        provider: 'openai', model, instructions, input: body.input, tools: body.tools,
+        provider: 'openai', model, instructions: requestInstructions, input: body.input, tools: body.tools,
         sourceMessages: messages, body,
       });
       await onContextReceipt?.(structuredClone(contextReceipt));

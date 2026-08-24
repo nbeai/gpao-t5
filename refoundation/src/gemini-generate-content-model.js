@@ -155,7 +155,9 @@ export function makeGeminiGenerateContentModel({
     id: model,
     async respond({
       messages = [], tools = [], toolChoice = null, signal, onContextReceipt, resourceObserver,
+      runtimeContext = '',
     } = {}) {
+      const requestInstructions = runtimeContext ? `${instructions}\n\n${runtimeContext}` : instructions;
       if (!started) {
         contents.push(...initialContents(messages));
         for (const message of messages) {
@@ -176,7 +178,7 @@ export function makeGeminiGenerateContentModel({
       const providerTools = apiTools(tools);
       const body = {
         contents: structuredClone(contents),
-        systemInstruction: { parts: [{ text: instructions }] },
+        systemInstruction: { parts: [{ text: requestInstructions }] },
         tools: providerTools,
         ...(toolChoice?.requiredToolName ? { toolConfig: { functionCallingConfig: {
           mode: 'ANY', allowedFunctionNames: [toolChoice.requiredToolName],
@@ -184,7 +186,7 @@ export function makeGeminiGenerateContentModel({
         generationConfig: { maxOutputTokens },
       };
       const contextReceipt = makeContextReceipt({
-        provider: 'gemini', model, instructions, input: body.contents, tools: body.tools,
+        provider: 'gemini', model, instructions: requestInstructions, input: body.contents, tools: body.tools,
         sourceMessages: messages, body,
       });
       await onContextReceipt?.(structuredClone(contextReceipt));

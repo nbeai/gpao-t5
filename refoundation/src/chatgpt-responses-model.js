@@ -141,7 +141,9 @@ export function makeChatGptResponsesModel({
   return {
     async respond({
       messages = [], tools = [], toolChoice = null, signal, onContextReceipt, resourceObserver,
+      runtimeContext = '',
     } = {}) {
+      const requestInstructions = runtimeContext ? `${instructions}\n\n${runtimeContext}` : instructions;
       const credential = await credentials.get();
       const requestModel = model ?? credential.modelId;
       if (!requestModel) throw new Error('ChatGPT OAuth connection has no model id');
@@ -162,7 +164,7 @@ export function makeChatGptResponsesModel({
       }
       const body = {
         model: requestModel,
-        instructions,
+          instructions: requestInstructions,
         input: structuredClone(input),
         tools: toolDefinitions(tools),
         ...(toolChoice?.requiredToolName ? { tool_choice: 'required' } : {}),
@@ -170,7 +172,7 @@ export function makeChatGptResponsesModel({
         store: false,
       };
       const contextReceipt = makeContextReceipt({
-        provider: 'chatgpt_oauth', model: requestModel, instructions,
+          provider: 'chatgpt_oauth', model: requestModel, instructions: requestInstructions,
         input: body.input, tools: body.tools, sourceMessages: messages, body,
       });
       await onContextReceipt?.(structuredClone(contextReceipt));

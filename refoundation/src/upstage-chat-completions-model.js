@@ -121,9 +121,11 @@ export function makeUpstageChatCompletionsModel({
     id: model,
     async respond({
       messages = [], tools = [], toolChoice = null, signal, onContextReceipt, resourceObserver,
+      runtimeContext = '',
     } = {}) {
+      const requestInstructions = runtimeContext ? `${instructions}\n\n${runtimeContext}` : instructions;
       if (!started) {
-        history.push(...initialMessages(messages, instructions, model));
+        history.push(...initialMessages(messages, '', model));
         for (const message of messages) {
           if (message?.role === 'tool' && message.toolCallId) returnedResults.add(message.toolCallId);
         }
@@ -139,14 +141,17 @@ export function makeUpstageChatCompletionsModel({
       }
 
       const convertedTools = apiTools(tools);
+      const requestMessages = requestInstructions
+        ? [{ role: 'system', content: requestInstructions }, ...structuredClone(history)]
+        : structuredClone(history);
       const body = {
-        model, messages: structuredClone(history), reasoning_effort: reasoningEffort,
+        model, messages: requestMessages, reasoning_effort: reasoningEffort,
         ...(convertedTools.length ? { tools: convertedTools,
           tool_choice: toolChoice?.requiredToolName
             ? { type: 'function', function: { name: toolChoice.requiredToolName } } : 'auto' } : {}),
       };
       const contextReceipt = makeContextReceipt({
-        provider: 'upstage', model, instructions, input: body.messages,
+        provider: 'upstage', model, instructions: requestInstructions, input: body.messages,
         tools: body.tools ?? [], sourceMessages: messages, body,
       });
       await onContextReceipt?.(structuredClone(contextReceipt));

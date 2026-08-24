@@ -1,7 +1,7 @@
 # T5 Second Completion — Current Development Source
 
 상태: `SECOND_COMPLETION_ACTIVE`
-현재 Gate: `S2-A2 INFORMATION CONTROL — COMPLETE · A1-3 READY`
+현재 Gate: `S2-A1 RESOURCE CONTROL — A1-3 COMPLETE · A1-4 READY`
 기준 source: `81f29d23`
 배포 상태: `0.1.8 REVOKED · 새 package 생성 금지`
 
@@ -244,7 +244,7 @@ catastrophic fuse는 shadow 실측과 positive control 없이 수치를 고정�
 A1-1 exact accounting shadow — COMPLETE
 → A1-2 anomaly shadow — COMPLETE
 → S2-A2 Information Control
-→ A1-3 모델에 Resource Situation 공급
+→ A1-3 모델에 Resource Situation 공급 — COMPLETE
 → A1-4 능동 최적화
 → A1-5 검증된 병적 폭주에만 최후 개입
 ```
@@ -253,6 +253,14 @@ A1-3는 A2 완료 전에는 열지 않는다. 현재의 큰 Context에 Resource 
 바꾸면서도 반복 ToolReceipt·과거 원문·비활성 Hand·무관 Memory가 만든 원인을 보존할 수 있다. 먼저 A2에서
 장부와 모델 시야를 분리하고 목적에 필요한 최신 Evidence와 정확한 recall handle만 투영한 뒤, 작고 정확해진
 Context에 Resource Situation을 추가한다.
+
+A1-3는 정상 efficiency telemetry를 모든 호출에 넣지 않는다. 최신 Evidence가 새로우면 과거 cumulative
+anomaly를 다시 투영하지 않고, current repeated/pathology·retry/unknown 또는 기존 고정 상한이 마지막 실제
+패턴의 다음 호출에 닿는 전환에서만 bounded Situation을 provider runtime suffix로 한 번 공급한다. stable
+constitution prefix, Conversation·Run canonical, 사용자 답은 바꾸지 않는다. 고정 상한과 runtime 실행 정책도
+그대로다. 실제 2-turn 경계에서 gpt-5.5는 Situation off일 때 중단됐지만 on일 때 같은 경계에서 정확히 완료했고,
+Terra는 off/on 모두 무회귀였다. 근거:
+`refoundation/evidence/s2-a1-3-resource-situation-2026-08-24.json`
 
 A1-1은 모든 model adapter의 provider fetch 전 durable reservation, retry attempt 분리, provider usage commit,
 crash·cancel unknown, tool wall/call 관측, checkpoint·memory flush·visual observer·automation main과 hosted search
@@ -481,10 +489,10 @@ AND 실행 가능한 미시도 route가 남은 blocked 0
 
 ## 8. 현재 작업 시작점
 
-S2-A0, A1-1, A1-2와 S2-A2 Information Control을 완료했다. 다음 한 작업은 A1-3 Resource Situation이다.
-HP-02·03에서 새 Evidence가 계속되는 동안 현재 0.1.9의 16 model turns·24 tools·500K provider tokens 고정
-상한이 먼저 중단시키지 않도록, A2가 정리한 작은 Context에 content-free 자원 현실을 공급한다. 고정 상한을
-먼저 제거하거나 다른 고정 숫자로 바꾸지 않는다.
+S2-A0, A1-1, A1-2, S2-A2와 A1-3 Resource Situation을 완료했다. 다음 한 작업은 A1-4 능동 최적화다.
+HP-02·03의 현재 Situation과 모델 선택을 사용해 batch·parallel·projection·reuse·method·effort 후보를 모델이
+선택하게 하되, runtime이 도구 route나 답을 대신 결정하지 않는다. 현재 16 model turns·24 tools·500K provider
+tokens 고정 상한을 먼저 제거하거나 다른 고정 숫자로 바꾸지 않는다.
 
 A1-2 완료 범위:
 

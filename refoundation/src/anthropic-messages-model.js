@@ -123,7 +123,9 @@ export function makeAnthropicMessagesModel({
     id: model,
     async respond({
       messages = [], tools = [], toolChoice = null, signal, onContextReceipt, resourceObserver,
+      runtimeContext = '',
     } = {}) {
+      const requestInstructions = runtimeContext ? `${instructions}\n\n${runtimeContext}` : instructions;
       if (!started) {
         history.push(...initialMessages(messages));
         for (const message of messages) {
@@ -143,14 +145,14 @@ export function makeAnthropicMessagesModel({
       if (newResults.length) history.push({ role: 'user', content: newResults });
 
       const body = {
-        model, max_tokens: maxTokens, system: instructions,
+        model, max_tokens: maxTokens, system: requestInstructions,
         messages: structuredClone(history), tools: apiTools(tools),
         ...(toolChoice?.requiredToolName ? {
           tool_choice: { type: 'tool', name: toolChoice.requiredToolName },
         } : {}),
       };
       const contextReceipt = makeContextReceipt({
-        provider: 'anthropic', model, instructions, input: body.messages, tools: body.tools,
+        provider: 'anthropic', model, instructions: requestInstructions, input: body.messages, tools: body.tools,
         sourceMessages: messages, body,
       });
       await onContextReceipt?.(structuredClone(contextReceipt));

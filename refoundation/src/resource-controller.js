@@ -100,6 +100,7 @@ class DegradedResourceRun {
     };
   }
   async observeTool() {}
+  situation() { return null; }
   async close() {}
 }
 
@@ -119,6 +120,8 @@ class ResourceRun {
       firstEfficiencyCandidateModelCall: 0, firstPathologyCandidateModelCall: 0,
       firstReliabilityCandidateModelCall: 0,
       retryAttempts: 0, unknownSettlements: 0,
+      providerTokensCommitted: 0, requestBytesReserved: 0,
+      latestToolEvidence: null,
     };
     this.progressContexts = new Map();
   }
@@ -207,6 +210,7 @@ class ResourceRun {
             scopeId: attemptScopeId, dedupeKey: `reserve:${attemptScopeId}`,
             reservationId, requestId, attempt, resources,
           });
+          this.resourceShadow.requestBytesReserved += Number(resources.requestBytes ?? 0);
           observeProgressContext(resources, attempt);
           return { reservationId, requestId, attemptScopeId, startedAt: this.controller.now() };
         } catch (error) {
@@ -217,10 +221,12 @@ class ResourceRun {
       commit: async (handle, { usage, responseId = null }) => {
         if (handle?.degraded || this.degraded) return false;
         try {
+          const resources = tokenUsage(usage);
           await ledger.commit({
             scopeId: handle.attemptScopeId, dedupeKey: `commit:${handle.reservationId}`,
-            reservationId: handle.reservationId, responseId, resources: tokenUsage(usage),
+            reservationId: handle.reservationId, responseId, resources,
           });
+          this.resourceShadow.providerTokensCommitted += Number(resources.totalTokens ?? 0);
           await ledger.observe({
             scopeId: handle.attemptScopeId, dedupeKey: `wall:${handle.reservationId}`,
             resources: { wallMs: Math.max(0, this.controller.now() - handle.startedAt), modelCalls: 1 },
@@ -278,6 +284,7 @@ class ResourceRun {
     if (evidence === 'new') this.resourceShadow.novelEvidence += 1;
     else if (evidence === 'repeated') this.resourceShadow.repeatedEvidence += 1;
     else this.resourceShadow.noEvidence += 1;
+    this.resourceShadow.latestToolEvidence = evidence;
     const toolScopeId = stableId('tool-call', `${this.runIdentity}:${turn}:${toolCallId}`);
     try { await this.ledger.createScope({
       scopeId: toolScopeId, parentScopeId: this.runScopeId, kind: 'tool_call',
@@ -291,6 +298,66 @@ class ResourceRun {
     await this.ledger.closeScope({
       scopeId: toolScopeId, dedupeKey: `close:${toolScopeId}`, status: outcome,
     }); } catch (error) { await this.markDegraded('tool_observation', error); }
+  }
+
+  situation({ agent = {}, limits = {}, information = {} } = {}) {
+    if (this.degraded) return null;
+    const candidate = deriveResourceAnomalyCandidate(this.resourceShadow);
+    const number = (value) => Number.isFinite(Number(value)) && Number(value) >= 0
+      ? Math.trunc(Number(value)) : 0;
+    const used = {
+      foregroundModelTurns: number(agent.modelTurns),
+      foregroundToolCalls: number(agent.toolCalls),
+      foregroundProviderTokens: number(agent.providerTokens),
+    };
+    const next = {
+      modelTurns: used.foregroundModelTurns + 1,
+      toolCalls: used.foregroundToolCalls + Math.max(1, number(agent.lastTurnToolCalls)),
+      providerTokens: used.foregroundProviderTokens + Math.max(1, number(agent.lastProviderTokens)),
+    };
+    return {
+      state: 'observed', accounting: 'exact_or_explicit_unknown', intervention: false,
+      usage: {
+        ...used,
+        allObservedModelCalls: number(this.resourceShadow.modelCalls),
+        providerRetryAttempts: number(this.resourceShadow.retryAttempts),
+        allObservedProviderTokens: number(this.resourceShadow.providerTokensCommitted),
+        allObservedRequestBytes: number(this.resourceShadow.requestBytesReserved),
+        toolCallsObserved: number(this.resourceShadow.toolCalls),
+        unknownSettlements: number(this.resourceShadow.unknownSettlements),
+      },
+      evidence: {
+        novel: number(this.resourceShadow.novelEvidence),
+        repeated: number(this.resourceShadow.repeatedEvidence),
+        none: number(this.resourceShadow.noEvidence),
+        intervalsWithoutNovelEvidence: number(this.resourceShadow.intervalsWithoutNewEvidence),
+        latestToolEvidence: this.resourceShadow.latestToolEvidence,
+      },
+      input: {
+        historicalConversationBytes: number(information.historicalConversationBytes),
+        memoryBytes: number(information.memoryBytes),
+        currentRunToolReceiptBytes: number(information.currentRunToolReceiptBytes),
+        repeatedToolReceiptBytes: number(information.repeatedToolReceiptBytes),
+        activeToolDefinitionBytes: number(information.activeToolDefinitionBytes),
+      },
+      legacyFixedBoundaries: {
+        modelTurns: { used: used.foregroundModelTurns, configured: number(limits.maxModelTurns),
+          projectedNext: next.modelTurns,
+          wouldReachOnNextObservedPattern: next.modelTurns >= number(limits.maxModelTurns) },
+        toolCalls: { used: used.foregroundToolCalls, configured: number(limits.maxToolCalls),
+          projectedNext: next.toolCalls,
+          wouldReachOnNextObservedPattern: next.toolCalls >= number(limits.maxToolCalls) },
+        providerTokens: { used: used.foregroundProviderTokens, configured: number(limits.maxProviderTokens),
+          projectedNext: next.providerTokens,
+          wouldReachOnNextObservedPattern: next.providerTokens >= number(limits.maxProviderTokens) },
+        changedBySituation: false,
+      },
+      anomaly: candidate ? {
+        category: candidate.category, signals: candidate.signals,
+        firstPathologyModelCall: number(candidate.metrics.firstPathologyCandidateModelCall),
+        firstEfficiencyModelCall: number(candidate.metrics.firstEfficiencyCandidateModelCall),
+      } : null,
+    };
   }
 
   async close(status) {

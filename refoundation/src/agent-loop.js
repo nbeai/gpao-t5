@@ -1,6 +1,7 @@
 import { evidenceFingerprint } from './resource-evidence.js';
 import { compactDuplicateEvidence } from './information-control.js';
 import { measureModelInformation } from './information-context.js';
+import { resourceSituationBlock, resourceSituationTransitionKey } from './resource-situation.js';
 
 const DEFAULT_MAX_MODEL_TURNS = 16;
 const DEFAULT_MAX_TOOL_CALLS = 24;
@@ -216,6 +217,7 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [],
  *   resourcePurpose?:string,
  *   historyInformation?:object,
  *   focusToolSurface?:boolean,
+ *   resourceSituationMode?:'off'|'current-v1',
  *   onEvent?:(event:object)=>void|Promise<void>,
  * }} input
  */
@@ -230,6 +232,7 @@ export async function runAgent({
   resourcePurpose = 'main',
   historyInformation = {},
   focusToolSurface = false,
+  resourceSituationMode = 'current-v1',
   onEvent,
 }) {
   if (typeof request !== 'string' || !request.trim()) throw new TypeError('request is required');
@@ -237,6 +240,9 @@ export async function runAgent({
   if (!Number.isInteger(maxModelTurns) || maxModelTurns < 1) throw new TypeError('maxModelTurns must be positive');
   for (const [name, value] of Object.entries({ maxToolCalls, maxFailedToolCalls, maxProviderTokens })) {
     if (!Number.isInteger(value) || value < 1) throw new TypeError(`${name} must be positive`);
+  }
+  if (!['off', 'current-v1'].includes(resourceSituationMode)) {
+    throw new TypeError('unsupported resource situation mode');
   }
 
   const registry = new Map();
@@ -268,7 +274,9 @@ export async function runAgent({
   const toolExposures = new Map();
   let toolSurfaceFocused = false;
   const routeActivatedTools = new Set();
+  let lastResourceSituationKey = null;
   let completionReminderSent = false;
+  let lastTurnToolCalls = 0;
   const completionSatisfied = () => Boolean(requiredCompletionTool && receipts.some((receipt) => (
     receipt.actualCall?.name === requiredCompletionTool && receipt.outcome === 'succeeded'
   )));
@@ -278,17 +286,34 @@ export async function runAgent({
 
     modelTurns += 1;
     await onEvent?.({ type: 'model_start', turn: modelTurns });
+    const informationFacts = measureModelInformation({
+      history: historyInformation, currentRequest: transcript[prior.length],
+      currentRunMessages: transcript.slice(prior.length + 1),
+      tools: definitions, toolExposures,
+      requiredRecoveryTools: definitions.map((definition) => definition.name).filter((name) => (
+        name === 'tool_search' || name === requiredCompletionTool
+        || registry.get(name)?.informationAlwaysVisible === true
+      )),
+    });
     await onEvent?.({
       type: 'information_context', turn: modelTurns,
-      facts: measureModelInformation({
-        history: historyInformation, currentRequest: transcript[prior.length],
-        currentRunMessages: transcript.slice(prior.length + 1),
-        tools: definitions, toolExposures,
-        requiredRecoveryTools: definitions.map((definition) => definition.name).filter((name) => (
-          name === 'tool_search' || name === requiredCompletionTool
-          || registry.get(name)?.informationAlwaysVisible === true
-        )),
-      }),
+      facts: informationFacts,
+    });
+    const situation = resourceSituationMode === 'current-v1' ? resourceRun?.situation?.({
+      agent: {
+        modelTurns: modelTurns - 1, toolCalls, providerTokens, lastTurnToolCalls,
+        lastProviderTokens: modelCalls.at(-1)?.usage?.total_tokens ?? 0,
+      },
+      limits: { maxModelTurns, maxToolCalls, maxProviderTokens },
+      information: informationFacts,
+    }) : null;
+    const situationKey = resourceSituationTransitionKey(situation);
+    const situationBlock = situationKey && situationKey !== lastResourceSituationKey
+      ? resourceSituationBlock(situation) : null;
+    if (situationBlock) lastResourceSituationKey = situationKey;
+    if (situationBlock) await onEvent?.({
+      type: 'resource_situation', turn: modelTurns, situation,
+      bytes: Buffer.byteLength(situationBlock, 'utf8'),
     });
     const resourceObserver = resourceRun?.modelObserver({
       logicalCallId: `${resourcePurpose}:${modelTurns}`, purpose: resourcePurpose,
@@ -296,6 +321,7 @@ export async function runAgent({
     const response = normalizeResponse(await model.respond({
       messages: structuredClone(transcript),
       tools: structuredClone(definitions),
+      ...(situationBlock ? { runtimeContext: situationBlock } : {}),
       ...(completionReminderSent && requiredCompletionTool && !completionSatisfied() ? {
         toolChoice: { requiredToolName: requiredCompletionTool },
       } : {}),
@@ -316,6 +342,7 @@ export async function runAgent({
     });
     const reportedTokens = Number(response.usage?.total_tokens);
     if (Number.isFinite(reportedTokens) && reportedTokens > 0) providerTokens += reportedTokens;
+    lastTurnToolCalls = response.toolCalls.length;
     const providerBudgetExceeded = providerTokens > maxProviderTokens;
     await onEvent?.({
       type: 'model_end',

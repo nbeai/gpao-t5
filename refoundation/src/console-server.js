@@ -235,6 +235,7 @@ export function makeConsoleServer({
   conversationProjection = 'historical-tool-receipt-v1',
   informationControl = 'research-first-v1',
   conversationRelevance = 'user-source-latest-v1',
+  resourceSituationMode = 'current-v1',
   largeToolOutputMode = 'recoverable',
   conversationCheckpointMode = 'in-place-v0',
   checkpointTriggerBytes = 300_000,
@@ -276,6 +277,9 @@ export function makeConsoleServer({
   }
   if (!['full-v0', 'user-source-latest-v1'].includes(conversationRelevance)) {
     throw new TypeError('unsupported conversation relevance mode');
+  }
+  if (!['off', 'current-v1'].includes(resourceSituationMode)) {
+    throw new TypeError('unsupported resource situation mode');
   }
   if (!['off', 'in-place-v0'].includes(conversationCheckpointMode)) {
     throw new TypeError('unsupported conversation checkpoint mode');
@@ -1124,6 +1128,7 @@ export function makeConsoleServer({
         resourcePurpose: options.trigger === 'automation' ? 'automation_main' : 'main',
         historyInformation: projection.information,
         focusToolSurface: informationControl === 'research-first-v1',
+        resourceSituationMode,
         onEvent: async (event) => {
           if (event.type === 'model_start') {
             await run.append({
@@ -1142,6 +1147,11 @@ export function makeConsoleServer({
                 turn: event.turn, selectedTool: event.selectedTool,
                 family: event.family, hidden: event.hidden,
               },
+            });
+          } else if (event.type === 'resource_situation') {
+            await run.append({
+              type: 'resource_situation_built', stepId: `resource-situation-${event.turn}`,
+              payload: { turn: event.turn, bytes: event.bytes, situation: event.situation },
             });
           } else if (event.type === 'model_context') {
             await run.append({

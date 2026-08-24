@@ -1,0 +1,165 @@
+{
+  "schema": "t5.s2-a1-3-resource-situation.v1",
+  "recordedAt": "2026-08-24T19:21:27+09:00",
+  "gate": "S2-A1_RESOURCE_CONTROL",
+  "stage": "A1-3_RESOURCE_SITUATION",
+  "status": "complete",
+  "goal": "Give the main model bounded current resource reality only when that reality materially changes, without changing caps or runtime execution policy.",
+  "closePoint": "Normal HP-02/03 receive no Situation; an existing-boundary qualification projects one Situation and GPT-5.5 completes where the same fixed boundary without Situation stops; all regressions pass.",
+  "comparisonStudy": {
+    "source": "owner_provided_source_review",
+    "openClaw": {
+      "commit": "e085fa1a3ffd32d0ea6917e1e6fb4ecbffbb77d2",
+      "files": [
+        {"name":"src/context-engine/types.ts","sha256":"769484ec215a88c51b3902cbdab335aaee41165a5d257801b356f4a51273b7ee"},
+        {"name":"src/agents/embedded-agent-runner/tool-result-context-guard.ts","sha256":"9cc622e3b65108d616a011119ad646b6818da9e3c69abdd86b2b5cda1c468242"},
+        {"name":"src/agents/embedded-agent-runner/transcript-rewrite.ts","sha256":"75beead7e0044a800d28b307c65e889a06e1f0dc07dc19c5709a4b51d0d073b3"}
+      ],
+      "adopted": [
+        "canonical_history_and_model_projection_are_separate",
+        "actual_recent_usage_is_distinct_from_context_pressure",
+        "projection_failure_must_not_block_user_work",
+        "compaction_or_projection_thrash_is_its_own_failure"
+      ],
+      "rejected": [
+        "single_tool_result_fixed_fifty_percent_share",
+        "ninety_percent_preemptive_overflow_ratio",
+        "raw_message_reinflation_after_projection_failure"
+      ]
+    },
+    "hermes": {
+      "commit": "91e867631e9d2eb9fbd69edd4459475d38070979",
+      "files": ["context_compressor.py", "conversation_loop.py", "aux_accounting.py"],
+      "adopted": [
+        "deterministic_cleanup_before_model_summary",
+        "latest_duplicate_result_keeps_full_evidence",
+        "exact_history_recovery_pointer",
+        "anti_thrash_and_cooldown_as_explicit_states"
+      ],
+      "rejected": [
+        "fifty_percent_compression_threshold",
+        "twenty_percent_target_ratio",
+        "auxiliary_summary_model_in_a1_3",
+        "fixed_protected_head_or_tail_counts"
+      ]
+    },
+    "productConclusion": "T5 does not claim unique context technology. It integrates verified canonical/projection principles into a smaller user-purpose compiler and proves model behavior on user tasks."
+  },
+  "discardedDesigns": [
+    {
+      "design": "project_full_resource_telemetry_on_every_model_request",
+      "failure": "HP-03 kept purpose and round trips but wall increased from 41.3 to 46.5 seconds and request/tokens increased about three percent."
+    },
+    {
+      "design": "project_on_every_efficiency_or_cumulative_no_evidence_transition",
+      "failure": "HP-02 on expanded to 9 model and 8 tool calls versus off 4 and 3, and HP-03 received stale cumulative warnings after recovery."
+    }
+  ],
+  "implemented": {
+    "schema": "t5.resource-situation.v1",
+    "maxProjectionBytes": 8192,
+    "actualProjectionBytesQualified": 1357,
+    "stableConstitutionPrefixPreserved": true,
+    "dynamicRuntimeSuffixPerProviderRequest": true,
+    "providerAdapters": ["openai", "chatgpt_oauth", "anthropic", "gemini", "upstage"],
+    "canonicalConversationInjection": false,
+    "canonicalRunAnswerInjection": false,
+    "accountingDegradedInjection": false,
+    "sameSituationRepeatedInjection": false,
+    "normalEfficiencyCandidateInjection": false,
+    "latestNovelEvidenceSuppressesStalePathology": true,
+    "projectionTransitions": [
+      "current_repeated_evidence",
+      "current_pathology_candidate",
+      "reliability_candidate",
+      "provider_retry_or_unknown",
+      "existing_model_turn_boundary_reached_by_next_observed_pattern",
+      "existing_tool_call_boundary_reached_by_next_observed_pattern",
+      "existing_provider_token_boundary_reached_by_next_observed_pattern"
+    ],
+    "runtimeIntervention": false
+  },
+  "normalTaskQualification": {
+    "HP-02": {
+      "model": "gpt-5.6-terra",
+      "purposeAchieved": true,
+      "situationEvents": 0,
+      "situationBytes": 0,
+      "modelCallsObserved": 6,
+      "toolCallsObserved": 5,
+      "unsettled": 0,
+      "browserCalls": 0
+    },
+    "HP-03": {
+      "model": "gpt-5.5",
+      "purposeAchieved": true,
+      "situationEvents": 0,
+      "situationBytes": 0,
+      "modelCallsObserved": 6,
+      "toolCallsObserved": 5,
+      "unsettled": 0,
+      "browserCalls": 0
+    }
+  },
+  "existingBoundaryQualification": {
+    "qualificationOnlyModelTurnBoundary": 2,
+    "productModelTurnBoundaryChanged": false,
+    "productToolBoundaryChanged": false,
+    "productProviderTokenBoundaryChanged": false,
+    "terra": {
+      "off": {"status":"completed","answerCorrect":true,"wallMs":4062.744,"modelTurns":2,"toolCalls":1,"providerTokens":11718,"requestBytes":60929},
+      "on": {"status":"completed","answerCorrect":true,"wallMs":3781.488,"modelTurns":2,"toolCalls":1,"providerTokens":12098,"requestBytes":62573,"situationEvents":1,"situationBytes":1357}
+    },
+    "gpt55": {
+      "off": {"status":"failed","answerCorrect":false,"wallMs":9512.398,"reason":"run_resource_budget_exceeded","providerTokens":11671,"requestBytes":60435},
+      "on": {"status":"completed","answerCorrect":true,"wallMs":7320.723,"modelTurns":2,"toolCalls":1,"providerTokens":12201,"requestBytes":62942,"situationEvents":1,"situationBytes":1357}
+    },
+    "internalTermsInAnswers": 0,
+    "unsettled": 0
+  },
+  "platformBoundary": {
+    "sourceEvidence": "s2-a1-platform-boundary-seal-2026-08-24.json",
+    "pathPidSignalIdentity": false,
+    "providerProjectionOnly": true,
+    "windowsFeatureImplemented": false,
+    "copiedWslArchitecture": false
+  },
+  "verification": {
+    "refoundationUnitPassed": 646,
+    "refoundationUnitFailed": 0,
+    "defaultProductIntegrationPassed": 97,
+    "defaultProductIntegrationFailed": 0,
+    "visibleBrowserLiveExecuted": false,
+    "legacySourceImports": 0
+  },
+  "fixedCaps": {
+    "modelTurns": 16,
+    "toolCalls": 24,
+    "providerTokens": 500000,
+    "changed": false,
+    "removed": false
+  },
+  "notImplemented": [
+    "active_optimization_candidates",
+    "automatic_batch_or_route_change",
+    "fixed_cap_replacement",
+    "runtime_stop_or_intervention",
+    "telegram_or_notion_expansion",
+    "new_package"
+  ],
+  "artifacts": {
+    "resourceSituationSha256": "e46fed4eadeab5f82b0c8837b47f18b516b4ca00a789983b2d87d148fe03ab84",
+    "resourceControllerSha256": "7c3679ed9fa90d07bd7585c46670e18f43bbfa61b48a3135d8d29efa79866151",
+    "agentLoopSha256": "de95e2319a9d6cc672c5d02eda05d1f3894c99306ae967a90a822fcb446f2c52",
+    "consoleServerSha256": "a98a684e1723ebb36cfc655e4e185ca1dff34229eee7ff7817c4e380ae675667",
+    "openaiAdapterSha256": "ea2cfcbeb63e793ac8c69ad1896f2ee7fbd36ebe7ca22b8caf6b223f06c99c61",
+    "chatgptAdapterSha256": "332b570e15a70f5e1d1a7d180417b983eeabecb1fe34d0ba06f75fda85f1c133",
+    "anthropicAdapterSha256": "2581112ac8f49f8c23fc8a6490f65e8e153f340eb1ba549c949bc07d1d905483",
+    "geminiAdapterSha256": "b2b288470be4093c912cdbb7feb266e5384d30982035523a5678e32096a55a73",
+    "upstageAdapterSha256": "ace3b5c9ea1f98354ebdbabc72ec044be5386bbd3cd0795363f9821839f981d0",
+    "unitTestSha256": "2e1fda726a21984a893bbffdbc47c32e38c9df7c6aced948e5f2514958fd754b",
+    "integrationTestSha256": "1b933cb4ddd977016a66ecd34c3d864207800980a100490b2966313ac18bd406"
+  },
+  "productBehaviorChanged": true,
+  "newPackageCreated": false
+}
