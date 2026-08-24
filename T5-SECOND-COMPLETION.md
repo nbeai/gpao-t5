@@ -245,8 +245,12 @@ A1-1 exact accounting shadow — COMPLETE
 ```
 
 A1-1은 모든 model adapter의 provider fetch 전 durable reservation, retry attempt 분리, provider usage commit,
-crash·cancel unknown, tool wall/call 관측, checkpoint·memory flush·visual observer·automation main 연결을
-content-free shadow로 완성했다. 모델 Context·사용자 답·상한·도구 선택·UI는 바꾸지 않았다. 근거:
+crash·cancel unknown, tool wall/call 관측, checkpoint·memory flush·visual observer·automation main과 hosted search
+내부 model call 연결을 content-free shadow로 완성했다. 회계 storage가 startRun·reservation·settlement에서
+실패하면 기존 Run에 `accounting_degraded`를 한 번 남기고 정상 사용자 작업은 계속하며, 같은 실패를 계측이
+반복하지 않는다. Terra·gpt-5.5의 격리된 Terminal·Document·Web·cancel 실제 콘솔 7턴에서 Browser·승인·내부
+Resource 문구 0, reservation 23 = 관측 model call 23, commit 22 + cancel unknown 1, 미정산 0을 확인했다.
+모델 Context·사용자 답·상한·도구 선택·UI는 바꾸지 않았다. 근거:
 `refoundation/evidence/s2-a1-1-exact-accounting-shadow-2026-08-24.json`
 
 통과 조건:
@@ -413,7 +417,8 @@ A1-1 완료 범위:
 ```text
 새 파일: resource-ledger.js · resource-controller.js · resource-event-storage.js · resource-report.js
 연결: agent-loop.js · console-server.js · model adapters
-검사: provider prefetch reservation · retry·parallel·crash·cancel·idempotency · A0 replay · platform storage
+검사: provider prefetch reservation · hosted search child call · retry·parallel·crash·cancel·idempotency
+      · storage degraded · A0 replay · platform storage · Terra/gpt-5.5 실제 콘솔
 ```
 
 다음 작업 비목표:

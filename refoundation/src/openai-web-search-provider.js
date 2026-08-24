@@ -1,3 +1,8 @@
+import { makeContextReceipt } from './context-receipt.js';
+import {
+  reserveProviderAttempt, settleProviderSuccess, settleProviderUnknown,
+} from './provider-request-accounting.js';
+
 const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
 
 function outputCitations(output = []) {
@@ -68,7 +73,7 @@ export function makeStoredOpenAIWebSearchProvider({
         ? { available: true }
         : { available: false, reason: 'openai_api_connection_missing' };
     },
-    async search(query, { limit = 8, domains = [], signal } = {}) {
+    async search(query, { limit = 8, domains = [], signal, resourceObserver } = {}) {
       const selected = await connection();
       if (!selected) throw new Error('OpenAI API connection is not available');
       const credential = await credentialCatalog.select(selected.id);
@@ -92,6 +97,14 @@ export function makeStoredOpenAIWebSearchProvider({
         ].join(' '),
         store: false,
       };
+      const contextReceipt = makeContextReceipt({
+        provider: 'openai_web_search', model: credential.modelId,
+        instructions: '', input: body.input, tools: body.tools, sourceMessages: [], body,
+      });
+      if (signal?.aborted) throw new Error('OpenAI web search cancelled before dispatch');
+      const resourceHandle = await reserveProviderAttempt(resourceObserver, {
+        provider: 'openai_web_search', model: credential.modelId, attempt: 1, contextReceipt,
+      });
       let response;
       try {
         response = await fetchImpl(`${baseUrl}/responses`, {
@@ -100,19 +113,32 @@ export function makeStoredOpenAIWebSearchProvider({
           body: JSON.stringify(body),
         });
       } catch (error) {
+        await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_transport_unknown');
         throw new Error(`OpenAI web search request failed: ${safeError(error?.message ?? error, key)}`);
       }
       const raw = await response.text();
       if (!response.ok) {
+        await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_http_error', {
+          httpStatus: response.status,
+        });
         let message = raw;
         try { message = JSON.parse(raw)?.error?.message ?? raw; } catch { /* keep raw */ }
         throw new Error(`OpenAI web search ${response.status}: ${safeError(message, key)}`);
       }
       let json;
       try { json = JSON.parse(raw); }
-      catch { throw new Error('OpenAI web search returned invalid JSON'); }
+      catch {
+        await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_response_invalid');
+        throw new Error('OpenAI web search returned invalid JSON');
+      }
       const rows = searchSources(json.output, limit);
-      if (!rows.length) throw new Error('OpenAI web search returned no source candidates');
+      if (!rows.length) {
+        await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_response_invalid');
+        throw new Error('OpenAI web search returned no source candidates');
+      }
+      await settleProviderSuccess(resourceObserver, resourceHandle, {
+        usage: json.usage ?? null, responseId: json.id ?? null,
+      });
       return rows;
     },
   };

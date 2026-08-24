@@ -36,6 +36,21 @@ function contextResources(receipt = {}) {
   };
 }
 
+function diagnostic(stage, error) {
+  const code = typeof error?.code === 'string' && /^[A-Za-z0-9_.-]{1,80}$/u.test(error.code)
+    ? error.code : null;
+  return {
+    state: 'accounting_degraded', stage,
+    errorClass: String(error?.name ?? 'Error').slice(0, 80),
+    ...(code ? { errorCode: code } : {}),
+  };
+}
+
+async function publishDiagnostic(callback, stage, error) {
+  if (typeof callback !== 'function') return;
+  try { await callback(diagnostic(stage, error)); } catch { /* accounting diagnostics never block work */ }
+}
+
 export class ResourceController {
   constructor(ledger, { now = Date.now, makeId = randomUUID } = {}) {
     if (!ledger) throw new TypeError('resource ledger is required');
@@ -48,28 +63,54 @@ export class ResourceController {
     return this.recovery;
   }
 
-  async startRun({ sessionId, runId, trigger = 'user' }) {
-    await this.ensureRecovered();
+  async startRun({ sessionId, runId, trigger = 'user', onDiagnostic = null }) {
     const sessionScopeId = stableId('session', sessionId);
     const runScopeId = stableId('run', runId);
-    await this.ledger.createScope({
-      scopeId: sessionScopeId, kind: 'session', dedupeKey: `scope:${sessionScopeId}`,
-    });
-    await this.ledger.createScope({
-      scopeId: runScopeId, parentScopeId: sessionScopeId, kind: 'run',
-      dedupeKey: `scope:${runScopeId}`, facts: { trigger },
-    });
+    try {
+      await this.ensureRecovered();
+      await this.ledger.createScope({
+        scopeId: sessionScopeId, kind: 'session', dedupeKey: `scope:${sessionScopeId}`,
+      });
+      await this.ledger.createScope({
+        scopeId: runScopeId, parentScopeId: sessionScopeId, kind: 'run',
+        dedupeKey: `scope:${runScopeId}`, facts: { trigger },
+      });
+    } catch (error) {
+      await publishDiagnostic(onDiagnostic, 'start_run', error);
+      return new DegradedResourceRun({ onDiagnostic });
+    }
     return new ResourceRun({
-      controller: this, runScopeId, sessionScopeId, runIdentity: String(runId),
+      controller: this, runScopeId, sessionScopeId, runIdentity: String(runId), onDiagnostic,
     });
   }
 }
 
+class DegradedResourceRun {
+  constructor({ onDiagnostic = null } = {}) { this.onDiagnostic = onDiagnostic; }
+  modelObserver() {
+    return {
+      reserve: async () => ({ degraded: true }),
+      commit: async () => false, unknown: async () => false, release: async () => false,
+      degraded: async ({ stage, error }) => publishDiagnostic(this.onDiagnostic, stage, error),
+    };
+  }
+  async observeTool() {}
+  async close() {}
+}
+
 class ResourceRun {
-  constructor({ controller, runScopeId, sessionScopeId, runIdentity }) {
+  constructor({ controller, runScopeId, sessionScopeId, runIdentity, onDiagnostic = null }) {
     this.controller = controller; this.ledger = controller.ledger;
     this.runScopeId = runScopeId; this.sessionScopeId = sessionScopeId;
     this.runIdentity = runIdentity; this.modelScopes = new Set(); this.closed = false;
+    this.onDiagnostic = onDiagnostic; this.degraded = false; this.diagnosticStages = new Set();
+  }
+
+  async markDegraded(stage, error) {
+    this.degraded = true;
+    if (this.diagnosticStages.has(stage)) return;
+    this.diagnosticStages.add(stage);
+    await publishDiagnostic(this.onDiagnostic, stage, error);
   }
 
   modelObserver({ logicalCallId, purpose = 'main' }) {
@@ -85,26 +126,33 @@ class ResourceRun {
     };
     return {
       reserve: async ({ provider, model, attempt = 1, contextReceipt }) => {
-        await ensureLogical();
+        if (this.degraded) return { degraded: true };
         const requestId = `${logicalScopeId}:request`;
         const attemptScopeId = stableId('model-attempt', `${requestId}:${attempt}`);
         const reservationId = this.controller.makeId();
-        await ledger.createScope({
-          scopeId: attemptScopeId, parentScopeId: logicalScopeId, kind: 'model_attempt',
-          dedupeKey: `scope:${attemptScopeId}`, facts: { provider, model, attempt, purpose },
-        });
-        const resources = contextResources(contextReceipt);
-        await ledger.forecast({
-          scopeId: attemptScopeId, dedupeKey: `forecast:${attemptScopeId}`,
-          requestId, attempt, resources,
-        });
-        await ledger.reserve({
-          scopeId: attemptScopeId, dedupeKey: `reserve:${attemptScopeId}`,
-          reservationId, requestId, attempt, resources,
-        });
-        return { reservationId, requestId, attemptScopeId, startedAt: this.controller.now() };
+        try {
+          await ensureLogical();
+          await ledger.createScope({
+            scopeId: attemptScopeId, parentScopeId: logicalScopeId, kind: 'model_attempt',
+            dedupeKey: `scope:${attemptScopeId}`, facts: { provider, model, attempt, purpose },
+          });
+          const resources = contextResources(contextReceipt);
+          await ledger.forecast({
+            scopeId: attemptScopeId, dedupeKey: `forecast:${attemptScopeId}`,
+            requestId, attempt, resources,
+          });
+          await ledger.reserve({
+            scopeId: attemptScopeId, dedupeKey: `reserve:${attemptScopeId}`,
+            reservationId, requestId, attempt, resources,
+          });
+          return { reservationId, requestId, attemptScopeId, startedAt: this.controller.now() };
+        } catch (error) {
+          await this.markDegraded('reservation', error);
+          return { degraded: true };
+        }
       },
       commit: async (handle, { usage, responseId = null }) => {
+        if (handle?.degraded || this.degraded) return false;
         try {
           await ledger.commit({
             scopeId: handle.attemptScopeId, dedupeKey: `commit:${handle.reservationId}`,
@@ -118,9 +166,10 @@ class ResourceRun {
             scopeId: handle.attemptScopeId, dedupeKey: `close:${handle.attemptScopeId}`, status: 'completed',
           });
           return true;
-        } catch { return false; }
+        } catch (error) { await this.markDegraded('settlement', error); return false; }
       },
       unknown: async (handle, { reason, facts = {} }) => {
+        if (handle?.degraded || this.degraded) return false;
         try {
           await ledger.markUnknown({
             scopeId: handle.attemptScopeId, dedupeKey: `unknown:${handle.reservationId}`,
@@ -134,9 +183,10 @@ class ResourceRun {
             scopeId: handle.attemptScopeId, dedupeKey: `close:${handle.attemptScopeId}`, status: 'unknown',
           });
           return true;
-        } catch { return false; }
+        } catch (error) { await this.markDegraded('settlement', error); return false; }
       },
       release: async (handle, { reason }) => {
+        if (handle?.degraded || this.degraded) return false;
         try {
           await ledger.release({
             scopeId: handle.attemptScopeId, dedupeKey: `release:${handle.reservationId}`,
@@ -146,14 +196,16 @@ class ResourceRun {
             scopeId: handle.attemptScopeId, dedupeKey: `close:${handle.attemptScopeId}`, status: 'released',
           });
           return true;
-        } catch { return false; }
+        } catch (error) { await this.markDegraded('settlement', error); return false; }
       },
+      degraded: async ({ stage, error }) => this.markDegraded(stage, error),
     };
   }
 
   async observeTool({ turn, toolCallId, name, outcome, startedAt }) {
+    if (this.degraded) return;
     const toolScopeId = stableId('tool-call', `${this.runIdentity}:${turn}:${toolCallId}`);
-    await this.ledger.createScope({
+    try { await this.ledger.createScope({
       scopeId: toolScopeId, parentScopeId: this.runScopeId, kind: 'tool_call',
       dedupeKey: `scope:${toolScopeId}`, facts: { name },
     });
@@ -164,19 +216,21 @@ class ResourceRun {
     });
     await this.ledger.closeScope({
       scopeId: toolScopeId, dedupeKey: `close:${toolScopeId}`, status: outcome,
-    });
+    }); } catch (error) { await this.markDegraded('tool_observation', error); }
   }
 
   async close(status) {
-    if (this.closed) return;
-    for (const scopeId of this.modelScopes) {
+    if (this.closed || this.degraded) return;
+    try {
+      for (const scopeId of this.modelScopes) {
+        await this.ledger.closeScope({
+          scopeId, dedupeKey: `close:${scopeId}`, status,
+        });
+      }
       await this.ledger.closeScope({
-        scopeId, dedupeKey: `close:${scopeId}`, status,
+        scopeId: this.runScopeId, dedupeKey: `close:${this.runScopeId}`, status,
       });
-    }
-    await this.ledger.closeScope({
-      scopeId: this.runScopeId, dedupeKey: `close:${this.runScopeId}`, status,
-    });
+    } catch (error) { await this.markDegraded('scope_close', error); }
     this.closed = true;
   }
 }

@@ -106,7 +106,7 @@ function historyMessage(message) {
   return null;
 }
 
-async function executeCall(call, tools, signal, activeTools, priorReceipts = []) {
+async function executeCall(call, tools, signal, activeTools, priorReceipts = [], resourceRun = null) {
   const requested = requestedCall(call);
   const tool = tools.get(requested.name);
   if (!tool) {
@@ -138,7 +138,10 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [])
     };
   }
 
-  const toolContext = { signal, priorReceipts: structuredClone(priorReceipts) };
+  const toolContext = {
+    signal, priorReceipts: structuredClone(priorReceipts), resourceRun,
+    toolCallId: requested.id,
+  };
   if (typeof tool.preflight === 'function') {
     try {
       const gate = await tool.preflight(requested.args, toolContext);
@@ -364,7 +367,7 @@ export async function runAgent({
         actualCall: null,
         outcome: 'not_executed',
         result: { state: 'repeated_call_stopped', occurrences: repetitions + 1 },
-      } : await executeCall(call, registry, signal, activeTools, receipts);
+      } : await executeCall(call, registry, signal, activeTools, receipts, resourceRun);
       const visualAttachments = receipt._modelAttachments ?? [];
       delete receipt._modelAttachments;
       receipts.push(receipt);

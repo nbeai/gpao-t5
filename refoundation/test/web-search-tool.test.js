@@ -78,3 +78,29 @@ test('web_search는 사용할 수 없는 provider를 실행한 척하지 않는�
   assert.equal(result.state, 'unavailable');
   assert.deepEqual(result.providers, [{ id: 'needs-key', label: 'Needs Key', available: false, reason: 'credential_missing' }]);
 });
+
+test('web_search는 tool 내부 provider model call을 같은 ResourceRun child scope에 연결한다', async () => {
+  const observer = { async reserve() {} };
+  let observedOptions;
+  const provider = {
+    id: 'internal-model', label: 'Internal Model',
+    async available() { return { available: true }; },
+    async search(_query, options) {
+      observedOptions = options;
+      return [{ title: '결과', url: 'https://example.com/', snippet: '설명' }];
+    },
+  };
+  const resourceCalls = [];
+  const result = await makeWebSearchTool({ providers: [provider] }).execute({
+    query: '검색', provider: null, limit: 3, domains: null,
+  }, {
+    toolCallId: 'tool-call-1',
+    resourceRun: { modelObserver(facts) { resourceCalls.push(facts); return observer; } },
+  });
+  assert.equal(result.state, 'candidates');
+  assert.equal(observedOptions.resourceObserver, observer);
+  assert.deepEqual(resourceCalls, [{
+    logicalCallId: 'tool:tool-call-1:web-search:internal-model',
+    purpose: 'tool_internal_web_search',
+  }]);
+});

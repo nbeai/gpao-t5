@@ -8,6 +8,7 @@ import { makeConsoleServer } from '../src/console-server.js';
 import { ConsoleSessionStore } from '../src/console-session-store.js';
 import { ConversationLedger } from '../src/conversation-ledger.js';
 import { makeOpenAIResponsesModel } from '../src/openai-responses-model.js';
+import { ResourceLedger } from '../src/resource-ledger.js';
 
 async function listen(server) {
   await new Promise((resolve, reject) => {
@@ -79,6 +80,41 @@ test('한 콘솔 Run의 checkpoint·memory flush·주 모델은 fetch 전 reserv
     assert.ok(purposes.includes('main'));
     assert.equal(resources.some((event) => event.type === 'ControlActionRecorded'), false);
     assert.equal(JSON.stringify((await conversation.read(session.id)).messages).includes('resourceScope'), false);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('Resource storage 실패는 기존 Run에 degraded 진단만 남기고 콘솔 사용자 결과를 바꾸지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-resource-degraded-console-'));
+  const stateDir = join(room, 'state'); const workspace = join(room, 'workspace');
+  await mkdir(workspace, { recursive: true });
+  let failures = 0;
+  const resourceLedger = new ResourceLedger('fault-storage', { storage: {
+    async prepare() { failures += 1; throw new Error('private storage detail'); },
+    async read() { return ''; }, async append() {},
+  } });
+  const server = makeConsoleServer({
+    stateDir, workspace, resourceLedger,
+    modelFactory: () => ({ async respond() { return { text: '정상 사용자 결과', toolCalls: [] }; } }),
+    modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture-model' }),
+  });
+  const base = await listen(server);
+  try {
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const reply = await fetch(`${base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: '간단히 답해줘' }),
+    }).then((response) => response.json());
+    assert.equal(reply.reply, '정상 사용자 결과');
+    assert.equal(failures, 1);
+    const run = await server.runLedger.read(reply.runId);
+    const degraded = run.events.filter((event) => event.type === 'resource_accounting_degraded');
+    assert.equal(degraded.length, 1);
+    assert.equal(degraded[0].payload.state, 'accounting_degraded');
+    assert.equal(degraded[0].payload.stage, 'start_run');
+    assert.doesNotMatch(JSON.stringify(run.events), /private storage detail|fault-storage/u);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await rm(room, { recursive: true, force: true });

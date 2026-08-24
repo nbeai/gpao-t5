@@ -6,6 +6,8 @@ import { makeChatGptResponsesModel } from '../src/chatgpt-responses-model.js';
 import { makeGeminiGenerateContentModel } from '../src/gemini-generate-content-model.js';
 import { makeOpenAIResponsesModel } from '../src/openai-responses-model.js';
 import { makeUpstageChatCompletionsModel } from '../src/upstage-chat-completions-model.js';
+import { ResourceController } from '../src/resource-controller.js';
+import { ResourceLedger } from '../src/resource-ledger.js';
 
 function accounting(sequence) {
   return {
@@ -88,16 +90,25 @@ test('ChatGPT OAuth 내부 retry는 attempt별 reserve·unknown 뒤 성공 attem
   assert.equal(sequence[3][1].attempt, 2);
 });
 
-test('provider fetch 이전 reserve 실패는 요청을 실행하지 않는다', async () => {
+test('generic observer reserve 실패도 degraded 진단 뒤 정상 provider 작업을 계속한다', async () => {
   let fetched = false;
   const model = makeOpenAIResponsesModel({
-    apiKey: 'key', fetchImpl: async () => { fetched = true; return json({}); },
+    apiKey: 'key', fetchImpl: async () => { fetched = true; return json({
+      id: 'response', usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+      output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'ok' }] }],
+    }); },
   });
-  await assert.rejects(model.respond({
+  const diagnostics = [];
+  const result = await model.respond({
     messages: user, tools: [],
-    resourceObserver: { async reserve() { throw new Error('ledger unavailable'); } },
-  }), /ledger unavailable/u);
-  assert.equal(fetched, false);
+    resourceObserver: {
+      async reserve() { throw new Error('ledger unavailable'); },
+      async degraded(value) { diagnostics.push(value.stage); },
+    },
+  });
+  assert.equal(result.text, 'ok');
+  assert.equal(fetched, true);
+  assert.deepEqual(diagnostics, ['reservation']);
 });
 
 test('dispatch 뒤 cancel·transport 단절은 사용량 0이 아니라 unknown으로 정산한다', async () => {
@@ -112,3 +123,65 @@ test('dispatch 뒤 cancel·transport 단절은 사용량 0이 아니라 unknown�
   assert.deepEqual(sequence.map(([kind]) => kind), ['reserve', 'fetch', 'unknown']);
   assert.equal(sequence[2][1].reason, 'provider_transport_unknown');
 });
+
+function storageFailingAt(failType) {
+  let body = '';
+  let failures = 0;
+  return {
+    get failures() { return failures; },
+    async prepare() {
+      if (failType === 'prepare') { failures += 1; throw new Error('storage prepare failed'); }
+    },
+    async read() { return body; },
+    async append(line) {
+      const event = JSON.parse(line);
+      if (event.type === failType) { failures += 1; throw new Error(`storage ${failType} failed`); }
+      body += line;
+    },
+  };
+}
+
+function successfulOpenAiModel() {
+  let fetches = 0;
+  const model = makeOpenAIResponsesModel({
+    apiKey: 'key',
+    fetchImpl: async () => {
+      fetches += 1;
+      return json({
+        id: 'response', model: 'model',
+        usage: { input_tokens: 3, output_tokens: 1, total_tokens: 4 },
+        output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '사용자 결과' }] }],
+      });
+    },
+  });
+  return { model, fetches: () => fetches };
+}
+
+for (const [label, failType, expectedStage] of [
+  ['startRun', 'prepare', 'start_run'],
+  ['reserve', 'ResourceReserved', 'reservation'],
+  ['settlement', 'ReservationCommitted', 'settlement'],
+]) {
+  test(`${label} storage 실패는 accounting_degraded를 남기고 사용자 model 결과를 바꾸지 않는다`, async () => {
+    const storage = storageFailingAt(failType);
+    const ledger = new ResourceLedger('fault-storage', { storage });
+    const controller = new ResourceController(ledger);
+    const diagnostics = [];
+    const run = await controller.startRun({
+      sessionId: `session-${label}`, runId: `run-${label}`,
+      onDiagnostic: async (value) => diagnostics.push(value),
+    });
+    const provider = successfulOpenAiModel();
+    const result = await provider.model.respond({
+      messages: user, tools: [],
+      resourceObserver: run.modelObserver({ logicalCallId: 'main:1', purpose: 'main' }),
+    });
+    assert.equal(result.text, '사용자 결과');
+    assert.equal(provider.fetches(), 1);
+    assert.equal(storage.failures, 1);
+    assert.equal(diagnostics.length, 1);
+    assert.equal(diagnostics[0].state, 'accounting_degraded');
+    assert.equal(diagnostics[0].stage, expectedStage);
+    assert.doesNotMatch(JSON.stringify(diagnostics), /fault-storage|storage .* failed/u);
+  });
+}

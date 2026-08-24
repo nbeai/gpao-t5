@@ -76,3 +76,28 @@ test('검색 API 오류에는 API key가 노출되지 않는다', async () => {
     return true;
   });
 });
+
+test('OpenAI hosted search 내부 model call도 fetch 전 reserve하고 usage를 commit한다', async () => {
+  const order = [];
+  const provider = makeStoredOpenAIWebSearchProvider({
+    credentialCatalog: {
+      async list() { return [{ id: 'openai:test', kind: 'api_key', provider: 'openai' }]; },
+      async select() { return { kind: 'api_key', provider: 'openai', apiKey: 'key', modelId: 'search-model' }; },
+    },
+    fetchImpl: async () => {
+      order.push('fetch');
+      return new Response(JSON.stringify({
+        id: 'search-response', usage: { input_tokens: 3, output_tokens: 1, total_tokens: 4 },
+        output: [{ type: 'web_search_call', results: [{
+          type: 'url', url: 'https://example.com/', title: '결과', snippet: '설명',
+        }] }],
+      }), { status: 200 });
+    },
+  });
+  const resourceObserver = {
+    async reserve() { order.push('reserve'); return { id: 'reservation' }; },
+    async commit(_handle, facts) { order.push('commit'); assert.equal(facts.usage.total_tokens, 4); },
+  };
+  await provider.search('검색', { resourceObserver });
+  assert.deepEqual(order, ['reserve', 'fetch', 'commit']);
+});

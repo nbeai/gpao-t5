@@ -238,6 +238,7 @@ export function makeConsoleServer({
   processYieldMs = 1000,
   documentCli = bundledDocumentCli,
   attachmentStore,
+  resourceLedger: providedResourceLedger,
   modelConnections,
   messengerProviderFactory,
   localConsoleToken,
@@ -271,7 +272,7 @@ export function makeConsoleServer({
   const capabilityLifecycle = new CapabilityLifecycleLedger(join(stateDir, 'capability-lifecycle'));
   const automationStore = new AutomationStore(join(stateDir, 'automation', 'state.json'));
   const runLedger = new RunLedger(join(stateDir, 'runs'));
-  const resourceLedger = new ResourceLedger(join(stateDir, 'resources'));
+  const resourceLedger = providedResourceLedger ?? new ResourceLedger(join(stateDir, 'resources'));
   const resourceController = new ResourceController(resourceLedger);
   const authority = new AuthorityStore(join(stateDir, 'authority'));
   const attachments = attachmentStore ?? new AttachmentStore(join(stateDir, 'attachments'));
@@ -565,8 +566,17 @@ export function makeConsoleServer({
       ...(currentModelConnection ? { modelConnection: currentModelConnection } : {}),
       ...(modelTransition ? { modelTransition } : {}),
     } });
+    let resourceDiagnosticSequence = 0;
     const resourceRun = await resourceController.startRun({
       sessionId, runId: run.runId, trigger: options.trigger ?? 'user',
+      onDiagnostic: async (diagnostic) => {
+        resourceDiagnosticSequence += 1;
+        await run.append({
+          type: 'resource_accounting_degraded',
+          stepId: `resource-accounting-${resourceDiagnosticSequence}`,
+          payload: diagnostic,
+        }).catch((error) => onError?.(error));
+      },
     });
     if (modelTransition) await run.append({
       type: 'model_connection_changed', stepId: 'model-compatibility',

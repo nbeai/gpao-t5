@@ -121,7 +121,13 @@ export function makeWebSearchTool({ providers = [] } = {}) {
       for (const selectedFact of selectedFacts) {
         const selected = providers.find((provider) => provider.id === selectedFact.id);
         try {
-          const rows = await selected.search(query, { limit, domains, signal: context.signal });
+          const resourceObserver = context.resourceRun?.modelObserver({
+            logicalCallId: `tool:${context.toolCallId}:web-search:${selectedFact.id}`,
+            purpose: 'tool_internal_web_search',
+          });
+          const rows = await selected.search(query, {
+            limit, domains, signal: context.signal, resourceObserver,
+          });
           const candidates = normalizeResults(rows, limit, domains);
           if (!candidates.length) throw new Error('search returned no usable candidates');
           return {

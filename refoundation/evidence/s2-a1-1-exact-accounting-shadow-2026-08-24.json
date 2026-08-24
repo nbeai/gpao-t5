@@ -1,6 +1,6 @@
 {
   "schema": "t5.s2-a1-1-exact-accounting-shadow.v1",
-  "recordedAt": "2026-08-24T15:43:15+09:00",
+  "recordedAt": "2026-08-24T16:12:39+09:00",
   "gate": "S2-A1_RESOURCE_CONTROL",
   "stage": "A1-1_EXACT_ACCOUNTING_SHADOW",
   "userOutcome": {
@@ -28,6 +28,10 @@
     "memoryFlushAccounted": true,
     "visualObservationAccounted": true,
     "automationMainAccounted": true,
+    "hostedSearchChildModelAccounted": true,
+    "storageFailureDegradesWithoutBlockingWork": true,
+    "degradedDiagnosticUsesExistingRun": true,
+    "degradedAccountingDoesNotRetryStorage": true,
     "a0ReplayExact": true
   },
   "platformBoundary": {
@@ -55,24 +59,116 @@
     "includesDurableReservationAndSettlement": true,
     "productSuccessThreshold": null
   },
+  "humanConsoleQualification": {
+    "models": [
+      "terra",
+      "gpt-5.5"
+    ],
+    "isolatedDataOnly": true,
+    "journeys": [
+      "terminal_read_and_followup",
+      "document_read_reopen_and_followup",
+      "public_web_search_and_detail_followup",
+      "inflight_cancel"
+    ],
+    "turns": 7,
+    "completedTurns": 6,
+    "intendedCancelledTurns": 1,
+    "correctUserOutcomes": 7,
+    "browserCalls": 0,
+    "approvalRequests": 0,
+    "internalResourceTermsInUserAnswers": 0,
+    "accountingDegradedEvents": 0,
+    "modelCallsObserved": 23,
+    "providerReservations": 23,
+    "providerCommits": 22,
+    "providerUnknown": 1,
+    "unsettledReservations": 0,
+    "providerTokens": 312529,
+    "requestBytes": 1394147,
+    "toolCallsObserved": 12,
+    "firstVisibleMsMax": 8.923,
+    "wallMsMedian": 13030.787,
+    "wallMsMax": 87789.235,
+    "journeyResults": [
+      {
+        "model": "terra",
+        "journey": "terminal_read_and_followup",
+        "outcome": "correct_sum_then_exact_filename_and_value_recall",
+        "modelCalls": 3,
+        "toolCalls": 1,
+        "firstVisibleMs": [8.923, 3.081],
+        "wallMs": [81102.528, 86235.777],
+        "reservations": 3,
+        "commits": 3,
+        "unknown": 0,
+        "unsettled": 0
+      },
+      {
+        "model": "terra",
+        "journey": "inflight_cancel",
+        "outcome": "cancelled_without_marker_effect",
+        "modelCalls": 1,
+        "toolCalls": 0,
+        "firstVisibleMs": [1.615],
+        "wallMs": [3306.637],
+        "reservations": 1,
+        "commits": 0,
+        "unknown": 1,
+        "unsettled": 0
+      },
+      {
+        "model": "gpt-5.5",
+        "journey": "document_read_reopen_and_followup",
+        "outcome": "correct_date_headcount_total_and_per_person_amount",
+        "modelCalls": 4,
+        "toolCalls": 1,
+        "firstVisibleMs": [2.89, 3.633],
+        "wallMs": [11154.755, 3714.895],
+        "reservations": 4,
+        "commits": 4,
+        "unknown": 0,
+        "unsettled": 0
+      },
+      {
+        "model": "gpt-5.5",
+        "journey": "public_web_search_and_detail_followup",
+        "outcome": "official_source_then_exact_context_and_reasoning_details",
+        "modelCalls": 15,
+        "toolCalls": 10,
+        "firstVisibleMs": [2.484, 1.472],
+        "wallMs": [87789.235, 13030.787],
+        "reservations": 15,
+        "commits": 15,
+        "unknown": 0,
+        "unsettled": 0
+      }
+    ],
+    "passWithObservation": "Terra normal turns took 81-86s and the first GPT-5.5 web turn took 87.8s with 11 model and 10 tool calls. The A1 accounting path remained content-free, settled exactly, and had first-visible under 9ms; this existing model/tool route latency is recorded without widening A1-1."
+  },
   "verification": {
-    "resourceAndAdapterFocusedTestsPassed": 13,
-    "resourceConsoleIntegrationPassed": 1,
+    "resourceAndAdapterFocusedTestsPassed": 18,
+    "storageFaultCasesPassed": 3,
+    "resourceConsoleIntegrationPassed": 2,
     "relatedConsoleCheckpointMemoryAutomationPassed": 15,
     "cancellationFocusedTestsPassed": 21,
-    "refoundationUnitPassed": 615,
+    "refoundationUnitPassed": 620,
     "refoundationUnitFailed": 0,
     "legacySourceImports": 0,
-    "defaultProductIntegrationPassed": 92,
+    "defaultProductIntegrationPassed": 93,
     "defaultProductIntegrationFailed": 0,
     "visibleBrowserLiveIncludedInCompletionGate": false,
     "a1CancellationRegressionFound": "cancel_receipt_returned_stop_requested_before_terminal_confirmation",
-    "a1CancellationRegressionFixed": true
+    "a1CancellationRegressionFixed": true,
+    "sandboxIntegrationAttemptFailedOnlyByLoopbackEperm": true,
+    "sameDefaultIntegrationPassedWithLoopbackPermission": true
   },
   "changedBoundaries": [
     "resource_event_store",
     "provider_request_attempt_callbacks",
     "agent_loop_tool_observation",
+    "hosted_web_search_child_model_scope",
+    "accounting_degraded_diagnostic",
     "console_run_internal_model_scopes",
     "abort_stop_requested_terminal_confirmation"
   ],
@@ -87,10 +183,12 @@
   ],
   "artifacts": {
     "resourceLedgerSha256": "ed6e86227f9af0272d92ad51ae0619142bad37bc30366b6704366686b66ec1f6",
-    "resourceControllerSha256": "691656d00b13e1a419195834216e56393a52edc473a577fc65d21bde95b539f3",
+    "resourceControllerSha256": "58c5fe1fbbfcf1ce958edca0fd0f195ec862b6ba1f9f769045d2497c3fcd78be",
     "resourceStorageSha256": "204ff12971d594a1706f5fd4a96423fa70d67d1867baa3b7d579cf69ef8e8785",
     "resourceReportSha256": "46bd0b5ff5a958e1a5f49ee6bb8ba435b1e244301963ca87383a33a12f289776",
-    "providerAccountingSha256": "a2762897db31f6256df3427d14ad9161c58333de1e9f7a1efb88e423630ac286"
+    "providerAccountingSha256": "e58fd1d9fdf8e31a8c2afcbcfbba2043a634dff3a3cdbc4c2d565242c86a875f",
+    "agentLoopSha256": "cf642ef63cca2b92ad97716d72480c6048710628170b088713bad5287a78decb",
+    "openaiHostedSearchSha256": "d1315f006795486860428c01e1368cffd4cf89876b1de552e0309fd9d12409b2"
   },
   "productBehaviorChanged": false,
   "newPackageCreated": false
