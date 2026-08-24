@@ -531,13 +531,14 @@ connection truth → resource identity → authority → execution
 
 긴급 P0 복구 외의 넓은 Web·Connection·App 기능 확장은 앞선 정보 기반보다 먼저 열지 않는다.
 
-### S2-G — UI-only Hand — NOT OPEN
+### S2-G — UI-only Hand — EXCLUDED FROM SECOND COMPLETION
 
-현재 전용 Browser를 다시 만들지 않는다. 이는 전용 프로필 자체를 영구 금지하는 판정이 아니라 일반 Web
-읽기와 대형 UI 관측 누적 구조의 퇴출이다. 반복 실수요·공식 API/Connector/CLI 대안 부재·exact user-owned
-surface·bounded observation·원장과 모델 projection 분리·동일 관측 반복 재주입 0·secret user control·full
-authority·행동 뒤 effect/delivery 재관측·잔류 process/window 0이 함께 서야 별도 Gate로 연다. 동일 사용자
-목적을 표준 Hand와 A/B해 시간·tokens·성공률·사용자 개입에서 비교군 우위가 없으면 채택하지 않는다.
+오너 결정으로 G는 이번 2차 완성의 개발·자격·Release 범위에서 제외한다. 이번 개발선에서 전용 Browser를
+다시 만들거나 UI-only Hand의 요구사항·시험·일정을 열지 않는다. 일반 Web의 Search·Fetch 우선, 대형 UI
+관측 누적 퇴출, 가시 Browser 0은 G 구현 조건이 아니라 현재 제품의 회귀 방지 조건으로 계속 유지한다.
+
+향후 UI-only Hand 필요성이 생겨도 이 문서의 G를 재개하지 않는다. 반복 실수요와 공식 API·Connector·CLI
+대안 부재가 실제 증거로 선 뒤, 오너가 별도 개발선의 목표·완료 문장·닫는 지점을 새로 승인해야 한다.
 
 ## 6. 실제 테스터 성능 여정
 
@@ -614,11 +615,12 @@ Telegram attachment·artifact delivery·secret confinement·connection identity�
 사용자 시작점에서 검증한다. F 핵심 완료 문장을 깨는 결과는 observation으로 남기지 않고 해당 exact 경계를
 다시 연다.
 
-현재 비목표:
+현재 비목표와 제외 범위:
 
 ```text
 새 Messenger provider · 범용 Connector framework · Notion file upload
 Windows 기능 구현 · WSL2 구조 복제 · UI 재설계 · 가시 Browser
+S2-G UI-only Hand 전체
 Release package · 설치·서명·공증
 ```
 
