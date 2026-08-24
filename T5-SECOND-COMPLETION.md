@@ -386,6 +386,9 @@ S2-A2 Information Control — COMPLETE. 근거:
 append-only WorkStore, Work revision 출처, 최소 Situation, durable input·steer·followup·new_work·cancel,
 failure 종류, Completion Proposal·Settlement를 연결한다.
 
+초장기 Conversation·반복 checkpoint·Work epoch의 상세 완료 조건은
+`docs/03-product-plan/T5-SECOND-COMPLETION-LONG-CONTEXT-HARDENING-2026-08-24-ko.md`를 참조한다.
+
 ```text
 deterministic: 같은 route+args 재실행 0
 transient+retrySafe: 동일 재실행 최대 1회
