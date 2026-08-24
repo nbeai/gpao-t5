@@ -1495,13 +1495,14 @@ export function makeConsoleServer({
             outcome: unresolved ? 'unresolved' : 'achieved',
             blockerDigest: evaluation.blockerDigest, blockers: evaluation.blockers } });
       }
+      if (options.admittedInput) await workStore.completeInputExecution({
+        inputId: options.admittedInput.inputId, runId: run.runId,
+      });
+      await options.beforeSurfacePersist?.({ runId: run.runId, surfaceResult });
       await sessions.append(sessionId, { role: 'assistant', result: surfaceResult });
       surfacePersisted = true;
       await run.append({ type: 'surface_persisted', payload: { role: 'assistant' } });
       await run.finish('completed', { modelTurns: result.modelTurns, receiptCount: result.receipts.length });
-      if (options.admittedInput) await workStore.completeInputExecution({
-        inputId: options.admittedInput.inputId, runId: run.runId,
-      });
       runFinished = true;
       resourceRunStatus = 'completed';
       finishActivity('completed');
@@ -1850,7 +1851,7 @@ export function makeConsoleServer({
     ledger: capabilityHandoffs, sessions, runLedger, authority, connectionServices,
     pollIntervalMs: connectionPollIntervalMs, pollTimeoutMs: connectionPollTimeoutMs,
     isSessionRunning: (sessionId) => running.has(sessionId),
-    executeResume: async ({ handoff, claimId }) => {
+    executeResume: async ({ handoff, claimId, beforeSurfacePersist }) => {
       try {
         const completed = await executeTurn(handoff.sessionId, [
           'capability preparation completed',
@@ -1870,6 +1871,7 @@ export function makeConsoleServer({
             kind: 'connection_ready', handoffId: handoff.handoffId,
             connectionId: handoff.connectionId, connectionState: handoff.connectionState,
           } },
+          beforeSurfacePersist: ({ runId }) => beforeSurfacePersist?.(runId),
         });
         return {
           kind: completed.kind, runId: completed.runId,

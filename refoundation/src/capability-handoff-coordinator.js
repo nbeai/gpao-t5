@@ -108,7 +108,8 @@ export function makeCapabilityHandoffCoordinator({
         });
         return false;
       }
-      const completed = await executeResume({ handoff, claimId: handoff.claimId });
+      const completed = await executeResume({ handoff, claimId: handoff.claimId,
+        beforeSurfacePersist: async (resumeRunId) => ledger.markResumed(id, resumeRunId) });
       if (completed?.kind !== 'reply' || !completed.runId) {
         await ledger.needsAttention(id, 'resume_did_not_complete', completed?.runId ?? null);
         return false;

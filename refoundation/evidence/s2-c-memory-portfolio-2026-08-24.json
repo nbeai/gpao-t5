@@ -2,7 +2,7 @@
   "schema":"t5.s2-c-memory-portfolio.v1",
   "recordedAt":"2026-08-24T22:30:00+09:00",
   "gate":"S2-C_MEMORY_PORTFOLIO",
-  "status":"repair_qualified_integration_blocked",
+  "status":"repaired_complete",
   "structuralFailures":["runtime_two_character_semantic_selection","cross_work_revision_used_as_user_memory_recency","episode_pointer_not_connected_to_product_retrieval"],
   "goal":"Recall only sourced current memory relevant to the user purpose, derive Working Memory and Episode pointers without duplicating canonical history, and let current correction win.",
   "actualUserFailures":["all_active_memory_injected_every_call","cancelled_work_remains_current_until_model_cleanup","missing_source_revision_conflict","episode_kind_absent"],
@@ -40,7 +40,7 @@
   "verification":{
     "focusedRepairPassed":20,
     "refoundationUnitPassed":692,
-    "defaultProductIntegrationPassed":104,
+    "defaultProductIntegrationPassed":105,
     "defaultProductIntegrationTotal":105,
     "cProductIntegrationPassed":2,
     "capabilityHandoffIsolatedPassed":5,
@@ -50,7 +50,7 @@
   },
   "observations":[
     "The prior completion was wrong because result selection was tested without proving that the main model, rather than runtime string similarity, owned relevance; Work revision semantics and Episode call sites were not audited.",
-    "All C paths and both actual models passed. The official integration suite remains non-green because the existing capability-handoff concurrent-resume test intermittently records one of two resumed handoffs under the full suite while passing 5/5 in isolation.",
+    "The full integration suite exposed a durable-state publication race: resumed and followup replies could become visible before their terminal ledger event. Both paths now persist terminal state before surface publication.",
     "gpt-5.5 used two memory calls for exact recall versus Terra one; no fixed cap or runtime selection rule was added."
   ],
   "artifacts":{
@@ -58,7 +58,8 @@
     "memoryToolSha256":"70871bb45516c0380005735d25aaf7534187fdea10e273048e7fb3ed7973e06d",
     "memoryPortfolioSha256":"b5d47fbe1a1b7357110492fdf3d6560f827c3e1e63bbd7c9334767c235ef864b",
     "sessionSearchSha256":"0989dab46e3691b8815d79b1588e391ae131a2bb6b751cf120b64ee557bdeafc",
-    "consoleServerSha256":"bf80ff79ad0e3d49b93c666847e993b1f7df04fe18e86508a60787c4480ea93e",
+    "consoleServerSha256":"7fba38be85e7514fe9a9ab589cdaa7a01bf6730c08e4f917e6a64d9232f89df9",
+    "capabilityHandoffCoordinatorSha256":"b727a23d2b4f6019847d2120ef3675bd5a06ea62a934031bcd5becf15f23a901",
     "qualificationSha256":"54daffd188c78475143993d0b89f1b39b4643f36ea25e0271ec4d6b28e7fcbb3",
     "portfolioTestSha256":"46822de6a4cc3122a51f0cfd20943e260625b1ce666affcb3f2bbc041847022d",
     "productIntegrationSha256":"c8773471c1bc8e1d79094e72d31c1423d865055d38828921939406cc09d01106"
