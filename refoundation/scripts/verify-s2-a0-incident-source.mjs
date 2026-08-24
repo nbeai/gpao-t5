@@ -89,4 +89,3 @@ console.log(JSON.stringify({
   providerTokens: fixture.resourceRunaway.totals.providerTokens,
   contentEmitted: false,
 }));
-
