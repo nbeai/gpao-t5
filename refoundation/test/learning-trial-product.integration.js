@@ -31,8 +31,10 @@ test('pending candidate는 관련 Work의 on-demand trial로만 열리고 Run re
         }] };
         return { text: '결과를 확인했습니다.', toolCalls: [] };
       }
-      return { text: '', toolCalls: [{ id: 'search', name: 'tool_search', args: {
-        query: '반복 작업에서 durable result 복구 방법',
+      const candidate = input.tools.find((tool) => tool.name === 'learning_trial');
+      assert.ok(candidate); const proposalId = candidate.parameters.properties.proposalId.enum.find(Boolean);
+      return { text: '', toolCalls: [{ id: 'view', name: 'learning_trial', args: {
+        action: 'view', proposalId,
       } }] };
     } }) });
   await server.learningCandidateStore.stage({ name: 'recover-results',
@@ -46,6 +48,11 @@ test('pending candidate는 관련 Work의 on-demand trial로만 열리고 Run re
       body: JSON.stringify({ sessionId: session.id, text: '중단된 결과를 안전하게 복구해줘' }) }).then((response) => response.json());
     const run = await server.runLedger.read(result.runId); const used = capabilityObservationsForRun(run)
       .find((item) => item.id === 'recover-results' && item.relation === 'used');
+    const calls = run.events.filter((event) => event.type === 'tool_completed')
+      .map((event) => event.payload.receipt.requestedCall);
+    assert.equal(calls.some((call) => call.name === 'tool_search'), false);
+    assert.equal(calls.some((call) => call.name === 'learning_trial' && call.args.action === 'list'), false);
+    assert.equal(calls.some((call) => call.name === 'learning_trial' && call.args.action === 'view'), true);
     assert.equal(used.digest, (await server.learningCandidateStore.inspect(
       (await server.capabilityLifecycleLedger.list())[0].proposalId)).revisionDigest);
     assert.equal((await server.capabilityLifecycleLedger.list())[0].state, 'candidate');

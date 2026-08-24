@@ -21,7 +21,7 @@ test('모델이 명시적 achieved를 제안하고 blocker Receipt가 없을 때
   assert.equal((await store.proposalForRun('run')).verifiedOutcome, 'achieved');
 });
 
-test('effect unknown·failed Receipt가 있으면 모델 achieved 제안도 unresolved로 정산한다', async () => {
+test('effect unknown·미복구 failed Receipt가 있으면 모델 achieved 제안도 unresolved로 정산한다', async () => {
   for (const receipt of [
     { outcome: 'unknown', result: {} },
     { outcome: 'succeeded', result: { effectUnknown: true } },
@@ -31,6 +31,24 @@ test('effect unknown·failed Receipt가 있으면 모델 achieved 제안도 unre
     const result = await tool.execute({ outcome: 'achieved' }, { priorReceipts: [receipt] });
     assert.equal(result.verifiedOutcome, 'unresolved');
   }
+});
+
+test('실패한 route 뒤 같은 Hand의 성공 Evidence가 있으면 과거 실패만으로 완료를 막지 않는다', () => {
+  const evaluation = evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [
+    { requestedCall: { name: 'exec' }, outcome: 'failed', result: {} },
+    { requestedCall: { name: 'exec' }, outcome: 'succeeded', result: { state: 'completed' } },
+  ] });
+  assert.equal(evaluation.verifiedOutcome, 'achieved'); assert.deepEqual(evaluation.blockers, []);
+  const unrelated = evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [
+    { requestedCall: { name: 'web_read' }, outcome: 'failed', result: {} },
+    { requestedCall: { name: 'exec' }, outcome: 'succeeded', result: { state: 'completed' } },
+  ] });
+  assert.equal(unrelated.verifiedOutcome, 'unresolved'); assert.ok(unrelated.blockers.includes('failed'));
+  const mutating = evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [
+    { requestedCall: { name: 'exec', args: { effect: { kind: 'local_change' } } }, outcome: 'failed', result: {} },
+    { requestedCall: { name: 'exec', args: { effect: { kind: 'local_change' } } }, outcome: 'succeeded', result: {} },
+  ] });
+  assert.equal(mutating.verifiedOutcome, 'unresolved'); assert.ok(mutating.blockers.includes('failed'));
 });
 
 test('approval·handoff·delivery 미달은 proposal과 final이 공유하는 blocker digest로 unresolved가 된다', () => {

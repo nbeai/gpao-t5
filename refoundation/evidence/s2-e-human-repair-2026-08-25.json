@@ -1,0 +1,36 @@
+{
+  "schema": "t5.s2-e-human-repair-evidence.v1",
+  "gate": "S2-E",
+  "recordedAt": "2026-08-25T03:45:00+09:00",
+  "failureOriginal": {
+    "correctUserResults": true,
+    "recoveredObservedFailureMarkedUnresolved": true,
+    "nearMissCandidateUse": 0,
+    "baselineTypical": { "modelTurns": 5, "toolCalls": 4 },
+    "candidateObserved": { "modelTurns": 11, "toolCalls": 12, "wallMs": 28970 },
+    "promotionPrevented": true
+  },
+  "repair": {
+    "recoveredObservationFailure": "same-hand later success only; unknown and mutating failures remain blockers",
+    "methodEvidence": "bounded successful receipt trace with target placeholders and no output, secret, URL, or absolute path",
+    "trialDiscovery": "one pending identity is directly visible; model can view exact candidate without tool_search or list",
+    "promotionCriteriaChanged": false
+  },
+  "verification": {
+    "learningFocused": { "passed": 29, "failed": 0 },
+    "finalRepairFocused": { "passed": 7, "failed": 0 },
+    "fullWorktree": {
+      "status": "environment_path_observation",
+      "unrelatedDocumentFailures": 3,
+      "sameDocumentTestsAtPrimaryWorkspace": { "passed": 12, "failed": 0 }
+    },
+    "actualModelRequalification": {
+      "executed": false,
+      "reason": "repository policy rejected automatic use of the saved model credential file even after owner approval"
+    },
+    "visibleBrowserWindows": 0,
+    "externalWrites": 0,
+    "userFilesUsed": 0
+  },
+  "status": "REPAIR_IMPLEMENTED_HUMAN_REQUALIFICATION_REQUIRED"
+}

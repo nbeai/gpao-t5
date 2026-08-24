@@ -512,6 +512,13 @@ Telegram loopback, Terra·gpt-5.5 동일 여정.
 모델 주장만으로 Episode 성공, 실패 방법 승격, 사용자 교정 누락, Core 자동 수정은 0이다. 학습은 설명·교정·
 시간·목적당 비용을 줄이고 정확도를 유지할 때만 승격한다.
 
+인간 종단 재자격 — REOPENED. 실제 자연어 시험에서 후보 생성·near-miss 격리·잘못된 승격 방지는
+성립했지만, 복구된 성공이 과거 failed Receipt 하나로 학습 원천에서 제외됐고 pending 후보 사용은
+`tool_search→list→view`로 baseline보다 무거웠다. 같은 관측 Hand의 후속 성공이 확인된 읽기 실패만
+recovered로 정산하고, 성공 영수증에서 비밀·절대경로·원문 없이 bounded method trace를 만들며, pending
+후보 identity를 한 개의 직접 trial Hand로 공급하는 교정은 완료했다. 저장된 실제 모델 연결을 사용하는
+재자격은 저장소 실행 정책상 정상 개발 콘솔 통합 뒤 수행하며, 그 전에는 E 인간 완료로 승격하지 않는다.
+
 ### S2-F — Hand & Connected Reality
 
 Information Control·Work·Memory·Time·Learning 기반이 선 뒤, 실제 사용자 Episode가 연 Hand·공식 API·MCP·

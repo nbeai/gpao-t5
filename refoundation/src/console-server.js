@@ -86,6 +86,7 @@ import { makeAutomationTool } from './automation-tool.js';
 import { assessAutomationOutcome, makeAutomationOutcomeTool } from './automation-outcome-tool.js';
 import { deriveLearningSourceEligibility } from './learning-source-eligibility.js';
 import { LearningCandidateStore, makeLearningTrialTool } from './learning-candidate.js';
+import { learningMethodTrace } from './learning-method-evidence.js';
 import { runLearningReview } from './learning-review.js';
 import { LearningReviewScheduler } from './learning-review-scheduler.js';
 import { qualifyLearningReplay } from './learning-replay.js';
@@ -1135,8 +1136,10 @@ export function makeConsoleServer({
       }));
       offeredTools.unshift(makeCapabilityEvidenceTool({ runLedger }));
       offeredTools.unshift(makeCapabilityComparisonTool({ runLedger }));
-      if ((await learningCandidates.listTrials()).length) {
-        offeredTools.unshift(makeLearningTrialTool({ store: learningCandidates }));
+      const pendingLearningTrials = await learningCandidates.listTrials();
+      if (pendingLearningTrials.length) {
+        offeredTools.unshift(makeLearningTrialTool({ store: learningCandidates,
+          candidates: pendingLearningTrials }));
       }
       offeredTools.unshift(makeCapabilityLifecycleTool({
         ledger: capabilityLifecycle, runLedger, currentRunId: run.runId,
@@ -1195,6 +1198,7 @@ export function makeConsoleServer({
       }));
       const coreToolNames = [
         'connection', 'memory', 'skill', ...(options.trigger === 'automation' ? [] : ['work_completion']),
+        ...(pendingLearningTrials.length ? ['learning_trial'] : []),
         // Public-web search, exact URL reading, and bounded multi-source research are
         // foundational observation hands. The research schema stays visible because
         // both qualified models must reach it reliably before the lighter hands can loop.
@@ -2162,7 +2166,8 @@ export function makeConsoleServer({
       state: event.payload?.receipt?.result?.state ?? null,
     }));
     return { source, evidence: JSON.stringify({ objective: message?.message?.content ?? null,
-      outcome: 'achieved', tools, resultDigest: source.pointer.resultDigest }) };
+      outcome: 'achieved', tools, methodTrace: learningMethodTrace(run),
+      resultDigest: source.pointer.resultDigest }) };
   }
   learningReviewer = new LearningReviewScheduler({ idleMs: learningReviewIdleMs,
     loadSources: async () => deriveLearningSourceEligibility({
@@ -2196,6 +2201,7 @@ export function makeConsoleServer({
             'You are T5 isolated procedural learning reviewer.',
             'Use only the supplied proposal tool and never perform user work or external actions.',
             'Create one generalized Skill proposal only when repeated achieved evidence proves it.',
+            'When bounded methodTrace evidence agrees across sources, preserve its reusable tool and action order with placeholders. Never invent missing arguments or copy one-off identifiers.',
           ].join('\n') });
         const result = await runLearningReview({ episodes: await Promise.all(sources.map(learningEpisodeEvidence)),
           model, candidateStore: learningCandidates, reviewRunId: review.runId, resourceRun });
