@@ -219,6 +219,7 @@ export function makeConsoleServer({
   capabilitiesRoot = bundledCapabilitiesRoot,
   skillCatalogMode = 'on-demand',
   conversationProjection = 'historical-tool-receipt-v1',
+  informationControl = 'research-first-v1',
   largeToolOutputMode = 'recoverable',
   conversationCheckpointMode = 'in-place-v0',
   checkpointTriggerBytes = 300_000,
@@ -254,6 +255,9 @@ export function makeConsoleServer({
   }
   if (!['inline', 'recoverable'].includes(largeToolOutputMode)) {
     throw new TypeError('unsupported large tool output mode');
+  }
+  if (!['wide-web-v0', 'research-first-v1'].includes(informationControl)) {
+    throw new TypeError('unsupported information control mode');
   }
   if (!['off', 'in-place-v0'].includes(conversationCheckpointMode)) {
     throw new TypeError('unsupported conversation checkpoint mode');
@@ -1030,7 +1034,8 @@ export function makeConsoleServer({
         // both qualified models must reach it reliably before the lighter hands can loop.
         // Keep rendered-page interaction deferred until those lighter hands establish
         // that login, dynamic content, or an actual page interaction is required.
-        'exec', 'web_search', 'web_read', 'web_research',
+        'exec', 'web_read', 'web_research',
+        ...(informationControl === 'wide-web-v0' ? ['web_search'] : []),
         // 사용자가 이미지를 찾아 보여 달라고 했는데 링크나 진행 문장으로 끝나는 것은 결과가 아니다.
         // 기존 visual_reference를 기본 Web Hand에 두어 관리 preview와 출처까지 한 Run에서 완성한다.
         'visual_reference',
@@ -1092,6 +1097,17 @@ export function makeConsoleServer({
             await run.append({
               type: 'model_context_built', stepId: `model-${event.turn}`,
               payload: { turn: event.turn, contextReceipt: event.contextReceipt },
+            });
+          } else if (event.type === 'information_projection') {
+            await run.append({
+              type: 'information_projection',
+              stepId: `information-projection-${event.turn}-${event.newestFullReceipt}`,
+              payload: {
+                turn: event.turn, kind: event.kind,
+                projectedReceipts: event.projectedReceipts,
+                grossSavedBytes: event.grossSavedBytes, netSavedBytes: event.netSavedBytes,
+                handles: event.handles, newestFullReceipt: event.newestFullReceipt,
+              },
             });
           } else if (event.type === 'model_end') {
             await run.append({

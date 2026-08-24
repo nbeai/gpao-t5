@@ -1,0 +1,143 @@
+{
+  "schema": "t5.s2-a2-i1-information-surface.v1",
+  "recordedAt": "2026-08-24T17:47:21+09:00",
+  "gate": "S2-A2_INFORMATION_CONTROL",
+  "stage": "I1_RESEARCH_FIRST_AND_DUPLICATE_EVIDENCE",
+  "status": "complete",
+  "a2Complete": false,
+  "goal": "Reduce partial Web hand competition and exact duplicate read payloads without removing distinct Evidence or increasing runtime control over model judgment.",
+  "closePoint": "Terra and GPT-5.5 complete the same official Web task with research-first, duplicate read Evidence preserves newest full input plus all canonical receipts, and default regressions pass.",
+  "userOutcome": {
+    "modelWritesFinalAnswer": true,
+    "distinctEvidenceRemoved": false,
+    "externalEffectReceiptRemoved": false,
+    "fixedCapsChanged": false,
+    "resourceSituationAdded": false,
+    "browserCalls": 0
+  },
+  "discardedDesigns": [
+    {
+      "design": "runtime_projects_each_large_receipt_after_one_full_exposure",
+      "reason": "A live GPT-5.5 projected sample saved 27475 bytes but used 3 more tools, 11.5 seconds more wall time, and 157K versus 141K provider tokens. Route variance prevents causal attribution, but the large downside disqualifies automatic removal."
+    },
+    {
+      "design": "model_directed_keep_note_and_exact_recall_tool",
+      "reason": "GPT-5.5 used the new context tool zero times, produced zero projection benefit, and the extra schema had no demonstrated value. It was removed rather than forced through instructions."
+    }
+  ],
+  "implemented": {
+    "researchFirstDefault": true,
+    "visibleWebHands": ["web_research", "web_read"],
+    "deferredPartialHand": "web_search",
+    "webSearchRecoverableThroughToolSearch": true,
+    "wideWebComparatorPreserved": true,
+    "duplicateReadEvidenceProjection": true,
+    "newestDuplicateReceiptFull": true,
+    "canonicalRunReceiptsFull": true,
+    "canonicalConversationReceiptsFull": true,
+    "distinctEvidenceProjection": false,
+    "externalEffectProjection": false,
+    "multiQueryHostedSearchChildIdentityDistinct": true
+  },
+  "inputMeasurement": {
+    "initialActiveToolDefinitionsBeforeBytes": 14719,
+    "webSearchDefinitionBytes": 708,
+    "gpt55FirstRequestWideBytes": 39145,
+    "gpt55FirstRequestResearchFirstBytes": 38407,
+    "firstRequestReductionBytes": 738
+  },
+  "liveQualification": {
+    "gpt55": {
+      "status": "completed",
+      "answerCorrect": true,
+      "officialSource": true,
+      "wallMs": 39810.524,
+      "mainModelCalls": 4,
+      "toolCalls": 3,
+      "tools": ["web_research", "web_read", "web_research"],
+      "resourceModelCalls": 9,
+      "providerTokens": 98135,
+      "requestBytes": 201261,
+      "unsettled": 0,
+      "browserCalls": 0
+    },
+    "terra": {
+      "status": "completed",
+      "answerCorrect": true,
+      "officialSource": true,
+      "wallMs": 16445.914,
+      "mainModelCalls": 2,
+      "toolCalls": 1,
+      "tools": ["web_research"],
+      "resourceModelCalls": 4,
+      "providerTokens": 59946,
+      "requestBytes": 90538,
+      "unsettled": 0,
+      "browserCalls": 0
+    },
+    "causalWallClaim": null,
+    "observation": "Wide-Web GPT-5.5 samples varied from 31.8 to 78.9 seconds. I1 reliably narrowed the route and input surface, but does not claim an exact causal wall-time reduction from these non-identical model samples."
+  },
+  "accountingRegressionFoundAndClosed": {
+    "failure": "Parallel web_research queries reused one hosted-search logical child identity, degrading accounting after the first child and leaving one reservation unsettled in the first live research-first run.",
+    "fix": "web_research assigns query-1..N resourceChildId and web_search includes it in each provider logical call identity.",
+    "postFixUnsettled": 0
+  },
+  "platformBoundary": {
+    "openClawCommit": "e085fa1a3ffd32d0ea6917e1e6fb4ecbffbb77d2",
+    "sources": [
+      {"name":"src/agents/embedded-agent-runner/tool-result-context-guard.ts","sha256":"9cc622e3b65108d616a011119ad646b6818da9e3c69abdd86b2b5cda1c468242"},
+      {"name":"src/context-engine/types.ts","sha256":"769484ec215a88c51b3902cbdab335aaee41165a5d257801b356f4a51273b7ee"},
+      {"name":"src/agents/embedded-agent-runner/transcript-rewrite.ts","sha256":"75beead7e0044a800d28b307c65e889a06e1f0dc07dc19c5709a4b51d0d073b3"},
+      {"name":"src/infra/wsl.ts","sha256":"5e0d7bc8a7d2f2419c48d7087ebf4dc71fd2ff05ea91b533b7acd1e81db89db1"}
+    ],
+    "adopted": [
+      "canonical_transcript_and_provider_projection_are_separate",
+      "projection_is_scoped_by_session_run_and_receipt_identity",
+      "new_tool_results_are_a_projection_fence",
+      "storage_runtime_owns_locking_and_rewrite_mechanics"
+    ],
+    "notAdopted": [
+      "single_tool_result_fixed_context_share",
+      "overflow_first_truncation",
+      "raw_context_fallback_after_projection_failure",
+      "windows_path_lock_or_wsl_process_identity_in_context_core"
+    ],
+    "failureCases": [
+      "context_engine_failure_can_reinflate_raw_messages",
+      "hung_compaction_can_block_a_turn_without_bounded_cancellation",
+      "wsl_runtime_lifecycle_can_end_while_transcript_maintenance_is_pending"
+    ],
+    "windowsFeatureImplemented": false,
+    "copiedWslArchitecture": false
+  },
+  "verification": {
+    "focusedTestsPassed": 27,
+    "refoundationUnitPassed": 632,
+    "refoundationUnitFailed": 0,
+    "defaultProductIntegrationPassed": 95,
+    "defaultProductIntegrationFailed": 0,
+    "visibleBrowserLiveExecuted": false,
+    "legacySourceImports": 0,
+    "runnerObservation": "One earlier full unit run stalled in the test runner on messenger-session-origin; that file immediately passed 5/5 in isolation and the later unchanged full unit run passed 632/632."
+  },
+  "remainingA2": [
+    "conversation_relevance_and_current_correction_measurement",
+    "memory_candidate_relevance_without_runtime_semantic_guessing",
+    "remaining_inactive_hand_guidance",
+    "distinct_large_evidence_projection_without_model_quality_loss",
+    "repeated_terra_and_gpt55_uncached_input_and_wall_comparison"
+  ],
+  "artifacts": {
+    "informationControlSha256": "643e1464cfacdc1dcd4e339b9240bc3ec3307466d5e925c043cb977fa3e78576",
+    "consoleServerSha256": "ccce9ba094c02815bb0796e34e92ae9aaf628846db2e7ce9be6cdb6f5067f8b6",
+    "agentLoopSha256": "109b6f0e8a41a6ee156b16c1c39a8643ff7ee023cbd8986adc75b1eb6beffff1",
+    "webSearchSha256": "40c6f05d4c6068a5457189761cb7ee36a54aba1bb61b92e0569598a5df28db40",
+    "webResearchSha256": "49eac34f43bca8834c037ec99bd2efbf626d24f12e02dad8215a151c1c758b69",
+    "resourceEvidenceSha256": "deab71faefcdead3d9c7183d2bd0be5f4f8c99e0fcf4a42d60dd7025f5337413",
+    "unitTestSha256": "cf4ea7235003790e932b78d67728c485b428cf346877ff67383a8280a8211b9b",
+    "integrationTestSha256": "c846662497b9c281ae9f39da30aaca0a1f88bc67cfdb6352df1df2a3a324f4a5"
+  },
+  "productBehaviorChanged": true,
+  "newPackageCreated": false
+}

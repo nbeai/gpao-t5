@@ -34,7 +34,7 @@ test('일반 뉴스 읽기 실패는 가시 브라우저를 열지 않고 다른
   };
   let turn = 0;
   const server = makeConsoleServer({
-    stateDir, workspace,
+    stateDir, workspace, informationControl: 'wide-web-v0',
     webSearchProviders: [provider],
     webReadOptions: {
       resolveHost: async () => ['93.184.216.34'],

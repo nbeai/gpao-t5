@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 const VOLATILE_KEYS = new Set([
   'toolCallId', 'messageId', 'runId', 'receiptId', 'idempotencyKey',
   'timestamp', 'recordedAt', 'createdAt', 'updatedAt', 'sentAt', 'deliveredAt',
-  'durationMs', 'wallMs',
+  'startedAt', 'endedAt', 'durationMs', 'wallMs',
 ]);
 
 function updateFingerprint(hash, value) {

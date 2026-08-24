@@ -1,7 +1,7 @@
 # T5 Second Completion — Current Development Source
 
 상태: `SECOND_COMPLETION_ACTIVE`
-현재 Gate: `S2-A2 INFORMATION CONTROL — READY · A1-3 LOCKED`
+현재 Gate: `S2-A2 INFORMATION CONTROL — ACTIVE · I1 COMPLETE · I2 READY · A1-3 LOCKED`
 기준 source: `81f29d23`
 배포 상태: `0.1.8 REVOKED · 새 package 생성 금지`
 
@@ -321,6 +321,19 @@ Information Control 구현:
 
 W9 blind truncation·별도 extraction model·shared cache·branch research·vector-only Memory 선택은 열지 않는다.
 
+A2-I1 information surface — COMPLETE
+
+- 기본 Web 모델 시야는 bounded `web_research`와 exact `web_read`를 유지하고 partial `web_search` schema는
+  `tool_search` 뒤에 연다. 후보 검색이 필요하면 모델이 그대로 복구할 수 있으며 wide Web 표면도 비교선으로
+  보존한다.
+- 같은 읽기 Evidence가 다시 들어온 경우에만 과거 모델 payload를 latest full Receipt pointer로 바꾼다.
+  서로 다른 Evidence와 외부 효과 Receipt는 줄이지 않고, RunLedger·Conversation에는 모든 원문을 보존한다.
+- 여러 query의 hosted search child call은 query identity를 분리해 병렬 회계 degradation과 미정산을 막는다.
+- 실제 공식 Web에서 Terra는 16.4초·모델 2회·도구 1회, gpt-5.5는 39.8초·모델 4회·도구 3회로 완료했고
+  정답·공식 출처·Browser 0·미정산 0이었다. 모델 route 변동이 커서 정확한 causal wall 감소는 주장하지 않는다.
+
+근거: `refoundation/evidence/s2-a2-i1-information-surface-2026-08-24.json`
+
 통과:
 
 - authority·effect·coverage·사용자 교정 손실 0, recall digest 일치
@@ -403,7 +416,26 @@ surface·bounded observation·원장과 모델 projection 분리·동일 관측 
 authority·행동 뒤 effect/delivery 재관측·잔류 process/window 0이 함께 서야 별도 Gate로 연다. 동일 사용자
 목적을 표준 Hand와 A/B해 시간·tokens·성공률·사용자 개입에서 비교군 우위가 없으면 채택하지 않는다.
 
-## 6. 기계 자격과 Release
+## 6. 실제 테스터 성능 여정
+
+`0.1.9` 인간 사용 시험은 원본 화면·개인정보·비밀값·사용자 경로를 저장소에 복제하지 않고
+`refoundation/config/s2-human-performance-scenarios.json`의 아홉 목적 여정으로 보존한다. 당시 기준선과
+Gate 귀속은 `refoundation/evidence/s2-p019-human-tester-baseline-2026-08-24.json`이 담당한다.
+
+| 단계 | 반드시 닫을 실제 사용자 여정 |
+|---|---|
+| A2 | 로컬 파일·문서 강점 무회귀, 대형 파일 정리·프로그램 분석의 입력·왕복 밀도 |
+| A1-3~5 | 새 Evidence가 계속되는 과업을 고정 상한으로 중단하지 않는 정교한 자원 제어 |
+| B·D | Telegram에서도 교정·취소·재개·새 작업을 콘솔 전용 버튼 없이 수행 |
+| F Telegram | 수신 파일+caption의 Attachment 결속, 공식 파일 발신·delivery, bot secret 비노출 |
+| F Connection | T5와 외부 앱 연결 identity 분리, Notion 권한 현실, write 뒤 read-after-write |
+| Release | HP-01~HP-09 전체, 비밀 노출·거짓 완료·고정 상한 중단·가시 Browser 0 |
+
+노출된 connector credential은 폐기·재발급 대상이며 raw tester media는 제품 증거가 아니다. 현재 A2를 채널
+기능 확장으로 중단하지 않고, Telegram은 앞선 기반이 선 뒤 첫 Connected Hand 자격 후보로 연다. 다만 모델이
+일반 Terminal로 connector secret을 읽어 직접 API를 호출하는 경로는 다음 package의 Release blocker다.
+
+## 7. 기계 자격과 Release
 
 각 Gate는 순서대로 다음을 통과한다.
 
@@ -426,12 +458,12 @@ AND 실행 가능한 미시도 route가 남은 blocked 0
 우회 0, 상태 단일 정본, 외부 효과·중복 실행 회귀 0, 비교군 Gate, 설치·재시작·상태 보존, 서명·공증·rollback,
 미측정 핵심 사용자 여정 0이 모두 성립한 뒤에만 만든다.
 
-## 7. 현재 작업 시작점
+## 8. 현재 작업 시작점
 
-S2-A0, A1-1 exact accounting shadow, A1-2 anomaly shadow를 완료했다. 다음 한 작업은 S2-A2 Information
-Control이다. 반복 ToolReceipt·불필요한 Conversation 원문·무관 Memory·비활성 Hand 설명·큰 결과의 반복
-재주입·현재 목적과 무관한 과거 상태를 모델 입력에서 분리하고, 축약한 원문은 정확한 recall handle로 다시
-찾을 수 있어야 한다. A2가 실제 사용자 과업에서 닫히기 전에는 A1-3 Resource Situation을 열지 않는다.
+S2-A0, A1-1, A1-2와 A2-I1 information surface를 완료했다. A2는 아직 진행 중이다. 다음 한 작업 A2-I2는
+Conversation·Memory 후보가 현재 목적·사용자 교정·source scope와 실제로 얼마나 관련되는지 content-free로
+계측하고, 런타임 의미 추측 없이 줄일 수 있는 경계를 확정하는 것이다. A2 전체가 실제 사용자 과업에서
+닫히기 전에는 A1-3 Resource Situation을 열지 않는다.
 
 A1-2 완료 범위:
 

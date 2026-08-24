@@ -33,7 +33,7 @@ test('모델이 검색 후보를 고른 뒤 그 주소만 읽고 두 Receipt를 
   };
   let modelTurn = 0;
   const server = makeConsoleServer({
-    stateDir, workspace,
+    stateDir, workspace, informationControl: 'wide-web-v0',
     webSearchProviders: [provider],
     webReadOptions: { allowPrivateUrls: true },
     modelFactory: () => ({ async respond(input) {

@@ -122,7 +122,9 @@ export function makeWebSearchTool({ providers = [] } = {}) {
         const selected = providers.find((provider) => provider.id === selectedFact.id);
         try {
           const resourceObserver = context.resourceRun?.modelObserver({
-            logicalCallId: `tool:${context.toolCallId}:web-search:${selectedFact.id}`,
+            logicalCallId: [
+              'tool', context.toolCallId, 'web-search', context.resourceChildId ?? 'direct', selectedFact.id,
+            ].join(':'),
             purpose: 'tool_internal_web_search',
           });
           const rows = await selected.search(query, {

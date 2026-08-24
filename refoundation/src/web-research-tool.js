@@ -56,9 +56,9 @@ export function makeWebResearchTool({ searchTool, readTool, timeoutMs = 15_000 }
       if (!Number.isInteger(sourceLimit) || sourceLimit < 3 || sourceLimit > 6) {
         throw new TypeError('sourceLimit must be between 3 and 6');
       }
-      const searches = await Promise.all(queries.map((focused) => searchTool.execute({
+      const searches = await Promise.all(queries.map((focused, index) => searchTool.execute({
         query: focused, provider: null, limit: Math.min(20, sourceLimit * 2), domains: args.domains ?? [],
-      }, context)));
+      }, { ...context, resourceChildId: `query-${index + 1}` })));
       const candidates = []; const seen = new Set();
       const largest = Math.max(0, ...searches.map((search) => search.candidates?.length ?? 0));
       for (let rank = 0; rank < largest; rank += 1) {

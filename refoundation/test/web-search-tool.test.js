@@ -100,7 +100,7 @@ test('web_search는 tool 내부 provider model call을 같은 ResourceRun child 
   assert.equal(result.state, 'candidates');
   assert.equal(observedOptions.resourceObserver, observer);
   assert.deepEqual(resourceCalls, [{
-    logicalCallId: 'tool:tool-call-1:web-search:internal-model',
+    logicalCallId: 'tool:tool-call-1:web-search:direct:internal-model',
     purpose: 'tool_internal_web_search',
   }]);
 });

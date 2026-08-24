@@ -1,4 +1,5 @@
 import { evidenceFingerprint } from './resource-evidence.js';
+import { compactDuplicateEvidence } from './information-control.js';
 
 const DEFAULT_MAX_MODEL_TURNS = 16;
 const DEFAULT_MAX_TOOL_CALLS = 24;
@@ -258,6 +259,7 @@ export async function runAgent({
   let failedToolCalls = 0;
   let providerTokens = 0;
   const failureFamilies = new Map();
+  const evidenceFamilies = new Map();
   let completionReminderSent = false;
   const completionSatisfied = () => Boolean(requiredCompletionTool && receipts.some((receipt) => (
     receipt.actualCall?.name === requiredCompletionTool && receipt.outcome === 'succeeded'
@@ -373,7 +375,13 @@ export async function runAgent({
       const visualAttachments = receipt._modelAttachments ?? [];
       delete receipt._modelAttachments;
       receipts.push(receipt);
-      transcript.push(toolMessage(receipt));
+      const currentToolMessage = toolMessage(receipt);
+      const currentEvidenceFingerprint = evidenceFingerprint(receipt);
+      const informationProjection = compactDuplicateEvidence({
+        seen: evidenceFamilies, fingerprint: currentEvidenceFingerprint,
+        receipt, message: currentToolMessage,
+      });
+      transcript.push(currentToolMessage);
       compactSupersededBrowserMessages(transcript, receipt);
       if (visualAttachments.length) transcript.push(visualObservationMessage(receipt, visualAttachments));
       const acceptedActivations = [];
@@ -407,10 +415,13 @@ export async function runAgent({
         type: 'tool_end', turn: modelTurns, name: call?.name, outcome: receipt.outcome,
         receipt: structuredClone(receipt),
       });
+      if (informationProjection) {
+        await onEvent?.({ type: 'information_projection', turn: modelTurns + 1, ...informationProjection });
+      }
       await resourceRun?.observeTool({
         turn: modelTurns, toolCallId: receipt.toolCallId || `${modelTurns}:${call?.name}`,
         name: call?.name ?? 'unknown', outcome: receipt.outcome, startedAt: toolResourceStartedAt,
-        evidenceFingerprint: evidenceFingerprint(receipt),
+        evidenceFingerprint: currentEvidenceFingerprint,
       }).catch(() => {});
       if (receipt.outcome === 'failed') {
         failedToolCalls += 1;

@@ -30,14 +30,15 @@ test('여러 출처 연구는 검색 한 번 뒤 서로 다른 도메인을 병�
 });
 
 test('넓은 연구의 여러 각도 검색은 한 모델 도구 호출 안에서 함께 실행된다', async () => {
-  let active = 0; let peak = 0;
-  const searchTool = { async execute({ query }) { active += 1; peak = Math.max(peak, active); await new Promise((resolve) => setTimeout(resolve, 10)); active -= 1;
+  let active = 0; let peak = 0; const childIds = [];
+  const searchTool = { async execute({ query }, context) { childIds.push(context.resourceChildId); active += 1; peak = Math.max(peak, active); await new Promise((resolve) => setTimeout(resolve, 10)); active -= 1;
       return { state: 'candidates', provider: { id: 'fixture' }, candidates: [{ rank: 1, title: query, url: `https://${query}.example/`, snippet: query }] }; } };
   const readTool = { async execute({ url }) { return { state: 'read', source: { finalUrl: url }, content: { format: 'text', text: url, observedChars: url.length, outputTruncated: false } }; } };
   const result = await makeWebResearchTool({ searchTool, readTool }).execute({
     query: '전체', queries: ['소비', '물가', '경기'], sourceLimit: 3, domains: null,
   });
   assert.equal(peak, 3); assert.deepEqual(result.queries, ['소비', '물가', '경기']); assert.equal(result.readableCount, 3);
+  assert.deepEqual(childIds.toSorted(), ['query-1', 'query-2', 'query-3']);
   assert.equal(result.stopFurtherResearch, true);
   assert.deepEqual(result.deactivatedTools, ['web_research', 'web_search']);
   assert.equal(result.completedCapabilityGroups, undefined);
