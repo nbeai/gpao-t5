@@ -89,8 +89,8 @@
     "resourceLedgerSha256": "ed6e86227f9af0272d92ad51ae0619142bad37bc30366b6704366686b66ec1f6",
     "resourceControllerSha256": "691656d00b13e1a419195834216e56393a52edc473a577fc65d21bde95b539f3",
     "resourceStorageSha256": "204ff12971d594a1706f5fd4a96423fa70d67d1867baa3b7d579cf69ef8e8785",
-    "resourceReportSha256": "dc652af240695da16bf28f740d1e3419abbcf58040fefa042b376b9b356f2bf4",
-    "providerAccountingSha256": "2301fe91f47bc99da9e7a923e9344e656c03aa2c20127bc7014f8ed6e4ec5a40"
+    "resourceReportSha256": "46bd0b5ff5a958e1a5f49ee6bb8ba435b1e244301963ca87383a33a12f289776",
+    "providerAccountingSha256": "a2762897db31f6256df3427d14ad9161c58333de1e9f7a1efb88e423630ac286"
   },
   "productBehaviorChanged": false,
   "newPackageCreated": false
