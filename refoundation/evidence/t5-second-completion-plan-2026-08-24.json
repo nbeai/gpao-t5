@@ -10,7 +10,7 @@
   "secondCompletion": {
     "active": true,
     "sourceOfTruth": "T5-SECOND-COMPLETION.md",
-    "currentGate": "S2-C_MEMORY_PORTFOLIO_READY",
+    "currentGate": "S2-D_TIME_CONTINUITY_READY",
     "firstProductChange": "shadow_resource_accounting_and_control",
     "a0IncidentFixtures": {
       "status": "complete",
@@ -85,6 +85,14 @@
       "modelOwnsRelationJudgment": true,
       "revisionAwareExecution": true,
       "restartRestoresPendingAndQueued": true
+    },
+    "cMemoryPortfolio": {
+      "status": "complete",
+      "evidence": "s2-c-memory-portfolio-2026-08-24.json",
+      "userCorrectionWins": true,
+      "workMemoryExactRevision": true,
+      "episodePointersOnly": true,
+      "situationIsMemory": false
     },
     "humanPerformanceScenarios": {
       "fixture": "refoundation/config/s2-human-performance-scenarios.json",

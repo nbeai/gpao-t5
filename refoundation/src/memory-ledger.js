@@ -42,6 +42,7 @@ function project(events) {
     if (event.type === 'memory_added') {
       current.set(event.memoryId, {
         memoryId: event.memoryId, kind: event.kind, content: event.content,
+        subjects: clone(event.subjects ?? []), alwaysRelevant: event.alwaysRelevant === true,
         source: clone(event.source ?? null), createdAt: event.recordedAt, updatedAt: event.recordedAt,
       });
     } else if (event.type === 'memory_replaced') {
@@ -49,6 +50,8 @@ function project(events) {
       if (!previous) throw new Error('memory replacement target is missing');
       current.set(event.memoryId, {
         ...previous, kind: event.kind, content: event.content,
+        subjects: clone(event.subjects ?? previous.subjects ?? []),
+        alwaysRelevant: event.alwaysRelevant === true,
         source: clone(event.source ?? null), updatedAt: event.recordedAt,
       });
     } else if (event.type === 'memory_removed') {
@@ -114,7 +117,7 @@ export class MemoryLedger {
     return event;
   }
 
-  async add({ kind, content, source = null } = {}) {
+  async add({ kind, content, source = null, subjects = [], alwaysRelevant = false } = {}) {
     const nextKind = normalizedKind(kind);
     const nextContent = normalizedContent(content);
     if (bytes(nextContent) > this.maxEntryBytes) throw new Error('memory entry is too large');
@@ -126,15 +129,17 @@ export class MemoryLedger {
       const memoryId = randomUUID();
       const event = await this.append('memory_added', {
         memoryId, kind: nextKind, content: nextContent, source,
+        subjects: [...subjects].map(String).slice(0, 8), alwaysRelevant: alwaysRelevant === true,
       });
       return {
         memoryId, kind: nextKind, content: nextContent, source: clone(source),
+        subjects: [...subjects].map(String).slice(0, 8), alwaysRelevant: alwaysRelevant === true,
         createdAt: event.recordedAt, updatedAt: event.recordedAt,
       };
     });
   }
 
-  async replace({ memoryId, kind, content, source = null } = {}) {
+  async replace({ memoryId, kind, content, source = null, subjects = null, alwaysRelevant = false } = {}) {
     const id = String(memoryId ?? '');
     const nextContent = normalizedContent(content);
     if (bytes(nextContent) > this.maxEntryBytes) throw new Error('memory entry is too large');
@@ -149,8 +154,11 @@ export class MemoryLedger {
       this.validateCapacity(nextItems);
       const event = await this.append('memory_replaced', {
         memoryId: id, kind: nextKind, content: nextContent, source,
+        subjects: subjects == null ? previous.subjects : [...subjects].map(String).slice(0, 8),
+        alwaysRelevant: alwaysRelevant === true,
       });
-      return { ...previous, kind: nextKind, content: nextContent, source: clone(source), updatedAt: event.recordedAt };
+      return { ...previous, kind: nextKind, content: nextContent, source: clone(source),
+        subjects: clone(event.subjects), alwaysRelevant: event.alwaysRelevant, updatedAt: event.recordedAt };
     });
   }
 

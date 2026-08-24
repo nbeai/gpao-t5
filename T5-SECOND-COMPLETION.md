@@ -1,7 +1,7 @@
 # T5 Second Completion — Current Development Source
 
 상태: `SECOND_COMPLETION_ACTIVE`
-현재 Gate: `S2-B COMPLETE · S2-C READY`
+현재 Gate: `S2-C COMPLETE · S2-D READY`
 기준 source: `81f29d23`
 배포 상태: `0.1.8 REVOKED · 새 package 생성 금지`
 
@@ -459,6 +459,16 @@ Situation: 매번 관측하는 휘발성 현실, Memory 아님
 
 통과: 사용자 교정 반영 100%, 잘못된 현재 상황 승격 0, Episode 원문 중복 0, 관련 후보 recall 유지,
 불필요 Memory token 감소, restart·모델 전환 뒤 같은 Work 재개.
+
+S2-C — COMPLETE. MemoryLedger는 User·Work 현재값의 source message·session·Run·Work revision·subject를
+보존한다. 모델에는 현재 요청과 subject가 관련된 User Memory와 exact current Work revision의 Work
+Memory만 결정론적으로 투영한다. 같은 subject의 충돌은 최신 source revision이 이기며, 현재 사용자
+교정은 저장된 선호보다 우선한다. 완료·취소·다른 Work 기억은 원장에는 남지만 현재 model
+Context에서 자동 demotion된다. Working Memory는 Work identity·revision·pending input pointer의 파생
+projection이고, Episode는 settlement의 Conversation message·Run pointer이며 원문을 복제하지 않는다. 78만자
+실제 Terra 자격에서 durable preference·Work decision만 보존하고 one-off·비밀·추측·해결된 오류를
+제외했으며, 새 세션의 현재 교정이 기존 선호를 이겼다. 근거:
+`refoundation/evidence/s2-c-memory-portfolio-2026-08-24.json`
 
 ### S2-D — Time Continuity
 

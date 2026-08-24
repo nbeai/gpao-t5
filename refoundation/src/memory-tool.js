@@ -47,17 +47,19 @@ export function makeMemoryTool({ ledger, source } = {}) {
         memoryId: { type: ['string', 'null'] },
         kind: { type: ['string', 'null'], enum: ['user', 'work', null] },
         content: { type: ['string', 'null'] },
+        subjects: { type: ['array', 'null'], items: { type: 'string' }, maxItems: 8 },
+        alwaysRelevant: { type: ['boolean', 'null'] },
       },
-      required: ['action', 'memoryId', 'kind', 'content'],
+      required: ['action', 'memoryId', 'kind', 'content', 'subjects', 'alwaysRelevant'],
     },
-    async execute({ action, memoryId, kind, content }) {
+    async execute({ action, memoryId, kind, content, subjects, alwaysRelevant }) {
       if (action === 'list') return { state: 'listed', items: (await ledger.read()).items };
       if (action === 'add') {
-        const item = await ledger.add({ kind, content, source });
+        const item = await ledger.add({ kind, content, source, subjects: subjects ?? [], alwaysRelevant });
         return { state: 'added', item, items: (await ledger.read()).items };
       }
       if (action === 'replace') {
-        const item = await ledger.replace({ memoryId, kind, content, source });
+        const item = await ledger.replace({ memoryId, kind, content, source, subjects, alwaysRelevant });
         return { state: 'replaced', item, items: (await ledger.read()).items };
       }
       if (action === 'remove') {

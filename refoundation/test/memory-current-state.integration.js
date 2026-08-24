@@ -14,7 +14,7 @@ async function listen(server) {
   return `http://127.0.0.1:${server.address().port}`;
 }
 
-test('모델은 취소되어 더는 현재가 아닌 work 기억을 list 뒤 remove한다', async () => {
+test('취소되어 더는 현재가 아닌 work 기억은 모델 Context에 자동 투영되지 않는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-memory-current-state-integration-'));
   const stateDir = join(room, 'state');
   const workspace = join(room, 'workspace');
@@ -24,32 +24,7 @@ test('모델은 취소되어 더는 현재가 아닌 work 기억을 list 뒤 rem
     stateDir, workspace,
     modelFactory: () => ({ async respond(input) {
       modelTurn += 1;
-      const memoryDefinition = input.tools.find((tool) => tool.name === 'memory');
-      if (modelTurn === 1) {
-        assert.ok(input.messages.some((message) => (
-          /PERSISTENT MEMORY/u.test(message.content)
-          && /current durable state/i.test(message.content)
-          && /cancelled or no longer current/i.test(message.content)
-        )));
-        assert.match(memoryDefinition.description, /completed or cancelled/i);
-        assert.match(memoryDefinition.description, /conversation history|session search/i);
-        return {
-          text: '', toolCalls: [{
-            id: 'memory-list', name: 'memory',
-            args: { action: 'list', memoryId: null, kind: null, content: null },
-          }],
-        };
-      }
-      if (modelTurn === 2) {
-        const receipt = JSON.parse(input.messages.at(-1).content);
-        const [item] = receipt.result.items;
-        return {
-          text: '', toolCalls: [{
-            id: 'memory-remove', name: 'memory',
-            args: { action: 'remove', memoryId: item.memoryId, kind: null, content: null },
-          }],
-        };
-      }
+      assert.equal(input.messages.some((message) => /PERSISTENT MEMORY[\s\S]*스트레칭 알림/u.test(message.content)), false);
       return { text: '취소된 알림은 현재 기억에서 정리했습니다.', toolCalls: [] };
     } }),
   });
@@ -69,11 +44,11 @@ test('모델은 취소되어 더는 현재가 아닌 work 기억을 list 뒤 rem
       }),
     }).then((response) => response.json());
     assert.equal(result.reply, '취소된 알림은 현재 기억에서 정리했습니다.');
-    assert.deepEqual((await server.memoryLedger.read()).items, []);
+    assert.equal((await server.memoryLedger.read()).items.length, 1, '원장은 Episode 근거로 보존');
     const run = await fetch(`${base}/runs/${result.runId}`).then((response) => response.json());
     assert.deepEqual(run.events.filter((event) => event.type === 'tool_completed').map(
-      (event) => event.payload.receipt.requestedCall.args.action,
-    ), ['list', 'remove']);
+      (event) => event.payload.receipt.requestedCall.name,
+    ), []);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await rm(room, { recursive: true, force: true });

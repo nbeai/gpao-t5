@@ -1,0 +1,53 @@
+{
+  "schema":"t5.s2-c-memory-portfolio.v1",
+  "recordedAt":"2026-08-24T22:30:00+09:00",
+  "gate":"S2-C_MEMORY_PORTFOLIO",
+  "status":"complete",
+  "goal":"Recall only sourced current memory relevant to the user purpose, derive Working Memory and Episode pointers without duplicating canonical history, and let current correction win.",
+  "actualUserFailures":["all_active_memory_injected_every_call","cancelled_work_remains_current_until_model_cleanup","missing_source_revision_conflict","episode_kind_absent"],
+  "comparisonPrinciples":{
+    "openClaw":{"commit":"03658a99a9508b4fca053d5ad92eb5ae0c99fa11","adopted":["trusted_curated_tier_only_for_automatic_injection","transcripts_explicit_search_only","deterministic_hybrid_retrieval_without_query_model"],"rejected":["fixed_top_k","fixed_score_threshold","embedding_provider_dependency"]},
+    "hermes":{"commit":"057dcdf236f8a6a26721c10fcc6ccb72726e272a","adopted":["bounded_curated_user_and_agent_memory","provider_lifecycle_sync_prefetch_shutdown"],"rejected":["fixed_character_caps","frozen_full_memory_snapshot"]},
+    "codex":{"commit":"a9e7920da1019ad19e794aaa301af5a3070e8462","adopted":["claimed_rollout_extraction","source_metadata","added_retained_removed_consolidation","secret_redaction"],"rejected":["background_extraction_model_as_default","fixed_startup_scan_caps"]},
+    "claudeCode":{"source":"official_memory_contract","adopted":["explicit_scope_layers","current_directory_scope"],"rejected":["cwd_as_personal_work_identity","all_memory_files_loaded_at_startup"]}
+  },
+  "implemented":{
+    "userMemory":"sourced facts preferences decisions",
+    "workingMemory":"derived work revision and pending input pointers",
+    "episode":"work settlement message and run pointers",
+    "situationStoredAsMemory":false,
+    "allMemoryInjected":false,
+    "workMemoryRequiresExactCurrentRevision":true,
+    "sameSubjectLatestRevisionWins":true,
+    "completedCancelledOtherWorkAutoDemoted":true,
+    "episodeRawConversationDuplicated":false,
+    "selectionModelAdded":false
+  },
+  "actualModelQualification":{
+    "model":"gpt-5.6-terra","seededConversationChars":780000,"selectionPassed":true,"conflictPassed":true,
+    "kept":["SAFE-PREF-7391","WORK-DECISION-4488"],
+    "rejected":["ONCE-ONLY-8426","TEMP-ERROR-5521","SPECULATION-6612","SECRET-9911"],
+    "currentCorrectionAnswer":"CURRENT-WINS-7733"
+  },
+  "verification":{
+    "focusedAfterFinalFixPassed":11,
+    "refoundationUnitCleanBeforeFinalFixPassed":686,
+    "defaultProductIntegrationAfterFinalFixPassed":99,
+    "ptyResizeIsolatedAfterFullSuiteTimingFailurePassed":1,
+    "failuresInCPaths":0,
+    "visibleBrowserLiveExecuted":false
+  },
+  "observations":[
+    "The final full unit rerun reached the existing PTY resize test and stalled after its timing assertion; the exact test passed 1/1 in isolation. No C path failed.",
+    "C actual-model qualification was run with gpt-5.6-terra; a separate gpt-5.5 C qualification was not run in this development session."
+  ],
+  "artifacts":{
+    "memoryLedgerSha256":"869f0d3ceb2b816a7a463ce1f8ddac5b6e5e294c17480a3997bc199d1f33f452",
+    "memoryToolSha256":"6ef25b7e1fa92a73e799b827171d3b95fa2d98cd42c2497bad37a5ac89d58996",
+    "memoryPortfolioSha256":"01bc37728c4523e39b0654d9a3ecb118887dd00d9366d796b1dc223a2813d717",
+    "consoleServerSha256":"8d141225cf6cc3465ec1e1f5326bfd972fdf929ebb076d492d0196a266db2d4c",
+    "portfolioTestSha256":"bc3558a182c1f4d5c9221a0edf2fdd37c9d45d6724a02ad8725f2cc923857697"
+  },
+  "nonGoals":["new_embedding_service","vector_only_recall","fixed_persona","time_continuity","learning","new_connector","browser"],
+  "productBehaviorChanged":true
+}

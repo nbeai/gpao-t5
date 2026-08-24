@@ -33,6 +33,7 @@ import { ConversationLedger } from './conversation-ledger.js';
 import { WorkStore } from './work-store.js';
 import { makeWorkTransitionTool } from './work-transition-tool.js';
 import { makeWorkCompletionTool } from './work-completion-tool.js';
+import { selectMemoryPortfolio, workingMemoryProjection } from './memory-portfolio.js';
 import { projectHistoricalConversationEntries } from './conversation-projection.js';
 import { makeConversationRecallTool } from './conversation-recall-tool.js';
 import {
@@ -610,6 +611,13 @@ export function makeConsoleServer({
     await conversations.ensure({ sessionId, legacyMessages: historyFrom(session) });
     await memories.ensure();
     const memorySnapshot = await memories.read();
+    const preexistingWorkState = await workStore.read();
+    const preexistingWork = preexistingWorkState.works.filter((work) => (
+      work.sessionId === sessionId && work.status === 'active'
+    )).at(-1) ?? null;
+    const memoryPortfolio = selectMemoryPortfolio({
+      items: memorySnapshot.items, request: text, currentWork: preexistingWork,
+    });
     let canonicalConversation = await conversations.read(sessionId);
     if (options.admittedInput) {
       canonicalConversation = {
@@ -618,7 +626,7 @@ export function makeConsoleServer({
       };
       canonicalConversation.messages = canonicalConversation.entries.map((entry) => structuredClone(entry.message));
     }
-    let projection = projectConversation(sessionId, canonicalConversation, memorySnapshot.items);
+    let projection = projectConversation(sessionId, canonicalConversation, memoryPortfolio);
     const run = await runLedger.start({ sessionId, request: text, metadata: {
       priorConversationMessages: projection.messages.length,
       conversationProjection,
@@ -848,7 +856,7 @@ export function makeConsoleServer({
               },
             });
             canonicalConversation = await conversations.read(sessionId);
-            projection = projectConversation(sessionId, canonicalConversation, memorySnapshot.items);
+            projection = projectConversation(sessionId, canonicalConversation, memoryPortfolio);
           } catch (error) {
             await run.append({
               type: 'checkpoint_failed', stepId: 'checkpoint',
@@ -885,6 +893,11 @@ export function makeConsoleServer({
       if (options.admittedInput) await workStore.claimInputExecution({
         inputId: options.admittedInput.inputId, runId: run.runId,
       });
+      const working = workingMemoryProjection(await workStore.read(), activeWork.workId);
+      if (working) history.push({ role: 'assistant', content: [
+        '[T5 CURRENT WORKING MEMORY — derived pointers, not conversation history]',
+        JSON.stringify(working),
+      ].join('\n') });
       const model = await modelFactory({ sessionId, workspace, computer: computerFacts });
       const managedCliStore = await managedCliStorePromise;
       const terminal = makeTerminalHand({
@@ -1101,7 +1114,8 @@ export function makeConsoleServer({
       }
       offeredTools.unshift(makeMemoryTool({
         ledger: memories,
-        source: { origin: 'foreground', sessionId, runId: run.runId },
+        source: { origin: 'foreground', sessionId, runId: run.runId,
+          messageId: `${run.runId}:user`, workId: activeWork.workId, revision: activeWork.revision },
       }));
       offeredTools.unshift(makeSessionSearchTool({
         ledger: conversations, sessions, currentSessionId: sessionId,
