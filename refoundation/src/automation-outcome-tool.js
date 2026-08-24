@@ -7,7 +7,7 @@ export function makeAutomationOutcomeTool() {
   return {
     name: 'automation_outcome',
     capabilityGroup: 'automation_outcome',
-    description: 'Required final receipt for a scheduled T5 Run. Call this only after doing the scheduled work. Declare achieved only when the user objective is actually complete and cite the exact successful toolCallIds that prove it. If any requested effect, delivery, result URL, or verification remains missing, declare not_achieved and state what remains. This receipt controls scheduler truth; a normal model answer does not mark the automation successful.',
+    description: 'Required objective receipt for a scheduled T5 Run. Call this only after doing the scheduled work. Declare achieved only when the requested content, result, effect, result URL, and verification that this Run owns are actually complete, and cite the exact successful toolCallIds that prove them. Contracted origin-session or Telegram delivery is owned and settled separately by the scheduler after this receipt; do not declare not_achieved merely because that later delivery has not happened yet. If any result or effect owned by this Run remains missing or unknown, declare not_achieved and state what remains. A normal model answer does not mark the objective successful.',
     parameters: {
       type: 'object', additionalProperties: false,
       properties: {

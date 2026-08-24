@@ -101,6 +101,21 @@ test('새 Controller·Run은 이전 Session resource history를 초기화하거�
     && event.payload.kind === 'run').length, 2);
 });
 
+test('automation Run은 exact occurrence scope 아래에서 Work pointer와 자원을 정산한다', async () => {
+  const ledger = new ResourceLedger(await room()); const controller = new ResourceController(ledger);
+  const run = await controller.startRun({ sessionId: 'session-auto', runId: 'run-auto', trigger: 'automation',
+    occurrence: { occurrenceId: 'occurrence-1', resourceScopeId: 'automation-occurrence:occurrence-1',
+      jobId: 'job-1', sourceWorkId: 'work-1', sourceWorkRevision: 4 } });
+  await run.close('completed');
+  const scopes = (await ledger.read()).filter((event) => event.type === 'ScopeCreated');
+  const occurrence = scopes.find((event) => event.scopeId === 'automation-occurrence:occurrence-1');
+  const runScope = scopes.find((event) => event.payload.kind === 'run');
+  assert.equal(occurrence.payload.kind, 'automation_occurrence');
+  assert.equal(occurrence.payload.workId, 'work-1'); assert.equal(occurrence.payload.workRevision, 4);
+  assert.equal(runScope.parentScopeId, occurrence.scopeId);
+  assert.equal(runScope.payload.occurrenceId, 'occurrence-1');
+});
+
 test('ResourceController는 retry attempt·tool·Run을 계층 scope로 한 번 rollup할 근거를 남긴다', async () => {
   let clock = 100;
   let id = 0;

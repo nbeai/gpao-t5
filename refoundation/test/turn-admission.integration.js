@@ -130,7 +130,9 @@ test('현재 결과 선 delivery가 명시된 extension만 exact 새 Run으로 �
     deliver(); await stream;
     for (let attempt = 0; attempt < 80; attempt += 1) {
       const sessionState = await fetch(`${base}/sessions/${session.id}`).then((response) => response.json());
-      if (JSON.stringify(sessionState).includes('후속 표 정리를 완료')) break;
+      const workState = await server.workStore.read();
+      const workInput = workState.inputs.find((item) => item.inputId === admitted.inputId);
+      if (JSON.stringify(sessionState).includes('후속 표 정리를 완료') && workInput?.state === 'executed') break;
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
     state = await server.workStore.read(); input = state.inputs.find((item) => item.inputId === admitted.inputId);

@@ -24,10 +24,12 @@ test('원장은 실행 전 claim을 먼저 기록하고 crash 뒤 일회 작업�
     const job = await store.create({ name: '한 번', prompt: '보고서 확인', sessionId: 's1', scheduleKind: 'at',
       schedule: new Date(now + 1_000).toISOString(), timezone: 'Asia/Seoul' });
     now += 2_000;
-    const [claim] = await store.claimDue();
+    const [claim] = await store.claimDue({ owner: { runtimeId: 'test-runtime', generation: 1 } });
     assert.equal(claim.job.id, job.id); assert.equal(claim.run.status, 'claimed');
-    assert.deepEqual(await store.claimDue(), []);
-    const recovered = await store.recoverInterrupted();
+    assert.deepEqual(await store.claimDue({ owner: { runtimeId: 'other-runtime', generation: 1 } }), []);
+    now += 120_001;
+    const recovered = await store.recoverInterrupted({ leaseMs: 120_000,
+      inspectOwner: async () => 'definitely_dead' });
     assert.deepEqual(recovered, [job.id]);
     const state = await store.list();
     assert.equal(state.jobs[0].state, 'needs_review');
@@ -64,5 +66,116 @@ test('제품에서 제거된 도구를 요구하는 기존 예약은 실행 전�
     const quarantined = await store.inspect(job.id);
     assert.equal(quarantined.state, 'needs_review');
     assert.equal(quarantined.lastError, 'required_tool_unavailable');
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('occurrence claim은 owner·fence·Work·Resource identity를 고정하고 stale worker 정산을 거부한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-automation-occurrence-'));
+  let now = Date.parse('2026-08-21T00:00:00Z');
+  try {
+    const store = new AutomationStore(join(room, 'automation.json'), { now: () => now });
+    const job = await store.create({ name: '현재 보고', prompt: '보고서를 확인해', sessionId: 's1',
+      scheduleKind: 'at', schedule: new Date(now + 1_000).toISOString(), timezone: 'Asia/Seoul',
+      workBinding: { workId: 'source-work', revision: 3 } });
+    now += 2_000;
+    const [claim] = await store.claimDue({ owner: { runtimeId: 'runtime-a', generation: 1 } });
+    assert.equal(claim.run.occurrenceId, claim.run.id);
+    assert.equal(claim.run.sourceWorkId, 'source-work'); assert.equal(claim.run.sourceWorkRevision, 3);
+    assert.ok(claim.run.resourceScopeId); assert.ok(claim.run.fenceToken);
+    assert.equal(claim.run.executionStatus, 'not_started');
+    assert.equal(claim.run.objectiveStatus, 'unassessed');
+    assert.equal(claim.run.deliveryStatus, 'pending');
+    await store.markRunning(job.id, claim.run.id, claim.claim);
+    now += 500;
+    await store.heartbeat(job.id, claim.run.id, claim.claim);
+    await assert.rejects(() => store.complete({ jobId: job.id, runId: claim.run.id,
+      claim: { ...claim.claim, fenceToken: 'stale-fence' }, executionStatus: 'completed',
+      objectiveStatus: 'achieved', deliveryStatus: 'failed' }), /claim is stale/u);
+    await store.complete({ jobId: job.id, runId: claim.run.id, claim: claim.claim,
+      sourceRunId: 'model-run', executionWorkId: 'execution-work', executionWorkRevision: 1,
+      executionStatus: 'completed', objectiveStatus: 'achieved',
+      surfaceStatus: 'persisted', deliveryStatus: 'failed', error: 'delivery_failed' });
+    const state = await store.list(); const occurrence = state.runs[0];
+    assert.equal(occurrence.status, 'failed'); assert.equal(occurrence.executionStatus, 'completed');
+    assert.equal(occurrence.objectiveStatus, 'achieved'); assert.equal(occurrence.deliveryStatus, 'failed');
+    assert.equal(occurrence.executionWorkId, 'execution-work');
+    assert.equal(occurrence.executionWorkRevision, 1);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('같은 state file을 연 두 scheduler store도 한 occurrence를 둘 다 claim하지 못한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-automation-cross-store-'));
+  let now = Date.parse('2026-08-21T00:00:00Z'); const file = join(room, 'automation.json');
+  try {
+    const first = new AutomationStore(file, { now: () => now });
+    await first.create({ name: '하나', prompt: '한 번만', sessionId: 's', scheduleKind: 'at',
+      schedule: new Date(now + 1_000).toISOString(), timezone: 'Asia/Seoul' });
+    now += 2_000; const second = new AutomationStore(file, { now: () => now });
+    const claims = (await Promise.all([
+      first.claimDue({ owner: { runtimeId: 'a', generation: 1 } }),
+      second.claimDue({ owner: { runtimeId: 'b', generation: 1 } }),
+    ])).flat();
+    assert.equal(claims.length, 1); assert.equal((await first.list()).runs.length, 1);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('recovery는 heartbeat 시간만으로 live owner를 죽이지 않고 stale non-live owner만 unknown으로 fencing한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-automation-owner-recovery-'));
+  let now = Date.parse('2026-08-21T00:00:00Z');
+  try {
+    const store = new AutomationStore(join(room, 'automation.json'), { now: () => now });
+    const job = await store.create({ name: '긴 확인', prompt: '계속 확인해', sessionId: 's1',
+      scheduleKind: 'every', schedule: '1h', timezone: 'Asia/Seoul' });
+    now += 3_600_000;
+    const [claim] = await store.claimDue({ owner: { runtimeId: 'runtime-a', generation: 7 } });
+    await store.markRunning(job.id, claim.run.id, claim.claim);
+    now += 120_001;
+    assert.deepEqual(await store.recoverInterrupted({ leaseMs: 120_000,
+      inspectOwner: async () => 'live' }), []);
+    assert.equal((await store.list()).runs[0].status, 'running');
+    const recovered = await store.recoverInterrupted({ leaseMs: 120_000,
+      inspectOwner: async () => 'definitely_dead' });
+    assert.deepEqual(recovered, [job.id]);
+    const state = await store.list(); assert.equal(state.runs[0].status, 'unknown');
+    assert.equal(state.runs[0].executionStatus, 'unknown');
+    assert.equal(state.runs[0].objectiveStatus, 'unassessed');
+    assert.equal(state.runs[0].deliveryStatus, 'unknown');
+    await assert.rejects(() => store.complete({ jobId: job.id, runId: claim.run.id,
+      claim: claim.claim, executionStatus: 'completed', objectiveStatus: 'achieved',
+      deliveryStatus: 'succeeded' }), /claim is stale/u);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('result surface와 외부 delivery는 각각 prepare 뒤 exact receipt로만 terminal된다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-automation-publication-'));
+  let now = Date.parse('2026-08-21T00:00:00Z');
+  try {
+    const store = new AutomationStore(join(room, 'automation.json'), { now: () => now });
+    const job = await store.create({ name: '전달', prompt: '결과를 보내', sessionId: 'origin',
+      scheduleKind: 'at', schedule: new Date(now + 1_000).toISOString(), timezone: 'Asia/Seoul',
+      delivery: { kind: 'telegram', sessionId: 'telegram-owner' } });
+    now += 2_000; const [claimed] = await store.claimDue({ owner: { runtimeId: 'a', generation: 1 } });
+    await store.markRunning(job.id, claimed.run.id, claimed.claim);
+    await store.prepareResult({ jobId: job.id, runId: claimed.run.id, claim: claimed.claim,
+      sourceRunId: 'model-run', objectiveStatus: 'achieved', resultPointer: 'work-result:model-run',
+      resultDigest: 'digest-1' });
+    await assert.rejects(() => store.markSurfacePersisted({ jobId: job.id, runId: claimed.run.id,
+      claim: claimed.claim, surfaceReceipt: { sessionId: 'origin', runId: 'wrong', resultDigest: 'digest-1' } }),
+    /surface receipt/u);
+    await store.markSurfacePersisted({ jobId: job.id, runId: claimed.run.id, claim: claimed.claim,
+      surfaceReceipt: { surface: 'console_session', sessionId: 'origin',
+        runId: 'model-run', resultDigest: 'digest-1' } });
+    await store.claimDelivery({ jobId: job.id, runId: claimed.run.id, claim: claimed.claim,
+      deliveryId: 'delivery-1', provider: 'telegram' });
+    assert.equal((await store.list()).runs[0].deliveryStatus, 'dispatch_claimed');
+    await assert.rejects(() => store.settleDelivery({ jobId: job.id, runId: claimed.run.id,
+      claim: claimed.claim, deliveryId: 'other', status: 'succeeded' }), /delivery claim/u);
+    await store.settleDelivery({ jobId: job.id, runId: claimed.run.id, claim: claimed.claim,
+      deliveryId: 'delivery-1', status: 'unknown', receipt: { state: 'ack_missing' } });
+    await store.complete({ jobId: job.id, runId: claimed.run.id, claim: claimed.claim,
+      error: 'delivery_ack_unknown' });
+    const occurrence = (await store.list()).runs[0]; assert.equal(occurrence.status, 'unknown');
+    assert.equal(occurrence.objectiveStatus, 'achieved'); assert.equal(occurrence.surfaceStatus, 'persisted');
+    assert.equal(occurrence.deliveryStatus, 'unknown');
   } finally { await rm(room, { recursive: true, force: true }); }
 });

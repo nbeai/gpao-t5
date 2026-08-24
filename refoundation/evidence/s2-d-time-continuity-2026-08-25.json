@@ -1,0 +1,71 @@
+{
+  "schema": "t5.s2-d-time-continuity-evidence.v1",
+  "recordedAt": "2026-08-25T02:05:00+09:00",
+  "gate": "S2-D",
+  "referenceSources": {
+    "openclaw": "29f39affc267ee031a2d64b92aa07201505f409a",
+    "hermes": "7e500d2ead2251aa10f745bfdb32975dd81e1dba"
+  },
+  "adoptedPrinciples": [
+    "durable occurrence claim before execution",
+    "immutable owner and fence identity",
+    "heartbeat with unknown-not-dead owner observation",
+    "stale worker cannot effect or settle",
+    "execution objective surface and delivery remain independent",
+    "pending result recovery publishes exact result without model rerun",
+    "delivery dispatch without acknowledgement becomes unknown and is not resent",
+    "scheduled execution re-observes current capability authority and resource reality"
+  ],
+  "rejectedConstraints": [
+    "PID or OS service state as Core truth",
+    "one success boolean for execution objective and delivery",
+    "blind retry after unknown effect or delivery",
+    "recursive automation",
+    "new fixed model tool token or wall limit",
+    "visible Browser or new connector"
+  ],
+  "reproducedFailures": [
+    "two stores claimed one occurrence and collided on one temporary file",
+    "scheduled objective and later scheduler delivery gave the model contradictory completion duties",
+    "fresh scheduled session lacked execution framing for the stored objective",
+    "future objective effect and current schedule-save effect were ambiguous"
+  ],
+  "faultMatrix": {
+    "liveOwnerFalseStale": 0,
+    "staleWorkerEffects": 0,
+    "staleWorkerSettlements": 0,
+    "modelRerunsAfterPendingSurfaceCrash": 0,
+    "duplicateRecoveredSurfaces": 0,
+    "telegramResendsAfterUnknownAcknowledgement": 0,
+    "completionAfterCancel": 0,
+    "recursiveAutomationToolExposure": 0
+  },
+  "liveQualification": [
+    {
+      "model": "gpt-5.6-terra",
+      "passed": true,
+      "wallMs": 13477,
+      "modelCalls": 4,
+      "toolCalls": 3,
+      "deliveryCount": 1,
+      "internalTermsVisible": false
+    },
+    {
+      "model": "gpt-5.5",
+      "passed": true,
+      "wallMs": 31428,
+      "modelCalls": 4,
+      "toolCalls": 3,
+      "deliveryCount": 1,
+      "internalTermsVisible": false
+    }
+  ],
+  "verification": {
+    "refoundationCheck": { "passed": 705, "failed": 0 },
+    "productIntegration": { "passed": 118, "failed": 0 },
+    "visibleBrowserLiveExecuted": false,
+    "externalUserDataUsed": false,
+    "externalWriteExecuted": false
+  },
+  "status": "implementation_and_model_qualification_passed_human_end_to_end_pending"
+}

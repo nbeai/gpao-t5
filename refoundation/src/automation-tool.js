@@ -1,6 +1,7 @@
 import { EFFECT_SCHEMA } from './exec-tool.js';
 
-export function makeAutomationTool({ store, scheduler, sessionId, authorizeEffect, inspectRequirements } = {}) {
+export function makeAutomationTool({ store, scheduler, sessionId, authorizeEffect, inspectRequirements,
+  workBinding = null } = {}) {
   if (!store || !scheduler || !sessionId) throw new TypeError('automation tool inputs are required');
   return {
     name: 'automation',
@@ -21,6 +22,7 @@ export function makeAutomationTool({ store, scheduler, sessionId, authorizeEffec
       },
       requiredEffect: {
         type: ['string', 'null'], enum: ['observe', 'local_change', 'external_change', 'external_send', null],
+        description: 'Effect that the future scheduled objective itself must perform. Use null for text-only content whose contracted delivery is owned by the scheduler. Do not use local_change merely because the create action saves this schedule; the separate effect field describes that current reversible save.',
       },
       requireResultUrl: { type: ['boolean', 'null'], description: 'True when completion requires an observed result URL, such as a published post.' },
       delivery: {
@@ -106,20 +108,21 @@ export function makeAutomationTool({ store, scheduler, sessionId, authorizeEffec
       return typeof authorizeEffect === 'function' ? authorizeEffect(args, context) : { allowed: true };
     },
     async execute(args, context = {}) {
-      if (args.action === 'list') return { state: 'listed', ...await store.list() };
+      if (args.action === 'list') return { state: 'listed', ...await store.publicList() };
       if (args.action === 'inspect') return { state: 'inspected', job: await store.inspect(args.jobId) };
       if (args.action === 'create') {
         const contract = context.automationRequirements;
         if (!contract) return { state: 'automation_requirements_unverified' };
         const job = await store.create({ name: args.name, prompt: args.prompt, sessionId,
           scheduleKind: args.scheduleKind, schedule: args.schedule, timezone: args.timezone,
-          requirements: contract, delivery: contract.delivery, authorityEnvelope: contract.authorityEnvelope });
+          requirements: contract, delivery: contract.delivery, authorityEnvelope: contract.authorityEnvelope,
+          workBinding });
         await scheduler.jobsChanged();
         return { state: 'scheduled', job, userSafeSummary: `${job.name} 자동화를 예약했어요.` };
       }
       if (args.action === 'pause') { const job = await store.pause(args.jobId); await scheduler.jobsChanged(); return { state: 'paused', job }; }
       if (args.action === 'resume') { const job = await store.resume(args.jobId); await scheduler.jobsChanged(); return { state: 'scheduled', job }; }
-      if (args.action === 'cancel') { const job = await store.cancel(args.jobId); await scheduler.jobsChanged(); return { state: 'cancelled', job }; }
+      if (args.action === 'cancel') { const job = await scheduler.cancel(args.jobId); return { state: 'cancelled', job }; }
       if (args.action === 'run_now') return { state: 'queued', run: await scheduler.runNow(args.jobId) };
       throw new Error('unsupported automation action');
     },

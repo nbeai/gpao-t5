@@ -79,6 +79,7 @@ import { makeCapabilityHandoffCoordinator } from './capability-handoff-coordinat
 import { loadCapabilityCatalog, makeCapabilityCatalogTool } from './capability-catalog.js';
 import { AutomationStore } from './automation-store.js';
 import { AutomationScheduler } from './automation-scheduler.js';
+import { makeLocalAutomationOwner } from './automation-owner.js';
 import { makeAutomationTool } from './automation-tool.js';
 import { assessAutomationOutcome, makeAutomationOutcomeTool } from './automation-outcome-tool.js';
 import { deferTools, makeToolSearchTool } from './tool-search.js';
@@ -362,6 +363,7 @@ export function makeConsoleServer({
   }
   const admissionRecovery = recoverPreparedAdmissions().catch((error) => { onError?.(error); return []; });
   const computer = computerEnvironment ?? discoverComputerEnvironment({ userHome: workspace });
+  const automationOwner = makeLocalAutomationOwner({ runtimeId: runtimeInstanceId });
   const computerFacts = publicComputerFacts(computer);
   const processes = processRegistry ?? new ManagedProcessRegistry({ platform: computer.platform });
   const reveal = revealPath ?? makePathRevealer({
@@ -578,7 +580,9 @@ export function makeConsoleServer({
       allowed: false, outcome: 'not_executed',
       result: { state: 'effect_declaration_mismatch', reason: mismatch, declaredEffect: effect },
     };
-    const delegated = automationAuthorityBySession.get(String(ownerId));
+    const delegatedExecution = automationAuthorityBySession.get(String(ownerId));
+    if (delegatedExecution) await delegatedExecution.assertCurrent();
+    const delegated = delegatedExecution?.envelope;
     if (delegated?.toolName === toolName
       && delegated.effect?.kind === effect.kind
       && ['local_change', 'external_change', 'external_send'].includes(effect.kind)
@@ -676,6 +680,7 @@ export function makeConsoleServer({
     let resourceDiagnosticSequence = 0;
     const resourceRun = await resourceController.startRun({
       sessionId, runId: run.runId, trigger: options.trigger ?? 'user',
+      occurrence: options.automationOccurrence ?? null,
       onDiagnostic: async (diagnostic) => {
         resourceDiagnosticSequence += 1;
         await run.append({
@@ -733,6 +738,9 @@ export function makeConsoleServer({
       for (const metric of pending) await run.append({ type: 'surface_metric', payload: metric });
     }
     const controller = new AbortController();
+    const abortFromExternal = () => controller.abort(options.externalSignal?.reason);
+    if (options.externalSignal?.aborted) abortFromExternal();
+    else options.externalSignal?.addEventListener('abort', abortFromExternal, { once: true });
     running.set(sessionId, controller);
     let runFinished = false;
     let resourceRunStatus = 'unknown';
@@ -956,7 +964,9 @@ export function makeConsoleServer({
       const skillSnapshot = mergeSkillSnapshots([bundledSkillSnapshot, managedSkillSnapshot]);
       const capabilitySnapshot = await loadCapabilityCatalog({ directory: capabilitiesRoot });
       const offeredTools = [...terminal.tools];
-      if (!options.observationOnly) offeredTools.unshift(makeWorkCompletionTool({ store: workStore, runId: run.runId }));
+      if (!options.observationOnly && options.trigger !== 'automation') {
+        offeredTools.unshift(makeWorkCompletionTool({ store: workStore, runId: run.runId }));
+      }
       offeredTools.unshift(makeWorkTransitionTool({
         store: workStore, sessionId, runId: run.runId,
         stopProcesses: () => processes.stopOwner(sessionId, 'model_classified_cancel'),
@@ -1117,6 +1127,7 @@ export function makeConsoleServer({
       }));
       if (options.trigger !== 'automation') offeredTools.unshift(makeAutomationTool({
           store: automationStore, scheduler: automationScheduler, sessionId,
+          workBinding: activeWork ? { workId: activeWork.workId, revision: activeWork.revision } : null,
           authorizeEffect: (args) => effectPreflight({ toolName: 'automation', args, ownerId: sessionId }),
           inspectRequirements: async ({ requiredTools, delivery }) => {
             const available = new Set(offeredTools.map((tool) => tool.name));
@@ -1163,7 +1174,7 @@ export function makeConsoleServer({
         performConnection: (id, actionId) => performConnectionAction(id, actionId, { sessionId }),
       }));
       const coreToolNames = [
-        'connection', 'memory', 'skill', 'work_completion',
+        'connection', 'memory', 'skill', ...(options.trigger === 'automation' ? [] : ['work_completion']),
         // Public-web search, exact URL reading, and bounded multi-source research are
         // foundational observation hands. The research schema stays visible because
         // both qualified models must reach it reliably before the lighter hands can loop.
@@ -1218,7 +1229,8 @@ export function makeConsoleServer({
         `local=${localNow.toLocaleString('sv-SE', { timeZone: localTimeZone })}`,
         `timeZone=${localTimeZone}`,
       ].join('\n');
-      const runtimeContexts = [localTimeContext, browserRuntimeContext].filter(Boolean).join('\n\n');
+      const runtimeContexts = [localTimeContext, browserRuntimeContext, options.runtimeContext]
+        .filter(Boolean).join('\n\n');
       const agentRequest = `${modelRequest}\n\n${runtimeContexts}`;
       const result = await runAgent({
         request: agentRequest,
@@ -1476,7 +1488,16 @@ export function makeConsoleServer({
       const settledWork = await workStore.workForRun(run.runId); let objectiveOutcome = 'unresolved';
       if (settledWork && settledWork.revision === settledWork.claimedRevision
         && settledWork.status === 'active') {
-        const proposal = await workStore.proposalForRun(run.runId);
+        let proposal = await workStore.proposalForRun(run.runId);
+        if (!proposal && options.trigger === 'automation') {
+          const automationAssessment = assessAutomationOutcome({
+            receipts: result.receipts, requirements: options.automationRequirements ?? {},
+          });
+          await workStore.proposeCompletion({ workId: settledWork.workId,
+            revision: settledWork.claimedRevision, runId: run.runId,
+            proposedOutcome: automationAssessment.achieved ? 'achieved' : 'unresolved' });
+          proposal = await workStore.proposalForRun(run.runId);
+        }
         const evaluation = evaluateWorkCompletion({
           proposedOutcome: proposal?.proposedOutcome ?? 'unresolved', receipts: result.receipts,
           facts: { approvalPending: Boolean(approvalReceipt),
@@ -1552,7 +1573,8 @@ export function makeConsoleServer({
           originRunId: run.runId,
         });
       }
-      return { kind: 'reply', surfaceResult, result, runId: run.runId };
+      return { kind: 'reply', surfaceResult, result, runId: run.runId,
+        workId: settledWork?.workId ?? null, workRevision: settledWork?.claimedRevision ?? null };
     } catch (error) {
       if (controller.signal.aborted) {
         if (!runFinished) {
@@ -1601,6 +1623,7 @@ export function makeConsoleServer({
       if (error && typeof error === 'object') error.surfaceResult = failureSurface;
       throw error;
     } finally {
+      options.externalSignal?.removeEventListener('abort', abortFromExternal);
       await resourceRun.close(resourceRunStatus).catch((error) => onError?.(error));
       running.delete(sessionId);
       await scheduleNextWorkInput(sessionId).catch((error) => onError?.(error));
@@ -1809,20 +1832,38 @@ export function makeConsoleServer({
   ] });
   automationScheduler = new AutomationScheduler({
     store: automationStore,
+    owner: automationOwner.owner, inspectOwner: automationOwner.inspect,
     unavailableTools: typeof browserDriverFactory === 'function' ? [] : ['browser'],
-    execute: async ({ job, run: automationRun }) => {
+    execute: async ({ job, run: automationRun, claim, assertCurrent, signal }) => {
       if (!job.requirements || !job.delivery) return {
         runId: null, objectiveStatus: 'not_achieved', deliveryStatus: 'not_requested', error: 'automation_contract_missing',
       };
       const executionSession = await sessions.create({ continuationOf: job.sessionId });
       let completed;
-      if (job.authorityEnvelope) {
-        automationAuthorityBySession.set(executionSession.id, structuredClone(job.authorityEnvelope));
-      }
+      automationAuthorityBySession.set(executionSession.id, {
+        envelope: job.authorityEnvelope ? structuredClone(job.authorityEnvelope) : null,
+        assertCurrent,
+      });
       try {
+        await assertCurrent();
+        const scheduledRuntimeContext = [
+          '[T5 CURRENT SCHEDULED EXECUTION — runtime fact, not conversation history]',
+          'Perform the current user request as the stored objective now. It is not a request to create or edit a schedule.',
+          'Treat that request as the complete objective or exact result content the user asked T5 to produce.',
+          'The scheduler will persist and deliver your exact final result after the objective receipt.',
+        ].join('\n');
         completed = await executeTurn(executionSession.id, job.prompt, () => {}, {
           trigger: 'automation', metadata: { jobId: job.id, automationRunId: automationRun.id },
+          automationOccurrence: {
+            occurrenceId: automationRun.occurrenceId, resourceScopeId: automationRun.resourceScopeId,
+            jobId: job.id, sourceWorkId: automationRun.sourceWorkId,
+            sourceWorkRevision: automationRun.sourceWorkRevision,
+          },
+          automationRequirements: job.requirements,
+          runtimeContext: scheduledRuntimeContext,
+          externalSignal: signal,
         });
+        await assertCurrent();
       } finally {
         automationAuthorityBySession.delete(executionSession.id);
         await sessions.setArchived(executionSession.id, true).catch(() => {});
@@ -1833,6 +1874,13 @@ export function makeConsoleServer({
       let deliveryStatus = job.delivery.kind === 'none' ? 'not_requested' : 'pending';
       const originSession = await sessions.load(job.sessionId);
       const reply = completed.surfaceResult?.reply ?? completed.result?.answer ?? null;
+      const resultRecord = (await workStore.read()).results.find((item) => item.runId === completed.runId);
+      if (!resultRecord?.resultDigest) throw new Error('automation exact result is unavailable');
+      await automationStore.prepareResult({ jobId: job.id, runId: automationRun.id, claim,
+        sourceRunId: completed.runId, executionWorkId: completed.workId,
+        executionWorkRevision: completed.workRevision,
+        objectiveStatus: objective.achieved ? 'achieved' : 'unresolved',
+        resultPointer: `work-result:${completed.runId}`, resultDigest: resultRecord.resultDigest });
       if (reply) {
         await sessions.append(job.sessionId, {
           role: 'assistant', result: {
@@ -1846,23 +1894,125 @@ export function makeConsoleServer({
           message: { role: 'assistant', content: reply },
         });
         broadcastEvent('automation_completed', { sessionId: job.sessionId, jobId: job.id, runId: completed.runId });
+        await automationStore.markSurfacePersisted({ jobId: job.id, runId: automationRun.id, claim,
+          surfaceReceipt: { surface: 'console_session', sessionId: job.sessionId,
+            runId: completed.runId, resultDigest: resultRecord.resultDigest } });
         if (job.delivery.kind === 'origin_session') deliveryStatus = 'succeeded';
       }
       if (job.delivery.kind === 'telegram') {
         const deliveryText = objective.achieved
           ? reply : `예약한 작업을 완료하지 못했습니다. ${objective.summary}`;
-        const delivery = await messenger.sendToSession({
-          sessionId: job.delivery.sessionId, text: deliveryText,
-        });
-        deliveryStatus = delivery.sent ? 'succeeded' : 'failed';
+        const deliveryId = randomUUID();
+        await automationStore.claimDelivery({ jobId: job.id, runId: automationRun.id, claim,
+          deliveryId, provider: 'telegram' });
+        try {
+          const delivery = await messenger.sendToSession({
+            sessionId: job.delivery.sessionId, text: deliveryText,
+          });
+          deliveryStatus = delivery.sent ? 'succeeded' : 'failed';
+          await automationStore.settleDelivery({ jobId: job.id, runId: automationRun.id, claim,
+            deliveryId, status: deliveryStatus, receipt: {
+              provider: 'telegram', sent: delivery.sent,
+              messageIds: structuredClone(delivery.messageIds ?? []),
+            } });
+        } catch (error) {
+          deliveryStatus = 'unknown';
+          await automationStore.settleDelivery({ jobId: job.id, runId: automationRun.id, claim,
+            deliveryId, status: 'unknown', receipt: {
+              provider: 'telegram', state: 'acknowledgement_unknown',
+              reason: error?.code ?? 'delivery_transport_unknown',
+            } });
+        }
       }
       return {
         runId: completed.runId, deliveryStatus,
+        surfaceStatus: reply ? 'persisted' : 'none',
+        workId: completed.workId ?? null, workRevision: completed.workRevision ?? null,
         objectiveStatus: objective.achieved ? 'achieved' : 'not_achieved',
         error: objective.achieved ? null : objective.reason,
       };
     },
   });
+  async function recoverAutomationPublications() {
+    const recoverable = await automationStore.claimRecoverablePublications({
+      owner: automationOwner.owner, inspectOwner: automationOwner.inspect,
+    });
+    const recovered = [];
+    for (const item of recoverable) {
+      const state = await automationStore.read();
+      const job = state.jobs.find((candidate) => candidate.id === item.run.jobId);
+      let occurrence = state.runs.find((candidate) => candidate.id === item.run.id);
+      const result = (await workStore.read()).results.find((candidate) => (
+        candidate.runId === occurrence?.sourceRunId && candidate.resultDigest === occurrence?.resultDigest
+      ));
+      if (!job || !occurrence || !result?.surfaceResult) continue;
+      const reply = result.surfaceResult.reply ?? null;
+      if (occurrence.surfaceStatus === 'pending') {
+        const session = await sessions.load(job.sessionId); if (!session) continue;
+        const exists = (session.transcript ?? []).some((entry) => entry.role === 'assistant'
+          && entry.result?.runId === occurrence.sourceRunId
+          && entry.result?.automation?.automationRunId === occurrence.occurrenceId);
+        if (!exists) await sessions.append(job.sessionId, { role: 'assistant', result: {
+          ...structuredClone(result.surfaceResult), trigger: 'automation',
+          automation: { jobId: job.id, automationRunId: occurrence.occurrenceId },
+        } });
+        await conversations.ensure({ sessionId: job.sessionId, legacyMessages: historyFrom(session) });
+        const deliveryMessageId = `${occurrence.sourceRunId}:automation-delivery`;
+        const canonical = await conversations.read(job.sessionId);
+        if (reply && !canonical.entries.some((entry) => entry.messageId === deliveryMessageId)) {
+          await conversations.appendMessage({ sessionId: job.sessionId, messageId: deliveryMessageId,
+            runId: occurrence.sourceRunId, message: { role: 'assistant', content: reply } });
+        }
+        occurrence = await automationStore.markSurfacePersisted({ jobId: job.id,
+          runId: occurrence.id, claim: item.claim, surfaceReceipt: {
+            surface: 'console_session', sessionId: job.sessionId,
+            runId: occurrence.sourceRunId, resultDigest: occurrence.resultDigest, recovered: true,
+          } });
+      }
+      let deliveryStatus = occurrence.deliveryStatus;
+      if (deliveryStatus === 'dispatch_claimed') {
+        occurrence = await automationStore.settleDelivery({ jobId: job.id, runId: occurrence.id,
+          claim: item.claim, deliveryId: occurrence.deliveryClaim.deliveryId, status: 'unknown',
+          receipt: { provider: occurrence.deliveryClaim.provider,
+            state: 'runtime_restarted_after_delivery_dispatch' } });
+        deliveryStatus = 'unknown';
+      } else if (deliveryStatus === 'pending' && job.delivery.kind === 'telegram') {
+        const deliveryId = randomUUID();
+        await automationStore.claimDelivery({ jobId: job.id, runId: occurrence.id,
+          claim: item.claim, deliveryId, provider: 'telegram' });
+        try {
+          const delivery = await messenger.sendToSession({ sessionId: job.delivery.sessionId, text: reply });
+          deliveryStatus = delivery.sent ? 'succeeded' : 'failed';
+          await automationStore.settleDelivery({ jobId: job.id, runId: occurrence.id,
+            claim: item.claim, deliveryId, status: deliveryStatus,
+            receipt: { provider: 'telegram', sent: delivery.sent,
+              messageIds: structuredClone(delivery.messageIds ?? []), recovered: true } });
+        } catch (error) {
+          deliveryStatus = 'unknown';
+          await automationStore.settleDelivery({ jobId: job.id, runId: occurrence.id,
+            claim: item.claim, deliveryId, status: 'unknown', receipt: {
+              provider: 'telegram', state: 'acknowledgement_unknown', recovered: true,
+              reason: error?.code ?? 'delivery_transport_unknown',
+            } });
+        }
+      }
+      const completed = await automationStore.complete({ jobId: job.id, runId: occurrence.id,
+        claim: item.claim, error: deliveryStatus === 'unknown' ? 'delivery_ack_unknown'
+          : deliveryStatus === 'failed' ? 'scheduled_delivery_failed'
+            : occurrence.objectiveStatus === 'achieved' ? null : 'scheduled_objective_not_achieved' });
+      recovered.push({ occurrenceId: occurrence.id, status: completed.run.status });
+    }
+    return recovered;
+  }
+  const startAutomationScheduler = async () => {
+    automationOwner.activate();
+    try { await recoverAutomationPublications(); await automationScheduler.start(); }
+    catch (error) { automationOwner.deactivate(); throw error; }
+  };
+  const stopAutomationScheduler = async () => {
+    try { await automationScheduler.stop(); }
+    finally { automationOwner.deactivate(); }
+  };
   async function startConnectionForTool(id) {
     const service = connectionServices.get(id);
     if (!service || typeof service.start !== 'function') throw new Error('connection start is unavailable');
@@ -2687,7 +2837,7 @@ export function makeConsoleServer({
       if (req.method === 'GET' && url.pathname === '/skills') {
         json(res, 200, { skills: await skillSurface() }); return;
       }
-      if (req.method === 'GET' && url.pathname === '/automation') { json(res, 200, await automationStore.list()); return; }
+      if (req.method === 'GET' && url.pathname === '/automation') { json(res, 200, await automationStore.publicList()); return; }
       if (req.method === 'POST' && url.pathname === '/automation/pause') {
         const input = await body(req); const job = await automationStore.pause(input.jobId);
         await automationScheduler.jobsChanged(); json(res, 200, { ok: true, job }); return;
@@ -2697,8 +2847,8 @@ export function makeConsoleServer({
         await automationScheduler.jobsChanged(); json(res, 200, { ok: true, job }); return;
       }
       if (req.method === 'POST' && url.pathname === '/automation/cancel') {
-        const input = await body(req); const job = await automationStore.cancel(input.jobId);
-        await automationScheduler.jobsChanged(); json(res, 200, { ok: true, job }); return;
+        const input = await body(req); const job = await automationScheduler.cancel(input.jobId);
+        json(res, 200, { ok: true, job }); return;
       }
       if (req.method === 'POST' && url.pathname === '/automation/run') {
         const input = await body(req); const run = await automationScheduler.runNow(input.jobId);
@@ -2870,8 +3020,9 @@ export function makeConsoleServer({
   server.managedSkillStore = managedSkillStorePromise;
   server.automationStore = automationStore;
   server.automationScheduler = automationScheduler;
-  server.startAutomations = () => automationScheduler.start();
-  server.closeAutomations = () => automationScheduler.stop();
+  server.recoverAutomationPublications = recoverAutomationPublications;
+  server.startAutomations = startAutomationScheduler;
+  server.closeAutomations = stopAutomationScheduler;
   server.runtimeInstanceId = runtimeInstanceId;
   server.unsubscribeTerminalWake = unsubscribeTerminal;
   server.closeWakeStreams = () => {

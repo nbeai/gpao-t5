@@ -2,6 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { assessAutomationOutcome } from '../src/automation-outcome-tool.js';
+import { makeAutomationOutcomeTool } from '../src/automation-outcome-tool.js';
+
+test('scheduled objective와 scheduler-owned delivery는 한 완료 도구에서 경쟁하지 않는다', () => {
+  const tool = makeAutomationOutcomeTool();
+  assert.match(tool.description, /delivery is owned and settled separately by the scheduler/u);
+  assert.match(tool.description, /do not declare not_achieved merely because/u);
+});
 
 function receipt(id, name, { state = 'acted', effect = null, result = {} } = {}) {
   return {

@@ -68,7 +68,7 @@ export class ResourceController {
     return this.recovery;
   }
 
-  async startRun({ sessionId, runId, trigger = 'user', onDiagnostic = null }) {
+  async startRun({ sessionId, runId, trigger = 'user', occurrence = null, onDiagnostic = null }) {
     const sessionScopeId = stableId('session', sessionId);
     const runScopeId = stableId('run', runId);
     try {
@@ -76,9 +76,23 @@ export class ResourceController {
       await this.ledger.createScope({
         scopeId: sessionScopeId, kind: 'session', dedupeKey: `scope:${sessionScopeId}`,
       });
+      let parentScopeId = sessionScopeId;
+      if (occurrence?.resourceScopeId && occurrence?.occurrenceId && occurrence?.jobId) {
+        parentScopeId = String(occurrence.resourceScopeId);
+        await this.ledger.createScope({
+          scopeId: parentScopeId, parentScopeId: sessionScopeId, kind: 'automation_occurrence',
+          dedupeKey: `scope:${parentScopeId}`, facts: {
+            occurrenceId: String(occurrence.occurrenceId), jobId: String(occurrence.jobId),
+            ...(occurrence.sourceWorkId ? { workId: String(occurrence.sourceWorkId) } : {}),
+            ...(Number.isInteger(occurrence.sourceWorkRevision)
+              ? { workRevision: occurrence.sourceWorkRevision } : {}),
+          },
+        });
+      }
       await this.ledger.createScope({
-        scopeId: runScopeId, parentScopeId: sessionScopeId, kind: 'run',
-        dedupeKey: `scope:${runScopeId}`, facts: { trigger },
+        scopeId: runScopeId, parentScopeId, kind: 'run',
+        dedupeKey: `scope:${runScopeId}`, facts: { trigger,
+          ...(occurrence?.occurrenceId ? { occurrenceId: String(occurrence.occurrenceId) } : {}) },
       });
     } catch (error) {
       await publishDiagnostic(onDiagnostic, 'start_run', error);

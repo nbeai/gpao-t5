@@ -32,6 +32,13 @@ function tool({ inspectRequirements = async () => ({ ready: true }) } = {}) {
   };
 }
 
+test('future objective effect와 현재 schedule 저장 effect는 schema에서 다른 책임이다', () => {
+  const built = tool().tool; const description = built.parameters.properties.requiredEffect.description;
+  assert.match(description, /future scheduled objective itself/u);
+  assert.match(description, /separate effect field/u);
+  assert.match(description, /null for text-only content/u);
+});
+
 test('미래 브라우저 작업은 현재 로그인된 화면 관측 근거 없이는 예약되지 않는다', async () => {
   const built = tool();
   const gate = await built.tool.preflight({ ...base, preparationToolCallIds: [] }, { priorReceipts: [] });
