@@ -1,6 +1,6 @@
 {
   "schema": "t5.second-completion-plan.v1",
-  "recordedAt": "2026-08-24T16:46:03+09:00",
+  "recordedAt": "2026-08-24T17:00:29+09:00",
   "firstCompletion": {
     "declared": true,
     "sourceCommit": "81f29d23",
@@ -10,7 +10,7 @@
   "secondCompletion": {
     "active": true,
     "sourceOfTruth": "T5-SECOND-COMPLETION.md",
-    "currentGate": "S2-A1_RESOURCE_CONTROL_A1_3_READY",
+    "currentGate": "S2-A2_INFORMATION_CONTROL_READY",
     "firstProductChange": "shadow_resource_accounting_and_control",
     "a0IncidentFixtures": {
       "status": "complete",
@@ -45,6 +45,16 @@
       "userAnswerChanged": false,
       "runtimeIntervention": false,
       "fixedCapsChanged": false
+    },
+    "nextStageOrder": [
+      "S2-A2_INFORMATION_CONTROL",
+      "S2-A1_RESOURCE_CONTROL_A1_3_RESOURCE_SITUATION",
+      "S2-A1_RESOURCE_CONTROL_A1_4_ACTIVE_OPTIMIZATION",
+      "S2-A1_RESOURCE_CONTROL_A1_5_LAST_RESORT_INTERVENTION"
+    ],
+    "a1ResourceSituation": {
+      "status": "locked_until_s2_a2_complete",
+      "modelContextChangeAllowedNow": false
     },
     "browserIncident": {
       "dedicatedProfileIsDirectCause": false,

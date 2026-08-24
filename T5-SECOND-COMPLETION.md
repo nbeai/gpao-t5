@@ -1,7 +1,7 @@
 # T5 Second Completion — Current Development Source
 
 상태: `SECOND_COMPLETION_ACTIVE`
-현재 Gate: `S2-A1 RESOURCE CONTROL — A1-2 COMPLETE · A1-3 READY`
+현재 Gate: `S2-A2 INFORMATION CONTROL — READY · A1-3 LOCKED`
 기준 source: `81f29d23`
 배포 상태: `0.1.8 REVOKED · 새 package 생성 금지`
 
@@ -239,10 +239,16 @@ catastrophic fuse는 shadow 실측과 positive control 없이 수치를 고정�
 ```text
 A1-1 exact accounting shadow — COMPLETE
 → A1-2 anomaly shadow — COMPLETE
+→ S2-A2 Information Control
 → A1-3 모델에 Resource Situation 공급
 → A1-4 능동 최적화
 → A1-5 검증된 병적 폭주에만 최후 개입
 ```
+
+A1-3는 A2 완료 전에는 열지 않는다. 현재의 큰 Context에 Resource Situation을 더하면 모델 입력과 행동을
+바꾸면서도 반복 ToolReceipt·과거 원문·비활성 Hand·무관 Memory가 만든 원인을 보존할 수 있다. 먼저 A2에서
+장부와 모델 시야를 분리하고 목적에 필요한 최신 Evidence와 정확한 recall handle만 투영한 뒤, 작고 정확해진
+Context에 Resource Situation을 추가한다.
 
 A1-1은 모든 model adapter의 provider fetch 전 durable reservation, retry attempt 분리, provider usage commit,
 crash·cancel unknown, tool wall/call 관측, checkpoint·memory flush·visual observer·automation main과 hosted search
@@ -422,9 +428,10 @@ AND 실행 가능한 미시도 route가 남은 blocked 0
 
 ## 7. 현재 작업 시작점
 
-S2-A0, A1-1 exact accounting shadow, A1-2 anomaly shadow를 완료했다. 다음 한 작업은 모델이 성능을
-최대로 활용하도록 content-free Resource Situation을 공급하는 A1-3다. A1-2 후보를 고정 상한이나 런타임
-중단으로 바꾸지 않는다.
+S2-A0, A1-1 exact accounting shadow, A1-2 anomaly shadow를 완료했다. 다음 한 작업은 S2-A2 Information
+Control이다. 반복 ToolReceipt·불필요한 Conversation 원문·무관 Memory·비활성 Hand 설명·큰 결과의 반복
+재주입·현재 목적과 무관한 과거 상태를 모델 입력에서 분리하고, 축약한 원문은 정확한 recall handle로 다시
+찾을 수 있어야 한다. A2가 실제 사용자 과업에서 닫히기 전에는 A1-3 Resource Situation을 열지 않는다.
 
 A1-2 완료 범위:
 
