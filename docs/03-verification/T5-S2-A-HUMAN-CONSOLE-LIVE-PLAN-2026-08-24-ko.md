@@ -25,7 +25,40 @@
 - 가시 Browser·Browser-live qualification 실행 금지
 - raw secret 입력·로그·화면 캡처 저장 금지
 
-## 3. 인간 역할
+## 3. 병렬 실행 구조
+
+여정 하나 안의 후속 대화는 순서를 유지하지만 서로 독립적인 여정은 최대 네 개의 격리 lane으로 병렬
+실행한다. 같은 Console·Session·DATA·HOME·Workspace를 공유하지 않는다.
+
+### Wave 1
+
+| lane | 모델 | 여정 |
+|---|---|---|
+| W1-L1 | Terra | A-H01 대화·교정 → A-H02 파일·recall |
+| W1-L2 | gpt-5.5 | A-H03 혼합 문서·결과 재검증 |
+| W1-L3 | Terra | A-H04 공개 Web |
+| W1-L4 | Terra | A-H05 400개 파일 정리 |
+
+### Wave 2
+
+| lane | 모델 | 여정 |
+|---|---|---|
+| W2-L1 | gpt-5.5 | A-H06 프로그램 분석 |
+| W2-L2 | Terra | A-H07 중지·복구 |
+| W2-L3 | gpt-5.5 | A-H08 정산·전환·병렬 read |
+| W2-L4 | gpt-5.5 | A-H04 공개 Web 교차 모델 |
+
+각 lane은 고유한 `dataDir·homeDir·workspace·port·sessionId·RunLedger·ResourceLedger·fixture`를 사용한다.
+한 lane의 실패가 다른 lane의 상태나 판정을 오염시키면 해당 wave는 무효다.
+
+동시 실행 wall time은 provider·CPU·디스크 경합이 섞인 관측값으로 기록한다. 제품 자체의 속도 기준은 A-H04
+Web과 A-H05 대형 파일 두 anchor만 무경합으로 한 번 재실행한다. 전체 여정을 다시 순차 실행하지 않는다.
+실패·모호함이 있으면 전체 suite가 아니라 해당 lane만 격리 재현한다.
+
+각 wave가 끝난 뒤 사람이 Console 결과를 검토한다. 여러 lane의 raw 대화를 합치지 않고 목적 달성·정확성·
+Receipt·성능 수치만 최종 evidence 하나로 정산한다.
+
+## 4. 인간 역할
 
 - 내부 구현을 모르는 사용자처럼 요청한다.
 - 첫 답이 그럴듯하다는 이유로 통과시키지 않는다.
@@ -33,7 +66,7 @@
 - 기술 오류를 해석해 도구를 대신 골라주지 않는다.
 - 결과 파일·외부 효과·전달은 실제 재개방과 Receipt로 확인한다.
 
-## 4. A 종료 필수 여정
+## 5. A 종료 필수 여정
 
 ### A-H01 · 자연스러운 대화와 교정
 
@@ -73,7 +106,7 @@ turn 오염을 확인한다.
 충분/불충분 Evidence, 독립 read, repeated Evidence, unknown write 조건에서 모델이 스스로 다음 행동을 고른다.
 런타임 route 강제·blind write retry·false completion은 0이어야 한다.
 
-## 5. 이후 Gate 기준선 관측
+## 6. 이후 Gate 기준선 관측
 
 Telegram 첨부·원격 복구·Notion·자동화는 A 완료 기능으로 요구하지 않는다. 다만 현재 실제 수준을 같은
 콘솔 세션에서 관측해 B·D·F의 기준선으로 남긴다.
@@ -85,7 +118,7 @@ Telegram 첨부·원격 복구·Notion·자동화는 A 완료 기능으로 요�
 
 이 미달을 A에서 고치지 않고 해당 Gate에 귀속한다. 단 secret 노출·실제 외부 효과 오실행은 Release blocker다.
 
-## 6. 매 여정에서 기록할 것
+## 7. 매 여정에서 기록할 것
 
 ```text
 사용자 목적 달성
@@ -103,7 +136,7 @@ exact recall·artifact reopen
 
 원문 대화와 비밀을 기계 evidence에 복사하지 않고 수치·identity·통과 사실만 기록한다.
 
-## 7. 비교군 대조
+## 8. 비교군 대조
 
 다음 다섯 여정은 가능한 같은 목적과 fixture로 OpenClaw·Hermes·Codex·Claude Code와 대조한다.
 
@@ -117,7 +150,7 @@ A-H07 중단·복구
 
 비교군 내부 용어와 화면을 복제하지 않는다. 목적 달성·정확성·속도·사용자 개입·복구 결과만 비교한다.
 
-## 8. A 종료 판정
+## 9. A 종료 판정
 
 ```text
 A-H01~A-H08 모두 목적 달성
@@ -134,7 +167,7 @@ AND Terra·gpt-5.5 실제 사용자 결과 성립
 기계 초록이나 평균 token 감소만으로 A를 닫지 않는다. 반대로 이후 B·D·F의 이미 알려진 기능 미달을 A에
 끌어와 수정 범위를 넓히지 않는다.
 
-## 9. 실행 후 산출물
+## 10. 실행 후 산출물
 
 - 비식별 JSON evidence 1개
 - 실패 시 exact Run·ContextReceipt·Receipt pointer

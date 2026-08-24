@@ -34,3 +34,17 @@ test('A 종료 계획은 개인정보·실경로·비밀값을 포함하지 않�
   assert.doesNotMatch(serialized, /\bntn_[A-Za-z0-9_-]+/u);
   assert.doesNotMatch(serialized, /bot\d+:[A-Za-z0-9_-]+/u);
 });
+
+test('독립 여정은 네 lane 두 wave로 병렬화하고 성능 anchor만 무경합 재확인한다', async () => {
+  const plan = await load();
+  const parallel = plan.parallelExecution;
+  assert.equal(parallel.maxConcurrentLanes, 4);
+  assert.equal(parallel.serialWithinEachJourney, true);
+  assert.equal(parallel.sharedStateBetweenLanes, false);
+  assert.equal(parallel.wave1.length, 4);
+  assert.equal(parallel.wave2.length, 4);
+  assert.equal(new Set([...parallel.wave1, ...parallel.wave2].map((item) => item.lane)).size, 8);
+  assert.equal(parallel.aggregation.rerunOnlyFailedOrAmbiguousLane, true);
+  assert.deepEqual(parallel.performanceCalibration.sequentialAnchors, ['A-H04', 'A-H05']);
+  assert.equal(parallel.performanceCalibration.rerunAllJourneysSequentially, false);
+});

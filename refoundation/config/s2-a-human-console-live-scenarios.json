@@ -33,6 +33,46 @@
     "artifactReopened",
     "recoverySucceeded"
   ],
+  "parallelExecution": {
+    "mode": "isolated_journey_lanes",
+    "maxConcurrentLanes": 4,
+    "serialWithinEachJourney": true,
+    "sharedStateBetweenLanes": false,
+    "perLaneIsolation": [
+      "dataDir",
+      "homeDir",
+      "workspace",
+      "consolePort",
+      "sessionId",
+      "runLedger",
+      "resourceLedger",
+      "fixtures"
+    ],
+    "wave1": [
+      {"lane":"W1-L1","model":"gpt-5.6-terra","journeys":["A-H01","A-H02"]},
+      {"lane":"W1-L2","model":"gpt-5.5","journeys":["A-H03"]},
+      {"lane":"W1-L3","model":"gpt-5.6-terra","journeys":["A-H04"]},
+      {"lane":"W1-L4","model":"gpt-5.6-terra","journeys":["A-H05"]}
+    ],
+    "wave2": [
+      {"lane":"W2-L1","model":"gpt-5.5","journeys":["A-H06"]},
+      {"lane":"W2-L2","model":"gpt-5.6-terra","journeys":["A-H07"]},
+      {"lane":"W2-L3","model":"gpt-5.5","journeys":["A-H08"]},
+      {"lane":"W2-L4","model":"gpt-5.5","journeys":["A-H04"]}
+    ],
+    "aggregation": {
+      "waitForWholeWave": true,
+      "rerunOnlyFailedOrAmbiguousLane": true,
+      "rawConversationMergedAcrossLanes": false,
+      "singleEvidenceFileAfterHumanReview": true
+    },
+    "performanceCalibration": {
+      "parallelWallIsContendedObservation": true,
+      "sequentialAnchors": ["A-H04", "A-H05"],
+      "rerunAllJourneysSequentially": false,
+      "purpose": "Separate product latency from local/provider contention without repeating the entire suite."
+    }
+  },
   "aCloseRequired": [
     {
       "id": "A-H01",
