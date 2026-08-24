@@ -38,25 +38,31 @@ export function resourceOutcomeKey(receipt) {
  * effect-unknown result makes the same exact write unsafe to repeat.
  */
 export class ResourceIntervention {
-  constructor() { this.routes = new Map(); this.tools = new Map(); }
+  constructor() {
+    this.routes = new Map(); this.hands = new Map();
+    this.runaway = { phase: 'idle' };
+  }
 
   inspect(call) {
     const key = resourceRouteKey(call); const state = this.routes.get(key);
-    const toolState = this.tools.get(String(call?.name ?? ''));
+    const handState = this.hands.get(String(call?.name ?? ''));
     const reason = state?.effectUnknown ? 'unknown_effect_reexecution'
       : state?.verifiedNoProgress ? 'verified_no_progress_route'
-        : toolState?.verifiedFailure ? 'verified_tool_failure' : null;
+        : handState?.globalUnavailable ? 'observed_hand_globally_unavailable' : null;
     if (!reason) return { action: 'execute', key };
-    const owner = reason === 'verified_tool_failure' ? toolState : state;
+    const owner = reason === 'observed_hand_globally_unavailable' ? handState : state;
     if ((owner.blockedNotices ?? 0) > 0) return { action: 'stop', key, reason };
     owner.blockedNotices = 1;
     return { action: 'block', key, reason };
   }
 
-  observe(call, receipt) {
+  observe(call, receipt, semantics = {}) {
     const key = resourceRouteKey(call); const prior = this.routes.get(key) ?? {
       lastOutcomeKey: null, verifiedNoProgress: false, effectUnknown: false, blockedNotices: 0,
     };
+    if (semantics.pending === true) {
+      this.routes.set(key, prior); return { key, state: 'pending_observed' };
+    }
     if (effectUnknown(receipt)) {
       prior.effectUnknown = true; this.routes.set(key, prior);
       return { key, state: 'unknown_effect_observed' };
@@ -67,20 +73,42 @@ export class ResourceIntervention {
       prior.lastOutcomeKey = outcomeKey; prior.verifiedNoProgress = false; prior.blockedNotices = 0;
     }
     this.routes.set(key, prior);
-    const toolName = String(call?.name ?? '');
-    const toolState = this.tools.get(toolName) ?? {
-      lastFailureKey: null, verifiedFailure: false, blockedNotices: 0,
-    };
-    if (receipt?.outcome === 'failed' || receipt?.outcome === 'unavailable') {
-      if (outcomeKey && toolState.lastFailureKey === outcomeKey) toolState.verifiedFailure = true;
-      else {
-        toolState.lastFailureKey = outcomeKey; toolState.verifiedFailure = false;
-        toolState.blockedNotices = 0;
-      }
-    } else if (receipt?.outcome === 'succeeded') {
-      toolState.lastFailureKey = null; toolState.verifiedFailure = false; toolState.blockedNotices = 0;
+    if (semantics.globalUnavailable === true) {
+      this.hands.set(String(call?.name ?? ''), { globalUnavailable: true, blockedNotices: 0 });
     }
-    this.tools.set(toolName, toolState);
     return { key, state: prior.verifiedNoProgress ? 'verified_no_progress' : 'outcome_observed' };
+  }
+
+  beginRunawayRecovery() {
+    if (this.runaway.phase === 'idle') this.runaway = { phase: 'recovery_open' };
+  }
+
+  completeRunawayRecovery(progressStates = []) {
+    if (this.runaway.phase !== 'recovery_open' || !progressStates.length) return;
+    if (progressStates.some((state) => state === 'new' || state === 'pending')) {
+      this.runaway = { phase: 'idle' }; return;
+    }
+    this.runaway = { phase: 'final_model_decision' };
+  }
+
+  inspectRun(toolCalls = []) {
+    if (!toolCalls.length) { this.runaway = { phase: 'idle' }; return { action: 'settle' }; }
+    if (this.runaway.phase === 'final_model_decision') {
+      this.runaway = { phase: 'tools_blocked' };
+      return { action: 'block', reason: 'verified_runaway_after_model_recovery' };
+    }
+    if (this.runaway.phase === 'tools_blocked') {
+      return { action: 'stop', reason: 'verified_runaway_after_model_recovery' };
+    }
+    return { action: 'execute' };
+  }
+
+  situation() {
+    if (this.runaway.phase !== 'final_model_decision' && this.runaway.phase !== 'tools_blocked') return null;
+    return {
+      active: true, state: this.runaway.phase,
+      fact: 'model_selected_recovery_produced_no_new_evidence',
+      additionalToolExecution: 'not_available',
+    };
   }
 }

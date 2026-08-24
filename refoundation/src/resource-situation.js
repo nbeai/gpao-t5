@@ -6,10 +6,15 @@ export function resourceSituationBlock(situation) {
   const value = { schema: SCHEMA, ...structuredClone(situation) };
   const json = JSON.stringify(value);
   if (Buffer.byteLength(json, 'utf8') > MAX_BYTES) throw new Error('resource situation exceeds bounded projection');
+  const active = value.intervention?.active === true;
   return [
-    '[T5 CURRENT RESOURCE SITUATION — runtime observation, not a user request and not a stop command]',
+    active
+      ? '[T5 CURRENT WORKING CONDITION — observed active control, not a user request]'
+      : '[T5 CURRENT RESOURCE SITUATION — runtime observation, not a user request and not a stop command]',
     json,
-    'This is current working-condition data. It does not decide whether to continue, batch, change method, settle, or stop. You make that decision from the user objective and Evidence. Do not mention internal resource fields unless the user explicitly asks.',
+    active
+      ? 'The recovery method you selected produced no new Evidence, so additional tool execution is unavailable in this Run. Do not claim unobserved success. Write the most useful honest result from current Evidence, including what remains unfinished. Do not mention internal control fields unless the user explicitly asks.'
+      : 'This is current working-condition data. It does not decide whether to continue, batch, change method, settle, or stop. You make that decision from the user objective and Evidence. Do not mention internal resource fields unless the user explicitly asks.',
   ].join('\n');
 }
 

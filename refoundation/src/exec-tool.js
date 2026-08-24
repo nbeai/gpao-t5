@@ -220,6 +220,15 @@ function controlObservation(result) {
   return { ...rest, processExitCode: exitCode };
 }
 
+function processResourceSemantics(args, result) {
+  if (args?.action !== 'poll') return {};
+  if (result?.state === 'running' || result?.state === 'stop_requested') return { pending: true };
+  if (result?.state === 'completed' || result?.state === 'failed' || result?.state === 'stopped') {
+    return { terminal: true };
+  }
+  return {};
+}
+
 async function withTerminalEffect(result, processRegistry, processId, ownerId) {
   const observation = controlObservation(result);
   const metadata = processRegistry.metadata(processId, ownerId);
@@ -237,6 +246,7 @@ export function makeProcessControlTool({ processRegistry, ownerId = 'default' } 
   if (!processRegistry) throw new TypeError('processRegistry is required');
   return {
     name: 'process_control',
+    resourceSemantics: processResourceSemantics,
     description: 'List, poll, write to, or stop a managed process returned by process_start. Poll with the last cursor to receive only new output.',
     parameters: {
       type: 'object',

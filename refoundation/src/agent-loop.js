@@ -39,7 +39,8 @@ function requestedCall(call) {
 
 function modelBlockedReason(reason) {
   if (reason === 'unknown_effect_reexecution') return 'effect_unknown_requires_observation';
-  if (reason === 'verified_tool_failure') return 'same_hand_same_failure_repeated';
+  if (reason === 'observed_hand_globally_unavailable') return 'hand_observed_globally_unavailable';
+  if (reason === 'verified_runaway_after_model_recovery') return 'no_new_evidence_after_selected_recovery';
   return 'same_method_same_result_repeated';
 }
 
@@ -312,7 +313,7 @@ export async function runAgent({
       type: 'information_context', turn: modelTurns,
       facts: informationFacts,
     });
-    const situation = resourceSituationMode === 'current-v1' ? resourceRun?.situation?.({
+    let situation = resourceSituationMode === 'current-v1' ? resourceRun?.situation?.({
       agent: {
         modelTurns: modelTurns - 1, toolCalls, providerTokens, lastTurnToolCalls,
         lastProviderTokens: modelCalls.at(-1)?.usage?.total_tokens ?? 0,
@@ -320,7 +321,14 @@ export async function runAgent({
       limits: { maxModelTurns, maxToolCalls, maxProviderTokens },
       information: informationFacts,
     }) : null;
-    const situationKey = resourceSituationTransitionKey(situation);
+    const controlSituation = intervention.situation();
+    if (controlSituation) situation = {
+      ...(situation ?? { state: 'observed', accounting: 'exact_or_explicit_unknown', usage: {}, evidence: {}, input: {},
+        legacyFixedBoundaries: { changedBySituation: false }, anomaly: null }),
+      intervention: controlSituation,
+    };
+    const situationKey = controlSituation
+      ? `active-control:${controlSituation.state}` : resourceSituationTransitionKey(situation);
     const situationBlock = situationKey && situationKey !== lastResourceSituationKey
       ? resourceSituationBlock(situation) : null;
     if (situationBlock) lastResourceSituationKey = situationKey;
@@ -328,6 +336,8 @@ export async function runAgent({
       type: 'resource_situation', turn: modelTurns, situation,
       bytes: Buffer.byteLength(situationBlock, 'utf8'),
     });
+    if (situationBlock && !controlSituation
+      && situation?.anomaly?.category === 'pathology_candidate') intervention.beginRunawayRecovery();
     const resourceObserver = resourceRun?.modelObserver({
       logicalCallId: `${resourcePurpose}:${modelTurns}`, purpose: resourcePurpose,
     });
@@ -387,6 +397,18 @@ export async function runAgent({
       throw error;
     }
 
+    const runControl = intervention.inspectRun(response.toolCalls);
+    if (runControl.action === 'stop') {
+      const first = requestedCall(response.toolCalls[0]);
+      await onEvent?.({ type: 'resource_intervention', turn: modelTurns,
+        action: 'run_stopped', reason: runControl.reason, tool: first.name, toolCallId: first.id });
+      await resourceRun?.recordIntervention?.({ turn: modelTurns,
+        action: 'run_stopped', reason: runControl.reason }).catch(() => {});
+      const error = new Error('verified resource runaway continued after model recovery block');
+      error.reason = 'verified_resource_runaway'; error.toolName = first.name; throw error;
+    }
+    const forcedRunBlock = runControl.action === 'block' ? runControl : null;
+
     if (!response.toolCalls.length) {
       if (requiredCompletionTool && !completionSatisfied()) {
         if (completionReminderSent) {
@@ -422,7 +444,8 @@ export async function runAgent({
           error.resource = 'tool_calls'; error.used = toolCalls; error.limit = maxToolCalls;
           throw error;
         }
-        return { call, requested, tool: registry.get(requested.name), control: intervention.inspect(call) };
+        return { call, requested, tool: registry.get(requested.name),
+          control: forcedRunBlock ?? intervention.inspect(call) };
       });
       const executable = prepared.filter((item) => item.control.action === 'execute');
       if (!executable.length && prepared.some((item) => item.control.action === 'stop')) {
@@ -481,6 +504,7 @@ export async function runAgent({
         waves: waves.length, physicalCapacity: parallelCapacity });
     }
 
+    const turnProgressStates = [];
     for (const [callIndex, call] of response.toolCalls.entries()) {
       let requested; let receipt; let toolResourceStartedAt; let toolResourceWallMs = null;
       let resourceHandle = null; let interventionBlocked = false;
@@ -495,7 +519,7 @@ export async function runAgent({
           error.reason = 'run_resource_budget_exceeded';
           error.resource = 'tool_calls'; error.used = toolCalls; error.limit = maxToolCalls; throw error;
         }
-        const control = intervention.inspect(call);
+        const control = forcedRunBlock ?? intervention.inspect(call);
         if (control.action === 'stop') {
           await onEvent?.({ type: 'resource_intervention', turn: modelTurns,
             action: 'run_stopped', reason: control.reason, tool: requested.name,
@@ -527,7 +551,16 @@ export async function runAgent({
       receipts.push(receipt);
       const currentToolMessage = toolMessage(receipt);
       const currentEvidenceFingerprint = evidenceFingerprint(receipt);
-      if (!interventionBlocked && receipt.outcome !== 'cancelled') intervention.observe(call, receipt);
+      const evidenceSeen = currentEvidenceFingerprint
+        ? evidenceFamilies.has(currentEvidenceFingerprint) : false;
+      const semantics = registry.get(requested.name)?.resourceSemantics?.(
+        requested.args, receipt.result, receipt,
+      ) ?? {};
+      const progressState = semantics.pending === true ? 'pending'
+        : currentEvidenceFingerprint ? (evidenceSeen ? 'repeated' : 'new') : 'none';
+      if (!interventionBlocked && receipt.outcome !== 'cancelled') {
+        intervention.observe(call, receipt, semantics); turnProgressStates.push(progressState);
+      }
       const informationProjection = compactDuplicateEvidence({
         seen: evidenceFamilies, fingerprint: currentEvidenceFingerprint,
         receipt, message: currentToolMessage,
@@ -593,6 +626,7 @@ export async function runAgent({
         turn: modelTurns, toolCallId: receipt.toolCallId || `${modelTurns}:${call?.name}`,
         name: call?.name ?? 'unknown', outcome: receipt.outcome, startedAt: toolResourceStartedAt,
         reservationHandle: resourceHandle, executed: Boolean(receipt.actualCall),
+        progressState,
         ...(toolResourceWallMs == null ? {} : { wallMs: toolResourceWallMs }),
         evidenceFingerprint: currentEvidenceFingerprint,
       }).catch(() => {});
@@ -612,6 +646,7 @@ export async function runAgent({
     if (parallelResults && (signal?.aborted || parallelResults.some((item) => item.receipt.outcome === 'cancelled'))) {
       return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
     }
+    intervention.completeRunawayRecovery(turnProgressStates);
   }
 
   if (maxModelTurns == null) throw new Error('unreachable resource loop state');

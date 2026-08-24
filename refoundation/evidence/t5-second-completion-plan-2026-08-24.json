@@ -73,6 +73,9 @@
       "fixedDefaultCapsRemoved": true,
       "replacementFixedCapsAdded": false,
       "verifiedRouteInterventionOnly": true,
+      "pendingPollExcludedFromNoProgress": true,
+      "generalFailureBoundToExactRoute": true,
+      "uniqueRouteRunawayClosedAfterModelSelectedRecovery": true,
       "humanConsoleQualificationReady": true
     },
     "humanPerformanceScenarios": {

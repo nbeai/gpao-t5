@@ -260,13 +260,13 @@ test('콘솔의 앞선 사용자·assistant 대화가 현재 요청보다 먼저
   assert.equal(result.answer, '이어진 답');
 });
 
-test('같은 도구가 같은 이유로 두 번 실패하면 차단 영수증 후 고집한 Run만 멈춘다', async () => {
+test('같은 exact route가 같은 이유로 두 번 실패하면 차단 영수증 후 고집한 Run만 멈춘다', async () => {
   let executed = 0;
   let turn = 0;
   const model = { async respond() {
     turn += 1;
     return { text: '', toolCalls: [{ id: `same-${turn}`, name: 'browser', args: {
-      action: 'fill_editable', editableId: 'title', text: `attempt-${turn}`,
+      action: 'fill_editable', editableId: 'title', text: 'same-attempt',
     } }] };
   } };
   const tool = {

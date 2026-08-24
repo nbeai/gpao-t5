@@ -1,11 +1,12 @@
 {
   "schema": "t5.s2-a1-5-last-resort-intervention.v1",
   "recordedAt": "2026-08-24T23:10:00+09:00",
+  "correctedAt": "2026-08-24T21:19:34+09:00",
   "gate": "S2-A1_RESOURCE_CONTROL",
   "stage": "A1-5_LAST_RESORT_INTERVENTION",
   "status": "complete",
   "goal": "Replace low fixed Run caps with evidence-governed last-resort control that preserves normal depth and model judgment.",
-  "closePoint": "Progressing work crosses the former fixed boundaries on Terra and GPT-5.5; only stable repeated outcomes, stable repeated Hand failures, unknown-effect reexecution, physical fan-out, and post-block persistence cause runtime control; parallel cancel and accounting settle exactly; all regressions pass.",
+  "closePoint": "Progressing work and pending process polls cross the former fixed boundaries without false intervention; general failures stay exact-route scoped; unknown-effect reexecution and verified no-evidence growth after a model-selected recovery are controlled; parallel cancel and accounting settle exactly; all regressions pass.",
   "startContract": {
     "productPromise": "A nontechnical user receives full depth, accuracy, recovery, and task scale through ordinary language.",
     "largestGap": "Fixed 16-turn, 24-tool, and 500K-token defaults stopped HP-02 and HP-03 while novel Evidence was still progressing.",
@@ -42,6 +43,16 @@
     "windowsFeatureImplemented": false,
     "copiedWslArchitecture": false
   },
+  "ownerAuditCorrection": {
+    "originalCompletionCommit": "4ac9fea5a4964026cd491d8f584f6b699db12bc6",
+    "originalCompletionAccepted": false,
+    "directDefects": [
+      "stable_pending_process_poll_could_be_blocked",
+      "same_hand_failure_could_block_untried_args",
+      "unique_route_no_evidence_runaway_had_no_active_control"
+    ],
+    "scopeExpandedBeyondThreeDefects": false
+  },
   "removedProductDefaults": {
     "userModelTurns": 16,
     "userToolCalls": 24,
@@ -55,8 +66,11 @@
   "implemented": {
     "novelEvidenceMayContinueWithoutNumericRunCap": true,
     "sameCallChangingOutcomeMayContinue": true,
-    "stableExactRouteOutcomeObservationsBeforeBlock": 2,
-    "stableSameHandFailureObservationsBeforeBlock": 2,
+    "stableTerminalExactRouteOutcomeObservationsBeforeBlock": 2,
+    "pendingProcessPollCountsAsNoProgress": false,
+    "generalFailureIdentity": "exact_route_only",
+    "untriedDifferentArgsRemainExecutable": true,
+    "wholeHandBlockRequiresExplicitGlobalUnavailableFact": true,
     "unknownEffectExactReexecutionBlockedBeforeDispatch": true,
     "firstControlIsRouteSpecificReceipt": true,
     "modelMayChooseAlternateRouteReobserveOrSettle": true,
@@ -69,14 +83,26 @@
     "parallelReservationBeforeExecution": true,
     "parallelCanonicalReceiptOrder": "model_call_order",
     "cancelWaitsForStartedChildren": true,
-    "cancelDoesNotStartOrReserveQueuedChildren": true
+    "cancelDoesNotStartOrReserveQueuedChildren": true,
+    "uniqueRouteRunawayStateTransition": [
+      "pathology_situation",
+      "model_selected_recovery_executes",
+      "no_new_evidence_observed",
+      "final_model_decision",
+      "additional_tools_blocked",
+      "persistent_tool_request_stops_run"
+    ]
   },
   "counterexamples": {
     "progressingBeyondFormerCaps": {"modelTurns":27,"toolCalls":26,"completed":true,"fixedCapStop":false},
     "sameCallChangingOutcome": {"observations":5,"completed":true,"falseIntervention":false},
     "stableRepeatedRoute": {"executionsBeforeBlock":2,"routeBlockReceipts":1,"alternateRouteSucceeded":true},
     "unknownExternalEffect": {"writesExecuted":1,"blindRetry":0,"readAfterUnknown":1},
-    "providerRateFanout": {"failedProviderCalls":2,"additionalProviderRetryAfterProof":0,"fallbackSucceeded":true},
+    "stablePendingPoll": {"identicalRunningObservations":3,"terminalObservation":1,"executedPolls":4,"interventions":0},
+    "differentArgsSameFailure": {"failedRoutes":2,"untriedThirdRouteExecuted":true,"thirdRouteSucceeded":true},
+    "a0SanitizedReplay": {"modelCalls":107,"activeInterventionAtCall":null,"reason":"route_identity_and_evidence_fingerprint_not_preserved"},
+    "uniqueRouteEquivalentReplay": {"preSituationRoutes":2,"modelSelectedRecoveryRoutes":1,"additionalRouteExecutions":0,"finalAnswerHonestIncomplete":true},
+    "recoveryWithNovelEvidence": {"recoveryRouteExecuted":true,"laterUntriedRouteExecuted":true,"falseIntervention":false},
     "parallelCancel": {"selectedChildren":5,"physicalCapacity":2,"startedChildren":2,"queuedChildrenStarted":0,"reservations":2,"committed":2,"unsettled":0},
     "storageFaults": {"toolReservationFailureUserResultChanged":false,"toolSettlementFailureUserResultChanged":false,"restartUnknownSettlements":2}
   },
@@ -129,9 +155,9 @@
     "newUserVisibleDelayEstablished": false
   },
   "verification": {
-    "a1FocusedPassed": 58,
+    "a1FocusedPassed": 55,
     "a1FocusedFailed": 0,
-    "refoundationUnitPassed": 669,
+    "refoundationUnitPassed": 673,
     "refoundationUnitFailed": 0,
     "defaultProductIntegrationPassed": 98,
     "defaultProductIntegrationFailed": 0,
@@ -149,14 +175,16 @@
     "new_package"
   ],
   "artifacts": {
-    "agentLoopSha256": "b4930c3e3199c5cdc18ad00460bdc0abb7ff511522bbf07a2980a73324ce9293",
+    "agentLoopSha256": "18c5d88a77e2310d53ffdb1178e8f3bec16be199ff2e19f8bd60bce35842647f",
     "consoleServerSha256": "3df8f4f27441e1c65c3ba35bc3c4b4632582770b425c29f6715f53b383e777ae",
-    "resourceControllerSha256": "f72dbbe3bab23dc4023cb4a5a450ed139db26eff062dc7e1eadc24fc69a7f8e4",
+    "resourceControllerSha256": "435078735b246a50124f6a4dec36a912b3ca9f46e5a9495bde192b9b08c16fa7",
     "resourceLedgerSha256": "e745c9ee91cd477693ee18a50a24499f771f325c3ab0f38855e58bbcb3f1c9ee",
     "resourceReportSha256": "e3a4bd0fb5e0b67f64b9cb2fe2379c5ff0b5e8b001b483e261a614a824fc0077",
-    "resourceInterventionSha256": "d2a93884be42adef65ccc84e323941755bf9bdeeaf229b2c7430b4b909a7a15d",
+    "resourceInterventionSha256": "6cf97ae5e76e880741e27e96fcff3f0d536a50cd043fb6d69455b98e28f3a12f",
     "resourceExecutionControlSha256": "c4581934c2a18cc71642496707f3f5c63ed7af7cd5803d8d1c3a908b673d0e58",
-    "unitTestSha256": "d38f511fd75bbf60490ecbbd0651ad97f747e620c158af8ecabc38e09191f33c"
+    "resourceSituationSha256": "bfee99fc82ad3c875690e19e002751b21b33b1b497363b241be5ff8c9e9d0b57",
+    "processHandSha256": "f36fc148fade68957e8386392e776ad87b5ee407b25fe978478cf881c3c6d0b4",
+    "unitTestSha256": "90982829a748ed9f98d6827aae644828343e848d179b170685dabf0b809c605b"
   },
   "next": "S2_A_HUMAN_CONSOLE_QUALIFICATION",
   "productBehaviorChanged": true,

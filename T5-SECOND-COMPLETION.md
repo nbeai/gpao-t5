@@ -273,8 +273,11 @@ A1-4는 Situation에 runtime이 만든 최적화 선택지를 추가하지 않�
 
 A1-5는 일반·자동화 Run의 16 model turns·24 tools·500K/300K provider tokens·4 failed tools
 기본 상한을 제거했다. 새 Evidence가 계속되거나 같은 호출의 결과가 바뀌는 정상 poll은 호출
-수로 중단하지 않는다. 대신 exact route가 같은 안정된 결과를 두 번 냈거나, 같은 Hand가 안정된
-동일 실패를 두 번 냈거나, effect-unknown 쓰기를 같은 인자로 재실행하려는 경우에만 해당
+수로 중단하지 않는다. Process Hand가 pending으로 밝힌 `running`·`stop_requested` poll은
+같은 cursor·결과가 반복돼도 no-progress 근거로 쓰지 않고 terminal 관측까지 열어 둔다. 일반
+실패는 exact route identity에만 결속하며 다른 args·대상의 미시도 route를 막지 않는다. Hand 전체
+차단은 Hand 자체가 `global unavailable`을 명시한 Receipt에서만 자격이 있다. exact route가 terminal인
+같은 안정된 결과를 두 번 냈거나 effect-unknown 쓰기를 같은 인자로 재실행하려는 경우에만 해당
 route를 한 번 차단하고 모델에게 다른 방법·재관측·정산 기회를 준다. 차단 영수증 후에도 같은
 방법만 고집할 때 Run을 멈춘다. 병렬 실행은 운영체제가 관측한 물리 병렬도의 wave로 실행하고,
 내부 fan-out Hand는 독점 wave로 외부 fan-out과 곱해지지 않는다. 시작한 병렬 자식은 실행 전
@@ -283,6 +286,12 @@ Terra·gpt-5.5 실제 모델은 각각 26개의 새 Evidence를 2 model turns·2
 정확한 합계를 완성했다. false completion·개입·미정산·내부 용어 노출은 0이었다. runAgent에
 사용자 합의나 자격 시험으로 명시적 결속된 경계는 계속 집행하며, 실측 없는 catastrophic fuse
 숫자는 새로 만들지 않았다. 근거: `refoundation/evidence/s2-a1-5-last-resort-intervention-2026-08-24.json`
+
+A0 정제본은 19 Run·107 call 자원 곡선만 보존하고 route identity·Evidence fingerprint를 보존하지
+않으므로 active stop 지점은 `unknown`으로 남겨 과거 pathology를 발명하지 않았다. 비식별 동등
+replay에서 `pathology Situation 공급 → 모델이 선택한 recovery route 실행 → 새 Evidence 0`을
+검증한 뒤, 모델의 최종 정산 판단은 받되 추가 Tool 실행을 차단했다. recovery가 새 Evidence를 내면
+상태를 즉시 해제하고 다음 미시도 route를 계속 연다.
 
 A1-1은 모든 model adapter의 provider fetch 전 durable reservation, retry attempt 분리, provider usage commit,
 crash·cancel unknown, tool wall/call 관측, checkpoint·memory flush·visual observer·automation main과 hosted search

@@ -115,6 +115,7 @@ class ResourceRun {
     this.evidenceFingerprints = new Set();
     this.resourceShadow = {
       modelCalls: 0, toolCalls: 0, novelEvidence: 0, repeatedEvidence: 0, noEvidence: 0,
+      pendingToolObservations: 0,
       intervalsWithoutNewEvidence: 0, repeatedEvidenceOnlyIntervals: 0,
       contextGrowthWithoutNewEvidenceBytes: 0,
       priorFunctionOutputBytesAtNondecreasingProjection: 0,
@@ -158,7 +159,8 @@ class ResourceRun {
       if (previous) {
         const novelDelta = this.resourceShadow.novelEvidence - previous.novelEvidence;
         const repeatedDelta = this.resourceShadow.repeatedEvidence - previous.repeatedEvidence;
-        if (novelDelta === 0) {
+        const pendingDelta = this.resourceShadow.pendingToolObservations - previous.pendingToolObservations;
+        if (novelDelta === 0 && pendingDelta === 0) {
           this.resourceShadow.firstPathologyCandidateModelCall ||= this.resourceShadow.modelCalls;
           this.resourceShadow.intervalsWithoutNewEvidence += 1;
           if (repeatedDelta > 0) this.resourceShadow.repeatedEvidenceOnlyIntervals += 1;
@@ -189,6 +191,7 @@ class ResourceRun {
         functionOutputItems: resources.functionOutputItems ?? 0,
         novelEvidence: this.resourceShadow.novelEvidence,
         repeatedEvidence: this.resourceShadow.repeatedEvidence,
+        pendingToolObservations: this.resourceShadow.pendingToolObservations,
       });
     };
     return {
@@ -308,16 +311,18 @@ class ResourceRun {
 
   async observeTool({
     turn, toolCallId, name, outcome, startedAt, wallMs = null, evidenceFingerprint = null,
-    reservationHandle = null, executed = true,
+    reservationHandle = null, executed = true, progressState = null,
   }) {
     if (this.degraded) return;
     if (executed) this.resourceShadow.toolCalls += 1;
     let evidence = 'none';
-    if (executed && evidenceFingerprint) {
+    if (executed && progressState === 'pending') {
+      this.resourceShadow.pendingToolObservations += 1;
+    } else if (executed && evidenceFingerprint) {
       evidence = this.evidenceFingerprints.has(evidenceFingerprint) ? 'repeated' : 'new';
       this.evidenceFingerprints.add(evidenceFingerprint);
     }
-    if (executed) {
+    if (executed && progressState !== 'pending') {
       if (evidence === 'new') this.resourceShadow.novelEvidence += 1;
       else if (evidence === 'repeated') this.resourceShadow.repeatedEvidence += 1;
       else this.resourceShadow.noEvidence += 1;
@@ -346,7 +351,8 @@ class ResourceRun {
       }
       if (executed) await this.ledger.observe({
         scopeId: toolScopeId, dedupeKey: `tool-observed:${toolScopeId}`,
-        resources: { toolCalls: 1, wallMs: observedWallMs }, facts: { outcome, evidence },
+        resources: { toolCalls: 1, wallMs: observedWallMs },
+        facts: { outcome, evidence, ...(progressState ? { progressState } : {}) },
       });
     await this.ledger.closeScope({
       scopeId: toolScopeId, dedupeKey: `close:${toolScopeId}`, status: outcome,
@@ -393,6 +399,7 @@ class ResourceRun {
         none: number(this.resourceShadow.noEvidence),
         intervalsWithoutNovelEvidence: number(this.resourceShadow.intervalsWithoutNewEvidence),
         latestToolEvidence: this.resourceShadow.latestToolEvidence,
+        pendingToolObservations: number(this.resourceShadow.pendingToolObservations),
       },
       input: {
         historicalConversationBytes: number(information.historicalConversationBytes),

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { runAgent } from '../src/agent-loop.js';
+import { makeProcessControlTool } from '../src/exec-tool.js';
 import { ResourceController } from '../src/resource-controller.js';
 import { resourceExecutionWaves } from '../src/resource-execution-control.js';
 import { ResourceLedger } from '../src/resource-ledger.js';
@@ -45,6 +46,39 @@ test('같은 호출이어도 결과가 바뀌면 호출 수로 막지 않는다'
     } } });
   assert.equal(result.status, 'completed'); assert.equal(result.receipts.length, 5);
   assert.match(result.answer, /5/u);
+});
+
+test('Process Hand가 pending으로 밝힌 같은 running poll은 반복되어도 종료 관측까지 계속한다', async () => {
+  const ledger = new ResourceLedger(await mkdtemp(join(tmpdir(), 't5-a1-5-pending-poll-')));
+  const resourceRun = await new ResourceController(ledger).startRun({ sessionId: 'session', runId: 'run' });
+  let polls = 0; let turn = 0; const contexts = [];
+  const processRegistry = {
+    async poll() {
+      polls += 1;
+      return polls < 4
+        ? { processId: 'process', state: 'running', stdout: '', stderr: '', cursor: { stdout: 0, stderr: 0 }, exitCode: null }
+        : { processId: 'process', state: 'completed', stdout: 'done', stderr: '', cursor: { stdout: 4, stderr: 0 }, exitCode: 0 };
+    },
+    metadata() { return null; },
+  };
+  const tool = makeProcessControlTool({ processRegistry, ownerId: 'owner' });
+  const args = { action: 'poll', processId: 'process', cursor: { stdout: 0, stderr: 0 },
+    input: null, end: null, waitMs: 0, cols: null, rows: null };
+  const result = await runAgent({ request: '종료될 때까지 현재 프로세스를 확인해', tools: [tool], resourceRun,
+    model: { async respond(input) { turn += 1;
+      contexts.push(input.runtimeContext ?? '');
+      const handle = await input.resourceObserver?.reserve({ provider: 'fixture', model: 'fixture', attempt: 1,
+        contextReceipt: { requestBytes: 1000 + turn, input: { bytes: 800 }, tools: { bytes: 100 } } });
+      await input.resourceObserver?.commit(handle, { usage: { input_tokens: 5, output_tokens: 1, total_tokens: 6 } });
+      if (turn <= 4) return { text: '', toolCalls: [{ id: `poll-${turn}`, name: 'process_control', args }] };
+      assert.equal(JSON.parse(input.messages.at(-1).content).result.state, 'completed');
+      return { text: '프로세스가 정상 종료됐습니다.', toolCalls: [] };
+    } } });
+  assert.equal(result.status, 'completed'); assert.equal(polls, 4);
+  assert.equal(result.receipts.some((receipt) => receipt.result?.state === 'method_not_executed'), false);
+  await resourceRun.close('completed');
+  assert.equal(contexts.some((context) => /pathology_candidate|active-control|model_selected_recovery/u.test(context)), false);
+  assert.equal(deriveResourceReport(await ledger.read()).controlActions, 0);
 });
 
 test('같은 route의 같은 결과를 두 번 관측한 뒤에만 차단하고 다른 route는 유지한다', async () => {
@@ -99,26 +133,93 @@ test('병렬 wave는 물리 병렬도를 넘지 않고 내부 fan-out Hand를 �
     [['a', 'b'], ['nested'], ['c', 'd'], ['e']]);
 });
 
-test('병렬 provider rate 실패는 같은 Hand의 추가 fan-out 재시행으로 번지지 않는다', async () => {
-  let turn = 0; let providerCalls = 0; let fallbackCalls = 0;
-  const result = await runAgent({ request: '나온 자료만 정리해', parallelCapacity: 2, tools: [
+test('같은 Hand의 서로 다른 args가 같은 이유로 실패해도 미시도 route는 유지한다', async () => {
+  let turn = 0; let providerCalls = 0;
+  const result = await runAgent({ request: '세 번째 대상까지 직접 확인해', parallelCapacity: 2, tools: [
     { name: 'provider_read', executionMode: 'parallel', description: 'read', parameters: { type: 'object' },
-      async execute() { providerCalls += 1; throw new Error('provider rate limited'); } },
-    { name: 'local_fallback', description: 'fallback', parameters: { type: 'object' },
-      async execute() { fallbackCalls += 1; return { state: 'observed', value: 42 }; } },
+      async execute(args) {
+        providerCalls += 1;
+        if (args.source === 'c') return { state: 'observed', value: 42 };
+        throw new Error('same target-level failure');
+      } },
   ], model: { async respond(input) { turn += 1;
     if (turn === 1) return { text: '', toolCalls: [
       { id: 'rate-a', name: 'provider_read', args: { source: 'a' } },
       { id: 'rate-b', name: 'provider_read', args: { source: 'b' } },
     ] };
     if (turn === 2) return { text: '', toolCalls: [{ id: 'rate-c', name: 'provider_read', args: { source: 'c' } }] };
-    if (turn === 3) {
-      assert.equal(JSON.parse(input.messages.at(-1).content).result.reason, 'same_hand_same_failure_repeated');
-      return { text: '', toolCalls: [{ id: 'fallback', name: 'local_fallback', args: {} }] };
-    }
-    return { text: '로컬 근거에서 42를 확인했습니다.', toolCalls: [] };
+    assert.equal(JSON.parse(input.messages.at(-1).content).result.value, 42);
+    return { text: '세 번째 대상에서 42를 확인했습니다.', toolCalls: [] };
   } } });
-  assert.equal(providerCalls, 2); assert.equal(fallbackCalls, 1); assert.match(result.answer, /42/u);
+  assert.equal(providerCalls, 3); assert.match(result.answer, /42/u);
+});
+
+test('A0 정제 replay는 107-call 자원 곡선만으로 active stop 지점을 발명하지 않는다', async () => {
+  const fixture = JSON.parse(await readFile(new URL(
+    '../config/s2-incident-reference-fixtures.json', import.meta.url,
+  ), 'utf8'));
+  const calls = fixture.resourceRunaway.runs.flatMap((run) => run.calls);
+  assert.equal(calls.length, 107);
+  assert.equal(calls.every((call) => Array.isArray(call) && call.length === 4
+    && call.every(Number.isInteger)), true);
+  const activeReplay = {
+    observedCalls: calls.length, interventionAtCall: null,
+    reason: 'route_identity_and_evidence_fingerprint_not_preserved',
+  };
+  assert.deepEqual(activeReplay, { observedCalls: 107, interventionAtCall: null,
+    reason: 'route_identity_and_evidence_fingerprint_not_preserved' });
+});
+
+test('새 Evidence 없는 고유 route 증가는 pathology Situation 후 모델 recovery까지 실행하고 추가 실행을 막는다', async () => {
+  const ledger = new ResourceLedger(await mkdtemp(join(tmpdir(), 't5-a1-5-unique-runaway-')));
+  const resourceRun = await new ResourceController(ledger).startRun({ sessionId: 'session', runId: 'run' });
+  let turn = 0; let executions = 0; const contexts = [];
+  const model = { async respond(input) {
+    turn += 1; contexts.push(input.runtimeContext ?? '');
+    const handle = await input.resourceObserver?.reserve({ provider: 'fixture', model: 'fixture', attempt: 1,
+      contextReceipt: { requestBytes: 1000 + (turn * 100), input: { bytes: 800 + (turn * 100) },
+        tools: { bytes: 100 }, source: { bytes: 500 } } });
+    await input.resourceObserver?.commit(handle, { usage: { input_tokens: 10, output_tokens: 2, total_tokens: 12 } });
+    if (turn <= 4) return { text: '', usage: { total_tokens: 12 },
+      toolCalls: [{ id: `route-${turn}`, name: 'probe', args: { route: String.fromCharCode(64 + turn) } }] };
+    const blocked = JSON.parse(input.messages.at(-1).content);
+    assert.equal(blocked.result.reason, 'no_new_evidence_after_selected_recovery');
+    return { text: '세 방법을 확인했지만 근거를 얻지 못해 아직 완료하지 못했습니다.', toolCalls: [] };
+  } };
+  const result = await runAgent({ request: '근거를 찾아', model, resourceRun,
+    tools: [{ name: 'probe', description: 'probe one selected route', parameters: { type: 'object' },
+      async execute(args) { executions += 1; return { state: 'not_found', route: args.route, exitCode: 1 }; } }] });
+  await resourceRun.close('completed');
+  assert.equal(result.status, 'completed'); assert.equal(executions, 3);
+  assert.equal(result.receipts.length, 4); assert.equal(result.receipts[3].outcome, 'not_executed');
+  assert.match(contexts[2], /pathology_candidate/u);
+  assert.match(contexts[3], /model_selected_recovery_produced_no_new_evidence/u);
+  assert.match(result.answer, /완료하지 못/u);
+  assert.equal(deriveResourceReport(await ledger.read()).controlActions, 1);
+});
+
+test('pathology Situation 후 모델이 선택한 recovery가 새 Evidence를 내면 추가 미시도 route를 계속 연다', async () => {
+  const ledger = new ResourceLedger(await mkdtemp(join(tmpdir(), 't5-a1-5-recovery-progress-')));
+  const resourceRun = await new ResourceController(ledger).startRun({ sessionId: 'session', runId: 'run' });
+  let turn = 0; let executions = 0;
+  const result = await runAgent({ request: '다른 방법의 근거까지 확인해', resourceRun,
+    tools: [{ name: 'probe', description: 'probe', parameters: { type: 'object' }, async execute(args) {
+      executions += 1;
+      if (args.route === 'A' || args.route === 'B') return { state: 'not_found', route: args.route, exitCode: 1 };
+      return { state: 'observed', route: args.route, value: args.route === 'C' ? 42 : 43 };
+    } }], model: { async respond(input) {
+      turn += 1;
+      const handle = await input.resourceObserver?.reserve({ provider: 'fixture', model: 'fixture', attempt: 1,
+        contextReceipt: { requestBytes: 1000 + (turn * 100), input: { bytes: 800 }, tools: { bytes: 100 } } });
+      await input.resourceObserver?.commit(handle, { usage: { input_tokens: 5, output_tokens: 1, total_tokens: 6 } });
+      if (turn <= 4) return { text: '', toolCalls: [{ id: `route-${turn}`, name: 'probe',
+        args: { route: String.fromCharCode(64 + turn) } }] };
+      return { text: 'recovery에서 42, 다음 방법에서 43을 확인했습니다.', toolCalls: [] };
+    } } });
+  await resourceRun.close('completed');
+  assert.equal(result.status, 'completed'); assert.equal(executions, 4);
+  assert.equal(result.receipts.some((receipt) => receipt.outcome === 'not_executed'), false);
+  assert.equal(deriveResourceReport(await ledger.read()).controlActions, 0);
 });
 
 test('parallel cancel은 시작한 자식만 종료·commit하고 대기 자식은 실행·reservation하지 않는다', async () => {
