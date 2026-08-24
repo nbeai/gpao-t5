@@ -1,0 +1,82 @@
+{
+  "schema": "t5.s2-a-human-console-refinement-register.v1",
+  "recordedAt": "2026-08-24T23:55:00+09:00",
+  "status": "collecting_until_all_a_human_waves_complete",
+  "policy": {
+    "fixDuringJourney": false,
+    "groupByCommonCauseBeforeChange": true,
+    "oneOffPromptOrCheckerPatch": false,
+    "actualUserImpactRequired": true,
+    "rawConversationOrPersonalDataStored": false,
+    "refinementBatchStartsAfterHumanQualification": true
+  },
+  "wave1": [
+    {
+      "id": "A-REF-01",
+      "journey": "A-H01",
+      "family": "simple_turn_latency_and_unnecessary_recall",
+      "observation": "A simple naming turn took 17.8 seconds and used a model-tool-model memory path; a current-conversation correction also invoked session search once.",
+      "userImpact": "Simple conversation feels slower and more mechanical than expected.",
+      "currentDisposition": "collect_for_common_input_route_refinement"
+    },
+    {
+      "id": "A-REF-02",
+      "journey": "A-H02",
+      "family": "recoverable_hand_selection_failures",
+      "observation": "Latest-document work remained correct but two internal tool attempts failed before recovery.",
+      "userImpact": "Correct result is preserved, but avoidable attempts add latency and cost.",
+      "currentDisposition": "compare_with_document_and_program_routes"
+    },
+    {
+      "id": "A-REF-03",
+      "journey": "A-H03",
+      "family": "mixed_document_and_deliverable_latency",
+      "observation": "Three-turn mixed-document journey took 167.5 seconds; the deliverable turn took about 84 seconds.",
+      "userImpact": "Accurate complex document work is too slow for comfortable interactive use.",
+      "currentDisposition": "collect_model_tool_and_visual_stage_breakdown"
+    },
+    {
+      "id": "A-REF-04",
+      "journey": "A-H03",
+      "family": "visual_numeric_reading_precision",
+      "observation": "A prominent image number was retained as a cautious 41,3xx possibility rather than read exactly as 41,300.",
+      "userImpact": "No hallucinated certainty, but image-based business facts may require better visual observation.",
+      "currentDisposition": "keep_as_visual_hand_quality_case"
+    },
+    {
+      "id": "A-REF-05",
+      "journey": "A-H04",
+      "family": "public_web_first_answer_latency_and_unused_read",
+      "observation": "First Web answer took 32.1 seconds and included one readable source that was not used in the final answer.",
+      "userImpact": "The result is correct, but one avoidable read delays a simple current-news request.",
+      "currentDisposition": "collect_with_web_route_efficiency_cases"
+    },
+    {
+      "id": "A-REF-06",
+      "journey": "A-H04",
+      "family": "source_temporality_and_partial_read_expression",
+      "observation": "One future-described event was phrased as already opened, and one official supplemental source remained snippet-only after static read blocking.",
+      "userImpact": "Time-sensitive wording can overstate status; partial source coverage must remain explicit.",
+      "currentDisposition": "refine_answer_grounding_without_new_browser_fallback"
+    },
+    {
+      "id": "A-REF-07",
+      "journey": "A-H03,A-H04",
+      "family": "human_visual_review_harness",
+      "observation": "Two early parallel lanes cleaned their isolated console state before visual review was requested.",
+      "userImpact": "Machine results exist, but the human cannot inspect those exact console conversations.",
+      "currentDisposition": "already_corrected_for_later_lanes_keep_review_state"
+    }
+  ],
+  "wave2": [],
+  "batchPlanning": {
+    "notStarted": true,
+    "requiredInputs": [
+      "all A-H01 through A-H08 outcomes",
+      "preserved review-console inspection",
+      "resource and context receipts",
+      "sequential Web and large-file timing anchors"
+    ],
+    "plannedOutput": "One bounded refinement plan grouped by demonstrated common defect families, with explicit non-goals and no change to unrelated later Gates."
+  }
+}

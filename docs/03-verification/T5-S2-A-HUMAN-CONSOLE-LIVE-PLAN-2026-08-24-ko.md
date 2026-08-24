@@ -58,6 +58,11 @@ Web과 A-H05 대형 파일 두 anchor만 무경합으로 한 번 재실행한다
 각 wave가 끝난 뒤 사람이 Console 결과를 검토한다. 여러 lane의 raw 대화를 합치지 않고 목적 달성·정확성·
 Receipt·성능 수치만 최종 evidence 하나로 정산한다.
 
+시험 중 발견한 비차단 미흡은 즉시 제품 수정으로 번지지 않고
+`refoundation/evidence/s2-a-human-console-refinement-register-2026-08-24.json`에 누적한다. 모든 wave가 끝난
+뒤 공통 원인별로 묶어 한 번의 bounded 다듬기 계획을 만든다. 개별 문구·checker·Prompt를 그 자리에서
+고치는 방식은 사용하지 않는다.
+
 ## 4. 인간 역할
 
 - 내부 구현을 모르는 사용자처럼 요청한다.
