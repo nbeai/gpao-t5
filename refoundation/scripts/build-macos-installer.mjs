@@ -153,8 +153,6 @@ esac
 `);
     await chmod(nodeShim, 0o755);
     for (const path of [
-      join(resources, 'app', 'refoundation', 'node_modules', 'agent-browser', 'bin', 'agent-browser-darwin-arm64'),
-      join(resources, 'app', 'refoundation', 'node_modules', 'agent-browser', 'bin', 'agent-browser-darwin-x64'),
       join(resources, 'app', 'refoundation', 'node_modules', 'node-pty', 'prebuilds', 'darwin-arm64', 'spawn-helper'),
       join(resources, 'app', 'refoundation', 'node_modules', 'node-pty', 'prebuilds', 'darwin-x64', 'spawn-helper'),
       join(resources, 'app', 'refoundation', 'bin', 't5-document.mjs'),

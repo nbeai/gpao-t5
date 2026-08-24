@@ -136,7 +136,7 @@ export function makeChatGptResponsesModel({
   let started = false;
 
   return {
-    async respond({ messages = [], tools = [], signal, onContextReceipt } = {}) {
+    async respond({ messages = [], tools = [], toolChoice = null, signal, onContextReceipt } = {}) {
       const credential = await credentials.get();
       const requestModel = model ?? credential.modelId;
       if (!requestModel) throw new Error('ChatGPT OAuth connection has no model id');
@@ -160,6 +160,7 @@ export function makeChatGptResponsesModel({
         instructions,
         input: structuredClone(input),
         tools: toolDefinitions(tools),
+        ...(toolChoice?.requiredToolName ? { tool_choice: 'required' } : {}),
         stream: true,
         store: false,
       };

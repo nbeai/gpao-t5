@@ -1,0 +1,38 @@
+{
+  "schema": "t5.p0h4-dedicated-browser-retirement.v1",
+  "recordedAt": "2026-08-24T09:04:47+09:00",
+  "releaseEligible": false,
+  "revokedPackage": "0.1.8",
+  "productEntry": {
+    "persistentBrowserHostCreated": false,
+    "agentBrowserDriverCreated": false,
+    "managedPlaywrightCreated": false,
+    "conversationBrowserHandoffVisible": false
+  },
+  "productionDependencies": {
+    "agent-browser": false,
+    "playwright-core": false
+  },
+  "existingBrowserAutomations": {
+    "executionAllowed": false,
+    "state": "needs_review",
+    "reason": "required_tool_unavailable"
+  },
+  "isolatedRuntime": {
+    "health": true,
+    "dedicatedChromeCreated": false,
+    "agentBrowserCreated": false
+  },
+  "cleanup": {
+    "staleDedicatedChromeStopped": true,
+    "installedLegacyRuntimeStopped": true,
+    "dedicatedBrowserProcessResidual": 0,
+    "temporaryQualificationProcessResidual": 0
+  },
+  "checks": {
+    "refoundationTests": 593,
+    "refoundationFailures": 0,
+    "legacySourceImports": 0,
+    "newPackageCreated": false
+  }
+}

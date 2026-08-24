@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE`
-현재 Gate: `P0-H3 HUMAN COMPLETION & VISIBLE BROWSER BOUNDARY — COMPLETE` (`0.1.8` 패키징 준비)
+현재 Gate: `P0-H4 DEDICATED BROWSER RETIREMENT — SOURCE COMPLETE` (`0.1.8` 배포 적격 철회)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -18,6 +18,27 @@ legacy T5                 refoundation T5
 ```
 
 새 코어가 실제 사용자 과업에서 legacy와 비교군을 이긴 뒤 검증된 부품만 이식한다.
+
+## P0-H4 — Dedicated Browser Retirement
+
+상태: `SOURCE COMPLETE` — 설치 0.1.7의 실제 감사에서 20개 Run·모델 107회·도구 93회·약 1,014만
+tokens가 사용됐지만 예약 게시 목적을 달성하지 못했다. 별도 Chrome·profile·daemon·tab·대형 snapshot을
+제품의 웹 현실로 둔 구조가 일반 웹 퇴보, 로그인 혼란, 화면 침범, 프로세스 잔류와 문맥 폭주를 함께
+증폭시킨 원인으로 판정했다. 0.1.8의 서명·공증 사실과 별개로 배포 적격은 계속 철회한다.
+
+현재 제품 경계:
+
+- 제품 진입점은 `PersistentBrowserHost`, `AgentBrowserDriver`, managed Playwright를 생성하지 않는다.
+- 일반 웹은 `web_search·web_read·web_research·visual_reference`로 대화 안에서 끝내며 가시 Chrome을 열지 않는다.
+- Google·Notion 등 인증 연결은 각 Connector/API/OAuth 경계를 사용하며 T5 전용 Chrome 신분에 기대지 않는다.
+- Naver 작성처럼 UI로만 가능한 작업은 현재 지원한다고 가장하지 않는다. 검증된 표준 연결 수단이 생기기 전까지
+  예약·실행·완료를 약속하지 않는다.
+- 기존 `browser` 필수 자동화는 시작 전에 `needs_review`로 격리해 실행하지 않는다.
+- 일반 대화 UI의 T5 브라우저 handoff를 제거했고, 생산 설치 의존성에서 `agent-browser·playwright-core`를 제외했다.
+- 과거 Browser 구현과 격리 검사는 비교 증거로 남지만 제품 진입점에서 도달할 수 없다.
+
+미완성 Work 원장 확장은 전부 걷어냈다. 새 브라우저 체계·사용자 Chrome 연결·UI 자동화 엔진은 이번 Gate에서
+만들지 않는다. 새 package는 전체 검사와 생산 의존성 재검증 뒤에만 별도 지시로 생성한다.
 
 ## P0-H3 — Human Completion & Visible Browser Boundary
 

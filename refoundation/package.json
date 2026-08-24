@@ -15,16 +15,18 @@
     "@modelcontextprotocol/client": "2.0.0",
     "@mozilla/readability": "0.6.0",
     "@office-kit/xlsx": "0.9.0",
-    "agent-browser": "0.34.0",
     "clawpdf": "0.3.0",
     "cron-parser": "5.10.0",
     "fflate": "0.8.3",
     "kordoc": "4.9.1",
     "linkedom": "0.18.13",
     "node-pty": "1.1.0",
-    "playwright-core": "1.62.1",
     "tree-sitter-bash": "0.25.1",
     "web-tree-sitter": "0.26.9",
     "yaml": "2.9.0"
+  },
+  "devDependencies": {
+    "agent-browser": "0.34.0",
+    "playwright-core": "1.62.1"
   }
 }

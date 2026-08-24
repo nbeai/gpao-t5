@@ -123,7 +123,7 @@ test('공개 정보 검색은 검색엔진 화면보다 검색→URL 읽기를 �
   assert.match(instructions, /Google Maps destination.*visibleBrowser=never.*another public source.*do not open a visible browser.*explicitly asked/i);
   assert.match(instructions, /missing search candidates.*not by itself permission.*visible browser/i);
   assert.match(instructions, /browser only when the user asked for page interaction.*login-bound.*dynamic.*static observation/i);
-  assert.match(instructions, /current or latest news.*exactly two.*current local date.*sourceLimit 4/i);
+  assert.match(instructions, /current or latest news.*exactly two.*current local date.*sourceLimit 4.*requested item count.*maximum of 6/i);
   assert.match(instructions, /search snippet.*topic hub.*observed publication date.*readable article body.*does not establish the latest news/i);
   assert.match(instructions, /synthesized result first.*source links.*candidate list alone is not a completed/i);
   assert.match(instructions, /remind me.*no delivery surface.*Ask one direct question.*operating-system notification.*use exec.*inspect the installed schedule/i);
@@ -131,9 +131,9 @@ test('공개 정보 검색은 검색엔진 화면보다 검색→URL 읽기를 �
   assert.match(instructions, /previous conversation.*use session_search.*empty memory result is not evidence.*past event did not occur/i);
 });
 
-test('콘솔 종료는 관리 Chrome의 bounded close가 끝날 시간을 실제로 기다린다', async () => {
+test('제품 콘솔은 관리 Chrome host를 만들거나 종료 대상으로 보유하지 않는다', async () => {
   const source = await import('node:fs/promises').then(({ readFile }) => readFile(
     new URL('../scripts/start-console.mjs', import.meta.url), 'utf8',
   ));
-  assert.match(source, /boundedShutdown\(\(\) => browserHost\.close\(\), 8_000\)/u);
+  assert.doesNotMatch(source, /browserHost|makeAgentBrowserDriver|makePersistentBrowserHost/u);
 });

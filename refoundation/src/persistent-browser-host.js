@@ -187,7 +187,6 @@ export function makePersistentBrowserHost({
     AGENT_BROWSER_AUTOSAVE_INTERVAL_MS: DEFAULT_AUTOSAVE_MS,
   };
   const clientNamespace = `t5c-${createHash('sha256').update(namespace).digest('hex').slice(0, 8)}`;
-  const clientEnvironment = { ...environment, AGENT_BROWSER_SOCKET_DIR: clientSocketDirectory };
   const execute = run ?? ((args, options) => execFileResult(binary, args, options));
   const usesManagedMacLaunch = run == null && process.platform === 'darwin';
   let cdpUrl = null;
@@ -288,10 +287,6 @@ export function makePersistentBrowserHost({
       return serialize(async () => {
         await prepare();
         if (usesManagedMacLaunch) {
-          await execute([
-            '--namespace', clientNamespace, '--cdp', cdpUrl,
-            '--idle-timeout', '0', '--json', 'close', '--all',
-          ], { signal, environment: clientEnvironment }).catch(() => {});
           await closeManagedChrome(cdpUrl, profileDirectory);
           cdpUrl = null;
           return { closed: true };

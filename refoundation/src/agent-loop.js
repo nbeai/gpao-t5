@@ -1,4 +1,7 @@
-const DEFAULT_MAX_MODEL_TURNS = 32;
+const DEFAULT_MAX_MODEL_TURNS = 16;
+const DEFAULT_MAX_TOOL_CALLS = 24;
+const DEFAULT_MAX_FAILED_TOOL_CALLS = 4;
+const DEFAULT_MAX_PROVIDER_TOKENS = 500_000;
 
 function toolDefinition(tool) {
   return {
@@ -37,6 +40,44 @@ function toolMessage(receipt) {
   };
 }
 
+function browserTabId(receipt) {
+  return receipt?.result?.tab?.tabId
+    ?? receipt?.result?.observation?.refScope?.tabId
+    ?? receipt?.result?.after?.refScope?.tabId
+    ?? null;
+}
+
+function compactSupersededBrowserMessages(transcript, currentReceipt) {
+  if (currentReceipt.requestedCall?.name !== 'browser' || currentReceipt.outcome !== 'succeeded') return;
+  const currentTabId = browserTabId(currentReceipt);
+  if (!currentTabId) return;
+  for (const message of transcript.slice(0, -1)) {
+    if (message.role !== 'tool' || message.name !== 'browser') continue;
+    let prior;
+    try { prior = JSON.parse(message.content); } catch { continue; }
+    if (prior.outcome !== 'succeeded' || browserTabId(prior) !== currentTabId
+      || prior.result?.observationSuperseded === true) continue;
+    const scrub = (call) => call ? {
+      ...call, args: call.args ? {
+        ...call.args,
+        ...(call.args.text != null ? { text: null, textOmittedAfterUse: true } : {}),
+      } : {},
+    } : null;
+    message.content = JSON.stringify({
+      toolCallId: prior.toolCallId,
+      requestedCall: scrub(prior.requestedCall), actualCall: scrub(prior.actualCall),
+      outcome: prior.outcome,
+      result: {
+        state: prior.result?.state, tab: prior.result?.tab ?? null,
+        action: prior.result?.action ?? null, declaredEffect: prior.result?.declaredEffect ?? null,
+        navigation: prior.result?.navigation ?? null,
+        observationSuperseded: true,
+        nextSafeAction: 'Use the newest browser receipt for this tab.',
+      },
+    });
+  }
+}
+
 function visualObservationMessage(receipt, modelAttachments) {
   return {
     role: 'user',
@@ -65,7 +106,7 @@ function historyMessage(message) {
   return null;
 }
 
-async function executeCall(call, tools, signal, activeTools) {
+async function executeCall(call, tools, signal, activeTools, priorReceipts = []) {
   const requested = requestedCall(call);
   const tool = tools.get(requested.name);
   if (!tool) {
@@ -97,9 +138,10 @@ async function executeCall(call, tools, signal, activeTools) {
     };
   }
 
+  const toolContext = { signal, priorReceipts: structuredClone(priorReceipts) };
   if (typeof tool.preflight === 'function') {
     try {
-      const gate = await tool.preflight(requested.args, { signal });
+      const gate = await tool.preflight(requested.args, toolContext);
       if (gate?.allowed === false) {
         return {
           toolCallId: requested.id,
@@ -122,7 +164,7 @@ async function executeCall(call, tools, signal, activeTools) {
 
   const actualCall = { name: requested.name, args: structuredClone(requested.args) };
   try {
-    const result = await tool.execute(requested.args, { signal });
+    const result = await tool.execute(requested.args, toolContext);
     const modelAttachments = Array.isArray(result?._modelAttachments)
       ? structuredClone(result._modelAttachments) : [];
     if (result && typeof result === 'object') delete result._modelAttachments;
@@ -159,16 +201,28 @@ async function executeCall(call, tools, signal, activeTools) {
  *   tools?:Array<{name:string,description:string,parameters:object,execute:Function}>,
  *   signal?:AbortSignal,
  *   maxModelTurns?:number,
+ *   maxToolCalls?:number,
+ *   maxFailedToolCalls?:number,
+ *   maxProviderTokens?:number,
+ *   requiredCompletionTool?:string|null,
  *   onEvent?:(event:object)=>void|Promise<void>,
  * }} input
  */
 export async function runAgent({
   request, requestAttachments = [], history = [], model, tools = [], signal,
-  maxModelTurns = DEFAULT_MAX_MODEL_TURNS, onEvent,
+  maxModelTurns = DEFAULT_MAX_MODEL_TURNS,
+  maxToolCalls = DEFAULT_MAX_TOOL_CALLS,
+  maxFailedToolCalls = DEFAULT_MAX_FAILED_TOOL_CALLS,
+  maxProviderTokens = DEFAULT_MAX_PROVIDER_TOKENS,
+  requiredCompletionTool = null,
+  onEvent,
 }) {
   if (typeof request !== 'string' || !request.trim()) throw new TypeError('request is required');
   if (!model || typeof model.respond !== 'function') throw new TypeError('model.respond is required');
   if (!Number.isInteger(maxModelTurns) || maxModelTurns < 1) throw new TypeError('maxModelTurns must be positive');
+  for (const [name, value] of Object.entries({ maxToolCalls, maxFailedToolCalls, maxProviderTokens })) {
+    if (!Number.isInteger(value) || value < 1) throw new TypeError(`${name} must be positive`);
+  }
 
   const registry = new Map();
   for (const tool of tools) {
@@ -191,6 +245,14 @@ export async function runAgent({
   const completedTools = new Set();
   const completedCapabilityGroups = new Set();
   let modelTurns = 0;
+  let toolCalls = 0;
+  let failedToolCalls = 0;
+  let providerTokens = 0;
+  const failureFamilies = new Map();
+  let completionReminderSent = false;
+  const completionSatisfied = () => Boolean(requiredCompletionTool && receipts.some((receipt) => (
+    receipt.actualCall?.name === requiredCompletionTool && receipt.outcome === 'succeeded'
+  )));
 
   while (modelTurns < maxModelTurns) {
     if (signal?.aborted) return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
@@ -200,6 +262,9 @@ export async function runAgent({
     const response = normalizeResponse(await model.respond({
       messages: structuredClone(transcript),
       tools: structuredClone(definitions),
+      ...(completionReminderSent && requiredCompletionTool && !completionSatisfied() ? {
+        toolChoice: { requiredToolName: requiredCompletionTool },
+      } : {}),
       signal,
       onContextReceipt: async (contextReceipt) => {
         await onEvent?.({
@@ -214,6 +279,9 @@ export async function runAgent({
       ...(response.usage ? { usage: structuredClone(response.usage) } : {}),
       ...(response.contextReceipt ? { contextReceipt: structuredClone(response.contextReceipt) } : {}),
     });
+    const reportedTokens = Number(response.usage?.total_tokens);
+    if (Number.isFinite(reportedTokens) && reportedTokens > 0) providerTokens += reportedTokens;
+    const providerBudgetExceeded = providerTokens > maxProviderTokens;
     await onEvent?.({
       type: 'model_end',
       turn: modelTurns,
@@ -231,8 +299,30 @@ export async function runAgent({
       content: response.text,
       ...(response.toolCalls.length ? { toolCalls: structuredClone(response.toolCalls) } : {}),
     });
+    if (providerBudgetExceeded) {
+      const error = new Error('run provider token budget exceeded');
+      error.reason = 'run_resource_budget_exceeded';
+      error.resource = 'provider_tokens'; error.used = providerTokens; error.limit = maxProviderTokens;
+      throw error;
+    }
 
     if (!response.toolCalls.length) {
+      if (requiredCompletionTool && !completionSatisfied()) {
+        if (completionReminderSent) {
+          const error = new Error('required completion receipt is missing');
+          error.reason = 'required_completion_receipt_missing';
+          error.toolName = requiredCompletionTool;
+          throw error;
+        }
+        completionReminderSent = true;
+        const requiredTool = registry.get(requiredCompletionTool);
+        definitions = requiredTool ? [toolDefinition(requiredTool)] : [];
+        transcript.push({
+          role: 'user',
+          content: `[T5 RUNTIME COMPLETION CONTRACT] Before ending this scheduled Run, call ${requiredCompletionTool}. Declare not_achieved if any requested effect, delivery, verification, or result URL is still missing. A normal final answer cannot close this Run.`,
+        });
+        continue;
+      }
       return { status: 'completed', answer: response.text, transcript, receipts, modelCalls, modelTurns };
     }
 
@@ -243,6 +333,13 @@ export async function runAgent({
         name: call?.name, args: structuredClone(call?.args ?? {}),
       });
       const requested = requestedCall(call);
+      toolCalls += 1;
+      if (toolCalls > maxToolCalls) {
+        const error = new Error('run tool-call budget exceeded');
+        error.reason = 'run_resource_budget_exceeded';
+        error.resource = 'tool_calls'; error.used = toolCalls; error.limit = maxToolCalls;
+        throw error;
+      }
       const fingerprint = JSON.stringify([requested.name, requested.args]);
       const repetitions = repeatedCalls.get(fingerprint) ?? 0;
       if (repetitions >= 3) {
@@ -258,11 +355,12 @@ export async function runAgent({
         actualCall: null,
         outcome: 'not_executed',
         result: { state: 'repeated_call_stopped', occurrences: repetitions + 1 },
-      } : await executeCall(call, registry, signal, activeTools);
+      } : await executeCall(call, registry, signal, activeTools, receipts);
       const visualAttachments = receipt._modelAttachments ?? [];
       delete receipt._modelAttachments;
       receipts.push(receipt);
       transcript.push(toolMessage(receipt));
+      compactSupersededBrowserMessages(transcript, receipt);
       if (visualAttachments.length) transcript.push(visualObservationMessage(receipt, visualAttachments));
       const acceptedActivations = [];
       for (const name of receipt.result?.activatedTools ?? []) {
@@ -287,15 +385,44 @@ export async function runAgent({
         if (completedCapabilityGroups.has(registry.get(name)?.capabilityGroup)) activeTools.delete(name);
       }
       definitions = [...activeTools].map((name) => toolDefinition(registry.get(name)));
+      if (completionSatisfied()) definitions = [];
+      else if (completionReminderSent && requiredCompletionTool) {
+        definitions = definitions.filter((definition) => definition.name === requiredCompletionTool);
+      }
       await onEvent?.({
         type: 'tool_end', turn: modelTurns, name: call?.name, outcome: receipt.outcome,
         receipt: structuredClone(receipt),
       });
+      if (receipt.outcome === 'failed') {
+        failedToolCalls += 1;
+        const family = JSON.stringify([
+          requested.name,
+          receipt.result?.state ?? receipt.result?.stage ?? null,
+          String(receipt.result?.reason ?? receipt.result?.error ?? '').replace(/\d+/gu, '#').slice(0, 240),
+        ]);
+        const familyCount = (failureFamilies.get(family) ?? 0) + 1;
+        failureFamilies.set(family, familyCount);
+        if (familyCount >= 2) {
+          const error = new Error('same tool failure repeated without progress');
+          error.reason = 'repeated_tool_failure_without_progress';
+          error.toolName = requested.name; error.occurrences = familyCount;
+          throw error;
+        }
+        if (failedToolCalls >= maxFailedToolCalls) {
+          const error = new Error('run failed-tool budget exceeded');
+          error.reason = 'tool_failure_budget_exceeded';
+          error.used = failedToolCalls; error.limit = maxFailedToolCalls;
+          throw error;
+        }
+      }
       if (signal?.aborted || receipt.outcome === 'cancelled') {
         return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
       }
     }
   }
 
-  return { status: 'limit_reached', answer: null, transcript, receipts, modelCalls, modelTurns };
+  const error = new Error('run model-turn budget exceeded');
+  error.reason = 'run_resource_budget_exceeded';
+  error.resource = 'model_turns'; error.used = modelTurns; error.limit = maxModelTurns;
+  throw error;
 }

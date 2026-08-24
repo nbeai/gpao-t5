@@ -48,6 +48,17 @@ test('foreground exec는 1초가 넘더라도 완료까지 기다려 전체 결�
   assert.equal(result.processId, undefined);
 }));
 
+test('미래 작업을 foreground sleep으로 붙들려 하면 automation 경계에서 실행 전에 멈춘다', async () => rooms(async ({ workspace }) => {
+  const tool = makeExecTool({ workspace, effectPreflight: async () => ({ allowed: true }) });
+  const gate = await tool.preflight({
+    command: 'sleep 285; printf publish', cwd: null,
+    effect: { kind: 'observe', summary: '미래 대기', targets: [], reversible: true, backupAvailable: false, recipientNew: false, approvalToken: null },
+  }, {});
+  assert.equal(gate.allowed, false);
+  assert.equal(gate.result.state, 'future_schedule_required');
+  assert.equal(gate.result.delaySeconds, 285);
+}));
+
 test('process_start만 실행 중 handle을 돌려주고 process_control로 이어진다', async () => rooms(async ({ workspace }) => {
   const exec = makeExecTool({ workspace });
   const start = makeProcessStartTool({

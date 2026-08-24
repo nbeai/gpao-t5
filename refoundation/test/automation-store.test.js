@@ -34,3 +34,35 @@ test('원장은 실행 전 claim을 먼저 기록하고 crash 뒤 일회 작업�
     assert.equal(state.runs[0].status, 'unknown');
   } finally { await rm(room, { recursive: true, force: true }); }
 });
+
+test('계약 필드가 없던 기존 예약은 실행 전에 needs_review로 격리한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-automation-legacy-')); const now = Date.parse('2026-08-21T00:00:00Z');
+  try {
+    const file = join(room, 'automation.json');
+    const store = new AutomationStore(file, { now: () => now });
+    const job = await store.create({ name: '기존', prompt: '게시', sessionId: 's', scheduleKind: 'every',
+      schedule: '1h', timezone: 'Asia/Seoul' });
+    const state = await store.read(); delete state.jobs[0].requirements; delete state.jobs[0].delivery;
+    await store.write(state);
+    assert.deepEqual(await store.quarantineUnqualified(), [job.id]);
+    const quarantined = await store.inspect(job.id);
+    assert.equal(quarantined.state, 'needs_review');
+    assert.equal(quarantined.nextRunAt, null);
+    assert.equal(quarantined.lastError, 'automation_contract_missing');
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('제품에서 제거된 도구를 요구하는 기존 예약은 실행 전에 격리한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-automation-unavailable-')); const now = Date.parse('2026-08-21T00:00:00Z');
+  try {
+    const store = new AutomationStore(join(room, 'automation.json'), { now: () => now });
+    const job = await store.create({ name: '브라우저 게시', prompt: '게시해', sessionId: 's',
+      scheduleKind: 'every', schedule: '1h', timezone: 'Asia/Seoul',
+      requirements: { requiredTools: ['browser'], requiredEffect: 'external_send', requireResultUrl: true },
+      delivery: { kind: 'origin_session', sessionId: null } });
+    assert.deepEqual(await store.quarantineUnavailableTools(['browser']), [job.id]);
+    const quarantined = await store.inspect(job.id);
+    assert.equal(quarantined.state, 'needs_review');
+    assert.equal(quarantined.lastError, 'required_tool_unavailable');
+  } finally { await rm(room, { recursive: true, force: true }); }
+});

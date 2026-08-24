@@ -32,7 +32,6 @@ Direct upstream projects:
 - Mozilla Readability: <https://github.com/mozilla/readability>
 - Model Context Protocol TypeScript SDK: <https://github.com/modelcontextprotocol/typescript-sdk>
 - Office Kit XLSX: <https://github.com/office-kit/xlsx>
-- agent-browser: <https://github.com/vercel-labs/agent-browser>
 - clawpdf: <https://github.com/openclaw/clawpdf>
 - cron-parser: <https://github.com/harrisiirak/cron-parser>
 - Kordoc: <https://github.com/chrisryugj/kordoc>

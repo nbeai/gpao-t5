@@ -6,6 +6,8 @@ const MAX_EDITABLES = 20;
 const MAX_PREVIEW_CHARS = 200;
 const MODAL_BINDING_ATTRIBUTE = 'data-t5-modal-binding';
 const CONTROL_BINDING_ATTRIBUTE = 'data-t5-modal-control-binding';
+const EDITOR_BINDING_ATTRIBUTE = 'data-t5-editor-binding';
+const EDITOR_ACTION_TIMEOUT_MS = 2_500;
 
 function compactText(value) { return String(value ?? '').replace(/\s/gu, ''); }
 function digest(value) { return createHash('sha256').update(String(value ?? '')).digest('hex'); }
@@ -106,8 +108,17 @@ export function makeManagedPlaywrightEditorProvider({ browserHost } = {}) {
           const fact = await candidateFact(locator);
           if (!fact.visible || (source.mode === 'click_to_edit' && fact.insideDirectEditable)) continue;
           const id = `pw-${randomUUID()}`;
-          const readLocator = source.mode === 'click_to_edit'
-            ? locator.locator('xpath=ancestor::article[1]') : locator;
+          const bindingToken = await locator.evaluate((element, attribute) => {
+            let token = element.getAttribute(attribute);
+            if (!token) { token = crypto.randomUUID(); element.setAttribute(attribute, token); }
+            return token;
+          }, EDITOR_BINDING_ATTRIBUTE);
+          const boundLocator = frame.locator(`[${EDITOR_BINDING_ATTRIBUTE}="${bindingToken}"]`);
+          const component = boundLocator.locator(
+            'xpath=ancestor::*[self::section or contains(concat(" ", normalize-space(@class), " "), " se-component ")][1]',
+          );
+          const readLocator = source.mode === 'click_to_edit' && await component.count()
+            ? component.first() : boundLocator;
           const current = contentFact(fact.text);
           const label = String(fact.placeholder || current.textPreview || `편집 영역 ${rows.length + 1}`)
             .slice(0, 120);
@@ -118,7 +129,7 @@ export function makeManagedPlaywrightEditorProvider({ browserHost } = {}) {
             interactionMode: source.mode,
           };
           targets.set(id, {
-            targetId: tab.targetId, page, frame, locator, readLocator, row, before: current,
+            targetId: tab.targetId, page, frame, locator: boundLocator, readLocator, row, before: current,
             formControl: ['input', 'textarea'].includes(fact.tag),
           });
           rows.push(row);
@@ -215,17 +226,40 @@ export function makeManagedPlaywrightEditorProvider({ browserHost } = {}) {
     return modals;
   }
 
+  async function observedText(locator, formControl) {
+    return formControl
+      ? locator.inputValue({ timeout: EDITOR_ACTION_TIMEOUT_MS })
+      : locator.innerText({ timeout: EDITOR_ACTION_TIMEOUT_MS });
+  }
+
   async function replace(record, value) {
     const shortcut = process.platform === 'darwin' ? 'Meta+A' : 'Control+A';
-    await record.locator.click();
-    if (record.formControl) await record.locator.fill(value);
+    let editable = record.locator;
+    if (record.row.interactionMode === 'click_to_edit') {
+      try { await record.locator.click({ timeout: EDITOR_ACTION_TIMEOUT_MS }); }
+      catch { await record.locator.dispatchEvent('click', {}, { timeout: EDITOR_ACTION_TIMEOUT_MS }); }
+      await record.page.waitForTimeout(100);
+      const activated = await candidateFact(record.locator);
+      if (!activated.direct) {
+        const ancestor = record.locator.locator(
+          'xpath=ancestor-or-self::*[@contenteditable="true" or @contenteditable="plaintext-only"][1]',
+        );
+        const descendant = record.locator.locator(
+          '[contenteditable="true"], [contenteditable="plaintext-only"], textarea, input:not([type="hidden"])',
+        );
+        if (await ancestor.count()) editable = ancestor.first();
+        else if (await descendant.count()) editable = descendant.first();
+        else throw new Error('playwright editable activation failed');
+      }
+    } else await editable.click({ timeout: EDITOR_ACTION_TIMEOUT_MS });
+    if (record.formControl) await editable.fill(value, { timeout: EDITOR_ACTION_TIMEOUT_MS });
     else {
-      await record.locator.press(shortcut);
+      await editable.press(shortcut, { timeout: EDITOR_ACTION_TIMEOUT_MS });
       await record.page.keyboard.insertText(String(value));
     }
     await record.page.waitForTimeout(150);
     const expected = contentFact(value);
-    const leaf = contentFact(await record.locator.innerText());
+    const leaf = contentFact(await observedText(editable, record.formControl));
     if (leaf.compactSha256 === expected.compactSha256) return { observed: leaf, contentMatched: true };
     const scope = contentFact(await record.readLocator.innerText());
     return {
@@ -238,7 +272,7 @@ export function makeManagedPlaywrightEditorProvider({ browserHost } = {}) {
     const record = targets.get(String(editableId ?? ''));
     if (!record || record.targetId !== tab?.targetId) throw new Error('playwright editable target is stale');
     if (record.row.secretLike) throw new Error('secret-like editable requires user control');
-    const beforeNow = contentFact(await record.locator.innerText());
+    const beforeNow = contentFact(await observedText(record.locator, record.formControl));
     if (beforeNow.compactSha256 !== record.before.compactSha256) {
       throw new Error('playwright editable target changed after observation');
     }

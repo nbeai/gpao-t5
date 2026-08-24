@@ -117,7 +117,7 @@ export function makeOpenAIResponsesModel({
 
   return {
     id: model,
-    async respond({ messages = [], tools = [], signal, onContextReceipt } = {}) {
+    async respond({ messages = [], tools = [], toolChoice = null, signal, onContextReceipt } = {}) {
       if (!started) {
         input.push(...initialInput(messages));
         for (const message of messages) {
@@ -141,6 +141,7 @@ export function makeOpenAIResponsesModel({
         instructions,
         input: structuredClone(input),
         tools: apiTools(tools),
+        ...(toolChoice?.requiredToolName ? { tool_choice: 'required' } : {}),
         reasoning: { effort: reasoningEffort },
         store: false,
       };

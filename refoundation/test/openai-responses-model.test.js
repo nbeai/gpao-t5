@@ -57,6 +57,18 @@ test('Responses adapter는 현재 사용자 이미지 첨부를 input_image data
   }]);
 });
 
+test('Responses adapter는 예약 완료 프로토콜에서 단일 목적 영수증 도구를 required로 강제한다', async () => {
+  let body;
+  const model = makeOpenAIResponsesModel({ apiKey: SECRET, model: 'gpt-test',
+    fetchImpl: async (_url, init) => { body = JSON.parse(init.body); return jsonResponse({
+      id: 'forced', output: [{ type: 'function_call', call_id: 'finish', name: 'exec',
+        arguments: JSON.stringify({ command: 'true', cwd: null }) }],
+    }); } });
+  await model.respond({ messages: [{ role: 'user', content: '완료 영수증' }], tools: [execDefinition],
+    toolChoice: { requiredToolName: 'exec' } });
+  assert.equal(body.tool_choice, 'required');
+});
+
 test('Responses adapter는 모델 output 전체와 같은 call_id의 도구 결과를 다음 호출에 보존한다', async () => {
   const dumpDir = await mkdtemp(join(tmpdir(), 't5-prompt-dump-'));
   const requests = [];

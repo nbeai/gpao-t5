@@ -12,7 +12,7 @@ test('기존 콘솔 입력은 다중 파일 선택·드래그앤드롭·첨부 c
   assert.match(html, /id="filepick"[^>]*type="file"[^>]*multiple/);
   assert.match(html, /uploadFiles\(e\.dataTransfer\?\.files/);
   assert.match(html, /stagedAttachments/);
-  assert.match(html, /attachmentIds:\s*sentAttachments\.map/);
+  assert.match(html, /startTurn\(submittedSessionId, t, sentAttachments\.map/);
   assert.match(html, /renderMessageAttachments\(box, e\.attachments\)/);
 });
 

@@ -132,6 +132,9 @@ test('개인용 Telegram은 첫 private sender를 자동 소유자로 결속하�
       allowedAt: (await state.listAllowed('telegram'))[0].allowedAt,
       source: 'first_private_message',
     }]);
+    assert.deepEqual(await gateway.resolveOwnerDelivery('telegram'), {
+      ready: true, provider: 'telegram', sessionId: 'telegram-owner-session',
+    });
     assert.match(fixture.calls.find((call) => call.method === 'sendMessage').body.text, /반가워요/u);
 
     fixture.updates.push(update(6, { userId: 9999, chatId: 9999, text: '다른 사람' }));

@@ -118,7 +118,7 @@ export function makeAnthropicMessagesModel({
 
   return {
     id: model,
-    async respond({ messages = [], tools = [], signal, onContextReceipt } = {}) {
+    async respond({ messages = [], tools = [], toolChoice = null, signal, onContextReceipt } = {}) {
       if (!started) {
         history.push(...initialMessages(messages));
         for (const message of messages) {
@@ -140,6 +140,9 @@ export function makeAnthropicMessagesModel({
       const body = {
         model, max_tokens: maxTokens, system: instructions,
         messages: structuredClone(history), tools: apiTools(tools),
+        ...(toolChoice?.requiredToolName ? {
+          tool_choice: { type: 'tool', name: toolChoice.requiredToolName },
+        } : {}),
       };
       const contextReceipt = makeContextReceipt({
         provider: 'anthropic', model, instructions, input: body.messages, tools: body.tools,

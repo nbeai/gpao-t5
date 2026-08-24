@@ -70,6 +70,7 @@ import { loadCapabilityCatalog, makeCapabilityCatalogTool } from './capability-c
 import { AutomationStore } from './automation-store.js';
 import { AutomationScheduler } from './automation-scheduler.js';
 import { makeAutomationTool } from './automation-tool.js';
+import { assessAutomationOutcome, makeAutomationOutcomeTool } from './automation-outcome-tool.js';
 import { deferTools, makeToolSearchTool } from './tool-search.js';
 import { makeLocalConsoleGuard } from './local-console-guard.js';
 
@@ -218,9 +219,9 @@ export function makeConsoleServer({
   conversationProjection = 'historical-tool-receipt-v1',
   largeToolOutputMode = 'recoverable',
   conversationCheckpointMode = 'in-place-v0',
-  checkpointTriggerBytes = 750_000,
+  checkpointTriggerBytes = 300_000,
   checkpointTailBytes = 60_000,
-  checkpointChunkBytes = 180_000,
+  checkpointChunkBytes = 120_000,
   checkpointSummarizer,
   memoryFlushMode = 'pre-checkpoint-v0',
   memoryFlushMaxModelTurns = 8,
@@ -278,6 +279,7 @@ export function makeConsoleServer({
   });
   const pendingStreams = new Map();
   const running = new Map();
+  const automationAuthorityBySession = new Map();
   const pendingProcessWakes = new Map();
   const wakeSubscribers = new Set();
   const measurementRuns = new Map();
@@ -479,6 +481,12 @@ export function makeConsoleServer({
       allowed: false, outcome: 'not_executed',
       result: { state: 'effect_declaration_mismatch', reason: mismatch, declaredEffect: effect },
     };
+    const delegated = automationAuthorityBySession.get(String(ownerId));
+    if (delegated?.toolName === toolName
+      && delegated.effect?.kind === effect.kind
+      && ['local_change', 'external_change', 'external_send'].includes(effect.kind)
+      && effect.targets?.length > 0
+      && effect.targets.every((target) => delegated.effect.targets?.includes(target))) return { allowed: true, delegated: true };
     const boundary = boundaryForEffect(effect, { requiredEffect });
     if (!boundary) return { allowed: true };
     if (boundary === 'secret_input') return {
@@ -944,10 +952,22 @@ export function makeConsoleServer({
         stores: { cli: managedCliStore, skill: managedSkillStore },
         authorizeEffect: (args) => effectPreflight({ toolName: 'capability_lifecycle', args, ownerId: sessionId }),
       }));
-      offeredTools.unshift(makeAutomationTool({
-        store: automationStore, scheduler: automationScheduler, sessionId,
-        authorizeEffect: (args) => effectPreflight({ toolName: 'automation', args, ownerId: sessionId }),
-      }));
+      if (options.trigger !== 'automation') offeredTools.unshift(makeAutomationTool({
+          store: automationStore, scheduler: automationScheduler, sessionId,
+          authorizeEffect: (args) => effectPreflight({ toolName: 'automation', args, ownerId: sessionId }),
+          inspectRequirements: async ({ requiredTools, delivery }) => {
+            const available = new Set(offeredTools.map((tool) => tool.name));
+            const missingTools = requiredTools.filter((name) => !available.has(name));
+            if (missingTools.length) return { ready: false, missingTools, reason: 'required_tools_unavailable' };
+            if (delivery === 'telegram') {
+              const target = await messenger.resolveOwnerDelivery('telegram');
+              return target.ready ? { ready: true, deliverySessionId: target.sessionId }
+                : { ready: false, delivery, reason: target.reason };
+            }
+            return { ready: true, deliverySessionId: null };
+          },
+        }));
+      if (options.trigger === 'automation') offeredTools.unshift(makeAutomationOutcomeTool());
       if (capabilitySnapshot.entries.length) {
         offeredTools.unshift(makeCapabilityCatalogTool({
           snapshot: capabilitySnapshot, connectionDoctor,
@@ -994,6 +1014,8 @@ export function makeConsoleServer({
         // 결과물은 주변 기능이 아니라 대화와 같은 Human Experience다. 사용자가 파일·HTML·문서·표를
         // 요청한 뒤에야 tool_search로 찾게 하면, 실제 파일을 만들고도 경로만 말하는 회귀가 생긴다.
         'attachment',
+        ...(options.trigger !== 'automation' ? ['automation'] : []),
+        ...(options.trigger === 'automation' ? ['automation_outcome'] : []),
       ];
       const deferredTools = deferTools(offeredTools, {
         coreNames: coreToolNames, includeAttachment: attachmentIds.length > 0,
@@ -1027,7 +1049,11 @@ export function makeConsoleServer({
         model,
         tools: deferredTools,
         signal: controller.signal,
-        maxModelTurns: 32,
+        maxModelTurns: options.trigger === 'automation' ? 12 : 16,
+        maxToolCalls: options.trigger === 'automation' ? 18 : 24,
+        maxFailedToolCalls: 4,
+        maxProviderTokens: options.trigger === 'automation' ? 300_000 : 500_000,
+        requiredCompletionTool: options.trigger === 'automation' ? 'automation_outcome' : null,
         onEvent: async (event) => {
           if (event.type === 'model_start') {
             await run.append({
@@ -1422,15 +1448,28 @@ export function makeConsoleServer({
   ] });
   automationScheduler = new AutomationScheduler({
     store: automationStore,
+    unavailableTools: typeof browserDriverFactory === 'function' ? [] : ['browser'],
     execute: async ({ job, run: automationRun }) => {
+      if (!job.requirements || !job.delivery) return {
+        runId: null, objectiveStatus: 'not_achieved', deliveryStatus: 'not_requested', error: 'automation_contract_missing',
+      };
       const executionSession = await sessions.create({ continuationOf: job.sessionId });
       let completed;
+      if (job.authorityEnvelope) {
+        automationAuthorityBySession.set(executionSession.id, structuredClone(job.authorityEnvelope));
+      }
       try {
         completed = await executeTurn(executionSession.id, job.prompt, () => {}, {
           trigger: 'automation', metadata: { jobId: job.id, automationRunId: automationRun.id },
         });
-      } finally { await sessions.setArchived(executionSession.id, true).catch(() => {}); }
-      let deliveryStatus = 'not_requested';
+      } finally {
+        automationAuthorityBySession.delete(executionSession.id);
+        await sessions.setArchived(executionSession.id, true).catch(() => {});
+      }
+      const objective = assessAutomationOutcome({
+        receipts: completed.result?.receipts ?? [], requirements: job.requirements,
+      });
+      let deliveryStatus = job.delivery.kind === 'none' ? 'not_requested' : 'pending';
       const originSession = await sessions.load(job.sessionId);
       const reply = completed.surfaceResult?.reply ?? completed.result?.answer ?? null;
       if (reply) {
@@ -1446,14 +1485,21 @@ export function makeConsoleServer({
           message: { role: 'assistant', content: reply },
         });
         broadcastEvent('automation_completed', { sessionId: job.sessionId, jobId: job.id, runId: completed.runId });
+        if (job.delivery.kind === 'origin_session') deliveryStatus = 'succeeded';
       }
-      if (originSession?.origin?.channel === 'telegram' && reply) {
+      if (job.delivery.kind === 'telegram') {
+        const deliveryText = objective.achieved
+          ? reply : `예약한 작업을 완료하지 못했습니다. ${objective.summary}`;
         const delivery = await messenger.sendToSession({
-          sessionId: job.sessionId, text: reply,
+          sessionId: job.delivery.sessionId, text: deliveryText,
         });
         deliveryStatus = delivery.sent ? 'succeeded' : 'failed';
       }
-      return { runId: completed.runId, deliveryStatus };
+      return {
+        runId: completed.runId, deliveryStatus,
+        objectiveStatus: objective.achieved ? 'achieved' : 'not_achieved',
+        error: objective.achieved ? null : objective.reason,
+      };
     },
   });
   async function startConnectionForTool(id) {
@@ -2045,6 +2091,15 @@ export function makeConsoleServer({
         const input = await body(req);
         if (!input.sessionId || !String(input.text ?? '').trim()) {
           json(res, 400, { error: '세션과 발화가 필요해요.' }); return;
+        }
+        const alreadyPending = [...pendingStreams.values()].some((entry) => (
+          entry.sessionId === input.sessionId && entry.expiresAt >= Date.now()
+        ));
+        if (running.has(input.sessionId) || alreadyPending) {
+          json(res, 409, {
+            code: 'session_running',
+            error: '이 대화에서 앞선 작업을 진행 중이에요. 끝난 뒤 다시 보내 주세요.',
+          }); return;
         }
         const streamId = randomUUID();
         const measurementId = randomUUID();

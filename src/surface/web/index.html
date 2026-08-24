@@ -3105,14 +3105,6 @@ function renderResult(r, opts = {}) {
   }
   renderConversationRecovery(box, r, opts);
   renderConnectionHandoff(box, r, opts);
-  if (!historical && r.browserHandoff?.active) {
-    const handoff = el('suggest browser-handoff');
-    handoff.appendChild(el('sug-t', '로그인 창을 열었어요'));
-    handoff.appendChild(el('sug-line', r.browserHandoff.visible
-      ? '눈앞에 열린 T5 브라우저에서 직접 로그인한 뒤, 이 대화로 돌아와 완료했다고 알려주세요.'
-      : '로그인 창을 앞에 표시하지 못해 여기서 멈췄어요. 다시 요청하면 새 로그인 창을 열게요.'));
-    box.appendChild(handoff);
-  }
   renderArtifacts(box, r.artifacts);
   renderRecord(box, r.ledger);
   // P5-B-1B: 비밀 입력창. **대화창으로 키를 받지 않는다** — 여기 넣은 값은 대화·원장·모델을
@@ -3519,9 +3511,22 @@ async function submit() {
   if (!currentSessionId) await newSession();
   const submittedSessionId = currentSessionId;
   const sentAttachments = [...stagedAttachments];
+  let turnStart;
+  try {
+    turnStart = await startTurn(submittedSessionId, t, sentAttachments.map((record) => record.attachmentId));
+  } catch (error) {
+    if (error?.code === 'session_running') {
+      toast('앞선 작업을 진행 중이에요. 입력한 내용은 그대로 두었습니다.');
+      text.focus();
+      return;
+    }
+    sysline('요청을 접수하지 못했어요. 입력한 내용은 그대로 두었습니다.');
+    return;
+  }
   const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', t));
   renderMessageAttachments(box, sentAttachments);
   text.value = ''; text.style.height = 'auto'; document.body.classList.remove('nav-open');
+  stagedAttachments = []; renderStagedAttachments();
   // P6-12: 스트림으로 조용한 작업 흐름을 보여주고, complete 시 지속된 결과를 렌더한다(끊겨도 진실은 세션에 남음).
   const trace = el('trace', '요청을 이해하고 있어요…');
   trace.id = 'session-activity-trace'; trace.dataset.sessionActivity = submittedSessionId;
@@ -3539,8 +3544,7 @@ async function submit() {
   try {
     const streamed = await streamTurn(submittedSessionId, t, trace, {
       surfaceStartedAt, firstFeedbackPaint,
-      attachmentIds: sentAttachments.map((record) => record.attachmentId),
-      onStarted: () => { stagedAttachments = []; renderStagedAttachments(); },
+      start: turnStart,
     });
     const recovery = streamed.recovery;
     trace.remove();
@@ -3606,10 +3610,19 @@ async function reportVisibleTiming(measurementId, event, sample) {
   }).catch(() => {}); // 계측 실패가 대화 흐름을 막지 않는다
 }
 
-async function streamTurn(sessionId, t, trace, { surfaceStartedAt, firstFeedbackPaint, attachmentIds = [], onStarted }) {
-  const start = await (await fetch('/turn/stream-start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId, text: t, attachmentIds }) })).json();
-  if (!start.streamId) throw new Error('stream-start');
-  onStarted?.();
+async function startTurn(sessionId, t, attachmentIds = []) {
+  const response = await fetch('/turn/stream-start', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sessionId, text: t, attachmentIds }),
+  });
+  const result = await response.json();
+  if (!response.ok || !result.streamId) throw Object.assign(new Error('stream-start'), {
+    code: result.code ?? 'stream_start_failed', status: response.status,
+  });
+  return result;
+}
+
+async function streamTurn(sessionId, t, trace, { surfaceStartedAt, firstFeedbackPaint, start }) {
   firstFeedbackPaint.then((sample) => reportVisibleTiming(start.measurementId, 'first_feedback_visible', sample));
   return new Promise((resolve, reject) => {
     const url = `/turn/stream?sessionId=${encodeURIComponent(sessionId)}&streamId=${encodeURIComponent(start.streamId)}`;

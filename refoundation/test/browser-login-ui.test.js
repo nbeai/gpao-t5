@@ -6,22 +6,19 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-test('로그인 handoff는 눈앞의 T5 브라우저에서 사용자가 직접 로그인하도록 안내한다', async () => {
+test('일반 대화 UI는 전용 T5 브라우저 handoff를 표시하지 않는다', async () => {
   const html = await readFile(resolve(root, 'src/surface/web/index.html'), 'utf8');
-  assert.match(html, /browserHandoff/u);
-  assert.match(html, /로그인 창을 열었어요/u);
-  assert.match(html, /눈앞에 열린 T5 브라우저/u);
-  assert.match(html, /앞에 표시하지 못해 여기서 멈췄어요/u);
+  assert.doesNotMatch(html, /browserHandoff/u);
+  assert.doesNotMatch(html, /눈앞에 열린 T5 브라우저/u);
   assert.doesNotMatch(html, /원격 디버깅|Chrome 연결/u);
   assert.doesNotMatch(html, /T5 브라우저 로그인 모두 지우기/u);
 });
 
-test('제품 진입점은 하나의 T5 로그인 신분과 런타임별 대화 탭을 사용하고 사용자 Chrome 원격 연결을 열지 않는다', async () => {
+test('제품 진입점은 전용 browser host·driver를 만들지 않는다', async () => {
   const source = await readFile(resolve(root, 'refoundation/scripts/start-console.mjs'), 'utf8');
-  assert.match(source, /makeAgentBrowserDriver/u);
-  assert.match(source, /makePersistentBrowserHost/u);
-  assert.match(source, /browserHost/u);
-  assert.match(source, /clientInstanceId/u);
-  assert.match(source, /sessionNameForOwner/u);
+  assert.doesNotMatch(source, /makeAgentBrowserDriver/u);
+  assert.doesNotMatch(source, /makePersistentBrowserHost/u);
+  assert.doesNotMatch(source, /browserHost/u);
+  assert.doesNotMatch(source, /agent-browser/u);
   assert.doesNotMatch(source, /makeUserChrome|chrome-devtools-mcp/u);
 });

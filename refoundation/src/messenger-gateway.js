@@ -439,6 +439,26 @@ export function makeMessengerGateway({
       return loaded.provider.sendReply({ chatId, threadId, text: String(text), signal });
     },
 
+    async resolveOwnerDelivery(provider = 'telegram') {
+      supported(provider);
+      const [allowed, bindings] = await Promise.all([
+        stateStore.listAllowed(provider), stateStore.listBindings(),
+      ]);
+      if (allowed.length !== 1) return {
+        ready: false, reason: allowed.length ? 'telegram_owner_ambiguous' : 'telegram_owner_missing',
+      };
+      const ownerId = allowed[0].userId;
+      const providerBindings = bindings.filter((binding) => binding.provider === provider);
+      const ownerMatches = providerBindings.filter((binding) => binding.chatId.split(':topic:')[0] === ownerId);
+      const matches = ownerMatches.length ? ownerMatches : providerBindings.length === 1 ? providerBindings : [];
+      if (matches.length !== 1) return {
+        ready: false, reason: matches.length ? 'telegram_binding_ambiguous' : 'telegram_binding_missing',
+      };
+      try { await providerFromStore(provider); }
+      catch { return { ready: false, reason: 'telegram_not_connected' }; }
+      return { ready: true, provider, sessionId: matches[0].sessionId };
+    },
+
     async start({ provider = 'telegram' } = {}) {
       supported(provider);
       if (running) return { started: true, reason: 'already_running', provider };

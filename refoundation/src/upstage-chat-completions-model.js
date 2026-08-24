@@ -116,7 +116,7 @@ export function makeUpstageChatCompletionsModel({
 
   return {
     id: model,
-    async respond({ messages = [], tools = [], signal, onContextReceipt } = {}) {
+    async respond({ messages = [], tools = [], toolChoice = null, signal, onContextReceipt } = {}) {
       if (!started) {
         history.push(...initialMessages(messages, instructions, model));
         for (const message of messages) {
@@ -136,7 +136,9 @@ export function makeUpstageChatCompletionsModel({
       const convertedTools = apiTools(tools);
       const body = {
         model, messages: structuredClone(history), reasoning_effort: reasoningEffort,
-        ...(convertedTools.length ? { tools: convertedTools, tool_choice: 'auto' } : {}),
+        ...(convertedTools.length ? { tools: convertedTools,
+          tool_choice: toolChoice?.requiredToolName
+            ? { type: 'function', function: { name: toolChoice.requiredToolName } } : 'auto' } : {}),
       };
       const contextReceipt = makeContextReceipt({
         provider: 'upstage', model, instructions, input: body.messages,

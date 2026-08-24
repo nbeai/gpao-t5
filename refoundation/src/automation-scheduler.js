@@ -1,10 +1,13 @@
 export class AutomationScheduler {
-  constructor({ store, execute, now = Date.now, maxSleepMs = 60_000 } = {}) {
+  constructor({ store, execute, now = Date.now, maxSleepMs = 60_000, unavailableTools = [] } = {}) {
     if (!store || typeof execute !== 'function') throw new TypeError('automation scheduler inputs are required');
     this.store = store; this.execute = execute; this.now = now; this.maxSleepMs = maxSleepMs;
+    this.unavailableTools = [...new Set(unavailableTools.map(String))];
     this.timer = null; this.started = false; this.inFlight = new Set(); this.ticking = false;
   }
-  async start() { if (this.started) return; this.started = true; await this.store.recoverInterrupted(); await this.arm(); }
+  async start() { if (this.started) return; this.started = true;
+    await this.store.recoverInterrupted(); await this.store.quarantineUnqualified();
+    await this.store.quarantineUnavailableTools?.(this.unavailableTools); await this.arm(); }
   async arm() {
     if (!this.started) return; clearTimeout(this.timer);
     const { jobs } = await this.store.list();
@@ -23,8 +26,17 @@ export class AutomationScheduler {
       await this.store.markRunning(claim.job.id, claim.run.id);
       try {
         const result = await this.execute(structuredClone(claim));
-        await this.store.complete({ jobId: claim.job.id, runId: claim.run.id, status: 'succeeded',
-          sourceRunId: result?.runId ?? null, deliveryStatus: result?.deliveryStatus ?? 'not_requested' });
+        const objectiveAchieved = result?.objectiveStatus === 'achieved';
+        const deliveryRequired = claim.job.delivery?.kind === 'telegram';
+        const deliverySucceeded = !deliveryRequired || result?.deliveryStatus === 'succeeded';
+        const succeeded = objectiveAchieved && deliverySucceeded;
+        await this.store.complete({ jobId: claim.job.id, runId: claim.run.id,
+          status: succeeded ? 'succeeded' : 'failed',
+          sourceRunId: result?.runId ?? null,
+          deliveryStatus: result?.deliveryStatus ?? (deliveryRequired ? 'failed' : 'not_requested'),
+          error: succeeded ? null : result?.error
+            ?? (!objectiveAchieved ? 'scheduled_objective_not_achieved' : 'scheduled_delivery_failed'),
+        });
       } catch (error) {
         await this.store.complete({ jobId: claim.job.id, runId: claim.run.id,
           status: error?.code === 'SESSION_BUSY' ? 'skipped' : 'failed', error: error?.message ?? String(error) });

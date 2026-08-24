@@ -178,9 +178,26 @@ function makeCommandTool(options = {}, { managed }) {
     },
   };
   if (typeof effectPreflight === 'function') {
-    tool.preflight = (args, context) => effectPreflight({
-      toolName: tool.name, args: structuredClone(args), ownerId, context,
-    });
+    tool.preflight = async (args, context) => {
+      if (!managed) {
+        let explained;
+        try { explained = await explain(String(args?.command ?? '')); } catch { explained = null; }
+        const delayed = explained?.steps?.find((step) => step.executable === 'sleep' && step.argv?.[1]);
+        if (delayed) {
+          const match = /^(\d+(?:\.\d+)?)([smhd]?)$/iu.exec(String(delayed.argv[1]));
+          const seconds = match ? Number(match[1]) * ({ '': 1, s: 1, m: 60, h: 3600, d: 86400 }[match[2].toLowerCase()]) : 0;
+          if (seconds > 10) return {
+            allowed: false, outcome: 'not_executed', result: {
+              state: 'future_schedule_required', delaySeconds: seconds,
+              reason: 'Foreground terminal waiting is not a durable future action. Use automation.',
+            },
+          };
+        }
+      }
+      return effectPreflight({
+        toolName: tool.name, args: structuredClone(args), ownerId, context,
+      });
+    };
   }
   tool.processRegistry = registry;
   return tool;

@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { createServer } from 'node:http';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  DEFAULT_AGENT_BROWSER_BINARY, makeAgentBrowserDriver,
+  DEFAULT_AGENT_BROWSER_BINARY, makeAgentBrowserDriver, sessionNameForOwner,
 } from '../src/agent-browser-driver.js';
 import { makeBrowserObservationTool } from '../src/browser-observation-tool.js';
 import {
@@ -56,6 +56,13 @@ async function fixture() {
         document.querySelectorAll('article p').forEach((item) => item.addEventListener('click', () => {
           item.contentEditable = 'true'; item.focus();
         }));
+        const observer = new MutationObserver(() => {
+          if (document.querySelectorAll('[data-t5-editor-binding]').length < 2) return;
+          observer.disconnect();
+          const decoy = document.createElement('p'); decoy.textContent = '동적으로 앞에 생긴 다른 문단';
+          document.querySelector('article').prepend(decoy);
+        });
+        observer.observe(document.querySelector('article'), { attributes: true, subtree: true });
       </script>`);
       return;
     }
@@ -397,6 +404,7 @@ test('단일 Browser Hand는 managed Playwright provider로 iframe editor를 엄
     assert.equal(observed.observation.editables.length, 2);
     assert.deepEqual(observed.observation.editables.map((item) => item.textPreview), ['이전 제목', '이전 본문']);
     assert.ok(observed.observation.editables.every((item) => item.provider === 'managed_playwright'));
+    await new Promise((resolve) => setTimeout(resolve, 100));
     const declared = {
       kind: 'external_send', summary: 'provider editor 입력', targets: [`${site.base}/provider-editor`],
       reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null,
@@ -416,6 +424,10 @@ test('단일 Browser Hand는 managed Playwright provider로 iframe editor를 엄
     });
     assert.equal(body.editorProvider.contentMatched, true);
     assert.match(body.after.editables.find((item) => item.editableId === bodyFact.editableId).textPreview, /첫 문단/u);
+    await driver.close();
+    const pidFile = join(browserHost.clientSocketDirectory, 'namespaces', browserHost.clientNamespace, 'run',
+      `${sessionNameForOwner('provider-conversation', 'provider-runtime')}.pid`);
+    await assert.rejects(() => stat(pidFile), (error) => error.code === 'ENOENT');
   } finally {
     await driver.close().catch(() => {});
     await browserHost.close().catch(() => {});

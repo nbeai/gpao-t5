@@ -84,7 +84,6 @@ try {
   const version = run(node, ['-p', 'process.version+" "+process.arch'], { env: environment }).trim();
   if (!version.includes('v24.14.0')) throw new Error(`unexpected packaged Node: ${version}`);
   run(node, [join(refoundation, 'bin', 't5-document.mjs'), 'help'], { env: environment });
-  run(join(refoundation, 'node_modules', '.bin', 'agent-browser'), ['--version'], { env: environment });
 
   const home = join(room, 'home');
   const state = join(room, 'state');

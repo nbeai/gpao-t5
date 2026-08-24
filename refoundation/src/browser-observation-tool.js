@@ -245,6 +245,9 @@ export function makeBrowserObservationTool({
             changed: before.refScope.url !== after.tab.url,
             from: before.refScope.url, to: after.tab.url,
           },
+          ...(args.action === 'click'
+            && String(safety.binding.refFact?.role ?? '').toLowerCase() === 'link'
+            ? { possibleAccountStateChange: true } : {}),
           ...(acted.tabTransition ? { tabTransition: structuredClone(acted.tabTransition) } : {}),
           ...(args.modalIntent ? {
             modalAction: {
@@ -416,6 +419,11 @@ export function makeBrowserObservationTool({
         return { ...blocked('upload_requires_explicit_action'), binding };
       }
       const mutableControl = ['button', 'checkbox', 'radio', 'switch', 'menuitem'].includes(role);
+      if (role === 'link' && args.effect.kind === 'observe') {
+        return { ...blocked('effect_declaration_mismatch', {
+          reason: 'link_navigation_may_change_account_state',
+        }), binding };
+      }
       if (mutableControl && args.effect.kind === 'observe') {
         return { ...blocked('effect_declaration_mismatch', {
           reason: 'external_change_required',

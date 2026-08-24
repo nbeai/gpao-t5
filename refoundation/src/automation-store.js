@@ -62,6 +62,26 @@ export function nextAutomationRun(schedule, current = Date.now()) {
 
 function emptyState() { return { schema: SCHEMA, version: 1, jobs: [], runs: [] }; }
 
+function automationRequirements(value = {}) {
+  const requiredTools = [...new Set((value.requiredTools ?? []).map(String))];
+  if (requiredTools.length > 10 || requiredTools.some((name) => !/^[a-z][a-z0-9_]{0,63}$/u.test(name))) {
+    throw new TypeError('automation required tools are invalid');
+  }
+  const requiredEffect = value.requiredEffect == null ? null : String(value.requiredEffect);
+  if (requiredEffect && !['observe', 'local_change', 'external_change', 'external_send'].includes(requiredEffect)) {
+    throw new TypeError('automation required effect is invalid');
+  }
+  return { requiredTools, requiredEffect, requireResultUrl: value.requireResultUrl === true };
+}
+
+function automationDelivery(value = {}) {
+  const kind = String(value.kind ?? 'origin_session');
+  if (!['origin_session', 'telegram', 'none'].includes(kind)) throw new TypeError('automation delivery is invalid');
+  const sessionId = value.sessionId == null ? null : String(value.sessionId);
+  if (kind === 'telegram' && !sessionId) throw new TypeError('telegram automation delivery requires a bound session');
+  return { kind, sessionId };
+}
+
 function validateState(state) {
   if (state?.schema !== SCHEMA || state.version !== 1 || !Array.isArray(state.jobs) || !Array.isArray(state.runs)) {
     throw new Error('invalid automation store');
@@ -89,7 +109,8 @@ export class AutomationStore {
   async change(mutator) {
     return this.serialize(async () => { const state = await this.read(); const result = await mutator(state); await this.write(state); return clone(result); });
   }
-  async create({ name, prompt, sessionId, scheduleKind, schedule, timezone: zone } = {}) {
+  async create({ name, prompt, sessionId, scheduleKind, schedule, timezone: zone,
+    requirements, delivery, authorityEnvelope = null } = {}) {
     const title = String(name ?? '').trim(); const task = String(prompt ?? '').trim();
     if (!title || title.length > 200) throw new TypeError('automation name is required');
     if (!task || task.length > 10_000) throw new TypeError('automation prompt is required');
@@ -100,7 +121,10 @@ export class AutomationStore {
         id: randomUUID(), name: title, prompt: task, sessionId: String(sessionId), state: 'scheduled',
         schedule: { kind: normalized.kind, expression: normalized.expression, timezone: normalized.timezone,
           ...(normalized.durationMs ? { durationMs: normalized.durationMs } : {}) },
-        trigger: { misfirePolicy: 'skip' }, authorityEnvelope: { expiresAt: null, maxRuns: null },
+        trigger: { misfirePolicy: 'skip' },
+        requirements: automationRequirements(requirements),
+        delivery: automationDelivery(delivery),
+        authorityEnvelope: authorityEnvelope ? clone(authorityEnvelope) : null,
         nextRunAt: normalized.nextRunAt, runningAt: null, createdAt: current, updatedAt: current,
         lastRunAt: null, lastStatus: null, lastError: null,
       };
@@ -112,10 +136,33 @@ export class AutomationStore {
   async pause(jobId) { return this.change((state) => { const job = state.jobs.find((item) => item.id === jobId); if (!job) throw new Error('automation not found');
     if (job.runningAt) throw new Error('running automation cannot be paused until it finishes'); job.state = 'paused'; job.updatedAt = this.now(); return job; }); }
   async resume(jobId) { return this.change((state) => { const job = state.jobs.find((item) => item.id === jobId); if (!job) throw new Error('automation not found');
+    if (!job.requirements || !job.delivery) throw new Error('automation contract is missing');
     if (!LIVE.has(job.state)) throw new Error('automation cannot be resumed'); job.state = 'scheduled'; job.nextRunAt = nextAutomationRun(job.schedule, this.now());
     if (!job.nextRunAt) throw new Error('one-time automation time has passed'); job.updatedAt = this.now(); return job; }); }
   async cancel(jobId) { return this.change((state) => { const job = state.jobs.find((item) => item.id === jobId); if (!job) throw new Error('automation not found');
     job.state = 'cancelled'; job.nextRunAt = null; job.updatedAt = this.now(); return job; }); }
+  async quarantineUnqualified() { return this.change((state) => { const current = this.now(); const quarantined = [];
+    for (const job of state.jobs.filter((item) => (
+      !['cancelled', 'expired'].includes(item.state) && (!item.requirements || !item.delivery)
+    ))) {
+      job.state = 'needs_review'; job.nextRunAt = null; job.runningAt = null;
+      job.lastStatus = 'failed'; job.lastError = 'automation_contract_missing'; job.updatedAt = current;
+      quarantined.push(job.id);
+    }
+    return quarantined;
+  }); }
+  async quarantineUnavailableTools(unavailableTools = []) { return this.change((state) => {
+    const unavailable = new Set(unavailableTools.map(String)); const current = this.now(); const quarantined = [];
+    for (const job of state.jobs.filter((item) => (
+      !['cancelled', 'expired'].includes(item.state)
+      && item.requirements?.requiredTools?.some((name) => unavailable.has(name))
+    ))) {
+      job.state = 'needs_review'; job.nextRunAt = null; job.runningAt = null;
+      job.lastStatus = 'failed'; job.lastError = 'required_tool_unavailable'; job.updatedAt = current;
+      quarantined.push(job.id);
+    }
+    return quarantined;
+  }); }
   async recoverInterrupted() { return this.change((state) => { const current = this.now(); const recovered = [];
     for (const job of state.jobs.filter((item) => item.runningAt)) {
       const run = [...state.runs].reverse().find((item) => item.jobId === job.id && ['claimed', 'running'].includes(item.status));

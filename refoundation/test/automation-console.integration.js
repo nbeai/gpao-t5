@@ -27,14 +27,36 @@ test('자연어 반복 요청은 실제 Job이 되고 수동 실행·Run 기록�
             id: 'automation-create', name: 'automation', args: {
               action: 'create', jobId: null, name: '아침 파일 확인',
               prompt: '작업공간의 audit-result.md를 읽고 한 줄로 요약해줘.',
-              scheduleKind: 'cron', schedule: '0 9 * * *', timezone: 'Asia/Seoul', effect,
+              scheduleKind: 'cron', schedule: '0 9 * * *', timezone: 'Asia/Seoul',
+              requiredTools: [], requiredEffect: null, requireResultUrl: false,
+              delivery: 'origin_session', preparationToolCallIds: [],
+              delegatedTool: null, delegatedEffect: null, effect,
             },
           }] };
         }
+        if (receipt.requestedCall.name === 'automation_outcome') {
+          return { text: '자동 실행 결과를 만들었어요.', toolCalls: [] };
+        }
         return { text: '매일 확인하도록 예약했어요.', toolCalls: [] };
       }
-      if (String(last.content).includes('매일 오전 9시')) return { text: '', toolCalls: [{
-        id: 'find-automation', name: 'tool_search', args: { query: 'future recurring automation schedule' },
+      if (String(last.content).includes('매일 오전 9시')) {
+        assert.ok(tools.some((tool) => tool.name === 'automation'));
+        return { text: '', toolCalls: [{
+          id: 'automation-create', name: 'automation', args: {
+            action: 'create', jobId: null, name: '아침 파일 확인',
+            prompt: '작업공간의 audit-result.md를 읽고 한 줄로 요약해줘.',
+            scheduleKind: 'cron', schedule: '0 9 * * *', timezone: 'Asia/Seoul',
+            requiredTools: [], requiredEffect: null, requireResultUrl: false,
+            delivery: 'origin_session', preparationToolCallIds: [],
+            delegatedTool: null, delegatedEffect: null, effect,
+          },
+        }] };
+      }
+      if (tools.some((tool) => tool.name === 'automation_outcome')) return { text: '', toolCalls: [{
+        id: 'automation-finish', name: 'automation_outcome', args: {
+          status: 'achieved', summary: '요약 결과를 만들었습니다.', remaining: null,
+          evidenceToolCallIds: [], resultUrls: [],
+        },
       }] };
       return { text: '자동 실행 결과를 만들었어요.', toolCalls: [] };
     } }),

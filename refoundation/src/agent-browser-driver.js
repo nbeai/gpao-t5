@@ -324,7 +324,7 @@ export function makeAgentBrowserDriver({
         '--namespace', namespace,
         '--cdp', cdpUrl,
         '--no-auto-dialog',
-        '--idle-timeout', '0',
+        '--idle-timeout', '10m',
         '--session', session,
         '--download-path', downloadDirectory,
         '--pin-tab', '--json',
@@ -380,6 +380,43 @@ export function makeAgentBrowserDriver({
       }
     }
     throw new Error('agent-browser command retry exhausted');
+  }
+
+  async function stopOwnedDaemon() {
+    if (!usesDefaultRun) return { stopped: false, reason: 'custom_runner' };
+    const runDirectory = join(socketDirectory, 'namespaces', namespace, 'run');
+    const pidPath = join(runDirectory, `${session}.pid`);
+    let pid;
+    try {
+      const info = await lstat(pidPath);
+      if (!info.isFile() || info.isSymbolicLink()) throw new Error('browser daemon pid identity is unsafe');
+      pid = Number((await readFile(pidPath, 'utf8')).trim());
+    } catch (error) {
+      if (error?.code === 'ENOENT') return { stopped: false, reason: 'not_running' };
+      throw error;
+    }
+    if (!Number.isInteger(pid) || pid <= 1) throw new Error('browser daemon pid identity is invalid');
+    const commandLine = await new Promise((resolveCommand) => {
+      execFile('/bin/ps', ['-p', String(pid), '-o', 'command='], { encoding: 'utf8', timeout: 2_000 },
+        (_error, stdout) => resolveCommand(String(stdout ?? '').trim()));
+    });
+    const launcher = await realpath(binary).catch(() => resolve(binary));
+    const native = join(dirname(launcher), `agent-browser-${process.platform}-${process.arch}`);
+    const owned = commandLine === native
+      || (commandLine.startsWith(`${process.execPath} `) && commandLine.includes(launcher));
+    if (!owned) return { stopped: false, reason: commandLine ? 'pid_identity_changed' : 'not_running' };
+    try { process.kill(pid, 'SIGTERM'); } catch (error) { if (error?.code !== 'ESRCH') throw error; }
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      try { process.kill(pid, 0); } catch (error) { if (error?.code === 'ESRCH') break; throw error; }
+      await new Promise((resolveWait) => setTimeout(resolveWait, 50));
+    }
+    try { process.kill(pid, 0); process.kill(pid, 'SIGKILL'); } catch (error) { if (error?.code !== 'ESRCH') throw error; }
+    let entries = [];
+    try { entries = await readdir(runDirectory); } catch (error) { if (error?.code !== 'ENOENT') throw error; }
+    for (const name of entries.filter((entry) => entry.startsWith(`${session}.`))) {
+      await rm(join(runDirectory, name), { force: true });
+    }
+    return { stopped: true, processId: pid };
   }
 
   async function currentTab(options = {}) {
@@ -1015,6 +1052,7 @@ export function makeAgentBrowserDriver({
       activeTabId = null;
       activeTabUrl = null;
       userControl = false;
+      await stopOwnedDaemon();
     },
   };
 }

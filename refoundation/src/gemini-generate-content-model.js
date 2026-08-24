@@ -150,7 +150,7 @@ export function makeGeminiGenerateContentModel({
 
   return {
     id: model,
-    async respond({ messages = [], tools = [], signal, onContextReceipt } = {}) {
+    async respond({ messages = [], tools = [], toolChoice = null, signal, onContextReceipt } = {}) {
       if (!started) {
         contents.push(...initialContents(messages));
         for (const message of messages) {
@@ -173,6 +173,9 @@ export function makeGeminiGenerateContentModel({
         contents: structuredClone(contents),
         systemInstruction: { parts: [{ text: instructions }] },
         tools: providerTools,
+        ...(toolChoice?.requiredToolName ? { toolConfig: { functionCallingConfig: {
+          mode: 'ANY', allowedFunctionNames: [toolChoice.requiredToolName],
+        } } } : {}),
         generationConfig: { maxOutputTokens },
       };
       const contextReceipt = makeContextReceipt({

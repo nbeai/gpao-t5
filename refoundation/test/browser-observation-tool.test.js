@@ -407,6 +407,27 @@ test('click은 최신 observation/ref와 external_change 선언을 확인한 뒤
   assert.equal(authorized.length, 1);
 });
 
+test('계정 안 link 열기는 읽음 상태 가능성 때문에 observe로 낮출 수 없다', async () => {
+  const driver = fixtureDriver(); const registry = makeBrowserObservationRegistry();
+  const tool = makeBrowserObservationTool({ driver, observationRegistry: registry, authorizeEffect: async () => ({ allowed: true }) });
+  await tool.execute({ action: 'navigate', url: 'https://example.com/', tabId: null, full: null, maxChars: 20_000, fullPage: null });
+  const before = await tool.execute({ action: 'snapshot', url: null, tabId: 't1', full: false, maxChars: 20_000, fullPage: null });
+  const gate = await tool.preflight({
+    action: 'click', url: null, tabId: 't1', full: null, maxChars: 5_000, fullPage: null,
+    observationId: before.observation.observationId, ref: 'e2', text: null,
+    effect: effect('observe'),
+  });
+  assert.equal(gate.allowed, false);
+  assert.equal(gate.result.reason, 'link_navigation_may_change_account_state');
+  const args = {
+    action: 'click', url: null, tabId: 't1', full: null, maxChars: 5_000, fullPage: null,
+    observationId: before.observation.observationId, ref: 'e2', text: null,
+    effect: effect('external_change'),
+  };
+  assert.equal((await tool.preflight(args)).allowed, true);
+  assert.equal((await tool.execute(args)).possibleAccountStateChange, true);
+});
+
 test('modal 행동은 명시적 intent를 요구하고 discard·replace를 destructive로 고정한다', async () => {
   const driver = fixtureDriver();
   const registry = makeBrowserObservationRegistry();
