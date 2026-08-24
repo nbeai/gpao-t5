@@ -12,6 +12,8 @@ import { makePathRevealer } from './path-revealer.js';
 import { sanitizeTerminalPath } from './console-config.js';
 import { ManagedProcessRegistry } from './managed-process.js';
 import { RunLedger } from './run-ledger.js';
+import { ResourceLedger } from './resource-ledger.js';
+import { ResourceController } from './resource-controller.js';
 import { deriveRunSpeedReceipt } from './run-speed-receipt.js';
 import { deriveRunContextReport } from './run-context-receipt.js';
 import { AuthorityStore, boundaryForEffect, effectDeclarationMismatch } from './effect-authority.js';
@@ -269,6 +271,8 @@ export function makeConsoleServer({
   const capabilityLifecycle = new CapabilityLifecycleLedger(join(stateDir, 'capability-lifecycle'));
   const automationStore = new AutomationStore(join(stateDir, 'automation', 'state.json'));
   const runLedger = new RunLedger(join(stateDir, 'runs'));
+  const resourceLedger = new ResourceLedger(join(stateDir, 'resources'));
+  const resourceController = new ResourceController(resourceLedger);
   const authority = new AuthorityStore(join(stateDir, 'authority'));
   const attachments = attachmentStore ?? new AttachmentStore(join(stateDir, 'attachments'));
   const computer = computerEnvironment ?? discoverComputerEnvironment({ userHome: workspace });
@@ -561,6 +565,9 @@ export function makeConsoleServer({
       ...(currentModelConnection ? { modelConnection: currentModelConnection } : {}),
       ...(modelTransition ? { modelTransition } : {}),
     } });
+    const resourceRun = await resourceController.startRun({
+      sessionId, runId: run.runId, trigger: options.trigger ?? 'user',
+    });
     if (modelTransition) await run.append({
       type: 'model_connection_changed', stepId: 'model-compatibility',
       payload: {
@@ -611,6 +618,7 @@ export function makeConsoleServer({
     const controller = new AbortController();
     running.set(sessionId, controller);
     let runFinished = false;
+    let resourceRunStatus = 'unknown';
     let surfacePersisted = false;
     try {
       if (conversationCheckpointMode === 'in-place-v0') {
@@ -649,6 +657,9 @@ export function makeConsoleServer({
                 });
                 const response = await summaryModel.respond({
                   messages: [{ role: 'user', content: input.prompt }], tools: [], signal: controller.signal,
+                  resourceObserver: resourceRun.modelObserver({
+                    logicalCallId: stepId, purpose: 'conversation_checkpoint',
+                  }),
                   onContextReceipt: async (contextReceipt) => run.append({
                     type: 'model_context_built', stepId,
                     payload: { turn, purpose: 'conversation_checkpoint', contextReceipt },
@@ -687,6 +698,8 @@ export function makeConsoleServer({
                   request: memoryFlushRequest(summarized.summary, memorySnapshot.items),
                   model: memoryModel, tools: [memoryTool], signal: controller.signal,
                   maxModelTurns: memoryFlushMaxModelTurns,
+                  resourceRun,
+                  resourcePurpose: 'memory_flush',
                   onEvent: async (event) => {
                     const memoryTurn = -2000 + Number(event.turn ?? 0);
                     if (event.type === 'model_start') {
@@ -827,6 +840,9 @@ export function makeConsoleServer({
               modelAttachments,
             }],
             tools: [], signal: controller.signal,
+            resourceObserver: resourceRun.modelObserver({
+              logicalCallId: `visual-observation-${index}`, purpose: 'visual_observation',
+            }),
           });
           if (response?.toolCalls?.length) throw new Error('isolated visual observer returned tool calls');
           await run.append({
@@ -1054,6 +1070,8 @@ export function makeConsoleServer({
         maxFailedToolCalls: 4,
         maxProviderTokens: options.trigger === 'automation' ? 300_000 : 500_000,
         requiredCompletionTool: options.trigger === 'automation' ? 'automation_outcome' : null,
+        resourceRun,
+        resourcePurpose: options.trigger === 'automation' ? 'automation_main' : 'main',
         onEvent: async (event) => {
           if (event.type === 'model_start') {
             await run.append({
@@ -1118,6 +1136,7 @@ export function makeConsoleServer({
       if (result.status === 'cancelled') {
         await run.finish('cancelled', { modelTurns: result.modelTurns, receiptCount: result.receipts.length });
         runFinished = true;
+        resourceRunStatus = 'cancelled';
         finishActivity('cancelled');
         return { kind: 'cancelled', result, runId: run.runId };
       }
@@ -1236,6 +1255,7 @@ export function makeConsoleServer({
       await run.append({ type: 'surface_persisted', payload: { role: 'assistant' } });
       await run.finish('completed', { modelTurns: result.modelTurns, receiptCount: result.receipts.length });
       runFinished = true;
+      resourceRunStatus = 'completed';
       finishActivity('completed');
       if (connectionHandoff) {
         await capabilityCoordinator.register({
@@ -1251,6 +1271,7 @@ export function makeConsoleServer({
           await run.finish('cancelled', { reason: 'user_recovered_or_cancelled' }).catch(() => {});
           runFinished = true;
         }
+        resourceRunStatus = 'cancelled';
         finishActivity('cancelled');
         return {
           kind: 'cancelled', runId: run.runId,
@@ -1284,10 +1305,12 @@ export function makeConsoleServer({
         await run.finish('failed', { error: error?.message ?? String(error) }).catch(() => {});
         runFinished = true;
       }
+      resourceRunStatus = 'failed';
       finishActivity('failed');
       if (error && typeof error === 'object') error.surfaceResult = failureSurface;
       throw error;
     } finally {
+      await resourceRun.close(resourceRunStatus).catch((error) => onError?.(error));
       running.delete(sessionId);
       for (const [processId, event] of pendingProcessWakes) {
         if (event.ownerId === sessionId) {
@@ -2432,6 +2455,7 @@ export function makeConsoleServer({
   server.messengerStateStore = messengerState;
   server.messengerCredentialStore = messengerCredentials;
   server.runLedger = runLedger;
+  server.resourceLedger = resourceLedger;
   server.authorityStore = authority;
   server.managedCliStore = managedCliStorePromise;
   server.managedSkillStore = managedSkillStorePromise;

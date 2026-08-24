@@ -205,6 +205,8 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [])
  *   maxFailedToolCalls?:number,
  *   maxProviderTokens?:number,
  *   requiredCompletionTool?:string|null,
+ *   resourceRun?:{modelObserver:Function,observeTool:Function}|null,
+ *   resourcePurpose?:string,
  *   onEvent?:(event:object)=>void|Promise<void>,
  * }} input
  */
@@ -215,6 +217,8 @@ export async function runAgent({
   maxFailedToolCalls = DEFAULT_MAX_FAILED_TOOL_CALLS,
   maxProviderTokens = DEFAULT_MAX_PROVIDER_TOKENS,
   requiredCompletionTool = null,
+  resourceRun = null,
+  resourcePurpose = 'main',
   onEvent,
 }) {
   if (typeof request !== 'string' || !request.trim()) throw new TypeError('request is required');
@@ -259,6 +263,9 @@ export async function runAgent({
 
     modelTurns += 1;
     await onEvent?.({ type: 'model_start', turn: modelTurns });
+    const resourceObserver = resourceRun?.modelObserver({
+      logicalCallId: `${resourcePurpose}:${modelTurns}`, purpose: resourcePurpose,
+    });
     const response = normalizeResponse(await model.respond({
       messages: structuredClone(transcript),
       tools: structuredClone(definitions),
@@ -266,6 +273,7 @@ export async function runAgent({
         toolChoice: { requiredToolName: requiredCompletionTool },
       } : {}),
       signal,
+      ...(resourceObserver ? { resourceObserver } : {}),
       onContextReceipt: async (contextReceipt) => {
         await onEvent?.({
           type: 'model_context', turn: modelTurns, contextReceipt: structuredClone(contextReceipt),
@@ -332,6 +340,7 @@ export async function runAgent({
         type: 'tool_start', turn: modelTurns, toolCallId: String(call?.id ?? ''),
         name: call?.name, args: structuredClone(call?.args ?? {}),
       });
+      const toolResourceStartedAt = Date.now();
       const requested = requestedCall(call);
       toolCalls += 1;
       if (toolCalls > maxToolCalls) {
@@ -393,6 +402,10 @@ export async function runAgent({
         type: 'tool_end', turn: modelTurns, name: call?.name, outcome: receipt.outcome,
         receipt: structuredClone(receipt),
       });
+      await resourceRun?.observeTool({
+        turn: modelTurns, toolCallId: receipt.toolCallId || `${modelTurns}:${call?.name}`,
+        name: call?.name ?? 'unknown', outcome: receipt.outcome, startedAt: toolResourceStartedAt,
+      }).catch(() => {});
       if (receipt.outcome === 'failed') {
         failedToolCalls += 1;
         const family = JSON.stringify([

@@ -149,7 +149,7 @@ function makeCommandTool(options = {}, { managed }) {
             ...(capabilitiesUsed.length ? { capabilitiesUsed: structuredClone(capabilitiesUsed) } : {}),
           },
         });
-        if (context.signal?.aborted && result.state === 'running') {
+        if (context.signal?.aborted && (result.state === 'running' || result.state === 'stop_requested')) {
           result = await registry.stop({
             processId: result.processId, ownerId, reason: 'aborted', cursor: result.cursor,
           });

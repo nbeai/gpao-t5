@@ -1,0 +1,51 @@
+{
+  "schema": "t5.s2-a1-platform-boundary-seal.v1",
+  "recordedAt": "2026-08-24T15:24:50+09:00",
+  "gate": "S2-A1_RESOURCE_CONTROL",
+  "source": {
+    "repository": "https://github.com/openclaw/openclaw",
+    "commit": "cc2993c727229103a185dc845e62894a59e5bd8d",
+    "files": [
+      {"name":"docs/platforms/windows.md","sha256":"05c4e6d35821a983e7263b2fbf83317d85f9ee361b90b9293d766f6f80de631d"},
+      {"name":"src/infra/directory-durability.ts","sha256":"65c8d382633c21fca1e129621a5e514448bc775a4c5664170ebeb252882a8583"},
+      {"name":"src/infra/sqlite-coordinator.ts","sha256":"ebb04073cae83c444da40b03f6cc6246df4acc6dafc0e0e1e8a0cb53f506c679"},
+      {"name":"src/infra/wsl.ts","sha256":"8296f13ac204bd2a906ebaeae4966e763173c3e15896abc0af26ced59001f60b"},
+      {"name":"src/infra/wsl.test.ts","sha256":"a663dccfcd2e8b68982ca514570d7469eb4c17347841e7ff346f968c1001b025"}
+    ]
+  },
+  "successPrinciples": [
+    "core_uses_platform_neutral_path_and_opaque_identity",
+    "private_mode_is_platform_capability_not_core_identity",
+    "directory_sync_can_be_unsupported_on_windows",
+    "platform_specific_durability_is_explicit_not_assumed",
+    "wsl_is_linux_runtime_with_distinct_lifecycle_and_identity",
+    "cancel_and_crash_are_resource_states_not_posix_signals"
+  ],
+  "observedFailureCases": [
+    {
+      "id": "wsl_idle_termination_regression",
+      "fact": "wsl_2_6_1_0_can_terminate_15_to_20_seconds_after_last_client_even_with_linger",
+      "t5Lesson": "process_exit_and_resource_scope_close_require_observed_runtime_events"
+    },
+    {
+      "id": "wsl_system_account_identity_mismatch",
+      "fact": "per_user_wsl_distro_is_not_visible_to_windows_system_account",
+      "t5Lesson": "execution_requested_is_not_runtime_started_and_path_or_pid_is_not_portable_identity"
+    },
+    {
+      "id": "windows_directory_sync_boundary",
+      "fact": "directory_fsync_can_return_platform_specific_unsupported_or_permission_errors",
+      "t5Lesson": "durability_receipt_must_preserve_supported_degraded_or_unknown"
+    }
+  ],
+  "a1Invariants": [
+    "no_darwin_path_pid_or_signal_in_resource_identity",
+    "no_posix_chmod_requirement_in_resource_core",
+    "storage_adapter_owns_platform_durability",
+    "reservation_commit_release_unknown_semantics_are_platform_independent",
+    "windows_and_wsl_are_not_implemented_in_this_gate"
+  ],
+  "copiedWslArchitecture": false,
+  "windowsFeatureImplemented": false,
+  "productBehaviorChangedByResearch": false
+}

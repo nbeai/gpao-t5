@@ -1,4 +1,7 @@
 import { makeContextReceipt } from './context-receipt.js';
+import {
+  reserveProviderAttempt, settleProviderSuccess, settleProviderUnknown,
+} from './provider-request-accounting.js';
 
 const DEFAULT_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 const DEFAULT_MODEL = 'claude-sonnet-5';
@@ -118,7 +121,9 @@ export function makeAnthropicMessagesModel({
 
   return {
     id: model,
-    async respond({ messages = [], tools = [], toolChoice = null, signal, onContextReceipt } = {}) {
+    async respond({
+      messages = [], tools = [], toolChoice = null, signal, onContextReceipt, resourceObserver,
+    } = {}) {
       if (!started) {
         history.push(...initialMessages(messages));
         for (const message of messages) {
@@ -150,6 +155,10 @@ export function makeAnthropicMessagesModel({
       });
       await onContextReceipt?.(structuredClone(contextReceipt));
       await dump?.({ body, meta: { provider: 'anthropic', endpoint: new URL(endpoint).origin, model } });
+      if (signal?.aborted) throw new AnthropicMessagesError('Anthropic request cancelled before dispatch');
+      const resourceHandle = await reserveProviderAttempt(resourceObserver, {
+        provider: 'anthropic', model, attempt: 1, contextReceipt,
+      });
       let response;
       try {
         response = await fetchImpl(endpoint, {
@@ -161,10 +170,14 @@ export function makeAnthropicMessagesModel({
           body: JSON.stringify(body),
         });
       } catch (error) {
+        await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_transport_unknown');
         throw new AnthropicMessagesError(`Anthropic request failed: ${safeText(error?.message, key)}`);
       }
       const raw = await response.text();
       if (!response.ok) {
+        await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_http_error', {
+          httpStatus: response.status,
+        });
         let detail = raw;
         try { detail = JSON.parse(raw)?.error?.message ?? raw; } catch { /* use bounded raw */ }
         throw new AnthropicMessagesError(
@@ -173,10 +186,17 @@ export function makeAnthropicMessagesModel({
       }
       let json;
       try { json = JSON.parse(raw); }
-      catch { throw new AnthropicMessagesError('Anthropic returned invalid JSON', { status: response.status }); }
+      catch {
+        await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_response_invalid');
+        throw new AnthropicMessagesError('Anthropic returned invalid JSON', { status: response.status });
+      }
       if (!Array.isArray(json.content)) {
+        await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_response_invalid');
         throw new AnthropicMessagesError('Anthropic response has no content blocks', { status: response.status });
       }
+      await settleProviderSuccess(resourceObserver, resourceHandle, {
+        usage: normalizedUsage(json.usage), responseId: json.id ?? null,
+      });
       history.push({ role: 'assistant', content: structuredClone(json.content) });
       return {
         text: resultText(json.content), toolCalls: resultCalls(json.content),

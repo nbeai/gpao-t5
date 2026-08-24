@@ -10,7 +10,7 @@
   "secondCompletion": {
     "active": true,
     "sourceOfTruth": "T5-SECOND-COMPLETION.md",
-    "currentGate": "S2-A1_RESOURCE_CONTROL_READY",
+    "currentGate": "S2-A1_RESOURCE_CONTROL_A1_2_READY",
     "firstProductChange": "shadow_resource_accounting_and_control",
     "a0IncidentFixtures": {
       "status": "complete",
@@ -21,6 +21,19 @@
       "status": "complete",
       "evidence": "s2-a1-accounting-reference-seal-2026-08-24.json",
       "productBehaviorChanged": false
+    },
+    "a1PlatformBoundarySeal": {
+      "status": "complete",
+      "evidence": "s2-a1-platform-boundary-seal-2026-08-24.json",
+      "windowsFeatureImplemented": false,
+      "copiedWslArchitecture": false
+    },
+    "a1ExactAccountingShadow": {
+      "status": "complete",
+      "evidence": "s2-a1-1-exact-accounting-shadow-2026-08-24.json",
+      "activeControl": false,
+      "modelContextChanged": false,
+      "userAnswerChanged": false
     },
     "browserIncident": {
       "dedicatedProfileIsDirectCause": false,

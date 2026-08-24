@@ -1,0 +1,97 @@
+{
+  "schema": "t5.s2-a1-1-exact-accounting-shadow.v1",
+  "recordedAt": "2026-08-24T15:43:15+09:00",
+  "gate": "S2-A1_RESOURCE_CONTROL",
+  "stage": "A1-1_EXACT_ACCOUNTING_SHADOW",
+  "userOutcome": {
+    "newVisibleFeature": false,
+    "modelContextChanged": false,
+    "userAnswerChanged": false,
+    "activeOptimization": false,
+    "runtimeIntervention": false
+  },
+  "implemented": {
+    "appendOnlyResourceLedger": true,
+    "platformStorageAdapter": true,
+    "contentFreeBoundedEvents": true,
+    "providerFetchPreReservation": true,
+    "durableReservationAndSettlement": true,
+    "logicalCallAndAttemptSeparated": true,
+    "providerRetryAttemptsSeparated": true,
+    "parallelCommitIdempotent": true,
+    "crashOpenReservationUnknown": true,
+    "cancelAfterDispatchUnknown": true,
+    "missingUsageUnknown": true,
+    "historyPreservedAcrossRestart": true,
+    "toolCallAndWallObserved": true,
+    "checkpointAccounted": true,
+    "memoryFlushAccounted": true,
+    "visualObservationAccounted": true,
+    "automationMainAccounted": true,
+    "a0ReplayExact": true
+  },
+  "platformBoundary": {
+    "evidence": "s2-a1-platform-boundary-seal-2026-08-24.json",
+    "windowsFeatureImplemented": false,
+    "copiedWslArchitecture": false,
+    "macosPathPidSignalIdentity": false,
+    "storageAdapterReplaceable": true
+  },
+  "incidentReplay": {
+    "runs": 19,
+    "modelCalls": 107,
+    "providerTokens": 10146162,
+    "requestBytes": 43239237,
+    "unsettledAfterReplay": 0
+  },
+  "overheadMeasurement": {
+    "environment": "darwin_node_24_14_0_local_ssd",
+    "modelCalls": 100,
+    "events": 803,
+    "fileBytes": 334550,
+    "meanAccountingMsPerCall": 8.728,
+    "p95AccountingMsPerCall": 10.624,
+    "maxAccountingMsPerCall": 12.107,
+    "includesDurableReservationAndSettlement": true,
+    "productSuccessThreshold": null
+  },
+  "verification": {
+    "resourceAndAdapterFocusedTestsPassed": 13,
+    "resourceConsoleIntegrationPassed": 1,
+    "relatedConsoleCheckpointMemoryAutomationPassed": 15,
+    "cancellationFocusedTestsPassed": 21,
+    "refoundationUnitPassed": 615,
+    "refoundationUnitFailed": 0,
+    "legacySourceImports": 0,
+    "defaultProductIntegrationPassed": 92,
+    "defaultProductIntegrationFailed": 0,
+    "visibleBrowserLiveIncludedInCompletionGate": false,
+    "a1CancellationRegressionFound": "cancel_receipt_returned_stop_requested_before_terminal_confirmation",
+    "a1CancellationRegressionFixed": true
+  },
+  "changedBoundaries": [
+    "resource_event_store",
+    "provider_request_attempt_callbacks",
+    "agent_loop_tool_observation",
+    "console_run_internal_model_scopes",
+    "abort_stop_requested_terminal_confirmation"
+  ],
+  "notImplemented": [
+    "anomaly_detection",
+    "resource_situation_model_input",
+    "active_optimization",
+    "new_limits",
+    "windows_runtime",
+    "ui",
+    "new_package"
+  ],
+  "artifacts": {
+    "resourceLedgerSha256": "ed6e86227f9af0272d92ad51ae0619142bad37bc30366b6704366686b66ec1f6",
+    "resourceControllerSha256": "691656d00b13e1a419195834216e56393a52edc473a577fc65d21bde95b539f3",
+    "resourceStorageSha256": "204ff12971d594a1706f5fd4a96423fa70d67d1867baa3b7d579cf69ef8e8785",
+    "resourceReportSha256": "dc652af240695da16bf28f740d1e3419abbcf58040fefa042b376b9b356f2bf4",
+    "providerAccountingSha256": "2301fe91f47bc99da9e7a923e9344e656c03aa2c20127bc7014f8ed6e4ec5a40"
+  },
+  "productBehaviorChanged": false,
+  "newPackageCreated": false
+}

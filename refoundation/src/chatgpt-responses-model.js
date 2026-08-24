@@ -1,4 +1,7 @@
 import { makeContextReceipt } from './context-receipt.js';
+import {
+  reserveProviderAttempt, settleProviderSuccess, settleProviderUnknown,
+} from './provider-request-accounting.js';
 
 const DEFAULT_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses';
 const TRANSIENT_CODES = new Set(['server_is_overloaded', 'server_error', 'rate_limit_exceeded', 'empty_response']);
@@ -136,7 +139,9 @@ export function makeChatGptResponsesModel({
   let started = false;
 
   return {
-    async respond({ messages = [], tools = [], toolChoice = null, signal, onContextReceipt } = {}) {
+    async respond({
+      messages = [], tools = [], toolChoice = null, signal, onContextReceipt, resourceObserver,
+    } = {}) {
       const credential = await credentials.get();
       const requestModel = model ?? credential.modelId;
       if (!requestModel) throw new Error('ChatGPT OAuth connection has no model id');
@@ -178,6 +183,10 @@ export function makeChatGptResponsesModel({
           },
         });
 
+        if (signal?.aborted) throw new ChatGptTransportError('ChatGPT OAuth request cancelled before dispatch');
+        const resourceHandle = await reserveProviderAttempt(resourceObserver, {
+          provider: 'chatgpt_oauth', model: requestModel, attempt, contextReceipt,
+        });
         let parsed;
         let transportError;
         try {
@@ -216,7 +225,10 @@ export function makeChatGptResponsesModel({
             }
           }
         } catch (error) {
-          if (signal?.aborted) throw error;
+          if (signal?.aborted) {
+            await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_cancelled_unknown');
+            throw error;
+          }
           transportError = error instanceof ChatGptTransportError ? error : new ChatGptTransportError(
             `ChatGPT OAuth request failed: ${scrub(error?.message ?? error, credential.access)}`,
             { code: 'network_error', retriable: true },
@@ -224,6 +236,9 @@ export function makeChatGptResponsesModel({
         }
 
         if (!transportError) {
+          await settleProviderSuccess(resourceObserver, resourceHandle, {
+            usage: parsed.usage ?? null, responseId: parsed.id ?? null,
+          });
           input.push(...structuredClone(parsed.output));
           return {
             text: parsed.text,
@@ -234,6 +249,10 @@ export function makeChatGptResponsesModel({
             contextReceipt,
           };
         }
+        await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_attempt_failed', {
+          httpStatus: transportError.status ?? null,
+          retryable: transportError.retriable === true,
+        });
         if (!transportError.retriable || attempt === maxAttempts) throw transportError;
         await wait(retryDelayMs * attempt);
       }

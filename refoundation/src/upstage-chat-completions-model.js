@@ -1,4 +1,7 @@
 import { makeContextReceipt } from './context-receipt.js';
+import {
+  reserveProviderAttempt, settleProviderSuccess, settleProviderUnknown,
+} from './provider-request-accounting.js';
 
 const DEFAULT_ENDPOINT = 'https://api.upstage.ai/v1/chat/completions';
 const DEFAULT_MODEL = 'solar-pro4';
@@ -116,7 +119,9 @@ export function makeUpstageChatCompletionsModel({
 
   return {
     id: model,
-    async respond({ messages = [], tools = [], toolChoice = null, signal, onContextReceipt } = {}) {
+    async respond({
+      messages = [], tools = [], toolChoice = null, signal, onContextReceipt, resourceObserver,
+    } = {}) {
       if (!started) {
         history.push(...initialMessages(messages, instructions, model));
         for (const message of messages) {
@@ -147,6 +152,10 @@ export function makeUpstageChatCompletionsModel({
       await onContextReceipt?.(structuredClone(contextReceipt));
       await dump?.({ body, meta: { provider: 'upstage', endpoint: new URL(endpoint).origin, model } });
 
+      if (signal?.aborted) throw new UpstageChatCompletionsError('Upstage request cancelled before dispatch');
+      const resourceHandle = await reserveProviderAttempt(resourceObserver, {
+        provider: 'upstage', model, attempt: 1, contextReceipt,
+      });
       let response;
       try {
         response = await fetchImpl(endpoint, {
@@ -155,12 +164,16 @@ export function makeUpstageChatCompletionsModel({
           body: JSON.stringify(body),
         });
       } catch (error) {
+        await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_transport_unknown');
         throw new UpstageChatCompletionsError(
           `Upstage request failed: ${safeText(error?.message, key)}`,
         );
       }
       const raw = await response.text();
       if (!response.ok) {
+        await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_http_error', {
+          httpStatus: response.status,
+        });
         let detail = raw;
         try { detail = JSON.parse(raw)?.error?.message ?? raw; } catch { /* use bounded raw */ }
         throw new UpstageChatCompletionsError(
@@ -171,12 +184,14 @@ export function makeUpstageChatCompletionsModel({
       let json;
       try { json = JSON.parse(raw); }
       catch {
+        await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_response_invalid');
         throw new UpstageChatCompletionsError('Upstage returned invalid JSON', {
           status: response.status,
         });
       }
       const message = json?.choices?.[0]?.message;
       if (!message || (!('content' in message) && !Array.isArray(message.tool_calls))) {
+        await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_response_invalid');
         throw new UpstageChatCompletionsError('Upstage response has no assistant message', {
           status: response.status,
         });
@@ -186,6 +201,9 @@ export function makeUpstageChatCompletionsModel({
         ...(typeof message.reasoning === 'string' ? { reasoning: message.reasoning } : {}),
         ...(message.tool_calls?.length ? { tool_calls: structuredClone(message.tool_calls) } : {}),
       };
+      await settleProviderSuccess(resourceObserver, resourceHandle, {
+        usage: normalizedUsage(json.usage), responseId: json.id ?? null,
+      });
       history.push(assistant);
       return {
         text: typeof message.content === 'string' ? message.content : '',

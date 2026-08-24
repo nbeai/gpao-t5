@@ -1,4 +1,7 @@
 import { makeContextReceipt } from './context-receipt.js';
+import {
+  reserveProviderAttempt, settleProviderSuccess, settleProviderUnknown,
+} from './provider-request-accounting.js';
 
 const DEFAULT_ENDPOINT = 'https://api.openai.com/v1/responses';
 const DEFAULT_MODEL = 'gpt-5.6-terra';
@@ -117,7 +120,9 @@ export function makeOpenAIResponsesModel({
 
   return {
     id: model,
-    async respond({ messages = [], tools = [], toolChoice = null, signal, onContextReceipt } = {}) {
+    async respond({
+      messages = [], tools = [], toolChoice = null, signal, onContextReceipt, resourceObserver,
+    } = {}) {
       if (!started) {
         input.push(...initialInput(messages));
         for (const message of messages) {
@@ -155,6 +160,10 @@ export function makeOpenAIResponsesModel({
         meta: { provider: 'openai', endpoint: new URL(endpoint).origin, model },
       });
 
+      if (signal?.aborted) throw new OpenAIResponsesError('OpenAI request cancelled before dispatch');
+      const resourceHandle = await reserveProviderAttempt(resourceObserver, {
+        provider: 'openai', model, attempt: 1, contextReceipt,
+      });
       let response;
       try {
         response = await fetchImpl(endpoint, {
@@ -167,11 +176,15 @@ export function makeOpenAIResponsesModel({
           signal,
         });
       } catch (error) {
+        await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_transport_unknown');
         throw new OpenAIResponsesError(`OpenAI request failed: ${safeErrorText(error?.message, key)}`);
       }
 
       const raw = await response.text();
       if (!response.ok) {
+        await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_http_error', {
+          httpStatus: response.status,
+        });
         let detail = raw;
         try { detail = JSON.parse(raw)?.error?.message ?? raw; } catch { /* keep raw error */ }
         throw new OpenAIResponsesError(
@@ -182,11 +195,18 @@ export function makeOpenAIResponsesModel({
 
       let json;
       try { json = JSON.parse(raw); }
-      catch { throw new OpenAIResponsesError('OpenAI returned invalid JSON', { status: response.status }); }
+      catch {
+        await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_response_invalid');
+        throw new OpenAIResponsesError('OpenAI returned invalid JSON', { status: response.status });
+      }
       if (!Array.isArray(json.output)) {
+        await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_response_invalid');
         throw new OpenAIResponsesError('OpenAI response has no output items', { status: response.status });
       }
 
+      await settleProviderSuccess(resourceObserver, resourceHandle, {
+        usage: json.usage ?? null, responseId: json.id ?? null,
+      });
       input.push(...structuredClone(json.output));
       return {
         text: outputText(json.output),

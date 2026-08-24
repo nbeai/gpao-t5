@@ -1,7 +1,7 @@
 # T5 Second Completion — Current Development Source
 
 상태: `SECOND_COMPLETION_ACTIVE`
-현재 Gate: `S2-A1 RESOURCE CONTROL — READY`
+현재 Gate: `S2-A1 RESOURCE CONTROL — A1-1 COMPLETE · A1-2 READY`
 기준 source: `81f29d23`
 배포 상태: `0.1.8 REVOKED · 새 package 생성 금지`
 
@@ -212,6 +212,13 @@ usage 계약을 좁게 확인했다. 기능을 복제하지 않고 다음 원리
 
 근거: `refoundation/evidence/s2-a1-accounting-reference-seal-2026-08-24.json`
 
+각 Gate 전 플랫폼 확인 계약에 따라 OpenClaw의 Windows·WSL2 경계도 A1-1 전에 봉인했다. Resource Core는
+macOS path·mode·PID·signal을 identity나 정산 진실로 쓰지 않는다. Windows의 directory sync·private mode
+차이와 WSL의 별도 distro·사용자·생명주기는 storage/process adapter의 관측 사실로만 받는다. WSL 2.6.1.0의
+idle 종료와 SYSTEM 계정에서 per-user distro가 보이지 않던 실제 장애는 `실행 요청≠runtime 시작`,
+`process 종료≠scope 정산 완료` 반대시험으로 보존한다. Windows 기능이나 WSL 구조는 이번 Gate에서 구현하지
+않는다. 근거: `refoundation/evidence/s2-a1-platform-boundary-seal-2026-08-24.json`
+
 제어 루프:
 
 ```text
@@ -230,12 +237,17 @@ catastrophic fuse는 shadow 실측과 positive control 없이 수치를 고정�
 승격 순서:
 
 ```text
-A1-1 exact accounting shadow
+A1-1 exact accounting shadow — COMPLETE
 → A1-2 anomaly shadow
 → A1-3 모델에 Resource Situation 공급
 → A1-4 능동 최적화
 → A1-5 검증된 병적 폭주에만 최후 개입
 ```
+
+A1-1은 모든 model adapter의 provider fetch 전 durable reservation, retry attempt 분리, provider usage commit,
+crash·cancel unknown, tool wall/call 관측, checkpoint·memory flush·visual observer·automation main 연결을
+content-free shadow로 완성했다. 모델 Context·사용자 답·상한·도구 선택·UI는 바꾸지 않았다. 근거:
+`refoundation/evidence/s2-a1-1-exact-accounting-shadow-2026-08-24.json`
 
 통과 조건:
 
@@ -393,17 +405,18 @@ AND 실행 가능한 미시도 route가 남은 blocked 0
 
 ## 7. 현재 작업 시작점
 
-현재 작업은 A0 fixture를 먼저 고정한 뒤 A1-1 exact accounting shadow만 구현한다.
+S2-A0와 A1-1 exact accounting shadow는 완료했다. 다음 한 작업은 제품 행동을 바꾸지 않는 A1-2 anomaly
+shadow다. A1-1 측정을 보지 않고 수치·중단·최적화를 먼저 고정하지 않는다.
 
-첫 변경 범위:
+A1-1 완료 범위:
 
 ```text
-새 파일: resource-ledger.js · resource-controller.js
-연결: run-ledger.js · agent-loop.js · console-model-factory.js · model adapters
-검사: resource ledger · crash/idempotency · shadow accounting · incident replay
+새 파일: resource-ledger.js · resource-controller.js · resource-event-storage.js · resource-report.js
+연결: agent-loop.js · console-server.js · model adapters
+검사: provider prefetch reservation · retry·parallel·crash·cancel·idempotency · A0 replay · platform storage
 ```
 
-첫 변경 비목표:
+다음 작업 비목표:
 
 ```text
 WorkStore · Instruction Compiler · Queue · Automation 의미 변경
