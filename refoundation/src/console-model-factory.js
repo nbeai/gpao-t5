@@ -11,7 +11,7 @@ import {
 import { makePromptDumper } from './prompt-dump.js';
 import { interactionCore } from './interaction-core.js';
 
-export function consoleInstructions(workspace, computer = {}, { interactionCoreMode = 'v4' } = {}) {
+export function consoleInstructions(workspace, computer = {}, { interactionCoreMode = 'v5' } = {}) {
   const core = interactionCore(interactionCoreMode);
   return [
     'You are T5, a capable personal agent operating the user console.',

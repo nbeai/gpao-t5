@@ -1,0 +1,59 @@
+{
+  "schema": "t5.interaction-core-v5-qualification.v1",
+  "recordedAt": "2026-08-25T02:30:00+09:00",
+  "source": {
+    "name": "BEAI 5",
+    "use": "interaction constitution source and human-quality evaluation reference",
+    "wholePromptImported": false
+  },
+  "baseline": "T5_INTERACTION_CORE_V4",
+  "selected": "T5_INTERACTION_CORE_V5",
+  "change": {
+    "type": "single_line_replacement",
+    "addedRules": 0,
+    "toolAuthorityExecutionInstructionsChanged": false,
+    "selectedPrinciple": "User-stated reality must change judgment, artifact, or action selection instead of being repeated as proof of empathy; the user is not an analysis object."
+  },
+  "dialogueQualification": {
+    "models": ["gpt-5.6-terra", "gpt-5.5"],
+    "scenarios": 8,
+    "candidates": 4,
+    "actualOutputs": 64,
+    "independentBlindEvaluators": 3,
+    "strictEvaluatorSelectedV5": true,
+    "constitutionEvaluatorSelectedV5": true,
+    "humanEvaluatorPlacedV5InTopTier": true,
+    "selectedHardFailures": 0
+  },
+  "efficiency": {
+    "baselineAverageOutputChars": 376,
+    "selectedAverageOutputChars": 338,
+    "baselineAverageWallMs": 5290,
+    "selectedAverageWallMs": 5063,
+    "baselineAverageInputTokens": 4611,
+    "selectedAverageInputTokens": 4581,
+    "baselineAverageOutputTokens": 257,
+    "selectedAverageOutputTokens": 251,
+    "baselineResponsesWithQuestions": 2,
+    "selectedResponsesWithQuestions": 0
+  },
+  "toolQualification": {
+    "models": ["gpt-5.6-terra", "gpt-5.5"],
+    "scenarios": ["exact_observation", "connection_truth", "primary_failure_then_fallback"],
+    "baselinePassed": "6/6",
+    "selectedPassed": "6/6",
+    "modelTurnRegression": 0,
+    "toolCallRegression": 0
+  },
+  "rejectedApproaches": [
+    "append a broad judgment-arrival instruction to v4",
+    "replace v4 with a much smaller but under-constrained prompt",
+    "copy BEAI 5 implementation details, examples, first-sentence rules, or checklists into the system prompt",
+    "mine evaluation wording into the prompt"
+  ],
+  "knownObservations": [
+    "Some outputs still weakly inferred why the user felt or acted a certain way; no new prompt patch was added from those evaluation examples.",
+    "Some completed conversations added a short confirmation phrase; this remains a human-use observation rather than a new system rule."
+  ],
+  "status": "qualified_as_default_interaction_core"
+}

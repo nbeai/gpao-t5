@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { consoleInstructions } from '../src/console-model-factory.js';
 import {
   T5_INTERACTION_CORE_V1, T5_INTERACTION_CORE_V2, T5_INTERACTION_CORE_V3,
-  T5_INTERACTION_CORE_V4, interactionCore,
+  T5_INTERACTION_CORE_V4, T5_INTERACTION_CORE_V5, interactionCore,
 } from '../src/interaction-core.js';
 
 test('Interaction Core v1은 현재성·사실 경계·교정·산출·종결만 짧게 보존한다', () => {
@@ -42,6 +42,18 @@ test('v4는 BEAI의 동반감·상대 관점·상황 파악을 한국어 흐름�
   assert.ok(Buffer.byteLength(T5_INTERACTION_CORE_V4, 'utf8') <= 3_500);
 });
 
+test('v5는 v4의 과적합 동반감 문장 하나만 행동 중심 헌법으로 교체한다', () => {
+  const oldLine = T5_INTERACTION_CORE_V4.split('\n').find((line) => line.startsWith('동반감은 공감 표현의 양이 아니라'));
+  const newLine = T5_INTERACTION_CORE_V5.split('\n').find((line) => line.startsWith('사용자가 말한 현실을 되풀이해'));
+  assert.ok(oldLine); assert.ok(newLine);
+  assert.match(newLine, /판단·산출물·행동의 선택을 실제로 바꾸게/u);
+  assert.match(newLine, /사용자를 분석 대상으로 만들지 않는다/u);
+  assert.doesNotMatch(T5_INTERACTION_CORE_V5, /번아웃|시야 왜곡|제품 가치의 증거나 반증/u);
+  assert.equal(T5_INTERACTION_CORE_V5
+    .replace('[T5 상호작용 코어 v5]', '[T5 상호작용 코어 v4]')
+    .replace(newLine, oldLine), T5_INTERACTION_CORE_V4);
+});
+
 test('현재 T5와 Core v1은 같은 capability 지침을 쓰며 core만 선택적으로 비교한다', () => {
   const computer = { platform: 'darwin', architecture: 'arm64', commandFamily: 'posix', commandProgram: '/bin/zsh' };
   const baseline = consoleInstructions('/Users/example', computer, { interactionCoreMode: 'off' });
@@ -57,9 +69,10 @@ test('알 수 없는 Interaction Core 버전은 조용히 다른 행동으로 �
   assert.equal(interactionCore('v2'), T5_INTERACTION_CORE_V2);
   assert.equal(interactionCore('v3'), T5_INTERACTION_CORE_V3);
   assert.equal(interactionCore('v4'), T5_INTERACTION_CORE_V4);
+  assert.equal(interactionCore('v5'), T5_INTERACTION_CORE_V5);
   assert.throws(() => interactionCore('future'), /unsupported T5 interaction core/u);
 });
 
-test('제품 기본값은 비교 승자인 v4를 사용한다', () => {
-  assert.match(consoleInstructions('/Users/example', {}), /T5 상호작용 코어 v4/u);
+test('제품 기본값은 인간 blind·도구 자격을 통과한 v5를 사용한다', () => {
+  assert.match(consoleInstructions('/Users/example', {}), /T5 상호작용 코어 v5/u);
 });
