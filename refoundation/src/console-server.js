@@ -309,8 +309,9 @@ export function makeConsoleServer({
   const workStore = new WorkStore(join(stateDir, 'work'));
   const scheduledWorkInputs = new Set();
   async function scheduleNextWorkInput(sessionId) {
-    const queued = (await workStore.queuedInputs(sessionId)).find((input) => !scheduledWorkInputs.has(input.inputId));
+    let queued = (await workStore.queuedInputs(sessionId)).find((input) => !scheduledWorkInputs.has(input.inputId));
     if (!queued || running.has(sessionId)) return false;
+    if (queued.state === 'scheduled') queued = await workStore.activateScheduledInput(queued.inputId);
     const conversation = await conversations.read(sessionId); const entry = conversation.entries
       .find((candidate) => candidate.messageId === queued.messageId);
     if (!entry?.message?.content) return false;
@@ -1238,6 +1239,10 @@ export function makeConsoleServer({
           const pending = await workStore.pendingInputs(sessionId);
           if (!pending.length) return [];
           const conversation = await conversations.read(sessionId);
+          const currentWork = await workStore.activeForSession(sessionId);
+          const objective = currentWork ? conversation.entries.find((candidate) => (
+            candidate.messageId === currentWork.sourceMessageId
+          ))?.message?.content ?? null : null;
           return Promise.all(pending.map(async (input) => {
             const entry = conversation.entries.find((candidate) => candidate.messageId === input.messageId);
             const records = await Promise.all((input.attachmentIds ?? []).map((attachmentId) => (
@@ -1245,6 +1250,10 @@ export function makeConsoleServer({
             )));
             return { inputId: input.inputId, text: entry?.message.content ?? '',
               attachmentIds: input.attachmentIds ?? [], source: input.source ?? {},
+              currentWork: currentWork ? { status: currentWork.status, revision: currentWork.revision,
+                objective: String(objective ?? '').slice(0, 2_000),
+                resultDeliveryAtAdmission: input.source?.admissionTime?.currentResultProduced === true
+                  ? 'delivered_or_produced' : 'not_delivered' } : null,
               modelAttachments: await modelImageInputs({ store: attachments, sessionId, records }) };
           }));
         },
@@ -1311,6 +1320,13 @@ export function makeConsoleServer({
               type: 'model_completed', stepId: `model-${event.turn}`,
               payload: { turn: event.turn, response: event.response },
             });
+          } else if (event.type === 'model_superseded_by_admission') {
+            await run.append({
+              type: 'model_superseded_by_admission', stepId: `model-${event.turn}-superseded`,
+              payload: { turn: event.turn, inputCount: event.inputCount,
+                discardedToolCalls: event.discardedToolCalls, discardedAnswer: event.discardedAnswer },
+            });
+          } else if (event.type === 'model_accepted') {
             await conversations.appendMessage({
               sessionId, messageId: `${run.runId}:assistant:${event.turn}`, runId: run.runId,
               turn: event.turn,
@@ -1495,9 +1511,9 @@ export function makeConsoleServer({
             outcome: unresolved ? 'unresolved' : 'achieved',
             blockerDigest: evaluation.blockerDigest, blockers: evaluation.blockers } });
       }
-      if (options.admittedInput) await workStore.completeInputExecution({
-        inputId: options.admittedInput.inputId, runId: run.runId,
-      });
+      for (const input of await workStore.executingInputsForRun(run.runId)) {
+        await workStore.completeInputExecution({ inputId: input.inputId, runId: run.runId });
+      }
       await options.beforeSurfacePersist?.({ runId: run.runId, surfaceResult });
       await sessions.append(sessionId, { role: 'assistant', result: surfaceResult });
       surfacePersisted = true;
@@ -2743,7 +2759,7 @@ export function makeConsoleServer({
   server.resumeQueuedWork = async () => {
     const state = await workStore.read();
     const sessionsWithQueued = [...new Set(state.inputs.filter((input) => input.state === 'classified'
-      && ['followup', 'new_work'].includes(input.relation)).map((input) => input.sessionId))];
+      && ['after_current_delivery', 'independent_work'].includes(input.schedule)).map((input) => input.sessionId))];
     return Promise.all(sessionsWithQueued.map((sessionId) => scheduleNextWorkInput(sessionId)));
   };
   server.memoryLedger = memories;

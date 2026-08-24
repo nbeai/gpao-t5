@@ -228,7 +228,7 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [],
  *   focusToolSurface?:boolean,
  *   resourceSituationMode?:'off'|'current-v1',
  *   activeOptimizationMode?:'off'|'model-selected-v1',
- *   takeAdmittedWorkInputs?:()=>Promise<Array<{inputId:string,text:string,attachmentIds?:string[],source?:object,modelAttachments?:object[]}>>,
+ *   takeAdmittedWorkInputs?:()=>Promise<Array<{inputId:string,text:string,attachmentIds?:string[],source?:object,currentWork?:object,modelAttachments?:object[]}>>,
  *   onEvent?:(event:object)=>void|Promise<void>,
  * }} input
  */
@@ -307,14 +307,17 @@ export async function runAgent({
     if (registry.has('work_transition')) {
       if (admittedWorkInputs.length) activeTools.add('work_transition');
       else activeTools.delete('work_transition');
-      definitions = [...activeTools].map((name) => toolDefinition(registry.get(name)));
+      definitions = admittedWorkInputs.length
+        ? [toolDefinition(registry.get('work_transition'))]
+        : [...activeTools].map((name) => toolDefinition(registry.get(name)));
     }
-    for (const input of admittedWorkInputs) {
+    for (const [admissionIndex, input] of admittedWorkInputs.entries()) {
       if (projectedWorkInputIds.has(input.inputId)) continue;
       projectedWorkInputIds.add(input.inputId);
       transcript.push({ role: 'user', content: [
         '[T5 NEWLY ADMITTED USER MESSAGE — classify against the current user purpose before acting]',
-        `inputId=${input.inputId}`,
+        `admissionIndex=${admissionIndex + 1}`,
+        `currentWork=${JSON.stringify(input.currentWork ?? null)}`,
         `envelope=${JSON.stringify({ attachmentIds: input.attachmentIds ?? [], source: input.source ?? {} })}`,
         String(input.text ?? ''),
       ].join('\n'), ...(input.modelAttachments?.length
@@ -408,17 +411,30 @@ export async function runAgent({
         contextReceipt: structuredClone(response.contextReceipt),
       },
     });
-    transcript.push({
-      role: 'assistant',
-      content: response.text,
-      ...(response.toolCalls.length ? { toolCalls: structuredClone(response.toolCalls) } : {}),
-    });
     if (providerBudgetExceeded) {
       const error = new Error('run provider token budget exceeded');
       error.reason = 'run_resource_budget_exceeded';
       error.resource = 'provider_tokens'; error.used = providerTokens; error.limit = maxProviderTokens;
       throw error;
     }
+    if (!admittedWorkInputs.length && typeof takeAdmittedWorkInputs === 'function') {
+      const arrivedDuringModelCall = await takeAdmittedWorkInputs();
+      if (arrivedDuringModelCall.length) {
+        lastTurnToolCalls = 0;
+        await onEvent?.({ type: 'model_superseded_by_admission', turn: modelTurns,
+          inputCount: arrivedDuringModelCall.length,
+          discardedToolCalls: response.toolCalls.length, discardedAnswer: Boolean(response.text) });
+        continue;
+      }
+    }
+    transcript.push({
+      role: 'assistant',
+      content: response.text,
+      ...(response.toolCalls.length ? { toolCalls: structuredClone(response.toolCalls) } : {}),
+    });
+    await onEvent?.({ type: 'model_accepted', turn: modelTurns, response: {
+      text: response.text, toolCalls: structuredClone(response.toolCalls),
+    } });
 
     const runControl = intervention.inspectRun(response.toolCalls);
     if (runControl.action === 'stop') {
@@ -433,8 +449,6 @@ export async function runAgent({
     const forcedRunBlock = runControl.action === 'block' ? runControl : null;
 
     if (!response.toolCalls.length) {
-      if (typeof takeAdmittedWorkInputs === 'function'
-        && (await takeAdmittedWorkInputs()).length > 0) continue;
       if (requiredCompletionTool && !completionSatisfied()) {
         if (completionReminderSent) {
           const error = new Error('required completion receipt is missing');

@@ -13,40 +13,43 @@ async function fixture() {
   return { directory, store, work };
 }
 
-test('relation은 모델 tool 인자에서만 결정되고 runtime은 revision을 집행한다', async () => {
+test('extend는 같은 Work·현재 Run의 새 revision을 claim하고 input을 executing으로 만든다', async () => {
   const { store } = await fixture();
   const input = await store.admitInput({ sessionId: 'session', messageId: 'm2' });
-  const tool = makeWorkTransitionTool({ store, sessionId: 'session' });
-  const result = await tool.execute({ decisions: [{ inputId: input.inputId,
-    relation: 'preserve_current_result_then_add', currentResultDisposition: 'preserve_then_add',
-    executionTiming: 'after_current_result', cancelCurrent: false }] });
-  assert.equal(result.classified[0].relation, 'followup');
-  const state = await store.read(); assert.equal(state.inputs[0].relation, 'followup');
+  await store.claimExecution({ workId: (await store.latestForSession('session')).workId,
+    revision: 1, runId: 'current-run' });
+  const tool = makeWorkTransitionTool({ store, sessionId: 'session', runId: 'current-run' });
+  const result = await tool.execute({ decisions: [{
+    meaning: 'extend_current_work', schedule: 'within_current_work', cancelCurrent: false }] });
+  assert.equal(result.classified[0].meaning, 'extend_current_work');
+  const state = await store.read(); assert.equal(state.inputs[0].meaning, 'extend_current_work');
+  assert.equal(state.inputs[0].state, 'executing'); assert.equal(state.inputs[0].executionRunId, 'current-run');
+  assert.equal(state.works.length, 1); assert.equal(state.claims.at(-1).revision, 2);
   assert.equal(state.works[0].revision, 2);
 });
 
-test('new_work는 기존 Work를 paused로 남기고 새 identity에 input을 결속한다', async () => {
+test('independent work만 기존 Work를 paused로 남기고 새 identity에 input을 결속한다', async () => {
   const { store, work } = await fixture();
   const input = await store.admitInput({ sessionId: 'session', messageId: 'm2' });
   const tool = makeWorkTransitionTool({ store, sessionId: 'session' });
-  const result = await tool.execute({ decisions: [{ inputId: input.inputId,
-    relation: 'independent_new_work', currentResultDisposition: 'independent',
-    executionTiming: 'separate_work', cancelCurrent: false }] });
+  const result = await tool.execute({ decisions: [{
+    meaning: 'start_independent_work', schedule: 'independent_work', cancelCurrent: false }] });
   const state = await store.read();
   assert.equal(state.works.find((item) => item.workId === work.workId).status, 'paused');
   assert.notEqual(result.classified[0].workId, work.workId);
   assert.equal(state.inputs[0].workId, result.classified[0].workId);
+  assert.deepEqual(result.deactivatedTools, ['work_completion']);
 });
 
-test('cancel과 cancelCurrent new_work는 명시적 모델 결정에서만 실행 중 프로세스를 멈춘다', async () => {
+test('cancel과 cancelCurrent independent work는 명시적 모델 결정에서만 실행 중 프로세스를 멈춘다', async () => {
   for (const decision of [
-    { relation: 'cancel_current_work', currentResultDisposition: 'stop', executionTiming: 'stop', cancelCurrent: false },
-    { relation: 'independent_new_work', currentResultDisposition: 'independent', executionTiming: 'separate_work', cancelCurrent: true },
+    { meaning: 'cancel_current_work', schedule: 'stop', cancelCurrent: false },
+    { meaning: 'start_independent_work', schedule: 'independent_work', cancelCurrent: true },
   ]) {
     const { store } = await fixture(); let stops = 0;
     const input = await store.admitInput({ sessionId: 'session', messageId: 'm2' });
     const tool = makeWorkTransitionTool({ store, sessionId: 'session', stopProcesses: async () => { stops += 1; } });
-    await tool.execute({ decisions: [{ inputId: input.inputId, ...decision }] });
+    await tool.execute({ decisions: [{ ...decision }] });
     assert.equal(stops, 1);
   }
 });
@@ -59,15 +62,21 @@ test('admission 후 classification 전 restart해도 pending input과 Work revis
   assert.equal(state.works[0].workId, work.workId); assert.equal(state.works[0].revision, 1);
 });
 
-test('classified followup은 restart 후에도 queued로 복원되고 exact Run이 한 번만 claim·complete한다', async () => {
+test('delivery-first extension은 restart 후에도 queued로 복원되고 exact Run이 한 번만 claim·complete한다', async () => {
   const { directory, store } = await fixture();
   const input = await store.admitInput({ sessionId: 'session', messageId: 'm2' });
   await makeWorkTransitionTool({ store, sessionId: 'session' }).execute({ decisions: [{
-    inputId: input.inputId, relation: 'preserve_current_result_then_add', currentResultDisposition: 'preserve_then_add',
-    executionTiming: 'after_current_result', cancelCurrent: false,
+    meaning: 'extend_current_work', schedule: 'after_current_delivery',
+    cancelCurrent: false,
   }] });
+  let state = await store.read();
+  assert.equal(state.works[0].revision, 1); assert.equal(state.inputs[0].state, 'scheduled');
+  assert.equal(state.inputs[0].baseRevision, 1);
   const restarted = new WorkStore(directory);
   assert.deepEqual((await restarted.queuedInputs('session')).map((item) => item.inputId), [input.inputId]);
+  await restarted.activateScheduledInput(input.inputId);
+  state = await restarted.read(); assert.equal(state.works[0].revision, 2);
+  assert.equal(state.inputs[0].state, 'classified');
   await restarted.claimInputExecution({ inputId: input.inputId, runId: 'run-followup' });
   await assert.rejects(() => restarted.claimInputExecution({ inputId: input.inputId,
     runId: 'duplicate-run' }), /not queued/u);

@@ -1,7 +1,7 @@
 # T5 Second Completion — Current Development Source
 
 상태: `SECOND_COMPLETION_ACTIVE`
-현재 Gate: `S2-C REPAIRED COMPLETE · S2-D READY`
+현재 Gate: `S2-B-F06 SEMANTIC CONTINUITY REOPENED · S2-C PRESERVED`
 기준 source: `81f29d23`
 배포 상태: `0.1.8 REVOKED · 새 package 생성 금지`
 
@@ -423,16 +423,21 @@ effect unknown: 재실행 0, 현실 재관측만 허용
 
 통과: 교정·입력 유실 0, restart 복원, premature stop 0, 거짓 성공 0, 모델 userAnswer 재작성 0.
 
-S2-B — COMPLETE. 실행 중 새 사용자 입력은 기존 409 거부 전에 Conversation message와 Work input
+S2-B — PARTIAL REPAIR, F06 REOPENED. 실행 중 새 사용자 입력은 기존 409 거부 전에 Conversation message와 Work input
 pointer로 durable admission된다. 다음 주 모델 boundary에서 모델이 `steer·followup·new_work·cancel`을
-`work_transition`으로 선택하고 runtime은 append-only revision·execution claim만 집행한다. `steer`는 현재
-Run이 새 revision을 재claim하고, `followup·new_work`는 현재 Run 정산 뒤 exact input identity로 새 Run에
-한 번만 승격된다. `cancel`은 모델 판단 후 process 정지·cancelled settlement를 남긴다. stale Run은
+`work_transition`으로 선택하고 runtime은 append-only revision·execution claim만 집행한다. B-F01~F05와
+process wake 복구는 유지한다. 다만 실패 문장을 tool few-shot에 넣고 같은 문장으로 재시험한 24/24는
+일반화 증거가 아니므로 철회한다. stale Run은
 최신 Work revision을 propose·settle할 수 없고, classification 전 pending과 classification 후 queued input은 restart 후
 복원된다. 모델 완료 문장은 Completion Proposal이며 approval·handoff·effect unknown·delivery 실패가
 남으면 `unresolved`, 요구 영수증이 정산된 경우에만 `achieved`다. Terra는 자연어 교정을
-`steer`, gpt-5.5는 자연어 중단을 `cancel`로 각각 2 model turns·1 tool call에 정확히 선택했고
-내부 용어 노출은 0이었다. 근거: `refoundation/evidence/s2-b-work-conversation-continuity-2026-08-24.json`
+내부 용어 노출은 0이어야 한다. 근거: `refoundation/evidence/s2-b-work-conversation-continuity-2026-08-24.json`
+
+사용자 의미와 scheduling을 분리한다. `revise_current_work`는 현재 범위·방법·결과 수정,
+`extend_current_work`는 현재 Work를 유지한 단계·결과물 추가, `start_independent_work`만 별도 Work,
+`cancel_current_work`는 중단이다. 별도 queued Run은 현재 결과의 선 delivery가 명시됐거나 이미
+settlement·delivery됐거나 동일 Work에서 수행할 수 없을 때만 scheduling 결과로 사용한다. revise·extend의
+기본은 같은 Work ID·새 revision·현재 Run 안의 순차 실행이다. D는 이 의미 종단 자격 전까지 잠근다.
 
 admission은 본문만이 아니라 Conversation pointer·attachment identity·channel·sender·reply identity를 함께
 보존하고 queued 실행에서 같은 사용자 입력을 history와 current request에 중복 투영하지 않는다.
@@ -476,13 +481,13 @@ Terra·gpt-5.5 78만 자 라이브 자격과 새 코어 692/692를 통과했다.
 publication race도 durable terminal state를 사용자 surface보다 먼저 기록하도록 교정해 기본 제품 통합
 105/105를 통과했다.
 
-S2-B 인간 종단 재자격 — REPAIRED COMPLETE. `fa528923` 뒤 실제 console에서 확인된 attachment
+S2-B 인간 종단 재자격 — F01~F05 + PROCESS WAKE REPAIRED, F06 REOPENED. `fa528923` 뒤 실제 console에서 확인된 attachment
 admission 500, envelope·sender·reply 유실, Hand focus 뒤 Completion Proposal 소실,
 proposal·settlement blocker 불일치, followup 오분류를 B-R1~R5로 복구했다. Busy input은 inputId
 prepare→attachment input link→Conversation append→commit 뒤에만 202가 되며 실패·불완전 restart는 live
 partial state 없이 abort된다. 모델은 admission 시점·현재 결과 보존·실행 시간을 보고 의미 중심 선택값으로
-steer·followup·new work·cancel을 결정한다. Terra·gpt-5.5 24개 실제 console matrix가 24/24였고,
-전체 새 코어 689/689·기본 제품 통합 103/103을 통과했다. 근거:
+사용자 의미와 실행 scheduling 분리는 아직 최종 인간 자격 전이다. 기존 Terra·gpt-5.5 24/24는
+prompt와 시험에 같은 실패 문장을 사용했으므로 폐기했다. 근거:
 `refoundation/evidence/s2-b-work-conversation-continuity-2026-08-24.json`.
 
 ### S2-D — Time Continuity

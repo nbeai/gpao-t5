@@ -1,27 +1,41 @@
 #!/usr/bin/env node
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-
 import { makeConsoleModelAccess } from '../src/console-model-factory.js';
 import { makeConsoleServer } from '../src/console-server.js';
 
+function option(name) { const index = process.argv.indexOf(name); return index < 0 ? null : process.argv[index + 1]; }
+const holdoutPath = option('--holdout');
+if (!holdoutPath) throw new Error('--holdout is required; qualification expressions must not live in this source');
+const repeats = Number(option('--repeats') ?? 2); const requestedModel = option('--model-id');
+const onePerState = process.argv.includes('--one-per-state');
+const caseTimeoutMs = Number(option('--case-timeout-ms') ?? 120_000);
+const holdoutBytes = await readFile(resolve(holdoutPath)); const holdout = JSON.parse(holdoutBytes);
+const meanings = new Set(['revise_current_work', 'extend_current_work', 'start_independent_work', 'cancel_current_work']);
+const schedules = new Set(['within_current_work', 'after_current_delivery', 'independent_work', 'stop']);
+if (!Number.isInteger(repeats) || repeats < 1 || !Array.isArray(holdout.cases) || !holdout.cases.length) {
+  throw new Error('valid holdout cases and repeats are required');
+}
+for (const item of holdout.cases) if (!item.id || !item.initialRequest || !item.admittedText
+  || !meanings.has(item.expectedMeaning) || !schedules.has(item.expectedSchedule)
+  || !Array.isArray(item.mustInclude) || !Array.isArray(item.mustNotInclude ?? [])) {
+  throw new Error('invalid blind holdout case');
+}
+
 const sourceConnectionFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
-const models = ['api_key:openai:gpt-5.6-terra', 'chatgpt_oauth:gpt-5.5'];
-const phrases = {
-  steer: ['그건 PDF만 봐.', '지금 범위를 PDF 파일로만 바꿔줘.'],
-  followup: ['끝나면 표로도 정리해줘.', '현재 결과를 먼저 마치고 그 다음에 표를 만들어줘.'],
-  cancel: ['그건 멈춰.', '지금 하던 일은 중단해줘.'],
-};
-const room = await mkdtemp(join(tmpdir(), 't5-b-transition-live-'));
-const results = [];
-
+const models = requestedModel ? [requestedModel]
+  : ['api_key:openai:gpt-5.6-terra', 'chatgpt_oauth:gpt-5.5'];
+const cases = onePerState ? holdout.cases.filter((item, index, all) => all.findIndex((candidate) => (
+  candidate.expectedMeaning === item.expectedMeaning && candidate.expectedSchedule === item.expectedSchedule
+)) === index) : holdout.cases;
+const room = await mkdtemp(join(tmpdir(), 't5-b-semantic-live-')); const results = [];
 async function listen(server) {
   await new Promise((resolveListen, reject) => {
     server.once('error', reject); server.listen(0, '127.0.0.1', resolveListen);
-  });
-  return `http://127.0.0.1:${server.address().port}`;
+  }); return `http://127.0.0.1:${server.address().port}`;
 }
 
 for (const modelId of models) {
@@ -34,64 +48,92 @@ for (const modelId of models) {
   const access = makeConsoleModelAccess({ connectionFile, stateDir }); const scenarios = new Map();
   const server = makeConsoleServer({ stateDir, workspace, modelStatus: () => access.status(),
     modelFactory: async (context) => {
-      const scenario = scenarios.get(context.sessionId);
-      if (!scenario || scenario.initialModelCreated) return {
-        async respond() { return { text: '현재 결과를 정리했습니다.', toolCalls: [] }; },
-      };
-      scenario.initialModelCreated = true; const actual = await access.model(context); let call = 0;
+      const actual = await access.model(context); const scenario = scenarios.get(context.sessionId);
+      if (!scenario || scenario.initialModelCreated) return actual;
+      scenario.initialModelCreated = true; let first = true;
       return { async respond(input) {
-        call += 1;
-        if (call === 1) { scenario.started(); await scenario.gate; return { text: '현재 결과', toolCalls: [] }; }
-        if (call === 2) return actual.respond(input);
-        return { text: '사용자 변경을 반영했습니다.', toolCalls: [] };
+        if (first) { first = false; scenario.started(); }
+        return actual.respond(input);
       } };
     } });
   const base = await listen(server);
   try {
-    for (const [expected, variants] of Object.entries(phrases)) for (const phrase of variants) {
-      for (let repeat = 1; repeat <= 2; repeat += 1) {
-        const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
-        let started; const startedPromise = new Promise((resolveStarted) => { started = resolveStarted; });
-        let release; const gate = new Promise((resolveGate) => { release = resolveGate; });
-        scenarios.set(session.id, { started, gate, initialModelCreated: false });
-        const first = await fetch(`${base}/turn/stream-start`, { method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ sessionId: session.id, text: '여러 자료를 검토해서 결과를 만들어줘.' }),
-        }).then((response) => response.json());
-        const stream = fetch(`${base}/turn/stream?streamId=${first.streamId}`).then((response) => response.text());
-        await startedPromise; const began = performance.now();
-        const admittedResponse = await fetch(`${base}/turn/stream-start`, { method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ sessionId: session.id, text: phrase }),
-        });
-        const admitted = await admittedResponse.json(); release(); await stream;
-        let input = null;
-        for (let attempt = 0; attempt < 200; attempt += 1) {
-          input = (await server.workStore.read()).inputs.find((item) => item.inputId === admitted.inputId);
-          if (input?.relation) break;
-          await new Promise((resolveWait) => setTimeout(resolveWait, 20));
+    qualification: for (const item of cases) for (let repeat = 1; repeat <= repeats; repeat += 1) {
+      const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+      let started; const startedPromise = new Promise((resolveStarted) => { started = resolveStarted; });
+      scenarios.set(session.id, { started, initialModelCreated: false }); const began = performance.now();
+      const first = await fetch(`${base}/turn/stream-start`, { method: 'POST',
+        headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+          sessionId: session.id, text: item.initialRequest,
+        }) }).then((response) => response.json());
+      const streamController = new AbortController(); let monitoring = true;
+      const firstStream = fetch(`${base}/turn/stream?streamId=${first.streamId}`, {
+        signal: streamController.signal,
+      }).then((response) => response.text());
+      await startedPromise;
+      const admittedResponse = await fetch(`${base}/turn/stream-start`, { method: 'POST',
+        headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+          sessionId: session.id, text: item.admittedText,
+        }) });
+      const admitted = await admittedResponse.json();
+      const monitor = (async () => {
+        while (monitoring) {
+          for (const run of await server.runLedger.list({ sessionId: session.id })) {
+            if (run.status === 'failed') throw new Error('run_failed');
+            if (run.events.some((event) => event.type === 'tool_completed'
+              && event.payload?.receipt?.outcome === 'failed')) throw new Error('tool_failed');
+            if (run.status !== 'running') {
+              const state = await server.workStore.read(); const observed = state.inputs
+                .find((candidate) => candidate.inputId === admitted.inputId);
+              if (observed && !['executed', 'scheduled', 'classified', 'executing'].includes(observed.state)) {
+                throw new Error('input_no_progress_after_terminal_run');
+              }
+            }
+          }
+          await new Promise((resolveWait) => setTimeout(resolveWait, 25));
         }
-        const wallMs = performance.now() - began;
-        const state = await server.workStore.read();
-        const transitionEvents = state.events.filter((event) => event.type === 'input_classified'
-          && event.inputId === admitted.inputId);
-        const runs = await server.runLedger.list({ sessionId: session.id });
-        const classificationRun = runs.find((run) => run.events.some((event) => (
-          event.type === 'tool_started' && event.payload?.name === 'work_transition'
-        ))) ?? null;
-        const modelEvents = classificationRun?.events.filter((event) => event.type === 'model_completed') ?? [];
-        const toolEvents = classificationRun?.events.filter((event) => event.type === 'tool_completed') ?? [];
-        const usage = modelEvents.reduce((sum, event) => ({
-          inputTokens: sum.inputTokens + Number(event.payload?.response?.usage?.input_tokens ?? 0),
-          outputTokens: sum.outputTokens + Number(event.payload?.response?.usage?.output_tokens ?? 0),
-          totalTokens: sum.totalTokens + Number(event.payload?.response?.usage?.total_tokens ?? 0),
-        }), { inputTokens: 0, outputTokens: 0, totalTokens: 0 });
-        results.push({ modelId, expected, phrase, repeat, httpStatus: admittedResponse.status,
-          actual: input?.relation ?? null, inputState: input?.state ?? null,
-          classifications: transitionEvents.length, wallMs: Number(wallMs.toFixed(3)),
-          modelCalls: modelEvents.length, toolCalls: toolEvents.length, usage,
-          passed: admittedResponse.status === 202 && input?.relation === expected && transitionEvents.length === 1 });
+        return null;
+      })();
+      let earlyFailure = null;
+      try {
+        await Promise.race([firstStream, monitor, new Promise((_, reject) => setTimeout(
+          () => reject(new Error('case_timeout')), caseTimeoutMs,
+        ))]);
+      } catch (error) { earlyFailure = error; streamController.abort(); }
+      finally { monitoring = false; }
+      let input = null;
+      for (let attempt = 0; attempt < (earlyFailure ? 1 : 500); attempt += 1) {
+        input = (await server.workStore.read()).inputs.find((candidate) => candidate.inputId === admitted.inputId);
+        if (input?.state === 'executed') break;
+        await new Promise((resolveWait) => setTimeout(resolveWait, 20));
       }
+      const sessionState = await fetch(`${base}/sessions/${session.id}`).then((response) => response.json());
+      const surface = (sessionState.transcript ?? []).filter((entry) => entry.role === 'assistant')
+        .map((entry) => entry.result?.reply ?? '').join('\n');
+      const workState = await server.workStore.read(); const sessionWorks = workState.works
+        .filter((work) => work.sessionId === session.id);
+      const runs = await server.runLedger.list({ sessionId: session.id });
+      const modelEvents = runs.flatMap((run) => run.events.filter((event) => event.type === 'model_completed'));
+      const toolEvents = runs.flatMap((run) => run.events.filter((event) => event.type === 'tool_completed'));
+      const usage = modelEvents.reduce((sum, event) => ({
+        inputTokens: sum.inputTokens + Number(event.payload?.response?.usage?.input_tokens ?? 0),
+        outputTokens: sum.outputTokens + Number(event.payload?.response?.usage?.output_tokens ?? 0),
+        totalTokens: sum.totalTokens + Number(event.payload?.response?.usage?.total_tokens ?? 0),
+      }), { inputTokens: 0, outputTokens: 0, totalTokens: 0 });
+      const expectedWorks = item.expectedMeaning === 'start_independent_work' ? 2 : 1;
+      const expectedRuns = ['after_current_delivery', 'independent_work'].includes(item.expectedSchedule) ? 2 : 1;
+      const surfacePassed = item.mustInclude.every((marker) => surface.includes(marker))
+        && (item.mustNotInclude ?? []).every((marker) => !surface.includes(marker));
+      const passed = !earlyFailure && admittedResponse.status === 202 && input?.meaning === item.expectedMeaning
+        && input?.schedule === item.expectedSchedule && input?.state === 'executed'
+        && sessionWorks.length === expectedWorks && runs.length === expectedRuns && surfacePassed;
+      results.push({ modelId, caseId: item.id, repeat, expectedMeaning: item.expectedMeaning,
+        expectedSchedule: item.expectedSchedule, actualMeaning: input?.meaning ?? null,
+        actualSchedule: input?.schedule ?? null, inputState: input?.state ?? null,
+        works: sessionWorks.length, runs: runs.length, modelCalls: modelEvents.length,
+        toolCalls: toolEvents.length, usage, wallMs: Number((performance.now() - began).toFixed(3)),
+        surfacePassed, failure: earlyFailure?.message ?? null, passed });
+      if (earlyFailure) break qualification;
     }
   } finally {
     await server.closeMessengers(); server.closeWakeStreams(); await server.closeBrowsers();
@@ -99,19 +141,12 @@ for (const modelId of models) {
     await new Promise((resolveClose) => server.close(resolveClose));
   }
 }
-
-const report = { schema: 't5.s2-b-transition-live.v1', recordedAt: new Date().toISOString(),
+const report = { schema: 't5.s2-b-semantic-holdout-live.v1', recordedAt: new Date().toISOString(),
+  holdoutSha256: createHash('sha256').update(holdoutBytes).digest('hex'), expressionsPrinted: false,
   results, passed: results.every((item) => item.passed), total: results.length,
-  totals: results.reduce((sum, item) => ({ modelCalls: sum.modelCalls + item.modelCalls,
-    toolCalls: sum.toolCalls + item.toolCalls, inputTokens: sum.inputTokens + item.usage.inputTokens,
-    outputTokens: sum.outputTokens + item.usage.outputTokens,
-    totalTokens: sum.totalTokens + item.usage.totalTokens,
-    wallMs: sum.wallMs + item.wallMs }),
-  { modelCalls: 0, toolCalls: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, wallMs: 0 }),
   byModel: Object.fromEntries(models.map((modelId) => [modelId, {
     passed: results.filter((item) => item.modelId === modelId && item.passed).length,
     total: results.filter((item) => item.modelId === modelId).length,
   }])) };
-process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-await rm(room, { recursive: true, force: true });
+process.stdout.write(`${JSON.stringify(report, null, 2)}\n`); await rm(room, { recursive: true, force: true });
 if (!report.passed) process.exitCode = 1;

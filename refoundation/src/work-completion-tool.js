@@ -8,7 +8,9 @@ export function makeWorkCompletionTool({ store, runId } = {}) {
     }, required: ['outcome'], additionalProperties: false },
     async execute(args, context = {}) {
       const work = await store.workForRun(runId);
-      if (!work || work.revision !== work.claimedRevision) throw new Error('stale work revision');
+      if (!work || work.status !== 'active' || work.revision !== work.claimedRevision) {
+        throw new Error('current Run does not own the latest active work revision');
+      }
       const receipts = context.priorReceipts ?? [];
       const evaluation = evaluateWorkCompletion({ proposedOutcome: args.outcome, receipts });
       await store.proposeCompletion({ workId: work.workId, revision: work.revision, runId,

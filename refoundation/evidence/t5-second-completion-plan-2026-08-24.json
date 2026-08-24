@@ -10,7 +10,7 @@
   "secondCompletion": {
     "active": true,
     "sourceOfTruth": "T5-SECOND-COMPLETION.md",
-    "currentGate": "S2-D_TIME_CONTINUITY_READY",
+    "currentGate": "S2-B_F06_SEMANTIC_CONTINUITY_REOPENED",
     "firstProductChange": "shadow_resource_accounting_and_control",
     "a0IncidentFixtures": {
       "status": "complete",
@@ -79,15 +79,19 @@
       "humanConsoleQualificationReady": true
     },
     "bWorkConversationContinuity": {
-      "status": "repaired_complete_after_human_fail",
+      "status": "f01_to_f05_and_process_wake_repaired_f06_reopened",
       "evidence": "s2-b-work-conversation-continuity-2026-08-24.json",
       "durableBusyInputAdmission": true,
       "modelOwnsRelationJudgment": true,
       "revisionAwareExecution": true,
       "restartRestoresPendingAndQueued": true,
       "atomicAdmissionPrepareCommit": true,
-      "humanFailureRepairMatrixPassed": 24,
-      "humanFailureRepairMatrixTotal": 24
+      "humanFailureRepairMatrixRevoked": true,
+      "semanticMeaningSchedulingSplitImplemented": true,
+      "deterministicSemanticStatesPassed": 5,
+      "blindTerraPilotPassed": 1,
+      "blindTerraPilotTotal": 5,
+      "finalHumanQualificationPending": true
     },
     "cMemoryPortfolio": {
       "status": "repaired_complete",

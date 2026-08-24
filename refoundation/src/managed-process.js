@@ -332,7 +332,8 @@ export class ManagedProcessRegistry {
     const record = this.records.get(String(processId ?? ''));
     if (!record || !terminal(record.state) || record.metadata?.kind !== 'managed'
       || record.terminalObserved || record.wakeClaimed
-      || record.stopReason === 'runtime_shutdown' || record.stopReason === 'test_cleanup') return null;
+      || ['runtime_shutdown', 'test_cleanup', 'model_classified_cancel',
+        'user_cancelled', 'user_recovered_or_cancelled'].includes(record.stopReason)) return null;
     record.wakeClaimed = true;
     return {
       ...this.#snapshot(record),

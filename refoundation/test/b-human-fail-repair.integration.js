@@ -27,10 +27,9 @@ test('busy PNG와 source envelope은 prepare→commit 뒤 모델 한 message에 
         const projected = input.messages.filter((message) => String(message.content).includes('PNG만 함께 봐줘'));
         assert.equal(projected.length, 1); assert.equal(projected[0].modelAttachments.length, 1);
         assert.match(projected[0].content, /sender-42/u); assert.match(projected[0].content, /reply-7/u);
-        const inputId = /inputId=([^\n]+)/u.exec(projected[0].content)[1];
         return { text: '', toolCalls: [{ id: 'transition', name: 'work_transition', args: {
-          decisions: [{ inputId, relation: 'modify_current_result_now', currentResultDisposition: 'replace_or_modify',
-            executionTiming: 'current_run', cancelCurrent: false }],
+          decisions: [{ meaning: 'revise_current_work', schedule: 'within_current_work',
+            cancelCurrent: false }],
         } }] };
       }
       return { text: 'PNG 범위를 반영했습니다.', toolCalls: [] };

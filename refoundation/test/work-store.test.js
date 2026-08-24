@@ -11,7 +11,8 @@ test('WorkStore는 input admission·revision·proposal·settlement를 append-onl
   const work = await store.create({ sessionId: 'session', sourceMessageId: 'message-1' });
   const admitted = await store.admitInput({ sessionId: 'session', messageId: 'message-2', origin: 'console' });
   assert.equal(admitted.state, 'admitted');
-  const revision = await store.classifyInput({ inputId: admitted.inputId, relation: 'steer',
+  const revision = await store.classifyInput({ inputId: admitted.inputId,
+    meaning: 'revise_current_work', schedule: 'within_current_work',
     workId: work.workId, expectedRevision: 1 });
   assert.equal(revision.revision, 2);
   await store.claimExecution({ workId: work.workId, revision: 2, runId: 'run-1' });
@@ -19,7 +20,7 @@ test('WorkStore는 input admission·revision·proposal·settlement를 append-onl
   await store.settle({ workId: work.workId, revision: 2, outcome: 'achieved', runId: 'run-1' });
   const state = await store.read();
   assert.equal(state.works[0].status, 'completed');
-  assert.equal(state.inputs[0].relation, 'steer');
+  assert.equal(state.inputs[0].meaning, 'revise_current_work');
   assert.deepEqual(state.events.map((event) => event.sequence), [1, 2, 3, 4, 5, 6, 7]);
 });
 
@@ -27,9 +28,11 @@ test('stale revision classification과 settlement는 최신 Work를 바꾸지 �
   const store = new WorkStore(await mkdtemp(join(tmpdir(), 't5-work-stale-')));
   const work = await store.create({ sessionId: 'session', sourceMessageId: 'message-1' });
   const first = await store.admitInput({ sessionId: 'session', messageId: 'message-2' });
-  await store.classifyInput({ inputId: first.inputId, relation: 'steer', workId: work.workId, expectedRevision: 1 });
+  await store.classifyInput({ inputId: first.inputId, meaning: 'revise_current_work',
+    schedule: 'within_current_work', workId: work.workId, expectedRevision: 1 });
   const second = await store.admitInput({ sessionId: 'session', messageId: 'message-3' });
-  await assert.rejects(() => store.classifyInput({ inputId: second.inputId, relation: 'followup',
+  await assert.rejects(() => store.classifyInput({ inputId: second.inputId, meaning: 'extend_current_work',
+    schedule: 'within_current_work',
     workId: work.workId, expectedRevision: 1 }), /stale work revision/u);
   await assert.rejects(() => store.settle({ workId: work.workId, revision: 1,
     outcome: 'achieved', runId: 'old-run' }), /stale work revision/u);

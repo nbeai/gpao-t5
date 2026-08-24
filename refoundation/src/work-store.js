@@ -3,7 +3,9 @@ import { appendFile, chmod, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const SCHEMA = 't5.work-event.v1';
-const RELATIONS = new Set(['steer', 'followup', 'new_work', 'cancel']);
+const MEANINGS = new Set(['revise_current_work', 'extend_current_work',
+  'start_independent_work', 'cancel_current_work']);
+const SCHEDULES = new Set(['within_current_work', 'after_current_delivery', 'independent_work', 'stop']);
 const OUTCOMES = new Set(['achieved', 'unresolved', 'cancelled']);
 const clone = (value) => structuredClone(value);
 
@@ -53,9 +55,28 @@ export class WorkStore {
         const input = inputs.get(event.inputId); if (input) input.state = 'aborted';
       }
       if (event.type === 'input_classified') {
+        const legacy = { steer: ['revise_current_work', 'within_current_work'],
+          followup: ['extend_current_work', 'after_current_delivery'],
+          new_work: ['start_independent_work', 'independent_work'],
+          cancel: ['cancel_current_work', 'stop'] }[event.relation];
         const input = inputs.get(event.inputId); if (input) Object.assign(input,
-          { state: 'classified', relation: event.relation, workId: event.workId, revision: event.revision });
+          { state: 'classified', meaning: event.meaning ?? legacy?.[0],
+            schedule: event.schedule ?? legacy?.[1], workId: event.workId, revision: event.revision });
         const work = works.get(event.workId); if (work) work.revision = event.revision;
+      }
+      if (event.type === 'input_scheduled_after_delivery') {
+        const input = inputs.get(event.inputId); if (input) Object.assign(input, {
+          state: 'scheduled', meaning: event.meaning, schedule: 'after_current_delivery',
+          workId: event.workId, baseRevision: event.baseRevision, revision: null,
+        });
+      }
+      if (event.type === 'input_schedule_activated') {
+        const input = inputs.get(event.inputId); if (input) Object.assign(input, {
+          state: 'classified', revision: event.revision,
+        });
+        const work = works.get(event.workId); if (work) {
+          work.revision = event.revision; work.status = 'active';
+        }
       }
       if (event.type === 'input_execution_claimed') {
         const input = inputs.get(event.inputId); if (input) Object.assign(input,
@@ -105,8 +126,8 @@ export class WorkStore {
   }
   async queuedInputs(sessionId) {
     const state = await this.read(); return state.inputs.filter((input) => (
-      input.sessionId === sessionId && input.state === 'classified'
-      && ['followup', 'new_work'].includes(input.relation)
+      input.sessionId === sessionId && ((input.state === 'scheduled' && input.schedule === 'after_current_delivery')
+        || (input.state === 'classified' && input.schedule === 'independent_work'))
     ));
   }
   async prepareInputAdmission({ sessionId, messageId, origin = 'console', attachmentIds = [], source = {} }) {
@@ -132,15 +153,37 @@ export class WorkStore {
     const prepared = await this.prepareInputAdmission(fields);
     return this.commitInputAdmission(prepared.inputId);
   }
-  async classifyInput({ inputId, relation, workId, expectedRevision }) {
-    if (!RELATIONS.has(relation)) throw new TypeError('invalid work relation');
+  async classifyInput({ inputId, meaning, schedule, workId, expectedRevision }) {
+    if (!MEANINGS.has(meaning) || !SCHEDULES.has(schedule)) throw new TypeError('invalid work meaning or schedule');
+    const allowed = { revise_current_work: ['within_current_work'],
+      extend_current_work: ['within_current_work', 'after_current_delivery'],
+      start_independent_work: ['independent_work'], cancel_current_work: ['stop'] }[meaning];
+    if (!allowed.includes(schedule)) throw new Error('work meaning and schedule are inconsistent');
     const state = await this.read(); const input = state.inputs.find((item) => item.inputId === inputId);
     const work = state.works.find((item) => item.workId === workId);
     if (!input || input.state !== 'admitted') throw new Error('work input is not pending');
     if (!work || work.revision !== expectedRevision) throw new Error('stale work revision');
-    const revision = work.revision + 1;
-    await this.append('input_classified', { inputId, relation, workId, revision, expectedRevision });
-    return { workId, revision, relation };
+    if (schedule === 'after_current_delivery') {
+      await this.append('input_scheduled_after_delivery', {
+        inputId, meaning, schedule, workId, baseRevision: work.revision,
+      });
+      return { workId, revision: work.revision, baseRevision: work.revision, meaning, schedule };
+    }
+    const revision = schedule === 'independent_work' ? work.revision : work.revision + 1;
+    await this.append('input_classified', { inputId, meaning, schedule, workId, revision, expectedRevision });
+    return { workId, revision, meaning, schedule };
+  }
+  async activateScheduledInput(inputId) {
+    const state = await this.read(); const input = state.inputs.find((item) => item.inputId === String(inputId));
+    if (!input || input.state !== 'scheduled' || input.schedule !== 'after_current_delivery') {
+      throw new Error('work input is not scheduled after delivery');
+    }
+    const work = state.works.find((item) => item.workId === input.workId);
+    if (!work || work.revision !== input.baseRevision) throw new Error('stale scheduled work revision');
+    const revision = input.baseRevision + 1;
+    await this.append('input_schedule_activated', { inputId: input.inputId,
+      workId: input.workId, baseRevision: input.baseRevision, revision });
+    return { ...input, state: 'classified', revision };
   }
   async proposeCompletion({ workId, revision, runId, proposedOutcome = 'unresolved',
     verifiedOutcome = 'unresolved', blockerDigest = null, blockers = [] }) {
@@ -206,5 +249,10 @@ export class WorkStore {
       throw new Error('work input execution claim mismatch');
     }
     await this.append('input_executed', { inputId, runId }); return { inputId, state: 'executed' };
+  }
+  async executingInputsForRun(runId) {
+    const state = await this.read(); return state.inputs.filter((input) => (
+      input.state === 'executing' && input.executionRunId === runId
+    ));
   }
 }
