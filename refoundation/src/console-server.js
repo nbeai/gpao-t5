@@ -910,19 +910,24 @@ export function makeConsoleServer({
           }), runId: run.runId,
         });
       }
-      let activeWork = await workStore.activeForSession(sessionId);
-      if (!activeWork) activeWork = await workStore.create({
-        sessionId, sourceMessageId: `${run.runId}:user`,
-      });
-      await run.append({ type: 'work_bound', stepId: 'work', payload: {
-        workId: activeWork.workId, revision: activeWork.revision,
+      let activeWork = null;
+      if (!options.observationOnly) {
+        activeWork = await workStore.activeForSession(sessionId);
+        if (!activeWork) activeWork = await workStore.create({
+          sessionId, sourceMessageId: `${run.runId}:user`,
+        });
+        await run.append({ type: 'work_bound', stepId: 'work', payload: {
+          workId: activeWork.workId, revision: activeWork.revision,
+        } });
+        await workStore.claimExecution({ workId: activeWork.workId,
+          revision: activeWork.revision, runId: run.runId });
+        if (options.admittedInput) await workStore.claimInputExecution({
+          inputId: options.admittedInput.inputId, runId: run.runId,
+        });
+      } else await run.append({ type: 'work_observation', stepId: 'work', payload: {
+        originRunId: options.metadata?.originRunId ?? null,
       } });
-      await workStore.claimExecution({ workId: activeWork.workId,
-        revision: activeWork.revision, runId: run.runId });
-      if (options.admittedInput) await workStore.claimInputExecution({
-        inputId: options.admittedInput.inputId, runId: run.runId,
-      });
-      const working = workingMemoryProjection(await workStore.read(), activeWork.workId);
+      const working = activeWork ? workingMemoryProjection(await workStore.read(), activeWork.workId) : null;
       if (working) history.push({ role: 'assistant', content: [
         '[T5 CURRENT WORKING MEMORY — derived pointers, not conversation history]',
         JSON.stringify(working),
@@ -948,7 +953,7 @@ export function makeConsoleServer({
       const skillSnapshot = mergeSkillSnapshots([bundledSkillSnapshot, managedSkillSnapshot]);
       const capabilitySnapshot = await loadCapabilityCatalog({ directory: capabilitiesRoot });
       const offeredTools = [...terminal.tools];
-      offeredTools.unshift(makeWorkCompletionTool({ store: workStore, runId: run.runId }));
+      if (!options.observationOnly) offeredTools.unshift(makeWorkCompletionTool({ store: workStore, runId: run.runId }));
       offeredTools.unshift(makeWorkTransitionTool({
         store: workStore, sessionId, runId: run.runId,
         stopProcesses: () => processes.stopOwner(sessionId, 'model_classified_cancel'),
@@ -1144,7 +1149,8 @@ export function makeConsoleServer({
       offeredTools.unshift(makeMemoryTool({
         ledger: memories,
         source: { origin: 'foreground', sessionId, runId: run.runId,
-          messageId: `${run.runId}:user`, workId: activeWork.workId, revision: activeWork.revision },
+          messageId: `${run.runId}:user`, ...(activeWork
+            ? { workId: activeWork.workId, revision: activeWork.revision } : {}) },
       }));
       offeredTools.unshift(makeSessionSearchTool({
         ledger: conversations, sessions, currentSessionId: sessionId,
@@ -1902,6 +1908,7 @@ export function makeConsoleServer({
     ].join('\n');
     const completed = await executeTurn(event.ownerId, wakeText, () => {}, {
       trigger: 'managed_process_terminal',
+      observationOnly: true,
       metadata: {
         processId: process.processId,
         originRunId: process.metadata?.originRunId ?? null,

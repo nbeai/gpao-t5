@@ -528,6 +528,8 @@ test('관측되지 않은 process_start 완료가 같은 세션의 모델 Run을
     const wakeRun = details.find((run) => run.metadata.trigger === 'managed_process_terminal');
     assert.ok(wakeRun);
     assert.equal(wakeRun.metadata.originRunId, session.transcript[1].result.runId);
+    assert.equal(wakeRun.events.some((event) => event.type === 'work_bound'), false);
+    assert.equal(wakeRun.events.some((event) => event.type === 'work_observation'), true);
     let wakeWire = '';
     for (let attempt = 0; attempt < 10 && !wakeWire.includes('managed_process_wake'); attempt += 1) {
       const chunk = await Promise.race([

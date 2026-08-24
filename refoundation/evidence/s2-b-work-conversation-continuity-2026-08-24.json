@@ -52,7 +52,7 @@
     "whyPreviousCompletionWasWrong": "Unit WorkStore fixtures and narrow mock-model samples were treated as substitutes for the real console identity path. AttachmentStore run identity, Session origin projection, post-focus tool visibility, dual completion evaluation, and followup model behavior were not exercised together.",
     "admission": {"prepareCommit":true,"runIdNullAllowed":false,"failureLivePartialState":0,"restartPreparedCommitOrAbort":true},
     "projection": {"envelopeFields":["inputId","messageId","text","attachmentIds","channel","chatId","threadId","senderId","sourceMessageId","replyIdentity","admissionTime"],"perInputModelProjection":1,"imageModelInputPreserved":true},
-    "claims": {"openExecutionOwnerPerRevision":1,"settledHistoricalClaimBlocksNextRun":false,"inputExactOnce":true},
+    "claims": {"openExecutionOwnerPerRevision":1,"settledHistoricalClaimBlocksNextRun":false,"inputExactOnce":true,"processWakeCreatesWorkClaim":false,"processWakeCreatesSettlement":false,"processWakeBoundToOriginRunObservation":true},
     "completion": {"visibleAfterHandFocus":true,"sharedBlockerEvaluator":true,"proposalSettlementDigestMismatch":0,"responseEndIsProposal":false},
     "modelContract": {"runtimeLanguageRouter":false,"semanticFewShot":true,"internalRelationTermsRemovedFromModelChoices":true},
     "failedQualificationAttempts": [
@@ -69,7 +69,8 @@
     "workCompletionToolSha256":"09ae2c12c7156d8a35c12592335c16a32e8f8ec4b23cb0c98bbd8b653a912d97",
     "workCompletionEvaluatorSha256":"939f9b647421bdd4a77d6b8bcba6d0f34ebf78958ec3cd2b294250ac2d31ca5d",
     "agentLoopSha256":"056787f7f35150b7598607009f719f1f88f44e031f1c2ca998d6570b57613445",
-    "consoleServerSha256":"e62ea04b33c74abc2ff5f6abc45062075d5a129ec38bd4f188e6a1598d4102ab",
+    "consoleServerSha256":"707090ca63cc18c164faa5bc26b02e0bd6a3133c9aeb2b1ed2454676151fdb4f",
+    "processWakeIntegrationSha256":"e58bfe6b9986e40f8a09d1282709cc8907b769e25b797c15775b41f0b525fa19",
     "conversationLedgerSha256":"3261746e03e889807f1d071019d3028305b94c15fe4544ae90281e7175f0540b",
     "attachmentStoreSha256":"5f4807453899598627618c251a033b9f08658b634f39e09caabdd82fe94d8fc3",
     "consoleSessionStoreSha256":"e48d07a36fe76f309ee9c5860c4ec19cab2a3830062f2ef553502a3120bcb686",
