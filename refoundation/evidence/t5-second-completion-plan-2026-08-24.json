@@ -1,0 +1,44 @@
+{
+  "schema": "t5.second-completion-plan.v1",
+  "recordedAt": "2026-08-24T13:10:38+09:00",
+  "firstCompletion": {
+    "declared": true,
+    "sourceCommit": "81f29d23",
+    "releaseEligible": false,
+    "revokedPackage": "0.1.8"
+  },
+  "secondCompletion": {
+    "active": true,
+    "sourceOfTruth": "T5-REFOUNDATION.md",
+    "currentGate": "S2-A1_RESOURCE_ADMISSION_READY",
+    "firstProductChange": "provider_request_resource_reservation",
+    "newCanonicalStoresAllowed": [
+      "ResourceLedger",
+      "WorkStore"
+    ],
+    "gateOrder": [
+      "S2-A0_INCIDENT_REFERENCE_FIXTURES",
+      "S2-A1_RESOURCE_ADMISSION",
+      "S2-A2_DENSE_MODEL_ENVIRONMENT",
+      "S2-B_DURABLE_CORRECTION_RECOVERY",
+      "S2-C_TIME_CONTINUITY",
+      "S2-D_CONNECTED_REALITY",
+      "S2-E_GROWTH",
+      "S2-F_UI_ONLY_HAND_NOT_OPEN"
+    ],
+    "firstGateNonGoals": [
+      "WorkStore",
+      "InstructionCompiler",
+      "Queue",
+      "AutomationSemanticChange",
+      "MemoryRedesign",
+      "CapabilityLifecycleChange",
+      "Browser",
+      "UI",
+      "MultiAgent",
+      "NewConnector"
+    ]
+  },
+  "productBehaviorChanged": false,
+  "newPackageAllowed": false
+}
