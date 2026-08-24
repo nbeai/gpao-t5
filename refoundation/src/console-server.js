@@ -1194,10 +1194,10 @@ export function makeConsoleServer({
       // Rendered-page interaction is not a generally discoverable shortcut. It is promoted
       // by web_read only after an exact URL establishes a rendered/login boundary.
       const searchable = deferredTools.filter((tool) => tool.deferred
-        && tool.name !== 'browser' && tool.name !== 'work_transition');
+        && tool.name !== 'browser' && tool.name !== 'work_control');
       if (informationControl === 'research-first-v1') {
         for (const tool of deferredTools) {
-          if (tool.name !== 'browser' && tool.name !== 'work_transition'
+          if (tool.name !== 'browser' && tool.name !== 'work_control'
             && !searchable.some((candidate) => candidate.name === tool.name)) searchable.push(tool);
         }
       }
@@ -1236,10 +1236,14 @@ export function makeConsoleServer({
         resourceSituationMode,
         activeOptimizationMode,
         takeAdmittedWorkInputs: async () => {
-          const pending = await workStore.pendingInputs(sessionId);
+          let pending = await workStore.pendingInputs(sessionId);
           if (!pending.length) return [];
           const conversation = await conversations.read(sessionId);
           const currentWork = await workStore.activeForSession(sessionId);
+          if (!currentWork) return [];
+          await workStore.presentInputs({ sessionId, workId: currentWork.workId,
+            revision: currentWork.revision, runId: run.runId });
+          pending = await workStore.presentedInputs(sessionId, run.runId);
           const objective = currentWork ? conversation.entries.find((candidate) => (
             candidate.messageId === currentWork.sourceMessageId
           ))?.message?.content ?? null : null;
@@ -1256,6 +1260,12 @@ export function makeConsoleServer({
                   ? 'delivered_or_produced' : 'not_delivered' } : null,
               modelAttachments: await modelImageInputs({ store: attachments, sessionId, records }) };
           }));
+        },
+        applyAdmittedWorkInputs: async () => {
+          const current = await workStore.activeForSession(sessionId);
+          if (!current) throw new Error('active work not found');
+          return workStore.applyPresentedToCurrentWork({ sessionId,
+            workId: current.workId, runId: run.runId });
         },
         onEvent: async (event) => {
           if (event.type === 'model_start') {
@@ -1454,32 +1464,6 @@ export function makeConsoleServer({
         ...(options.trigger && options.trigger !== 'user' ? { trigger: options.trigger } : {}),
         selfStateSummary: selfState(connection, workspace, browserReady),
       };
-      if ((!options.trigger || options.trigger === 'user') && session.origin?.channel === 'telegram'
-        && surfaceResult.kind === 'reply') {
-        try {
-          const delivery = await messenger.sendToSession({
-            sessionId, text: surfaceResult.reply, signal: controller.signal,
-          });
-          if (delivery.sent) {
-            surfaceResult.channelDelivery = {
-              provider: 'telegram', sent: true,
-              messageIds: structuredClone(delivery.messageIds ?? []),
-            };
-            await run.append({
-              type: 'channel_delivery_completed', stepId: 'telegram-delivery',
-              payload: surfaceResult.channelDelivery,
-            });
-          }
-        } catch (error) {
-          surfaceResult.channelDelivery = {
-            provider: 'telegram', sent: false, reason: error?.code ?? 'telegram_delivery_failed',
-          };
-          await run.append({
-            type: 'channel_delivery_failed', stepId: 'telegram-delivery',
-            payload: surfaceResult.channelDelivery,
-          });
-        }
-      }
       const recoveryEvidence = recoveryEvidenceForTurn({
         userText: text, reply: surfaceResult.reply, kind: surfaceResult.kind,
         failureCode: surfaceResult.failureCode ?? null, receipts: result.receipts,
@@ -1489,21 +1473,21 @@ export function makeConsoleServer({
         session, currentUserText: text, currentResult: surfaceResult, evidence: recoveryEvidence,
       });
       if (recovery) surfaceResult.recovery = { ...recovery, recoveryId: run.runId };
-      const settledWork = await workStore.workForRun(run.runId);
+      const settledWork = await workStore.workForRun(run.runId); let objectiveOutcome = 'unresolved';
       if (settledWork && settledWork.revision === settledWork.claimedRevision
         && settledWork.status === 'active') {
         const proposal = await workStore.proposalForRun(run.runId);
         const evaluation = evaluateWorkCompletion({
           proposedOutcome: proposal?.proposedOutcome ?? 'unresolved', receipts: result.receipts,
           facts: { approvalPending: Boolean(approvalReceipt),
-            handoffPending: Boolean(browserHandoff || connectionHandoff),
-            deliveryMissing: surfaceResult.channelDelivery?.sent === false },
+            handoffPending: Boolean(browserHandoff || connectionHandoff) },
         });
         if (proposal) await workStore.verifyCompletion({ workId: settledWork.workId,
           revision: settledWork.revision, runId: run.runId,
           verifiedOutcome: evaluation.verifiedOutcome, blockerDigest: evaluation.blockerDigest,
           blockers: evaluation.blockers });
         const unresolved = evaluation.verifiedOutcome !== 'achieved';
+        objectiveOutcome = unresolved ? 'unresolved' : 'achieved';
         await workStore.settle({ workId: settledWork.workId, revision: settledWork.revision,
           outcome: unresolved ? 'unresolved' : 'achieved', runId: run.runId });
         await run.append({ type: unresolved ? 'work_unresolved' : 'work_settled', stepId: 'work-settlement',
@@ -1514,10 +1498,42 @@ export function makeConsoleServer({
       for (const input of await workStore.executingInputsForRun(run.runId)) {
         await workStore.completeInputExecution({ inputId: input.inputId, runId: run.runId });
       }
+      const resultDigest = createHash('sha256').update(JSON.stringify(surfaceResult)).digest('hex');
+      await workStore.recordResultReady({ runId: run.runId, sessionId,
+        workId: settledWork?.workId ?? null, revision: settledWork?.claimedRevision ?? null,
+        objectiveOutcome, resultDigest, surfaceResult });
+      await run.append({ type: 'result_ready_pending_surface', stepId: 'result-publication',
+        payload: { resultDigest, objectiveOutcome, workId: settledWork?.workId ?? null,
+          revision: settledWork?.claimedRevision ?? null } });
       await options.beforeSurfacePersist?.({ runId: run.runId, surfaceResult });
       await sessions.append(sessionId, { role: 'assistant', result: surfaceResult });
       surfacePersisted = true;
+      await workStore.markResultSurfacePersisted(run.runId);
       await run.append({ type: 'surface_persisted', payload: { role: 'assistant' } });
+      let deliveryTerminal = { provider: 'console', state: 'persisted' };
+      if ((!options.trigger || options.trigger === 'user') && session.origin?.channel === 'telegram'
+        && surfaceResult.kind === 'reply') {
+        await workStore.markResultDeliveryStarted(run.runId, { provider: 'telegram', state: 'started' });
+        try {
+          const delivery = await messenger.sendToSession({
+            sessionId, text: surfaceResult.reply, signal: controller.signal,
+          });
+          deliveryTerminal = delivery.sent ? { provider: 'telegram', state: 'sent',
+            messageIds: structuredClone(delivery.messageIds ?? []) }
+            : { provider: 'telegram', state: 'failed', reason: 'not_sent' };
+        } catch (error) {
+          deliveryTerminal = { provider: 'telegram', state: 'failed',
+            reason: error?.code ?? 'telegram_delivery_failed' };
+        }
+        surfaceResult.channelDelivery = { provider: 'telegram', sent: deliveryTerminal.state === 'sent',
+          ...(deliveryTerminal.messageIds ? { messageIds: deliveryTerminal.messageIds } : {}),
+          ...(deliveryTerminal.reason ? { reason: deliveryTerminal.reason } : {}) };
+        await run.append({ type: deliveryTerminal.state === 'sent'
+          ? 'channel_delivery_completed' : 'channel_delivery_failed', stepId: 'telegram-delivery',
+        payload: surfaceResult.channelDelivery });
+      }
+      await workStore.markResultDeliveryTerminal(run.runId, deliveryTerminal);
+      await run.append({ type: 'delivery_terminal', stepId: 'result-delivery', payload: deliveryTerminal });
       await run.finish('completed', { modelTurns: result.modelTurns, receiptCount: result.receipts.length });
       runFinished = true;
       resourceRunStatus = 'completed';
@@ -1559,7 +1575,10 @@ export function makeConsoleServer({
         session, currentUserText: text, currentResult: failureSurface, evidence: recoveryEvidence,
       });
       if (recovery) failureSurface.recovery = { ...recovery, recoveryId: run.runId };
-      if (!surfacePersisted) {
+      const pendingReadyResult = (await workStore.read()).results.find((item) => (
+        item.runId === run.runId && item.state === 'pending_surface'
+      ));
+      if (!surfacePersisted && !pendingReadyResult) {
         await sessions.append(sessionId, { role: 'assistant', result: failureSurface }).catch(() => {});
         surfacePersisted = true;
         await run.append({
@@ -1656,6 +1675,48 @@ export function makeConsoleServer({
       }
     },
     log: (...values) => onError?.(new Error(values.map(String).join(' '))),
+  });
+  async function recoverResultPublications() {
+    const recovered = [];
+    for (let result of (await workStore.read()).results.filter((item) => item.state !== 'delivery_terminal')) {
+      const session = await sessions.load(result.sessionId);
+      if (!session) continue;
+      if (result.state === 'pending_surface') {
+        const exists = (session.transcript ?? []).some((entry) => entry.role === 'assistant'
+          && entry.result?.runId === result.runId);
+        if (!exists) await sessions.append(result.sessionId, { role: 'assistant', result: result.surfaceResult });
+        result = await workStore.markResultSurfacePersisted(result.runId);
+        await runLedger.appendRecoveredSurface(result.runId, 'surface_persisted', {
+          role: 'assistant', recovered: true,
+        }).catch((error) => onError?.(error));
+      }
+      let delivery;
+      if (result.state === 'delivery_started') {
+        delivery = { provider: result.delivery?.provider ?? 'unknown', state: 'unknown',
+          reason: 'runtime_restarted_after_delivery_dispatch' };
+      } else if (session.origin?.channel === 'telegram' && result.surfaceResult?.kind === 'reply') {
+        await workStore.markResultDeliveryStarted(result.runId, { provider: 'telegram', state: 'started' });
+        try {
+          const sent = await messenger.sendToSession({ sessionId: result.sessionId,
+            text: result.surfaceResult.reply });
+          delivery = sent.sent ? { provider: 'telegram', state: 'sent',
+            messageIds: structuredClone(sent.messageIds ?? []) }
+            : { provider: 'telegram', state: 'failed', reason: 'not_sent' };
+        } catch (error) {
+          delivery = { provider: 'telegram', state: 'failed',
+            reason: error?.code ?? 'telegram_delivery_failed' };
+        }
+      } else delivery = { provider: 'console', state: 'persisted' };
+      await workStore.markResultDeliveryTerminal(result.runId, delivery);
+      await runLedger.appendRecoveredSurface(result.runId, 'delivery_terminal', {
+        ...delivery, recovered: true,
+      }).catch((error) => onError?.(error));
+      recovered.push({ runId: result.runId, delivery: delivery.state });
+    }
+    return recovered;
+  }
+  const resultPublicationRecovery = recoverResultPublications().catch((error) => {
+    onError?.(error); return [];
   });
   const connectionServices = new Map(workspaceConnectionServices.map((service) => {
     if (!service?.id || !service?.label || !service?.category || typeof service.inspect !== 'function') {
@@ -1977,6 +2038,7 @@ export function makeConsoleServer({
         return;
       }
       await admissionRecovery;
+      await resultPublicationRecovery;
       if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
         const source = await readFile(resolve(uiRoot, 'index.html'), 'utf8');
         const withRuntime = source.replace(
@@ -2754,6 +2816,7 @@ export function makeConsoleServer({
     }
   });
   server.managedProcesses = processes;
+  server.sessionStore = sessions;
   server.conversationLedger = conversations;
   server.workStore = workStore;
   server.resumeQueuedWork = async () => {
@@ -2767,6 +2830,7 @@ export function makeConsoleServer({
   server.capabilityLifecycleLedger = capabilityLifecycle;
   server.attachmentStore = attachments;
   server.recoverPreparedAdmissions = () => admissionRecovery;
+  server.recoverResultPublications = () => resultPublicationRecovery;
   server.messengerGateway = messenger;
   server.messengerStateStore = messengerState;
   server.messengerCredentialStore = messengerCredentials;

@@ -2,6 +2,7 @@ import { makeContextReceipt } from './context-receipt.js';
 import {
   reserveProviderAttempt, settleProviderSuccess, settleProviderUnknown,
 } from './provider-request-accounting.js';
+import { takeUnseenUserMessages } from './incremental-user-messages.js';
 
 const DEFAULT_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses';
 const TRANSIENT_CODES = new Set(['server_is_overloaded', 'server_error', 'rate_limit_exceeded', 'empty_response']);
@@ -136,7 +137,9 @@ export function makeChatGptResponsesModel({
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1) throw new TypeError('maxAttempts must be positive');
   const input = [];
   const returned = new Set();
+  const seenUsers = new Map();
   let started = false;
+  let lastResponseStart = null;
 
   return {
     async respond({
@@ -149,10 +152,13 @@ export function makeChatGptResponsesModel({
       if (!requestModel) throw new Error('ChatGPT OAuth connection has no model id');
       if (!started) {
         input.push(...initialInput(messages));
+        takeUnseenUserMessages(messages, seenUsers);
         for (const message of messages) {
           if (message?.role === 'tool' && message.toolCallId) returned.add(message.toolCallId);
         }
         started = true;
+      } else {
+        input.push(...initialInput(takeUnseenUserMessages(messages, seenUsers)));
       }
       for (const message of messages) {
         if (message?.role !== 'tool' || !message.toolCallId || returned.has(message.toolCallId)) continue;
@@ -176,6 +182,7 @@ export function makeChatGptResponsesModel({
         input: body.input, tools: body.tools, sourceMessages: messages, body,
       });
       await onContextReceipt?.(structuredClone(contextReceipt));
+      const responseStart = input.length;
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         await dump?.({
           body,
@@ -241,7 +248,7 @@ export function makeChatGptResponsesModel({
           await settleProviderSuccess(resourceObserver, resourceHandle, {
             usage: parsed.usage ?? null, responseId: parsed.id ?? null,
           });
-          input.push(...structuredClone(parsed.output));
+          input.push(...structuredClone(parsed.output)); lastResponseStart = responseStart;
           return {
             text: parsed.text,
             toolCalls: callsFromOutput(parsed.output),
@@ -259,6 +266,10 @@ export function makeChatGptResponsesModel({
         await wait(retryDelayMs * attempt);
       }
       throw new ChatGptTransportError('ChatGPT OAuth attempts exhausted');
+    },
+    supersedeLastResponse() {
+      if (lastResponseStart == null) return false;
+      input.splice(lastResponseStart); lastResponseStart = null; return true;
     },
   };
 }

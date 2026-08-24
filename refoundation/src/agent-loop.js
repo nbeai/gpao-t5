@@ -229,6 +229,7 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [],
  *   resourceSituationMode?:'off'|'current-v1',
  *   activeOptimizationMode?:'off'|'model-selected-v1',
  *   takeAdmittedWorkInputs?:()=>Promise<Array<{inputId:string,text:string,attachmentIds?:string[],source?:object,currentWork?:object,modelAttachments?:object[]}>>,
+ *   applyAdmittedWorkInputs?:(inputs:Array<{inputId:string}>)=>Promise<unknown>,
  *   onEvent?:(event:object)=>void|Promise<void>,
  * }} input
  */
@@ -247,6 +248,7 @@ export async function runAgent({
   resourceSituationMode = 'current-v1',
   activeOptimizationMode = 'model-selected-v1',
   takeAdmittedWorkInputs = null,
+  applyAdmittedWorkInputs = null,
   onEvent,
 }) {
   if (typeof request !== 'string' || !request.trim()) throw new TypeError('request is required');
@@ -292,6 +294,7 @@ export async function runAgent({
   const routeActivatedTools = new Set();
   let lastResourceSituationKey = null;
   let completionReminderSent = false;
+  let finalAnswerReminderSent = false;
   let lastTurnToolCalls = 0;
   const projectedWorkInputIds = new Set();
   const completionSatisfied = () => Boolean(requiredCompletionTool && receipts.some((receipt) => (
@@ -304,17 +307,15 @@ export async function runAgent({
     modelTurns += 1;
     const admittedWorkInputs = typeof takeAdmittedWorkInputs === 'function'
       ? await takeAdmittedWorkInputs() : [];
-    if (registry.has('work_transition')) {
-      if (admittedWorkInputs.length) activeTools.add('work_transition');
-      else activeTools.delete('work_transition');
-      definitions = admittedWorkInputs.length
-        ? [toolDefinition(registry.get('work_transition'))]
-        : [...activeTools].map((name) => toolDefinition(registry.get(name)));
+    if (registry.has('work_control')) {
+      if (admittedWorkInputs.length) activeTools.add('work_control');
+      else activeTools.delete('work_control');
+      definitions = [...activeTools].map((name) => toolDefinition(registry.get(name)));
     }
     for (const [admissionIndex, input] of admittedWorkInputs.entries()) {
       if (projectedWorkInputIds.has(input.inputId)) continue;
       projectedWorkInputIds.add(input.inputId);
-      transcript.push({ role: 'user', content: [
+      transcript.push({ role: 'user', workInputId: input.inputId, content: [
         '[T5 NEWLY ADMITTED USER MESSAGE — classify against the current user purpose before acting]',
         `admissionIndex=${admissionIndex + 1}`,
         `currentWork=${JSON.stringify(input.currentWork ?? null)}`,
@@ -371,8 +372,6 @@ export async function runAgent({
       ...(situationBlock ? { runtimeContext: situationBlock } : {}),
       ...(completionReminderSent && requiredCompletionTool && !completionSatisfied() ? {
         toolChoice: { requiredToolName: requiredCompletionTool },
-      } : admittedWorkInputs.length ? {
-        toolChoice: { requiredToolName: 'work_transition' },
       } : {}),
       signal,
       ...(resourceObserver ? { resourceObserver } : {}),
@@ -417,15 +416,35 @@ export async function runAgent({
       error.resource = 'provider_tokens'; error.used = providerTokens; error.limit = maxProviderTokens;
       throw error;
     }
-    if (!admittedWorkInputs.length && typeof takeAdmittedWorkInputs === 'function') {
-      const arrivedDuringModelCall = await takeAdmittedWorkInputs();
+    if (typeof takeAdmittedWorkInputs === 'function') {
+      const boundaryAfterModelCall = await takeAdmittedWorkInputs();
+      const startedWith = new Set(admittedWorkInputs.map((input) => input.inputId));
+      const arrivedDuringModelCall = boundaryAfterModelCall.filter((input) => !startedWith.has(input.inputId));
       if (arrivedDuringModelCall.length) {
+        await model.supersedeLastResponse?.();
+        const boundaryIds = new Set(boundaryAfterModelCall.map((input) => input.inputId));
+        for (let index = transcript.length - 1; index >= 0; index -= 1) {
+          if (boundaryIds.has(transcript[index]?.workInputId)) transcript.splice(index, 1);
+        }
+        for (const input of boundaryAfterModelCall) projectedWorkInputIds.delete(input.inputId);
         lastTurnToolCalls = 0;
         await onEvent?.({ type: 'model_superseded_by_admission', turn: modelTurns,
-          inputCount: arrivedDuringModelCall.length,
+          inputCount: boundaryAfterModelCall.length, newlyArrived: arrivedDuringModelCall.length,
           discardedToolCalls: response.toolCalls.length, discardedAnswer: Boolean(response.text) });
         continue;
       }
+    }
+    if (admittedWorkInputs.length) {
+      const controlCalls = response.toolCalls.filter((call) => String(call?.name ?? '') === 'work_control');
+      if (controlCalls.length > 1) throw new Error('only one work control call is allowed per presented input');
+      if (controlCalls.length) {
+        if (response.toolCalls.length > 1) await onEvent?.({ type: 'model_tail_superseded_by_work_control',
+          turn: modelTurns, discardedToolCalls: response.toolCalls.length - 1 });
+        response.toolCalls = controlCalls;
+      } else if (typeof applyAdmittedWorkInputs === 'function') {
+        await applyAdmittedWorkInputs(admittedWorkInputs);
+      }
+      lastTurnToolCalls = response.toolCalls.length;
     }
     transcript.push({
       role: 'assistant',
@@ -449,6 +468,19 @@ export async function runAgent({
     const forcedRunBlock = runControl.action === 'block' ? runControl : null;
 
     if (!response.toolCalls.length) {
+      const workCompletionRecorded = receipts.some((receipt) => (
+        receipt.actualCall?.name === 'work_completion' && receipt.outcome === 'succeeded'
+      ));
+      if (workCompletionRecorded && !String(response.text ?? '').trim()) {
+        if (finalAnswerReminderSent) throw new Error('completion proposal has no final user answer');
+        finalAnswerReminderSent = true; definitions = [];
+        transcript.push({ role: 'user', content: [
+          '[T5 RESULT PUBLICATION STATE]',
+          'The completion proposal is recorded. Write the final user answer now.',
+          'Do not call another tool and do not mention this internal state.',
+        ].join('\n') });
+        continue;
+      }
       if (requiredCompletionTool && !completionSatisfied()) {
         if (completionReminderSent) {
           const error = new Error('required completion receipt is missing');
@@ -680,6 +712,27 @@ export async function runAgent({
       }
       if (!parallelResults && (signal?.aborted || receipt.outcome === 'cancelled')) {
         return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
+      }
+      if (!parallelResults && callIndex < response.toolCalls.length - 1
+        && typeof takeAdmittedWorkInputs === 'function') {
+        const arrivedDuringTool = await takeAdmittedWorkInputs();
+        if (arrivedDuringTool.length) {
+          for (const tailCall of response.toolCalls.slice(callIndex + 1)) {
+            const tailRequested = requestedCall(tailCall); const skipped = {
+              toolCallId: tailRequested.id, requestedCall: tailRequested, actualCall: null,
+              outcome: 'not_executed', result: { state: 'superseded_by_admission', executionStarted: false },
+            };
+            receipts.push(skipped); transcript.push(toolMessage(skipped));
+            await onEvent?.({ type: 'tool_end', turn: modelTurns, name: tailRequested.name,
+              outcome: skipped.outcome, receipt: structuredClone(skipped) });
+            await resourceRun?.observeTool({ turn: modelTurns, toolCallId: tailRequested.id,
+              name: tailRequested.name, outcome: skipped.outcome, startedAt: Date.now(),
+              executed: false, progressState: 'none' }).catch(() => {});
+          }
+          await onEvent?.({ type: 'tool_tail_superseded_by_admission', turn: modelTurns,
+            completedToolCallId: requested.id, skippedToolCalls: response.toolCalls.length - callIndex - 1 });
+          break;
+        }
       }
     }
     if (parallelResults && (signal?.aborted || parallelResults.some((item) => item.receipt.outcome === 'cancelled'))) {

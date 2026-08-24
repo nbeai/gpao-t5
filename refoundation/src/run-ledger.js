@@ -126,4 +126,17 @@ export class RunLedger {
     }
     return runs.sort((left, right) => right.startedAt.localeCompare(left.startedAt));
   }
+  async appendRecoveredSurface(runId, type, payload = {}) {
+    if (!['surface_persisted', 'delivery_terminal'].includes(type)) {
+      throw new TypeError('invalid recovered surface event');
+    }
+    const run = await this.read(runId);
+    if (run.events.some((event) => event.type === type)) return run;
+    const event = { schema: SCHEMA, runId: run.runId, sequence: run.events.length + 1,
+      recordedAt: new Date().toISOString(), type, payload: clone(payload) };
+    await appendFile(join(this.directory, `${run.runId}.jsonl`), `${JSON.stringify(event)}\n`, {
+      encoding: 'utf8', mode: 0o600,
+    });
+    return this.read(run.runId);
+  }
 }

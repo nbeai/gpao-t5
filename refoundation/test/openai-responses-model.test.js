@@ -160,6 +160,28 @@ test('Responses adapter는 모델 output 전체와 같은 call_id의 도구 결�
   }
 });
 
+test('Responses adapter는 mid-run 새 user를 한 번 append하고 superseded output을 provider history에서 뺀다', async () => {
+  const requests = []; let call = 0;
+  const model = makeOpenAIResponsesModel({ apiKey: SECRET, model: 'gpt-test',
+    fetchImpl: async (_url, init) => {
+      requests.push(JSON.parse(init.body)); call += 1;
+      return jsonResponse({ id: `r-${call}`, output: [{ type: 'message', role: 'assistant',
+        content: [{ type: 'output_text', text: call === 1 ? 'STALE' : 'CURRENT' }] }] });
+    } });
+  await model.respond({ messages: [{ role: 'user', content: '처음 요청' }], tools: [] });
+  assert.equal(model.supersedeLastResponse(), true);
+  const messages = [{ role: 'user', content: '처음 요청' },
+    { role: 'user', workInputId: 'input-1', content: '실행 중 교정' }];
+  await model.respond({ messages, tools: [] });
+  await model.respond({ messages, tools: [] });
+  assert.deepEqual(requests[1].input.slice(0, 2), [
+    { role: 'user', content: '처음 요청' }, { role: 'user', content: '실행 중 교정' },
+  ]);
+  assert.equal(JSON.stringify(requests[1].input).includes('STALE'), false);
+  assert.equal(requests[2].input.filter((item) => item.role === 'user'
+    && item.content === '실행 중 교정').length, 1);
+});
+
 test('Responses adapter 오류는 API 키를 사용자 오류문에 노출하지 않는다', async () => {
   const model = makeOpenAIResponsesModel({
     apiKey: SECRET,

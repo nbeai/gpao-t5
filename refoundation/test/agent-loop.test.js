@@ -342,6 +342,21 @@ test('예약 Run은 필수 목적 영수증 없이 최종 문장으로 종료할
   assert.equal(result.receipts[0].actualCall.name, 'automation_outcome');
 });
 
+test('work completion proposal 뒤 빈 응답은 한 번만 최종 답 상태를 다시 공급한다', async () => {
+  let turn = 0;
+  const model = { async respond(input) {
+    turn += 1;
+    if (turn === 1) return { text: '', toolCalls: [{ id: 'proposal', name: 'work_completion', args: {} }] };
+    if (turn === 2) return { text: '', toolCalls: [] };
+    assert.match(input.messages.at(-1).content, /RESULT PUBLICATION STATE/u);
+    return { text: '사용자 최종 답입니다.', toolCalls: [] };
+  } };
+  const tool = { name: 'work_completion', description: 'fixture', parameters: { type: 'object' },
+    async execute() { return { state: 'proposal_recorded', verifiedOutcome: 'achieved' }; } };
+  const result = await runAgent({ request: '일을 끝내줘', model, tools: [tool] });
+  assert.equal(result.answer, '사용자 최종 답입니다.'); assert.equal(turn, 3);
+});
+
 test('검증된 무진전 차단 영수증 뒤에도 같은 호출을 고집하면 Run을 멈춘다', async () => {
   let executed = 0;
   const model = { async respond() { return {

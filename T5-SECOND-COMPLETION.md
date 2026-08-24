@@ -433,11 +433,13 @@ process wake 복구는 유지한다. 다만 실패 문장을 tool few-shot에 �
 남으면 `unresolved`, 요구 영수증이 정산된 경우에만 `achieved`다. Terra는 자연어 교정을
 내부 용어 노출은 0이어야 한다. 근거: `refoundation/evidence/s2-b-work-conversation-continuity-2026-08-24.json`
 
-사용자 의미와 scheduling을 분리한다. `revise_current_work`는 현재 범위·방법·결과 수정,
-`extend_current_work`는 현재 Work를 유지한 단계·결과물 추가, `start_independent_work`만 별도 Work,
-`cancel_current_work`는 중단이다. 별도 queued Run은 현재 결과의 선 delivery가 명시됐거나 이미
-settlement·delivery됐거나 동일 Work에서 수행할 수 없을 때만 scheduling 결과로 사용한다. revise·extend의
-기본은 같은 Work ID·새 revision·현재 Run 안의 순차 실행이다. D는 이 의미 종단 자격 전까지 잠근다.
+필수 semantic classifier는 제거한다. 실행 중 입력은 ordered active mailbox boundary에서 원문 user message로
+전부 공급하며, 별도 control이 없으면 batch 전체를 같은 Work의 R+1·현재 Run에 적용한다. 예외적인
+`defer_after_delivery·start_independent_work·cancel_current_work·resume_paused_work`만 `work_control`로
+durable scheduling을 바꾼다. model call 중 새 admission은 아직 실행하지 않은 response/tool을 supersede하고,
+tool 실행 중 admission은 시작한 Hand만 정산하며 tail은 실행하지 않는다. 결과 publication은
+`result_ready_pending_surface→surface_persisted→delivery_terminal`로 분리하고 crash 뒤 모델·도구 재실행 없이
+exact result를 복구한다. D는 Terra·gpt-5.5·blind 인간 종단 자격 전까지 잠근다.
 
 admission은 본문만이 아니라 Conversation pointer·attachment identity·channel·sender·reply identity를 함께
 보존하고 queued 실행에서 같은 사용자 입력을 history와 current request에 중복 투영하지 않는다.
@@ -486,7 +488,7 @@ admission 500, envelope·sender·reply 유실, Hand focus 뒤 Completion Proposa
 proposal·settlement blocker 불일치, followup 오분류를 B-R1~R5로 복구했다. Busy input은 inputId
 prepare→attachment input link→Conversation append→commit 뒤에만 202가 되며 실패·불완전 restart는 live
 partial state 없이 abort된다. 모델은 admission 시점·현재 결과 보존·실행 시간을 보고 의미 중심 선택값으로
-사용자 의미와 실행 scheduling 분리는 아직 최종 인간 자격 전이다. 기존 Terra·gpt-5.5 24/24는
+classifier-free mailbox·exception control·publication deterministic 종단은 완료됐다. 기존 Terra·gpt-5.5 24/24는
 prompt와 시험에 같은 실패 문장을 사용했으므로 폐기했다. 근거:
 `refoundation/evidence/s2-b-work-conversation-continuity-2026-08-24.json`.
 

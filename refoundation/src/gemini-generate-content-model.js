@@ -2,6 +2,7 @@ import { makeContextReceipt } from './context-receipt.js';
 import {
   reserveProviderAttempt, settleProviderSuccess, settleProviderUnknown,
 } from './provider-request-accounting.js';
+import { takeUnseenUserMessages } from './incremental-user-messages.js';
 
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_MODEL = 'gemini-3.6-flash';
@@ -146,7 +147,9 @@ export function makeGeminiGenerateContentModel({
   const key = apiKey.trim();
   const contents = [];
   const returnedResults = new Set();
+  const seenUsers = new Map();
   let started = false;
+  let lastResponseStart = null;
   const endpoint = `${String(baseUrl).replace(/\/$/, '')}/models/${encodeURIComponent(
     String(model).replace(/^models\//, ''),
   )}:generateContent`;
@@ -160,10 +163,13 @@ export function makeGeminiGenerateContentModel({
       const requestInstructions = runtimeContext ? `${instructions}\n\n${runtimeContext}` : instructions;
       if (!started) {
         contents.push(...initialContents(messages));
+        takeUnseenUserMessages(messages, seenUsers);
         for (const message of messages) {
           if (message?.role === 'tool' && message.toolCallId) returnedResults.add(message.toolCallId);
         }
         started = true;
+      } else {
+        contents.push(...initialContents(takeUnseenUserMessages(messages, seenUsers)));
       }
       const resultParts = [];
       for (const message of messages) {
@@ -195,7 +201,7 @@ export function makeGeminiGenerateContentModel({
       const resourceHandle = await reserveProviderAttempt(resourceObserver, {
         provider: 'gemini', model, attempt: 1, contextReceipt,
       });
-      let response;
+      let response; const responseStart = contents.length;
       try {
         response = await fetchImpl(endpoint, {
           method: 'POST', signal,
@@ -231,12 +237,16 @@ export function makeGeminiGenerateContentModel({
       await settleProviderSuccess(resourceObserver, resourceHandle, {
         usage: normalizedUsage(json.usageMetadata), responseId: json.responseId ?? null,
       });
-      contents.push(structuredClone(content));
+      contents.push(structuredClone(content)); lastResponseStart = responseStart;
       return {
         text: outputText(content.parts), toolCalls: outputCalls(content.parts),
         responseId: json.responseId ?? null, responseModel: json.modelVersion ?? model,
         usage: normalizedUsage(json.usageMetadata), contextReceipt,
       };
+    },
+    supersedeLastResponse() {
+      if (lastResponseStart == null) return false;
+      contents.splice(lastResponseStart); lastResponseStart = null; return true;
     },
   };
 }

@@ -2,6 +2,7 @@ import { makeContextReceipt } from './context-receipt.js';
 import {
   reserveProviderAttempt, settleProviderSuccess, settleProviderUnknown,
 } from './provider-request-accounting.js';
+import { takeUnseenUserMessages } from './incremental-user-messages.js';
 
 const DEFAULT_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 const DEFAULT_MODEL = 'claude-sonnet-5';
@@ -117,7 +118,9 @@ export function makeAnthropicMessagesModel({
   const key = apiKey.trim();
   const history = [];
   const returnedResults = new Set();
+  const seenUsers = new Map();
   let started = false;
+  let lastResponseStart = null;
 
   return {
     id: model,
@@ -128,10 +131,13 @@ export function makeAnthropicMessagesModel({
       const requestInstructions = runtimeContext ? `${instructions}\n\n${runtimeContext}` : instructions;
       if (!started) {
         history.push(...initialMessages(messages));
+        takeUnseenUserMessages(messages, seenUsers);
         for (const message of messages) {
           if (message?.role === 'tool' && message.toolCallId) returnedResults.add(message.toolCallId);
         }
         started = true;
+      } else {
+        history.push(...initialMessages(takeUnseenUserMessages(messages, seenUsers)));
       }
       const newResults = [];
       for (const message of messages) {
@@ -161,7 +167,7 @@ export function makeAnthropicMessagesModel({
       const resourceHandle = await reserveProviderAttempt(resourceObserver, {
         provider: 'anthropic', model, attempt: 1, contextReceipt,
       });
-      let response;
+      let response; const responseStart = history.length;
       try {
         response = await fetchImpl(endpoint, {
           method: 'POST', signal,
@@ -199,12 +205,16 @@ export function makeAnthropicMessagesModel({
       await settleProviderSuccess(resourceObserver, resourceHandle, {
         usage: normalizedUsage(json.usage), responseId: json.id ?? null,
       });
-      history.push({ role: 'assistant', content: structuredClone(json.content) });
+      history.push({ role: 'assistant', content: structuredClone(json.content) }); lastResponseStart = responseStart;
       return {
         text: resultText(json.content), toolCalls: resultCalls(json.content),
         responseId: json.id ?? null, responseModel: json.model ?? model,
         usage: normalizedUsage(json.usage), contextReceipt,
       };
+    },
+    supersedeLastResponse() {
+      if (lastResponseStart == null) return false;
+      history.splice(lastResponseStart); lastResponseStart = null; return true;
     },
   };
 }

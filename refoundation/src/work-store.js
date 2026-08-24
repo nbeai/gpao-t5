@@ -3,9 +3,6 @@ import { appendFile, chmod, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const SCHEMA = 't5.work-event.v1';
-const MEANINGS = new Set(['revise_current_work', 'extend_current_work',
-  'start_independent_work', 'cancel_current_work']);
-const SCHEDULES = new Set(['within_current_work', 'after_current_delivery', 'independent_work', 'stop']);
 const OUTCOMES = new Set(['achieved', 'unresolved', 'cancelled']);
 const clone = (value) => structuredClone(value);
 
@@ -37,7 +34,7 @@ export class WorkStore {
   }
   async read() {
     const events = await this.events(); const works = new Map(); const inputs = new Map(); const claims = new Map();
-    const proposals = new Map();
+    const proposals = new Map(); const results = new Map();
     for (const event of events) {
       if (event.type === 'work_created') works.set(event.workId, { workId: event.workId,
         sessionId: event.sessionId, revision: 1, status: 'active', sourceMessageId: event.sourceMessageId });
@@ -53,6 +50,40 @@ export class WorkStore {
       }
       if (event.type === 'input_admission_aborted') {
         const input = inputs.get(event.inputId); if (input) input.state = 'aborted';
+      }
+      if (event.type === 'input_presented') {
+        const input = inputs.get(event.inputId); if (input) Object.assign(input, {
+          state: 'presented', presentedRunId: event.runId,
+          baseWorkId: event.workId, baseRevision: event.revision,
+        });
+      }
+      if (event.type === 'input_applied_to_current_work') {
+        const input = inputs.get(event.inputId); if (input) Object.assign(input, {
+          state: 'executing', disposition: 'current_work', workId: event.workId,
+          revision: event.revision, executionRunId: event.runId,
+        });
+        const work = works.get(event.workId); if (work) { work.revision = event.revision; work.status = 'active'; }
+      }
+      if (event.type === 'input_deferred_after_delivery') {
+        const input = inputs.get(event.inputId); if (input) Object.assign(input, {
+          state: 'scheduled', disposition: 'deferred_after_delivery', schedule: 'after_current_delivery',
+          workId: event.workId, baseRevision: event.baseRevision, revision: null,
+        });
+      }
+      if (event.type === 'input_forked_to_work' || event.type === 'input_resumed_on_work') {
+        const input = inputs.get(event.inputId); if (input) Object.assign(input, {
+          state: 'classified', disposition: event.type === 'input_forked_to_work'
+            ? 'independent_work' : 'resumed_work', schedule: 'independent_work',
+          workId: event.workId, revision: event.revision,
+        });
+        const work = works.get(event.workId); if (work) { work.revision = event.revision; work.status = 'active'; }
+      }
+      if (event.type === 'input_cancelled_current_work') {
+        const input = inputs.get(event.inputId); if (input) Object.assign(input, {
+          state: 'executed', disposition: 'cancelled_work', workId: event.workId,
+          revision: event.revision, executionRunId: event.runId,
+        });
+        const work = works.get(event.workId); if (work) { work.revision = event.revision; work.status = 'cancelled'; }
       }
       if (event.type === 'input_classified') {
         const legacy = { steer: ['revise_current_work', 'within_current_work'],
@@ -104,9 +135,29 @@ export class WorkStore {
           { verifiedOutcome: event.verifiedOutcome, blockerDigest: event.blockerDigest,
             blockers: event.blockers ?? [] });
       }
+      if (event.type === 'result_ready_pending_surface') results.set(event.runId, {
+        runId: event.runId, sessionId: event.sessionId, workId: event.workId ?? null,
+        revision: event.revision ?? null, objectiveOutcome: event.objectiveOutcome,
+        resultDigest: event.resultDigest, surfaceResult: clone(event.surfaceResult),
+        state: 'pending_surface', delivery: null,
+      });
+      if (event.type === 'result_surface_persisted') {
+        const result = results.get(event.runId); if (result) result.state = 'surface_persisted';
+      }
+      if (event.type === 'result_delivery_started') {
+        const result = results.get(event.runId); if (result) {
+          result.state = 'delivery_started'; result.delivery = clone(event.delivery);
+        }
+      }
+      if (event.type === 'result_delivery_terminal') {
+        const result = results.get(event.runId); if (result) {
+          result.state = 'delivery_terminal'; result.delivery = clone(event.delivery);
+        }
+      }
     }
     return { events: clone(events), works: clone([...works.values()]), inputs: clone([...inputs.values()]),
-      claims: clone([...claims.values()]), proposals: clone([...proposals.values()]) };
+      claims: clone([...claims.values()]), proposals: clone([...proposals.values()]),
+      results: clone([...results.values()]) };
   }
   async create({ sessionId, sourceMessageId }) {
     const workId = this.makeId(); await this.append('work_created', { workId, sessionId, sourceMessageId });
@@ -121,8 +172,128 @@ export class WorkStore {
   }
   async pendingInputs(sessionId) {
     const state = await this.read(); return state.inputs.filter((input) => (
+      input.sessionId === sessionId && ['admitted', 'presented'].includes(input.state)
+    ));
+  }
+  async presentInputs({ sessionId, workId, revision, runId }) {
+    const state = await this.read(); const inputs = state.inputs.filter((input) => (
       input.sessionId === sessionId && input.state === 'admitted'
     ));
+    for (const input of inputs) await this.append('input_presented', {
+      inputId: input.inputId, sessionId, workId, revision, runId,
+    });
+    return (await this.read()).inputs.filter((input) => input.sessionId === sessionId
+      && input.state === 'presented' && input.presentedRunId === runId);
+  }
+  async applyPresentedToCurrentWork({ sessionId, workId, runId, excludeInputIds = [] }) {
+    const excluded = new Set(excludeInputIds.map(String)); const state = await this.read();
+    const inputs = state.inputs.filter((item) => item.sessionId === sessionId
+      && item.state === 'presented' && item.presentedRunId === runId && !excluded.has(item.inputId));
+    if (!inputs.length) return [];
+    const work = state.works.find((item) => item.workId === workId);
+    if (!work || work.status !== 'active') throw new Error('active work not found');
+    const revision = work.revision + 1; const applied = [];
+    for (const input of inputs) {
+      await this.append('input_applied_to_current_work', { inputId: input.inputId,
+        workId, baseRevision: work.revision, revision, runId });
+      applied.push({ inputId: input.inputId, revision });
+    }
+    await this.claimExecution({ workId, revision, runId });
+    return applied;
+  }
+  async presentedInputs(sessionId, runId) {
+    return (await this.read()).inputs.filter((input) => input.sessionId === sessionId
+      && input.state === 'presented' && input.presentedRunId === runId);
+  }
+  async deferPresentedAfterDelivery({ inputId, workId, runId }) {
+    return (await this.deferPresentedBatchAfterDelivery({ inputIds: [inputId], workId, runId }))[0];
+  }
+  async deferPresentedBatchAfterDelivery({ inputIds, workId, runId }) {
+    const wanted = new Set(inputIds.map(String)); const state = await this.read();
+    const inputs = state.inputs.filter((item) => wanted.has(item.inputId));
+    const work = state.works.find((item) => item.workId === workId);
+    if (!inputs.length || inputs.length !== wanted.size || inputs.some((input) => input.state !== 'presented'
+      || input.presentedRunId !== runId)) throw new Error('input is not presented');
+    if (!work || work.status !== 'active' || inputs.some((input) => work.revision !== input.baseRevision)) {
+      throw new Error('stale work revision');
+    }
+    const deferred = [];
+    for (const input of inputs) {
+      await this.append('input_deferred_after_delivery', {
+        inputId: input.inputId, workId, baseRevision: work.revision, runId });
+      deferred.push({ inputId: input.inputId, workId, baseRevision: work.revision, state: 'scheduled' });
+    }
+    return deferred;
+  }
+  async forkPresentedToNewWork({ inputId, currentWorkId, runId, currentWorkDisposition = 'pause' }) {
+    const result = await this.forkPresentedBatchToNewWork({ inputIds: [inputId], currentWorkId,
+      runId, currentWorkDisposition }); return result.inputs[0];
+  }
+  async forkPresentedBatchToNewWork({ inputIds, currentWorkId, runId,
+    currentWorkDisposition = 'pause' }) {
+    const wanted = new Set(inputIds.map(String)); const state = await this.read();
+    const inputs = state.inputs.filter((item) => wanted.has(item.inputId));
+    const current = state.works.find((item) => item.workId === currentWorkId);
+    if (!inputs.length || inputs.length !== wanted.size || inputs.some((input) => input.state !== 'presented'
+      || input.presentedRunId !== runId)) throw new Error('input is not presented');
+    if (!current || current.status !== 'active') throw new Error('active work not found');
+    await this.setStatus({ workId: current.workId, expectedRevision: current.revision,
+      status: currentWorkDisposition === 'cancel' ? 'cancelled' : 'paused' });
+    const next = await this.create({ sessionId: inputs[0].sessionId, sourceMessageId: inputs[0].messageId });
+    const forked = [];
+    for (const input of inputs) {
+      await this.append('input_forked_to_work', { inputId: input.inputId, previousWorkId: current.workId,
+        currentWorkDisposition, workId: next.workId, revision: next.revision, runId });
+      forked.push({ inputId: input.inputId, workId: next.workId, revision: next.revision, state: 'classified' });
+    }
+    return { workId: next.workId, inputs: forked };
+  }
+  async cancelPresentedWork({ inputId, workId, runId }) {
+    const result = await this.cancelPresentedBatchWork({ inputIds: [inputId], workId, runId });
+    return result.inputs[0];
+  }
+  async cancelPresentedBatchWork({ inputIds, workId, runId }) {
+    const wanted = new Set(inputIds.map(String)); const state = await this.read();
+    const inputs = state.inputs.filter((item) => wanted.has(item.inputId));
+    const work = state.works.find((item) => item.workId === workId);
+    if (!inputs.length || inputs.length !== wanted.size || inputs.some((input) => input.state !== 'presented'
+      || input.presentedRunId !== runId)) throw new Error('input is not presented');
+    if (!work || work.status !== 'active') throw new Error('active work not found');
+    const revision = work.revision + 1;
+    for (const input of inputs) await this.append('input_cancelled_current_work', {
+      inputId: input.inputId, workId, revision, runId });
+    await this.claimExecution({ workId, revision, runId });
+    await this.append('work_settled', { workId, revision, outcome: 'cancelled', runId });
+    return { workId, revision, inputs: inputs.map((input) => ({
+      inputId: input.inputId, workId, revision, state: 'executed' })) };
+  }
+  async resumePresentedOnPausedWork({ inputId, currentWorkId, targetWorkId, runId,
+    currentWorkDisposition = 'pause' }) {
+    const result = await this.resumePresentedBatchOnPausedWork({ inputIds: [inputId], currentWorkId,
+      targetWorkId, runId, currentWorkDisposition }); return result.inputs[0];
+  }
+  async resumePresentedBatchOnPausedWork({ inputIds, currentWorkId, targetWorkId, runId,
+    currentWorkDisposition = 'pause' }) {
+    const wanted = new Set(inputIds.map(String)); const state = await this.read();
+    const inputs = state.inputs.filter((item) => wanted.has(item.inputId));
+    const current = state.works.find((item) => item.workId === currentWorkId);
+    const target = state.works.find((item) => item.workId === targetWorkId);
+    if (!inputs.length || inputs.length !== wanted.size || inputs.some((input) => input.state !== 'presented'
+      || input.presentedRunId !== runId)) throw new Error('input is not presented');
+    if (!current || current.status !== 'active' || !target || target.status !== 'paused') {
+      throw new Error('work resume target is unavailable');
+    }
+    await this.setStatus({ workId: current.workId, expectedRevision: current.revision,
+      status: currentWorkDisposition === 'cancel' ? 'cancelled' : 'paused' });
+    await this.setStatus({ workId: target.workId, expectedRevision: target.revision, status: 'active' });
+    const revision = target.revision + 1;
+    const resumed = [];
+    for (const input of inputs) {
+      await this.append('input_resumed_on_work', { inputId: input.inputId, previousWorkId: current.workId,
+        currentWorkDisposition, workId: target.workId, revision, runId });
+      resumed.push({ inputId: input.inputId, workId: target.workId, revision, state: 'classified' });
+    }
+    return { workId: target.workId, revision, inputs: resumed };
   }
   async queuedInputs(sessionId) {
     const state = await this.read(); return state.inputs.filter((input) => (
@@ -152,26 +323,6 @@ export class WorkStore {
   async admitInput(fields) {
     const prepared = await this.prepareInputAdmission(fields);
     return this.commitInputAdmission(prepared.inputId);
-  }
-  async classifyInput({ inputId, meaning, schedule, workId, expectedRevision }) {
-    if (!MEANINGS.has(meaning) || !SCHEDULES.has(schedule)) throw new TypeError('invalid work meaning or schedule');
-    const allowed = { revise_current_work: ['within_current_work'],
-      extend_current_work: ['within_current_work', 'after_current_delivery'],
-      start_independent_work: ['independent_work'], cancel_current_work: ['stop'] }[meaning];
-    if (!allowed.includes(schedule)) throw new Error('work meaning and schedule are inconsistent');
-    const state = await this.read(); const input = state.inputs.find((item) => item.inputId === inputId);
-    const work = state.works.find((item) => item.workId === workId);
-    if (!input || input.state !== 'admitted') throw new Error('work input is not pending');
-    if (!work || work.revision !== expectedRevision) throw new Error('stale work revision');
-    if (schedule === 'after_current_delivery') {
-      await this.append('input_scheduled_after_delivery', {
-        inputId, meaning, schedule, workId, baseRevision: work.revision,
-      });
-      return { workId, revision: work.revision, baseRevision: work.revision, meaning, schedule };
-    }
-    const revision = schedule === 'independent_work' ? work.revision : work.revision + 1;
-    await this.append('input_classified', { inputId, meaning, schedule, workId, revision, expectedRevision });
-    return { workId, revision, meaning, schedule };
   }
   async activateScheduledInput(inputId) {
     const state = await this.read(); const input = state.inputs.find((item) => item.inputId === String(inputId));
@@ -254,5 +405,39 @@ export class WorkStore {
     const state = await this.read(); return state.inputs.filter((input) => (
       input.state === 'executing' && input.executionRunId === runId
     ));
+  }
+  async recordResultReady({ runId, sessionId, workId = null, revision = null,
+    objectiveOutcome = 'unresolved', resultDigest, surfaceResult }) {
+    const state = await this.read(); const existing = state.results.find((item) => item.runId === runId);
+    if (existing) {
+      if (existing.resultDigest !== resultDigest) throw new Error('result ready digest mismatch');
+      return existing;
+    }
+    await this.append('result_ready_pending_surface', { runId, sessionId, workId, revision,
+      objectiveOutcome, resultDigest, surfaceResult });
+    return (await this.read()).results.find((item) => item.runId === runId);
+  }
+  async markResultSurfacePersisted(runId) {
+    const state = await this.read(); const result = state.results.find((item) => item.runId === runId);
+    if (!result) throw new Error('result ready state missing');
+    if (['surface_persisted', 'delivery_terminal'].includes(result.state)) return result;
+    await this.append('result_surface_persisted', { runId });
+    return (await this.read()).results.find((item) => item.runId === runId);
+  }
+  async markResultDeliveryTerminal(runId, delivery) {
+    const state = await this.read(); const result = state.results.find((item) => item.runId === runId);
+    if (!result || result.state === 'pending_surface') throw new Error('surface is not persisted');
+    if (result.state === 'delivery_terminal') return result;
+    await this.append('result_delivery_terminal', { runId, delivery });
+    return (await this.read()).results.find((item) => item.runId === runId);
+  }
+  async markResultDeliveryStarted(runId, delivery) {
+    const state = await this.read(); const result = state.results.find((item) => item.runId === runId);
+    if (!result || result.state !== 'surface_persisted') throw new Error('surface is not ready for delivery');
+    await this.append('result_delivery_started', { runId, delivery });
+    return (await this.read()).results.find((item) => item.runId === runId);
+  }
+  async pendingSurfaceResults() {
+    return (await this.read()).results.filter((item) => item.state === 'pending_surface');
   }
 }

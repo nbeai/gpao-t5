@@ -2,6 +2,7 @@ import { makeContextReceipt } from './context-receipt.js';
 import {
   reserveProviderAttempt, settleProviderSuccess, settleProviderUnknown,
 } from './provider-request-accounting.js';
+import { takeUnseenUserMessages } from './incremental-user-messages.js';
 
 const DEFAULT_ENDPOINT = 'https://api.upstage.ai/v1/chat/completions';
 const DEFAULT_MODEL = 'solar-pro4';
@@ -115,7 +116,9 @@ export function makeUpstageChatCompletionsModel({
   const key = apiKey.trim();
   const history = [];
   const returnedResults = new Set();
+  const seenUsers = new Map();
   let started = false;
+  let lastResponseStart = null;
 
   return {
     id: model,
@@ -126,10 +129,13 @@ export function makeUpstageChatCompletionsModel({
       const requestInstructions = runtimeContext ? `${instructions}\n\n${runtimeContext}` : instructions;
       if (!started) {
         history.push(...initialMessages(messages, '', model));
+        takeUnseenUserMessages(messages, seenUsers);
         for (const message of messages) {
           if (message?.role === 'tool' && message.toolCallId) returnedResults.add(message.toolCallId);
         }
         started = true;
+      } else {
+        history.push(...initialMessages(takeUnseenUserMessages(messages, seenUsers), '', model));
       }
       for (const message of messages) {
         if (message?.role !== 'tool' || !message.toolCallId || returnedResults.has(message.toolCallId)) continue;
@@ -161,7 +167,7 @@ export function makeUpstageChatCompletionsModel({
       const resourceHandle = await reserveProviderAttempt(resourceObserver, {
         provider: 'upstage', model, attempt: 1, contextReceipt,
       });
-      let response;
+      let response; const responseStart = history.length;
       try {
         response = await fetchImpl(endpoint, {
           method: 'POST', signal,
@@ -209,12 +215,16 @@ export function makeUpstageChatCompletionsModel({
       await settleProviderSuccess(resourceObserver, resourceHandle, {
         usage: normalizedUsage(json.usage), responseId: json.id ?? null,
       });
-      history.push(assistant);
+      history.push(assistant); lastResponseStart = responseStart;
       return {
         text: typeof message.content === 'string' ? message.content : '',
         toolCalls: resultCalls(message), responseId: json.id ?? null,
         responseModel: json.model ?? model, usage: normalizedUsage(json.usage), contextReceipt,
       };
+    },
+    supersedeLastResponse() {
+      if (lastResponseStart == null) return false;
+      history.splice(lastResponseStart); lastResponseStart = null; return true;
     },
   };
 }

@@ -109,7 +109,7 @@ test('일반 사용자 콘솔은 검색·URL 읽기를 바로 보이고 화면 �
   assert.doesNotMatch(coreBlock, /'process_start'|'pty_start'|'process_control'/u);
   assert.match(coreBlock, /'session_search'/u);
   assert.match(source, /Do not use this tool to navigate search-engine result pages/u);
-  assert.match(source, /searchable = deferredTools\.filter\(\(tool\) => tool\.deferred[\s\S]*tool\.name !== 'browser' && tool\.name !== 'work_transition'/u);
+  assert.match(source, /searchable = deferredTools\.filter\(\(tool\) => tool\.deferred[\s\S]*tool\.name !== 'browser' && tool\.name !== 'work_control'/u);
 });
 
 test('공개 정보 검색은 검색엔진 화면보다 검색→URL 읽기를 우선하도록 지시한다', () => {

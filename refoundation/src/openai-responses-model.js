@@ -2,6 +2,7 @@ import { makeContextReceipt } from './context-receipt.js';
 import {
   reserveProviderAttempt, settleProviderSuccess, settleProviderUnknown,
 } from './provider-request-accounting.js';
+import { takeUnseenUserMessages } from './incremental-user-messages.js';
 
 const DEFAULT_ENDPOINT = 'https://api.openai.com/v1/responses';
 const DEFAULT_MODEL = 'gpt-5.6-terra';
@@ -116,7 +117,9 @@ export function makeOpenAIResponsesModel({
   const key = apiKey.trim();
   const input = [];
   const returnedToolCalls = new Set();
+  const seenUsers = new Map();
   let started = false;
+  let lastResponseStart = null;
 
   return {
     id: model,
@@ -127,10 +130,13 @@ export function makeOpenAIResponsesModel({
       const requestInstructions = runtimeContext ? `${instructions}\n\n${runtimeContext}` : instructions;
       if (!started) {
         input.push(...initialInput(messages));
+        takeUnseenUserMessages(messages, seenUsers);
         for (const message of messages) {
           if (message?.role === 'tool' && message.toolCallId) returnedToolCalls.add(message.toolCallId);
         }
         started = true;
+      } else {
+        input.push(...initialInput(takeUnseenUserMessages(messages, seenUsers)));
       }
 
       for (const message of messages) {
@@ -166,7 +172,7 @@ export function makeOpenAIResponsesModel({
       const resourceHandle = await reserveProviderAttempt(resourceObserver, {
         provider: 'openai', model, attempt: 1, contextReceipt,
       });
-      let response;
+      let response; const responseStart = input.length;
       try {
         response = await fetchImpl(endpoint, {
           method: 'POST',
@@ -209,7 +215,7 @@ export function makeOpenAIResponsesModel({
       await settleProviderSuccess(resourceObserver, resourceHandle, {
         usage: json.usage ?? null, responseId: json.id ?? null,
       });
-      input.push(...structuredClone(json.output));
+      input.push(...structuredClone(json.output)); lastResponseStart = responseStart;
       return {
         text: outputText(json.output),
         toolCalls: functionCalls(json.output),
@@ -218,6 +224,10 @@ export function makeOpenAIResponsesModel({
         usage: json.usage ?? null,
         contextReceipt,
       };
+    },
+    supersedeLastResponse() {
+      if (lastResponseStart == null) return false;
+      input.splice(lastResponseStart); lastResponseStart = null; return true;
     },
   };
 }

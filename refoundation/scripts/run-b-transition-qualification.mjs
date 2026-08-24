@@ -11,15 +11,17 @@ const holdoutPath = option('--holdout');
 if (!holdoutPath) throw new Error('--holdout is required; qualification expressions must not live in this source');
 const repeats = Number(option('--repeats') ?? 2); const requestedModel = option('--model-id');
 const onePerState = process.argv.includes('--one-per-state');
+const keep = process.argv.includes('--keep'); const requestedCaseId = option('--case-id');
 const caseTimeoutMs = Number(option('--case-timeout-ms') ?? 120_000);
 const holdoutBytes = await readFile(resolve(holdoutPath)); const holdout = JSON.parse(holdoutBytes);
-const meanings = new Set(['revise_current_work', 'extend_current_work', 'start_independent_work', 'cancel_current_work']);
-const schedules = new Set(['within_current_work', 'after_current_delivery', 'independent_work', 'stop']);
+const controls = new Set([null, 'defer_after_delivery', 'start_independent_work',
+  'cancel_current_work', 'resume_paused_work']);
 if (!Number.isInteger(repeats) || repeats < 1 || !Array.isArray(holdout.cases) || !holdout.cases.length) {
   throw new Error('valid holdout cases and repeats are required');
 }
 for (const item of holdout.cases) if (!item.id || !item.initialRequest || !item.admittedText
-  || !meanings.has(item.expectedMeaning) || !schedules.has(item.expectedSchedule)
+  || !controls.has(item.expectedControl) || !Number.isInteger(item.expectedWorks)
+  || !Number.isInteger(item.expectedRuns)
   || !Array.isArray(item.mustInclude) || !Array.isArray(item.mustNotInclude ?? [])) {
   throw new Error('invalid blind holdout case');
 }
@@ -28,9 +30,10 @@ const sourceConnectionFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTIO
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
 const models = requestedModel ? [requestedModel]
   : ['api_key:openai:gpt-5.6-terra', 'chatgpt_oauth:gpt-5.5'];
-const cases = onePerState ? holdout.cases.filter((item, index, all) => all.findIndex((candidate) => (
-  candidate.expectedMeaning === item.expectedMeaning && candidate.expectedSchedule === item.expectedSchedule
+let cases = onePerState ? holdout.cases.filter((item, index, all) => all.findIndex((candidate) => (
+  candidate.expectedControl === item.expectedControl
 )) === index) : holdout.cases;
+if (requestedCaseId) cases = cases.filter((item) => item.id === requestedCaseId);
 const room = await mkdtemp(join(tmpdir(), 't5-b-semantic-live-')); const results = [];
 async function listen(server) {
   await new Promise((resolveListen, reject) => {
@@ -54,7 +57,7 @@ for (const modelId of models) {
       return { async respond(input) {
         if (first) { first = false; scenario.started(); }
         return actual.respond(input);
-      } };
+      }, supersedeLastResponse: () => actual.supersedeLastResponse?.() };
     } });
   const base = await listen(server);
   try {
@@ -76,6 +79,7 @@ for (const modelId of models) {
           sessionId: session.id, text: item.admittedText,
         }) });
       const admitted = await admittedResponse.json();
+      const expectedRuns = item.expectedRuns;
       const monitor = (async () => {
         while (monitoring) {
           for (const run of await server.runLedger.list({ sessionId: session.id })) {
@@ -96,17 +100,30 @@ for (const modelId of models) {
       })();
       let earlyFailure = null;
       try {
-        await Promise.race([firstStream, monitor, new Promise((_, reject) => setTimeout(
+        const streamWire = await Promise.race([firstStream, monitor, new Promise((_, reject) => setTimeout(
           () => reject(new Error('case_timeout')), caseTimeoutMs,
         ))]);
+        if (typeof streamWire === 'string' && (/event: recoverable_error/u.test(streamWire)
+          || /"kind":"error"/u.test(streamWire))) throw new Error('stream_error');
       } catch (error) { earlyFailure = error; streamController.abort(); }
       finally { monitoring = false; }
       let input = null;
-      for (let attempt = 0; attempt < (earlyFailure ? 1 : 500); attempt += 1) {
+      while (!earlyFailure && performance.now() - began < caseTimeoutMs) {
         input = (await server.workStore.read()).inputs.find((candidate) => candidate.inputId === admitted.inputId);
-        if (input?.state === 'executed') break;
-        await new Promise((resolveWait) => setTimeout(resolveWait, 20));
+        const observedRuns = await server.runLedger.list({ sessionId: session.id });
+        const observedWork = await server.workStore.read();
+        const deliveredRuns = observedWork.results.filter((result) => observedRuns.some((run) => run.runId === result.runId)
+          && result.state === 'delivery_terminal').length;
+        if (input?.state === 'executed' && observedRuns.length === expectedRuns
+          && deliveredRuns === expectedRuns) break;
+        if (observedRuns.some((run) => run.status === 'failed'
+          || run.events.some((event) => event.type === 'tool_completed'
+            && event.payload?.receipt?.outcome === 'failed'))) {
+          earlyFailure = new Error('followup_run_failed'); break;
+        }
+        await new Promise((resolveWait) => setTimeout(resolveWait, 25));
       }
+      if (!earlyFailure && input?.state !== 'executed') earlyFailure = new Error('input_not_terminal');
       const sessionState = await fetch(`${base}/sessions/${session.id}`).then((response) => response.json());
       const surface = (sessionState.transcript ?? []).filter((entry) => entry.role === 'assistant')
         .map((entry) => entry.result?.reply ?? '').join('\n');
@@ -120,16 +137,17 @@ for (const modelId of models) {
         outputTokens: sum.outputTokens + Number(event.payload?.response?.usage?.output_tokens ?? 0),
         totalTokens: sum.totalTokens + Number(event.payload?.response?.usage?.total_tokens ?? 0),
       }), { inputTokens: 0, outputTokens: 0, totalTokens: 0 });
-      const expectedWorks = item.expectedMeaning === 'start_independent_work' ? 2 : 1;
-      const expectedRuns = ['after_current_delivery', 'independent_work'].includes(item.expectedSchedule) ? 2 : 1;
+      const controlCalls = toolEvents.filter((event) => (
+        event.payload?.receipt?.requestedCall?.name === 'work_control'
+      ));
+      const actualControl = controlCalls.at(-1)?.payload?.receipt?.requestedCall?.args?.action ?? null;
       const surfacePassed = item.mustInclude.every((marker) => surface.includes(marker))
         && (item.mustNotInclude ?? []).every((marker) => !surface.includes(marker));
-      const passed = !earlyFailure && admittedResponse.status === 202 && input?.meaning === item.expectedMeaning
-        && input?.schedule === item.expectedSchedule && input?.state === 'executed'
-        && sessionWorks.length === expectedWorks && runs.length === expectedRuns && surfacePassed;
-      results.push({ modelId, caseId: item.id, repeat, expectedMeaning: item.expectedMeaning,
-        expectedSchedule: item.expectedSchedule, actualMeaning: input?.meaning ?? null,
-        actualSchedule: input?.schedule ?? null, inputState: input?.state ?? null,
+      const passed = !earlyFailure && admittedResponse.status === 202 && actualControl === item.expectedControl
+        && input?.state === 'executed' && sessionWorks.length === item.expectedWorks
+        && runs.length === item.expectedRuns && surfacePassed;
+      results.push({ modelId, caseId: item.id, repeat, expectedControl: item.expectedControl,
+        actualControl, inputDisposition: input?.disposition ?? null, inputState: input?.state ?? null,
         works: sessionWorks.length, runs: runs.length, modelCalls: modelEvents.length,
         toolCalls: toolEvents.length, usage, wallMs: Number((performance.now() - began).toFixed(3)),
         surfacePassed, failure: earlyFailure?.message ?? null, passed });
@@ -144,9 +162,9 @@ for (const modelId of models) {
 const report = { schema: 't5.s2-b-semantic-holdout-live.v1', recordedAt: new Date().toISOString(),
   holdoutSha256: createHash('sha256').update(holdoutBytes).digest('hex'), expressionsPrinted: false,
   results, passed: results.every((item) => item.passed), total: results.length,
-  byModel: Object.fromEntries(models.map((modelId) => [modelId, {
+  ...(keep ? { room } : {}), byModel: Object.fromEntries(models.map((modelId) => [modelId, {
     passed: results.filter((item) => item.modelId === modelId && item.passed).length,
     total: results.filter((item) => item.modelId === modelId).length,
   }])) };
-process.stdout.write(`${JSON.stringify(report, null, 2)}\n`); await rm(room, { recursive: true, force: true });
+process.stdout.write(`${JSON.stringify(report, null, 2)}\n`); if (!keep) await rm(room, { recursive: true, force: true });
 if (!report.passed) process.exitCode = 1;
