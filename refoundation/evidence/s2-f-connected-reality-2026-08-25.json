@@ -23,6 +23,7 @@
       "Notion file upload"
     ]
   },
+  "implementationCommit": "540b2339",
   "comparisonSources": {
     "openClaw": "bf83a4dde8f00e5d330bd00de79cb0232fe6ae09",
     "hermes": "74ad422d50e6d76e26ba5ce3b4d2a4d520e923dd",

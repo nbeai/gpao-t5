@@ -1,8 +1,8 @@
 # T5 Second Completion — Current Development Source
 
 상태: `SECOND_COMPLETION_ACTIVE`
-현재 Gate: `S2-B-F06 SEMANTIC CONTINUITY REOPENED · S2-C PRESERVED`
-기준 source: `81f29d23`
+현재 Gate: `S2-E HUMAN QUALIFICATION IN PROGRESS · S2-F MACHINE/MODEL QUALIFIED`
+기준 source: `540b2339`
 배포 상태: `0.1.8 REVOKED · 새 package 생성 금지`
 
 이 문서는 T5 2차 완성의 유일한 현재 작업 계획이다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은
@@ -576,25 +576,43 @@ AND 실행 가능한 미시도 route가 남은 blocked 0
 
 ## 8. 현재 작업 시작점
 
-S2-A0, A1-1, A1-2, S2-A2, A1-3, A1-4와 A1-5를 완료했다. 다음 한 작업은 새 기능 구현이 아니라
-`docs/03-verification/T5-S2-A-HUMAN-CONSOLE-LIVE-PLAN-2026-08-24-ko.md`의 A-H01~A-H08을 실제 개발
-콘솔에서 수행하는 S2-A 인간 종단 판정이다. 이 자격을 통과하기 전에 B·D·F 기능을 열거나
-Telegram·Notion 미달을 A 구현으로 넓히지 않는다.
-
-A1-2 완료 범위:
+S2-A~D는 승인된 종료점을 유지한다. S2-E 구현·기계·실제 모델 자격은 완료됐고 오너의 인간 종단 판정을
+진행 중이다. 그 대기 동안 오너가 연 S2-F는 다음 구현·기계·실제 모델 자격까지 완료했다.
 
 ```text
-새 파일: resource-anomaly-shadow.js · resource-evidence.js
-연결: agent-loop.js · resource-controller.js · resource-ledger.js · resource-report.js
-검사: 반복 Evidence pathology · 11/10 새 Evidence positive control · cancel reliability · A0 19/107 replay
-      · gpt-5.5 공개 Web 두 표본 · 플랫폼 반대시험 · 계측 부담
+F Telegram:
+platform secret migration
+→ document/photo/caption/reply/file identity/media group 한 Turn
+→ bounded getFile stream과 AttachmentStore
+→ provider-owned sendDocument
+→ message/file receipt
+→ unknown acknowledgement blind retry 0
+
+F Connection:
+T5 application·account·transport·permission·resource identity
+→ 외부 Notion CLI와 T5 연결 분리
+→ 현재 capability 관측
+→ write acknowledgement
+→ exact page read-after-write
+→ 확인 뒤에만 완료 후보
 ```
 
-다음 작업 비목표:
+완료 증거는 `refoundation/evidence/s2-f-connected-reality-2026-08-25.json`과 source `540b2339`다.
+코어 735/735, 가시 Browser-live를 제외한 제품 통합 127/127, F 집중 39/39와 Telegram 추가 경계,
+Terra·gpt-5.5 실제 verified-write 자격을 통과했다. 실제 모델 자격은 각각 8.1초·17.4초였고 write는
+각 1회, exact readback은 1회·2회였다. 가시 Browser 호출은 0이다.
+
+다음 한 작업은 F 코드를 더 넓히는 것이 아니다. S2-E 인간 종단 결과를 먼저 반영하고, 그 뒤 HP-04~09의
+Telegram attachment·artifact delivery·secret confinement·connection identity·Notion read-after-write를 실제
+사용자 시작점에서 검증한다. F 핵심 완료 문장을 깨는 결과는 observation으로 남기지 않고 해당 exact 경계를
+다시 연다.
+
+현재 비목표:
 
 ```text
-WorkStore · Instruction Compiler · Queue · Automation 의미 변경
-Memory·Capability · Browser·UI · Multi-agent · 새 Connector
+새 Messenger provider · 범용 Connector framework · Notion file upload
+Windows 기능 구현 · WSL2 구조 복제 · UI 재설계 · 가시 Browser
+Release package · 설치·서명·공증
 ```
 
 같은 결함에 세 번째 patch가 필요하거나 기존 Run·adapter 경계의 작은 변경으로 설명할 수 없으면 구현을
