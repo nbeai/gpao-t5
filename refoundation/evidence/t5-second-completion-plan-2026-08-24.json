@@ -1,6 +1,6 @@
 {
   "schema": "t5.second-completion-plan.v1",
-  "recordedAt": "2026-08-24T17:47:21+09:00",
+  "recordedAt": "2026-08-24T18:21:58+09:00",
   "firstCompletion": {
     "declared": true,
     "sourceCommit": "81f29d23",
@@ -10,7 +10,7 @@
   "secondCompletion": {
     "active": true,
     "sourceOfTruth": "T5-SECOND-COMPLETION.md",
-    "currentGate": "S2-A2_INFORMATION_CONTROL_I2_READY",
+    "currentGate": "S2-A1_RESOURCE_CONTROL_A1_3_READY",
     "firstProductChange": "shadow_resource_accounting_and_control",
     "a0IncidentFixtures": {
       "status": "complete",
@@ -53,8 +53,8 @@
       "S2-A1_RESOURCE_CONTROL_A1_5_LAST_RESORT_INTERVENTION"
     ],
     "a1ResourceSituation": {
-      "status": "locked_until_s2_a2_complete",
-      "modelContextChangeAllowedNow": false
+      "status": "ready_after_s2_a2_complete",
+      "modelContextChangeAllowedNow": true
     },
     "humanPerformanceScenarios": {
       "fixture": "refoundation/config/s2-human-performance-scenarios.json",
@@ -72,12 +72,14 @@
       ]
     },
     "a2InformationControl": {
-      "status": "active",
-      "completedStage": "I1_RESEARCH_FIRST_AND_DUPLICATE_EVIDENCE",
-      "nextStage": "I2_CONVERSATION_MEMORY_RELEVANCE_SHADOW",
-      "evidence": "s2-a2-i1-information-surface-2026-08-24.json",
-      "a2Complete": false,
-      "a1ResourceSituationLocked": true
+      "status": "complete",
+      "completedStages": [
+        "I1_RESEARCH_FIRST_AND_DUPLICATE_EVIDENCE",
+        "I2_CONTEXT_RELEVANCE_AND_MODEL_SELECTED_HAND_FOCUS"
+      ],
+      "evidence": "s2-a2-information-control-complete-2026-08-24.json",
+      "a2Complete": true,
+      "a1ResourceSituationLocked": false
     },
     "browserIncident": {
       "dedicatedProfileIsDirectCause": false,

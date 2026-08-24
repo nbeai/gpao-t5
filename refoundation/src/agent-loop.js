@@ -1,5 +1,6 @@
 import { evidenceFingerprint } from './resource-evidence.js';
 import { compactDuplicateEvidence } from './information-control.js';
+import { measureModelInformation } from './information-context.js';
 
 const DEFAULT_MAX_MODEL_TURNS = 16;
 const DEFAULT_MAX_TOOL_CALLS = 24;
@@ -213,6 +214,8 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [],
  *   requiredCompletionTool?:string|null,
  *   resourceRun?:{modelObserver:Function,observeTool:Function}|null,
  *   resourcePurpose?:string,
+ *   historyInformation?:object,
+ *   focusToolSurface?:boolean,
  *   onEvent?:(event:object)=>void|Promise<void>,
  * }} input
  */
@@ -225,6 +228,8 @@ export async function runAgent({
   requiredCompletionTool = null,
   resourceRun = null,
   resourcePurpose = 'main',
+  historyInformation = {},
+  focusToolSurface = false,
   onEvent,
 }) {
   if (typeof request !== 'string' || !request.trim()) throw new TypeError('request is required');
@@ -260,6 +265,9 @@ export async function runAgent({
   let providerTokens = 0;
   const failureFamilies = new Map();
   const evidenceFamilies = new Map();
+  const toolExposures = new Map();
+  let toolSurfaceFocused = false;
+  const routeActivatedTools = new Set();
   let completionReminderSent = false;
   const completionSatisfied = () => Boolean(requiredCompletionTool && receipts.some((receipt) => (
     receipt.actualCall?.name === requiredCompletionTool && receipt.outcome === 'succeeded'
@@ -270,6 +278,18 @@ export async function runAgent({
 
     modelTurns += 1;
     await onEvent?.({ type: 'model_start', turn: modelTurns });
+    await onEvent?.({
+      type: 'information_context', turn: modelTurns,
+      facts: measureModelInformation({
+        history: historyInformation, currentRequest: transcript[prior.length],
+        currentRunMessages: transcript.slice(prior.length + 1),
+        tools: definitions, toolExposures,
+        requiredRecoveryTools: definitions.map((definition) => definition.name).filter((name) => (
+          name === 'tool_search' || name === requiredCompletionTool
+          || registry.get(name)?.informationAlwaysVisible === true
+        )),
+      }),
+    });
     const resourceObserver = resourceRun?.modelObserver({
       logicalCallId: `${resourcePurpose}:${modelTurns}`, purpose: resourcePurpose,
     });
@@ -389,7 +409,7 @@ export async function runAgent({
         const candidate = registry.get(name);
         if (candidate && !completedTools.has(name)
           && !completedCapabilityGroups.has(candidate.capabilityGroup)) {
-          activeTools.add(name); acceptedActivations.push(name);
+          activeTools.add(name); acceptedActivations.push(name); routeActivatedTools.add(name);
         }
       }
       if (Array.isArray(receipt.result?.activatedTools)) {
@@ -405,6 +425,26 @@ export async function runAgent({
       for (const name of completedTools) activeTools.delete(name);
       for (const name of [...activeTools]) {
         if (completedCapabilityGroups.has(registry.get(name)?.capabilityGroup)) activeTools.delete(name);
+      }
+      if (focusToolSurface && !toolSurfaceFocused && receipt.actualCall
+        && requested.name !== 'tool_search') {
+        toolSurfaceFocused = true;
+        const selected = registry.get(requested.name);
+        const family = selected?.informationFamily ?? null;
+        const hidden = [];
+        for (const name of [...activeTools]) {
+          const candidate = registry.get(name);
+          if (name === requested.name || name === requiredCompletionTool || name === 'tool_search'
+            || acceptedActivations.includes(name)
+            || routeActivatedTools.has(name)
+            || candidate?.informationAlwaysVisible === true
+            || (family && candidate?.informationFamily === family)) continue;
+          activeTools.delete(name); hidden.push(name);
+        }
+        await onEvent?.({
+          type: 'information_surface_focused', turn: modelTurns,
+          selectedTool: requested.name, family, hidden,
+        });
       }
       definitions = [...activeTools].map((name) => toolDefinition(registry.get(name)));
       if (completionSatisfied()) definitions = [];

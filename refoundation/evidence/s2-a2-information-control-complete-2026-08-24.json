@@ -1,0 +1,166 @@
+{
+  "schema": "t5.s2-a2-information-control-complete.v1",
+  "recordedAt": "2026-08-24T18:21:58+09:00",
+  "gate": "S2-A2_INFORMATION_CONTROL",
+  "status": "complete",
+  "goal": "Reduce uncached model input and unnecessary model/tool round trips while preserving user corrections, current purpose, canonical Evidence, exact recall, authority, effect and coverage.",
+  "closePoint": "HP-01 remains correct across follow-up; HP-02 and HP-03 complete with verified artifacts and lower paired input/tokens/wall; all regressions pass; A1-3 remains unimplemented.",
+  "stages": {
+    "I1": {
+      "status": "complete",
+      "evidence": "s2-a2-i1-information-surface-2026-08-24.json"
+    },
+    "I2": {
+      "status": "complete",
+      "implemented": [
+        "content_free_conversation_memory_receipt_hand_accounting",
+        "model_selected_tool_family_focus",
+        "tool_search_dependency_bundle_preservation",
+        "authority_and_route_recovery_hands_preserved",
+        "all_user_messages_and_corrections_inline",
+        "latest_user_turn_full",
+        "older_assistant_tool_segments_exact_session_recall",
+        "bounded_current_memory_candidates_not_memory_event_history"
+      ]
+    }
+  },
+  "informationAccounting": {
+    "separatedFamilies": [
+      "historical_conversation",
+      "current_memory_candidates",
+      "current_user_request",
+      "current_run_tool_receipts",
+      "repeated_tool_receipts",
+      "active_tool_definitions",
+      "unused_non_recovery_tool_definitions"
+    ],
+    "contentStoredInMetrics": false,
+    "runtimeSemanticRelevanceGuess": false,
+    "memoryEventHistoryInjected": false,
+    "memoryCandidateBytesBoundedByExistingLedger": true
+  },
+  "modelVisibility": {
+    "allUserMessagesAndCorrectionsInline": true,
+    "latestUserTurnAssistantAndToolsFull": true,
+    "olderAssistantToolSegmentsProjected": true,
+    "exactSessionIdAndMessageIdRecall": true,
+    "canonicalConversationChanged": false,
+    "canonicalRunReceiptsChanged": false,
+    "distinctEvidenceRemoved": false,
+    "externalEffectReceiptRemoved": false,
+    "duplicateReadNewestReceiptFull": true,
+    "inactiveNonRecoveryHandBytesAfterFocus": 0
+  },
+  "humanPerformanceQualification": {
+    "HP-01": {
+      "model": "gpt-5.6-terra",
+      "purposeAchieved": true,
+      "latestFile": "project-brief-v2.docx",
+      "facts": ["ORION-27", "540000", "Mina"],
+      "followupFact": "2026-09-03",
+      "firstWallMs": 14804.109,
+      "followupWallMs": 1493.565,
+      "firstModelCalls": 6,
+      "followupModelCalls": 1,
+      "followupToolCalls": 0,
+      "sameTargetRetained": true,
+      "unsettled": 0
+    },
+    "HP-02": {
+      "model": "gpt-5.6-terra",
+      "purposeAchieved": true,
+      "destinationCounts": {
+        "Inbox": 0,
+        "Documents": 188,
+        "Images": 94,
+        "Archives": 94,
+        "Review": 24
+      },
+      "movementReceiptChars": 37647,
+      "modelCalls": 5,
+      "toolCalls": 4,
+      "baselineWallMs": 31710.081,
+      "currentWallMs": 24957.898,
+      "baselineRequestBytes": 391937,
+      "currentRequestBytes": 314861,
+      "requestReductionShare": 0.1967,
+      "baselineProviderTokens": 84628,
+      "currentProviderTokens": 66046,
+      "providerTokenReductionShare": 0.2196,
+      "fixedCapStop": false,
+      "unsettled": 0
+    },
+    "HP-03": {
+      "model": "gpt-5.5",
+      "purposeAchieved": true,
+      "guideFacts": {
+        "identity": true,
+        "version": true,
+        "formats": true,
+        "artifact": true
+      },
+      "modelCalls": 6,
+      "toolCalls": 5,
+      "baselineWallMs": 45658.957,
+      "currentWallMs": 42700.649,
+      "baselineRequestBytes": 446103,
+      "currentRequestBytes": 388924,
+      "requestReductionShare": 0.1282,
+      "baselineProviderTokens": 89991,
+      "currentProviderTokens": 79890,
+      "providerTokenReductionShare": 0.1122,
+      "fixedCapStop": false,
+      "unsettled": 0
+    },
+    "visibleBrowserCalls": 0,
+    "approvalRequests": 0,
+    "externalWrites": 0,
+    "observation": "Model routes remain variable. Only adjacent current-code baseline/current pairs and purpose-verified results are used for the A2 completion claim."
+  },
+  "platformBoundary": {
+    "openClawCommit": "e085fa1a3ffd32d0ea6917e1e6fb4ecbffbb77d2",
+    "sourceEvidence": "s2-a2-i1-information-surface-2026-08-24.json",
+    "runSessionReceiptIdentityOnly": true,
+    "pathPidSignalIdentity": false,
+    "windowsFeatureImplemented": false,
+    "copiedWslArchitecture": false
+  },
+  "regressionsFoundAndClosed": [
+    "parallel_web_research_query_child_identity_collision",
+    "focus_hid_tool_search_dependency_bundle",
+    "focus_hid_connection_route_recovery_hands",
+    "iso_only_hp01_date_checker"
+  ],
+  "verification": {
+    "refoundationUnitPassed": 641,
+    "refoundationUnitFailed": 0,
+    "defaultProductIntegrationPassed": 96,
+    "defaultProductIntegrationFailed": 0,
+    "visibleBrowserLiveExecuted": false,
+    "legacySourceImports": 0
+  },
+  "fixedCaps": {
+    "changed": false,
+    "removed": false,
+    "replacementImplemented": false,
+    "nextStage": "S2-A1_3_RESOURCE_SITUATION"
+  },
+  "notImplemented": [
+    "resource_situation_model_input",
+    "active_resource_optimization",
+    "fixed_cap_replacement",
+    "telegram_or_notion_expansion",
+    "new_package"
+  ],
+  "artifacts": {
+    "informationContextSha256": "c1938b6aacecc05e043bb470900cdcff74c77b59dc252a9db72f0be81522258a",
+    "informationControlSha256": "643e1464cfacdc1dcd4e339b9240bc3ec3307466d5e925c043cb977fa3e78576",
+    "agentLoopSha256": "3e1f1186580915ca9045198bf2a8671b74f5a5cce6137a400db2e1249736c2d4",
+    "consoleServerSha256": "98e83f5262f3e9c932b8fd723399e68b81018042df9e6a27bff9eff5e0d9e8fd",
+    "informationContextTestSha256": "639a151e177aeea34a9148b220bce5ebf242ac14d3b11aafe53ed7c27c2c8642",
+    "informationControlTestSha256": "9ceac0a3434a32d7bf484c52443dff00c65522c04fa0714c8e15ddf1f138374a",
+    "informationIntegrationTestSha256": "2dce87901bd2f046ffb3d1ffa094f27d7e1515eb6e616fb2a7fa7e7d120119ce"
+  },
+  "productBehaviorChanged": true,
+  "newPackageCreated": false
+}

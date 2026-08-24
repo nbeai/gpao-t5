@@ -1,7 +1,7 @@
 # T5 Second Completion — Current Development Source
 
 상태: `SECOND_COMPLETION_ACTIVE`
-현재 Gate: `S2-A2 INFORMATION CONTROL — ACTIVE · I1 COMPLETE · I2 READY · A1-3 LOCKED`
+현재 Gate: `S2-A2 INFORMATION CONTROL — COMPLETE · A1-3 READY`
 기준 source: `81f29d23`
 배포 상태: `0.1.8 REVOKED · 새 package 생성 금지`
 
@@ -334,6 +334,23 @@ A2-I1 information surface — COMPLETE
 
 근거: `refoundation/evidence/s2-a2-i1-information-surface-2026-08-24.json`
 
+A2-I2 context relevance — COMPLETE
+
+- 모델 호출마다 과거 Conversation·현재 Memory 후보·현재 사용자 요청·현재 Run ToolReceipt·반복 Receipt·활성
+  Hand schema·미사용 비복구 Hand를 content-free로 분리 계측한다.
+- 모든 사용자 메시지와 교정, 마지막 사용자 turn 이후 assistant/tool은 inline 유지한다. 그보다 오래된
+  assistant/tool 구간은 canonical을 바꾸지 않고 exact sessionId·messageId recall handle로 투영한다.
+- 모델이 첫 실제 Hand를 선택한 뒤 같은 family와 `exec·attachment·connection·web_read·tool_search`, 필요한
+  `session_search`, 같은 search가 활성화한 dependency 묶음만 유지한다. 다른 family는 모델이 다시 검색해 연다.
+- Memory event history는 넣지 않고 기존 bounded current durable 후보만 source session·kind별로 계측한다.
+  Work 의미 선택은 B의 work identity가 생기기 전에 런타임이 추측하지 않는다.
+- HP-01은 최신 DOCX와 후속 대상을 유지했다. HP-02는 400개 이동·모호 24개·movement receipt·count를,
+  HP-03은 guide identity·version·formats·artifact를 재개방해 확인했다. HP-02 request는 19.7%, tokens는 22.0%,
+  HP-03 request는 12.8%, tokens는 11.2% 감소했고 paired wall도 감소했으며 model/tool 왕복은 늘지 않았다.
+
+S2-A2 Information Control — COMPLETE. 근거:
+`refoundation/evidence/s2-a2-information-control-complete-2026-08-24.json`
+
 통과:
 
 - authority·effect·coverage·사용자 교정 손실 0, recall digest 일치
@@ -460,10 +477,10 @@ AND 실행 가능한 미시도 route가 남은 blocked 0
 
 ## 8. 현재 작업 시작점
 
-S2-A0, A1-1, A1-2와 A2-I1 information surface를 완료했다. A2는 아직 진행 중이다. 다음 한 작업 A2-I2는
-Conversation·Memory 후보가 현재 목적·사용자 교정·source scope와 실제로 얼마나 관련되는지 content-free로
-계측하고, 런타임 의미 추측 없이 줄일 수 있는 경계를 확정하는 것이다. A2 전체가 실제 사용자 과업에서
-닫히기 전에는 A1-3 Resource Situation을 열지 않는다.
+S2-A0, A1-1, A1-2와 S2-A2 Information Control을 완료했다. 다음 한 작업은 A1-3 Resource Situation이다.
+HP-02·03에서 새 Evidence가 계속되는 동안 현재 0.1.9의 16 model turns·24 tools·500K provider tokens 고정
+상한이 먼저 중단시키지 않도록, A2가 정리한 작은 Context에 content-free 자원 현실을 공급한다. 고정 상한을
+먼저 제거하거나 다른 고정 숫자로 바꾸지 않는다.
 
 A1-2 완료 범위:
 

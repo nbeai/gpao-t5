@@ -16,6 +16,9 @@ import { ResourceLedger } from './resource-ledger.js';
 import { ResourceController } from './resource-controller.js';
 import { deriveRunSpeedReceipt } from './run-speed-receipt.js';
 import { deriveRunContextReport } from './run-context-receipt.js';
+import {
+  historicalInformation, projectConversationEntriesForCurrentPurpose,
+} from './information-context.js';
 import { AuthorityStore, boundaryForEffect, effectDeclarationMismatch } from './effect-authority.js';
 import { compareEffectObservations, observeDeclaredEffect } from './effect-observation.js';
 import { loadSkillSnapshot, makeSkillTool, mergeSkillSnapshots } from './skill-runtime.js';
@@ -88,6 +91,17 @@ const bundledDocumentCli = resolve(repositoryRoot, 'refoundation', 'bin', 't5-do
 const founderManifestoPath = resolve(
   repositoryRoot, 'docs', '00-product', 'GPAO-T5-FOUNDER-MANIFESTO-ko.md',
 );
+
+function informationFamily(name) {
+  if (['web_search', 'web_read', 'web_research', 'visual_reference', 'browser'].includes(name)) return 'web';
+  if (['memory', 'session_search', 'conversation_recall'].includes(name)) return 'continuity';
+  if (name === 'connection') return 'connection';
+  if (name === 'automation' || name === 'automation_outcome') return 'automation';
+  if (name === 'skill') return 'capability';
+  if (name === 'attachment') return 'artifact';
+  if (name === 'exec' || name === 'process_control') return 'computer';
+  return null;
+}
 function attachmentSurface(record) {
   return {
     attachmentId: record.attachmentId,
@@ -220,6 +234,7 @@ export function makeConsoleServer({
   skillCatalogMode = 'on-demand',
   conversationProjection = 'historical-tool-receipt-v1',
   informationControl = 'research-first-v1',
+  conversationRelevance = 'user-source-latest-v1',
   largeToolOutputMode = 'recoverable',
   conversationCheckpointMode = 'in-place-v0',
   checkpointTriggerBytes = 300_000,
@@ -258,6 +273,9 @@ export function makeConsoleServer({
   }
   if (!['wide-web-v0', 'research-first-v1'].includes(informationControl)) {
     throw new TypeError('unsupported information control mode');
+  }
+  if (!['full-v0', 'user-source-latest-v1'].includes(conversationRelevance)) {
+    throw new TypeError('unsupported conversation relevance mode');
   }
   if (!['off', 'in-place-v0'].includes(conversationCheckpointMode)) {
     throw new TypeError('unsupported conversation checkpoint mode');
@@ -462,20 +480,27 @@ export function makeConsoleServer({
 
   function projectConversation(sessionId, conversation, memoryItems = []) {
     const active = activeConversationProjection(conversation);
+    const relevance = conversationRelevance === 'user-source-latest-v1'
+      ? projectConversationEntriesForCurrentPurpose(active.tailEntries, { sessionId })
+      : { entries: structuredClone(active.tailEntries), omittedMessages: 0, omittedBytes: 0, recallHandles: [] };
     const projectedTail = conversationProjection === 'historical-tool-receipt-v1'
-      ? projectHistoricalConversationEntries(active.tailEntries, {
+      ? projectHistoricalConversationEntries(relevance.entries, {
         largeOutputMode: largeToolOutputMode,
         preserveBrowserInteractionState: (browserObservations.get(sessionId)?.size() ?? 0) > 0,
       })
-      : { messages: active.tailEntries.map((entry) => structuredClone(entry.message)), recoverable: [] };
+      : { messages: relevance.entries.map((entry) => structuredClone(entry.message)), recoverable: [] };
     const messages = active.checkpoint
         ? [structuredClone(active.messages[0]), ...projectedTail.messages]
         : projectedTail.messages;
     const recalledMemory = memoryContextMessage(memoryItems);
+    const information = historicalInformation({
+      sessionId, conversationMessages: messages,
+      memoryItems, memoryMessage: recalledMemory, checkpoint: active.checkpoint, relevance,
+    });
     return {
       messages: recalledMemory ? [recalledMemory, ...messages] : messages,
       recoverable: projectedTail.recoverable,
-      active,
+      active, information, historicalRecallRequired: relevance.recallHandles.length > 0,
     };
   }
 
@@ -1050,10 +1075,20 @@ export function makeConsoleServer({
       ];
       const deferredTools = deferTools(offeredTools, {
         coreNames: coreToolNames, includeAttachment: attachmentIds.length > 0,
-      });
+      }).map((tool) => ({
+        ...tool, informationFamily: informationFamily(tool.name),
+        informationAlwaysVisible: ['exec', 'attachment', 'connection', 'web_read'].includes(tool.name)
+          || (projection.historicalRecallRequired && tool.name === 'session_search'),
+      }));
       // Rendered-page interaction is not a generally discoverable shortcut. It is promoted
       // by web_read only after an exact URL establishes a rendered/login boundary.
       const searchable = deferredTools.filter((tool) => tool.deferred && tool.name !== 'browser');
+      if (informationControl === 'research-first-v1') {
+        for (const tool of deferredTools) {
+          if (tool.name !== 'browser'
+            && !searchable.some((candidate) => candidate.name === tool.name)) searchable.push(tool);
+        }
+      }
       deferredTools.unshift(makeToolSearchTool({
         tools: searchable,
         prerequisites: browserConfigured ? {
@@ -1087,12 +1122,27 @@ export function makeConsoleServer({
         requiredCompletionTool: options.trigger === 'automation' ? 'automation_outcome' : null,
         resourceRun,
         resourcePurpose: options.trigger === 'automation' ? 'automation_main' : 'main',
+        historyInformation: projection.information,
+        focusToolSurface: informationControl === 'research-first-v1',
         onEvent: async (event) => {
           if (event.type === 'model_start') {
             await run.append({
               type: 'model_started', stepId: `model-${event.turn}`, payload: { turn: event.turn },
             });
             publishProgress('trace_status', modelProgressText(event.turn), 'model');
+          } else if (event.type === 'information_context') {
+            await run.append({
+              type: 'information_context_built', stepId: `information-context-${event.turn}`,
+              payload: { turn: event.turn, ...event.facts },
+            });
+          } else if (event.type === 'information_surface_focused') {
+            await run.append({
+              type: 'information_surface_focused', stepId: `information-focus-${event.turn}`,
+              payload: {
+                turn: event.turn, selectedTool: event.selectedTool,
+                family: event.family, hidden: event.hidden,
+              },
+            });
           } else if (event.type === 'model_context') {
             await run.append({
               type: 'model_context_built', stepId: `model-${event.turn}`,

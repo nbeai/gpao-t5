@@ -98,3 +98,49 @@ test('research-first 기본 모델은 partial search schema 없이 한 bounded W
     await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true });
   }
 });
+
+test('오래된 assistant 원문은 exact session handle로 회수되고 사용자 교정·최신 대상은 inline 유지된다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-conversation-relevance-console-'));
+  const stateDir = join(room, 'state'); const workspace = join(room, 'workspace'); await mkdir(workspace);
+  let turn = 0; let sessionId;
+  const server = makeConsoleServer({
+    stateDir, workspace,
+    modelFactory: () => ({ async respond(input) {
+      turn += 1;
+      if (turn === 1) {
+        const inline = input.messages.map((message) => message.content).join('\n');
+        assert.match(inline, /첫 요청/u); assert.match(inline, /사용자 교정/u);
+        assert.match(inline, /현재 선택 대상/u); assert.doesNotMatch(inline, /OLD-NEEDLE/u);
+        const marker = input.messages.find((message) => /HISTORICAL ASSISTANT/u.test(message.content));
+        assert.match(marker.content, /firstMessageId=a1/u);
+        return { text: '', toolCalls: [{ id: 'recall-old', name: 'session_search', args: {
+          action: 'read', query: null, sessionId, messageId: 'a1', limit: null, window: 2, includeTools: false,
+        } }] };
+      }
+      const recalled = JSON.parse(input.messages.at(-1).content);
+      assert.equal(recalled.result.state, 'read');
+      assert.equal(recalled.result.messages.some((message) => /OLD-NEEDLE/u.test(message.content)), true);
+      return { text: '교정과 현재 대상을 유지하며 옛 근거도 확인했습니다.', toolCalls: [] };
+    } }),
+    modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
+  });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    sessionId = session.id;
+    await server.conversationLedger.ensure({ sessionId, legacyMessages: [] });
+    for (const [messageId, role, content] of [
+      ['u1', 'user', '첫 요청'], ['a1', 'assistant', 'OLD-NEEDLE assistant fact'],
+      ['u2', 'user', '사용자 교정'], ['a2', 'assistant', '교정 뒤 답'],
+      ['u3', 'user', '현재 선택'], ['a3', 'assistant', '현재 선택 대상'],
+    ]) await server.conversationLedger.appendMessage({
+      sessionId, messageId, runId: 'past-run', message: { role, content },
+    });
+    const reply = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId, text: '필요하면 옛 근거도 확인해서 계속해' }) }).then((response) => response.json());
+    assert.equal(reply.reply, '교정과 현재 대상을 유지하며 옛 근거도 확인했습니다.');
+  } finally {
+    await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true });
+  }
+});

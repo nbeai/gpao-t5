@@ -74,6 +74,47 @@ test('모델이 후보 검색을 원하면 tool_search 한 번으로 web_search�
   assert.equal(observed.calls.length, 2);
 });
 
+test('첫 실제 Hand 선택 뒤 같은 family와 복구 손만 남겨 다음 모델 입력을 줄인다', async () => {
+  const observed = await runSurface({
+    informationControl: 'research-first-v1',
+    respond(input, turn) {
+      if (turn === 1) return { text: '', toolCalls: [{ id: 'research', name: 'web_research', args: {
+        query: 'public evidence', queries: null, sourceLimit: 3, domains: null,
+      } }] };
+      assert.equal(input.tools.some((tool) => tool.name === 'web_research'), true);
+      assert.equal(input.tools.some((tool) => tool.name === 'web_read'), true);
+      assert.equal(input.tools.some((tool) => tool.name === 'exec'), true);
+      assert.equal(input.tools.some((tool) => tool.name === 'attachment'), true);
+      assert.equal(input.tools.some((tool) => tool.name === 'automation'), false);
+      assert.equal(input.tools.some((tool) => tool.name === 'connection'), false);
+      return { text: '선택한 Web 경로로 끝냈습니다.', toolCalls: [] };
+    },
+  });
+  assert.equal(observed.calls.length, 2);
+  assert.ok(Buffer.byteLength(JSON.stringify(observed.calls[1].tools))
+    < Buffer.byteLength(JSON.stringify(observed.calls[0].tools)));
+});
+
+test('focus 뒤 숨은 다른 family도 tool_search로 다시 열 수 있다', async () => {
+  const observed = await runSurface({
+    informationControl: 'research-first-v1',
+    respond(input, turn) {
+      if (turn === 1) return { text: '', toolCalls: [{ id: 'research', name: 'web_research', args: {
+        query: 'public evidence', queries: null, sourceLimit: 3, domains: null,
+      } }] };
+      if (turn === 2) {
+        assert.equal(input.tools.some((tool) => tool.name === 'automation'), false);
+        return { text: '', toolCalls: [{ id: 'find-automation', name: 'tool_search', args: {
+          query: 'schedule recurring future task automation',
+        } }] };
+      }
+      assert.equal(input.tools.some((tool) => tool.name === 'automation'), true);
+      return { text: '필요한 예약 손을 다시 열었습니다.', toolCalls: [] };
+    },
+  });
+  assert.equal(observed.result.reply, '필요한 예약 손을 다시 열었습니다.');
+});
+
 test('A2 information surface는 OS path·PID·signal로 선택하지 않는다', async () => {
   const source = await import('node:fs/promises').then(({ readFile }) => (
     readFile(new URL('../src/console-server.js', import.meta.url), 'utf8')
