@@ -19,6 +19,28 @@ export class ManagedSkillStore {
   async append(type, payload) { await this.ensure(); await appendFile(this.ledger, `${JSON.stringify({ schema: 't5.skill-lifecycle.v1', type, recordedAt: new Date().toISOString(), ...payload })}\n`, { mode: 0o600 }); await chmod(this.ledger, 0o600); }
   async installedNames() { await this.ensure(); return (await readdir(this.active, { withFileTypes: true })).filter((e) => e.isDirectory()).map((e) => e.name).sort(); }
   async activeRevision(name) { if (!(await this.installedNames()).includes(name)) return { active: false, version: null, digest: null }; const content = await readFile(join(this.active, name, 'SKILL.md')); return { active: true, version: null, digest: createHash('sha256').update(content).digest('hex') }; }
+  async activateLearned({ name, content, proposalId, revisionDigest }) {
+    return this.serialize(async () => {
+      await this.ensure();
+      if ((await this.installedNames()).includes(name)) throw new Error('managed skill target already exists');
+      const observedDigest = createHash('sha256').update(content).digest('hex');
+      if (observedDigest !== revisionDigest) throw new Error('learned skill revision mismatch');
+      const temporary = join(this.root, `.learned-${name}-${process.pid}-${Date.now()}`);
+      let published = false;
+      await mkdir(temporary, { mode: 0o700 });
+      try {
+        await writeFile(join(temporary, 'SKILL.md'), content, { mode: 0o600 });
+        await chmod(join(temporary, 'SKILL.md'), 0o600); await rename(temporary, join(this.active, name));
+        published = true;
+        await this.append('learned_activated', { name, proposalId, contentDigest: revisionDigest });
+      } catch (error) {
+        const source = published ? join(this.active, name) : temporary;
+        await rename(source, join(this.trash, `${name}-failed-${Date.now()}`)).catch(() => {});
+        throw error;
+      }
+      return { state: 'activated', name, proposalId, digest: revisionDigest, recoverable: true };
+    });
+  }
   async install(name) { return this.serialize(async () => { await this.ensure(); const { metadata, content, policy } = this.entry(name);
     if (policy.prepare === 'explicit_only') return { state: 'explicit_selection_required', ...metadata, policy };
     if (policy.prepare !== 'managed') throw new Error('skill package is not managed');

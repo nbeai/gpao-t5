@@ -1,0 +1,47 @@
+{
+  "schema": "t5.s2-e-learning-foundation-evidence.v1",
+  "gate": "S2-E-I1",
+  "recordedAt": "2026-08-25T03:00:00+09:00",
+  "referenceSources": {
+    "openclaw": "7d08e40e2f1de5e68773032872465e92312eaa13",
+    "hermes": "74ad422d50e6d76e26ba5ce3b4d2a4d520e923dd"
+  },
+  "closed": [
+    "learning source requires achieved Work verified completion terminal result confirmed delivery completed Run and no unknown effect",
+    "observation-only capability comparison cannot create tested lifecycle evidence",
+    "candidate proposal requires repeated distinct eligible Work and Run pointers",
+    "candidate content is immutable digest-bound bounded and credential-rejected",
+    "qualification requires exact paired purpose correctness completeness correction holdout field and Pareto evidence",
+    "learned activation is exact-revision reversible and next-Run visible",
+    "managed-store and lifecycle commit failures leave learned Skill inactive",
+    "reviewer and active write remain disabled by default"
+  ],
+  "faults": {
+    "runCompletedFalseLearning": 0,
+    "unresolvedFalseLearning": 0,
+    "deliveryUnknownFalseLearning": 0,
+    "effectUnknownFalseLearning": 0,
+    "fasterButWrongPromotion": 0,
+    "differentPurposePromotion": 0,
+    "sourceExpressionHoldoutReuse": 0,
+    "ineligibleCandidateProposal": 0,
+    "credentialCandidateProposal": 0,
+    "partialActivationAfterCommitFailure": 0
+  },
+  "verification": {
+    "refoundationCheck": { "passed": 719, "failed": 0 },
+    "productIntegration": { "passed": 118, "failed": 0 },
+    "visibleBrowserLiveExecuted": false,
+    "externalWriteExecuted": false
+  },
+  "pending": [
+    "isolated reviewer actual-model qualification",
+    "candidate replay runner",
+    "same-purpose paired A/B execution",
+    "trigger holdout execution",
+    "scoped field observation",
+    "Terra and gpt-5.5 promotion and rollback journey",
+    "human end-to-end learning qualification"
+  ],
+  "status": "E_I1_COMPLETE_E_OVERALL_OPEN"
+}

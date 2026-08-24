@@ -82,6 +82,8 @@ import { AutomationScheduler } from './automation-scheduler.js';
 import { makeLocalAutomationOwner } from './automation-owner.js';
 import { makeAutomationTool } from './automation-tool.js';
 import { assessAutomationOutcome, makeAutomationOutcomeTool } from './automation-outcome-tool.js';
+import { deriveLearningSourceEligibility } from './learning-source-eligibility.js';
+import { LearningCandidateStore } from './learning-candidate.js';
 import { deferTools, makeToolSearchTool } from './tool-search.js';
 import { makeLocalConsoleGuard } from './local-console-guard.js';
 
@@ -328,6 +330,7 @@ export function makeConsoleServer({
   const memories = new MemoryLedger(join(stateDir, 'memory'));
   const capabilityHandoffs = new CapabilityHandoffLedger(join(stateDir, 'capability-handoffs'));
   const capabilityLifecycle = new CapabilityLifecycleLedger(join(stateDir, 'capability-lifecycle'));
+  const learningCandidates = new LearningCandidateStore({ ledger: capabilityLifecycle });
   const automationStore = new AutomationStore(join(stateDir, 'automation', 'state.json'));
   const runLedger = new RunLedger(join(stateDir, 'runs'));
   const resourceLedger = providedResourceLedger ?? new ResourceLedger(join(stateDir, 'resources'));
@@ -1123,6 +1126,7 @@ export function makeConsoleServer({
         ledger: capabilityLifecycle, runLedger, currentRunId: run.runId,
         currentRunOrigin: options.trigger ?? 'user',
         stores: { cli: managedCliStore, skill: managedSkillStore },
+        learningCandidates,
         authorizeEffect: (args) => effectPreflight({ toolName: 'capability_lifecycle', args, ownerId: sessionId }),
       }));
       if (options.trigger !== 'automation') offeredTools.unshift(makeAutomationTool({
@@ -3007,6 +3011,10 @@ export function makeConsoleServer({
   server.memoryLedger = memories;
   server.capabilityHandoffLedger = capabilityHandoffs;
   server.capabilityLifecycleLedger = capabilityLifecycle;
+  server.learningCandidateStore = learningCandidates;
+  server.learningSourceEligibility = async () => deriveLearningSourceEligibility({
+    workState: await workStore.read(), runs: await runLedger.list(),
+  });
   server.attachmentStore = attachments;
   server.recoverPreparedAdmissions = () => admissionRecovery;
   server.recoverResultPublications = () => resultPublicationRecovery;
