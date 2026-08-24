@@ -222,6 +222,7 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [],
  *   maxProviderTokens?:number|null,
  *   parallelCapacity?:number,
  *   requiredCompletionTool?:string|null,
+ *   requiredInitialTool?:string|null,
  *   resourceRun?:{modelObserver:Function,observeTool:Function}|null,
  *   resourcePurpose?:string,
  *   historyInformation?:object,
@@ -241,6 +242,7 @@ export async function runAgent({
   maxProviderTokens = null,
   parallelCapacity = availableParallelism(),
   requiredCompletionTool = null,
+  requiredInitialTool = null,
   resourceRun = null,
   resourcePurpose = 'main',
   historyInformation = {},
@@ -300,6 +302,9 @@ export async function runAgent({
   const completionSatisfied = () => Boolean(requiredCompletionTool && receipts.some((receipt) => (
     receipt.actualCall?.name === requiredCompletionTool && receipt.outcome === 'succeeded'
   )));
+  if (requiredInitialTool != null && !registry.has(requiredInitialTool)) {
+    throw new Error(`required initial tool is unavailable: ${requiredInitialTool}`);
+  }
 
   while (maxModelTurns == null || modelTurns < maxModelTurns) {
     if (signal?.aborted) return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
@@ -372,6 +377,8 @@ export async function runAgent({
       ...(situationBlock ? { runtimeContext: situationBlock } : {}),
       ...(completionReminderSent && requiredCompletionTool && !completionSatisfied() ? {
         toolChoice: { requiredToolName: requiredCompletionTool },
+      } : modelTurns === 1 && requiredInitialTool ? {
+        toolChoice: { requiredToolName: requiredInitialTool },
       } : {}),
       signal,
       ...(resourceObserver ? { resourceObserver } : {}),

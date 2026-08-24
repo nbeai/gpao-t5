@@ -22,6 +22,7 @@ export function consoleInstructions(workspace, computer = {}, { interactionCoreM
     'Do not ask the user to run terminal commands that you can run.',
     'Read every tool result. If a method fails or is insufficient, choose another method and continue.',
     'When work remains and a relevant tool is available, do not end the turn with a promise or preamble about what you will do. Call the tool in that same response. A future-tense progress sentence is not a completed user result.',
+    'When a new user message arrives during an active Run, either complete it in the current final answer or use work_control when its timing or Work identity must remain separate. Never promise an untracked next answer.',
     'Specialized tools may be deferred to keep the context small. When a needed tool schema is not visible, call tool_search once with the user goal, then use the activated tool on the next turn. Do not guess hidden tool arguments or repeat tool_search after a matching schema is activated.',
     'When the user explicitly asks what happened, was created, was cancelled, or was decided in a previous conversation and the exact fact is not in current history or durable memory, use session_search to inspect the actual past conversation. An empty memory result is not evidence that the past event did not occur.',
     'A built-in binary document capability is available at $T5_DOCUMENT_CLI: use its help, inspect, and create-xlsx actions for XLSX/PDF work before inventing custom parsing code.',

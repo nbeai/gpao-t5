@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { deflateSync } from 'node:zlib';
@@ -211,6 +211,32 @@ test('모델이 만든 workspace 결과는 attachment register 뒤 surface 다�
     assert.equal(await fetch(`${app.base}${reply.artifacts[0].downloadUrl}`).then((response) => response.text()), 'RESULT-8842');
     const restored = await fetch(`${app.base}/sessions/${session.id}`).then((response) => response.json());
     assert.equal(restored.transcript[1].result.artifacts[0].attachmentId, reply.artifacts[0].attachmentId);
+  } finally { await app.close(); }
+});
+
+test('사용자가 workspace 안 두 구간 상대경로로 지정한 기존 파일도 exact output으로 등록한다', async () => {
+  let turn = 0; let outputPath;
+  const app = await fixtureServer(() => ({ async respond(input) {
+    turn += 1;
+    if (turn === 1) return { text: '', toolCalls: [{ id: 'register-existing', name: 'attachment', args: {
+      action: 'register_output', attachmentId: null, filePath: outputPath,
+      maxChars: null, maxCells: null, maxPages: null,
+    } }] };
+    const receipt = JSON.parse(input.messages.at(-1).content);
+    assert.equal(receipt.result.state, 'registered');
+    return { text: '요청한 기존 파일을 준비했습니다.', toolCalls: [] };
+  } }));
+  try {
+    outputPath = join(app.workspace, '06_Telegram', 'F-result.txt');
+    await mkdir(join(app.workspace, '06_Telegram'), { recursive: true });
+    await writeFile(outputPath, 'SAFE-FILE', 'utf8');
+    const session = await newSession(app.base);
+    const reply = await fetch(`${app.base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id,
+        text: '작업 폴더의 06_Telegram/F-result.txt를 이 대화에 파일로 보내줘.' }),
+    }).then((response) => response.json());
+    assert.equal(reply.artifacts.length, 1); assert.equal(reply.artifacts[0].originalName, 'F-result.txt');
+    assert.equal(await fetch(`${app.base}${reply.artifacts[0].downloadUrl}`).then((response) => response.text()), 'SAFE-FILE');
   } finally { await app.close(); }
 });
 

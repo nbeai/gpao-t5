@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { consoleInstructions } from '../src/console-model-factory.js';
 import { resolveConsoleWorkspace, sanitizeTerminalPath } from '../src/console-config.js';
-import { requestContainsExactPath } from '../src/console-server.js';
+import { requestContainsExactPath, requestContainsWorkspacePath } from '../src/console-server.js';
 
 test('콘솔의 기본 터미널 범위는 사용자의 홈이며 별도 설정만 명시적으로 덮어쓴다', () => {
   assert.equal(resolveConsoleWorkspace({}, '/Users/example'), '/Users/example');
@@ -79,6 +79,11 @@ test('browser upload 권한은 현재 요청의 완전한 절대경로 토큰에
   assert.equal(requestContainsExactPath(`/prefix${path}`, path), false);
   assert.equal(requestContainsExactPath('report.pdf를 올려줘', path), false);
   assert.equal(requestContainsExactPath('경로 없음', ''), false);
+  const workspace = '/Users/test/workspace';
+  const nested = '/Users/test/workspace/00_test/06_Telegram/file.txt';
+  assert.equal(requestContainsWorkspacePath('작업 폴더의 06_Telegram/file.txt를 보내줘', nested, workspace), true);
+  assert.equal(requestContainsWorkspacePath('file.txt를 보내줘', nested, workspace), false);
+  assert.equal(requestContainsWorkspacePath('06_Other/file.txt를 보내줘', nested, workspace), false);
 });
 
 test('일반 terminal PATH는 내부 agent-browser binary를 노출하지 않는다', () => {

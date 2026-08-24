@@ -213,6 +213,31 @@ test('Notion verified_write는 write acknowledgement와 exact page readback을 �
   assert.deepEqual(calls.map((call) => call.name), ['notion-update-page', 'notion-fetch']);
 });
 
+test('Notion insert_content는 external change로 실행하고 hyphen 표기 차이를 같은 page identity로 본다', async () => {
+  const calls = [];
+  const runtime = {
+    async listTools() { return [{
+      name: 'notion-update-page', inputSchema: { type: 'object' },
+      annotations: { readOnlyHint: false, destructiveHint: true },
+    }, { name: 'notion-fetch', inputSchema: { type: 'object' },
+      annotations: { readOnlyHint: true, destructiveHint: false } }]; },
+    async callTool(input) { calls.push(input); return input.name === 'notion-update-page'
+      ? { content: [{ type: 'text', text: '{"id":"3c68028b-8d2e-80ae-9cc1-f624a454d611"}' }], isError: false }
+      : { content: [{ type: 'text', text: '{"text":"CANARY"}' }], isError: false }; },
+  };
+  const tool = makeNotionTool({ runtime, authorizeEffect: async (args) => (
+    args.effect?.kind === 'external_change' ? { allowed: true }
+      : { allowed: false, outcome: 'not_executed', result: { state: 'approval_required' } }
+  ) });
+  const args = { action: 'verified_write', toolName: 'notion-update-page',
+    argumentsJson: '{"page_id":"3c68028b8d2e80ae9cc1f624a454d611","command":"insert_content","content":"CANARY"}',
+    verificationToolName: 'notion-fetch', targetResourceId: '3c68028b8d2e80ae9cc1f624a454d611',
+    expectedText: 'CANARY', effect: effect('external_change') };
+  assert.equal((await tool.preflight(args)).allowed, true);
+  const result = await tool.execute(args); assert.equal(result.state, 'notion_write_verified');
+  assert.equal(calls.length, 2);
+});
+
 test('Notion write ACK 뒤 요청 내용이 readback에 없으면 완료 증거 부족으로 남는다', async () => {
   const runtime = {
     async listTools() { return [{ name: 'update', inputSchema: { type: 'object' }, annotations: { readOnlyHint: false } },

@@ -169,6 +169,21 @@ export function requestContainsExactPath(request, candidate) {
   return false;
 }
 
+export function requestContainsWorkspacePath(request, candidate, workspace) {
+  if (requestContainsExactPath(request, candidate)) return true;
+  const root = resolve(String(workspace ?? '')); const path = resolve(String(candidate ?? ''));
+  const relativePath = relative(root, path);
+  if (!relativePath || relativePath.startsWith('..') || isAbsolute(relativePath)) return false;
+  const parts = relativePath.split(sep).filter(Boolean);
+  if (parts.length < 2) return false;
+  const normalizedRequest = String(request ?? '').normalize('NFC');
+  for (let index = 0; index <= parts.length - 2; index += 1) {
+    const suffix = parts.slice(index).join('/').normalize('NFC');
+    if (suffix.includes('/') && normalizedRequest.includes(suffix)) return true;
+  }
+  return false;
+}
+
 async function body(req, limit = 1024 * 1024) {
   let text = '';
   for await (const chunk of req) {
@@ -1005,7 +1020,7 @@ export function makeConsoleServer({
       offeredTools.unshift(makeAttachmentTool({
         store: attachments, sessionId, workspace, runId: run.runId,
         authorizeOutputPath: (candidate) => (
-          requestContainsExactPath(text, candidate) || outputCandidates.has(outputKey(candidate))
+          requestContainsWorkspacePath(text, candidate, workspace) || outputCandidates.has(outputKey(candidate))
         ),
         observeImagePixels: async (modelAttachments) => {
           visualObservationCount += 1; const index = visualObservationCount;
@@ -1278,6 +1293,9 @@ export function makeConsoleServer({
         signal: controller.signal,
         ...(parallelCapacity == null ? {} : { parallelCapacity }),
         requiredCompletionTool: options.trigger === 'automation' ? 'automation_outcome' : null,
+        requiredInitialTool: options.trigger === 'automation'
+          && options.automationRequirements?.requiredTools?.length === 1
+          ? options.automationRequirements.requiredTools[0] : null,
         resourceRun,
         resourcePurpose: options.trigger === 'automation' ? 'automation_main' : 'main',
         historyInformation: projection.information,

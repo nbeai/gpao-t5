@@ -297,6 +297,20 @@ test('모델 provider 사용량 합계가 Run 상한을 넘으면 다음 도구�
   assert.equal(events.filter((event) => event.type === 'model_end').length, 2);
 });
 
+test('예약 계약의 단일 필수 실행 Hand는 첫 모델 호출에서 provider tool choice로 강제된다', async () => {
+  let turn = 0; const choices = [];
+  const model = { async respond(input) {
+    choices.push(input.toolChoice ?? null); turn += 1;
+    if (turn === 1) return { text: '', toolCalls: [{ id: 'exec-1', name: 'exec', args: {} }] };
+    return { text: '실행 결과', toolCalls: [] };
+  } };
+  const tool = { name: 'exec', description: 'execute exact observed command', parameters: { type: 'object' },
+    async execute() { return { state: 'completed', exitCode: 0, stdout: 'done' }; } };
+  const result = await runAgent({ request: '예약 실행', model, tools: [tool], requiredInitialTool: 'exec' });
+  assert.deepEqual(choices, [{ requiredToolName: 'exec' }, null]);
+  assert.equal(result.answer, '실행 결과'); assert.equal(result.receipts[0].outcome, 'succeeded');
+});
+
 test('같은 탭의 새 Browser 관측은 모델 transcript에서 이전 큰 snapshot·입력문만 대체한다', async () => {
   let turn = 0;
   const model = { async respond(input) {

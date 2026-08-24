@@ -14,6 +14,10 @@ function pageIdFrom(value) {
   for (const child of Object.values(value)) { const found = pageIdFrom(child); if (found) return found; }
   return null;
 }
+function canonicalPageId(value) { return String(value ?? '').trim().replaceAll('-', '').toLocaleLowerCase(); }
+function reversibleInsert(toolName, writeArgs) {
+  return toolName === 'notion-update-page' && writeArgs?.command === 'insert_content';
+}
 function acknowledgedPageId(result) {
   for (const block of result?.content ?? []) {
     if (block?.type !== 'text') continue;
@@ -74,10 +78,18 @@ export function makeNotionTool({ runtime, authorizeEffect } = {}) {
         }
         return base.preflight(args, context);
       }
-      parseObject(args.argumentsJson, 'Notion write argumentsJson');
+      const writeArgs = parseObject(args.argumentsJson, 'Notion write argumentsJson');
       if (!String(args.verificationToolName ?? '').trim()) throw new TypeError('Notion verification tool is required');
       if (!String(args.expectedText ?? '').trim()) throw new TypeError('Notion expected text is required');
       await verifyReadTool(String(args.verificationToolName));
+      if (reversibleInsert(String(args.toolName), writeArgs)) {
+        if (args.effect?.kind !== 'external_change') return {
+          allowed: false, outcome: 'not_executed', result: { state: 'external_change_required' },
+        };
+        return typeof authorizeEffect === 'function' ? authorizeEffect(args, context) : {
+          allowed: false, outcome: 'not_executed', result: { state: 'authority_unavailable' },
+        };
+      }
       return base.preflight({ action: 'call', toolName: args.toolName, argumentsJson: args.argumentsJson, effect: args.effect }, context);
     },
     async execute(args = {}) {
@@ -86,7 +98,8 @@ export function makeNotionTool({ runtime, authorizeEffect } = {}) {
       const write = await base.execute({ action: 'call', toolName: args.toolName, argumentsJson: args.argumentsJson, effect: args.effect });
       const declaredPageId = String(args.targetResourceId ?? '').trim() || pageIdFrom(writeArgs);
       const acknowledgedId = acknowledgedPageId(write); const pageId = acknowledgedId ?? declaredPageId;
-      if (acknowledgedId && declaredPageId && acknowledgedId !== declaredPageId) return {
+      if (acknowledgedId && declaredPageId
+        && canonicalPageId(acknowledgedId) !== canonicalPageId(declaredPageId)) return {
         state: 'notion_write_identity_mismatch', exitCode: 1, verificationMissing: true,
         writeAcknowledgement: { toolName: args.toolName, pageId: acknowledgedId }, declaredPageId,
       };
