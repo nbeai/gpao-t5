@@ -10,7 +10,7 @@
   "secondCompletion": {
     "active": true,
     "sourceOfTruth": "T5-SECOND-COMPLETION.md",
-    "currentGate": "S2-A_HUMAN_CONSOLE_QUALIFICATION_READY",
+    "currentGate": "S2-C_MEMORY_PORTFOLIO_READY",
     "firstProductChange": "shadow_resource_accounting_and_control",
     "a0IncidentFixtures": {
       "status": "complete",
@@ -77,6 +77,14 @@
       "generalFailureBoundToExactRoute": true,
       "uniqueRouteRunawayClosedAfterModelSelectedRecovery": true,
       "humanConsoleQualificationReady": true
+    },
+    "bWorkConversationContinuity": {
+      "status": "complete",
+      "evidence": "s2-b-work-conversation-continuity-2026-08-24.json",
+      "durableBusyInputAdmission": true,
+      "modelOwnsRelationJudgment": true,
+      "revisionAwareExecution": true,
+      "restartRestoresPendingAndQueued": true
     },
     "humanPerformanceScenarios": {
       "fixture": "refoundation/config/s2-human-performance-scenarios.json",

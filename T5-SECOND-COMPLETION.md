@@ -1,7 +1,7 @@
 # T5 Second Completion — Current Development Source
 
 상태: `SECOND_COMPLETION_ACTIVE`
-현재 Gate: `S2-A COMPLETE · A HUMAN CONSOLE QUALIFICATION READY`
+현재 Gate: `S2-B COMPLETE · S2-C READY`
 기준 source: `81f29d23`
 배포 상태: `0.1.8 REVOKED · 새 package 생성 금지`
 
@@ -422,6 +422,23 @@ effect unknown: 재실행 0, 현실 재관측만 허용
 ```
 
 통과: 교정·입력 유실 0, restart 복원, premature stop 0, 거짓 성공 0, 모델 userAnswer 재작성 0.
+
+S2-B — COMPLETE. 실행 중 새 사용자 입력은 기존 409 거부 전에 Conversation message와 Work input
+pointer로 durable admission된다. 다음 주 모델 boundary에서 모델이 `steer·followup·new_work·cancel`을
+`work_transition`으로 선택하고 runtime은 append-only revision·execution claim만 집행한다. `steer`는 현재
+Run이 새 revision을 재claim하고, `followup·new_work`는 현재 Run 정산 뒤 exact input identity로 새 Run에
+한 번만 승격된다. `cancel`은 모델 판단 후 process 정지·cancelled settlement를 남긴다. stale Run은
+최신 Work revision을 propose·settle할 수 없고, classification 전 pending과 classification 후 queued input은 restart 후
+복원된다. 모델 완료 문장은 Completion Proposal이며 approval·handoff·effect unknown·delivery 실패가
+남으면 `unresolved`, 요구 영수증이 정산된 경우에만 `achieved`다. Terra는 자연어 교정을
+`steer`, gpt-5.5는 자연어 중단을 `cancel`로 각각 2 model turns·1 tool call에 정확히 선택했고
+내부 용어 노출은 0이었다. 근거: `refoundation/evidence/s2-b-work-conversation-continuity-2026-08-24.json`
+
+admission은 본문만이 아니라 Conversation pointer·attachment identity·channel·sender·reply identity를 함께
+보존하고 queued 실행에서 같은 사용자 입력을 history와 current request에 중복 투영하지 않는다.
+`work_transition`은 pending admission이 있는 model boundary에서만 활성화된다. 단순 model response 종료는
+Completion Proposal이 아니며, 모델이 `work_completion`으로 achieved·unresolved를 명시적 제안하고
+현재 revision·Receipt blocker를 대조한 경우에만 정산한다.
 
 ### S2-C — Memory Portfolio
 

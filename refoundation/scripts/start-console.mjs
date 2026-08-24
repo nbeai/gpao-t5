@@ -131,6 +131,7 @@ await new Promise((resolveListen, reject) => {
   server.once('error', reject);
   server.listen(port, '127.0.0.1', resolveListen);
 });
+await server.resumeQueuedWork();
 const url = `http://127.0.0.1:${server.address().port}`;
 if (portFile) {
   await mkdir(resolve(portFile, '..'), { recursive: true, mode: 0o700 });

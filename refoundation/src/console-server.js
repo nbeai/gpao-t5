@@ -30,6 +30,9 @@ import { makeCapabilityComparisonTool } from './capability-comparison.js';
 import { CapabilityLifecycleLedger, makeCapabilityLifecycleTool } from './capability-lifecycle.js';
 import { loadSkillPolicyCatalog } from './skill-policy-catalog.js';
 import { ConversationLedger } from './conversation-ledger.js';
+import { WorkStore } from './work-store.js';
+import { makeWorkTransitionTool } from './work-transition-tool.js';
+import { makeWorkCompletionTool } from './work-completion-tool.js';
 import { projectHistoricalConversationEntries } from './conversation-projection.js';
 import { makeConversationRecallTool } from './conversation-recall-tool.js';
 import {
@@ -301,6 +304,23 @@ export function makeConsoleServer({
   const runtimeInstanceId = randomUUID();
   const sessions = new ConsoleSessionStore(stateDir);
   const conversations = new ConversationLedger(join(stateDir, 'conversations'));
+  const workStore = new WorkStore(join(stateDir, 'work'));
+  const scheduledWorkInputs = new Set();
+  async function scheduleNextWorkInput(sessionId) {
+    const queued = (await workStore.queuedInputs(sessionId)).find((input) => !scheduledWorkInputs.has(input.inputId));
+    if (!queued || running.has(sessionId)) return false;
+    const conversation = await conversations.read(sessionId); const entry = conversation.entries
+      .find((candidate) => candidate.messageId === queued.messageId);
+    if (!entry?.message?.content) return false;
+    scheduledWorkInputs.add(queued.inputId);
+    queueMicrotask(() => {
+      executeTurn(sessionId, entry.message.content, () => {}, {
+        trigger: 'work_followup', attachmentIds: queued.attachmentIds,
+        admittedInput: { inputId: queued.inputId, messageId: queued.messageId },
+      }).catch((error) => onError?.(error)).finally(() => scheduledWorkInputs.delete(queued.inputId));
+    });
+    return true;
+  }
   const memories = new MemoryLedger(join(stateDir, 'memory'));
   const capabilityHandoffs = new CapabilityHandoffLedger(join(stateDir, 'capability-handoffs'));
   const capabilityLifecycle = new CapabilityLifecycleLedger(join(stateDir, 'capability-lifecycle'));
@@ -591,6 +611,13 @@ export function makeConsoleServer({
     await memories.ensure();
     const memorySnapshot = await memories.read();
     let canonicalConversation = await conversations.read(sessionId);
+    if (options.admittedInput) {
+      canonicalConversation = {
+        ...canonicalConversation,
+        entries: canonicalConversation.entries.filter((entry) => entry.messageId !== options.admittedInput.messageId),
+      };
+      canonicalConversation.messages = canonicalConversation.entries.map((entry) => structuredClone(entry.message));
+    }
     let projection = projectConversation(sessionId, canonicalConversation, memorySnapshot.items);
     const run = await runLedger.start({ sessionId, request: text, metadata: {
       priorConversationMessages: projection.messages.length,
@@ -831,18 +858,32 @@ export function makeConsoleServer({
         }
       }
       const history = projection.messages;
-      await conversations.appendMessage({
-        sessionId, messageId: `${run.runId}:user`, runId: run.runId,
-        message: {
-          role: 'user', content: modelRequest,
-          ...(attachmentProjection.length ? { attachments: attachmentProjection } : {}),
-        },
+      if (!options.admittedInput) {
+        await conversations.appendMessage({
+          sessionId, messageId: `${run.runId}:user`, runId: run.runId,
+          message: {
+            role: 'user', content: modelRequest,
+            ...(attachmentProjection.length ? { attachments: attachmentProjection } : {}),
+          },
+        });
+        await sessions.append(sessionId, {
+          ...(options.inputEntry ?? {
+            role: 'user', text,
+            ...(attachmentProjection.length ? { attachments: attachmentProjection } : {}),
+          }), runId: run.runId,
+        });
+      }
+      let activeWork = await workStore.activeForSession(sessionId);
+      if (!activeWork) activeWork = await workStore.create({
+        sessionId, sourceMessageId: `${run.runId}:user`,
       });
-      await sessions.append(sessionId, {
-        ...(options.inputEntry ?? {
-          role: 'user', text,
-          ...(attachmentProjection.length ? { attachments: attachmentProjection } : {}),
-        }), runId: run.runId,
+      await run.append({ type: 'work_bound', stepId: 'work', payload: {
+        workId: activeWork.workId, revision: activeWork.revision,
+      } });
+      await workStore.claimExecution({ workId: activeWork.workId,
+        revision: activeWork.revision, runId: run.runId });
+      if (options.admittedInput) await workStore.claimInputExecution({
+        inputId: options.admittedInput.inputId, runId: run.runId,
       });
       const model = await modelFactory({ sessionId, workspace, computer: computerFacts });
       const managedCliStore = await managedCliStorePromise;
@@ -865,6 +906,11 @@ export function makeConsoleServer({
       const skillSnapshot = mergeSkillSnapshots([bundledSkillSnapshot, managedSkillSnapshot]);
       const capabilitySnapshot = await loadCapabilityCatalog({ directory: capabilitiesRoot });
       const offeredTools = [...terminal.tools];
+      offeredTools.unshift(makeWorkCompletionTool({ store: workStore, runId: run.runId }));
+      offeredTools.unshift(makeWorkTransitionTool({
+        store: workStore, sessionId, runId: run.runId,
+        stopProcesses: () => processes.stopOwner(sessionId, 'model_classified_cancel'),
+      }));
       let visualObservationCount = 0;
       offeredTools.unshift(makeAttachmentTool({
         store: attachments, sessionId, workspace, runId: run.runId,
@@ -1065,7 +1111,7 @@ export function makeConsoleServer({
         performConnection: (id, actionId) => performConnectionAction(id, actionId, { sessionId }),
       }));
       const coreToolNames = [
-        'connection', 'memory', 'skill',
+        'connection', 'memory', 'skill', 'work_completion',
         // Public-web search, exact URL reading, and bounded multi-source research are
         // foundational observation hands. The research schema stays visible because
         // both qualified models must reach it reliably before the lighter hands can loop.
@@ -1094,10 +1140,11 @@ export function makeConsoleServer({
       }));
       // Rendered-page interaction is not a generally discoverable shortcut. It is promoted
       // by web_read only after an exact URL establishes a rendered/login boundary.
-      const searchable = deferredTools.filter((tool) => tool.deferred && tool.name !== 'browser');
+      const searchable = deferredTools.filter((tool) => tool.deferred
+        && tool.name !== 'browser' && tool.name !== 'work_transition');
       if (informationControl === 'research-first-v1') {
         for (const tool of deferredTools) {
-          if (tool.name !== 'browser'
+          if (tool.name !== 'browser' && tool.name !== 'work_transition'
             && !searchable.some((candidate) => candidate.name === tool.name)) searchable.push(tool);
         }
       }
@@ -1135,6 +1182,15 @@ export function makeConsoleServer({
         focusToolSurface: informationControl === 'research-first-v1',
         resourceSituationMode,
         activeOptimizationMode,
+        takeAdmittedWorkInputs: async () => {
+          const pending = await workStore.pendingInputs(sessionId);
+          if (!pending.length) return [];
+          const conversation = await conversations.read(sessionId);
+          return pending.map((input) => ({
+            inputId: input.inputId,
+            text: conversation.entries.find((entry) => entry.messageId === input.messageId)?.message.content ?? '',
+          }));
+        },
         onEvent: async (event) => {
           if (event.type === 'model_start') {
             await run.append({
@@ -1360,10 +1416,28 @@ export function makeConsoleServer({
         session, currentUserText: text, currentResult: surfaceResult, evidence: recoveryEvidence,
       });
       if (recovery) surfaceResult.recovery = { ...recovery, recoveryId: run.runId };
+      const settledWork = await workStore.workForRun(run.runId);
+      if (settledWork && settledWork.revision === settledWork.claimedRevision
+        && settledWork.status === 'active') {
+        const proposal = await workStore.proposalForRun(run.runId);
+        const unresolved = !proposal || proposal.verifiedOutcome !== 'achieved'
+          || Boolean(approvalReceipt || browserHandoff || connectionHandoff
+          || result.receipts.some((receipt) => receipt.outcome === 'unknown'
+            || receipt.result?.effectUnknown === true)
+          || surfaceResult.channelDelivery?.sent === false);
+        await workStore.settle({ workId: settledWork.workId, revision: settledWork.revision,
+          outcome: unresolved ? 'unresolved' : 'achieved', runId: run.runId });
+        await run.append({ type: unresolved ? 'work_unresolved' : 'work_settled', stepId: 'work-settlement',
+          payload: { workId: settledWork.workId, revision: settledWork.revision,
+            outcome: unresolved ? 'unresolved' : 'achieved' } });
+      }
       await sessions.append(sessionId, { role: 'assistant', result: surfaceResult });
       surfacePersisted = true;
       await run.append({ type: 'surface_persisted', payload: { role: 'assistant' } });
       await run.finish('completed', { modelTurns: result.modelTurns, receiptCount: result.receipts.length });
+      if (options.admittedInput) await workStore.completeInputExecution({
+        inputId: options.admittedInput.inputId, runId: run.runId,
+      });
       runFinished = true;
       resourceRunStatus = 'completed';
       finishActivity('completed');
@@ -1422,6 +1496,7 @@ export function makeConsoleServer({
     } finally {
       await resourceRun.close(resourceRunStatus).catch((error) => onError?.(error));
       running.delete(sessionId);
+      await scheduleNextWorkInput(sessionId).catch((error) => onError?.(error));
       for (const [processId, event] of pendingProcessWakes) {
         if (event.ownerId === sessionId) {
           pendingProcessWakes.delete(processId);
@@ -2229,10 +2304,30 @@ export function makeConsoleServer({
           entry.sessionId === input.sessionId && entry.expiresAt >= Date.now()
         ));
         if (running.has(input.sessionId) || alreadyPending) {
-          json(res, 409, {
-            code: 'session_running',
-            error: '이 대화에서 앞선 작업을 진행 중이에요. 끝난 뒤 다시 보내 주세요.',
-          }); return;
+          const session = await sessions.load(input.sessionId);
+          if (!session) { json(res, 404, { error: '대화를 찾지 못했어요.' }); return; }
+          await conversations.ensure({ sessionId: input.sessionId, legacyMessages: historyFrom(session) });
+          const messageId = randomUUID();
+          const admittedAttachmentIds = [...new Set((input.attachmentIds ?? []).map(String))];
+          if (admittedAttachmentIds.length > 10) { json(res, 413, { error: '파일은 10개까지 받을 수 있어요.' }); return; }
+          const admittedAttachments = await Promise.all(admittedAttachmentIds.map((attachmentId) => (
+            attachments.get({ sessionId: input.sessionId, attachmentId })
+          )));
+          await conversations.appendMessage({ sessionId: input.sessionId, messageId,
+            message: { role: 'user', content: String(input.text),
+              ...(admittedAttachments.length ? { attachments: admittedAttachments.map(attachmentSurface) } : {}) } });
+          if (admittedAttachmentIds.length) await attachments.link({
+            sessionId: input.sessionId, attachmentIds: admittedAttachmentIds, messageId, runId: null,
+          });
+          await sessions.append(input.sessionId, { role: 'user', text: String(input.text), admitted: true,
+            ...(admittedAttachments.length ? { attachments: admittedAttachments.map(attachmentSurface) } : {}) });
+          const admitted = await workStore.admitInput({
+            sessionId: input.sessionId, messageId, origin: session.origin?.channel ?? 'console',
+            attachmentIds: admittedAttachmentIds,
+            source: { channel: session.origin?.channel ?? 'console',
+              senderId: session.origin?.senderId ?? null, replyTo: session.origin?.replyTo ?? null },
+          });
+          json(res, 202, { admitted: true, inputId: admitted.inputId, state: 'pending_model_judgment' }); return;
         }
         const streamId = randomUUID();
         const measurementId = randomUUID();
@@ -2557,6 +2652,13 @@ export function makeConsoleServer({
   });
   server.managedProcesses = processes;
   server.conversationLedger = conversations;
+  server.workStore = workStore;
+  server.resumeQueuedWork = async () => {
+    const state = await workStore.read();
+    const sessionsWithQueued = [...new Set(state.inputs.filter((input) => input.state === 'classified'
+      && ['followup', 'new_work'].includes(input.relation)).map((input) => input.sessionId))];
+    return Promise.all(sessionsWithQueued.map((sessionId) => scheduleNextWorkInput(sessionId)));
+  };
   server.memoryLedger = memories;
   server.capabilityHandoffLedger = capabilityHandoffs;
   server.capabilityLifecycleLedger = capabilityLifecycle;

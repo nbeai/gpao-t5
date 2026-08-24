@@ -228,6 +228,7 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [],
  *   focusToolSurface?:boolean,
  *   resourceSituationMode?:'off'|'current-v1',
  *   activeOptimizationMode?:'off'|'model-selected-v1',
+ *   takeAdmittedWorkInputs?:()=>Promise<Array<{inputId:string,text:string}>>,
  *   onEvent?:(event:object)=>void|Promise<void>,
  * }} input
  */
@@ -245,6 +246,7 @@ export async function runAgent({
   focusToolSurface = false,
   resourceSituationMode = 'current-v1',
   activeOptimizationMode = 'model-selected-v1',
+  takeAdmittedWorkInputs = null,
   onEvent,
 }) {
   if (typeof request !== 'string' || !request.trim()) throw new TypeError('request is required');
@@ -291,6 +293,7 @@ export async function runAgent({
   let lastResourceSituationKey = null;
   let completionReminderSent = false;
   let lastTurnToolCalls = 0;
+  const projectedWorkInputIds = new Set();
   const completionSatisfied = () => Boolean(requiredCompletionTool && receipts.some((receipt) => (
     receipt.actualCall?.name === requiredCompletionTool && receipt.outcome === 'succeeded'
   )));
@@ -299,6 +302,22 @@ export async function runAgent({
     if (signal?.aborted) return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
 
     modelTurns += 1;
+    const admittedWorkInputs = typeof takeAdmittedWorkInputs === 'function'
+      ? await takeAdmittedWorkInputs() : [];
+    if (registry.has('work_transition')) {
+      if (admittedWorkInputs.length) activeTools.add('work_transition');
+      else activeTools.delete('work_transition');
+      definitions = [...activeTools].map((name) => toolDefinition(registry.get(name)));
+    }
+    for (const input of admittedWorkInputs) {
+      if (projectedWorkInputIds.has(input.inputId)) continue;
+      projectedWorkInputIds.add(input.inputId);
+      transcript.push({ role: 'user', content: [
+        '[T5 NEWLY ADMITTED USER MESSAGE — classify against the current user purpose before acting]',
+        `inputId=${input.inputId}`,
+        String(input.text ?? ''),
+      ].join('\n') });
+    }
     await onEvent?.({ type: 'model_start', turn: modelTurns });
     const informationFacts = measureModelInformation({
       history: historyInformation, currentRequest: transcript[prior.length],
@@ -347,6 +366,8 @@ export async function runAgent({
       ...(situationBlock ? { runtimeContext: situationBlock } : {}),
       ...(completionReminderSent && requiredCompletionTool && !completionSatisfied() ? {
         toolChoice: { requiredToolName: requiredCompletionTool },
+      } : admittedWorkInputs.length ? {
+        toolChoice: { requiredToolName: 'work_transition' },
       } : {}),
       signal,
       ...(resourceObserver ? { resourceObserver } : {}),
@@ -410,6 +431,8 @@ export async function runAgent({
     const forcedRunBlock = runControl.action === 'block' ? runControl : null;
 
     if (!response.toolCalls.length) {
+      if (typeof takeAdmittedWorkInputs === 'function'
+        && (await takeAdmittedWorkInputs()).length > 0) continue;
       if (requiredCompletionTool && !completionSatisfied()) {
         if (completionReminderSent) {
           const error = new Error('required completion receipt is missing');

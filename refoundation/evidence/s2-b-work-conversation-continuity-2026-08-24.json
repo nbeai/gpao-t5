@@ -1,0 +1,61 @@
+{
+  "schema": "t5.s2-b-work-conversation-continuity.v1",
+  "recordedAt": "2026-08-24T22:10:00+09:00",
+  "gate": "S2-B_WORK_CONVERSATION_CONTINUITY",
+  "status": "complete",
+  "goal": "Durably admit ordinary user input during work and let the main model bind it to append-only Work revisions without input loss, stale settlement, or false completion.",
+  "comparisonSources": {
+    "openClaw": {"commit":"03658a99a9508b4fca053d5ad92eb5ae0c99fa11","adopted":["transcript_commit_is_admission","exact_queued_cancel_identity","admission_handoff_bound_to_original_identity","queued_cancel_before_promotion"]},
+    "hermes": {"commit":"057dcdf236f8a6a26721c10fcc6ccb72726e272a","adopted":["resume_marker_clears_only_after_real_success","queued_history_keeps_earliest_offset","delivery_obligation_does_not_rerun_work","claim_session_slot_before_resume"]},
+    "codex": {"commit":"a9e7920da1019ad19e794aaa301af5a3070e8462","adopted":["single_start_steer_reject_boundary","validate_before_apply","expected_revision_identity","accepted_input_enters_active_mailbox"]},
+    "claudeCode": {"source":"official_contract_and_public_reproductions","failureCases":["resume_history_not_loaded","broken_parent_chain","interrupt_tool_pair_corruption","stale_resume_handle","deferred_queue_wedge"]}
+  },
+  "implemented": {
+    "schema": "t5.work-event.v1",
+    "appendOnlyWorkStore": true,
+    "conversationTextDuplicatedIntoWorkStore": false,
+    "busyInputRejectedBeforeLedger": false,
+    "admissionBeforeModelJudgment": true,
+    "durableInputEnvelope": ["conversation_pointer","attachment_ids","channel","sender_id","reply_identity"],
+    "queuedInputCurrentProjectionCount": 1,
+    "relations": ["steer","followup","new_work","cancel"],
+    "runtimeNaturalLanguageClassifier": false,
+    "mainModelClassificationTool": "work_transition",
+    "workTransitionVisibleWithoutPendingInput": false,
+    "staleRevisionCommitAllowed": false,
+    "followupAndNewWorkExactOnceExecutionClaim": true,
+    "completionProposalSeparatedFromSettlement": true,
+    "modelResponseEndAutomaticallyProposesAchieved": false,
+    "achievedRequiresExplicitModelProposalAndNoBlockerReceipts": true,
+    "unknownEffectBlindReplay": 0,
+    "restartPendingAndQueuedRecovery": true,
+    "windowsOrWslIdentityInCore": false
+  },
+  "counterexamples": {
+    "busyInput": {"before":"409_before_conversation","after":"202_durable_admission","inputLoss":0},
+    "staleRun": {"proposalRejected":true,"settlementRejected":true},
+    "followup": {"promotedAfterCurrentRun":true,"executionClaims":1},
+    "newWork": {"priorWork":"paused_or_cancelled","newIdentity":true},
+    "cancel": {"requiresModelDecision":true,"processStopObserved":true},
+    "restart": {"pendingRestored":true,"classifiedQueuedRestored":true}
+  },
+  "actualModelQualification": {
+    "terra": {"input":"natural_correction","expected":"steer","actual":"steer","wallMs":3413.051,"modelTurns":2,"toolCalls":1,"internalTermsInAnswer":0},
+    "gpt55": {"input":"natural_cancel","expected":"cancel","actual":"cancel","wallMs":3636.423,"modelTurns":2,"toolCalls":1,"processStops":1,"internalTermsInAnswer":0}
+  },
+  "verification": {"refoundationUnitPassed":683,"defaultProductIntegrationPassed":99,"defaultProductIntegrationFailed":0,"visibleBrowserLiveExecuted":false,"browserWindowsOpened":0,"existingTimingObservation":"One unchanged capability-handoff concurrent-resume assertion failed once; isolated 5/5 and unchanged full rerun 99/99 passed."},
+  "artifacts": {
+    "workStoreSha256":"6f7d57b470a0aeeabc9a0ccd8bc6f1bc5ce5acf27726ebbb42b2f2249abeba16",
+    "workTransitionToolSha256":"cefa04aa8d451332d6056dddda614af35aa7b5cec655ce57c8f897ba4b507ba5",
+    "workCompletionToolSha256":"94affc3fe074d58635ec1f4f67261a1df058c2cf2c300c5e1acedd11687b164e",
+    "agentLoopSha256":"056787f7f35150b7598607009f719f1f88f44e031f1c2ca998d6570b57613445",
+    "consoleServerSha256":"f595b7aa0d4454326468397845848da0663f961205646be72fd329ac62527431",
+    "consoleUiSha256":"0a86539214431e0e598a39b37c7ebf36fc93f1972770122a0347c5945c82093a",
+    "workStoreTestSha256":"8c1331b20e561b4b9fa7fd4c9b3d49677e6f2b183641c9fbea839c15286c4ded",
+    "workTransitionTestSha256":"79cbc69a498a748883e59d92b458f27cd3d1451cf00b4a9f8731e1aa5bbc9416",
+    "workCompletionTestSha256":"c72b0a3b6465dcc628a3c07fd07e611c39688d7d14e2f922ac1c3d4fb4cc739a",
+    "admissionIntegrationSha256":"11e301943d1c7c030f78aaa272ce2e5fad72191a7af1d36881a00905d646cb35"
+  },
+  "nonGoals":["memory_portfolio","time_continuity","telegram_attachment_expansion","notion_connector_expansion","browser","new_package"],
+  "productBehaviorChanged": true
+}

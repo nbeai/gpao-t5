@@ -3527,6 +3527,11 @@ async function submit() {
   renderMessageAttachments(box, sentAttachments);
   text.value = ''; text.style.height = 'auto'; document.body.classList.remove('nav-open');
   stagedAttachments = []; renderStagedAttachments();
+  if (turnStart.admitted) {
+    box.appendChild(el('trace', '진행 중인 작업에 반영하도록 받았어요.'));
+    await loadSessions();
+    return;
+  }
   // P6-12: 스트림으로 조용한 작업 흐름을 보여주고, complete 시 지속된 결과를 렌더한다(끊겨도 진실은 세션에 남음).
   const trace = el('trace', '요청을 이해하고 있어요…');
   trace.id = 'session-activity-trace'; trace.dataset.sessionActivity = submittedSessionId;
@@ -3616,7 +3621,7 @@ async function startTurn(sessionId, t, attachmentIds = []) {
     body: JSON.stringify({ sessionId, text: t, attachmentIds }),
   });
   const result = await response.json();
-  if (!response.ok || !result.streamId) throw Object.assign(new Error('stream-start'), {
+  if (!response.ok || (!result.streamId && !result.admitted)) throw Object.assign(new Error('stream-start'), {
     code: result.code ?? 'stream_start_failed', status: response.status,
   });
   return result;
