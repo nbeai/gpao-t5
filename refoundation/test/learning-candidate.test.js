@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { CapabilityLifecycleLedger, makeCapabilityLifecycleTool } from '../src/capability-lifecycle.js';
 import { LearningCandidateStore, makeLearningCandidateTool } from '../src/learning-candidate.js';
 import { qualifyLearningComparison } from '../src/learning-qualification.js';
+import { qualifyLearningReplay } from '../src/learning-replay.js';
 import { ManagedSkillStore } from '../src/managed-skill-store.js';
 
 const skill = `---
@@ -89,6 +90,35 @@ test('candidate digest와 exact qualification receipt가 일치할 때만 tested
     await assert.rejects(() => store.qualify('proposal-2', {
       ...qualified, candidate: { revisions: [{ digest: 'wrong' }] },
     }, 'other'), /only a candidate|does not match/u);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('candidate replay receipt는 exact revision에 결속되고 아직 active나 tested가 아니다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-learning-replay-record-'));
+  try {
+    const ledger = new CapabilityLifecycleLedger(room);
+    const store = new LearningCandidateStore({ ledger, makeId: () => 'proposal-replay' });
+    await store.stage({ name: 'recover-report-work', description: 'Recover and verify interrupted report work.',
+      content: skill, sourcePointers: [source(1), source(2)], createdRunId: 'review' });
+    const revisionDigest = (await store.inspect('proposal-replay')).revisionDigest;
+    const comparison = { baseline: { runs: [{ runId: 'b1' }, { runId: 'b2' }],
+      durationMs: { median: 20 }, modelTurns: { median: 4 }, toolCalls: 8,
+      failedToolCalls: 0, notExecutedToolCalls: 0 }, candidate: {
+      runs: [{ runId: 'c1' }, { runId: 'c2' }], revisions: [{ digest: revisionDigest }],
+      durationMs: { median: 15 }, modelTurns: { median: 3 }, toolCalls: 6,
+      failedToolCalls: 0, notExecutedToolCalls: 0 } };
+    const eligibility = (prefix) => ({ sources: [1, 2].map((index) => ({ eligible: true,
+      pointer: { runId: `${prefix}${index}` } })) });
+    const replay = qualifyLearningReplay({ comparison, baselineEligibility: eligibility('b'),
+      candidateEligibility: eligibility('c'), pairEvaluations: [1, 2].map((index) => ({
+        baselineRunId: `b${index}`, candidateRunId: `c${index}`, evaluatorRunId: `e${index}`,
+        evaluationDigest: `d${index}`, samePurpose: true, baselineCorrect: true,
+        candidateCorrect: true, baselineComplete: true, candidateComplete: true,
+        userCorrectionPreserved: true })), triggerEvaluation: { sourceExpressionsReused: false,
+        falsePositiveCount: 0, falseNegativeCount: 0, evaluatorRunId: 'te', evaluationDigest: 'td' } });
+    const recorded = await store.recordReplay('proposal-replay', replay, 'replay-run');
+    assert.equal(recorded.state, 'replay_qualified');
+    assert.equal((await ledger.current('proposal-replay')).events.some((event) => event.type === 'applied'), false);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 

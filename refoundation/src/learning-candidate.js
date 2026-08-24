@@ -94,6 +94,21 @@ export class LearningCandidateStore {
     });
     return this.inspect(proposalId);
   }
+  async recordReplay(proposalId, replayReceipt, sourceRunId) {
+    const proposal = await this.inspect(proposalId); if (!proposal || proposal.state !== 'candidate') {
+      throw new Error('only a candidate learning proposal can receive replay evidence');
+    }
+    if (replayReceipt?.state !== 'replay_qualified' || !replayReceipt.digest
+      || replayReceipt.comparison?.candidate?.revisions?.length !== 1
+      || replayReceipt.comparison.candidate.revisions[0].digest !== proposal.revisionDigest) {
+      throw new Error('learning replay does not match candidate revision');
+    }
+    await this.ledger.append('replay_qualified', { proposalId, kind: 'skill', id: proposal.name,
+      lifecycleAction: 'activate', state: 'replay_qualified', sourceRunId: String(sourceRunId ?? ''),
+      replayReceipt: structuredClone(replayReceipt),
+      candidateRevision: { version: null, digest: proposal.revisionDigest } });
+    return this.inspect(proposalId);
+  }
 }
 
 export function makeLearningCandidateTool({ store, eligibleSources = [], currentRunId } = {}) {

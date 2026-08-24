@@ -1,0 +1,28 @@
+{
+  "schema": "t5.s2-e-learning-replay-evidence.v1",
+  "gate": "S2-E-I2",
+  "recordedAt": "2026-08-25T03:30:00+09:00",
+  "closed": [
+    "two or more distinct achieved replay pairs required",
+    "baseline and candidate execution order alternates per case",
+    "same-purpose correctness completeness and user-correction evaluation required",
+    "trigger holdout cannot reuse source expressions",
+    "false positive and false negative trigger count must both be zero",
+    "candidate must be Pareto no-worse with at least one measured improvement",
+    "replay receipt binds exact candidate revision and evaluator identities",
+    "replay-qualified remains inactive and is not a tested lifecycle proposal"
+  ],
+  "verification": {
+    "focused": { "passed": 9, "failed": 0 },
+    "refoundationCheck": { "passed": 722, "failed": 0 },
+    "visibleBrowserLiveExecuted": false,
+    "externalWriteExecuted": false
+  },
+  "pending": [
+    "actual isolated reviewer model qualification",
+    "actual baseline and candidate replay execution",
+    "scoped field observation",
+    "final qualification recommendation promotion rollback journey"
+  ],
+  "status": "E_I2_REPLAY_CONTRACT_COMPLETE_E_OVERALL_OPEN"
+}
