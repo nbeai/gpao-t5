@@ -9,7 +9,7 @@
   },
   "secondCompletion": {
     "active": true,
-    "sourceOfTruth": "T5-REFOUNDATION.md",
+    "sourceOfTruth": "T5-SECOND-COMPLETION.md",
     "currentGate": "S2-A1_RESOURCE_CONTROL_READY",
     "firstProductChange": "shadow_resource_accounting_and_control",
     "resourceControl": {

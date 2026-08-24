@@ -1,10 +1,13 @@
 # T5 Refoundation Engineering Contract
 
 이 저장소의 제품 방향은 오너가 정한다. 작업자는 기존 코드·테스트·문서를 제품의 진리로
-간주하지 않는다. 현재 T5의 재창립 목적과 진행 상태는 아래 두 문서만 먼저 읽는다.
+간주하지 않는다. 현재 T5의 목적과 진행 상태는 아래 문서만 먼저 읽는다.
 
 1. `T5-PRODUCT.md` — 무엇을 만드는가
-2. `T5-REFOUNDATION.md` — 지금 어느 Gate를 통과하는가
+2. `T5-SECOND-COMPLETION.md` — 지금 어느 Gate를 어떤 범위로 통과하는가
+
+`T5-REFOUNDATION.md`는 1차 완성의 역사·실패·증거 참조다. 현재 Gate가 직접 가리킨 과거 근거가 필요할
+때만 해당 부분을 읽고, 현재 계획이나 작업 범위를 그 문서에서 추론하지 않는다.
 
 하위 디렉터리에 `AGENTS.md`가 있으면 그 디렉터리 작업에 한해 더 좁은 규칙이 우선한다.
 
@@ -24,7 +27,7 @@
 - 현재 콘솔 디자인과 대화 UX는 R4에서 재사용한다. 새 코어 개발을 이유로 UI를 다시 디자인하지 않는다.
 - legacy 제품 수정은 새 코어 비교에 필요한 계측 또는 즉시 차단해야 할 실제 P0 위험일 때만
   오너에게 범위를 설명하고 별도 작업으로 연다.
-- Memory, Skills, Learning, Automation, Channels, Multi-agent는 `T5-REFOUNDATION.md`의 현재
+- Memory, Skills, Learning, Automation, Channels, Multi-agent는 `T5-SECOND-COMPLETION.md`의 현재
   Gate가 열기 전에는 구현하지 않는다.
 
 ## 3. 한 작업의 시작
