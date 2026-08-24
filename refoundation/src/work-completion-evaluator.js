@@ -4,13 +4,17 @@ function recoveredFailure(receipts, index) {
   const failed = receipts[index];
   const effectKind = failed?.actualCall?.args?.effect?.kind ?? failed?.requestedCall?.args?.effect?.kind ?? null;
   if (effectKind && effectKind !== 'observe') return false;
-  const name = failed?.requestedCall?.name ?? failed?.actualCall?.name;
-  if (!name) return false;
-  return receipts.slice(index + 1).some((receipt) => (
-    (receipt?.requestedCall?.name ?? receipt?.actualCall?.name) === name
-    && receipt?.outcome === 'succeeded'
-    && receipt?.result?.effectUnknown !== true
+  const finalEvidence = receipts.slice(index + 1).findLast((receipt) => (
+    !['work_completion', 'tool_search', 'learning_trial'].includes(
+      receipt?.requestedCall?.name ?? receipt?.actualCall?.name,
+    )
   ));
+  return finalEvidence?.outcome === 'succeeded'
+    && finalEvidence?.result?.effectUnknown !== true
+    && !['approval_required', 'handoff_required', 'user_action_required',
+      'connection_required'].includes(finalEvidence?.result?.state)
+    && (finalEvidence?.actualCall?.args?.effect?.kind
+      ?? finalEvidence?.requestedCall?.args?.effect?.kind ?? 'observe') === 'observe';
 }
 
 function blockerForReceipt(receipt, index, receipts) {

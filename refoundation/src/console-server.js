@@ -2216,8 +2216,9 @@ export function makeConsoleServer({
       outcome: event.payload?.receipt?.outcome ?? null,
       state: event.payload?.receipt?.result?.state ?? null,
     }));
-    return { source, evidence: JSON.stringify({ objective: message?.message?.content ?? null,
-      outcome: 'achieved', tools, methodTrace: learningMethodTrace(run),
+    const methodTrace = learningMethodTrace(run);
+    return { source, methodTrace, evidence: JSON.stringify({ objective: message?.message?.content ?? null,
+      outcome: 'achieved', tools, methodTrace,
       resultDigest: source.pointer.resultDigest }) };
   }
   learningReviewer = new LearningReviewScheduler({ idleMs: learningReviewIdleMs,
@@ -2228,17 +2229,6 @@ export function makeConsoleServer({
       event.type === 'learning_review_completed' && event.reviewKey === key
     )),
     review: async ({ key, sources }) => {
-      const existingLearning = (await capabilityLifecycle.list()).filter((proposal) => (
-        proposal.kind === 'skill' && proposal.lifecycleAction === 'activate'
-        && !['archived', 'rejected'].includes(proposal.state)
-      ));
-      if (existingLearning.length) {
-        await capabilityLifecycle.append('learning_review_completed', { proposalId: `review:${key}`,
-          state: 'reviewed', reviewKey: key, sourceRunId: sources.at(-1).pointer.runId,
-          sourceRunIds: sources.map((source) => source.pointer.runId), proposalCreated: false,
-          reason: 'learning_proposal_or_active_skill_exists' });
-        return;
-      }
       const first = sources[0]; const review = await runLedger.start({
         sessionId: first.pointer.sessionId, request: 'learning review',
         metadata: { trigger: 'learning_review', sourceRuns: sources.length },
@@ -2258,7 +2248,8 @@ export function makeConsoleServer({
           model, candidateStore: learningCandidates, reviewRunId: review.runId, resourceRun });
         await capabilityLifecycle.append('learning_review_completed', { proposalId: `review:${key}`,
           state: 'reviewed', reviewKey: key, sourceRunId: review.runId,
-          sourceRunIds: sources.map((source) => source.pointer.runId), proposalCreated: Boolean(result.proposal) });
+          sourceRunIds: sources.map((source) => source.pointer.runId),
+          proposalCreated: Boolean(result.proposal && !result.proposal.duplicate) });
         await review.finish('completed', { modelTurns: result.modelTurns, receiptCount: result.toolCalls });
         status = 'completed';
       } catch (error) { await review.finish('failed', { error: error?.message ?? String(error) }); throw error; }

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -211,5 +211,48 @@ test('pending candidate는 별도 trial 도구에서만 list·view되고 active 
     const viewed = await tool.execute({ action: 'view', proposalId: 'trial-proposal' });
     assert.equal(viewed.candidateRevision, true); assert.equal(viewed.content, skill);
     assert.equal((await ledger.current('trial-proposal')).state, 'candidate');
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('reviewer 문장과 별개인 exact method evidence는 immutable trial view에 보존된다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-learning-method-evidence-'));
+  try {
+    const ledger = new CapabilityLifecycleLedger(room); const store = new LearningCandidateStore({ ledger,
+      makeId: () => 'method-proposal' });
+    await store.stage({ name: 'recover-report-work', description: 'Recover and verify interrupted report work.',
+      content: skill.replace('Observe the last durable result, continue only unfinished steps, and verify the reopened artifact.',
+        'Look for a reusable recovery approach.'), sourcePointers: [source(1), source(2)],
+      methodTrace: [{ tool: 'exec', template: 'ledger-inspect inspect <target.ledgerpack>' },
+        { tool: 'document', action: 'inspect' }], createdRunId: 'review' });
+    const viewed = await makeLearningTrialTool({ store }).execute({ action: 'view', proposalId: 'method-proposal' });
+    assert.deepEqual(viewed.methodTrace, [{ tool: 'exec', template: 'ledger-inspect inspect <target.ledgerpack>' },
+      { tool: 'document', action: 'inspect' }]);
+    assert.equal(JSON.stringify(viewed).includes('stdout'), false);
+    assert.equal(JSON.stringify(viewed).includes('/Users/'), false);
+    await writeFile(join(room, 'learning-proposals', 'method-proposal', 'METHOD.json'),
+      '{"schema":"t5.learning-method-evidence.v1","methodTrace":[]}\n');
+    await assert.rejects(() => store.inspect('method-proposal'), /method evidence changed/u);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('pending 하나는 다른 source method 후보를 막지 않고 exact duplicate만 합친다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-learning-multiple-candidates-'));
+  try {
+    let id = 0; const ledger = new CapabilityLifecycleLedger(room);
+    const store = new LearningCandidateStore({ ledger, makeId: () => `proposal-${++id}` });
+    const first = await store.stage({ name: 'recover-report-work', description: 'Recover and verify interrupted report work.',
+      content: skill, sourcePointers: [source(1), source(2)], methodTrace: [{ tool: 'document', action: 'inspect' }],
+      createdRunId: 'review-1' });
+    const duplicate = await store.stage({ name: 'renamed-reviewer-draft', description: 'A different reviewer draft.',
+      content: skill.replaceAll('recover-report-work', 'renamed-reviewer-draft')
+        .replace('Recover and verify interrupted report work.', 'A different reviewer draft.'),
+      sourcePointers: [source(1), source(2)], methodTrace: [{ tool: 'document', action: 'inspect' }],
+      createdRunId: 'review-2' });
+    const second = await store.stage({ name: 'recover-report-work', description: 'Recover and verify interrupted report work.',
+      content: skill, sourcePointers: [source(3), source(4)], methodTrace: [{ tool: 'exec', template: 'ledger-inspect inspect <target.ledgerpack>' }],
+      createdRunId: 'review-3' });
+    assert.equal(duplicate.proposalId, first.proposalId); assert.equal(duplicate.duplicate, true);
+    assert.notEqual(second.proposalId, first.proposalId);
+    assert.equal((await ledger.list()).filter((item) => item.type === 'learning_candidate_created').length, 2);
   } finally { await rm(room, { recursive: true, force: true }); }
 });

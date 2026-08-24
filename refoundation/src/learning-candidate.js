@@ -5,13 +5,53 @@ import { parseDocument } from 'yaml';
 
 const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const MAX_BYTES = 64 * 1024;
+const MAX_DESCRIPTION_CHARS = 320;
+const MAX_METHOD_STEPS = 8;
+const METHOD_SCHEMA = 't5.learning-method-evidence.v1';
 const SECRET_PATTERNS = [
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/u,
   /\b(?:sk|xox[baprs]|gh[pousr])-[A-Za-z0-9_-]{16,}\b/u,
   /\bAuthorization\s*:\s*Bearer\s+\S+/iu,
 ];
+const ABSOLUTE_PATH = /(?:^|\s)\/(?!\/)|(?:^|\s)[A-Za-z]:[\\/]/u;
 
 function digest(text) { return createHash('sha256').update(text).digest('hex'); }
+
+function validateMethodTrace(methodTrace = []) {
+  if (!Array.isArray(methodTrace) || methodTrace.length > MAX_METHOD_STEPS) {
+    throw new TypeError('learning method evidence is invalid');
+  }
+  return methodTrace.map((raw) => {
+    const tool = String(raw?.tool ?? '');
+    if (!/^[a-z][a-z0-9_-]{0,63}$/u.test(tool)) throw new TypeError('learning method tool is invalid');
+    const step = { tool };
+    if (raw.action != null) {
+      const action = String(raw.action);
+      if (!/^[a-z][a-z0-9_-]{0,63}$/u.test(action)) throw new TypeError('learning method action is invalid');
+      step.action = action;
+    }
+    if (raw.template != null) {
+      const template = String(raw.template);
+      if (!template || template.length > 512 || SECRET_PATTERNS.some((pattern) => pattern.test(template))
+        || ABSOLUTE_PATH.test(template)) {
+        throw new Error('learning method template is unsafe');
+      }
+      step.template = template;
+    }
+    if (Object.keys(step).length === 1) step.action = null;
+    return step;
+  });
+}
+
+function methodEvidence(methodTrace, sources, fallbackContentDigest) {
+  const evidence = { schema: METHOD_SCHEMA, methodTrace: validateMethodTrace(methodTrace),
+    sourceRunIds: sources.map((source) => source.runId).toSorted() };
+  const body = `${JSON.stringify(evidence)}\n`;
+  const reusableMethod = evidence.methodTrace.length ? { methodTrace: evidence.methodTrace }
+    : { candidateContentDigest: fallbackContentDigest };
+  return { evidence, body, evidenceDigest: digest(body),
+    evidenceFingerprint: digest(JSON.stringify(reusableMethod)) };
+}
 
 function validateContent(name, description, content) {
   const text = String(content ?? '');
@@ -23,7 +63,7 @@ function validateContent(name, description, content) {
   const parsed = parseDocument(text.slice(4, end)); if (parsed.errors.length) throw parsed.errors[0];
   const metadata = parsed.toJS();
   const observedDescription = String(metadata?.description ?? '').trim();
-  if (metadata?.name !== name || !observedDescription
+  if (metadata?.name !== name || !observedDescription || observedDescription.length > MAX_DESCRIPTION_CHARS
     || (description != null && observedDescription !== String(description).trim())) {
     throw new Error('learning candidate frontmatter does not match proposal identity');
   }
@@ -48,22 +88,36 @@ export class LearningCandidateStore {
   constructor({ ledger, makeId = randomUUID } = {}) {
     if (!ledger?.directory || typeof ledger.append !== 'function') throw new TypeError('capability lifecycle ledger is required');
     this.ledger = ledger; this.root = join(ledger.directory, 'learning-proposals'); this.makeId = makeId;
+    this.queue = Promise.resolve();
   }
-  async stage({ name, description, content, sourcePointers, createdRunId, target = 'new' } = {}) {
+  serialize(work) { const next = this.queue.then(work, work); this.queue = next.catch(() => {}); return next; }
+  async stage(input = {}) { return this.serialize(() => this.stageExact(input)); }
+  async stageExact({ name, description, content, sourcePointers, methodTrace = [], createdRunId, target = 'new' } = {}) {
     if (target !== 'new') throw new Error('existing Skill learning updates are not open yet');
     const validated = validateContent(String(name ?? ''), description, content);
     const body = validated.text; description = validated.description;
-    const sources = validateSources(sourcePointers); const proposalId = this.makeId(); const revisionDigest = digest(body);
+    const sources = validateSources(sourcePointers); const revisionDigest = digest(body);
+    const method = methodEvidence(methodTrace, sources, revisionDigest);
+    const duplicate = (await this.ledger.list()).find((proposal) => (
+      proposal.type === 'learning_candidate_created'
+      && proposal.evidenceFingerprint === method.evidenceFingerprint
+      && !['archived', 'rejected'].includes(proposal.state)
+    ));
+    if (duplicate) return { ...(await this.inspect(duplicate.proposalId)), duplicate: true };
+    const proposalId = this.makeId();
     const staging = join(this.root, `.staging-${proposalId}`); const targetDir = join(this.root, proposalId);
     await mkdir(this.root, { recursive: true, mode: 0o700 }); await chmod(this.root, 0o700);
     try {
       await mkdir(staging, { mode: 0o700 });
       await writeFile(join(staging, 'PROPOSAL.md'), body, { mode: 0o600 });
+      await writeFile(join(staging, 'METHOD.json'), method.body, { mode: 0o600 });
       await chmod(join(staging, 'PROPOSAL.md'), 0o600); await rename(staging, targetDir);
       await this.ledger.append('learning_candidate_created', {
         proposalId, kind: 'skill', id: name, lifecycleAction: 'activate', state: 'candidate',
         description: String(description).trim(), candidateRevision: { version: null, digest: revisionDigest },
         sourcePointers: sources, draftFile: `learning-proposals/${proposalId}/PROPOSAL.md`,
+        methodEvidenceFile: `learning-proposals/${proposalId}/METHOD.json`,
+        methodEvidenceDigest: method.evidenceDigest, evidenceFingerprint: method.evidenceFingerprint,
         publication: { state: 'complete', atomicity: 'process_atomic',
           powerLossDurability: 'unknown' },
         createdRunId: String(createdRunId ?? ''), sourceRunId: String(createdRunId ?? ''),
@@ -79,18 +133,25 @@ export class LearningCandidateStore {
     const proposal = await this.ledger.current(proposalId); if (!proposal) return null;
     const content = await readFile(join(this.root, proposalId, 'PROPOSAL.md'), 'utf8');
     if (digest(content) !== proposal.candidateRevision?.digest) throw new Error('learning candidate revision changed');
+    const evidenceBody = await readFile(join(this.root, proposalId, 'METHOD.json'), 'utf8');
+    if (digest(evidenceBody) !== proposal.methodEvidenceDigest) throw new Error('learning method evidence changed');
+    const evidence = JSON.parse(evidenceBody);
+    if (evidence.schema !== METHOD_SCHEMA) throw new Error('learning method evidence is invalid');
+    const methodTrace = validateMethodTrace(evidence.methodTrace);
     return { proposalId, name: proposal.id, description: proposal.description,
       state: proposal.state, revisionDigest: proposal.candidateRevision.digest,
+      methodEvidenceDigest: proposal.methodEvidenceDigest, methodTrace,
       sourcePointers: structuredClone(proposal.sourcePointers),
       publication: structuredClone(proposal.publication ?? { state: 'unknown',
         atomicity: 'unknown', powerLossDurability: 'unknown' }), content };
   }
-  async listTrials() {
+  async listTrials({ limit = 4 } = {}) {
     const proposals = await this.ledger.list(); const trials = [];
     for (const proposal of proposals.filter((item) => ['candidate', 'replay_qualified'].includes(item.state)
       && item.lifecycleAction === 'activate' && item.kind === 'skill')) {
       const candidate = await this.inspect(proposal.proposalId).catch(() => null);
       if (candidate) trials.push(candidate);
+      if (trials.length >= limit) break;
     }
     return trials;
   }
@@ -132,7 +193,8 @@ export function makeLearningTrialTool({ store, candidates = null } = {}) {
   if (!store) throw new TypeError('learning trial store is required');
   const snapshot = Array.isArray(candidates) ? structuredClone(candidates) : null;
   const advertised = (snapshot ?? []).slice(0, 4).map((item) => ({
-    proposalId: item.proposalId, name: item.name,
+    proposalId: item.proposalId, name: item.name, description: item.description,
+    methodTrace: item.methodTrace,
   }));
   return {
     name: 'learning_trial', capabilityGroup: 'learning_trial', informationAlwaysVisible: true,
@@ -154,12 +216,15 @@ export function makeLearningTrialTool({ store, candidates = null } = {}) {
       if (!candidate) throw new Error('learning trial candidate not found');
       return { state: 'viewed', proposalId: candidate.proposalId, name: candidate.name,
         description: candidate.description, contentDigest: candidate.revisionDigest,
+        methodEvidenceDigest: candidate.methodEvidenceDigest,
+        methodTrace: structuredClone(candidate.methodTrace),
         candidateRevision: true, content: candidate.content };
     },
   };
 }
 
-export function makeLearningCandidateTool({ store, eligibleSources = [], currentRunId } = {}) {
+export function makeLearningCandidateTool({ store, eligibleSources = [], methodEvidenceByRun = new Map(),
+  currentRunId } = {}) {
   if (!store || !currentRunId) throw new TypeError('learning candidate tool inputs are required');
   const byRun = new Map(eligibleSources.filter((source) => source.eligible)
     .map((source) => [source.pointer.runId, source]));
@@ -179,8 +244,22 @@ export function makeLearningCandidateTool({ store, eligibleSources = [], current
       if (args.action !== 'propose') throw new Error('unsupported learning candidate action');
       const sources = args.sourceRunIds.map((runId) => byRun.get(String(runId)));
       if (sources.some((source) => !source)) throw new Error('learning candidate source is not eligible');
+      const traces = args.sourceRunIds.map((runId) => methodEvidenceByRun.get(String(runId)) ?? []);
+      const positions = traces.map(() => -1); const methodTrace = [];
+      for (const step of traces[0] ?? []) {
+        const key = JSON.stringify(step); const next = traces.map((trace, index) => (
+          trace.findIndex((item, itemIndex) => itemIndex > positions[index]
+            && JSON.stringify(item) === key)
+        ));
+        if (next.every((position) => position >= 0)) {
+          methodTrace.push(step); next.forEach((position, index) => { positions[index] = position; });
+        }
+      }
+      if (traces.some((trace) => trace.length) && !methodTrace.length) {
+        throw new Error('learning candidate sources do not share verified method evidence');
+      }
       return store.stage({ name: args.name, description: null, content: args.content,
-        sourcePointers: sources, createdRunId: currentRunId });
+        sourcePointers: sources, methodTrace, createdRunId: currentRunId });
     },
   };
 }

@@ -82,6 +82,8 @@ test('baseline→proposal→near-miss→trial replay→field promotion→regress
       sources: await server.learningSourceEligibility() }));
     const proposalId = candidate.proposalId;
     await turn(session.id, 'NEAR MISS 새 일정의 제목만 정리');
+    assert.equal((await server.capabilityLifecycleLedger.current(proposalId)).events
+      .filter((event) => event.type === 'learning_field_observed').length, 0);
     await turn(session.id, 'FIELD 보고서 복구'); await turn(session.id, 'FIELD 문서 복구');
     for (let i = 0; i < 100 && (await server.capabilityLifecycleLedger.current(proposalId)).state === 'candidate'; i += 1) await new Promise((r) => setTimeout(r, 10));
     const replayed = await server.capabilityLifecycleLedger.current(proposalId);

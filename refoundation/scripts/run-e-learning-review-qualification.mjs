@@ -19,8 +19,10 @@ const sources = [1, 2].map((index) => ({ eligible: true, pointer: {
   workId: `work-${index}`, revision: 1, runId: `run-${index}`, sessionId: `session-${index}`,
   sourceMessageId: `message-${index}`, resultDigest: `result-${index}` } }));
 const episodes = [
-  { source: sources[0], evidence: 'A report run stopped after its result was durable. The successful recovery read that exact result, did not repeat the uncertain write, reopened the artifact, and then delivered it.' },
-  { source: sources[1], evidence: 'A separate document run also recovered from the durable result pointer, skipped replay of an effect with unknown acknowledgement, reopened the exact artifact, and verified it before completion.' },
+  { source: sources[0], methodTrace: [{ tool: 'exec', template: 'ledger-inspect inspect <target.ledgerpack>' }],
+    evidence: 'A report run stopped after its result was durable. The successful recovery read that exact result, did not repeat the uncertain write, reopened the artifact, and then delivered it.' },
+  { source: sources[1], methodTrace: [{ tool: 'exec', template: 'ledger-inspect inspect <target.ledgerpack>' }],
+    evidence: 'A separate document run also recovered from the durable result pointer, skipped replay of an effect with unknown acknowledgement, reopened the exact artifact, and verified it before completion.' },
 ];
 
 for (const modelId of models) {
@@ -64,6 +66,7 @@ for (const modelId of models) {
       && evaluated.evaluation.recommendAfterIndependentFieldSuccess === true;
     const passed = reviewed.status === 'completed' && proposals.length === 1
       && proposal.state === 'candidate' && proposal.sourcePointers?.length === 2
+      && (await candidateStore.inspect(proposal.proposalId)).methodTrace?.length === 1
       && activeAbsent && evaluationPassed;
     results.push({ modelId, passed, wallMs: Math.round(performance.now() - began),
       modelTurns: reviewed.modelTurns, toolCalls: reviewed.toolCalls,

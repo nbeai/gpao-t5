@@ -33,22 +33,28 @@ test('effect unknown·미복구 failed Receipt가 있으면 모델 achieved 제�
   }
 });
 
-test('실패한 route 뒤 같은 Hand의 성공 Evidence가 있으면 과거 실패만으로 완료를 막지 않는다', () => {
+test('실패한 읽기 route 뒤 다른 Hand의 성공 Evidence도 과거 실패만으로 완료를 막지 않는다', () => {
   const evaluation = evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [
     { requestedCall: { name: 'exec' }, outcome: 'failed', result: {} },
     { requestedCall: { name: 'exec' }, outcome: 'succeeded', result: { state: 'completed' } },
   ] });
   assert.equal(evaluation.verifiedOutcome, 'achieved'); assert.deepEqual(evaluation.blockers, []);
   const unrelated = evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [
-    { requestedCall: { name: 'web_read' }, outcome: 'failed', result: {} },
-    { requestedCall: { name: 'exec' }, outcome: 'succeeded', result: { state: 'completed' } },
+    { requestedCall: { name: 'web_read', args: { effect: { kind: 'observe' } } }, outcome: 'failed', result: {} },
+    { requestedCall: { name: 'exec', args: { effect: { kind: 'observe' } } },
+      outcome: 'succeeded', result: { state: 'completed' } },
   ] });
-  assert.equal(unrelated.verifiedOutcome, 'unresolved'); assert.ok(unrelated.blockers.includes('failed'));
+  assert.equal(unrelated.verifiedOutcome, 'achieved'); assert.deepEqual(unrelated.blockers, []);
   const mutating = evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [
     { requestedCall: { name: 'exec', args: { effect: { kind: 'local_change' } } }, outcome: 'failed', result: {} },
     { requestedCall: { name: 'exec', args: { effect: { kind: 'local_change' } } }, outcome: 'succeeded', result: {} },
   ] });
   assert.equal(mutating.verifiedOutcome, 'unresolved'); assert.ok(mutating.blockers.includes('failed'));
+  const unknown = evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [
+    { requestedCall: { name: 'web_read' }, outcome: 'unknown', result: { effectUnknown: true } },
+    { requestedCall: { name: 'exec', args: { effect: { kind: 'observe' } } }, outcome: 'succeeded', result: {} },
+  ] });
+  assert.equal(unknown.verifiedOutcome, 'unresolved'); assert.ok(unknown.blockers.includes('effect_unknown'));
 });
 
 test('approval·handoff·delivery 미달은 proposal과 final이 공유하는 blocker digest로 unresolved가 된다', () => {

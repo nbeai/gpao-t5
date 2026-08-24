@@ -76,3 +76,18 @@ test('run_completed 뒤에는 실행 사건이 아니라 surface_metric 관측�
   assert.equal(restored.events.at(-1).type, 'surface_metric');
   assert.deepEqual(restored.events.map((event) => event.sequence), [1, 2, 3]);
 }));
+
+test('0ms background list는 생성 중 JSONL의 stable append boundary만 읽는다', async () => room(async (root) => {
+  const ledger = new RunLedger(root);
+  const run = await ledger.start({ sessionId: 'session-race', request: '동시에 관측해' });
+  const writes = Array.from({ length: 24 }, (_, index) => run.append({
+    type: 'tool_completed', stepId: `large-${index}`, payload: { value: 'x'.repeat(128 * 1024) },
+  }));
+  const reads = Array.from({ length: 48 }, async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const listed = await ledger.list();
+    assert.equal(listed[0].events.every((event, index) => event.sequence === index + 1), true);
+  });
+  await Promise.all([...writes, ...reads]);
+  assert.equal((await ledger.read(run.runId)).events.length, 25);
+}));

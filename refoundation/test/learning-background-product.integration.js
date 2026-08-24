@@ -35,7 +35,8 @@ test('두 achieved Work 뒤 reviewer는 foreground를 막지 않고 proposal 하
       assert.equal(response.status, 200); assert.ok(performance.now() - began < 500);
     }
     for (let attempt = 0; attempt < 100; attempt += 1) {
-      if ((await server.capabilityLifecycleLedger.list()).some((item) => item.state === 'candidate')) break;
+      if ((await server.capabilityLifecycleLedger.events())
+        .some((item) => item.type === 'learning_review_completed')) break;
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
     const candidates = (await server.capabilityLifecycleLedger.list()).filter((item) => item.state === 'candidate');

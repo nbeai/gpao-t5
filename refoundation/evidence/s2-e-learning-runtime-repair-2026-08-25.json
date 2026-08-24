@@ -1,0 +1,63 @@
+{
+  "schema": "t5.s2-e-learning-runtime-repair.v1",
+  "recordedAt": "2026-08-25T06:54:00+09:00",
+  "baseSource": "31834fdd728fff50d3f6746471a66c46d65338cd",
+  "scope": [
+    "immutable verified method evidence",
+    "exact method duplicate suppression without a global pending lock",
+    "model-selected exact trial observation and unrelated near-miss isolation",
+    "active Run JSONL stable snapshot reads",
+    "cross-Hand recovery of failed read-only observation"
+  ],
+  "machine": {
+    "command": "npm run refoundation:check",
+    "tests": 743,
+    "passed": 743,
+    "failed": 0
+  },
+  "live": [
+    {
+      "model": "api_key:openai:gpt-5.6-terra",
+      "journey": "unrelated natural note request then hint-free natural LedgerPack request",
+      "multipleCandidates": 2,
+      "unrelatedTrialViews": 0,
+      "fieldTrialViews": 1,
+      "fieldObservations": 1,
+      "fieldModelTurns": 4,
+      "fieldToolCalls": 3,
+      "fieldCallOrder": ["learning_trial", "exec", "work_completion"],
+      "answerCorrect": true,
+      "passed": true
+    },
+    {
+      "model": "chatgpt_oauth:gpt-5.5",
+      "journey": "unrelated natural note request then hint-free natural LedgerPack request",
+      "multipleCandidates": 2,
+      "unrelatedTrialViews": 0,
+      "fieldTrialViews": 1,
+      "fieldObservations": 1,
+      "fieldModelTurns": 4,
+      "fieldToolCalls": 3,
+      "fieldCallOrder": ["learning_trial", "exec", "work_completion"],
+      "answerCorrect": true,
+      "passed": true
+    }
+  ],
+  "counterTests": {
+    "reviewerDraftCanDiscardMethodTrace": "passed; immutable METHOD.json still supplied exact safe trace in trial view",
+    "secretStdoutAbsolutePathInMethodEvidence": 0,
+    "differentPendingMethodsAdmitted": true,
+    "exactMethodDuplicateSuppressed": true,
+    "unrelatedNearMissFieldObservations": 0,
+    "zeroMsRunReadRaceInvalidLedgers": 0,
+    "unknownAndMutatingFailureStillBlock": true,
+    "promotionRollbackJourney": "passed"
+  },
+  "boundaries": {
+    "promptFewShotAdded": false,
+    "keywordRouterAdded": false,
+    "legacyImports": 0,
+    "coreAutoModification": false,
+    "releasePackageBuilt": false
+  }
+}

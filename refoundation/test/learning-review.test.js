@@ -27,10 +27,14 @@ test('격리 reviewer는 Episode evidence와 proposal 도구 하나만 받고 ac
       return { text: 'Proposal prepared.', toolCalls: [] };
     } };
     const result = await runLearningReview({ episodes: [
-      { source: sources[0], evidence: 'A durable result existed; it was reopened without repeating the write.' },
-      { source: sources[1], evidence: 'The result pointer was reused and the artifact was verified before completion.' },
+      { source: sources[0], methodTrace: [{ tool: 'exec', template: 'ledger-inspect inspect <target.ledgerpack>' }],
+        evidence: 'A durable result existed; it was reopened without repeating the write.' },
+      { source: sources[1], methodTrace: [{ tool: 'exec', template: 'ledger-inspect inspect <target.ledgerpack>' }],
+        evidence: 'The result pointer was reused and the artifact was verified before completion.' },
     ], model, candidateStore: store, reviewRunId: 'review-run' });
     assert.equal(result.status, 'completed'); assert.equal(result.proposal.state, 'candidate');
+    assert.deepEqual((await store.inspect('review-proposal')).methodTrace,
+      [{ tool: 'exec', template: 'ledger-inspect inspect <target.ledgerpack>' }]);
     assert.equal((await store.ledger.current('review-proposal')).events.length, 1);
   } finally { await rm(room, { recursive: true, force: true }); }
 });

@@ -62,7 +62,7 @@ export class RunLedger {
   constructor(directory) {
     if (!directory) throw new TypeError('run ledger directory is required');
     this.directory = directory;
-    this.activeRuns = new Set();
+    this.activeRuns = new Map();
   }
 
   async start({ sessionId, request, metadata = {} }) {
@@ -74,10 +74,10 @@ export class RunLedger {
     const handle = await open(file, 'ax', 0o600);
     await handle.close();
     await chmod(file, 0o600);
-    this.activeRuns.add(runId);
     const writer = new RunWriter({
       runId, file, onTerminal: () => this.activeRuns.delete(runId),
     });
+    this.activeRuns.set(runId, writer);
     await writer.append({
       type: 'run_started',
       payload: { sessionId: String(sessionId), request, metadata: clone(metadata) },
@@ -87,6 +87,12 @@ export class RunLedger {
 
   async read(runId) {
     const id = safeRunId(runId);
+    const writer = this.activeRuns.get(id);
+    if (writer) return writer.serialize(() => this.readSnapshot(id));
+    return this.readSnapshot(id);
+  }
+
+  async readSnapshot(id) {
     let text;
     try { text = await readFile(join(this.directory, `${id}.jsonl`), 'utf8'); }
     catch (error) {
