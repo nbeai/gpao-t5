@@ -16,7 +16,10 @@ const driveNulls = {
   query: null, fileId: null, pageSize: null, pageToken: null, exportMime: null,
   name: null, parentId: null, filePath: null, mimeType: null, effect: null,
 };
-const notionNulls = { toolName: null, argumentsJson: null, effect: null };
+const notionNulls = {
+  toolName: null, argumentsJson: null, effect: null,
+  verificationToolName: null, targetResourceId: null, expectedText: null,
+};
 const attachmentNulls = {
   attachmentId: null, filePath: null, maxChars: null, maxCells: null, maxPages: null,
 };
@@ -56,6 +59,7 @@ test('일반 사용자의 Notion·Google 자료 찾기부터 파일 왕복까지
   const remoteUrl = `http://127.0.0.1:${fileServer.address().port}/meeting.txt`;
 
   const notionCalls = [];
+  let meetingUpdated = false;
   const notionRuntime = {
     async listTools() { return [
       { name: 'notion-search', inputSchema: { type: 'object' }, annotations: { readOnlyHint: true } },
@@ -68,12 +72,19 @@ test('일반 사용자의 Notion·Google 자료 찾기부터 파일 왕복까지
       if (call.name === 'notion-search') return {
         isError: false, content: [{ type: 'text', text: JSON.stringify({ results: [{ id: 'meeting-1', title: '주간 회의' }] }) }],
       };
-      if (call.name === 'notion-fetch') return {
+      if (call.name === 'notion-fetch') return call.arguments.id === 'created-1' ? {
+        isError: false, content: [{ type: 'text', text: JSON.stringify({ id: 'created-1', title: '후속 할 일' }) }],
+      } : {
         isError: false, content: [{ type: 'text', text: JSON.stringify({
-          id: 'meeting-1', title: '주간 회의', text: '다음 주 재검토', files: [{ name: '회의자료.txt', url: remoteUrl }],
+          id: 'meeting-1', title: '주간 회의', text: meetingUpdated ? '다음 주 재검토' : '검토 전',
+          files: [{ name: '회의자료.txt', url: remoteUrl }],
         }) }],
       };
-      return { isError: false, content: [{ type: 'text', text: JSON.stringify({ ok: true, id: call.name }) }] };
+      if (call.name === 'notion-create-pages') return {
+        isError: false, content: [{ type: 'text', text: JSON.stringify({ ok: true, id: 'created-1' }) }],
+      };
+      meetingUpdated = true;
+      return { isError: false, content: [{ type: 'text', text: JSON.stringify({ ok: true, id: 'meeting-1' }) }] };
     },
   };
   const notionService = {
@@ -134,11 +145,13 @@ test('일반 사용자의 Notion·Google 자료 찾기부터 파일 왕복까지
     () => ({ text: '', toolCalls: [{ id: 'n-search', name: 'notion', args: { ...notionNulls, action: 'call', toolName: 'notion-search', argumentsJson: JSON.stringify({ query: '주간 회의' }), effect: effect('observe', 'Notion 주간 회의 검색', ['notion']) } }] }),
     () => ({ text: '', toolCalls: [{ id: 'n-fetch', name: 'notion', args: { ...notionNulls, action: 'call', toolName: 'notion-fetch', argumentsJson: JSON.stringify({ id: 'meeting-1' }), effect: effect('observe', 'Notion 회의 읽기', ['notion']) } }] }),
     () => ({ text: '', toolCalls: [{ id: 'n-create', name: 'notion', args: {
-      ...notionNulls, action: 'call', toolName: 'notion-create-pages', argumentsJson: JSON.stringify({ title: '후속 할 일' }),
+      ...notionNulls, action: 'verified_write', toolName: 'notion-create-pages', argumentsJson: JSON.stringify({ title: '후속 할 일' }),
+      verificationToolName: 'notion-fetch', targetResourceId: null, expectedText: '후속 할 일',
       effect: effect('external_change', 'Notion 후속 페이지 만들기', ['notion']),
     } }] }),
     () => ({ text: '', toolCalls: [{ id: 'n-update', name: 'notion', args: {
-      ...notionNulls, action: 'call', toolName: 'notion-update-page', argumentsJson: JSON.stringify({ page_id: 'meeting-1', text: '다음 주 재검토' }),
+      ...notionNulls, action: 'verified_write', toolName: 'notion-update-page', argumentsJson: JSON.stringify({ page_id: 'meeting-1', text: '다음 주 재검토' }),
+      verificationToolName: 'notion-fetch', targetResourceId: 'meeting-1', expectedText: '다음 주 재검토',
       effect: effect('external_change', 'Notion 회의 페이지 수정', ['notion']),
     } }] }),
     () => ({ text: '주간 회의를 찾아 읽고, 후속 할 일 페이지를 만든 뒤 회의 페이지도 수정했어요.', toolCalls: [] }),
@@ -226,7 +239,8 @@ test('일반 사용자의 Notion·Google 자료 찾기부터 파일 왕복까지
     }
     assert.equal(queue.length, 0);
     assert.deepEqual(notionCalls.map((call) => call.name), [
-      'notion-search', 'notion-fetch', 'notion-create-pages', 'notion-update-page', 'notion-fetch',
+      'notion-search', 'notion-fetch', 'notion-create-pages', 'notion-fetch',
+      'notion-update-page', 'notion-fetch', 'notion-fetch',
     ]);
     assert.deepEqual(await readFile(downloaded), remoteBytes);
     assert.equal(results[1].artifacts[0].originalName, '받은 회의자료.txt');

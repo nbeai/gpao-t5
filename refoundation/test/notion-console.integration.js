@@ -10,6 +10,7 @@ import { makeNotionTool } from '../src/notion-tool.js';
 test('연결된 Notion 손은 도구 발견→검색→페이지 읽기→수정을 자연어 멀티턴 한 Run에 잇는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-notion-console-'));
   const remoteCalls = [];
+  let updated = false;
   const runtime = {
     async listTools() { return [
       {
@@ -34,8 +35,10 @@ test('연결된 Notion 손은 도구 발견→검색→페이지 읽기→수정
         content: [{ type: 'text', text: JSON.stringify({ results: [{ id: 'page-1', title: '주간 회의' }] }) }], isError: false,
       };
       if (input.name === 'notion-fetch') return {
-        content: [{ type: 'text', text: JSON.stringify({ id: 'page-1', title: '주간 회의', text: '결정사항 없음' }) }], isError: false,
+        content: [{ type: 'text', text: JSON.stringify({ id: 'page-1', title: '주간 회의',
+          text: updated ? '결정사항: 다음 주 재검토' : '결정사항 없음' }) }], isError: false,
       };
+      updated = true;
       return { content: [{ type: 'text', text: JSON.stringify({ id: 'page-1', updated: true }) }], isError: false };
     },
   };
@@ -81,8 +84,9 @@ test('연결된 Notion 손은 도구 발견→검색→페이지 읽기→수정
       }] };
       if (turn === 4) return { text: '', toolCalls: [{
         id: 'update-notion', name: 'notion', args: {
-          ...base, action: 'call', toolName: 'notion-update-page',
+          ...base, action: 'verified_write', toolName: 'notion-update-page',
           argumentsJson: JSON.stringify({ page_id: 'page-1', command: '결정사항에 다음 주 재검토 추가' }),
+          verificationToolName: 'notion-fetch', targetResourceId: 'page-1', expectedText: '다음 주 재검토',
           effect: {
             kind: 'external_change', summary: '주간 회의 페이지 수정', targets: ['notion'],
             reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null,
@@ -104,7 +108,7 @@ test('연결된 Notion 손은 도구 발견→검색→페이지 읽기→수정
     }).then((response) => response.json());
     assert.match(answer.reply, /추가했어요/u);
     assert.deepEqual(remoteCalls.map((call) => call.name), [
-      'notion-search', 'notion-fetch', 'notion-update-page',
+      'notion-search', 'notion-fetch', 'notion-update-page', 'notion-fetch',
     ]);
     const run = await fetch(`${base}/runs/${answer.runId}`).then((response) => response.json());
     assert.equal(run.events.filter((event) => event.type === 'tool_completed').length, 5);

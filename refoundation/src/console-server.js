@@ -266,7 +266,7 @@ export function makeConsoleServer({
   browserDriverFactory,
   browserHost,
   workspaceConnectionInspectors = [],
-  workspaceConnectionServices = [],
+  workspaceConnectionServices = [], messengerCredentialStore = null,
   connectionPollIntervalMs = 2_000,
   connectionPollTimeoutMs = 10 * 60_000,
   processYieldMs = 1000,
@@ -399,7 +399,8 @@ export function makeConsoleServer({
   const browserObservations = new Map();
   const browserArtifactRoot = resolve(stateDir, 'browser');
   const messengerDirectory = join(stateDir, 'messenger');
-  const messengerCredentials = new MessengerCredentialStore(messengerDirectory);
+  const messengerCredentials = messengerCredentialStore
+    ?? new MessengerCredentialStore(messengerDirectory);
   const messengerState = new MessengerStateStore(messengerDirectory);
   let onboardingSkipped = false;
   let capabilityCoordinator = null;
@@ -1558,7 +1559,35 @@ export function makeConsoleServer({
         await workStore.commitInputExecuted({ inputId: input.inputId, runId: run.runId, surfaceReceipt });
       }
       let deliveryTerminal = { provider: 'console', state: 'persisted' };
-      if ((!options.trigger || options.trigger === 'user') && session.origin?.channel === 'telegram'
+      if (typeof options.deliverSurface === 'function' && surfaceResult.kind === 'reply') {
+        await workStore.markResultDeliveryStarted(run.runId, { provider: 'telegram', state: 'started' });
+        try {
+          const delivery = await options.deliverSurface({
+            reply: surfaceResult.reply,
+            artifactIds: outputArtifacts.map((artifact) => artifact.attachmentId),
+          });
+          deliveryTerminal = delivery?.sent ? {
+            provider: 'telegram', state: 'sent',
+            messageIds: structuredClone(delivery.messageIds ?? []),
+            files: structuredClone(delivery.files ?? []),
+          } : { provider: 'telegram', state: 'failed', reason: 'not_sent' };
+        } catch (error) {
+          deliveryTerminal = {
+            provider: 'telegram', state: error?.effectUnknown ? 'unknown' : 'failed',
+            reason: error?.code ?? 'telegram_delivery_failed', retrySafe: error?.retrySafe !== false,
+          };
+        }
+        surfaceResult.channelDelivery = {
+          provider: 'telegram', sent: deliveryTerminal.state === 'sent', state: deliveryTerminal.state,
+          ...(deliveryTerminal.messageIds ? { messageIds: deliveryTerminal.messageIds } : {}),
+          ...(deliveryTerminal.files ? { files: deliveryTerminal.files } : {}),
+          ...(deliveryTerminal.reason ? { reason: deliveryTerminal.reason } : {}),
+        };
+        await run.append({ type: deliveryTerminal.state === 'sent'
+          ? 'channel_delivery_completed' : deliveryTerminal.state === 'unknown'
+            ? 'channel_delivery_unknown' : 'channel_delivery_failed', stepId: 'telegram-delivery',
+        payload: surfaceResult.channelDelivery });
+      } else if ((!options.trigger || options.trigger === 'user') && session.origin?.channel === 'telegram'
         && surfaceResult.kind === 'reply') {
         await workStore.markResultDeliveryStarted(run.runId, { provider: 'telegram', state: 'started' });
         try {
@@ -1636,7 +1665,8 @@ export function makeConsoleServer({
         });
       }
       return { kind: 'reply', surfaceResult, result, runId: run.runId,
-        workId: settledWork?.workId ?? null, workRevision: settledWork?.claimedRevision ?? null };
+        workId: settledWork?.workId ?? null, workRevision: settledWork?.claimedRevision ?? null,
+        channelDelivery: surfaceResult.channelDelivery ?? null };
     } catch (error) {
       if (controller.signal.aborted) {
         if (!runFinished) {
@@ -1723,6 +1753,7 @@ export function makeConsoleServer({
   const messenger = makeMessengerGateway({
     credentialStore: messengerCredentials,
     stateStore: messengerState,
+    attachmentStore: attachments,
     ...(messengerProviderFactory ? { providerFactory: messengerProviderFactory } : {}),
     createSession: async ({ origin } = {}) => sessions.create({
       origin: origin ? { channel: origin.provider, chatId: origin.chatId } : null,
@@ -1731,7 +1762,7 @@ export function makeConsoleServer({
       const ownership = await messengerState.claimFirstOwner(message.provider, message);
       return ownership.allowed;
     },
-    onInbound: async (message, { progress } = {}) => {
+    onInbound: async (message, { progress, deliver } = {}) => {
       const notify = (type, payload) => {
         if (!['trace_status', 'tool_progress'].includes(type)) return;
         const text = safeProgressText(payload?.text);
@@ -1739,24 +1770,31 @@ export function makeConsoleServer({
         broadcastEvent('messenger_progress', { sessionId: message.sessionId, text, done: false });
       };
       try {
-        const completed = await executeTurn(message.sessionId, message.text, notify, {
+        const issueNote = (message.attachmentIssues ?? []).length
+          ? `\n\n[받지 못한 첨부: ${(message.attachmentIssues ?? []).map((issue) => `${issue.originalName} (${issue.state})`).join(', ')}]`
+          : '';
+        const completed = await executeTurn(message.sessionId, `${message.text}${issueNote}`.trim(), notify, {
           trigger: 'messenger',
+          attachmentIds: message.attachmentIds ?? [],
           metadata: {
             provider: message.provider, chatId: message.chatId, threadId: message.threadId,
             userId: message.userId, username: message.username,
+            sourceMessageId: message.messageId, replyIdentity: message.replyIdentity,
           },
           inputEntry: {
             role: 'user', text: message.text, channel: message.provider,
             channelMeta: {
               chatId: message.chatId, threadId: message.threadId,
               userId: message.userId, username: message.username,
+              sourceMessageId: message.messageId, replyIdentity: message.replyIdentity,
             },
           },
+          deliverSurface: ({ reply, artifactIds }) => deliver({ text: reply, artifactIds }),
         });
         broadcastEvent('messenger_progress', {
           sessionId: message.sessionId, text: '답변을 준비했어요', done: true,
         });
-        return completed.surfaceResult?.reply ?? completed.result?.answer ?? null;
+        return { text: null, delivery: completed.channelDelivery ?? null };
       } catch (error) {
         const failure = error?.surfaceResult;
         broadcastEvent('messenger_progress', {
@@ -1860,6 +1898,18 @@ export function makeConsoleServer({
               : botConnected ? '텔레그램에서 연결한 봇에게 아무 메시지나 보내 주세요.'
               : '사용하려면 봇을 연결해 주세요.',
           capabilities: { receive: connected, send: botConnected && Boolean(owner) },
+          identity: {
+            ownerApplication: 't5', transport: 'telegram_bot_api_long_polling',
+            accountId: String(current.connections?.telegram?.bot?.id ?? ''),
+            accountLabel: current.connections?.telegram?.bot?.username
+              ? `@${current.connections.telegram.bot.username}` : 'Telegram bot',
+            permissions: [
+              ...(connected ? ['receive'] : []),
+              ...(botConnected && owner ? ['send'] : []),
+            ],
+            resources: owner ? [{ id: String(owner.userId), label: owner.label ?? '내 계정', scope: 'owner_chat' }] : [],
+            observed: connected,
+          },
           routes: [{
             kind: 'bot_token', label: '텔레그램 봇',
             state: connected ? 'connected' : needsAttention ? 'needs_attention'

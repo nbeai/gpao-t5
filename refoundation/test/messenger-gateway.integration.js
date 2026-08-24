@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, stat } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { mkdtemp, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,19 +9,34 @@ import { join } from 'node:path';
 import { MessengerCredentialStore } from '../src/messenger-credential-store.js';
 import { makeMessengerGateway, MessengerStateStore } from '../src/messenger-gateway.js';
 import { makeTelegramMessengerProvider } from '../src/telegram-messenger-provider.js';
+import { AttachmentStore } from '../src/attachment-store.js';
 
 const TOKEN = '123456:super-secret-bot-token';
 
 async function telegramFixture() {
   const updates = [];
   const calls = [];
+  const files = new Map();
   let holdPoll = false;
+  let loseDocumentAck = false;
+  let afterPoll = null;
   const server = createServer(async (request, response) => {
     const chunks = [];
     for await (const chunk of request) chunks.push(chunk);
-    const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {};
+    const rawBody = Buffer.concat(chunks);
+    const body = chunks.length && String(request.headers['content-type'] ?? '').includes('application/json')
+      ? JSON.parse(rawBody.toString('utf8')) : { raw: rawBody.toString('latin1') };
     const method = request.url?.split('/').at(-1);
     calls.push({ method, body });
+    const filePrefix = `/file/bot${TOKEN}/`;
+    if (request.url?.startsWith(filePrefix)) {
+      const name = decodeURIComponent(request.url.slice(filePrefix.length));
+      const content = files.get(name);
+      if (!content) { response.statusCode = 404; response.end('missing'); return; }
+      response.setHeader('content-type', 'application/octet-stream');
+      response.setHeader('content-length', String(content.length));
+      response.end(content); return;
+    }
     response.setHeader('content-type', 'application/json');
     if (!request.url?.startsWith(`/bot${TOKEN}/`)) {
       response.statusCode = 401;
@@ -37,11 +53,28 @@ async function telegramFixture() {
     }
     if (method === 'getUpdates') {
       const result = updates.filter((update) => update.update_id >= Number(body.offset ?? 0));
+      const hook = afterPoll; afterPoll = null; hook?.();
       response.end(JSON.stringify({ ok: true, result }));
+      return;
+    }
+    if (method === 'getFile') {
+      const name = `files/${body.file_id}.bin`;
+      if (!files.has(name)) { response.statusCode = 404; response.end(JSON.stringify({ ok: false })); return; }
+      response.end(JSON.stringify({ ok: true, result: { file_id: body.file_id, file_path: name } }));
       return;
     }
     if (method === 'sendMessage') {
       response.end(JSON.stringify({ ok: true, result: { message_id: 900, chat: { id: body.chat_id }, text: body.text } }));
+      return;
+    }
+    if (method === 'sendDocument') {
+      if (loseDocumentAck) { response.destroy(); return; }
+      response.end(JSON.stringify({ ok: true, result: {
+        message_id: 901, chat: { id: 555 }, document: {
+          file_id: 'sent-file-id', file_unique_id: 'sent-unique-id',
+          file_name: 'result.txt', mime_type: 'text/plain', file_size: 11,
+        },
+      } }));
       return;
     }
     if (method === 'editMessageText') {
@@ -63,9 +96,31 @@ async function telegramFixture() {
   });
   return {
     base: `http://127.0.0.1:${server.address().port}`,
-    updates, calls,
+    updates, calls, files,
     hold(value) { holdPoll = value; },
+    loseDocumentAck(value) { loseDocumentAck = value; },
+    afterNextPoll(callback) { afterPoll = callback; },
     close: () => new Promise((resolve) => server.close(resolve)),
+  };
+}
+
+function mediaUpdate(id, {
+  chatId = 555, userId = 42, caption = '', mediaGroupId = null,
+  fileId = `file-${id}`, uniqueId = `unique-${id}`, fileName = `file-${id}.txt`,
+  fileSize = 4, replyTo = null,
+} = {}) {
+  return {
+    update_id: id,
+    message: {
+      message_id: id, caption,
+      ...(mediaGroupId == null ? {} : { media_group_id: mediaGroupId }),
+      ...(replyTo == null ? {} : { reply_to_message: { message_id: replyTo } }),
+      document: {
+        file_id: fileId, file_unique_id: uniqueId, file_name: fileName,
+        mime_type: 'text/plain', file_size: fileSize,
+      },
+      chat: { id: chatId, type: 'private' }, from: { id: userId, username: 'owner' },
+    },
   };
 }
 
@@ -453,4 +508,181 @@ test('허용목록은 메시지 내용 없이 대기 발신자를 남기고 승�
   assert.equal((await new MessengerStateStore(room).listAllowed('telegram'))[0].label, '오너');
   await state.revoke('telegram', '42');
   assert.equal(await state.isAllowed('telegram', stranger), false);
+});
+
+test('Telegram document와 caption·reply identity를 한 envelope로 AttachmentStore에 결속한다', async () => {
+  const fixture = await telegramFixture();
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-attachment-'));
+  const sessionId = randomUUID();
+  const attachmentStore = new AttachmentStore(join(room, 'attachments'));
+  const received = [];
+  const gateway = makeMessengerGateway({
+    credentialStore: new MessengerCredentialStore(room),
+    stateStore: new MessengerStateStore(room), attachmentStore,
+    providerFactory: ({ token }) => makeTelegramMessengerProvider({
+      token, apiBase: fixture.base, pollTimeoutSeconds: 0,
+    }),
+    createSession: async () => sessionId, authorizeInbound: async () => true,
+    onInbound: async (message) => { received.push(message); return '확인했어요.'; },
+  });
+  try {
+    await gateway.connect({ provider: 'telegram', token: TOKEN });
+    fixture.files.set('files/contract.bin', Buffer.from('contract body'));
+    fixture.updates.push(mediaUpdate(70, {
+      caption: '이 계약서 위험을 봐줘', fileId: 'contract', uniqueId: 'stable-contract',
+      fileName: 'contract.txt', fileSize: 13, replyTo: 69,
+    }));
+    assert.deepEqual(await gateway.pollOnce(), { received: 1, accepted: 1, replied: 1, offset: 71 });
+    assert.equal(received[0].text, '이 계약서 위험을 봐줘');
+    assert.deepEqual(received[0].replyIdentity, { provider: 'telegram', messageId: '69' });
+    assert.equal(received[0].attachmentIds.length, 1);
+    const stored = await attachmentStore.readContent({
+      sessionId, attachmentId: received[0].attachmentIds[0],
+    });
+    assert.equal(stored.record.originalName, 'contract.txt');
+    assert.deepEqual(stored.record.providerIdentity, {
+      provider: 'telegram', fileId: 'contract', fileUniqueId: 'stable-contract', mediaGroupId: null,
+    });
+    assert.equal(stored.bytes.toString(), 'contract body');
+  } finally { await fixture.close(); }
+});
+
+test('Telegram media group은 caption과 여러 file을 순서대로 한 사용자 Turn에 공급한다', async () => {
+  const fixture = await telegramFixture();
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-album-'));
+  const sessionId = randomUUID();
+  const received = [];
+  const gateway = makeMessengerGateway({
+    credentialStore: new MessengerCredentialStore(room), stateStore: new MessengerStateStore(room),
+    attachmentStore: new AttachmentStore(join(room, 'attachments')),
+    providerFactory: ({ token }) => makeTelegramMessengerProvider({ token, apiBase: fixture.base, pollTimeoutSeconds: 0 }),
+    createSession: async () => sessionId, authorizeInbound: async () => true,
+    onInbound: async (message) => { received.push(message); return null; },
+  });
+  try {
+    await gateway.connect({ provider: 'telegram', token: TOKEN });
+    fixture.files.set('files/a.bin', Buffer.from('A'));
+    fixture.files.set('files/b.bin', Buffer.from('B'));
+    fixture.updates.push(
+      mediaUpdate(80, { caption: '두 파일을', mediaGroupId: 'group-1', fileId: 'a', fileName: 'a.txt', fileSize: 1 }),
+      mediaUpdate(81, { caption: '함께 비교해줘', mediaGroupId: 'group-1', fileId: 'b', fileName: 'b.txt', fileSize: 1 }),
+    );
+    assert.deepEqual(await gateway.pollOnce(), { received: 1, accepted: 1, replied: 0, offset: 82 });
+    assert.equal(received.length, 1);
+    assert.equal(received[0].text, '두 파일을\n함께 비교해줘');
+    assert.equal(received[0].attachmentIds.length, 2);
+  } finally { await fixture.close(); }
+});
+
+test('Telegram album update가 다음 짧은 poll에 나뉘어도 quiet boundary에서 한 Turn으로 합친다', async () => {
+  const fixture = await telegramFixture();
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-album-split-'));
+  const received = []; const sessionId = randomUUID();
+  const gateway = makeMessengerGateway({
+    credentialStore: new MessengerCredentialStore(room), stateStore: new MessengerStateStore(room),
+    attachmentStore: new AttachmentStore(join(room, 'attachments')),
+    providerFactory: ({ token }) => makeTelegramMessengerProvider({
+      token, apiBase: fixture.base, pollTimeoutSeconds: 0, mediaGroupQuietMs: 5, mediaGroupMaxWaitMs: 50,
+    }),
+    createSession: async () => sessionId, authorizeInbound: async () => true,
+    onInbound: async (message) => { received.push(message); return null; },
+  });
+  try {
+    await gateway.connect({ provider: 'telegram', token: TOKEN });
+    fixture.files.set('files/split-a.bin', Buffer.from('A'));
+    fixture.files.set('files/split-b.bin', Buffer.from('B'));
+    fixture.updates.push(mediaUpdate(85, { caption: '앞 파일', mediaGroupId: 'split', fileId: 'split-a', fileSize: 1 }));
+    fixture.afterNextPoll(() => fixture.updates.push(mediaUpdate(86, {
+      caption: '뒤 파일', mediaGroupId: 'split', fileId: 'split-b', fileSize: 1,
+    })));
+    assert.deepEqual(await gateway.pollOnce(), { received: 1, accepted: 1, replied: 0, offset: 87 });
+    assert.equal(received.length, 1);
+    assert.equal(received[0].attachmentIds.length, 2);
+    assert.equal(received[0].text, '앞 파일\n뒤 파일');
+  } finally { await fixture.close(); }
+});
+
+test('Telegram oversized attachment는 caption을 잃지 않고 구조화된 issue로 같은 Turn에 남긴다', async () => {
+  const fixture = await telegramFixture();
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-oversized-'));
+  const received = [];
+  const gateway = makeMessengerGateway({
+    credentialStore: new MessengerCredentialStore(room), stateStore: new MessengerStateStore(room),
+    attachmentStore: new AttachmentStore(join(room, 'attachments')),
+    providerFactory: ({ token }) => makeTelegramMessengerProvider({ token, apiBase: fixture.base, pollTimeoutSeconds: 0 }),
+    createSession: async () => randomUUID(), authorizeInbound: async () => true,
+    onInbound: async (message) => { received.push(message); return null; },
+  });
+  try {
+    await gateway.connect({ provider: 'telegram', token: TOKEN });
+    fixture.updates.push(mediaUpdate(90, {
+      caption: '파일이 안 되면 이유라도 알려줘', fileId: 'huge', fileName: 'huge.bin',
+      fileSize: 21 * 1024 * 1024,
+    }));
+    await gateway.pollOnce();
+    assert.equal(received[0].text, '파일이 안 되면 이유라도 알려줘');
+    assert.deepEqual(received[0].attachmentIds, []);
+    assert.equal(received[0].attachmentIssues[0].state, 'too_large');
+  } finally { await fixture.close(); }
+});
+
+test('Telegram provider가 exact output artifact를 sendDocument로 보내고 message/file receipt를 남긴다', async () => {
+  const fixture = await telegramFixture();
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-send-document-'));
+  const sessionId = randomUUID();
+  const attachmentStore = new AttachmentStore(join(room, 'attachments'));
+  const resultPath = join(room, 'result.txt');
+  await writeFile(resultPath, 'hello world');
+  const artifact = await attachmentStore.registerOutput({ sessionId, workspace: room, filePath: resultPath });
+  let delivery;
+  const gateway = makeMessengerGateway({
+    credentialStore: new MessengerCredentialStore(room), stateStore: new MessengerStateStore(room),
+    attachmentStore,
+    providerFactory: ({ token }) => makeTelegramMessengerProvider({ token, apiBase: fixture.base, pollTimeoutSeconds: 0 }),
+    createSession: async () => sessionId, authorizeInbound: async () => true,
+    onInbound: async (_message, controls) => {
+      delivery = await controls.deliver({ text: '결과 파일이에요.', artifactIds: [artifact.attachmentId] });
+      return { text: null, delivery };
+    },
+  });
+  try {
+    await gateway.connect({ provider: 'telegram', token: TOKEN });
+    fixture.updates.push(update(100, { text: '결과 파일 보내줘' }));
+    assert.deepEqual(await gateway.pollOnce(), { received: 1, accepted: 1, replied: 1, offset: 101 });
+    assert.equal(fixture.calls.filter((call) => call.method === 'sendDocument').length, 1);
+    assert.equal(delivery.files[0].file.fileId, 'sent-file-id');
+    assert.equal(delivery.files[0].artifact.attachmentId, artifact.attachmentId);
+    assert.equal(delivery.files[0].artifact.sha256, artifact.sha256);
+    assert.deepEqual(delivery.messageIds, ['900', '901']);
+    assert.equal((await new MessengerStateStore(room).ingress('telegram', 100)).files[0].file.fileUniqueId, 'sent-unique-id');
+  } finally { await fixture.close(); }
+});
+
+test('sendDocument ACK가 사라지면 unknown으로 보존하고 같은 artifact를 blind retry하지 않는다', async () => {
+  const fixture = await telegramFixture();
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-send-unknown-'));
+  const sessionId = randomUUID();
+  const attachmentStore = new AttachmentStore(join(room, 'attachments'));
+  const resultPath = join(room, 'unknown.txt');
+  await writeFile(resultPath, 'unknown');
+  const artifact = await attachmentStore.registerOutput({ sessionId, workspace: room, filePath: resultPath });
+  const gateway = makeMessengerGateway({
+    credentialStore: new MessengerCredentialStore(room), stateStore: new MessengerStateStore(room), attachmentStore,
+    providerFactory: ({ token }) => makeTelegramMessengerProvider({ token, apiBase: fixture.base, pollTimeoutSeconds: 0 }),
+    createSession: async () => sessionId, authorizeInbound: async () => true,
+    onInbound: async (_message, controls) => {
+      await controls.deliver({ artifactIds: [artifact.attachmentId] });
+      return null;
+    },
+  });
+  try {
+    await gateway.connect({ provider: 'telegram', token: TOKEN });
+    fixture.loseDocumentAck(true);
+    fixture.updates.push(update(110, { text: '파일 보내줘' }));
+    assert.deepEqual(await gateway.pollOnce(), { received: 1, accepted: 1, replied: 0, offset: 111 });
+    assert.equal((await new MessengerStateStore(room).ingress('telegram', 110)).state, 'adopted_unknown');
+    assert.equal(fixture.calls.filter((call) => call.method === 'sendDocument').length, 1);
+    await gateway.pollOnce();
+    assert.equal(fixture.calls.filter((call) => call.method === 'sendDocument').length, 1);
+  } finally { await fixture.close(); }
 });

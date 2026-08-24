@@ -1,0 +1,92 @@
+{
+  "schema": "t5.s2-f-connected-reality.v1",
+  "recordedAt": "2026-08-25T03:37:19+09:00",
+  "scope": {
+    "gate": "S2-F",
+    "telegram": [
+      "provider-owned platform secret storage",
+      "document/photo/caption/reply and media-group envelope",
+      "bounded getFile download into AttachmentStore",
+      "provider-owned sendDocument with message/file receipt",
+      "unknown acknowledgement blind retry zero"
+    ],
+    "connection": [
+      "T5 application/account/transport/permission/resource identity",
+      "external Notion CLI is not a T5 connection",
+      "current capability observation",
+      "Notion write acknowledgement plus exact read-after-write"
+    ],
+    "nonGoals": [
+      "visible Browser",
+      "new messenger providers",
+      "Windows feature implementation",
+      "Notion file upload"
+    ]
+  },
+  "comparisonSources": {
+    "openClaw": "bf83a4dde8f00e5d330bd00de79cb0232fe6ae09",
+    "hermes": "74ad422d50e6d76e26ba5ce3b4d2a4d520e923dd",
+    "openClawWindows": "ccd64bbb7d687d9929091109c8d722ad9ba962d9"
+  },
+  "deterministicQualification": {
+    "refoundation": { "passed": 735, "failed": 0 },
+    "productIntegration": {
+      "passed": 127,
+      "failed": 0,
+      "visibleBrowserLiveExecuted": false,
+      "observation": "One contended run timed out in two pre-existing background waits; both passed independently and the full 127-case rerun passed."
+    },
+    "telegramFocused": {
+      "passed": 18,
+      "inboundOneTurn": true,
+      "attachmentIdentityPreserved": true,
+      "artifactDeliveryReceipt": true,
+      "unknownBlindRetries": 0
+    },
+    "notionFocused": {
+      "passed": 11,
+      "rawMutatingCallAllowed": false,
+      "writeCallsOnUnknown": 1,
+      "readbackCallsOnUnknown": 1,
+      "verifiedCompletionRequiresExpectedText": true
+    }
+  },
+  "actualModelQualification": {
+    "visibleBrowserCalls": 0,
+    "results": [
+      {
+        "modelId": "api_key:openai:gpt-5.6-terra",
+        "passed": true,
+        "wallMs": 8148,
+        "modelCalls": 3,
+        "toolCalls": 2,
+        "updateCalls": 1,
+        "fetchCalls": 1,
+        "inputTokens": 16193,
+        "outputTokens": 345,
+        "verifiedState": "notion_write_verified",
+        "userSafe": true
+      },
+      {
+        "modelId": "chatgpt_oauth:gpt-5.5",
+        "passed": true,
+        "wallMs": 17418,
+        "modelCalls": 4,
+        "toolCalls": 3,
+        "updateCalls": 1,
+        "fetchCalls": 2,
+        "inputTokens": 22575,
+        "outputTokens": 653,
+        "verifiedState": "notion_write_verified",
+        "userSafe": true
+      }
+    ]
+  },
+  "platformBoundary": {
+    "coreMacOsPathDependencyAdded": false,
+    "plaintextFallbackOnUnsupportedPlatform": false,
+    "windowsFeatureImplemented": false,
+    "wslShellSecretTransportUsed": false
+  },
+  "passed": true
+}

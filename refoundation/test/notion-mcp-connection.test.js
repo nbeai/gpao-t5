@@ -137,7 +137,7 @@ test('동시에 들어온 Notion 연결 시작은 callback 포트를 열기 전�
   } finally { await connection.close(); }
 });
 
-test('인증된 공식 Notion CLI는 원격 MCP와 별도로 파일 작업 가능한 실제 경로로 보고한다', async () => {
+test('다른 앱의 인증된 Notion CLI는 T5 연결로 승격하지 않고 별도 identity로 보고한다', async () => {
   const connection = makeNotionMcpConnection({
     secretStore: memorySecrets(),
     cliInspect: async () => ({
@@ -146,11 +146,14 @@ test('인증된 공식 Notion CLI는 원격 MCP와 별도로 파일 작업 가�
   });
   try {
     const truth = await connection.inspect();
-    assert.equal(truth.state, 'ready');
-    assert.equal(truth.reason, 'notion_cli_authenticated');
-    assert.equal(truth.capabilities.upload, true);
-    assert.equal(truth.capabilities.download, true);
-    assert.equal(truth.routes.find((route) => route.kind === 'authenticated_cli')?.state, 'ready');
+    assert.equal(truth.state, 'needs_connection');
+    assert.equal(truth.reason, 'external_notion_cli_not_t5_connection');
+    assert.equal(truth.capabilities.upload, false);
+    assert.equal(truth.capabilities.download, false);
+    assert.equal(truth.routes.find((route) => route.kind === 'external_application')?.state, 'ready');
+    assert.equal(truth.routes.find((route) => route.kind === 'external_application')?.canStart, false);
+    assert.equal(truth.identity.ownerApplication, 't5');
+    assert.equal(truth.identity.observed, false);
     assert.equal(truth.routes.find((route) => route.kind === 'remote_mcp')?.state, 'needs_connection');
     assert.equal(truth.actions[0].label, 'Notion 계정 연결');
   } finally { await connection.close(); }

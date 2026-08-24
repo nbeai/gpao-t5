@@ -38,7 +38,7 @@ test('Notion readOnlyHint 조회도 모델의 observe 선언 뒤에만 호출된
   assert.deepEqual(calls, [{ name: 'notion-search', arguments: { query: '회의록' } }]);
 });
 
-test('Notion 쓰기 도구는 effect와 authority가 없으면 remote call 전에 멈춘다', async () => {
+test('Notion 쓰기 도구는 raw call로 실행하지 않고 verified_write를 요구한다', async () => {
   let calls = 0;
   const runtime = {
     async listTools() { return [{
@@ -61,11 +61,9 @@ test('Notion 쓰기 도구는 effect와 authority가 없으면 remote call 전�
   const allowed = await tool.preflight({
     action: 'call', toolName: 'notion-update-page', argumentsJson: JSON.stringify({ page_id: 'p1' }), effect: effect('external_change'),
   });
-  assert.equal(allowed.allowed, true);
-  await tool.execute({
-    action: 'call', toolName: 'notion-update-page', argumentsJson: JSON.stringify({ page_id: 'p1' }), effect: effect('external_change'),
-  });
-  assert.equal(calls, 1);
+  assert.equal(allowed.allowed, false);
+  assert.equal(allowed.result.state, 'notion_verified_write_required');
+  assert.equal(calls, 0);
 });
 
 test('destructiveHint 도구는 external_change로 낮출 수 없고 원격 오류·큰 출력은 정직하게 경계된다', async () => {
@@ -183,4 +181,73 @@ test('Remote MCP write timeout은 불명확 효과를 남기고 같은 exact cal
   assert.equal(replay.allowed, false);
   assert.equal(replay.result.state, 'ambiguous_remote_effect_not_replayable');
   assert.equal(calls, 1);
+});
+
+test('Notion verified_write는 write acknowledgement와 exact page readback을 분리한 뒤에만 성공한다', async () => {
+  const calls = [];
+  const runtime = {
+    async listTools() { return [{
+      name: 'notion-update-page', inputSchema: { type: 'object' }, annotations: { readOnlyHint: false },
+    }, {
+      name: 'notion-fetch', inputSchema: { type: 'object' }, annotations: { readOnlyHint: true, destructiveHint: false },
+    }]; },
+    async callTool(input) {
+      calls.push(input);
+      return input.name === 'notion-update-page'
+        ? { content: [{ type: 'text', text: JSON.stringify({ id: 'page-1', updated: true }) }], isError: false }
+        : { content: [{ type: 'text', text: JSON.stringify({ id: 'page-1', text: '결정사항: 다음 주 재검토' }) }], isError: false };
+    },
+  };
+  const tool = makeNotionTool({ runtime, authorizeEffect: async () => ({ allowed: true }) });
+  const args = {
+    action: 'verified_write', toolName: 'notion-update-page',
+    argumentsJson: JSON.stringify({ page_id: 'page-1', command: '다음 주 재검토 추가' }),
+    verificationToolName: 'notion-fetch', targetResourceId: 'page-1', expectedText: '다음 주 재검토',
+    effect: effect('external_change'),
+  };
+  assert.equal((await tool.preflight(args)).allowed, true);
+  const result = await tool.execute(args);
+  assert.equal(result.state, 'notion_write_verified');
+  assert.equal(result.writeAcknowledgement.pageId, 'page-1');
+  assert.equal(result.verification.expectedFound, true);
+  assert.deepEqual(calls.map((call) => call.name), ['notion-update-page', 'notion-fetch']);
+});
+
+test('Notion write ACK 뒤 요청 내용이 readback에 없으면 완료 증거 부족으로 남는다', async () => {
+  const runtime = {
+    async listTools() { return [{ name: 'update', inputSchema: { type: 'object' }, annotations: { readOnlyHint: false } },
+      { name: 'fetch', inputSchema: { type: 'object' }, annotations: { readOnlyHint: true, destructiveHint: false } }]; },
+    async callTool({ name }) { return name === 'update'
+      ? { content: [{ type: 'text', text: '{"id":"p1"}' }], isError: false }
+      : { content: [{ type: 'text', text: '{"id":"p1","text":"아직 이전 내용"}' }], isError: false }; },
+  };
+  const tool = makeNotionTool({ runtime, authorizeEffect: async () => ({ allowed: true }) });
+  const result = await tool.execute({ action: 'verified_write', toolName: 'update', argumentsJson: '{"page_id":"p1"}',
+    verificationToolName: 'fetch', targetResourceId: 'p1', expectedText: '새 결정사항', effect: effect('external_change') });
+  assert.equal(result.state, 'notion_write_unverified');
+  assert.equal(result.verificationMissing, true);
+  assert.equal(result.retrySafe, false);
+});
+
+test('Notion write 응답이 사라져도 동일 쓰기를 재실행하지 않고 exact page readback으로만 회복한다', async () => {
+  let writes = 0; let reads = 0;
+  const runtime = {
+    async listTools() { return [{ name: 'update', inputSchema: { type: 'object' }, annotations: { readOnlyHint: false } },
+      { name: 'fetch', inputSchema: { type: 'object' }, annotations: { readOnlyHint: true, destructiveHint: false } }]; },
+    async callTool({ name }) {
+      if (name === 'update') { writes += 1; throw new Error('ack lost'); }
+      reads += 1; return { content: [{ type: 'text', text: '{"id":"p1","text":"새 결정사항"}' }], isError: false };
+    },
+  };
+  const tool = makeNotionTool({ runtime, authorizeEffect: async () => ({ allowed: true }) });
+  const args = { action: 'verified_write', toolName: 'update', argumentsJson: '{"page_id":"p1"}',
+    verificationToolName: 'fetch', targetResourceId: 'p1', expectedText: '새 결정사항', effect: effect('external_change') };
+  const result = await tool.execute(args);
+  assert.equal(result.state, 'notion_write_verified_after_unknown');
+  assert.equal(result.effectUnknown, false);
+  assert.equal(writes, 1); assert.equal(reads, 1);
+  const replay = await tool.preflight(args);
+  assert.equal(replay.allowed, false);
+  assert.equal(replay.result.state, 'ambiguous_remote_effect_not_replayable');
+  assert.equal(writes, 1);
 });

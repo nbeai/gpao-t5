@@ -8,6 +8,7 @@ function blockerForReceipt(receipt) {
     return 'handoff_pending';
   }
   if (receipt?.result?.delivery?.sent === false || receipt?.result?.delivered === false) return 'delivery_missing';
+  if (receipt?.result?.verificationMissing === true) return 'requested_evidence_missing';
   return null;
 }
 

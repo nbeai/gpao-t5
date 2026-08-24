@@ -99,32 +99,48 @@ export function makeNotionMcpConnection({
       }));
       const cliReady = cli.authenticated === true;
       const connecting = pending != null;
+      let observedTools = (current?.tools ?? []).map((name) => ({ name }));
+      let liveObserved = false;
+      if (connected) {
+        try { observedTools = await (await activeRuntime()).listTools(); liveObserved = true; }
+        catch { liveObserved = false; }
+      }
       const capabilities = connected
-        ? capabilitiesFromTools((current.tools ?? []).map((name) => ({ name })))
+        ? capabilitiesFromTools(observedTools)
         : { search: false, read: false, create: false, update: false, download: false, upload: false };
-      if (cliReady) Object.assign(capabilities, {
-        search: true, read: true, create: true, update: true, download: true, upload: true,
-      });
       return {
-        state: connected ? 'connected' : cliReady ? 'ready' : 'needs_connection',
-        reason: connected ? 'verified_notion_mcp' : connecting ? 'oauth_in_progress'
-          : cliReady ? 'notion_cli_authenticated' : 'remote_mcp_not_connected',
-        userSafeSummary: connected
+        state: connected && liveObserved ? 'connected' : connected ? 'needs_attention' : 'needs_connection',
+        reason: connected && liveObserved ? 'verified_notion_mcp'
+          : connected ? 'notion_mcp_current_capability_unobserved' : connecting ? 'oauth_in_progress'
+          : cliReady ? 'external_notion_cli_not_t5_connection' : 'remote_mcp_not_connected',
+        userSafeSummary: connected && liveObserved
           ? `${current.workspace?.name ?? 'Notion 업무공간'}에 연결되어 있어요.`
+          : connected
+            ? 'T5의 Notion 연결이 저장되어 있지만 현재 권한을 확인하지 못했어요.'
           : connecting
             ? 'Notion 계정 연결 화면에서 사용자 확인을 기다리고 있어요.'
           : cliReady
-            ? '컴퓨터에 연결된 Notion 계정으로 페이지와 파일 작업을 할 수 있어요.'
+            ? '다른 앱의 Notion 연결은 보이지만 T5에는 아직 연결되지 않았어요.'
             : 'Notion 원격 연결을 시작할 수 있어요.',
         capabilities,
+        identity: {
+          ownerApplication: 't5', transport: 'official_remote_mcp',
+          accountId: current?.workspace?.id ?? '', accountLabel: current?.workspace?.name ?? 'Notion',
+          permissions: Object.entries(capabilities).filter(([, available]) => available).map(([name]) => name),
+          resources: current?.workspace?.id ? [{
+            id: String(current.workspace.id), label: String(current.workspace.name ?? 'Notion 업무공간'),
+            scope: 'user_authorized_dynamic_workspace',
+          }] : [],
+          observed: liveObserved,
+        },
         routes: [
           {
             kind: 'remote_mcp', label: 'Notion 원격 연결',
             state: connected ? 'connected' : 'needs_connection', canStart: !connected && !connecting,
           },
           {
-            kind: 'authenticated_cli', label: '컴퓨터의 Notion 연결',
-            state: cli.state, canStart: cli.installed === true && !cliReady,
+            kind: 'external_application', label: '다른 앱의 Notion 연결 (T5 연결 아님)',
+            state: cli.state, canStart: false,
           },
           ...(availableBrowser ? [{
             kind: 'browser', label: 'T5 브라우저', state: 'ready', canStart: true,
@@ -195,9 +211,13 @@ export function makeNotionMcpConnection({
         await secretStore.set(SECRET_NAME, { ...current.bundle, tokens });
         const connectedRuntime = await activeRuntime();
         const tools = await connectedRuntime.listTools();
+        const selfTool = tools.find((tool) => ['notion-get-self', 'get-self'].includes(tool.name));
         const fetchTool = tools.find((tool) => ['notion-fetch', 'fetch'].includes(tool.name));
-        if (!fetchTool) throw new Error('Notion MCP fetch tool was not available');
-        const self = await connectedRuntime.callTool({ name: fetchTool.name, arguments: { id: 'self' } });
+        if (!selfTool && !fetchTool) throw new Error('Notion MCP workspace identity tool was not available');
+        const self = await connectedRuntime.callTool({
+          name: selfTool?.name ?? fetchTool.name,
+          arguments: selfTool ? {} : { id: 'self' },
+        });
         if (self.isError) throw new Error('Notion MCP workspace identity check failed');
         const workspace = workspaceFromSelf(self);
         await secretStore.set(SECRET_NAME, {

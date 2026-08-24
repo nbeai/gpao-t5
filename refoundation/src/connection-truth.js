@@ -56,6 +56,30 @@ function safeActions(value) {
   });
 }
 
+function safeIdentity(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const ownerApplication = String(value.ownerApplication ?? '').trim().slice(0, 80);
+  const accountId = String(value.accountId ?? '').trim().slice(0, 200);
+  const accountLabel = String(value.accountLabel ?? '').trim().slice(0, 200);
+  const transport = String(value.transport ?? '').trim().slice(0, 80);
+  if (!ownerApplication || !transport) return null;
+  const permissions = Array.isArray(value.permissions)
+    ? [...new Set(value.permissions.map(String).filter((item) => /^[a-z][a-z0-9_:.-]{0,79}$/u.test(item)))].slice(0, 32)
+    : [];
+  const resources = Array.isArray(value.resources) ? value.resources.slice(0, 32).flatMap((resource) => {
+    const id = String(resource?.id ?? '').trim().slice(0, 200);
+    const label = String(resource?.label ?? '').trim().slice(0, 200);
+    const scope = String(resource?.scope ?? '').trim().slice(0, 80);
+    return id && label && scope ? [{ id, label, scope }] : [];
+  }) : [];
+  return {
+    ownerApplication, transport,
+    ...(accountId ? { accountId } : {}), ...(accountLabel ? { accountLabel } : {}),
+    permissions, resources,
+    observed: value.observed === true,
+  };
+}
+
 function safeResult(inspector, raw) {
   const state = String(raw?.state ?? '');
   if (!STATES.has(state)) throw new TypeError(`invalid connection state: ${state || '(empty)'}`);
@@ -70,6 +94,7 @@ function safeResult(inspector, raw) {
     state, reason, userSafeSummary: summary,
     capabilities: safeCapabilities(raw?.capabilities), routes: safeRoutes(raw?.routes),
     actions: safeActions(raw?.actions),
+    ...(safeIdentity(raw?.identity) ? { identity: safeIdentity(raw.identity) } : {}),
   };
 }
 

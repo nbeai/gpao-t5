@@ -88,6 +88,11 @@ test('Telegram에서 생긴 대화에 콘솔로 이어 말하면 같은 Telegram
       await new Promise((resolveWait) => setTimeout(resolveWait, 10));
     }
     assert.equal(deliveries.length, 1, '첫 inbound 답이 Telegram으로 돌아간다');
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      const ingress = await server.messengerStateStore.ingress('telegram', 1);
+      if (ingress?.state === 'completed') break;
+      await new Promise((resolveWait) => setTimeout(resolveWait, 10));
+    }
     const turn = await fetch(`${base}/turn`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sessionId: session.id, text: '콘솔에서 이어서 답해줘' }),

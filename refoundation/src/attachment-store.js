@@ -211,7 +211,7 @@ export class AttachmentStore {
 
   async receiveStream({
     sessionId, originalName, declaredMime = null, stream, direction = 'input', sourcePath = null,
-    revisesAttachmentId = null,
+    revisesAttachmentId = null, providerIdentity = null,
   } = {}) {
     const owner = safeUuid(sessionId, 'session');
     if (!stream || typeof stream[Symbol.asyncIterator] !== 'function') throw new TypeError('attachment stream is required');
@@ -285,6 +285,7 @@ export class AttachmentStore {
           ...(revision?.previousAttachmentId ? { previousAttachmentId: revision.previousAttachmentId } : {}),
         } : {}),
         ...(sourcePath ? { sourcePath } : {}),
+        ...(providerIdentity ? { providerIdentity: clone(providerIdentity) } : {}),
       };
       await this.append(record.direction === 'output' ? 'output_registered' : 'received', { record });
       return { ...clone(record), ...publicRecord(record) };

@@ -267,6 +267,7 @@ export function makeMessengerGateway({
   createSession,
   authorizeInbound,
   onInbound,
+  attachmentStore = null,
   log = () => {},
   retryDelayMs = 1_000,
 } = {}) {
@@ -344,6 +345,7 @@ export function makeMessengerGateway({
       let adopted = false;
       let sessionId = null;
       let progress = null;
+      let ownedDelivery = null;
       let typing = { stop() {} };
       try {
         if (!await authorizeInbound(structuredClone(update.message))) {
@@ -354,8 +356,34 @@ export function makeMessengerGateway({
         }
         accepted += 1;
         sessionId = await sessionFor(update.message);
+        const attachmentIds = [];
+        const attachmentIssues = [];
+        for (const descriptor of update.message.attachments ?? []) {
+          try {
+            if (!attachmentStore || typeof runtime.downloadAttachment !== 'function') {
+              throw Object.assign(new Error('messenger attachment hand is unavailable'), {
+                code: 'messenger_attachment_unavailable',
+              });
+            }
+            const downloaded = await runtime.downloadAttachment({
+              ...descriptor, mediaGroupId: update.message.mediaGroupId,
+            }, { signal });
+            const stored = await attachmentStore.receiveStream({
+              sessionId, originalName: downloaded.originalName,
+              declaredMime: downloaded.declaredMime, stream: downloaded.stream,
+              providerIdentity: downloaded.providerIdentity,
+            });
+            attachmentIds.push(stored.attachmentId);
+          } catch (error) {
+            attachmentIssues.push({
+              originalName: String(descriptor.originalName ?? 'attachment').slice(0, 180),
+              state: error?.code === 'telegram_attachment_too_large' ? 'too_large' : 'unavailable',
+              reason: String(error?.code ?? 'messenger_attachment_failed').slice(0, 120),
+            });
+          }
+        }
         await stateStore.markIngress(provider, updateId, 'adopted', {
-          sessionId, adoptedAt: Date.now(),
+          sessionId, adoptedAt: Date.now(), attachmentIds, attachmentIssues,
         });
         adopted = true;
         typing = runtime.startTyping?.({
@@ -364,22 +392,48 @@ export function makeMessengerGateway({
         progress = runtime.createProgress?.({
           chatId: update.message.chatId, threadId: update.message.threadId,
         }) ?? null;
-        const reply = await onInbound({ ...update.message, sessionId }, {
-          progress: (text) => progress?.update(text),
+        const deliver = async ({ text, artifactIds = [] } = {}) => {
+          if (ownedDelivery) return structuredClone(ownedDelivery);
+          const messageIds = []; const files = [];
+          if (String(text ?? '').trim()) {
+            const textDelivery = progress ? await progress.finalize(text, { signal })
+              : await runtime.sendReply({
+                chatId: update.message.chatId, threadId: update.message.threadId, text, signal,
+              });
+            messageIds.push(...(textDelivery?.messageIds ?? []));
+          }
+          for (const attachmentId of artifactIds) {
+            if (!attachmentStore || typeof runtime.sendDocument !== 'function') {
+              throw Object.assign(new Error('messenger artifact delivery unavailable'), {
+                code: 'messenger_artifact_delivery_unavailable',
+              });
+            }
+            const artifact = await attachmentStore.readContent({ sessionId, attachmentId });
+            const sent = await runtime.sendDocument({
+              chatId: update.message.chatId, threadId: update.message.threadId,
+              artifact, signal,
+            });
+            if (sent.messageId) messageIds.push(sent.messageId);
+            files.push(sent);
+          }
+          ownedDelivery = { sent: true, provider, chatId: update.message.chatId, messageIds, files };
+          return structuredClone(ownedDelivery);
+        };
+        const reply = await onInbound({
+          ...update.message, sessionId, attachmentIds, attachmentIssues,
+        }, {
+          progress: (text) => progress?.update(text), deliver,
         });
         const text = typeof reply === 'string' ? reply : reply?.text;
-        let delivery = null;
-        if (String(text ?? '').trim()) {
-          delivery = progress ? await progress.finalize(text, { signal })
-            : await runtime.sendReply({
-              chatId: update.message.chatId, threadId: update.message.threadId,
-              text, signal,
-            });
+        let delivery = ownedDelivery ?? reply?.delivery ?? null;
+        if (!delivery && String(text ?? '').trim()) delivery = await deliver({ text });
+        if (delivery?.sent) {
           replied += 1;
         }
         await stateStore.markIngress(provider, updateId, 'completed', {
           sessionId, completedAt: Date.now(),
           messageIds: structuredClone(delivery?.messageIds ?? []),
+          files: structuredClone(delivery?.files ?? []),
         });
         nextOffset = await stateStore.saveOffset(provider, acknowledgedOffset);
       } catch (error) {

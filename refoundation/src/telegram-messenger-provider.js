@@ -1,5 +1,6 @@
 const DEFAULT_API = 'https://api.telegram.org';
 const TELEGRAM_TEXT_LIMIT = 4_000;
+const TELEGRAM_DOWNLOAD_LIMIT = 20 * 1024 * 1024;
 
 export function splitTelegramText(value, limit = TELEGRAM_TEXT_LIMIT) {
   const text = String(value ?? '');
@@ -62,8 +63,27 @@ export class TelegramMessengerError extends Error {
 
 function normalizedMessage(update, botUsername) {
   const source = update?.message ?? update?.edited_message;
-  const text = typeof source?.text === 'string' ? source.text.trim() : '';
-  if (!text) return null;
+  const text = typeof source?.text === 'string' ? source.text.trim()
+    : typeof source?.caption === 'string' ? source.caption.trim() : '';
+  const attachment = source?.document ? {
+    providerFileId: String(source.document.file_id ?? ''),
+    providerUniqueId: String(source.document.file_unique_id ?? ''),
+    originalName: String(source.document.file_name ?? 'telegram-document'),
+    declaredMime: source.document.mime_type ? String(source.document.mime_type) : null,
+    declaredBytes: Number.isFinite(source.document.file_size) ? Number(source.document.file_size) : null,
+    nativeKind: 'document',
+  } : Array.isArray(source?.photo) && source.photo.length ? (() => {
+    const photo = source.photo.at(-1);
+    return {
+      providerFileId: String(photo?.file_id ?? ''),
+      providerUniqueId: String(photo?.file_unique_id ?? ''),
+      originalName: `telegram-photo-${source.message_id}.jpg`,
+      declaredMime: 'image/jpeg',
+      declaredBytes: Number.isFinite(photo?.file_size) ? Number(photo.file_size) : null,
+      nativeKind: 'photo',
+    };
+  })() : null;
+  if (!text && !attachment) return null;
   const username = String(botUsername ?? '').replace(/^@/, '');
   const mentioned = username
     ? new RegExp(`@${username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text)
@@ -77,6 +97,11 @@ function normalizedMessage(update, botUsername) {
     userId: String(source.from?.id ?? ''),
     username: source.from?.username ? String(source.from.username) : null,
     text,
+    attachments: attachment?.providerFileId ? [attachment] : [],
+    mediaGroupId: source.media_group_id == null ? null : String(source.media_group_id),
+    replyIdentity: source.reply_to_message?.message_id == null ? null : {
+      provider: 'telegram', messageId: String(source.reply_to_message.message_id),
+    },
     isDirectMessage: source.chat?.type === 'private',
     isMention: mentioned,
   };
@@ -90,6 +115,8 @@ export function makeTelegramMessengerProvider({
   requestTimeoutMs = (pollTimeoutSeconds + 10) * 1000,
   typingIntervalMs = 4_000,
   typingTtlMs = 300_000,
+  mediaGroupQuietMs = 120,
+  mediaGroupMaxWaitMs = 600,
 } = {}) {
   if (!token || typeof token !== 'string') throw new TypeError('telegram bot token is required');
   if (typeof fetchImpl !== 'function') throw new TypeError('fetch implementation is required');
@@ -135,6 +162,36 @@ export function makeTelegramMessengerProvider({
     }
   }
 
+  async function callMultipart(method, form, externalSignal, timeoutOverride = requestTimeoutMs) {
+    const controller = new AbortController();
+    const abort = () => controller.abort(externalSignal?.reason);
+    if (externalSignal?.aborted) abort();
+    else externalSignal?.addEventListener('abort', abort, { once: true });
+    const timer = setTimeout(() => controller.abort(new Error('request_timeout')), timeoutOverride);
+    timer.unref?.();
+    try {
+      const response = await fetchImpl(`${String(apiBase).replace(/\/$/, '')}/bot${token}/${method}`, {
+        method: 'POST', body: form, signal: controller.signal,
+      });
+      const json = await response.json().catch(() => null);
+      if (response.status === 401 || json?.error_code === 401) {
+        throw new TelegramMessengerError('telegram_auth_failed', { status: response.status });
+      }
+      if (!response.ok || json?.ok !== true) throw new TelegramMessengerError('telegram_request_failed', {
+        status: response.status, retriable: response.status === 429 || response.status >= 500,
+      });
+      return json.result;
+    } catch (error) {
+      if (error instanceof TelegramMessengerError) throw error;
+      if (externalSignal?.aborted) throw new TelegramMessengerError('telegram_poll_stopped');
+      const unknown = new TelegramMessengerError('telegram_delivery_unknown');
+      unknown.effectUnknown = true; unknown.retrySafe = false; unknown.deliveryState = 'unknown';
+      throw unknown;
+    } finally {
+      clearTimeout(timer); externalSignal?.removeEventListener('abort', abort);
+    }
+  }
+
   return {
     id: 'telegram',
     inboundMode: 'long_polling',
@@ -147,13 +204,104 @@ export function makeTelegramMessengerProvider({
     },
 
     async poll({ offset = 0, signal } = {}) {
-      const updates = await call('getUpdates', {
+      let updates = await call('getUpdates', {
         offset, timeout: pollTimeoutSeconds, allowed_updates: ['message', 'edited_message'],
       }, signal);
-      return (Array.isArray(updates) ? updates : []).map((update) => ({
+      updates = Array.isArray(updates) ? updates : [];
+      if (updates.some((update) => (update?.message ?? update?.edited_message)?.media_group_id)) {
+        const deadline = Date.now() + Math.max(mediaGroupQuietMs, mediaGroupMaxWaitMs);
+        let cursor = updates.reduce((max, update) => Math.max(max, Number(update?.update_id ?? 0) + 1), Number(offset));
+        let quietObservations = 0;
+        while (Date.now() < deadline && quietObservations < 2) {
+          await new Promise((resolve, reject) => {
+            const finish = () => { signal?.removeEventListener('abort', abort); resolve(); };
+            const timer = setTimeout(finish, Math.max(5, mediaGroupQuietMs)); timer.unref?.();
+            const abort = () => { clearTimeout(timer); signal?.removeEventListener('abort', abort);
+              reject(new TelegramMessengerError('telegram_poll_stopped')); };
+            if (signal?.aborted) abort(); else signal?.addEventListener('abort', abort, { once: true });
+          });
+          const extra = await call('getUpdates', {
+            offset: cursor, timeout: 0, allowed_updates: ['message', 'edited_message'],
+          }, signal);
+          if (!Array.isArray(extra) || !extra.length) { quietObservations += 1; continue; }
+          quietObservations = 0; updates.push(...extra);
+          cursor = extra.reduce((max, update) => Math.max(max, Number(update?.update_id ?? 0) + 1), cursor);
+        }
+      }
+      const normalized = (Array.isArray(updates) ? updates : []).map((update) => ({
         updateId: Number(update?.update_id ?? 0),
         message: normalizedMessage(update, bot?.username),
       }));
+      const output = [];
+      const groups = new Map();
+      for (const item of normalized) {
+        const groupId = item.message?.mediaGroupId;
+        if (!groupId) { output.push(item); continue; }
+        const key = [item.message.chatId, item.message.threadId ?? '', groupId].join(':');
+        const existing = groups.get(key);
+        if (!existing) {
+          groups.set(key, {
+            updateId: item.updateId, coveredUpdateIds: [item.updateId],
+            message: structuredClone(item.message),
+          });
+          continue;
+        }
+        existing.updateId = Math.max(existing.updateId, item.updateId);
+        existing.coveredUpdateIds.push(item.updateId);
+        existing.message.messageId = item.message.messageId;
+        existing.message.attachments.push(...item.message.attachments);
+        if (item.message.text && !existing.message.text.split('\n').includes(item.message.text)) {
+          existing.message.text = existing.message.text
+            ? `${existing.message.text}\n${item.message.text}` : item.message.text;
+        }
+      }
+      output.push(...groups.values());
+      return output.sort((left, right) => left.updateId - right.updateId);
+    },
+
+    async downloadAttachment(descriptor, { signal, maxBytes = TELEGRAM_DOWNLOAD_LIMIT } = {}) {
+      const declared = Number(descriptor?.declaredBytes ?? 0);
+      const limit = Math.min(Number(maxBytes) || TELEGRAM_DOWNLOAD_LIMIT, TELEGRAM_DOWNLOAD_LIMIT);
+      if (declared > limit) throw new TelegramMessengerError('telegram_attachment_too_large', { status: 413 });
+      const file = await call('getFile', { file_id: String(descriptor?.providerFileId ?? '') }, signal);
+      if (!file?.file_path) throw new TelegramMessengerError('telegram_file_identity_missing');
+      const controller = new AbortController();
+      const abort = () => controller.abort(signal?.reason);
+      if (signal?.aborted) abort(); else signal?.addEventListener('abort', abort, { once: true });
+      try {
+        const base = String(apiBase).replace(/\/$/, '');
+        const response = await fetchImpl(`${base}/file/bot${token}/${String(file.file_path).replace(/^\//, '')}`, {
+          signal: controller.signal,
+        });
+        if (!response.ok || !response.body) throw new TelegramMessengerError('telegram_attachment_download_failed', {
+          status: response.status, retriable: response.status === 429 || response.status >= 500,
+        });
+        const contentLength = Number(response.headers.get('content-length') ?? 0);
+        if (contentLength > limit) throw new TelegramMessengerError('telegram_attachment_too_large', { status: 413 });
+        async function* boundedStream() {
+          let total = 0;
+          for await (const chunk of response.body) {
+            total += chunk.length;
+            if (total > limit) throw new TelegramMessengerError('telegram_attachment_too_large', { status: 413 });
+            yield chunk;
+          }
+        }
+        return {
+          stream: boundedStream(),
+          originalName: descriptor.originalName,
+          declaredMime: descriptor.declaredMime,
+          providerIdentity: {
+            provider: 'telegram', fileId: descriptor.providerFileId,
+            fileUniqueId: descriptor.providerUniqueId || null,
+            mediaGroupId: descriptor.mediaGroupId ?? null,
+          },
+        };
+      } catch (error) {
+        if (error instanceof TelegramMessengerError) throw error;
+        throw new TelegramMessengerError('telegram_attachment_download_failed', { retriable: true });
+      } finally {
+        signal?.removeEventListener('abort', abort);
+      }
     },
 
     startTyping({ chatId, threadId } = {}) {
@@ -296,6 +444,40 @@ export function makeTelegramMessengerProvider({
         sent: true, provider: 'telegram', chatId: String(chatId),
         messageId: messageIds.at(-1) ?? null, messageIds, chunks: chunks.length,
       };
+    },
+
+    async sendDocument({ chatId, threadId, artifact, caption = null, signal } = {}) {
+      if (!chatId || !artifact?.bytes || !artifact?.record) throw new TypeError('telegram document delivery requires chat and artifact');
+      const form = new FormData();
+      form.set('chat_id', String(chatId));
+      if (threadId != null && String(threadId) !== '1') form.set('message_thread_id', String(threadId));
+      if (String(caption ?? '').trim()) form.set('caption', String(caption).slice(0, 1024));
+      form.set('document', new Blob([artifact.bytes], {
+        type: artifact.record.mimeType ?? 'application/octet-stream',
+      }), artifact.record.originalName ?? 'result');
+      try {
+        const sent = await callMultipart('sendDocument', form, signal, 60_000);
+        return {
+          sent: true, provider: 'telegram', chatId: String(chatId),
+          messageId: sent?.message_id == null ? null : String(sent.message_id),
+          file: sent?.document ? {
+            fileId: String(sent.document.file_id ?? ''),
+            fileUniqueId: String(sent.document.file_unique_id ?? ''),
+            fileName: String(sent.document.file_name ?? artifact.record.originalName ?? 'result'),
+            mimeType: sent.document.mime_type ? String(sent.document.mime_type) : artifact.record.mimeType,
+            bytes: Number(sent.document.file_size ?? artifact.record.bytes),
+          } : null,
+          artifact: {
+            attachmentId: artifact.record.attachmentId,
+            sha256: artifact.record.sha256, bytes: artifact.record.bytes,
+          },
+        };
+      } catch (error) {
+        if (error?.retriable) {
+          error.effectUnknown = true; error.retrySafe = false; error.deliveryState = 'unknown';
+        }
+        throw error;
+      }
     },
   };
 }

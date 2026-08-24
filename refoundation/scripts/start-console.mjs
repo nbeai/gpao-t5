@@ -25,6 +25,10 @@ import { makeGoogleDriveDesktop } from '../src/google-drive-desktop.js';
 import { makeGoogleDriveApi } from '../src/google-drive-api.js';
 import { makeGoogleDriveTool } from '../src/google-drive-tool.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
+import {
+  MessengerPlatformCredentialStore, migrateMessengerCredentials,
+} from '../src/messenger-platform-credential-store.js';
+import { MessengerCredentialStore } from '../src/messenger-credential-store.js';
 import { makeNotionMcpConnection } from '../src/notion-mcp-connection.js';
 import { makeNotionCliInspector } from '../src/notion-cli-inspector.js';
 import { makeRemoteMcpConnection } from '../src/remote-mcp-connection.js';
@@ -96,9 +100,14 @@ const googleDriveService = {
   },
 };
 const platformSecretStore = makePlatformSecretStore({ platform: computerEnvironment.platform });
+const messengerCredentialStore = new MessengerPlatformCredentialStore(platformSecretStore);
+await migrateMessengerCredentials({
+  source: new MessengerCredentialStore(join(stateDir, 'messenger')),
+  target: messengerCredentialStore,
+});
 const notionConnection = makeNotionMcpConnection({
   secretStore: platformSecretStore,
-  browserAvailable: true,
+  browserAvailable: false,
   cliInspect: makeNotionCliInspector(),
 });
 const linearConnection = makeRemoteMcpConnection({
@@ -119,11 +128,12 @@ const server = makeConsoleServer({
   workspaceConnectionInspectors: workspaceConnectionBaselineInspectors({
     userHome: computerEnvironment.userHome,
     platform: computerEnvironment.platform,
-    browserAvailable: true,
+    browserAvailable: false,
     includeGoogle: false,
     includeNotion: false,
   }),
   workspaceConnectionServices: [googleDriveService, notionConnection, linearConnection],
+  messengerCredentialStore,
   localConsoleToken,
   onError: (error) => console.error('[refoundation-console]', error?.message ?? error),
 });
