@@ -1,6 +1,6 @@
 {
   "schema": "t5.second-completion-plan.v1",
-  "recordedAt": "2026-08-24T13:10:38+09:00",
+  "recordedAt": "2026-08-24T13:38:49+09:00",
   "firstCompletion": {
     "declared": true,
     "sourceCommit": "81f29d23",
@@ -10,15 +10,28 @@
   "secondCompletion": {
     "active": true,
     "sourceOfTruth": "T5-REFOUNDATION.md",
-    "currentGate": "S2-A1_RESOURCE_ADMISSION_READY",
-    "firstProductChange": "provider_request_resource_reservation",
+    "currentGate": "S2-A1_RESOURCE_CONTROL_READY",
+    "firstProductChange": "shadow_resource_accounting_and_control",
+    "resourceControl": {
+      "fixedLowDefaultCaps": false,
+      "shadowFirst": true,
+      "modelReceivesResourceSituation": true,
+      "runtimeIntervention": [
+        "physical_capacity",
+        "explicit_user_cost_or_time_boundary",
+        "deterministic_repetition",
+        "unknown_effect_reexecution",
+        "verified_runaway",
+        "qualified_catastrophic_fuse"
+      ]
+    },
     "newCanonicalStoresAllowed": [
       "ResourceLedger",
       "WorkStore"
     ],
     "gateOrder": [
       "S2-A0_INCIDENT_REFERENCE_FIXTURES",
-      "S2-A1_RESOURCE_ADMISSION",
+      "S2-A1_RESOURCE_CONTROL",
       "S2-A2_DENSE_MODEL_ENVIRONMENT",
       "S2-B_DURABLE_CORRECTION_RECOVERY",
       "S2-C_TIME_CONTINUITY",

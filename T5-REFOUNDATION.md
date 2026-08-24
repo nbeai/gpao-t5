@@ -1,7 +1,7 @@
 # T5 Refoundation — Single Development Map
 
 상태: `FIRST_COMPLETE · SECOND_COMPLETION_ACTIVE`
-현재 Gate: `S2-A1 RESOURCE ADMISSION — READY` (`0.1.8` 배포 적격 철회, 새 package 생성 금지)
+현재 Gate: `S2-A1 RESOURCE CONTROL — READY` (`0.1.8` 배포 적격 철회, 새 package 생성 금지)
 
 이 문서는 재창립 개발의 유일한 진행 지도다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
 담당한다. 완료 기록을 산문으로 누적하지 않고 Git 커밋과 작은 실행 증거를 가리킨다.
@@ -161,20 +161,21 @@ refoundation/config/reference-contracts.json
 비밀값·메일 본문·개인정보는 제거하고 상태·크기·digest·관계만 보존한다. fixture는 제품 구현이 아니라 이후
 모든 Gate의 제거 불가능한 반대시험이다.
 
-### S2-A1 — Resource Admission
+### S2-A1 — Resource Control
 
 상태: `CURRENT · READY` — 2차 완성의 첫 제품 변경이다.
 
 사용자 완료 문장:
 
-> T5의 어떤 내부 경로도 모델 호출 전에 시간·토큰·도구 예산을 예약하지 않고 실행되지 않으며, checkpoint·
-> memory·authority·automation·향후 child Run이 새 예산을 만들어 사용자 목적의 총비용을 우회하지 않는다.
+> T5는 모델을 고정된 낮은 상한으로 자르지 않고 모든 내부 호출의 시간·문맥·토큰·도구·비용·진전을 하나의
+> resource scope에서 실시간 관측·예측한다. 주 모델은 이 현실을 보고 더 나은 방법·깊이·병렬성·정산 시점을
+> 선택하며, 런타임은 물리적 한계·사용자 비용 경계·증거 없는 병적 반복만 정확히 교정한다.
 
 새 모듈:
 
 ```text
 refoundation/src/resource-ledger.js
-refoundation/src/budgeted-model.js
+refoundation/src/resource-controller.js
 ```
 
 기존 연결:
@@ -191,11 +192,14 @@ Resource event:
 
 ```text
 ScopeCreated
+ResourceObserved
+RequestForecasted
 ResourceReserved
 ReservationCommitted
 ReservationReleased
 UsageMarkedUnknown
-ScopeExhausted
+ControlActionRecorded
+AnomalyRecorded
 ScopeClosed
 ```
 
@@ -211,26 +215,55 @@ type Reservation = {
 };
 ```
 
-같은 reservation의 commit은 idempotent다. 요청 직렬화·ContextReceipt·보수 추정·reserve가 provider fetch보다
-먼저 실행된다. 실제 usage로 commit하고 응답 유실은 0으로 환급하지 않고 `unknown`으로 남긴다.
+같은 reservation의 commit은 idempotent다. reservation은 병렬 호출과 유료·물리 자원의 원자적 회계이며,
+정상 과업을 임의의 낮은 숫자로 입장 거부하는 장치가 아니다. 요청 직렬화·ContextReceipt·보수 forecast·reserve가
+provider fetch보다 먼저 실행된다. 실제 usage로 commit하고 응답 유실은 0으로 환급하지 않고 `unknown`으로 남긴다.
 
-첫 안전 정책:
+Resource Control은 다음 폐쇄 루프다.
 
 ```text
-public-web waiting: 30s · input 60K · model 4 · tools 8 · failures 2
-general foreground: 120s · input 250K · model 10 · tools 20 · failures 4
-automation occurrence: 120s · input 100K · model 8 · tools 16 · failures 2
-session safety fuse: 15분 input 500K · failed Runs 3 · foreground concurrency 1
+Observe: context·tokens·wall·calls·failures·cost·새 Evidence
+→ Forecast: 다음 호출의 문맥·시간·비용·물리 한계
+→ Optimize: batch·parallel·projection·reuse·방법·effort 후보
+→ Model Control: 주 모델이 계속·전환·깊이·정산을 선택
+→ Execute: provider·tool 실행
+→ Commit: 실제 usage·진전·효과 기록
+→ Correct: 병적 route만 차단하고 Work의 다른 길은 유지
+```
+
+런타임의 강제 개입은 다음에 한정한다.
+
+- provider context window·rate·메모리·프로세스 같은 물리적 한계
+- 사용자가 명시한 돈·시간·유료 도구 경계
+- deterministic 동일 실패, effect unknown 재실행, 자식 실행 무제한 생성
+- 새 Evidence 없이 context·호출·비용만 단조 증가하는 확인된 runaway
+- 실제 자격 과업 분포와 시스템 용량에서 충분히 멀리 떨어진 최후의 catastrophic fuse
+
+대기형 수십 초 기준은 모델을 토큰 수로 자르는 규칙이 아니라 사용자 latency SLO다. controller는 더 빠른
+Hand·batch·projection·검증 경로를 우선하고, 정상 진전이 있는 위임형 과업은 전체 진행·중간 결과·중단·재개
+계약으로 계속할 수 있다. catastrophic fuse의 수치는 shadow 실측과 positive control 없이 정본에 고정하지 않는다.
+
+승격 단계:
+
+```text
+A1-1 exact accounting shadow — 사용자 동작 변경 0
+A1-2 anomaly shadow — 개입했을 지점과 false intervention 측정
+A1-3 model resource situation — 주 모델의 방법·깊이 선택에 공급
+A1-4 active optimization — context·batch·retry·route 제어
+A1-5 catastrophic intervention — 물리·사용자 경계·검증된 runaway만 강제
 ```
 
 통과 조건:
 
-- provider fetch 전 reservation 100%
+- provider fetch 전 forecast·reservation 100%
 - checkpoint·memory·authority·automation usage 누락 0
 - 병렬 reservation 원자성·중복 commit 0
 - crash 뒤 reservation 상태 정확
-- 새 Run·Session 예산 초기화 0
-- 1천만 token replay hard stop
+- 새 Run·Session이 resource history를 초기화해 controller를 우회하는 경우 0
+- 정상 과업 shadow false intervention 0
+- 1천만 token replay의 context 반복·무진전 route·자원 증가를 실제 폭주 전에 감지·교정
+- 새 Evidence와 목적 진전이 있는 과업의 premature stop 0
+- 주 모델이 남은 resource·진전·대안 현실을 보고 방법·깊이를 선택
 - 사용자 응답·Terminal·Document·Web 결과 변화 0
 
 명시적 비목표:
@@ -276,7 +309,7 @@ Current Situation/Relevant Memory/Evidence
 통과 조건:
 
 - 비활성 Hand guidance 0, tool 설명 중복 0
-- provider prompt가 A1 budget 이내
+- provider prompt가 A1의 물리적 context envelope 이내
 - Browser 반복 184만 token 재발 0
 - authority·effect·coverage·사용자 교정 손실 0
 - recall digest 일치
@@ -334,7 +367,7 @@ blocked 제안 때 별도 challenger model을 기본 호출하지 않는다. 런
 
 사용자 완료 문장:
 
-> 미래에 맡긴 목적은 실행 시점의 현실·연결·권한·예산을 다시 확인하고, 실행·효과·검증·전달을 분리해 실제
+> 미래에 맡긴 목적은 실행 시점의 현실·연결·권한·resource state를 다시 확인하고, 실행·효과·검증·전달을 분리해 실제
 > 완료한 경우에만 성공하며 다음 대화에서 확인·교정·중단할 수 있다.
 
 구현:
@@ -422,7 +455,8 @@ AND false completion 0
 AND seeded recoverable failure의 미시도 실행 가능 route 0
 ```
 
-대기형은 수십 초 절대 상한, 위임형은 전체 예산·진행·중간 결과·중단·재개 계약을 적용한다. 실패를 정직하게
+대기형은 수십 초 latency SLO를 방법 선택·batch·projection·빠른 정산으로 만족시키고, 위임형은 전체 resource
+관측·진행·중간 결과·중단·재개 계약을 적용한다. 실패를 정직하게
 말한 것은 목적 달성 점수가 아니며 핵심 약속의 미지원은 Gate 미완료다.
 
 ## 2차 완성 Release Gate
@@ -432,7 +466,7 @@ AND seeded recoverable failure의 미시도 실행 가능 route 0
 - S2-A0~E의 열린 사용자 완료 문장과 기계 자격 통과
 - Terminal·Document 기준 Hand 무회귀
 - 공개 웹 대기형 수십 초·가시 Browser 0
-- 사용자 목적 전체 budget 우회 0
+- 사용자 목적 전체 resource 관측·제어 scope 우회 0
 - input·Work·effect·delivery 상태의 단일 정본
 - 외부 효과·거짓 완료·중복 실행 회귀 0
 - 비교군 Pareto Gate 통과
@@ -442,8 +476,8 @@ AND seeded recoverable failure의 미시도 실행 가능 route 0
 
 ## 현재 작업 시작점
 
-현재 Gate는 `S2-A1 RESOURCE ADMISSION — READY`다. 첫 구현 전에 A0 비식별 fixture와 comparison contract를
-같은 작은 작업에서 고정한 뒤, `ResourceLedger·BudgetedModel`만 연다. `Instruction Compiler`는 A1의 사용자
+현재 Gate는 `S2-A1 RESOURCE CONTROL — READY`다. 첫 구현 전에 A0 비식별 fixture와 comparison contract를
+같은 작은 작업에서 고정한 뒤, `ResourceLedger·ResourceController`만 연다. `Instruction Compiler`는 A1의 사용자
 결과 무회귀와 사고 replay 통과 뒤 별도 A2로 연다.
 
 첫 작업의 비목표:
