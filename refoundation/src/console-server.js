@@ -237,6 +237,7 @@ export function makeConsoleServer({
   conversationRelevance = 'user-source-latest-v1',
   resourceSituationMode = 'current-v1',
   activeOptimizationMode = 'model-selected-v1',
+  parallelCapacity = null,
   largeToolOutputMode = 'recoverable',
   conversationCheckpointMode = 'in-place-v0',
   checkpointTriggerBytes = 300_000,
@@ -284,6 +285,9 @@ export function makeConsoleServer({
   }
   if (!['off', 'model-selected-v1'].includes(activeOptimizationMode)) {
     throw new TypeError('unsupported active optimization mode');
+  }
+  if (parallelCapacity != null && (!Number.isInteger(parallelCapacity) || parallelCapacity < 1)) {
+    throw new TypeError('parallelCapacity must be positive');
   }
   if (!['off', 'in-place-v0'].includes(conversationCheckpointMode)) {
     throw new TypeError('unsupported conversation checkpoint mode');
@@ -1123,10 +1127,7 @@ export function makeConsoleServer({
         model,
         tools: deferredTools,
         signal: controller.signal,
-        maxModelTurns: options.trigger === 'automation' ? 12 : 16,
-        maxToolCalls: options.trigger === 'automation' ? 18 : 24,
-        maxFailedToolCalls: 4,
-        maxProviderTokens: options.trigger === 'automation' ? 300_000 : 500_000,
+        ...(parallelCapacity == null ? {} : { parallelCapacity }),
         requiredCompletionTool: options.trigger === 'automation' ? 'automation_outcome' : null,
         resourceRun,
         resourcePurpose: options.trigger === 'automation' ? 'automation_main' : 'main',
@@ -1166,7 +1167,15 @@ export function makeConsoleServer({
           } else if (event.type === 'resource_parallel_batch') {
             await run.append({
               type: 'resource_parallel_batch', stepId: `resource-parallel-${event.turn}`,
-              payload: { turn: event.turn, toolCalls: event.toolCalls, tools: event.tools },
+              payload: { turn: event.turn, toolCalls: event.toolCalls, tools: event.tools,
+                waves: event.waves, physicalCapacity: event.physicalCapacity },
+            });
+          } else if (event.type === 'resource_intervention') {
+            await run.append({
+              type: 'resource_intervention',
+              stepId: `resource-intervention-${event.turn}-${event.toolCallId}`,
+              payload: { turn: event.turn, action: event.action, reason: event.reason,
+                tool: event.tool, toolCallId: event.toolCallId },
             });
           } else if (event.type === 'model_context') {
             await run.append({

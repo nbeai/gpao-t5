@@ -260,7 +260,7 @@ test('콘솔의 앞선 사용자·assistant 대화가 현재 요청보다 먼저
   assert.equal(result.answer, '이어진 답');
 });
 
-test('같은 도구가 같은 이유로 두 번 실패하면 다른 화면 조작으로 번지기 전에 멈춘다', async () => {
+test('같은 도구가 같은 이유로 두 번 실패하면 차단 영수증 후 고집한 Run만 멈춘다', async () => {
   let executed = 0;
   let turn = 0;
   const model = { async respond() {
@@ -275,7 +275,7 @@ test('같은 도구가 같은 이유로 두 번 실패하면 다른 화면 조�
   };
   await assert.rejects(
     () => runAgent({ request: '제목을 입력해줘', model, tools: [tool] }),
-    (error) => error.reason === 'repeated_tool_failure_without_progress',
+    (error) => error.reason === 'verified_resource_runaway',
   );
   assert.equal(executed, 2);
 });
@@ -342,7 +342,7 @@ test('예약 Run은 필수 목적 영수증 없이 최종 문장으로 종료할
   assert.equal(result.receipts[0].actualCall.name, 'automation_outcome');
 });
 
-test('정지 영수증 뒤에도 같은 호출을 고집하면 Run을 오류로 끝내고 무한 반복하지 않는다', async () => {
+test('검증된 무진전 차단 영수증 뒤에도 같은 호출을 고집하면 Run을 멈춘다', async () => {
   let executed = 0;
   const model = { async respond() { return {
     text: '', toolCalls: [{ id: `same-${Date.now()}`, name: 'browser', args: { action: 'snapshot' } }],
@@ -353,7 +353,7 @@ test('정지 영수증 뒤에도 같은 호출을 고집하면 Run을 오류로 
   };
   await assert.rejects(
     () => runAgent({ request: '계속 새로고침해', model, tools: [tool] }),
-    (error) => error.reason === 'repeated_tool_call_without_progress',
+    (error) => error.reason === 'verified_resource_runaway',
   );
   assert.equal(executed, 2);
 });

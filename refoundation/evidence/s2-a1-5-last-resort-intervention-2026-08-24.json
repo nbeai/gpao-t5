@@ -1,0 +1,164 @@
+{
+  "schema": "t5.s2-a1-5-last-resort-intervention.v1",
+  "recordedAt": "2026-08-24T23:10:00+09:00",
+  "gate": "S2-A1_RESOURCE_CONTROL",
+  "stage": "A1-5_LAST_RESORT_INTERVENTION",
+  "status": "complete",
+  "goal": "Replace low fixed Run caps with evidence-governed last-resort control that preserves normal depth and model judgment.",
+  "closePoint": "Progressing work crosses the former fixed boundaries on Terra and GPT-5.5; only stable repeated outcomes, stable repeated Hand failures, unknown-effect reexecution, physical fan-out, and post-block persistence cause runtime control; parallel cancel and accounting settle exactly; all regressions pass.",
+  "startContract": {
+    "productPromise": "A nontechnical user receives full depth, accuracy, recovery, and task scale through ordinary language.",
+    "largestGap": "Fixed 16-turn, 24-tool, and 500K-token defaults stopped HP-02 and HP-03 while novel Evidence was still progressing.",
+    "change": "Remove product-default numeric Run caps and replace them with route-specific proof plus physical execution waves.",
+    "nonGoals": ["work_store", "memory", "automation_semantics", "telegram", "notion", "browser", "ui", "multi_agent", "new_connector"]
+  },
+  "comparisonAndPlatformReview": {
+    "openClawCommit": "e085fa1a3ffd32d0ea6917e1e6fb4ecbffbb77d2",
+    "files": [
+      {"name":"src/agents/tool-loop-detection.ts","sha256":"35fd13a56ca9a785d40b8431efb14a3429e77753e7c5ce76928b3dda0a308bf0"},
+      {"name":"src/agents/tool-loop-detection-config.ts","sha256":"a0b64518afe10534011d80f5d900451f68a6c35136955c5ee8ab5e7fd07679aa"},
+      {"name":"src/infra/wsl.ts","sha256":"5e0d7bc8a7d2f2419c48d7087ebf4dc71fd2ff05ea91b533b7acd1e81db89db1"},
+      {"name":"src/daemon/systemd.test.ts","sha256":"348c9f19bcd814efe02943a61787f8512b60ae6f449b1bbe6792733593aefbcd"}
+    ],
+    "adopted": [
+      "run_scoped_history",
+      "stable_outcome_evidence_before_intervention",
+      "volatile_result_identity_does_not_count_as_progress",
+      "observation_warning_and_intervention_are_separate",
+      "runtime_start_process_exit_cancel_and_settlement_are_distinct_facts"
+    ],
+    "notAdopted": [
+      "warning_10_critical_20_global_30_fixed_thresholds",
+      "tool_name_or_call_count_as_runaway_truth",
+      "pid_signal_path_or_wsl_user_scope_as_core_identity",
+      "copying_wsl_lifecycle_or_systemd_fallback_structure"
+    ],
+    "observedPlatformFailuresPreserved": [
+      "wsl_idle_termination_after_last_client",
+      "per_user_wsl_distro_invisible_to_system_account",
+      "systemd_user_bus_or_written_unit_not_yet_visible",
+      "process_exit_is_not_scope_settlement"
+    ],
+    "windowsFeatureImplemented": false,
+    "copiedWslArchitecture": false
+  },
+  "removedProductDefaults": {
+    "userModelTurns": 16,
+    "userToolCalls": 24,
+    "userProviderTokens": 500000,
+    "automationModelTurns": 12,
+    "automationToolCalls": 18,
+    "automationProviderTokens": 300000,
+    "failedTools": 4,
+    "replacedByAnotherFixedRunNumber": false
+  },
+  "implemented": {
+    "novelEvidenceMayContinueWithoutNumericRunCap": true,
+    "sameCallChangingOutcomeMayContinue": true,
+    "stableExactRouteOutcomeObservationsBeforeBlock": 2,
+    "stableSameHandFailureObservationsBeforeBlock": 2,
+    "unknownEffectExactReexecutionBlockedBeforeDispatch": true,
+    "firstControlIsRouteSpecificReceipt": true,
+    "modelMayChooseAlternateRouteReobserveOrSettle": true,
+    "runStopsOnlyIfBlockedMethodIsImmediatelyPersistedWithoutAnotherExecutableRoute": true,
+    "controlActionsPersistedContentFree": true,
+    "explicitQualificationOrCallerBoundUserBoundaryStillEnforced": true,
+    "catastrophicFuseNumberAdded": false,
+    "parallelPhysicalCapacitySource": "node_os_available_parallelism",
+    "nestedFanoutHandExclusiveOuterWave": true,
+    "parallelReservationBeforeExecution": true,
+    "parallelCanonicalReceiptOrder": "model_call_order",
+    "cancelWaitsForStartedChildren": true,
+    "cancelDoesNotStartOrReserveQueuedChildren": true
+  },
+  "counterexamples": {
+    "progressingBeyondFormerCaps": {"modelTurns":27,"toolCalls":26,"completed":true,"fixedCapStop":false},
+    "sameCallChangingOutcome": {"observations":5,"completed":true,"falseIntervention":false},
+    "stableRepeatedRoute": {"executionsBeforeBlock":2,"routeBlockReceipts":1,"alternateRouteSucceeded":true},
+    "unknownExternalEffect": {"writesExecuted":1,"blindRetry":0,"readAfterUnknown":1},
+    "providerRateFanout": {"failedProviderCalls":2,"additionalProviderRetryAfterProof":0,"fallbackSucceeded":true},
+    "parallelCancel": {"selectedChildren":5,"physicalCapacity":2,"startedChildren":2,"queuedChildrenStarted":0,"reservations":2,"committed":2,"unsettled":0},
+    "storageFaults": {"toolReservationFailureUserResultChanged":false,"toolSettlementFailureUserResultChanged":false,"restartUnknownSettlements":2}
+  },
+  "actualModelQualification": {
+    "fixture": "privacy_safe_26_item_progressing_evidence",
+    "realUserData": false,
+    "externalWrites": false,
+    "visibleBrowserWindows": 0,
+    "terra": {
+      "scenario": "HP-02_progressing_items",
+      "wallMs": 7855.379,
+      "modelTurns": 2,
+      "toolCalls": 26,
+      "uniqueEvidence": 26,
+      "answer": "26 items observed; sum 1161",
+      "providerTokens": 4153,
+      "reservations": 28,
+      "committed": 28,
+      "unknown": 0,
+      "unsettled": 0,
+      "falseCompletion": false,
+      "interventions": 0,
+      "checkerObservation": "The first exact-string checker missed the correctly formatted sum 1,161; semantic result was correct."
+    },
+    "gpt55": {
+      "scenario": "HP-03_progressing_modules",
+      "wallMs": 14977.516,
+      "modelTurns": 2,
+      "toolCalls": 26,
+      "uniqueEvidence": 26,
+      "answer": "26 modules observed; sum 1161",
+      "providerTokens": 4082,
+      "reservations": 28,
+      "committed": 28,
+      "unknown": 0,
+      "unsettled": 0,
+      "falseCompletion": false,
+      "interventions": 0
+    },
+    "internalResourceTermsInAnswers": 0
+  },
+  "latencyObservation": {
+    "measurementRounds": 20,
+    "parallelCallsPerRun": 10,
+    "observationOnlyMeanMs": 4.293,
+    "durableParallelReservationMeanMs": 84.643,
+    "addedBatchMeanMs": 80.351,
+    "addedPerParallelHandMs": 8.035,
+    "sequentialPathGetsNewReservation": false,
+    "newUserVisibleDelayEstablished": false
+  },
+  "verification": {
+    "a1FocusedPassed": 58,
+    "a1FocusedFailed": 0,
+    "refoundationUnitPassed": 669,
+    "refoundationUnitFailed": 0,
+    "defaultProductIntegrationPassed": 98,
+    "defaultProductIntegrationFailed": 0,
+    "legacySourceImports": 0,
+    "visibleBrowserLiveExecuted": false,
+    "browserWindowsOpened": 0,
+    "existingTimingObservation": "One default integration run timed out one of two capability-handoff resumes at two seconds; the isolated unchanged test passed 5/5 and the clean unchanged integration rerun passed 98/98."
+  },
+  "notImplemented": [
+    "new_fixed_catastrophic_fuse_number",
+    "runtime_selected_route_or_answer",
+    "unbounded_nested_parallel_fanout",
+    "telegram_or_notion_expansion",
+    "windows_runtime",
+    "new_package"
+  ],
+  "artifacts": {
+    "agentLoopSha256": "b4930c3e3199c5cdc18ad00460bdc0abb7ff511522bbf07a2980a73324ce9293",
+    "consoleServerSha256": "3df8f4f27441e1c65c3ba35bc3c4b4632582770b425c29f6715f53b383e777ae",
+    "resourceControllerSha256": "f72dbbe3bab23dc4023cb4a5a450ed139db26eff062dc7e1eadc24fc69a7f8e4",
+    "resourceLedgerSha256": "e745c9ee91cd477693ee18a50a24499f771f325c3ab0f38855e58bbcb3f1c9ee",
+    "resourceReportSha256": "e3a4bd0fb5e0b67f64b9cb2fe2379c5ff0b5e8b001b483e261a614a824fc0077",
+    "resourceInterventionSha256": "d2a93884be42adef65ccc84e323941755bf9bdeeaf229b2c7430b4b909a7a15d",
+    "resourceExecutionControlSha256": "c4581934c2a18cc71642496707f3f5c63ed7af7cd5803d8d1c3a908b673d0e58",
+    "unitTestSha256": "d38f511fd75bbf60490ecbbd0651ad97f747e620c158af8ecabc38e09191f33c"
+  },
+  "next": "S2_A_HUMAN_CONSOLE_QUALIFICATION",
+  "productBehaviorChanged": true,
+  "newPackageCreated": false
+}

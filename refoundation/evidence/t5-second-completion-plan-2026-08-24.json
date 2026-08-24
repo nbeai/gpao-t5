@@ -10,7 +10,7 @@
   "secondCompletion": {
     "active": true,
     "sourceOfTruth": "T5-SECOND-COMPLETION.md",
-    "currentGate": "S2-A1_RESOURCE_CONTROL_A1_5_READY",
+    "currentGate": "S2-A_HUMAN_CONSOLE_QUALIFICATION_READY",
     "firstProductChange": "shadow_resource_accounting_and_control",
     "a0IncidentFixtures": {
       "status": "complete",
@@ -66,6 +66,14 @@
       "modelSelectedParallelSafeReads": true,
       "canonicalOrderPreserved": true,
       "fixedCapsChanged": false
+    },
+    "a1LastResortIntervention": {
+      "status": "complete",
+      "evidence": "s2-a1-5-last-resort-intervention-2026-08-24.json",
+      "fixedDefaultCapsRemoved": true,
+      "replacementFixedCapsAdded": false,
+      "verifiedRouteInterventionOnly": true,
+      "humanConsoleQualificationReady": true
     },
     "humanPerformanceScenarios": {
       "fixture": "refoundation/config/s2-human-performance-scenarios.json",

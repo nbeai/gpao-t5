@@ -99,6 +99,8 @@ class DegradedResourceRun {
       degraded: async ({ stage, error }) => publishDiagnostic(this.onDiagnostic, stage, error),
     };
   }
+  async reserveTool() { return { degraded: true }; }
+  async recordIntervention() {}
   async observeTool() {}
   situation() { return null; }
   async close() {}
@@ -273,31 +275,79 @@ class ResourceRun {
     };
   }
 
-  async observeTool({ turn, toolCallId, name, outcome, startedAt, wallMs = null, evidenceFingerprint = null }) {
+  async reserveTool({ turn, toolCallId, name }) {
+    if (this.degraded) return { degraded: true };
+    const toolScopeId = stableId('tool-call', `${this.runIdentity}:${turn}:${toolCallId}`);
+    const requestId = `${toolScopeId}:request`; const reservationId = this.controller.makeId();
+    try {
+      await this.ledger.createScope({
+        scopeId: toolScopeId, parentScopeId: this.runScopeId, kind: 'tool_call',
+        dedupeKey: `scope:${toolScopeId}`, facts: { name },
+      });
+      await this.ledger.forecast({
+        scopeId: toolScopeId, dedupeKey: `forecast:${toolScopeId}`,
+        requestId, attempt: 1, resources: { toolCalls: 1 },
+      });
+      await this.ledger.reserve({
+        scopeId: toolScopeId, dedupeKey: `reserve:${toolScopeId}`,
+        reservationId, requestId, attempt: 1, resources: { toolCalls: 1 },
+      });
+      return { toolScopeId, reservationId };
+    } catch (error) { await this.markDegraded('tool_reservation', error); return { degraded: true }; }
+  }
+
+  async recordIntervention({ turn, action, reason }) {
     if (this.degraded) return;
-    this.resourceShadow.toolCalls += 1;
+    try {
+      await this.ledger.recordControlAction({
+        scopeId: this.runScopeId, dedupeKey: `control:${this.runScopeId}:${turn}:${action}:${reason}`,
+        action, reason, facts: { turn },
+      });
+    } catch (error) { await this.markDegraded('control_action', error); }
+  }
+
+  async observeTool({
+    turn, toolCallId, name, outcome, startedAt, wallMs = null, evidenceFingerprint = null,
+    reservationHandle = null, executed = true,
+  }) {
+    if (this.degraded) return;
+    if (executed) this.resourceShadow.toolCalls += 1;
     let evidence = 'none';
-    if (evidenceFingerprint) {
+    if (executed && evidenceFingerprint) {
       evidence = this.evidenceFingerprints.has(evidenceFingerprint) ? 'repeated' : 'new';
       this.evidenceFingerprints.add(evidenceFingerprint);
     }
-    if (evidence === 'new') this.resourceShadow.novelEvidence += 1;
-    else if (evidence === 'repeated') this.resourceShadow.repeatedEvidence += 1;
-    else this.resourceShadow.noEvidence += 1;
-    this.resourceShadow.latestToolEvidence = evidence;
-    const toolScopeId = stableId('tool-call', `${this.runIdentity}:${turn}:${toolCallId}`);
-    try { await this.ledger.createScope({
-      scopeId: toolScopeId, parentScopeId: this.runScopeId, kind: 'tool_call',
-      dedupeKey: `scope:${toolScopeId}`, facts: { name },
-    });
-    await this.ledger.observe({
-      scopeId: toolScopeId, dedupeKey: `tool-observed:${toolScopeId}`,
-      resources: {
-        toolCalls: 1,
-        wallMs: Number.isFinite(wallMs) ? Math.max(0, wallMs) : Math.max(0, this.controller.now() - startedAt),
-      },
-      facts: { outcome, evidence },
-    });
+    if (executed) {
+      if (evidence === 'new') this.resourceShadow.novelEvidence += 1;
+      else if (evidence === 'repeated') this.resourceShadow.repeatedEvidence += 1;
+      else this.resourceShadow.noEvidence += 1;
+      this.resourceShadow.latestToolEvidence = evidence;
+    }
+    if (!executed && !reservationHandle) return;
+    const toolScopeId = reservationHandle?.toolScopeId
+      ?? stableId('tool-call', `${this.runIdentity}:${turn}:${toolCallId}`);
+    const observedWallMs = Number.isFinite(wallMs)
+      ? Math.max(0, wallMs) : Math.max(0, this.controller.now() - startedAt);
+    try {
+      if (!reservationHandle) await this.ledger.createScope({
+        scopeId: toolScopeId, parentScopeId: this.runScopeId, kind: 'tool_call',
+        dedupeKey: `scope:${toolScopeId}`, facts: { name },
+      });
+      if (reservationHandle && !reservationHandle.degraded) {
+        if (executed) await this.ledger.commit({
+          scopeId: toolScopeId, dedupeKey: `commit:${reservationHandle.reservationId}`,
+          reservationId: reservationHandle.reservationId,
+          resources: { toolCalls: 1, wallMs: observedWallMs },
+        });
+        else await this.ledger.release({
+          scopeId: toolScopeId, dedupeKey: `release:${reservationHandle.reservationId}`,
+          reservationId: reservationHandle.reservationId, reason: 'not_executed',
+        });
+      }
+      if (executed) await this.ledger.observe({
+        scopeId: toolScopeId, dedupeKey: `tool-observed:${toolScopeId}`,
+        resources: { toolCalls: 1, wallMs: observedWallMs }, facts: { outcome, evidence },
+      });
     await this.ledger.closeScope({
       scopeId: toolScopeId, dedupeKey: `close:${toolScopeId}`, status: outcome,
     }); } catch (error) { await this.markDegraded('tool_observation', error); }
@@ -317,6 +367,14 @@ class ResourceRun {
       modelTurns: used.foregroundModelTurns + 1,
       toolCalls: used.foregroundToolCalls + Math.max(1, number(agent.lastTurnToolCalls)),
       providerTokens: used.foregroundProviderTokens + Math.max(1, number(agent.lastProviderTokens)),
+    };
+    const boundary = (usedValue, configuredValue, projectedNext) => {
+      const configured = Number(configuredValue);
+      const active = Number.isInteger(configured) && configured > 0;
+      return {
+        used: usedValue, configured: active ? configured : null, projectedNext,
+        wouldReachOnNextObservedPattern: active && projectedNext >= configured,
+      };
     };
     return {
       state: 'observed', accounting: 'exact_or_explicit_unknown', intervention: false,
@@ -344,15 +402,9 @@ class ResourceRun {
         activeToolDefinitionBytes: number(information.activeToolDefinitionBytes),
       },
       legacyFixedBoundaries: {
-        modelTurns: { used: used.foregroundModelTurns, configured: number(limits.maxModelTurns),
-          projectedNext: next.modelTurns,
-          wouldReachOnNextObservedPattern: next.modelTurns >= number(limits.maxModelTurns) },
-        toolCalls: { used: used.foregroundToolCalls, configured: number(limits.maxToolCalls),
-          projectedNext: next.toolCalls,
-          wouldReachOnNextObservedPattern: next.toolCalls >= number(limits.maxToolCalls) },
-        providerTokens: { used: used.foregroundProviderTokens, configured: number(limits.maxProviderTokens),
-          projectedNext: next.providerTokens,
-          wouldReachOnNextObservedPattern: next.providerTokens >= number(limits.maxProviderTokens) },
+        modelTurns: boundary(used.foregroundModelTurns, limits.maxModelTurns, next.modelTurns),
+        toolCalls: boundary(used.foregroundToolCalls, limits.maxToolCalls, next.toolCalls),
+        providerTokens: boundary(used.foregroundProviderTokens, limits.maxProviderTokens, next.providerTokens),
         changedBySituation: false,
       },
       anomaly: candidate ? {

@@ -1,4 +1,4 @@
-function effectUnknown(receipt) {
+export function effectUnknown(receipt) {
   const state = String(receipt?.result?.state ?? receipt?.result?.reason ?? '');
   return receipt?.result?.effectUnknown === true
     || receipt?.outcome === 'unknown'

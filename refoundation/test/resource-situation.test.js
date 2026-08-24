@@ -36,6 +36,16 @@ test('Resource Situation은 exact usage·Evidence·input·기존 상한을 conte
   assert.doesNotMatch(JSON.stringify(situation), /session|run|tool-1|novel-one/u);
 });
 
+test('고정 상한이 없으면 경계를 0으로 꾸며 임박 Situation을 만들지 않는다', async () => {
+  const ledger = new ResourceLedger(await mkdtemp(join(tmpdir(), 't5-resource-no-fixed-cap-')));
+  const run = await new ResourceController(ledger).startRun({ sessionId: 'session', runId: 'run' });
+  const current = run.situation({ agent: { modelTurns: 30, toolCalls: 40, providerTokens: 900000 }, limits: {} });
+  assert.deepEqual(current.legacyFixedBoundaries.modelTurns, {
+    used: 30, configured: null, projectedNext: 31, wouldReachOnNextObservedPattern: false,
+  });
+  assert.equal(resourceSituationTransitionKey(current), null);
+});
+
 test('Situation은 ephemeral runtime projection에만 들어가고 canonical transcript·사용자 답을 바꾸지 않는다', async () => {
   const events = [];
   const resourceRun = {

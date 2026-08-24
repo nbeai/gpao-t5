@@ -12,6 +12,11 @@ function modelLabel(error, connection) {
 
 export function userSafeTurnFailure(error, connection = null) {
   const label = modelLabel(error, connection);
+  if (error?.reason === 'verified_resource_runaway') return {
+    code: 'verified_repeated_method_stopped',
+    text: '같은 방법이 같은 결과만 낸 뒤 차단 영수증에도 반복되어 이번 작업을 멈췄어요.',
+    nextSafeAction: '이미 확인한 상태는 보존했습니다. 다른 방법으로 이어가거나 현재 결과로 닫아야 해요.',
+  };
   if (error?.reason === 'repeated_tool_call_without_progress') return {
     code: 'repeated_method_stopped',
     text: '같은 방법으로 진전 없이 반복되어 이번 작업을 멈췄어요.',

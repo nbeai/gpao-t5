@@ -1,7 +1,7 @@
 # T5 Second Completion — Current Development Source
 
 상태: `SECOND_COMPLETION_ACTIVE`
-현재 Gate: `S2-A1 RESOURCE CONTROL — A1-4 COMPLETE · A1-5 READY`
+현재 Gate: `S2-A COMPLETE · A HUMAN CONSOLE QUALIFICATION READY`
 기준 source: `81f29d23`
 배포 상태: `0.1.8 REVOKED · 새 package 생성 금지`
 
@@ -246,7 +246,7 @@ A1-1 exact accounting shadow — COMPLETE
 → S2-A2 Information Control
 → A1-3 모델에 Resource Situation 공급 — COMPLETE
 → A1-4 능동 최적화 — COMPLETE
-→ A1-5 검증된 병적 폭주에만 최후 개입
+→ A1-5 검증된 병적 폭주에만 최후 개입 — COMPLETE
 ```
 
 A1-3는 A2 완료 전에는 열지 않는다. 현재의 큰 Context에 Resource Situation을 더하면 모델 입력과 행동을
@@ -270,6 +270,19 @@ A1-4는 Situation에 runtime이 만든 최적화 선택지를 추가하지 않�
 구분했고, 3초 독립 Hand gpt-5.5 A/B는 10.963초에서 7.937초로 줄면서 정답·model/tool call을
 유지했다. unknown 쓰기는 동일 쓰기 재실행 대신 현실 재관측으로 닫혔다. 고정 상한·중단·답 저작권은
 바꾸지 않았다. 근거: `refoundation/evidence/s2-a1-4-active-optimization-2026-08-24.json`
+
+A1-5는 일반·자동화 Run의 16 model turns·24 tools·500K/300K provider tokens·4 failed tools
+기본 상한을 제거했다. 새 Evidence가 계속되거나 같은 호출의 결과가 바뀌는 정상 poll은 호출
+수로 중단하지 않는다. 대신 exact route가 같은 안정된 결과를 두 번 냈거나, 같은 Hand가 안정된
+동일 실패를 두 번 냈거나, effect-unknown 쓰기를 같은 인자로 재실행하려는 경우에만 해당
+route를 한 번 차단하고 모델에게 다른 방법·재관측·정산 기회를 준다. 차단 영수증 후에도 같은
+방법만 고집할 때 Run을 멈춘다. 병렬 실행은 운영체제가 관측한 물리 병렬도의 wave로 실행하고,
+내부 fan-out Hand는 독점 wave로 외부 fan-out과 곱해지지 않는다. 시작한 병렬 자식은 실행 전
+reservation과 개별 settlement를 남기고, cancel은 시작 자식을 닫은 뒤 대기 자식을 실행하지 않는다.
+Terra·gpt-5.5 실제 모델은 각각 26개의 새 Evidence를 2 model turns·26 tool calls로 모두 관측하고
+정확한 합계를 완성했다. false completion·개입·미정산·내부 용어 노출은 0이었다. runAgent에
+사용자 합의나 자격 시험으로 명시적 결속된 경계는 계속 집행하며, 실측 없는 catastrophic fuse
+숫자는 새로 만들지 않았다. 근거: `refoundation/evidence/s2-a1-5-last-resort-intervention-2026-08-24.json`
 
 A1-1은 모든 model adapter의 provider fetch 전 durable reservation, retry attempt 분리, provider usage commit,
 crash·cancel unknown, tool wall/call 관측, checkpoint·memory flush·visual observer·automation main과 hosted search
@@ -505,10 +518,10 @@ AND 실행 가능한 미시도 route가 남은 blocked 0
 
 ## 8. 현재 작업 시작점
 
-S2-A0, A1-1, A1-2, S2-A2, A1-3과 A1-4를 완료했다. 다음 한 작업은 A1-5 검증된 병적 폭주의 최후
-개입이다. 새 Evidence가 계속되는 HP-02·03의 능력·깊이·복구를 유지하면서, 검증된 deterministic
-반복·effect-unknown 재실행·새 Evidence 없는 runaway에만 마지막 개입을 자격화한다. 현재 16 model
-turns·24 tools·500K provider tokens를 검증 없이 삭제하거나 다른 고정 숫자로 바꾸지 않는다.
+S2-A0, A1-1, A1-2, S2-A2, A1-3, A1-4와 A1-5를 완료했다. 다음 한 작업은 새 기능 구현이 아니라
+`docs/03-verification/T5-S2-A-HUMAN-CONSOLE-LIVE-PLAN-2026-08-24-ko.md`의 A-H01~A-H08을 실제 개발
+콘솔에서 수행하는 S2-A 인간 종단 판정이다. 이 자격을 통과하기 전에 B·D·F 기능을 열거나
+Telegram·Notion 미달을 A 구현으로 넓히지 않는다.
 
 A1-2 완료 범위:
 

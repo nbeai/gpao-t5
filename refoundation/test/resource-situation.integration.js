@@ -60,7 +60,8 @@ test('콘솔은 자원 전환 요청에만 최신 Situation을 넣고 Conversati
     assert.equal(third.usage.allObservedModelCalls, 2);
     assert.equal(third.evidence.novel, 1);
     assert.equal(third.evidence.repeated, 1);
-    assert.equal(third.legacyFixedBoundaries.modelTurns.configured, 16);
+    assert.equal(third.legacyFixedBoundaries.modelTurns.configured, null);
+    assert.equal(third.legacyFixedBoundaries.modelTurns.wouldReachOnNextObservedPattern, false);
     assert.equal(third.legacyFixedBoundaries.changedBySituation, false);
     const run = await server.runLedger.read(reply.runId);
     assert.equal(run.events.filter((event) => event.type === 'resource_situation_built').length, 1);

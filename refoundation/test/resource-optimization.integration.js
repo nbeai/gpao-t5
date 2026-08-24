@@ -10,7 +10,7 @@ async function run(mode) {
   const room = await mkdtemp(join(tmpdir(), 't5-resource-parallel-console-'));
   const stateDir = join(room, 'state'); const workspace = join(room, 'workspace'); await mkdir(workspace);
   let active = 0; let peak = 0; let turn = 0;
-  const server = makeConsoleServer({ stateDir, workspace, activeOptimizationMode: mode,
+  const server = makeConsoleServer({ stateDir, workspace, activeOptimizationMode: mode, parallelCapacity: 2,
     webReadOptions: { resolveHost: async () => ['93.184.216.34'], fetchImpl: async (url) => {
       active += 1; peak = Math.max(peak, active); await new Promise((resolve) => setTimeout(resolve, 50)); active -= 1;
       return new Response(`<html><body><article>${`Observed ${url} `.repeat(30)}</article></body></html>`,
@@ -41,7 +41,8 @@ test('모델이 선택한 parallel-safe Web Hand만 병렬 실행하고 canonica
   assert.equal(on.reply.reply, '두 출처를 확인했습니다.');
   const batch = on.runRecord.events.filter((event) => event.type === 'resource_parallel_batch');
   assert.equal(batch.length, 1);
-  assert.deepEqual(batch[0].payload, { turn: 1, toolCalls: 2, tools: ['web_read', 'web_read'] });
+  assert.deepEqual(batch[0].payload, { turn: 1, toolCalls: 2, tools: ['web_read', 'web_read'],
+    waves: 1, physicalCapacity: 2 });
   assert.deepEqual(on.runRecord.events.filter((event) => event.type === 'tool_completed')
     .map((event) => event.payload.receipt.toolCallId), ['read-a', 'read-b']);
   assert.equal(off.runRecord.events.some((event) => event.type === 'resource_parallel_batch'), false);

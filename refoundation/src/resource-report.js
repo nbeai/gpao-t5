@@ -6,7 +6,7 @@ export function deriveResourceReport(events = []) {
     requestBytesReserved: 0, providerTokensCommitted: 0,
     modelCallsObserved: 0, toolCallsObserved: 0, internalCallsObserved: 0, wallMsObserved: 0,
     anomalyCandidates: 0, pathologyCandidates: 0, efficiencyCandidates: 0,
-    reliabilityCandidates: 0,
+    reliabilityCandidates: 0, controlActions: 0,
   };
   for (const event of events) {
     if (event.type === 'ScopeCreated') report.scopes += 1;
@@ -36,6 +36,7 @@ export function deriveResourceReport(events = []) {
       if (event.payload.category === 'efficiency_candidate') report.efficiencyCandidates += 1;
       if (event.payload.category === 'reliability_candidate') report.reliabilityCandidates += 1;
     }
+    if (event.type === 'ControlActionRecorded') report.controlActions += 1;
   }
   report.unsettled = [...reservations].filter(([id]) => !settlements.has(id)).length;
   return report;

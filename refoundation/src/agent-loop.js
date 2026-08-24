@@ -1,3 +1,4 @@
+import { availableParallelism } from 'node:os';
 import { evidenceFingerprint } from './resource-evidence.js';
 import { compactDuplicateEvidence } from './information-control.js';
 import { measureModelInformation } from './information-context.js';
@@ -5,11 +6,8 @@ import { resourceSituationBlock, resourceSituationTransitionKey } from './resour
 import {
   observeResourceOptimizationChoice,
 } from './resource-optimization.js';
-
-const DEFAULT_MAX_MODEL_TURNS = 16;
-const DEFAULT_MAX_TOOL_CALLS = 24;
-const DEFAULT_MAX_FAILED_TOOL_CALLS = 4;
-const DEFAULT_MAX_PROVIDER_TOKENS = 500_000;
+import { ResourceIntervention } from './resource-intervention.js';
+import { resourceExecutionWaves } from './resource-execution-control.js';
 
 function toolDefinition(tool) {
   return {
@@ -37,6 +35,12 @@ function requestedCall(call) {
     name: String(call?.name ?? ''),
     args: call?.args && typeof call.args === 'object' ? structuredClone(call.args) : {},
   };
+}
+
+function modelBlockedReason(reason) {
+  if (reason === 'unknown_effect_reexecution') return 'effect_unknown_requires_observation';
+  if (reason === 'verified_tool_failure') return 'same_hand_same_failure_repeated';
+  return 'same_method_same_result_repeated';
 }
 
 function toolMessage(receipt) {
@@ -211,10 +215,11 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [],
  *   model:{respond:(input:{messages:object[],tools:object[],signal?:AbortSignal,onContextReceipt?:(receipt:object)=>Promise<void>})=>Promise<*>},
  *   tools?:Array<{name:string,description:string,parameters:object,execute:Function}>,
  *   signal?:AbortSignal,
- *   maxModelTurns?:number,
- *   maxToolCalls?:number,
- *   maxFailedToolCalls?:number,
- *   maxProviderTokens?:number,
+ *   maxModelTurns?:number|null,
+ *   maxToolCalls?:number|null,
+ *   maxFailedToolCalls?:number|null,
+ *   maxProviderTokens?:number|null,
+ *   parallelCapacity?:number,
  *   requiredCompletionTool?:string|null,
  *   resourceRun?:{modelObserver:Function,observeTool:Function}|null,
  *   resourcePurpose?:string,
@@ -227,10 +232,11 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [],
  */
 export async function runAgent({
   request, requestAttachments = [], history = [], model, tools = [], signal,
-  maxModelTurns = DEFAULT_MAX_MODEL_TURNS,
-  maxToolCalls = DEFAULT_MAX_TOOL_CALLS,
-  maxFailedToolCalls = DEFAULT_MAX_FAILED_TOOL_CALLS,
-  maxProviderTokens = DEFAULT_MAX_PROVIDER_TOKENS,
+  maxModelTurns = null,
+  maxToolCalls = null,
+  maxFailedToolCalls = null,
+  maxProviderTokens = null,
+  parallelCapacity = availableParallelism(),
   requiredCompletionTool = null,
   resourceRun = null,
   resourcePurpose = 'main',
@@ -242,10 +248,10 @@ export async function runAgent({
 }) {
   if (typeof request !== 'string' || !request.trim()) throw new TypeError('request is required');
   if (!model || typeof model.respond !== 'function') throw new TypeError('model.respond is required');
-  if (!Number.isInteger(maxModelTurns) || maxModelTurns < 1) throw new TypeError('maxModelTurns must be positive');
-  for (const [name, value] of Object.entries({ maxToolCalls, maxFailedToolCalls, maxProviderTokens })) {
-    if (!Number.isInteger(value) || value < 1) throw new TypeError(`${name} must be positive`);
+  for (const [name, value] of Object.entries({ maxModelTurns, maxToolCalls, maxFailedToolCalls, maxProviderTokens })) {
+    if (value != null && (!Number.isInteger(value) || value < 1)) throw new TypeError(`${name} must be positive`);
   }
+  if (!Number.isInteger(parallelCapacity) || parallelCapacity < 1) throw new TypeError('parallelCapacity must be positive');
   if (!['off', 'current-v1'].includes(resourceSituationMode)) {
     throw new TypeError('unsupported resource situation mode');
   }
@@ -270,14 +276,13 @@ export async function runAgent({
   }];
   const receipts = [];
   const modelCalls = [];
-  const repeatedCalls = new Map();
+  const intervention = new ResourceIntervention();
   const completedTools = new Set();
   const completedCapabilityGroups = new Set();
   let modelTurns = 0;
   let toolCalls = 0;
   let failedToolCalls = 0;
   let providerTokens = 0;
-  const failureFamilies = new Map();
   const evidenceFamilies = new Map();
   const toolExposures = new Map();
   let toolSurfaceFocused = false;
@@ -289,7 +294,7 @@ export async function runAgent({
     receipt.actualCall?.name === requiredCompletionTool && receipt.outcome === 'succeeded'
   )));
 
-  while (modelTurns < maxModelTurns) {
+  while (maxModelTurns == null || modelTurns < maxModelTurns) {
     if (signal?.aborted) return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
 
     modelTurns += 1;
@@ -357,7 +362,7 @@ export async function runAgent({
     const reportedTokens = Number(response.usage?.total_tokens);
     if (Number.isFinite(reportedTokens) && reportedTokens > 0) providerTokens += reportedTokens;
     lastTurnToolCalls = response.toolCalls.length;
-    const providerBudgetExceeded = providerTokens > maxProviderTokens;
+    const providerBudgetExceeded = maxProviderTokens != null && providerTokens > maxProviderTokens;
     await onEvent?.({
       type: 'model_end',
       turn: modelTurns,
@@ -409,73 +414,120 @@ export async function runAgent({
       ));
     let parallelResults = null;
     if (parallelSelected) {
-      const prepared = [];
-      for (const call of response.toolCalls) {
-        if (signal?.aborted) return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
-        await onEvent?.({ type: 'tool_start', turn: modelTurns, toolCallId: String(call?.id ?? ''),
-          name: call?.name, args: structuredClone(call?.args ?? {}) });
+      const prepared = response.toolCalls.map((call) => {
         const requested = requestedCall(call); toolCalls += 1;
-        if (toolCalls > maxToolCalls) {
+        if (maxToolCalls != null && toolCalls > maxToolCalls) {
           const error = new Error('run tool-call budget exceeded');
           error.reason = 'run_resource_budget_exceeded';
           error.resource = 'tool_calls'; error.used = toolCalls; error.limit = maxToolCalls;
           throw error;
         }
-        const fingerprint = JSON.stringify([requested.name, requested.args]);
-        const repetitions = repeatedCalls.get(fingerprint) ?? 0;
-        if (repetitions >= 3) {
-          const error = new Error('same tool call repeated without progress');
-          error.reason = 'repeated_tool_call_without_progress'; error.toolName = requested.name; throw error;
-        }
-        repeatedCalls.set(fingerprint, repetitions + 1);
-        prepared.push({ call, requested, repetitions });
+        return { call, requested, tool: registry.get(requested.name), control: intervention.inspect(call) };
+      });
+      const executable = prepared.filter((item) => item.control.action === 'execute');
+      if (!executable.length && prepared.some((item) => item.control.action === 'stop')) {
+        const stopped = prepared.find((item) => item.control.action === 'stop');
+        await onEvent?.({ type: 'resource_intervention', turn: modelTurns,
+          action: 'run_stopped', reason: stopped.control.reason, tool: stopped.requested.name,
+          toolCallId: stopped.requested.id });
+        await resourceRun?.recordIntervention?.({ turn: modelTurns,
+          action: 'run_stopped', reason: stopped.control.reason }).catch(() => {});
+        const error = new Error('verified resource runaway continued after route block');
+        error.reason = 'verified_resource_runaway'; error.toolName = stopped.requested.name; throw error;
       }
-      parallelResults = await Promise.all(prepared.map(async (item) => {
-        const toolResourceStartedAt = Date.now();
-        const receipt = item.repetitions >= 2 ? {
-          toolCallId: item.requested.id, requestedCall: item.requested, actualCall: null,
-          outcome: 'not_executed', result: { state: 'repeated_call_stopped', occurrences: item.repetitions + 1 },
-        } : await executeCall(item.call, registry, signal, activeTools, receipts, resourceRun);
-        return {
-          ...item, receipt, toolResourceStartedAt,
-          toolResourceWallMs: Math.max(0, Date.now() - toolResourceStartedAt),
-        };
-      }));
+      const resultById = new Map();
+      for (const item of prepared.filter((candidate) => candidate.control.action !== 'execute')) {
+        await onEvent?.({ type: 'resource_intervention', turn: modelTurns,
+          action: 'route_blocked', reason: item.control.reason, tool: item.requested.name,
+          toolCallId: item.requested.id });
+        await resourceRun?.recordIntervention?.({ turn: modelTurns,
+          action: 'route_blocked', reason: item.control.reason }).catch(() => {});
+        resultById.set(item.requested.id, { ...item, interventionBlocked: true,
+          toolResourceStartedAt: Date.now(), toolResourceWallMs: 0,
+          receipt: { toolCallId: item.requested.id, requestedCall: item.requested, actualCall: null,
+            outcome: 'not_executed', result: { state: 'method_not_executed',
+              reason: modelBlockedReason(item.control.reason) } } });
+      }
+      const waves = resourceExecutionWaves(executable, parallelCapacity);
+      for (const [waveIndex, wave] of waves.entries()) {
+        if (signal?.aborted) {
+          for (const item of waves.slice(waveIndex).flat()) resultById.set(item.requested.id, {
+            ...item, toolResourceStartedAt: Date.now(), toolResourceWallMs: 0,
+            receipt: { toolCallId: item.requested.id, requestedCall: item.requested, actualCall: null,
+              outcome: 'cancelled', result: { state: 'cancelled_before_dispatch', stopped: 'aborted' } },
+          });
+          break;
+        }
+        const reserved = [];
+        for (const item of wave) {
+          const resourceHandle = await resourceRun?.reserveTool?.({
+            turn: modelTurns, toolCallId: item.requested.id, name: item.requested.name,
+          }).catch(() => null);
+          reserved.push({ ...item, resourceHandle });
+          await onEvent?.({ type: 'tool_start', turn: modelTurns, toolCallId: item.requested.id,
+            name: item.requested.name, args: structuredClone(item.requested.args) });
+        }
+        const waveResults = await Promise.all(reserved.map(async (item) => {
+          const toolResourceStartedAt = Date.now();
+          const receipt = await executeCall(item.call, registry, signal, activeTools, receipts, resourceRun);
+          return { ...item, receipt, toolResourceStartedAt,
+            toolResourceWallMs: Math.max(0, Date.now() - toolResourceStartedAt) };
+        }));
+        for (const item of waveResults) resultById.set(item.requested.id, item);
+      }
+      parallelResults = prepared.map((item) => resultById.get(item.requested.id));
       await onEvent?.({ type: 'resource_parallel_batch', turn: modelTurns,
-        toolCalls: parallelResults.length, tools: parallelResults.map((item) => item.requested.name) });
+        toolCalls: parallelResults.length, tools: parallelResults.map((item) => item.requested.name),
+        waves: waves.length, physicalCapacity: parallelCapacity });
     }
 
     for (const [callIndex, call] of response.toolCalls.entries()) {
       let requested; let receipt; let toolResourceStartedAt; let toolResourceWallMs = null;
+      let resourceHandle = null; let interventionBlocked = false;
       if (parallelResults) {
-        ({ requested, receipt, toolResourceStartedAt, toolResourceWallMs } = parallelResults[callIndex]);
+        ({ requested, receipt, toolResourceStartedAt, toolResourceWallMs,
+          resourceHandle = null, interventionBlocked = false } = parallelResults[callIndex]);
       } else {
         if (signal?.aborted) return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
-        await onEvent?.({ type: 'tool_start', turn: modelTurns, toolCallId: String(call?.id ?? ''),
-          name: call?.name, args: structuredClone(call?.args ?? {}) });
         toolResourceStartedAt = Date.now(); requested = requestedCall(call); toolCalls += 1;
-        if (toolCalls > maxToolCalls) {
+        if (maxToolCalls != null && toolCalls > maxToolCalls) {
           const error = new Error('run tool-call budget exceeded');
           error.reason = 'run_resource_budget_exceeded';
           error.resource = 'tool_calls'; error.used = toolCalls; error.limit = maxToolCalls; throw error;
         }
-        const fingerprint = JSON.stringify([requested.name, requested.args]);
-        const repetitions = repeatedCalls.get(fingerprint) ?? 0;
-        if (repetitions >= 3) {
-          const error = new Error('same tool call repeated without progress');
-          error.reason = 'repeated_tool_call_without_progress'; error.toolName = requested.name; throw error;
+        const control = intervention.inspect(call);
+        if (control.action === 'stop') {
+          await onEvent?.({ type: 'resource_intervention', turn: modelTurns,
+            action: 'run_stopped', reason: control.reason, tool: requested.name,
+            toolCallId: requested.id });
+          await resourceRun?.recordIntervention?.({ turn: modelTurns,
+            action: 'run_stopped', reason: control.reason }).catch(() => {});
+          const error = new Error('verified resource runaway continued after route block');
+          error.reason = 'verified_resource_runaway'; error.toolName = requested.name; throw error;
         }
-        repeatedCalls.set(fingerprint, repetitions + 1);
-        receipt = repetitions >= 2 ? {
-          toolCallId: requested.id, requestedCall: requested, actualCall: null,
-          outcome: 'not_executed', result: { state: 'repeated_call_stopped', occurrences: repetitions + 1 },
-        } : await executeCall(call, registry, signal, activeTools, receipts, resourceRun);
+        if (control.action === 'block') {
+          interventionBlocked = true;
+          await onEvent?.({ type: 'resource_intervention', turn: modelTurns,
+            action: 'route_blocked', reason: control.reason, tool: requested.name,
+            toolCallId: requested.id });
+          await resourceRun?.recordIntervention?.({ turn: modelTurns,
+            action: 'route_blocked', reason: control.reason }).catch(() => {});
+          receipt = { toolCallId: requested.id, requestedCall: requested, actualCall: null,
+            outcome: 'not_executed', result: { state: 'method_not_executed',
+              reason: modelBlockedReason(control.reason) } };
+        } else {
+          await onEvent?.({ type: 'tool_start', turn: modelTurns, toolCallId: requested.id,
+            name: requested.name, args: structuredClone(requested.args) });
+          receipt = await executeCall(call, registry, signal, activeTools, receipts, resourceRun);
+          toolResourceWallMs = Math.max(0, Date.now() - toolResourceStartedAt);
+        }
       }
       const visualAttachments = receipt._modelAttachments ?? [];
       delete receipt._modelAttachments;
       receipts.push(receipt);
       const currentToolMessage = toolMessage(receipt);
       const currentEvidenceFingerprint = evidenceFingerprint(receipt);
+      if (!interventionBlocked && receipt.outcome !== 'cancelled') intervention.observe(call, receipt);
       const informationProjection = compactDuplicateEvidence({
         seen: evidenceFamilies, fingerprint: currentEvidenceFingerprint,
         receipt, message: currentToolMessage,
@@ -540,37 +592,29 @@ export async function runAgent({
       await resourceRun?.observeTool({
         turn: modelTurns, toolCallId: receipt.toolCallId || `${modelTurns}:${call?.name}`,
         name: call?.name ?? 'unknown', outcome: receipt.outcome, startedAt: toolResourceStartedAt,
+        reservationHandle: resourceHandle, executed: Boolean(receipt.actualCall),
         ...(toolResourceWallMs == null ? {} : { wallMs: toolResourceWallMs }),
         evidenceFingerprint: currentEvidenceFingerprint,
       }).catch(() => {});
       if (receipt.outcome === 'failed') {
         failedToolCalls += 1;
-        const family = JSON.stringify([
-          requested.name,
-          receipt.result?.state ?? receipt.result?.stage ?? null,
-          String(receipt.result?.reason ?? receipt.result?.error ?? '').replace(/\d+/gu, '#').slice(0, 240),
-        ]);
-        const familyCount = (failureFamilies.get(family) ?? 0) + 1;
-        failureFamilies.set(family, familyCount);
-        if (familyCount >= 2) {
-          const error = new Error('same tool failure repeated without progress');
-          error.reason = 'repeated_tool_failure_without_progress';
-          error.toolName = requested.name; error.occurrences = familyCount;
-          throw error;
-        }
-        if (failedToolCalls >= maxFailedToolCalls) {
+        if (maxFailedToolCalls != null && failedToolCalls >= maxFailedToolCalls) {
           const error = new Error('run failed-tool budget exceeded');
           error.reason = 'tool_failure_budget_exceeded';
           error.used = failedToolCalls; error.limit = maxFailedToolCalls;
           throw error;
         }
       }
-      if (signal?.aborted || receipt.outcome === 'cancelled') {
+      if (!parallelResults && (signal?.aborted || receipt.outcome === 'cancelled')) {
         return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
       }
     }
+    if (parallelResults && (signal?.aborted || parallelResults.some((item) => item.receipt.outcome === 'cancelled'))) {
+      return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
+    }
   }
 
+  if (maxModelTurns == null) throw new Error('unreachable resource loop state');
   const error = new Error('run model-turn budget exceeded');
   error.reason = 'run_resource_budget_exceeded';
   error.resource = 'model_turns'; error.used = modelTurns; error.limit = maxModelTurns;

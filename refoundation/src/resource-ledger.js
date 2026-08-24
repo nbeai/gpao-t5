@@ -238,6 +238,16 @@ export class ResourceLedger {
     });
   }
 
+  recordControlAction({ scopeId, dedupeKey, action, reason, facts = {} }) {
+    return this.append({
+      type: 'ControlActionRecorded', scopeId, dedupeKey,
+      payload: {
+        action: identifier(action, 'control action'), reason: identifier(reason, 'control reason'),
+        ...normalizedPayload(facts),
+      },
+    });
+  }
+
   closeScope({ scopeId, dedupeKey, status }) {
     return this.append({
       type: 'ScopeClosed', scopeId, dedupeKey,
