@@ -124,6 +124,7 @@ export function makeSessionSearchTool({ ledger, sessions, currentSessionId = nul
   if (!ledger || !sessions) throw new TypeError('conversation ledger and session store are required');
   return {
     name: 'session_search',
+    executionMode: 'parallel',
     searchTerms: [
       'past conversation history prior decision transcript',
       '과거 대화 원문 이전 결정 기록',

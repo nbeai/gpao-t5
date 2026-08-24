@@ -1,0 +1,141 @@
+{
+  "schema": "t5.s2-a1-4-active-optimization.v1",
+  "recordedAt": "2026-08-24T21:40:00+09:00",
+  "gate": "S2-A1_RESOURCE_CONTROL",
+  "stage": "A1-4_ACTIVE_OPTIMIZATION",
+  "status": "complete",
+  "goal": "Let the main model use current purpose, Evidence, available Hands, and Resource Situation to make better next choices without runtime route selection or fixed-cap changes.",
+  "closePoint": "Terra and GPT-5.5 distinguish sufficient from insufficient boundary evidence without false completion; model-selected independent safe reads reduce wall time while preserving answer, calls, canonical order, and exact accounting; repeated and unknown effects take a non-blind-retry route; all regressions pass.",
+  "comparisonStudy": {
+    "ownerProvidedCorrectionApplied": true,
+    "productClaim": "T5 does not claim unique context technology; it applies verified canonical/projection and recovery principles as a smaller user-purpose compiler and must prove the result on user tasks.",
+    "openClawCommit": "e085fa1a3ffd32d0ea6917e1e6fb4ecbffbb77d2",
+    "hermesCommit": "91e867631e9d2eb9fbd69edd4459475d38070979",
+    "adopted": [
+      "parallel_execution_only_after_the_model_selects_multiple_calls_and_each_hand_explicitly_advertises_support",
+      "canonical_truth_and_model_projection_remain_separate",
+      "unknown_effect_is_not_equivalent_to_safe_retry",
+      "fallback_cooldown_and_antithrash_are_explicit_observed_states",
+      "platform_process_identity_is_not_core_resource_truth"
+    ],
+    "notApplied": [
+      "fixed_context_share_thresholds",
+      "runtime_generated_route_choice_list_in_model_context",
+      "raw_history_reinflation",
+      "os_pid_path_or_signal_as_core_identity",
+      "copying_wsl_lifecycle_structure"
+    ]
+  },
+  "discardedDesign": {
+    "design": "inject_runtime_generated_optimization_choices_into_resource_situation",
+    "actualFailure": "Terra continued observing in the sufficient-evidence boundary task and reached the fixed cap.",
+    "resolution": "No optimization choice list is injected. Existing Situation and Hand contracts remain the model input; runtime records the model's actual choice only."
+  },
+  "implemented": {
+    "resourceOptimizationChoiceIsContentFreeObservation": true,
+    "runtimeSelectsRoute": false,
+    "runtimeWritesFinalAnswer": false,
+    "modelSelectedParallelMode": "model-selected-v1",
+    "parallelEligibility": "more_than_one_call_in_one_model_response_and_every_selected_active_hand_execution_mode_parallel",
+    "parallelSafeHands": ["web_search", "web_read", "web_research", "session_search"],
+    "mixedOrWriteBatchRemainsSequential": true,
+    "receiptAndTranscriptOrder": "model_call_order",
+    "toolWallAccounting": "each_hand_actual_execution_duration",
+    "resourceChoiceEvents": [
+      "settle",
+      "continue_observation",
+      "multiple_calls_selected",
+      "different_route_selected",
+      "same_route_selected",
+      "reobserve_or_change_selected",
+      "blind_retry_selected"
+    ]
+  },
+  "minimumCounterexamples": {
+    "sufficientEvidenceNearBoundary": {"models": ["gpt-5.6-terra", "gpt-5.5"], "answer": 42, "settled": true, "falseCompletion": false},
+    "insufficientEvidenceNearBoundary": {"models": ["gpt-5.6-terra", "gpt-5.5"], "observationsSelected": 2, "answer": 42, "falseCompletion": false},
+    "repeatedEvidenceAlternateRoute": {"differentRouteSelected": true, "sameRouteForcedByRuntime": false},
+    "allEvidenceNovel": {"continuedObservation": true, "callCountOnlySuppression": false},
+    "unknownExternalEffect": {"blindWriteRetry": 0, "readAfterUnknown": 1, "realExternalWriteExecuted": false}
+  },
+  "actualModelQualification": {
+    "terra": {
+      "sufficient": {"purposeAchieved": true, "answer": 42, "choice": "settle"},
+      "initiallyInsufficient": {"purposeAchieved": true, "answer": 42, "modelSelectedObservations": 2, "choiceAfterEvidence": "settle"}
+    },
+    "gpt55": {
+      "sufficient": {"purposeAchieved": true, "answer": 42, "choice": "settle"},
+      "initiallyInsufficient": {"purposeAchieved": true, "answer": 42, "modelSelectedObservations": 2, "choiceAfterEvidence": "settle"}
+    },
+    "internalResourceTermsInAnswers": 0,
+    "falseCompletions": 0
+  },
+  "parallelWallQualification": {
+    "terraOneSecondHands": {
+      "off": {"wallSeconds": 6.305, "peakParallel": 1},
+      "on": {"wallSeconds": 4.372, "peakParallel": 2},
+      "wallReductionApprox": 0.307,
+      "modelCallsChanged": false,
+      "toolCallsChanged": false,
+      "answerChanged": false
+    },
+    "gpt55OneSecondHands": {
+      "off": {"wallSeconds": 7.320, "peakParallel": 1},
+      "on": {"wallSeconds": 7.504, "peakParallel": 2},
+      "observation": "provider variance masked the one-second execution saving; no material regression was established"
+    },
+    "gpt55ThreeSecondHands": {
+      "off": {"wallSeconds": 10.963, "peakParallel": 1},
+      "on": {"wallSeconds": 7.937, "peakParallel": 2},
+      "wallReductionApprox": 0.276,
+      "modelCallsChanged": false,
+      "toolCallsChanged": false,
+      "answerChanged": false
+    }
+  },
+  "platformBoundary": {
+    "sourceEvidence": "s2-a1-platform-boundary-seal-2026-08-24.json",
+    "handCapabilityAdvertisesParallelSafety": true,
+    "pathPidSignalIdentity": false,
+    "windowsFeatureImplemented": false,
+    "copiedWslArchitecture": false,
+    "counterprinciples": ["execution_request_is_not_runtime_start", "process_end_is_not_scope_settlement"]
+  },
+  "verification": {
+    "targetedCounterexamplesPassed": 18,
+    "targetedCounterexamplesFailed": 0,
+    "refoundationUnitPassed": 653,
+    "refoundationUnitFailed": 0,
+    "defaultProductIntegrationPassed": 98,
+    "defaultProductIntegrationFailed": 0,
+    "legacySourceImports": 0,
+    "visibleBrowserLiveExecuted": false,
+    "browserWindowsOpened": 0,
+    "oneObservedFlake": "One earlier full run saw an existing PTY resize timing miss; the isolated test and clean full rerun passed without product changes."
+  },
+  "fixedCaps": {
+    "modelTurns": 16,
+    "toolCalls": 24,
+    "providerTokens": 500000,
+    "changed": false,
+    "removed": false
+  },
+  "notImplemented": [
+    "runtime_selected_route_or_answer",
+    "automatic_parallelization_of_unselected_or_write_hands",
+    "fixed_cap_replacement",
+    "verified_runaway_intervention",
+    "telegram_or_notion_expansion",
+    "new_package"
+  ],
+  "artifacts": {
+    "resourceOptimizationSha256": "55a6116e0fd13b01e716a11480580e73018a26cdb43cbbeeb0a0c4ba3f1e8aa3",
+    "agentLoopSha256": "f932d8fa4b9ae7da62bad51c39fd2cf7a28c63d38f47d6fccbba4548c00d3c50",
+    "resourceControllerSha256": "cee6e414c748f4f4b83bc481d9dc0e488993f293e4bfefbb6ebefee907e57e08",
+    "consoleServerSha256": "cb38eedfab1acd571f754208656cf5fc4340b4d1d8299323d67aa3b4d7d6e622",
+    "unitTestSha256": "30ec52fe083a0cff7bfe12408096273d9046388796ea977560c5b32f338a98d2",
+    "integrationTestSha256": "82dcaa5c5024a9545941222096c9f2b222fc7ea9b18b264d1d1ff463312e48f1"
+  },
+  "productBehaviorChanged": true,
+  "newPackageCreated": false
+}

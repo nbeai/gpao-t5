@@ -363,6 +363,7 @@ export function makeWebReadTool({
   if (typeof fetchImpl !== 'function') throw new TypeError('fetch implementation is required');
   return {
     name: 'web_read',
+    executionMode: 'parallel',
     capabilityGroup: 'web_observation',
     relatedTools: ['browser'],
     searchTerms: ['exact public URL page content static read', '정확한 주소 페이지 읽기'],

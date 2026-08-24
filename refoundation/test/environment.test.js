@@ -19,7 +19,7 @@ test('정본은 제품·현재 계획·1차 역사·작업 규율로 분리된�
   assert.match(product, /개선·교체·비활성·제거/);
   assert.match(product, /Core와 사용자별로 성장하는\s*Capability Layer를 분리/);
   assert.match(product, /필요한 능력만 갖추고 개선·정리하는 적응성/);
-  assert.match(plan, /현재 Gate: `S2-A1 RESOURCE CONTROL — A1-3 COMPLETE · A1-4 READY`/);
+  assert.match(plan, /현재 Gate: `S2-A1 RESOURCE CONTROL — A1-4 COMPLETE · A1-5 READY`/);
   assert.match(plan, /A1-2 anomaly shadow — COMPLETE\s*→ S2-A2 Information Control\s*→ A1-3/u);
   assert.match(plan, /상태: `SECOND_COMPLETION_ACTIVE`/);
   assert.match(history, /상태: `FIRST_COMPLETE_REFERENCE`/);

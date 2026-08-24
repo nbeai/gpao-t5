@@ -236,6 +236,7 @@ export function makeConsoleServer({
   informationControl = 'research-first-v1',
   conversationRelevance = 'user-source-latest-v1',
   resourceSituationMode = 'current-v1',
+  activeOptimizationMode = 'model-selected-v1',
   largeToolOutputMode = 'recoverable',
   conversationCheckpointMode = 'in-place-v0',
   checkpointTriggerBytes = 300_000,
@@ -280,6 +281,9 @@ export function makeConsoleServer({
   }
   if (!['off', 'current-v1'].includes(resourceSituationMode)) {
     throw new TypeError('unsupported resource situation mode');
+  }
+  if (!['off', 'model-selected-v1'].includes(activeOptimizationMode)) {
+    throw new TypeError('unsupported active optimization mode');
   }
   if (!['off', 'in-place-v0'].includes(conversationCheckpointMode)) {
     throw new TypeError('unsupported conversation checkpoint mode');
@@ -1129,6 +1133,7 @@ export function makeConsoleServer({
         historyInformation: projection.information,
         focusToolSurface: informationControl === 'research-first-v1',
         resourceSituationMode,
+        activeOptimizationMode,
         onEvent: async (event) => {
           if (event.type === 'model_start') {
             await run.append({
@@ -1152,6 +1157,16 @@ export function makeConsoleServer({
             await run.append({
               type: 'resource_situation_built', stepId: `resource-situation-${event.turn}`,
               payload: { turn: event.turn, bytes: event.bytes, situation: event.situation },
+            });
+          } else if (event.type === 'resource_optimization_choice') {
+            await run.append({
+              type: 'resource_optimization_choice', stepId: `resource-choice-${event.turn}`,
+              payload: { turn: event.turn, choice: event.choice, toolCalls: event.toolCalls },
+            });
+          } else if (event.type === 'resource_parallel_batch') {
+            await run.append({
+              type: 'resource_parallel_batch', stepId: `resource-parallel-${event.turn}`,
+              payload: { turn: event.turn, toolCalls: event.toolCalls, tools: event.tools },
             });
           } else if (event.type === 'model_context') {
             await run.append({

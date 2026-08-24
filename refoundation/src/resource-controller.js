@@ -273,7 +273,7 @@ class ResourceRun {
     };
   }
 
-  async observeTool({ turn, toolCallId, name, outcome, startedAt, evidenceFingerprint = null }) {
+  async observeTool({ turn, toolCallId, name, outcome, startedAt, wallMs = null, evidenceFingerprint = null }) {
     if (this.degraded) return;
     this.resourceShadow.toolCalls += 1;
     let evidence = 'none';
@@ -292,7 +292,10 @@ class ResourceRun {
     });
     await this.ledger.observe({
       scopeId: toolScopeId, dedupeKey: `tool-observed:${toolScopeId}`,
-      resources: { toolCalls: 1, wallMs: Math.max(0, this.controller.now() - startedAt) },
+      resources: {
+        toolCalls: 1,
+        wallMs: Number.isFinite(wallMs) ? Math.max(0, wallMs) : Math.max(0, this.controller.now() - startedAt),
+      },
       facts: { outcome, evidence },
     });
     await this.ledger.closeScope({

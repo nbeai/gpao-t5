@@ -2,6 +2,9 @@ import { evidenceFingerprint } from './resource-evidence.js';
 import { compactDuplicateEvidence } from './information-control.js';
 import { measureModelInformation } from './information-context.js';
 import { resourceSituationBlock, resourceSituationTransitionKey } from './resource-situation.js';
+import {
+  observeResourceOptimizationChoice,
+} from './resource-optimization.js';
 
 const DEFAULT_MAX_MODEL_TURNS = 16;
 const DEFAULT_MAX_TOOL_CALLS = 24;
@@ -218,6 +221,7 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [],
  *   historyInformation?:object,
  *   focusToolSurface?:boolean,
  *   resourceSituationMode?:'off'|'current-v1',
+ *   activeOptimizationMode?:'off'|'model-selected-v1',
  *   onEvent?:(event:object)=>void|Promise<void>,
  * }} input
  */
@@ -233,6 +237,7 @@ export async function runAgent({
   historyInformation = {},
   focusToolSurface = false,
   resourceSituationMode = 'current-v1',
+  activeOptimizationMode = 'model-selected-v1',
   onEvent,
 }) {
   if (typeof request !== 'string' || !request.trim()) throw new TypeError('request is required');
@@ -243,6 +248,9 @@ export async function runAgent({
   }
   if (!['off', 'current-v1'].includes(resourceSituationMode)) {
     throw new TypeError('unsupported resource situation mode');
+  }
+  if (!['off', 'model-selected-v1'].includes(activeOptimizationMode)) {
+    throw new TypeError('unsupported active optimization mode');
   }
 
   const registry = new Map();
@@ -333,6 +341,12 @@ export async function runAgent({
         });
       },
     }));
+    if (situationBlock) await onEvent?.({
+      type: 'resource_optimization_choice', turn: modelTurns,
+      ...observeResourceOptimizationChoice({
+        response, lastReceipt: receipts.at(-1) ?? null, situation,
+      }),
+    });
     modelCalls.push({
       turn: modelTurns,
       ...(response.responseId ? { responseId: response.responseId } : {}),
@@ -388,37 +402,75 @@ export async function runAgent({
       return { status: 'completed', answer: response.text, transcript, receipts, modelCalls, modelTurns };
     }
 
-    for (const call of response.toolCalls) {
-      if (signal?.aborted) return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
-      await onEvent?.({
-        type: 'tool_start', turn: modelTurns, toolCallId: String(call?.id ?? ''),
-        name: call?.name, args: structuredClone(call?.args ?? {}),
-      });
-      const toolResourceStartedAt = Date.now();
-      const requested = requestedCall(call);
-      toolCalls += 1;
-      if (toolCalls > maxToolCalls) {
-        const error = new Error('run tool-call budget exceeded');
-        error.reason = 'run_resource_budget_exceeded';
-        error.resource = 'tool_calls'; error.used = toolCalls; error.limit = maxToolCalls;
-        throw error;
+    const parallelSelected = activeOptimizationMode === 'model-selected-v1'
+      && response.toolCalls.length > 1 && response.toolCalls.every((call) => (
+        activeTools.has(String(call?.name ?? ''))
+        && registry.get(String(call?.name ?? ''))?.executionMode === 'parallel'
+      ));
+    let parallelResults = null;
+    if (parallelSelected) {
+      const prepared = [];
+      for (const call of response.toolCalls) {
+        if (signal?.aborted) return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
+        await onEvent?.({ type: 'tool_start', turn: modelTurns, toolCallId: String(call?.id ?? ''),
+          name: call?.name, args: structuredClone(call?.args ?? {}) });
+        const requested = requestedCall(call); toolCalls += 1;
+        if (toolCalls > maxToolCalls) {
+          const error = new Error('run tool-call budget exceeded');
+          error.reason = 'run_resource_budget_exceeded';
+          error.resource = 'tool_calls'; error.used = toolCalls; error.limit = maxToolCalls;
+          throw error;
+        }
+        const fingerprint = JSON.stringify([requested.name, requested.args]);
+        const repetitions = repeatedCalls.get(fingerprint) ?? 0;
+        if (repetitions >= 3) {
+          const error = new Error('same tool call repeated without progress');
+          error.reason = 'repeated_tool_call_without_progress'; error.toolName = requested.name; throw error;
+        }
+        repeatedCalls.set(fingerprint, repetitions + 1);
+        prepared.push({ call, requested, repetitions });
       }
-      const fingerprint = JSON.stringify([requested.name, requested.args]);
-      const repetitions = repeatedCalls.get(fingerprint) ?? 0;
-      if (repetitions >= 3) {
-        const error = new Error('same tool call repeated without progress');
-        error.reason = 'repeated_tool_call_without_progress';
-        error.toolName = requested.name;
-        throw error;
+      parallelResults = await Promise.all(prepared.map(async (item) => {
+        const toolResourceStartedAt = Date.now();
+        const receipt = item.repetitions >= 2 ? {
+          toolCallId: item.requested.id, requestedCall: item.requested, actualCall: null,
+          outcome: 'not_executed', result: { state: 'repeated_call_stopped', occurrences: item.repetitions + 1 },
+        } : await executeCall(item.call, registry, signal, activeTools, receipts, resourceRun);
+        return {
+          ...item, receipt, toolResourceStartedAt,
+          toolResourceWallMs: Math.max(0, Date.now() - toolResourceStartedAt),
+        };
+      }));
+      await onEvent?.({ type: 'resource_parallel_batch', turn: modelTurns,
+        toolCalls: parallelResults.length, tools: parallelResults.map((item) => item.requested.name) });
+    }
+
+    for (const [callIndex, call] of response.toolCalls.entries()) {
+      let requested; let receipt; let toolResourceStartedAt; let toolResourceWallMs = null;
+      if (parallelResults) {
+        ({ requested, receipt, toolResourceStartedAt, toolResourceWallMs } = parallelResults[callIndex]);
+      } else {
+        if (signal?.aborted) return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
+        await onEvent?.({ type: 'tool_start', turn: modelTurns, toolCallId: String(call?.id ?? ''),
+          name: call?.name, args: structuredClone(call?.args ?? {}) });
+        toolResourceStartedAt = Date.now(); requested = requestedCall(call); toolCalls += 1;
+        if (toolCalls > maxToolCalls) {
+          const error = new Error('run tool-call budget exceeded');
+          error.reason = 'run_resource_budget_exceeded';
+          error.resource = 'tool_calls'; error.used = toolCalls; error.limit = maxToolCalls; throw error;
+        }
+        const fingerprint = JSON.stringify([requested.name, requested.args]);
+        const repetitions = repeatedCalls.get(fingerprint) ?? 0;
+        if (repetitions >= 3) {
+          const error = new Error('same tool call repeated without progress');
+          error.reason = 'repeated_tool_call_without_progress'; error.toolName = requested.name; throw error;
+        }
+        repeatedCalls.set(fingerprint, repetitions + 1);
+        receipt = repetitions >= 2 ? {
+          toolCallId: requested.id, requestedCall: requested, actualCall: null,
+          outcome: 'not_executed', result: { state: 'repeated_call_stopped', occurrences: repetitions + 1 },
+        } : await executeCall(call, registry, signal, activeTools, receipts, resourceRun);
       }
-      repeatedCalls.set(fingerprint, repetitions + 1);
-      const receipt = repetitions >= 2 ? {
-        toolCallId: requested.id,
-        requestedCall: requested,
-        actualCall: null,
-        outcome: 'not_executed',
-        result: { state: 'repeated_call_stopped', occurrences: repetitions + 1 },
-      } : await executeCall(call, registry, signal, activeTools, receipts, resourceRun);
       const visualAttachments = receipt._modelAttachments ?? [];
       delete receipt._modelAttachments;
       receipts.push(receipt);
@@ -488,6 +540,7 @@ export async function runAgent({
       await resourceRun?.observeTool({
         turn: modelTurns, toolCallId: receipt.toolCallId || `${modelTurns}:${call?.name}`,
         name: call?.name ?? 'unknown', outcome: receipt.outcome, startedAt: toolResourceStartedAt,
+        ...(toolResourceWallMs == null ? {} : { wallMs: toolResourceWallMs }),
         evidenceFingerprint: currentEvidenceFingerprint,
       }).catch(() => {});
       if (receipt.outcome === 'failed') {

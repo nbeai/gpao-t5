@@ -64,6 +64,9 @@ test('콘솔은 자원 전환 요청에만 최신 Situation을 넣고 Conversati
     assert.equal(third.legacyFixedBoundaries.changedBySituation, false);
     const run = await server.runLedger.read(reply.runId);
     assert.equal(run.events.filter((event) => event.type === 'resource_situation_built').length, 1);
+    const choice = run.events.filter((event) => event.type === 'resource_optimization_choice');
+    assert.equal(choice.length, 1);
+    assert.deepEqual(choice[0].payload, { turn: 3, choice: 'settle', toolCalls: 0 });
     const conversation = await server.conversationLedger.read(session.id);
     assert.doesNotMatch(JSON.stringify(conversation), /T5 CURRENT RESOURCE SITUATION|t5\.resource-situation\.v1/u);
     assert.doesNotMatch(reply.reply, /Resource|token|model turn/u);

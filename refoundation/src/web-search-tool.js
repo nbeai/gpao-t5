@@ -79,6 +79,7 @@ export function makeWebSearchTool({ providers = [] } = {}) {
   }
   return {
     name: 'web_search',
+    executionMode: 'parallel',
     capabilityGroup: 'web_observation',
     searchTerms: [
       'public web candidate source list only without reading pages',

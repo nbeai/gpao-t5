@@ -32,6 +32,7 @@ export function makeWebResearchTool({ searchTool, readTool, timeoutMs = 15_000 }
   if (!searchTool || !readTool) throw new TypeError('web research tools are required');
   return {
     name: 'web_research',
+    executionMode: 'parallel',
     capabilityGroup: 'web_observation',
     searchTerms: ['multi source research', 'current trends evidence', '웹 리서치', '시장 조사', '여러 출처'],
     description: 'Research a public-web question through 1 to 4 focused search queries and parallel reading of 3 to 6 distinct source domains. For a broad question, provide several short angle queries in one call instead of repeating this tool. Returns observed source text and explicit failures; it does not write the conclusion for you. This is a completed bounded research stage: synthesize from its readable sources instead of opening individual search/read loops. Use this for multi-source research, current trends, comparisons, or evidence from several sources; use web_read directly for one exact URL.',

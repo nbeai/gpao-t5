@@ -1,7 +1,7 @@
 # T5 Second Completion — Current Development Source
 
 상태: `SECOND_COMPLETION_ACTIVE`
-현재 Gate: `S2-A1 RESOURCE CONTROL — A1-3 COMPLETE · A1-4 READY`
+현재 Gate: `S2-A1 RESOURCE CONTROL — A1-4 COMPLETE · A1-5 READY`
 기준 source: `81f29d23`
 배포 상태: `0.1.8 REVOKED · 새 package 생성 금지`
 
@@ -245,7 +245,7 @@ A1-1 exact accounting shadow — COMPLETE
 → A1-2 anomaly shadow — COMPLETE
 → S2-A2 Information Control
 → A1-3 모델에 Resource Situation 공급 — COMPLETE
-→ A1-4 능동 최적화
+→ A1-4 능동 최적화 — COMPLETE
 → A1-5 검증된 병적 폭주에만 최후 개입
 ```
 
@@ -261,6 +261,15 @@ constitution prefix, Conversation·Run canonical, 사용자 답은 바꾸지 않
 그대로다. 실제 2-turn 경계에서 gpt-5.5는 Situation off일 때 중단됐지만 on일 때 같은 경계에서 정확히 완료했고,
 Terra는 off/on 모두 무회귀였다. 근거:
 `refoundation/evidence/s2-a1-3-resource-situation-2026-08-24.json`
+
+A1-4는 Situation에 runtime이 만든 최적화 선택지를 추가하지 않고, 모델이 기존 목적·Evidence·Hand를
+보고 실제로 한 settle·continue·route change·reobserve·multiple-call 선택만 content-free로 관측한다.
+모델이 한 응답에서 함께 선택한 Hand 전부가 명시적 `parallel-safe`인 읽기일 때만 동시 실행하고,
+하나라도 쓰기·순차 실행이면 원래 순서를 유지한다. Receipt·transcript·tool wall 회계는 모델 호출
+순서와 각 Hand의 실제 실행시간을 보존한다. 경계 임박 충분/불충분 Evidence를 Terra·gpt-5.5에서
+구분했고, 3초 독립 Hand gpt-5.5 A/B는 10.963초에서 7.937초로 줄면서 정답·model/tool call을
+유지했다. unknown 쓰기는 동일 쓰기 재실행 대신 현실 재관측으로 닫혔다. 고정 상한·중단·답 저작권은
+바꾸지 않았다. 근거: `refoundation/evidence/s2-a1-4-active-optimization-2026-08-24.json`
 
 A1-1은 모든 model adapter의 provider fetch 전 durable reservation, retry attempt 분리, provider usage commit,
 crash·cancel unknown, tool wall/call 관측, checkpoint·memory flush·visual observer·automation main과 hosted search
@@ -489,10 +498,10 @@ AND 실행 가능한 미시도 route가 남은 blocked 0
 
 ## 8. 현재 작업 시작점
 
-S2-A0, A1-1, A1-2, S2-A2와 A1-3 Resource Situation을 완료했다. 다음 한 작업은 A1-4 능동 최적화다.
-HP-02·03의 현재 Situation과 모델 선택을 사용해 batch·parallel·projection·reuse·method·effort 후보를 모델이
-선택하게 하되, runtime이 도구 route나 답을 대신 결정하지 않는다. 현재 16 model turns·24 tools·500K provider
-tokens 고정 상한을 먼저 제거하거나 다른 고정 숫자로 바꾸지 않는다.
+S2-A0, A1-1, A1-2, S2-A2, A1-3과 A1-4를 완료했다. 다음 한 작업은 A1-5 검증된 병적 폭주의 최후
+개입이다. 새 Evidence가 계속되는 HP-02·03의 능력·깊이·복구를 유지하면서, 검증된 deterministic
+반복·effect-unknown 재실행·새 Evidence 없는 runaway에만 마지막 개입을 자격화한다. 현재 16 model
+turns·24 tools·500K provider tokens를 검증 없이 삭제하거나 다른 고정 숫자로 바꾸지 않는다.
 
 A1-2 완료 범위:
 

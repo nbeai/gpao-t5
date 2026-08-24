@@ -10,7 +10,7 @@
   "secondCompletion": {
     "active": true,
     "sourceOfTruth": "T5-SECOND-COMPLETION.md",
-    "currentGate": "S2-A1_RESOURCE_CONTROL_A1_4_READY",
+    "currentGate": "S2-A1_RESOURCE_CONTROL_A1_5_READY",
     "firstProductChange": "shadow_resource_accounting_and_control",
     "a0IncidentFixtures": {
       "status": "complete",
@@ -57,6 +57,14 @@
       "evidence": "s2-a1-3-resource-situation-2026-08-24.json",
       "modelContextChanged": true,
       "runtimeIntervention": false,
+      "fixedCapsChanged": false
+    },
+    "a1ActiveOptimization": {
+      "status": "complete",
+      "evidence": "s2-a1-4-active-optimization-2026-08-24.json",
+      "runtimeSelectsRoute": false,
+      "modelSelectedParallelSafeReads": true,
+      "canonicalOrderPreserved": true,
       "fixedCapsChanged": false
     },
     "humanPerformanceScenarios": {
@@ -123,6 +131,7 @@
       "fixedLowDefaultCaps": false,
       "shadowFirst": true,
       "modelReceivesResourceSituation": true,
+      "activeOptimizationQualified": true,
       "browserScopeTotalIsDirectBrowserCost": false,
       "runtimeIntervention": [
         "physical_capacity",
@@ -191,6 +200,6 @@
       "NewConnector"
     ]
   },
-  "productBehaviorChanged": false,
+  "productBehaviorChanged": true,
   "newPackageAllowed": false
 }
