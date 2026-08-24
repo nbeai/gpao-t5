@@ -1,0 +1,104 @@
+{
+  "schema": "t5.s2-a1-accounting-reference-seal.v1",
+  "recordedAt": "2026-08-24T15:03:18+09:00",
+  "gate": "S2-A1_RESOURCE_CONTROL",
+  "scope": [
+    "request_response_usage_scope",
+    "provider_retry_tool_internal_child_deduplication",
+    "parallel_crash_cancel_reservation_settlement",
+    "model_and_user_surface_isolation",
+    "measurement_overhead"
+  ],
+  "sources": {
+    "openClaw": {
+      "repository": "https://github.com/openclaw/openclaw",
+      "commit": "cc2993c727229103a185dc845e62894a59e5bd8d",
+      "files": [
+        {"name":"usage-accumulator.ts","sha256":"17255de64b9eca2740d25ca588e8316c3d53f27d009d362f715ff14715a4d2ed"},
+        {"name":"attempt-normalization.ts","sha256":"718ee217c206636e188d702299812557f371027db3caefb35ad5295a1eccb6d5"},
+        {"name":"attempt-prompt-preflight.ts","sha256":"55a840b162c01b5f96db30b140c9296eb72223e1907c58af08d67ac0e8a33475"},
+        {"name":"session-tool-result-guard.ts","sha256":"9944fff494ca3c447760ee14b3a7c8d4a4816d8baf42630806124491f8578d6d"}
+      ]
+    },
+    "hermes": {
+      "repository": "https://github.com/NousResearch/hermes-agent",
+      "commit": "91e867631e9d2eb9fbd69edd4459475d38070979",
+      "files": [
+        {"name":"aux_accounting.py","sha256":"1ce741a528bbb9182c03fe486181f5c8d6f8d103ca859b864a4a274991cd2421"},
+        {"name":"background_review.py","sha256":"46f406b069471a3e7523d48dacfafcd658849e8a8af240e45e18682a938a8810"},
+        {"name":"conversation_loop.py","sha256":"8ea02d396288812514a664a34bad8944c3f573087293e365cd72e6ad9f744d92"},
+        {"name":"tool_guardrails.py","sha256":"ba93f044f61491065b3005f184eeedd0b04ac59fc1c4b3fb9f363b6a67da0c79"},
+        {"name":"subagent_lifecycle.py","sha256":"2f7068fc7523ff9f025d883abc8a8817a275803fa70774da3f5514271a1625a1"}
+      ]
+    },
+    "codex": {
+      "observedVersion": "codex-cli 0.148.0-alpha.9",
+      "protocolSchemaSha256": "035209bdc9f04a277a896465eb1368fd2ded92954cd2dbafc28417133f43de82",
+      "observedContracts": [
+        "thread_and_turn_identity",
+        "thread_token_usage_last_and_total",
+        "turn_correlated_token_usage_notification",
+        "context_compaction_as_separate_thread_item",
+        "turn_interrupt_separate_from_completion"
+      ],
+      "officialDocs": [
+        "https://developers.openai.com/api/reference/cli/resources/responses/methods/create",
+        "https://developers.openai.com/api/reference/java/resources/responses/methods/compact"
+      ]
+    },
+    "claudeCode": {
+      "officialDocs": [
+        "https://code.claude.com/docs/en/agent-sdk/cost-tracking",
+        "https://code.claude.com/docs/en/statusline",
+        "https://code.claude.com/docs/en/sub-agents"
+      ],
+      "observedContracts": [
+        "query_step_session_usage_scopes",
+        "parallel_message_id_deduplication",
+        "top_level_usage_excludes_subagents",
+        "model_usage_includes_whole_tree",
+        "crash_usage_can_be_zero_or_partial",
+        "current_context_usage_is_not_session_cumulative_usage"
+      ]
+    }
+  },
+  "adopt": [
+    "hierarchical_scope_with_single_parent_rollup",
+    "reservation_before_provider_fetch",
+    "one_commit_per_provider_response_identity",
+    "retry_attempts_are_not_logical_calls",
+    "child_and_auxiliary_scopes_are_explicit",
+    "explicit_double_count_exclusions",
+    "context_pressure_separate_from_billable_cumulative_usage",
+    "missing_or_crash_usage_is_unknown_not_zero",
+    "content_free_bounded_accounting_events",
+    "accounting_hidden_from_model_and_default_user_answer",
+    "constant_time_foreground_append_and_derived_rollups"
+  ],
+  "reject": [
+    "fixed_low_turn_tool_token_or_child_caps_as_accounting",
+    "tool_name_or_argument_similarity_as_retry_truth",
+    "silent_best_effort_usage_loss",
+    "estimated_cost_as_billing_or_authority_truth",
+    "provider_aliases_as_canonical_schema",
+    "model_or_user_visible_accounting_footer_by_default",
+    "full_transcript_scan_per_call",
+    "raw_prompt_tool_result_or_error_duplication",
+    "parent_rollup_without_child_identity",
+    "double_counting_already_aggregated_fanout"
+  ],
+  "firstImplementationBoundary": {
+    "stage": "A1-1_exact_accounting_shadow",
+    "activeControl": false,
+    "modelContextChanged": false,
+    "userAnswerChanged": false,
+    "productBehaviorChanged": false
+  },
+  "verification": {
+    "referenceContractTestsPassed": 3,
+    "refoundationTestsPassed": 600,
+    "refoundationTestsFailed": 0,
+    "legacySourceImports": 0
+  },
+  "newPackageCreated": false
+}

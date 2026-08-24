@@ -182,6 +182,36 @@ Browser가 포함된 Run이나 model call의 전체 사용량을 Browser 직접 
 memory flush·visual observation·adapter retry·tool 내부 호출도 각 scope에서 관측하고 상위 scope에는 중복 없이
 정산한다.
 
+#### A1-0 — Accounting Reference Seal — COMPLETE
+
+A1-1 전에 OpenClaw `cc2993c7`, Hermes `91e86763`, 설치된 Codex app-server protocol과 OpenAI·Claude 공식
+usage 계약을 좁게 확인했다. 기능을 복제하지 않고 다음 원리만 채택한다.
+
+- `Session → Run → logical call → execution attempt` identity를 분리하고 retry도 실제 provider 요청마다 별도
+  attempt로 기록한 뒤 상위 scope에는 한 번만 rollup
+- provider fetch 전에 reservation identity를 지속하고, 응답·실패·cancel·crash는 같은 identity의 commit·
+  release·unknown 중 하나로 정산
+- 병렬 stream/message가 같은 provider response identity와 usage를 반복하면 한 번만 commit
+- context의 현재 크기, 호출별 provider usage, Run 누적 usage, child·auxiliary usage를 같은 숫자로 합치지 않음
+- checkpoint·compaction·memory flush·visual observation·provider retry·tool 내부 model call·child call은 각자
+  child scope를 가지며 parent에는 명시적 관계로 한 번만 귀속
+- provider usage가 없거나 crash 복구로 완전한 합계가 없으면 0이 아니라 unknown; 로컬 cost 계산은 estimate
+- 회계 event는 content-free bounded numeric·category·identity만 저장하고 prompt·tool args/result·오류 원문을
+  복제하지 않으며, 모델 Context와 사용자 답에는 기본 주입하지 않음
+- 전경 hot path는 전체 원장 scan 없이 O(1) append·in-memory counter만 사용하고, rollup·disk maintenance는
+  파생 비동기 작업으로 분리; 계측 실패가 사용자 답을 바꾸거나 내부 문장을 노출하지 않음
+
+다음은 채택하지 않는다.
+
+- 낮은 고정 turn·tool·token·child 상한과 동일 tool 이름만으로 만드는 anti-thrash를 회계 계약으로 사용
+- 누락된 retry·child·crash usage를 0으로 기록하거나 parent total에 추정으로 섞음
+- provider별 alias를 그대로 canonical schema로 확산하거나 estimated cost를 청구·권한 진실로 사용
+- accounting footer·내부 scope·attempt를 모델 prompt나 기본 사용자 답에 추가
+- auxiliary accounting을 best-effort로 조용히 버리거나, 이미 main loop에 든 child usage를 다시 합산
+- 매 호출마다 transcript·Run 전체를 다시 읽거나 원문 payload를 회계 원장에 중복 저장
+
+근거: `refoundation/evidence/s2-a1-accounting-reference-seal-2026-08-24.json`
+
 제어 루프:
 
 ```text
