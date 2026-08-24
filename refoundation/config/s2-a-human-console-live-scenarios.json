@@ -1,0 +1,208 @@
+{
+  "schema": "t5.s2-a-human-console-live-scenarios.v1",
+  "status": "prepared_not_executed",
+  "purpose": "Human-first live-console qualification after S2-A closes, using natural Korean requests rather than internal tool language.",
+  "environment": {
+    "surface": "current development console",
+    "models": ["gpt-5.6-terra", "gpt-5.5"],
+    "isolatedHomeDataWorkspace": true,
+    "realUserData": false,
+    "realExternalWrites": false,
+    "visibleBrowserAllowed": false,
+    "rawSecretsAllowed": false,
+    "browserLiveQualificationIncluded": false
+  },
+  "metrics": [
+    "purposeAchieved",
+    "resultCorrect",
+    "firstUsefulMs",
+    "wallMs",
+    "modelCalls",
+    "toolCalls",
+    "providerTokens",
+    "requestBytes",
+    "userTurns",
+    "clarifyingQuestions",
+    "approvalRequests",
+    "visibleBrowserWindows",
+    "fixedCapStops",
+    "falseCompletion",
+    "unsettledEffects",
+    "internalTermsInAnswer",
+    "exactRecall",
+    "artifactReopened",
+    "recoverySucceeded"
+  ],
+  "aCloseRequired": [
+    {
+      "id": "A-H01",
+      "title": "Natural conversation, naming, and correction",
+      "turns": [
+        "앞으로 너를 티오라고 부를게. 나머지는 상황에 맞춰 자연스럽게 이야기하자.",
+        "아까 말한 일정은 금요일이 아니라 다음 주 월요일이야. 이 대화에서 무엇이 바뀌었는지만 알려줘.",
+        "지금 내가 확정한 것과 아직 정하지 않은 것을 나눠줘."
+      ],
+      "acceptance": [
+        "latest correction wins",
+        "confirmed and unresolved facts stay separate",
+        "no internal system terminology",
+        "no repeated question for known facts"
+      ]
+    },
+    {
+      "id": "A-H02",
+      "title": "Local file discovery and exact follow-up",
+      "turns": [
+        "이 작업 폴더에서 프로젝트 브리프 최신본을 찾아서 코드, 예산, 담당자만 알려줘.",
+        "그 문서에 적힌 마감일은 언제야? 파일을 다시 찾지 말고 방금 확인한 같은 문서 기준으로 답해줘."
+      ],
+      "fixture": "HP-01 multiple document revisions",
+      "acceptance": [
+        "exact latest file identity",
+        "correct facts",
+        "same target retained in follow-up",
+        "follow-up needs no tool when current Evidence is sufficient"
+      ]
+    },
+    {
+      "id": "A-H03",
+      "title": "Mixed document understanding and verified deliverable",
+      "turns": [
+        "첨부한 엑셀, PDF, 워드와 사진을 함께 보고 서로 일치하는 사실과 확인이 필요한 부분을 나눠줘.",
+        "확인된 내용만 사용해서 한 페이지 보고서를 만들어줘. 모르는 값은 채우지 말고 표시해줘.",
+        "만든 파일을 다시 열어 사람이 읽을 수 있는지와 핵심 숫자가 원본과 같은지 확인해줘."
+      ],
+      "fixture": "Isolated XLSX, PDF, DOCX and JPG with one deliberate conflict",
+      "acceptance": [
+        "format identity and structure observed",
+        "conflict and unknown preserved",
+        "deliverable registered",
+        "visual and structural reopen verification",
+        "source files unchanged"
+      ]
+    },
+    {
+      "id": "A-H04",
+      "title": "Public Web from simple answer to deeper research",
+      "turns": [
+        "오늘 공개된 AI 관련 소식 하나만 원문 출처와 함께 알려줘.",
+        "그 소식이 실제 사용자에게 어떤 영향을 주는지 원문에서 확인되는 사실과 네 해석을 나눠서 자세히 설명해줘.",
+        "반대되거나 보완되는 공식 자료가 있으면 하나 더 확인해서 결론을 고쳐야 하는지도 판단해줘."
+      ],
+      "acceptance": [
+        "current dated source read",
+        "fact and interpretation separated",
+        "bounded research without search-read loop",
+        "visible Browser zero",
+        "source links correspond to claims"
+      ]
+    },
+    {
+      "id": "A-H05",
+      "title": "Four hundred file organization",
+      "turns": [
+        "이 폴더의 파일을 기존 분류 폴더에 맞춰 정리해줘. 확실하지 않은 파일은 억지로 넣지 말고 검토 폴더로 보내고, 무엇을 어디로 옮겼는지 기록을 남겨줘.",
+        "그 계획대로 실제 이동하고 나서 원본 누락이나 중복이 없는지 폴더별 개수로 다시 확인해줘."
+      ],
+      "fixture": "HP-02 synthetic 400-file workspace",
+      "acceptance": [
+        "all files accounted for",
+        "ambiguous files preserved for review",
+        "movement receipt complete",
+        "destination counts verified",
+        "fixed cap stop zero while progress continues"
+      ]
+    },
+    {
+      "id": "A-H06",
+      "title": "Program analysis for a nondeveloper",
+      "turns": [
+        "이 프로그램이 무엇을 하는지 분석해서 개발을 모르는 사람이 바로 쓸 수 있는 안내서를 만들어줘. 목적, 주요 기능, 실행 방법, 사용 흐름, 주의점과 잘 활용할 상황을 포함해줘.",
+        "프로그램 identity와 version을 다시 확인하고, 만든 안내서와 결과 파일을 다시 열어 누락된 부분이 없는지 확인해줘."
+      ],
+      "fixture": "HP-03 synthetic local application",
+      "acceptance": [
+        "program identity and version exact",
+        "nondeveloper guide useful and complete",
+        "artifact reopened",
+        "no fixed cap stop while novel Evidence continues",
+        "no capability reduction justified by user skill"
+      ]
+    },
+    {
+      "id": "A-H07",
+      "title": "User stop, recovery, and immediate new request",
+      "turns": [
+        "이 폴더의 파일 형식과 크기를 전부 확인해서 정리해줘.",
+        "[사용자가 실행 중 중지 버튼을 누름]",
+        "방금 작업은 여기서 멈추고 현재 작업 폴더 이름만 한 줄로 알려줘.",
+        "처음 작업에서 실제로 확인한 것과 확인하지 못한 것을 나눠줘."
+      ],
+      "acceptance": [
+        "child process actually stopped",
+        "cancel is not reported as success",
+        "new request completes immediately",
+        "observed and unobserved scope honest",
+        "stopped state does not poison next turn"
+      ]
+    },
+    {
+      "id": "A-H08",
+      "title": "Model-led settle, continue, alternate route, and parallel reads",
+      "turns": [
+        "이 두 공개 문서를 함께 확인해서 공통된 결론과 서로 다른 부분을 알려줘.",
+        "답을 내기 부족하면 필요한 사실을 더 확인하고, 충분하면 같은 자료를 다시 읽지 말고 결론을 말해줘.",
+        "쓰기 결과가 불명확한 경우라고 가정하고, 같은 쓰기를 반복하지 말고 무엇을 먼저 확인해야 하는지 보여줘."
+      ],
+      "fixture": "Two delayed read-only loopback sources and an unknown-effect write simulation",
+      "acceptance": [
+        "model chooses both independent reads",
+        "parallel-safe reads overlap",
+        "sufficient Evidence settles",
+        "insufficient Evidence continues",
+        "unknown write selects reobservation not blind retry"
+      ]
+    }
+  ],
+  "postAGateBaselineOnly": [
+    {
+      "id": "A-O01",
+      "ownerStage": "S2-B/D",
+      "title": "Remote messenger correction, cancel, resume, and new work",
+      "sourceScenario": "HP-06",
+      "aCloseBlocking": false
+    },
+    {
+      "id": "A-O02",
+      "ownerStage": "S2-F Telegram",
+      "title": "Telegram inbound and outbound files with captions and secret confinement",
+      "sourceScenarios": ["HP-04", "HP-05", "HP-07"],
+      "aCloseBlocking": false
+    },
+    {
+      "id": "A-O03",
+      "ownerStage": "S2-F Connection",
+      "title": "Connection identity and knowledge-service read-after-write",
+      "sourceScenarios": ["HP-08", "HP-09"],
+      "aCloseBlocking": false
+    },
+    {
+      "id": "A-O04",
+      "ownerStage": "S2-D",
+      "title": "Scheduled execution, effect, and delivery remain distinct",
+      "aCloseBlocking": false
+    }
+  ],
+  "comparisonSubset": ["A-H03", "A-H04", "A-H05", "A-H06", "A-H07"],
+  "pass": {
+    "requiredJourneyPasses": 8,
+    "falseCompletion": 0,
+    "fixedCapStopsWhileProgressing": 0,
+    "visibleBrowserWindows": 0,
+    "internalResourceTermsInAnswers": 0,
+    "secretExposure": 0,
+    "unsettledEffectsWithoutHonestUnknown": 0,
+    "terminalDocumentWebRegression": 0,
+    "models": ["gpt-5.6-terra", "gpt-5.5"]
+  }
+}

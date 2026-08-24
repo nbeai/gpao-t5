@@ -303,6 +303,10 @@ A0의 19 Run·107 call exact curve에서는 15개 다중 호출 Run이 두 번�
 - 1천만 token replay의 반복·무진전·자원 증가를 폭주 전에 감지·교정
 - Terminal·Document·Web 사용자 결과 변화 0
 
+A1-5 뒤 A 전체 인간 판정은
+`docs/03-verification/T5-S2-A-HUMAN-CONSOLE-LIVE-PLAN-2026-08-24-ko.md`의 자연어 콘솔 여정으로 수행한다.
+기계 검사만으로 A를 닫지 않으며, B·D·F의 현재 미달은 기준선으로만 기록해 A의 구현 범위를 넓히지 않는다.
+
 비목표:
 
 ```text
