@@ -1,8 +1,8 @@
 # T5 Second Completion — Current Development Source
 
 상태: `SECOND_COMPLETION_ACTIVE`
-현재 Gate: `S2-E HUMAN QUALIFICATION IN PROGRESS · S2-F MACHINE/MODEL QUALIFIED`
-기준 source: `540b2339`
+현재 Gate: `S2-E HUMAN REOPENED · S2-F HUMAN REOPENED`
+기준 source: `bb0cc0fb`
 배포 상태: `0.1.8 REVOKED · 새 package 생성 금지`
 
 이 문서는 T5 2차 완성의 유일한 현재 작업 계획이다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은
@@ -519,6 +519,12 @@ recovered로 정산하고, 성공 영수증에서 비밀·절대경로·원문 �
 후보 identity를 한 개의 직접 trial Hand로 공급하는 교정은 완료했다. 저장된 실제 모델 연결을 사용하는
 재자격은 저장소 실행 정책상 정상 개발 콘솔 통합 뒤 수행하며, 그 전에는 E 인간 완료로 승격하지 않는다.
 
+통합 뒤 Terra 인간 재자격에서도 결과 정확도·후보 생성·near-miss 격리는 성립했지만, 후보가 bounded
+method trace의 exact 절차를 보존하지 않고 재탐색 일반론으로 바뀌었다. 힌트 없는 관련 작업의
+`learning_trial view`는 0이었고 baseline 평균 5 turns·4 tools·10.779초보다 field가 6 turns·5 tools·
+12.703초로 악화해 승격하지 않았다. 0ms 연속 foreground와 reviewer의 새 Run 읽기 경합도 한 번 확인됐다.
+따라서 gpt-5.5·독립 3번째 성공·active·rollback은 열지 않고 E를 인간 미달로 유지한다.
+
 ### S2-F — Hand & Connected Reality
 
 Information Control·Work·Memory·Time·Learning 기반이 선 뒤, 실제 사용자 Episode가 연 Hand·공식 API·MCP·
@@ -530,6 +536,12 @@ connection truth → resource identity → authority → execution
 ```
 
 긴급 P0 복구 외의 넓은 Web·Connection·App 기능 확장은 앞선 정보 기반보다 먼저 열지 않는다.
+
+인간 종단 — REOPENED. Terra loopback에서 Telegram 4종 파일 수신·caption/reply, secret 이관·재시작,
+Notion 연결 identity·권한·resource set, verified write·exact readback과 불일치 unresolved는 통과했다. 그러나
+사용자가 지정한 기존 로컬 파일을 현재 Run의 output artifact로 등록하는 `attachment register_output`이
+두 번 실패해 공식 `sendDocument`와 message/file/hash receipt가 0이었다. 따라서 ACK unknown 인간 여정도
+미측정이며, `exact local file→managed artifact→provider sendDocument→delivery receipt` 경계를 다시 연다.
 
 ### S2-G — UI-only Hand — EXCLUDED FROM SECOND COMPLETION
 
@@ -584,8 +596,8 @@ AND 실행 가능한 미시도 route가 남은 blocked 0
 
 ## 8. 현재 작업 시작점
 
-S2-A~D는 승인된 종료점을 유지한다. S2-E 구현·기계·실제 모델 자격은 완료됐고 오너의 인간 종단 판정을
-진행 중이다. 그 대기 동안 오너가 연 S2-F는 다음 구현·기계·실제 모델 자격까지 완료했다.
+S2-A~D는 승인된 종료점을 유지한다. S2-E와 S2-F는 구현·기계·좁은 실제 모델 자격은 통과했지만 통합
+인간 종단에서 각각 실제 사용자 성능 미달이 확인돼 재개방됐다. G와 package는 계속 잠근다.
 
 ```text
 F Telegram:
@@ -610,10 +622,10 @@ T5 application·account·transport·permission·resource identity
 Terra·gpt-5.5 실제 verified-write 자격을 통과했다. 실제 모델 자격은 각각 8.1초·17.4초였고 write는
 각 1회, exact readback은 1회·2회였다. 가시 Browser 호출은 0이다.
 
-다음 한 작업은 F 코드를 더 넓히는 것이 아니다. S2-E 인간 종단 결과를 먼저 반영하고, 그 뒤 HP-04~09의
-Telegram attachment·artifact delivery·secret confinement·connection identity·Notion read-after-write를 실제
-사용자 시작점에서 검증한다. F 핵심 완료 문장을 깨는 결과는 observation으로 남기지 않고 해당 exact 경계를
-다시 연다.
+다음 작업은 두 경계를 섞지 않고 좁게 복구하는 것이다. E는 reviewer가 verified method trace를 실제 후보에
+보존하고 관련 자연어 Work가 별도 검색 없이 trial을 선택하는 경계를, F는 기존 로컬 파일의 exact output
+등록 실패 원인과 provider-owned sendDocument 연결을 먼저 닫는다. 각 Terra 인간 종단이 통과할 때만
+gpt-5.5로 확장하며, 수정 전에는 G·전체 테스터 회귀·package를 열지 않는다.
 
 현재 비목표와 제외 범위:
 

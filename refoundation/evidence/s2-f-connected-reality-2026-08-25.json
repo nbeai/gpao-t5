@@ -89,5 +89,23 @@
     "windowsFeatureImplemented": false,
     "wslShellSecretTransportUsed": false
   },
-  "passed": true
+  "humanQualification": {
+    "model": "gpt-5.6-terra",
+    "passed": false,
+    "telegramInboundFourFormats": true,
+    "captionAndReplyPreserved": true,
+    "secretExposures": 0,
+    "credentialMigrationAndRestart": true,
+    "notionConnectionIdentity": true,
+    "notionVerifiedWriteReadback": true,
+    "notionMismatchUnresolved": true,
+    "localFileRegisterOutputSucceeded": false,
+    "sendDocumentCalls": 0,
+    "deliveryReceipts": 0,
+    "ackUnknownHumanMeasured": false,
+    "gpt55Executed": false,
+    "visibleBrowserCalls": 0
+  },
+  "passed": false,
+  "status": "HUMAN_QUALIFICATION_FAILED_REOPENED"
 }

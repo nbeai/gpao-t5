@@ -25,12 +25,21 @@
       "sameDocumentTestsAtPrimaryWorkspace": { "passed": 12, "failed": 0 }
     },
     "actualModelRequalification": {
-      "executed": false,
-      "reason": "repository policy rejected automatic use of the saved model credential file even after owner approval"
+      "executed": true,
+      "model": "gpt-5.6-terra",
+      "passed": false,
+      "baselineAverage": { "modelTurns": 5, "toolCalls": 4, "wallMs": 10779 },
+      "fieldAverage": { "modelTurns": 6, "toolCalls": 5, "wallMs": 12703 },
+      "nearMissCandidateUses": 0,
+      "fieldCandidateViews": 0,
+      "candidatePreservedExactMethodTrace": false,
+      "replayQualified": false,
+      "gpt55Executed": false,
+      "backgroundRunReadRaceObserved": 1
     },
     "visibleBrowserWindows": 0,
     "externalWrites": 0,
     "userFilesUsed": 0
   },
-  "status": "REPAIR_IMPLEMENTED_HUMAN_REQUALIFICATION_REQUIRED"
+  "status": "HUMAN_REQUALIFICATION_FAILED_REOPENED"
 }
