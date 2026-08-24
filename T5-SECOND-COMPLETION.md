@@ -537,11 +537,13 @@ connection truth → resource identity → authority → execution
 
 긴급 P0 복구 외의 넓은 Web·Connection·App 기능 확장은 앞선 정보 기반보다 먼저 열지 않는다.
 
-인간 종단 — REOPENED. Terra loopback에서 Telegram 4종 파일 수신·caption/reply, secret 이관·재시작,
+인간형 loopback 종단 — FAIL. 실제 Telegram 계정·서버를 사용한 인간 종단은 아직 실행하지 않았다. 격리된
+Telegram provider loopback과 Terra에서 4종 파일 수신·caption/reply, secret 이관·재시작,
 Notion 연결 identity·권한·resource set, verified write·exact readback과 불일치 unresolved는 통과했다. 그러나
 사용자가 지정한 기존 로컬 파일을 현재 Run의 output artifact로 등록하는 `attachment register_output`이
 두 번 실패해 공식 `sendDocument`와 message/file/hash receipt가 0이었다. 따라서 ACK unknown 인간 여정도
-미측정이며, `exact local file→managed artifact→provider sendDocument→delivery receipt` 경계를 다시 연다.
+미측정이다. 실제 계정 시험 전에 `exact local file→managed artifact→provider sendDocument→delivery receipt`
+경계를 loopback에서 먼저 복구해야 한다.
 
 ### S2-G — UI-only Hand — EXCLUDED FROM SECOND COMPLETION
 

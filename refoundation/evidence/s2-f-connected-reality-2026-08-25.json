@@ -89,9 +89,13 @@
     "windowsFeatureImplemented": false,
     "wslShellSecretTransportUsed": false
   },
-  "humanQualification": {
+  "actualModelLoopbackQualification": {
     "model": "gpt-5.6-terra",
     "passed": false,
+    "realTelegramAccountExecuted": false,
+    "realNotionAccountExecuted": false,
+    "telegramProvider": "isolated_loopback",
+    "notionProvider": "isolated_loopback",
     "telegramInboundFourFormats": true,
     "captionAndReplyPreserved": true,
     "secretExposures": 0,
@@ -107,5 +111,5 @@
     "visibleBrowserCalls": 0
   },
   "passed": false,
-  "status": "HUMAN_QUALIFICATION_FAILED_REOPENED"
+  "status": "LOOPBACK_USER_JOURNEY_FAILED_REAL_ACCOUNT_HUMAN_NOT_EXECUTED"
 }
