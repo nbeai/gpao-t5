@@ -1,6 +1,6 @@
 {
   "schema": "t5.second-completion-plan.v1",
-  "recordedAt": "2026-08-24T14:02:04+09:00",
+  "recordedAt": "2026-08-24T14:20:49+09:00",
   "firstCompletion": {
     "declared": true,
     "sourceCommit": "81f29d23",
@@ -12,10 +12,51 @@
     "sourceOfTruth": "T5-SECOND-COMPLETION.md",
     "currentGate": "S2-A1_RESOURCE_CONTROL_READY",
     "firstProductChange": "shadow_resource_accounting_and_control",
+    "a0IncidentFixtures": {
+      "status": "complete",
+      "evidence": "s2-a0-incident-reference-fixtures-2026-08-24.json",
+      "productBehaviorChanged": false
+    },
+    "browserIncident": {
+      "dedicatedProfileIsDirectCause": false,
+      "retiredProductPattern": [
+        "general_web_reading_through_ui_observation",
+        "large_ui_observation",
+        "repeated_observation_reinjection",
+        "observe_act_reobserve_failure_loop",
+        "conversation_and_tool_receipt_reinput_across_runs"
+      ],
+      "measurement": {
+        "targetRuns": 19,
+        "modelCalls": 107,
+        "totalTokens": 10146162,
+        "browserDirectInputTokensApprox": 2140275,
+        "browserDirectInputShareApprox": 0.211,
+        "browserFirstObservationTokensApprox": 212607,
+        "browserRepeatedReinjectionTokensApprox": 1844162,
+        "browserRepeatedShareOfDirectBurdenApprox": 0.9,
+        "browserCallingRunTokens": 5853678,
+        "browserCallingRunShare": 0.577,
+        "browserHistoryInputCallTokens": 9591048,
+        "browserHistoryInputCallShare": 0.945
+      },
+      "accountingSeparation": [
+        "direct_attribution",
+        "co_occurring_scope_usage",
+        "causal_estimate_or_unknown"
+      ],
+      "informationControlInvariant": {
+        "canonicalSanitizedObservationPreserved": true,
+        "latestBoundedPurposeProjectionOnly": true,
+        "sameObservationRepeatedReinjection": 0,
+        "staleUiReferenceReuse": 0
+      }
+    },
     "resourceControl": {
       "fixedLowDefaultCaps": false,
       "shadowFirst": true,
       "modelReceivesResourceSituation": true,
+      "browserScopeTotalIsDirectBrowserCost": false,
       "runtimeIntervention": [
         "physical_capacity",
         "explicit_user_cost_or_time_boundary",
@@ -44,6 +85,16 @@
         "CapabilityMemory"
       ],
       "situationIsMemory": false
+    },
+    "uiOnlyHand": {
+      "open": false,
+      "dedicatedProfilePermanentlyForbidden": false,
+      "requiresStandardHandAbsence": true,
+      "requiresLedgerProjectionSeparation": true,
+      "requiresSameObservationRepeatedReinjectionZero": true,
+      "requiresEffectAndDeliveryReobservation": true,
+      "requiresProcessAndWindowResidualZero": true,
+      "requiresSameObjectiveAbComparison": true
     },
     "newCanonicalStoresAllowed": [
       "ResourceLedger",

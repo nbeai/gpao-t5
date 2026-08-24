@@ -1,0 +1,63 @@
+{
+  "schema": "t5.s2-a0-incident-reference-fixtures.v1",
+  "recordedAt": "2026-08-24T14:50:07+09:00",
+  "gate": "S2-A0_INCIDENT_REFERENCE_FIXTURES",
+  "source": {
+    "installedStateReadOnly": true,
+    "rawRunsMatchedByDigest": 19,
+    "rawContentCopied": false,
+    "rawIdentityCopied": false,
+    "contentEmittedByVerifier": false,
+    "scope": {
+      "originConversationRuns": 17,
+      "automationOccurrenceRuns": 2,
+      "historyNarrativeRuns": 20,
+      "measurementAuthority": "exact_19_run_identity_set"
+    }
+  },
+  "resourceReplay": {
+    "modelCalls": 107,
+    "providerTokens": 10146162,
+    "requestBytes": 43239237,
+    "toolCalls": 93,
+    "browserCalls": 38,
+    "browserCallingRunTokens": 5853678,
+    "browserDirectInputTokensApprox": 2140275,
+    "browserRepeatedReinjectionTokensApprox": 1844162,
+    "causalBrowserIncrement": null
+  },
+  "incidentFamilies": {
+    "resourceRunaway": "reference_fixture_fixed",
+    "automationFalseSuccess": "reference_fixture_fixed",
+    "messageAdmissionLoss": "reference_fixture_fixed",
+    "processResidual": "reference_fixture_fixed"
+  },
+  "mutation": {
+    "resourceTokenRemovedFails": true,
+    "objectiveReceiptInventedFails": true,
+    "durableFollowupInventedFails": true,
+    "processResidualRemovedFails": true
+  },
+  "privacy": {
+    "contentBearingKeys": 0,
+    "rawUuids": 0,
+    "urls": 0,
+    "userPaths": 0,
+    "emailLikeValues": 0
+  },
+  "verification": {
+    "targetedTestsPassed": 4,
+    "sourceVerificationPassed": true,
+    "refoundationTestsPassed": 597,
+    "refoundationTestsFailed": 0,
+    "legacySourceImports": 0
+  },
+  "artifacts": {
+    "fixtureSha256": "4cd7bba48b1be1374d12b13d17367ef45c55d0857a901047c8ff7541f0645698",
+    "contractSha256": "bf12200c39e64101676def41de17f8d4c5aa5a483f856e669a21d4ea737adb82",
+    "sourceVerifierSha256": "040007a106827d912b4ec1cf653722a5bda0546dc1293fbfac372c59451fede0",
+    "testSha256": "c5caac7d07c5e112ddf85c0343ae2b0868d90340e02e45f367dc35159d9a888e"
+  },
+  "productBehaviorChanged": false,
+  "newPackageCreated": false
+}

@@ -1,0 +1,80 @@
+{
+  "schema": "t5.s2-incident-reference-fixture.v1",
+  "incidentId": "s2-a0-installed-resource-runaway",
+  "source": {
+    "productVersion": "0.1.7",
+    "contentFree": true,
+    "rawFiles": 19,
+    "rawBytes": 2014012,
+    "rawDigestSetSha256": "d6f66dfe4bef7d96771bc25270c309119405d55937a787572532ece6c8a05bb5",
+    "scopeResolution": {
+      "measuredTargetRuns": 19,
+      "historyNarrativeRuns": 20,
+      "authority": "exact_identity_set",
+      "narrativeCountIsMeasurementAuthority": false
+    }
+  },
+  "resourceRunaway": {
+    "callTuple": ["providerTokens", "requestBytes", "newToolReceipts", "newBrowserReceipts"],
+    "totals": {
+      "runs": 19,
+      "originRuns": 17,
+      "automationRuns": 2,
+      "modelCalls": 107,
+      "providerTokens": 10146162,
+      "toolCalls": 93,
+      "browserCalls": 38,
+      "browserCallingRunTokens": 5853678,
+      "failedRuns": 1
+    },
+    "browserAttribution": {
+      "directInputTokensApprox": 2140275,
+      "directInputShareApprox": 0.211,
+      "firstObservationTokensApprox": 212607,
+      "repeatedReinjectionTokensApprox": 1844162,
+      "repeatedShareApprox": 0.9,
+      "browserHistoryInputCallTokens": 9591048,
+      "browserHistoryInputCallShare": 0.945,
+      "causalIncrement": null
+    },
+    "runs": [
+      {"runRef":"run-01","sourceBytes":38801,"sourceSha256":"1d8c7051e58caa3e1a9d51442cb0e0534902f81d295c14e5f4ab41dfba922135","relation":"origin_conversation","status":"completed","calls":[[5519,29205,0,0],[13483,60323,1,0]]},
+      {"runRef":"run-02","sourceBytes":6607,"sourceSha256":"5e88f0372abea4e0b102ea147055b5b7334f1cf7a7b0c4e0796a8f5b0edf2975","relation":"origin_conversation","status":"completed","calls":[[14247,62117,0,0]]},
+      {"runRef":"run-03","sourceBytes":154455,"sourceSha256":"517a2a2e9bd4114463c245246a23e1d1cbf5b8478d7084ca204ad1222e2b19eb","relation":"origin_conversation","status":"completed","calls":[[14304,64273,0,0],[15211,69803,1,0],[15654,73629,1,0],[40476,184599,1,0],[45644,204388,1,0],[47297,214719,1,0]]},
+      {"runRef":"run-04","sourceBytes":28862,"sourceSha256":"4aad68914bbd37ccef0674ebccf93bcba25f3cb40565a7d57096184a4447f474","relation":"origin_conversation","status":"completed","calls":[[47120,206403,0,0],[47345,209022,1,0],[48555,214915,1,0],[50369,221768,1,1],[50879,223942,1,1]]},
+      {"runRef":"run-05","sourceBytes":405648,"sourceSha256":"a955757d6efd71d792192ba441f7a505a8f95f2feb051a0c9faa3f301a1d9fa7","relation":"origin_conversation","status":"completed","calls":[[49325,215208,0,0],[49593,216437,1,0],[49840,217617,1,0],[51035,225021,1,0],[87699,363640,1,1],[104994,430697,1,1],[112430,460592,1,1],[129543,538152,1,1],[137187,568632,1,1],[153301,641681,1,1]]},
+      {"runRef":"run-06","sourceBytes":4695,"sourceSha256":"297b0d0a48171058ba07fab6f47315a36ec6e5d076372e122c5459212fd2bb85","relation":"origin_conversation","status":"completed","calls":[[71451,310243,0,0]]},
+      {"runRef":"run-07","sourceBytes":66619,"sourceSha256":"722a391e7ad54b817c15c27afcf43571147d17d50ddb636621e86a5bb1440472","relation":"origin_conversation","status":"completed","calls":[[71484,310436,0,0],[73397,320402,1,0],[77210,335633,1,1],[79712,346586,1,1],[86170,375167,1,1]]},
+      {"runRef":"run-08","sourceBytes":20923,"sourceSha256":"45611d718155a4c6809fa3b13622b79454ff411f4db6a1e74d187edf2a9df92e","relation":"origin_conversation","status":"completed","calls":[[68689,291405,0,0],[68962,294121,1,0],[70699,301547,1,0],[71139,303675,1,1]]},
+      {"runRef":"run-09","sourceBytes":114680,"sourceSha256":"71f4d219c01f2955859fd458e4235d7d2d5cf2f5bbb9a3e62ddf6d7121ac9f85","relation":"origin_conversation","status":"completed","calls":[[70405,297965,0,0],[70678,299194,1,0],[72426,306620,1,0],[73037,309264,1,1],[80524,341502,1,1],[84877,358144,1,1],[90530,381157,1,1],[95205,401183,1,1]]},
+      {"runRef":"run-10","sourceBytes":55661,"sourceSha256":"dea99645bb6155f81e29c74281f12f0e0fceee3d2031ac09d6e5b0b8fdcbae0c","relation":"origin_conversation","status":"completed","calls":[[74226,309390,0,0],[75030,315311,2,0],[76758,324376,1,0],[77225,326124,1,1],[81343,342728,1,1],[82142,347113,1,0],[83302,354371,1,0]]},
+      {"runRef":"run-11","sourceBytes":136921,"sourceSha256":"2b8f6c1afc0ebc0d90db61f6a1f65786789260462cd1d7dffb1b06d5c2479c61","relation":"origin_conversation","status":"completed","calls":[[78046,324615,0,0],[78397,328588,1,0],[80809,338730,1,0],[81251,342680,1,0],[106093,453630,1,0],[108020,461821,1,0]]},
+      {"runRef":"run-12","sourceBytes":289528,"sourceSha256":"6cf15e133f26e69abfcc0484e70f0c465086590849aac1581b752b22bcd1ea82","relation":"origin_conversation","status":"failed","terminalToolReceipts":1,"terminalBrowserReceipts":0,"calls":[[107054,449794,0,0],[107752,455333,3,0],[107967,456138,1,0],[109863,465564,1,0],[110298,469406,1,0],[135161,580356,1,0],[171666,734427,1,0],[172142,738080,2,0]]},
+      {"runRef":"run-13","sourceBytes":40848,"sourceSha256":"fab342a1066812504e9115b70259f912b7576c6f71a0418c27d52f8bacdaa679","relation":"origin_conversation","status":"completed","calls":[[171595,723821,0,0],[171821,727899,1,0],[172047,730337,1,0],[172204,732675,1,0],[173228,736959,1,0],[174794,745221,1,0],[175875,750078,1,0]]},
+      {"runRef":"run-14","sourceBytes":4721,"sourceSha256":"04b74935a8afe0f622263619a525fb7a309df51fd74bbc6dadf6e6135660c413","relation":"origin_conversation","status":"completed","calls":[[175118,738527,0,0]]},
+      {"runRef":"run-15","sourceBytes":5112,"sourceSha256":"daeb49eee9bb0ae735463e1885c02b2f3a763e527c5c4259344a237379e406fb","relation":"origin_conversation","status":"completed","calls":[[175494,739406,0,0]]},
+      {"runRef":"run-16","sourceBytes":25350,"sourceSha256":"d05bd9c6cd4e01ecf51ae1f9ad5b588ae4579f8014147594accae5b13768f2fb","relation":"origin_conversation","status":"completed","calls":[[176334,743476,0,0],[176884,748136,1,0],[177670,750614,1,0],[180445,763814,1,0]]},
+      {"runRef":"run-17","sourceBytes":133801,"sourceSha256":"b31f861aa01e5fc3626a7d12624bd8a40b8375e13df583c350311a63733f0004","relation":"origin_conversation","status":"completed","calls":[[179321,754485,0,0],[181132,764051,1,0],[182521,768849,1,1],[183226,773283,1,1],[188808,797348,1,1],[189540,802014,1,1],[190180,805771,1,1],[191084,808610,1,0],[196061,831264,1,1],[196741,836040,1,1],[201124,853885,1,1],[204795,869499,1,1],[206199,875814,1,1]]},
+      {"runRef":"run-18","sourceBytes":205180,"sourceSha256":"3a3a966d1dce4258a853ccc1948e3862b7fd23eb35c46cddd5df2e5c626a9471","relation":"automation_occurrence","status":"completed","calls":[[5607,29711,0,0],[5836,32266,1,0],[7646,41486,1,0],[16647,77670,1,1],[17236,81479,1,1],[17985,85938,1,1],[26898,122000,1,1],[28875,130288,1,0],[30229,136288,1,1],[36154,159960,1,1],[43150,188805,1,1],[50895,220124,1,1],[51403,223796,1,1]]},
+      {"runRef":"run-19","sourceBytes":275600,"sourceSha256":"088c130965ab3f2102fb048b20c609375e63ad54a9bcc437eadc518686ac52e8","relation":"automation_occurrence","status":"completed","calls":[[5848,30203,0,0],[6401,34577,1,0],[31346,146456,1,0],[67777,300443,1,0],[69798,306269,1,0]]}
+    ]
+  },
+  "incidentFamilies": {
+    "automationFalseSuccess": {
+      "schedulerStatus": "succeeded",
+      "sourceRunTerminal": "completed",
+      "objectiveReceiptPresent": false,
+      "purposeAchieved": false
+    },
+    "messageAdmissionLoss": {
+      "offeredWhileRunActive": true,
+      "persistedBeforeRejection": false,
+      "durableFollowupCreated": false
+    },
+    "processResidual": {
+      "productEntryRetired": true,
+      "residualObserved": true,
+      "exactCount": null
+    }
+  }
+}

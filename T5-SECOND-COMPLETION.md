@@ -24,6 +24,27 @@
 2차 완성은 기능 확장이 아니라 현재 코어의 원리가 복합·장기 사용자 목적에서도 예외 없이 작동하도록
 연결·고도화하는 `Core Completion & Hardening`이다.
 
+전용 Browser 퇴출의 원인은 전용 프로필 자체가 아니다. 기존 T5가 대형 UI 관측을 일반 Web의 기본 읽기
+수단으로 사용하고, 접근성 트리·요소 ref·탭·URL·입력 영역을 담은 같은 관측을 이후 model call마다 다시
+넣으며, 실패 때 `관측→행동→재관측`을 반복하고 새 Run에서도 긴 Conversation·ToolReceipt를 재투입한 구조가
+원인이다. 공개 정보는 Search·Fetch 계열 Hand로 끝내고, UI 행동은 사용자가 exact UI 조작을 맡겼으며 표준
+API·Connector·CLI 대안이 없을 때만 별도 자격화한다.
+
+1천만 token 사건의 자원 판정은 직접 귀속과 동반 흐름을 합치지 않는다.
+
+| 측정 | 실제값 | 의미 |
+|---|---:|---|
+| 전체 사용량 | 10,146,162 tokens | 19개 대상 Run·107 model calls |
+| Browser 결과 직접 입력 | 약 2,140,275 tokens · 21.1% | Browser 결과 bytes에 직접 귀속 |
+| 최초 Browser 관측 | 약 212,607 tokens | 처음 모델에 공급된 관측 |
+| 이후 반복 재주입 | 약 1,844,162 tokens | Browser 직접 부담의 약 90.0% |
+| Browser를 호출한 Run 전체 | 5,853,678 tokens · 57.7% | Browser와 함께 발생한 흐름, 직접 비용 아님 |
+| Browser 기록이 입력에 있던 call 전체 | 9,591,048 tokens · 94.5% | Browser 기록과 동반된 흐름, 직접 비용 아님 |
+
+Browser 결과를 제외해도 약 800만 tokens가 남는다. 다른 도구 결과·긴 대화·실패 복구·Run 분할의 반복도
+같은 Information Control 결함이다. 동일 과업 A/B 없이 Browser의 인과적 추가 비용을 위 표의 동반 흐름
+전체로 승격하지 않고 `unknown`으로 남긴다.
+
 대화창은 사용자와 T5가 함께 공유하는 유일한 제품 세계다. 사용자가 말한 것, T5가 이해한 것, 실제로 한 일,
 현재 상태와 결과가 이 세계에서 끊기지 않아야 한다. Terminal이 현실에서 무엇인가를 할 수 있게 하는 가장
 기초적인 Hand라면, 그다음 기반은 Conversation·Situation·Work·Evidence·Memory·Capability를 현재 목적에
@@ -107,7 +128,7 @@ vendor 정규식, 고정 workflow, 사이트 selector를 Core 판단으로 만�
 
 ## 5. Gate
 
-### S2-A0 — Incident & Reference Fixtures
+### S2-A0 — Incident & Reference Fixtures — COMPLETE
 
 제품 동작 변경 없이 다음 실패를 비식별·결정적 replay로 고정한다.
 
@@ -117,7 +138,14 @@ Browser direct input 약 21% · Browser 결과 반복 입력 약 90%
 automation false success · message admission loss · process residual
 ```
 
-비밀값·메일 본문·개인정보는 제거하고 상태·크기·digest·관계만 보존한다.
+replay는 전체 token, Browser 직접 입력, 최초 관측, 반복 재주입, Browser 호출 Run 전체, Browser 기록 포함
+model call 전체, non-Browser context·tool 반복, 새 Evidence 없는 자원 증가를 분리한다. 직접 귀속량과 같은
+scope에서 함께 발생한 사용량을 합치지 않으며 인과 비용은 동일 과업 A/B가 없으면 `unknown`이다.
+
+비밀값·메일 본문·개인정보는 제거하고 상태·크기·digest·관계만 보존한다. 19개 대상 Run과 역사 문서의
+20개 전체 Run 범위 차이는 fixture manifest에서 포함·제외 identity와 이유로 해소한다.
+
+완료 증거: `refoundation/evidence/s2-a0-incident-reference-fixtures-2026-08-24.json`
 
 ### S2-A1 — Resource Control — CURRENT
 
@@ -141,6 +169,18 @@ ScopeCreated · ResourceObserved · RequestForecasted · ResourceReserved
 ReservationCommitted · ReservationReleased · UsageMarkedUnknown
 ControlActionRecorded · AnomalyRecorded · ScopeClosed
 ```
+
+자원 귀속은 다음 세 값을 분리한다.
+
+```text
+direct attribution: exact request·result·usage에 직접 귀속
+co-occurring scope usage: 같은 Work·Run·call 흐름에서 함께 발생
+causal estimate: 동일 과업 A/B로 증명한 증분, 없으면 unknown
+```
+
+Browser가 포함된 Run이나 model call의 전체 사용량을 Browser 직접 비용으로 기록하지 않는다. checkpoint·
+memory flush·visual observation·adapter retry·tool 내부 호출도 각 scope에서 관측하고 상위 scope에는 중복 없이
+정산한다.
 
 제어 루프:
 
@@ -206,6 +246,10 @@ Information Control 구현:
 - stable constitution과 prompt cache 보존
 - 비활성 Hand 지침·중복 tool 설명·반복 tool 원문 제거
 - canonical Receipt 전량 보존, 큰 결과는 identity·coverage·head/tail·exact recall handle로 투영
+- Browser를 포함한 UI 관측은 비밀값을 제외한 exact 실행 증거를 원장에 보존하되, 모델에는 현재 목적에 필요한
+  최신 bounded 관측만 한 번 공급하고 이미 공급한 동일 관측의 후속 model call 재주입은 0
+- UI 행동 뒤에는 변경된 화면·network·effect를 새 identity로 재관측하고, 과거 snapshot·ref·tab을 현재
+  조작 상태로 재사용하지 않음
 - Memory 후보는 exact 대상 identity·source·scope·최신 revision·사용자 교정을 기준으로 결정론적 검색
 - 후보를 현재 목적에 사용할지와 충돌의 의미는 주 모델이 판단
 - 과거 assistant 문장으로 현재 시간·로그인·연결·process를 추론하지 않고 Situation에서 관측
@@ -216,6 +260,7 @@ W9 blind truncation·별도 extraction model·shared cache·branch research·vec
 
 - authority·effect·coverage·사용자 교정 손실 0, recall digest 일치
 - 현재 목적 유지·잘못된 과거 사실 주입·불필요 Memory·반복 tool output을 각각 계측
+- 동일 UI 관측의 반복 재주입 0, canonical 관측 손실 0, stale UI ref 재사용 0
 - 비활성 Hand guidance 0, 모델 왕복 증가 0
 - current fact·폐쇄집합·Terminal·Document·Web positive control 무회귀
 - uncached input·wall time 감소, Terra·gpt-5.5 반복
@@ -287,8 +332,11 @@ connection truth → resource identity → authority → execution
 
 ### S2-G — UI-only Hand — NOT OPEN
 
-전용 Browser를 다시 만들지 않는다. 반복 실수요·공식 대안 부재·exact user-owned surface·bounded observation·
-secret user control·full authority·잔류 process/window 0·비교군 우위가 함께 증명될 때만 별도 Gate로 연다.
+현재 전용 Browser를 다시 만들지 않는다. 이는 전용 프로필 자체를 영구 금지하는 판정이 아니라 일반 Web
+읽기와 대형 UI 관측 누적 구조의 퇴출이다. 반복 실수요·공식 API/Connector/CLI 대안 부재·exact user-owned
+surface·bounded observation·원장과 모델 projection 분리·동일 관측 반복 재주입 0·secret user control·full
+authority·행동 뒤 effect/delivery 재관측·잔류 process/window 0이 함께 서야 별도 Gate로 연다. 동일 사용자
+목적을 표준 Hand와 A/B해 시간·tokens·성공률·사용자 개입에서 비교군 우위가 없으면 채택하지 않는다.
 
 ## 6. 기계 자격과 Release
 
