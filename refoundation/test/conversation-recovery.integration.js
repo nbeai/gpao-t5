@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { makeConsoleServer } from '../src/console-server.js';
+import { RunLedger } from '../src/run-ledger.js';
+import { WorkStore } from '../src/work-store.js';
 
 async function app() {
   const room = await mkdtemp(join(tmpdir(), 't5-conversation-recovery-'));
@@ -36,6 +38,23 @@ async function app() {
 const post = (base, path, body) => fetch(`${base}${path}`, {
   method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
 }).then(async (response) => ({ status: response.status, body: await response.json() }));
+
+test('재시작은 과거 버전의 terminal failed Run이 남긴 active claim만 자동 해제한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-restart-failed-claim-'));
+  const stateDir = join(room, 'state');
+  const workStore = new WorkStore(join(stateDir, 'work'));
+  const runLedger = new RunLedger(join(stateDir, 'runs'));
+  const work = await workStore.create({ sessionId: 'legacy-session', sourceMessageId: 'legacy:user' });
+  const run = await runLedger.start({ sessionId: 'legacy-session', request: 'legacy failed turn' });
+  await workStore.claimExecution({ workId: work.workId, revision: 1, runId: run.runId });
+  await run.finish('failed', { reason: 'provider_error' });
+  const server = makeConsoleServer({ stateDir, workspace: room,
+    modelFactory: () => ({ async respond() { return { text: 'unused', toolCalls: [] }; } }) });
+  try {
+    assert.deepEqual(await server.recoverFailedWorkClaimsReady, [run.runId]);
+    assert.equal((await workStore.read()).claims.find((claim) => claim.runId === run.runId)?.state, 'released');
+  } finally { await server.closeWorkspaceConnections(); await server.closeMessengers(); await rm(room, { recursive: true, force: true }); }
+});
 
 test('두 번째 무진전 답은 모델 답을 바꾸지 않고 회복 선택을 지속한다', async () => {
   const testApp = await app();

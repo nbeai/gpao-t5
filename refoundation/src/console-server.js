@@ -378,6 +378,20 @@ export function makeConsoleServer({
   const learningAdvances = new Set();
   const authority = new AuthorityStore(join(stateDir, 'authority'));
   const attachments = attachmentStore ?? new AttachmentStore(join(stateDir, 'attachments'));
+  async function recoverTerminalFailedWorkClaims() {
+    const state = await workStore.read(); const released = [];
+    for (const claim of state.claims.filter((item) => item.state === 'active')) {
+      if (state.events.some((event) => event.type === 'work_settled' && event.runId === claim.runId)) continue;
+      const run = await runLedger.read(claim.runId).catch(() => null);
+      if (!run || !['failed', 'cancelled', 'interrupted'].includes(run.status)) continue;
+      const result = await workStore.releaseExecution({ runId: claim.runId,
+        reason: 'restart_terminal_run_recovery' });
+      if (result.released) released.push(claim.runId);
+    }
+    return released;
+  }
+  const failedWorkClaimRecovery = recoverTerminalFailedWorkClaims()
+    .catch((error) => { onError?.(error); return []; });
   async function recoverPreparedAdmissions() {
     const state = await workStore.read(); const recovered = [];
     for (const input of state.inputs.filter((item) => item.state === 'prepared')) {
@@ -2583,6 +2597,7 @@ export function makeConsoleServer({
         return;
       }
       await admissionRecovery;
+      await failedWorkClaimRecovery;
       await resultPublicationRecovery;
       if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
         const source = await readFile(resolve(uiRoot, 'index.html'), 'utf8');
@@ -3364,6 +3379,8 @@ export function makeConsoleServer({
   server.sessionStore = sessions;
   server.conversationLedger = conversations;
   server.workStore = workStore;
+  server.recoverFailedWorkClaims = recoverTerminalFailedWorkClaims;
+  server.recoverFailedWorkClaimsReady = failedWorkClaimRecovery;
   server.resumeQueuedWork = async () => {
     const state = await workStore.read();
     const sessionsWithQueued = [...new Set(state.inputs.filter((input) => input.state === 'classified'
