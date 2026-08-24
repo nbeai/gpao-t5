@@ -40,7 +40,8 @@ function project(events) {
         handoffId: event.handoffId, sessionId: event.sessionId, connectionId: event.connectionId,
         mode: event.mode, originRunId: event.originRunId, state: 'waiting',
         startedAt: event.recordedAt, updatedAt: event.recordedAt, claimId: null,
-        resumeRunId: null, reason: null, connectionState: null,
+        resumeRunId: null, resumeResultPointer: null, resumeResultDigest: null,
+        surfaceReceipt: null, reason: null, connectionState: null,
       });
       continue;
     }
@@ -52,8 +53,18 @@ function project(events) {
     else if (event.type === 'completion_recorded') handoff.state = 'completion_recorded';
     else if (event.type === 'resume_claimed') {
       handoff.state = 'resume_claimed'; handoff.claimId = event.claimId;
+    } else if (event.type === 'resume_completed_pending_surface') {
+      handoff.state = 'resume_completed_pending_surface'; handoff.resumeRunId = event.resumeRunId;
+      handoff.resumeResultPointer = event.resultPointer; handoff.resumeResultDigest = event.resultDigest;
     } else if (event.type === 'handoff_resumed') {
+      if (!event.surfaceReceipt || event.surfaceReceipt.surface !== 'console_session'
+        || event.surfaceReceipt.sessionId !== handoff.sessionId
+        || event.surfaceReceipt.runId !== handoff.resumeRunId
+        || event.surfaceReceipt.resultDigest !== handoff.resumeResultDigest) {
+        throw new Error('resumed handoff requires exact surface receipt');
+      }
       handoff.state = 'resumed'; handoff.resumeRunId = event.resumeRunId;
+      handoff.surfaceReceipt = clone(event.surfaceReceipt);
     } else if (event.type === 'handoff_cancelled') handoff.state = 'cancelled';
     else if (event.type === 'handoff_needs_attention') {
       handoff.state = 'needs_attention'; handoff.reason = event.reason;
@@ -148,13 +159,15 @@ export class CapabilityHandoffLedger {
   observeReady(handoffId, connectionState) {
     if (!['ready', 'connected'].includes(connectionState)) throw new TypeError('connection is not ready');
     return this.transition(handoffId, {
-      from: ['waiting'], idempotent: ['readiness_observed', 'completion_recorded', 'resume_claimed', 'resumed'],
+      from: ['waiting'], idempotent: ['readiness_observed', 'completion_recorded', 'resume_claimed',
+        'resume_completed_pending_surface', 'resumed'],
     }, 'readiness_observed', { connectionState });
   }
 
   recordCompletion(handoffId) {
     return this.transition(handoffId, {
-      from: ['readiness_observed'], idempotent: ['completion_recorded', 'resume_claimed', 'resumed'],
+      from: ['readiness_observed'], idempotent: ['completion_recorded', 'resume_claimed',
+        'resume_completed_pending_surface', 'resumed'],
     }, 'completion_recorded');
   }
 
@@ -171,9 +184,32 @@ export class CapabilityHandoffLedger {
     });
   }
 
-  markResumed(handoffId, resumeRunId) {
-    return this.transition(handoffId, { from: ['resume_claimed'], idempotent: ['resumed'] },
-      'handoff_resumed', { resumeRunId: uuid(resumeRunId, 'resume run id') });
+  markResumeCompletedPendingSurface(handoffId, { resumeRunId, resultPointer, resultDigest }) {
+    const runId = uuid(resumeRunId, 'resume run id');
+    if (!String(resultPointer ?? '').trim() || !String(resultDigest ?? '').trim()) {
+      throw new TypeError('resume result pointer and digest are required');
+    }
+    return this.transition(handoffId, {
+      from: ['resume_claimed'], idempotent: ['resume_completed_pending_surface', 'resumed'],
+    }, 'resume_completed_pending_surface', { resumeRunId: runId,
+      resultPointer: String(resultPointer), resultDigest: String(resultDigest) });
+  }
+
+  async markResumed(handoffId, { resumeRunId, surfaceReceipt }) {
+    const id = uuid(handoffId, 'handoff id'); const runId = uuid(resumeRunId, 'resume run id');
+    const current = await this.read(); const handoff = current.handoffs.find((entry) => entry.handoffId === id);
+    if (!handoff) throw new Error('capability handoff not found');
+    if (handoff.state === 'resumed') return handoff;
+    if (handoff.state !== 'resume_completed_pending_surface' || handoff.resumeRunId !== runId) {
+      throw new Error('resume completion is not pending surface');
+    }
+    if (!surfaceReceipt || surfaceReceipt.surface !== 'console_session'
+      || surfaceReceipt.sessionId !== handoff.sessionId || surfaceReceipt.runId !== runId
+      || surfaceReceipt.resultDigest !== handoff.resumeResultDigest) {
+      throw new Error('exact resume surface receipt is required');
+    }
+    return this.transition(id, { from: ['resume_completed_pending_surface'], idempotent: ['resumed'] },
+      'handoff_resumed', { resumeRunId: runId, surfaceReceipt });
   }
 
   cancel(handoffId) {

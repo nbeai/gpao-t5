@@ -1,5 +1,6 @@
-const ACTIVE = new Set(['waiting', 'readiness_observed', 'completion_recorded', 'resume_claimed']);
-const RESUMABLE = new Set(['completion_recorded', 'resume_claimed']);
+const ACTIVE = new Set(['waiting', 'readiness_observed', 'completion_recorded', 'resume_claimed',
+  'resume_completed_pending_surface']);
+const RESUMABLE = new Set(['completion_recorded', 'resume_claimed', 'resume_completed_pending_surface']);
 const TERMINAL = new Set(['resumed', 'cancelled', 'needs_attention']);
 
 function surfaceHandoffs(session) {
@@ -12,6 +13,7 @@ function surfaceHandoffs(session) {
 export function makeCapabilityHandoffCoordinator({
   ledger, sessions, runLedger, authority, connectionServices,
   isSessionRunning, executeResume, emitWake = () => {}, onError = () => {},
+  ensureSurfacePersisted = async () => null,
   pollIntervalMs = 2_000, pollTimeoutMs = 10 * 60_000,
 } = {}) {
   if (!ledger || !sessions || !runLedger || !authority || !(connectionServices instanceof Map)) {
@@ -88,6 +90,16 @@ export function makeCapabilityHandoffCoordinator({
     }
     resumeInFlight.add(id);
     try {
+      if (handoff.state === 'resume_completed_pending_surface') {
+        const recovered = await ensureSurfacePersisted({ handoff });
+        if (!recovered?.surfaceReceipt) return false;
+        await ledger.markResumed(id, { resumeRunId: handoff.resumeRunId,
+          surfaceReceipt: recovered.surfaceReceipt });
+        await appendSessionEvent(handoff.sessionId, 'connection_resumed', {
+          handoffId: id, connectionId: handoff.connectionId, runId: handoff.resumeRunId,
+        });
+        return true;
+      }
       if (handoff.state === 'completion_recorded') {
         await authority.withdrawActive(handoff.sessionId, 'capability_resume');
         handoff = await ledger.claimResume(id);
@@ -95,7 +107,14 @@ export function makeCapabilityHandoffCoordinator({
       const previous = await previousResumeRun(handoff);
       if (previous?.status === 'completed'
         && previous.events.some((event) => event.type === 'surface_persisted')) {
-        await ledger.markResumed(id, previous.runId);
+        const ready = previous.events.find((event) => event.type === 'result_ready_pending_surface');
+        if (!ready?.payload?.resultDigest) throw new Error('resume result ready evidence missing');
+        await ledger.markResumeCompletedPendingSurface(id, { resumeRunId: previous.runId,
+          resultPointer: `work-result:${previous.runId}`, resultDigest: ready.payload.resultDigest });
+        await ledger.markResumed(id, { resumeRunId: previous.runId, surfaceReceipt: {
+          surface: 'console_session', sessionId: handoff.sessionId,
+          runId: previous.runId, resultDigest: ready.payload.resultDigest,
+        } });
         await appendSessionEvent(handoff.sessionId, 'connection_resumed', {
           handoffId: id, connectionId: handoff.connectionId, runId: previous.runId,
         });
@@ -109,12 +128,23 @@ export function makeCapabilityHandoffCoordinator({
         return false;
       }
       const completed = await executeResume({ handoff, claimId: handoff.claimId,
-        beforeSurfacePersist: async (resumeRunId) => ledger.markResumed(id, resumeRunId) });
+        beforeSurfacePersist: async ({ runId, resultPointer, resultDigest }) => (
+          ledger.markResumeCompletedPendingSurface(id, { resumeRunId: runId, resultPointer, resultDigest })
+        ),
+        afterSurfacePersist: async ({ runId, surfaceReceipt }) => (
+          ledger.markResumed(id, { resumeRunId: runId, surfaceReceipt })
+        ) });
       if (completed?.kind !== 'reply' || !completed.runId) {
         await ledger.needsAttention(id, 'resume_did_not_complete', completed?.runId ?? null);
         return false;
       }
-      await ledger.markResumed(id, completed.runId);
+      const terminal = await get(id);
+      if (terminal?.state !== 'resumed') {
+        const recovered = await ensureSurfacePersisted({ handoff: await get(id) });
+        if (!recovered?.surfaceReceipt) return false;
+        await ledger.markResumed(id, { resumeRunId: completed.runId,
+          surfaceReceipt: recovered.surfaceReceipt });
+      }
       await appendSessionEvent(handoff.sessionId, 'connection_resumed', {
         handoffId: id, connectionId: handoff.connectionId, runId: completed.runId,
       });
@@ -124,7 +154,9 @@ export function makeCapabilityHandoffCoordinator({
       });
       return true;
     } catch (error) {
-      await ledger.needsAttention(id, 'resume_failed', error?.runId ?? null).catch(() => {});
+      const current = await get(id).catch(() => null);
+      if (current?.state === 'resume_completed_pending_surface') scheduleResume(id, pollIntervalMs);
+      else await ledger.needsAttention(id, 'resume_failed', error?.runId ?? null).catch(() => {});
       throw error;
     } finally { resumeInFlight.delete(id); }
   }
@@ -259,7 +291,9 @@ export function makeCapabilityHandoffCoordinator({
           handoffId: handoff.handoffId, connectionId: handoff.connectionId,
           connectionState: handoff.connectionState,
         });
-        scheduleResume(handoff.handoffId);
+        if (handoff.state === 'resume_completed_pending_surface') {
+          await resume(handoff.handoffId);
+        } else scheduleResume(handoff.handoffId);
       }
     }
   }

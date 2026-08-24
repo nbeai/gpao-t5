@@ -1495,21 +1495,28 @@ export function makeConsoleServer({
             outcome: unresolved ? 'unresolved' : 'achieved',
             blockerDigest: evaluation.blockerDigest, blockers: evaluation.blockers } });
       }
-      for (const input of await workStore.executingInputsForRun(run.runId)) {
-        await workStore.completeInputExecution({ inputId: input.inputId, runId: run.runId });
-      }
       const resultDigest = createHash('sha256').update(JSON.stringify(surfaceResult)).digest('hex');
+      for (const input of await workStore.executingInputsForRun(run.runId)) {
+        await workStore.prepareInputCompletion({ inputId: input.inputId, runId: run.runId,
+          resultPointer: `work-result:${run.runId}`, resultDigest });
+      }
       await workStore.recordResultReady({ runId: run.runId, sessionId,
         workId: settledWork?.workId ?? null, revision: settledWork?.claimedRevision ?? null,
         objectiveOutcome, resultDigest, surfaceResult });
       await run.append({ type: 'result_ready_pending_surface', stepId: 'result-publication',
         payload: { resultDigest, objectiveOutcome, workId: settledWork?.workId ?? null,
           revision: settledWork?.claimedRevision ?? null } });
-      await options.beforeSurfacePersist?.({ runId: run.runId, surfaceResult });
+      await options.beforeSurfacePersist?.({ runId: run.runId, resultDigest,
+        resultPointer: `work-result:${run.runId}`, surfaceResult });
       await sessions.append(sessionId, { role: 'assistant', result: surfaceResult });
       surfacePersisted = true;
       await workStore.markResultSurfacePersisted(run.runId);
       await run.append({ type: 'surface_persisted', payload: { role: 'assistant' } });
+      const surfaceReceipt = { surface: 'console_session', sessionId, runId: run.runId, resultDigest };
+      await options.afterSurfacePersist?.({ runId: run.runId, resultDigest, surfaceReceipt });
+      for (const input of await workStore.pendingSurfaceInputsForRun(run.runId)) {
+        await workStore.commitInputExecuted({ inputId: input.inputId, runId: run.runId, surfaceReceipt });
+      }
       let deliveryTerminal = { provider: 'console', state: 'persisted' };
       if ((!options.trigger || options.trigger === 'user') && session.origin?.channel === 'telegram'
         && surfaceResult.kind === 'reply') {
@@ -1690,6 +1697,12 @@ export function makeConsoleServer({
           role: 'assistant', recovered: true,
         }).catch((error) => onError?.(error));
       }
+      const surfaceReceipt = { surface: 'console_session', sessionId: result.sessionId,
+        runId: result.runId, resultDigest: result.resultDigest, recovered: true };
+      for (const input of await workStore.pendingSurfaceInputsForRun(result.runId)) {
+        await workStore.commitInputExecuted({ inputId: input.inputId,
+          runId: result.runId, surfaceReceipt });
+      }
       let delivery;
       if (result.state === 'delivery_started') {
         delivery = { provider: result.delivery?.provider ?? 'unknown', state: 'unknown',
@@ -1715,9 +1728,7 @@ export function makeConsoleServer({
     }
     return recovered;
   }
-  const resultPublicationRecovery = recoverResultPublications().catch((error) => {
-    onError?.(error); return [];
-  });
+  let resultPublicationRecovery = Promise.resolve([]);
   const connectionServices = new Map(workspaceConnectionServices.map((service) => {
     if (!service?.id || !service?.label || !service?.category || typeof service.inspect !== 'function') {
       throw new TypeError('invalid workspace connection service');
@@ -1928,7 +1939,7 @@ export function makeConsoleServer({
     ledger: capabilityHandoffs, sessions, runLedger, authority, connectionServices,
     pollIntervalMs: connectionPollIntervalMs, pollTimeoutMs: connectionPollTimeoutMs,
     isSessionRunning: (sessionId) => running.has(sessionId),
-    executeResume: async ({ handoff, claimId, beforeSurfacePersist }) => {
+    executeResume: async ({ handoff, claimId, beforeSurfacePersist, afterSurfacePersist }) => {
       try {
         const completed = await executeTurn(handoff.sessionId, [
           'capability preparation completed',
@@ -1948,7 +1959,8 @@ export function makeConsoleServer({
             kind: 'connection_ready', handoffId: handoff.handoffId,
             connectionId: handoff.connectionId, connectionState: handoff.connectionState,
           } },
-          beforeSurfacePersist: ({ runId }) => beforeSurfacePersist?.(runId),
+          beforeSurfacePersist,
+          afterSurfacePersist,
         });
         return {
           kind: completed.kind, runId: completed.runId,
@@ -1960,9 +1972,26 @@ export function makeConsoleServer({
       }
     },
     emitWake: (payload) => broadcastEvent('connection_wake', payload),
+    ensureSurfacePersisted: async ({ handoff }) => {
+      await recoverResultPublications();
+      const result = (await workStore.read()).results.find((item) => item.runId === handoff.resumeRunId);
+      const session = await sessions.load(handoff.sessionId);
+      const exists = (session?.transcript ?? []).some((entry) => entry.role === 'assistant'
+        && entry.result?.runId === handoff.resumeRunId);
+      if (!result || !exists || !['surface_persisted', 'delivery_started', 'delivery_terminal'].includes(result.state)
+        || result.resultDigest !== handoff.resumeResultDigest) return null;
+      return { surfaceReceipt: { surface: 'console_session', sessionId: handoff.sessionId,
+        runId: handoff.resumeRunId, resultDigest: result.resultDigest, recovered: true } };
+    },
     onError: (error) => onError?.(error),
   });
-  queueMicrotask(() => capabilityCoordinator.recover().catch((error) => onError?.(error)));
+  resultPublicationRecovery = (async () => {
+    const recovered = await recoverResultPublications();
+    await capabilityCoordinator.recover();
+    return recovered;
+  })().catch((error) => {
+    onError?.(error); return [];
+  });
 
   async function attemptProcessWake(event) {
     if (running.has(event.ownerId)) {

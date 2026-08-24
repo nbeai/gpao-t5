@@ -80,7 +80,7 @@ export class WorkStore {
       }
       if (event.type === 'input_cancelled_current_work') {
         const input = inputs.get(event.inputId); if (input) Object.assign(input, {
-          state: 'executed', disposition: 'cancelled_work', workId: event.workId,
+          state: 'executing', disposition: 'cancelled_work', workId: event.workId,
           revision: event.revision, executionRunId: event.runId,
         });
         const work = works.get(event.workId); if (work) { work.revision = event.revision; work.status = 'cancelled'; }
@@ -114,7 +114,15 @@ export class WorkStore {
           { state: 'executing', executionRunId: event.runId });
       }
       if (event.type === 'input_executed') {
-        const input = inputs.get(event.inputId); if (input) input.state = 'executed';
+        const input = inputs.get(event.inputId); if (input) Object.assign(input, {
+          state: 'executed', surfaceReceipt: clone(event.surfaceReceipt ?? null),
+        });
+      }
+      if (event.type === 'input_completed_pending_surface') {
+        const input = inputs.get(event.inputId); if (input) Object.assign(input, {
+          state: 'completed_pending_surface', completionRunId: event.runId,
+          resultPointer: event.resultPointer, resultDigest: event.resultDigest,
+        });
       }
       if (event.type === 'work_settled') {
         const work = works.get(event.workId); if (work) work.status = event.outcome === 'achieved'
@@ -265,7 +273,7 @@ export class WorkStore {
     await this.claimExecution({ workId, revision, runId });
     await this.append('work_settled', { workId, revision, outcome: 'cancelled', runId });
     return { workId, revision, inputs: inputs.map((input) => ({
-      inputId: input.inputId, workId, revision, state: 'executed' })) };
+      inputId: input.inputId, workId, revision, state: 'executing' })) };
   }
   async resumePresentedOnPausedWork({ inputId, currentWorkId, targetWorkId, runId,
     currentWorkDisposition = 'pause' }) {
@@ -395,16 +403,42 @@ export class WorkStore {
     await this.append('input_execution_claimed', { inputId, runId }); return { inputId, runId };
   }
   async completeInputExecution({ inputId, runId }) {
+    throw new Error('completeInputExecution requires pending-surface prepare and commit');
+  }
+  async prepareInputCompletion({ inputId, runId, resultPointer, resultDigest }) {
     const state = await this.read(); const input = state.inputs.find((item) => item.inputId === inputId);
     if (!input || input.state !== 'executing' || input.executionRunId !== runId) {
       throw new Error('work input execution claim mismatch');
     }
-    await this.append('input_executed', { inputId, runId }); return { inputId, state: 'executed' };
+    if (!String(resultPointer ?? '').trim() || !String(resultDigest ?? '').trim()) {
+      throw new TypeError('input completion result pointer and digest are required');
+    }
+    await this.append('input_completed_pending_surface', { inputId, runId,
+      resultPointer: String(resultPointer), resultDigest: String(resultDigest) });
+    return { inputId, state: 'completed_pending_surface', runId,
+      resultPointer: String(resultPointer), resultDigest: String(resultDigest) };
+  }
+  async commitInputExecuted({ inputId, runId, surfaceReceipt }) {
+    const state = await this.read(); const input = state.inputs.find((item) => item.inputId === inputId);
+    if (!input || input.state !== 'completed_pending_surface' || input.completionRunId !== runId) {
+      throw new Error('input completion is not pending surface');
+    }
+    if (!surfaceReceipt || surfaceReceipt.surface !== 'console_session'
+      || surfaceReceipt.sessionId !== input.sessionId || surfaceReceipt.runId !== runId
+      || surfaceReceipt.resultDigest !== input.resultDigest) {
+      throw new Error('exact input surface receipt is required');
+    }
+    await this.append('input_executed', { inputId, runId, surfaceReceipt });
+    return { inputId, state: 'executed', surfaceReceipt: clone(surfaceReceipt) };
   }
   async executingInputsForRun(runId) {
     const state = await this.read(); return state.inputs.filter((input) => (
       input.state === 'executing' && input.executionRunId === runId
     ));
+  }
+  async pendingSurfaceInputsForRun(runId) {
+    return (await this.read()).inputs.filter((input) => input.state === 'completed_pending_surface'
+      && input.completionRunId === runId);
   }
   async recordResultReady({ runId, sessionId, workId = null, revision = null,
     objectiveOutcome = 'unresolved', resultDigest, surfaceResult }) {

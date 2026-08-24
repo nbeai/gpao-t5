@@ -473,7 +473,9 @@ test('resume_paused_work는 exact Work를 R+1로 재개하고 별도 Run exact-o
     release(); await stream;
     for (let attempt = 0; attempt < 100; attempt += 1) {
       const view = await server.sessionStore.load(session.id);
-      if (JSON.stringify(view).includes('RESUMED-884')) break;
+      const state = await server.workStore.read();
+      const input = state.inputs.find((item) => item.inputId === admitted.inputId);
+      if (JSON.stringify(view).includes('RESUMED-884') && input?.state === 'executed') break;
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
     const state = await server.workStore.read(); const input = state.inputs.find((item) => item.inputId === admitted.inputId);
@@ -483,4 +485,47 @@ test('resume_paused_work는 exact Work를 R+1로 재개하고 별도 Run exact-o
     assert.equal(input.workId, paused.workId); assert.equal(input.state, 'executed');
     assert.equal((await server.runLedger.list({ sessionId: session.id })).length, 2);
   } finally { release?.(); await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true }); }
+});
+
+test('followup input은 surface 전 pending이고 exact surface receipt 뒤에만 executed가 된다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-input-pending-surface-')); const stateDir = join(room, 'state');
+  const workspace = join(room, 'workspace'); await mkdir(workspace); let turn = 0;
+  let entered; const started = new Promise((resolve) => { entered = resolve; });
+  let release; const modelGate = new Promise((resolve) => { release = resolve; });
+  let publishing; const publishStarted = new Promise((resolve) => { publishing = resolve; });
+  let allowSurface; const surfaceGate = new Promise((resolve) => { allowSurface = resolve; });
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => ({ async respond() {
+    turn += 1; if (turn === 1) { entered(); await modelGate; return { text: 'STALE', toolCalls: [] }; }
+    return { text: 'PENDING-SURFACE-RESULT-731', toolCalls: [] };
+  } }) });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const originalAppend = server.sessionStore.append.bind(server.sessionStore);
+    server.sessionStore.append = async (sessionId, entry) => {
+      if (entry?.role === 'assistant') { publishing(); await surfaceGate; }
+      return originalAppend(sessionId, entry);
+    };
+    const first = await fetch(`${base}/turn/stream-start`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: '초기 작업' }) }).then((response) => response.json());
+    const stream = fetch(`${base}/turn/stream?streamId=${first.streamId}`).then((response) => response.text()); await started;
+    const admitted = await fetch(`${base}/turn/stream-start`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: '현재 작업에 이 요구를 반영해' }) }).then((response) => response.json());
+    release(); await publishStarted;
+    let state = await server.workStore.read(); let input = state.inputs.find((item) => item.inputId === admitted.inputId);
+    assert.equal(input.state, 'completed_pending_surface');
+    assert.equal(state.results.at(-1).state, 'pending_surface');
+    assert.equal(state.events.some((event) => event.type === 'input_executed' && event.inputId === input.inputId), false);
+    allowSurface(); await stream;
+    state = await server.workStore.read(); input = state.inputs.find((item) => item.inputId === admitted.inputId);
+    assert.equal(input.state, 'executed'); assert.equal(input.surfaceReceipt.runId, input.completionRunId);
+    assert.equal(input.surfaceReceipt.resultDigest, input.resultDigest);
+    const types = state.events.filter((event) => event.inputId === input.inputId
+      || (event.runId === input.completionRunId && event.type === 'result_surface_persisted'))
+      .map((event) => event.type);
+    assert.ok(types.indexOf('input_completed_pending_surface') < types.indexOf('result_surface_persisted'));
+    assert.ok(types.indexOf('result_surface_persisted') < types.indexOf('input_executed'));
+  } finally { release?.(); allowSurface?.();
+    await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true }); }
 });

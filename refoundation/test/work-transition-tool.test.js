@@ -46,14 +46,14 @@ test('start_independent_work만 새 Work를 만들고 현재 Run의 completion�
   assert.deepEqual(result.deactivatedTools, ['work_completion']);
 });
 
-test('cancel_current_work는 process stop·cancelled Work·executed input으로 닫는다', async () => {
+test('cancel_current_work는 process와 Work를 닫되 input terminal은 surface 뒤로 남긴다', async () => {
   const base = await fixture(); let stops = 0;
   const tool = makeWorkTransitionTool({ store: base.store, sessionId: 'session', runId: 'current-run',
     stopProcesses: async () => { stops += 1; } });
   const result = await tool.execute({ action: 'cancel_current_work',
     currentWorkDisposition: null, targetWorkId: null });
   const state = await base.store.read(); assert.equal(stops, 1);
-  assert.equal(state.works[0].status, 'cancelled'); assert.equal(state.inputs[0].state, 'executed');
+  assert.equal(state.works[0].status, 'cancelled'); assert.equal(state.inputs[0].state, 'executing');
   assert.deepEqual(result.deactivatedTools, ['work_completion']);
 });
 

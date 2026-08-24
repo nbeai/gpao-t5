@@ -14,13 +14,17 @@ test('WorkStore는 input admission·revision·proposal·settlement를 append-onl
   await store.claimExecution({ workId: work.workId, revision: 1, runId: 'run-1' });
   await store.presentInputs({ sessionId: 'session', workId: work.workId, revision: 1, runId: 'run-1' });
   await store.applyPresentedToCurrentWork({ sessionId: 'session', workId: work.workId, runId: 'run-1' });
-  await store.completeInputExecution({ inputId: admitted.inputId, runId: 'run-1' });
+  await store.prepareInputCompletion({ inputId: admitted.inputId, runId: 'run-1',
+    resultPointer: 'work-result:run-1', resultDigest: 'digest-run-1' });
+  await store.commitInputExecuted({ inputId: admitted.inputId, runId: 'run-1', surfaceReceipt: {
+    surface: 'console_session', sessionId: 'session', runId: 'run-1', resultDigest: 'digest-run-1',
+  } });
   await store.proposeCompletion({ workId: work.workId, revision: 2, runId: 'run-1' });
   await store.settle({ workId: work.workId, revision: 2, outcome: 'achieved', runId: 'run-1' });
   const state = await store.read();
   assert.equal(state.works[0].status, 'completed');
   assert.equal(state.inputs[0].disposition, 'current_work');
-  assert.deepEqual(state.events.map((event) => event.sequence), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.deepEqual(state.events.map((event) => event.sequence), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
 });
 
 test('stale revision settlement와 다른 Run proposal은 최신 Work를 바꾸지 못한다', async () => {

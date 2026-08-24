@@ -42,6 +42,16 @@ async function waitForReply(base, sessionId, pattern, timeoutMs = 2_000) {
   throw new Error(`timed out waiting for ${pattern}`);
 }
 
+async function waitForHandoffs(ledger, predicate, timeoutMs = 2_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const state = await ledger.read();
+    if (predicate(state.handoffs)) return state;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('timed out waiting for capability handoff terminal state');
+}
+
 function connectedTool() {
   return {
     name: 'workspace_fixture', description: 'Read the verified connected workspace fixture.',
@@ -230,7 +240,10 @@ test('같은 연결을 기다리는 두 대화는 준비 행동을 한 번만 �
     ]);
     assert.equal(observedA.replies.filter((reply) => /A 목적.*CAPABILITY-READY-731/u.test(reply)).length, 1);
     assert.equal(observedB.replies.filter((reply) => /B 목적.*CAPABILITY-READY-731/u.test(reply)).length, 1);
-    const ledger = await server.capabilityHandoffLedger.read();
+    const ledger = await waitForHandoffs(server.capabilityHandoffLedger, (handoffs) => (
+      handoffs.filter((handoff) => handoff.connectionId === 'shared-fixture'
+        && handoff.state === 'resumed').length === 2
+    ));
     assert.equal(ledger.handoffs.filter((handoff) => (
       handoff.connectionId === 'shared-fixture' && handoff.state === 'resumed'
     )).length, 2);
@@ -366,4 +379,61 @@ test('resume claim 뒤 crash로 실행 사실이 모호하면 재시작이 모�
   } finally {
     await close(server); await rm(room, { recursive: true, force: true });
   }
+});
+
+test('resume 결과 뒤 surface crash는 pending으로 남고 재시작이 exact surface 후 resumed만 commit한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-capability-pending-surface-')); const stateDir = join(room, 'state');
+  let ready = false; let performed = 0; let modelCalls = 0;
+  const service = {
+    id: 'pending-surface-fixture', label: '결과 대기 업무 앱', category: 'workspace', toolName: 'workspace_fixture',
+    async inspect() { return { state: ready ? 'ready' : 'needs_connection',
+      userSafeSummary: ready ? '준비됨' : '준비 필요', capabilities: { read: ready }, routes: [],
+      actions: ready ? [] : [{ id: 'open', label: '열기', kind: 'user_action',
+        endpoint: '/connections/pending-surface-fixture/action' }] }; },
+    async performAction() { performed += 1; return { performed: true, userSafeSummary: '열었어요.' }; },
+    async makeTool() { return ready ? connectedTool() : null; },
+  };
+  const modelFactory = () => ({ async respond() {
+    modelCalls += 1;
+    if (modelCalls === 1) return { text: '', toolCalls: [{ id: 'prepare', name: 'connection', args: {
+      action: 'perform', id: 'pending-surface-fixture', actionId: 'open',
+    } }] };
+    if (modelCalls === 2) return { text: '준비되면 이어갈게요.', toolCalls: [] };
+    return { text: 'RESUME-PENDING-731', toolCalls: [] };
+  } });
+  const first = makeConsoleServer({ stateDir, workspace: room, workspaceConnectionServices: [service],
+    connectionPollIntervalMs: 50, modelFactory,
+    modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }) });
+  const firstBase = await listen(first); const session = (await post(firstBase, '/sessions')).body;
+  const started = await post(firstBase, '/turn', { sessionId: session.id, text: '준비 뒤 값을 알려줘' });
+  const handoffId = started.body.runId; let failedAppend;
+  const appendFailed = new Promise((resolve) => { failedAppend = resolve; });
+  const originalAppend = first.sessionStore.append.bind(first.sessionStore);
+  first.sessionStore.append = async (sessionId, entry) => {
+    if (entry?.role === 'assistant' && entry.result?.reply === 'RESUME-PENDING-731') {
+      failedAppend(); throw new Error('injected resume surface failure');
+    }
+    return originalAppend(sessionId, entry);
+  };
+  ready = true; await appendFailed;
+  let handoff = (await first.capabilityHandoffLedger.read()).handoffs.find((item) => item.handoffId === handoffId);
+  assert.equal(handoff.state, 'resume_completed_pending_surface');
+  assert.ok(handoff.resumeRunId); assert.ok(handoff.resumeResultDigest); assert.ok(handoff.resumeResultPointer);
+  assert.equal((await first.sessionStore.load(session.id)).transcript.some(
+    (entry) => entry.role === 'assistant' && entry.result?.reply === 'RESUME-PENDING-731'), false);
+  await close(first);
+
+  const callsBeforeRestart = modelCalls;
+  const second = makeConsoleServer({ stateDir, workspace: room, workspaceConnectionServices: [service],
+    connectionPollIntervalMs: 5, modelFactory,
+    modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }) });
+  const secondBase = await listen(second);
+  try {
+    const observed = await waitForReply(secondBase, session.id, /RESUME-PENDING-731/u);
+    assert.equal(observed.replies.filter((reply) => /RESUME-PENDING-731/u.test(reply)).length, 1);
+    handoff = (await second.capabilityHandoffLedger.read()).handoffs.find((item) => item.handoffId === handoffId);
+    assert.equal(handoff.state, 'resumed'); assert.equal(handoff.surfaceReceipt.runId, handoff.resumeRunId);
+    assert.equal(handoff.surfaceReceipt.resultDigest, handoff.resumeResultDigest);
+    assert.equal(modelCalls, callsBeforeRestart); assert.equal(performed, 1);
+  } finally { await close(second); await rm(room, { recursive: true, force: true }); }
 });

@@ -23,13 +23,21 @@ test('capability handoff는 준비·실측·완료·claim·재개를 append-only
     const firstClaim = await ledger.claimResume(ids.handoffId);
     const sameClaim = await ledger.claimResume(ids.handoffId);
     assert.equal(firstClaim.claimId, sameClaim.claimId);
-    await ledger.markResumed(ids.handoffId, ids.resumeRunId);
+    await ledger.markResumeCompletedPendingSurface(ids.handoffId, { resumeRunId: ids.resumeRunId,
+      resultPointer: `work-result:${ids.resumeRunId}`, resultDigest: 'digest-333' });
+    await assert.rejects(() => ledger.markResumed(ids.handoffId, {
+      resumeRunId: ids.resumeRunId, surfaceReceipt: null,
+    }), /surface receipt/u);
+    await ledger.markResumed(ids.handoffId, { resumeRunId: ids.resumeRunId, surfaceReceipt: {
+      surface: 'console_session', sessionId: ids.sessionId,
+      runId: ids.resumeRunId, resultDigest: 'digest-333',
+    } });
     const state = await ledger.read();
     assert.equal(state.handoffs[0].state, 'resumed');
     assert.equal(state.handoffs[0].resumeRunId, ids.resumeRunId);
     assert.deepEqual(state.events.map((event) => event.type), [
       'ledger_started', 'handoff_waiting', 'readiness_observed',
-      'completion_recorded', 'resume_claimed', 'handoff_resumed',
+      'completion_recorded', 'resume_claimed', 'resume_completed_pending_surface', 'handoff_resumed',
     ]);
     assert.equal((await stat(join(room, 'capability-handoffs.jsonl'))).mode & 0o777, 0o600);
   } finally { await rm(room, { recursive: true, force: true }); }
