@@ -1,0 +1,165 @@
+{
+  "schema": "t5.qh4-typed-visual-evidence.v1",
+  "recordedAt": "2026-08-25T17:40:00+09:00",
+  "integrationBaseCommit": "d1c8a6f9",
+  "reviewedSource": {
+    "worktree": "/Users/jyp/Developer/t5-p-op-web-evidence",
+    "commit": "aa979ac2fb95466b3dd69763f133b3c8a62b1808",
+    "reusedPrinciples": [
+      "preserve structured OpenAI search image fields without assuming they exist",
+      "fetch and qualify image bytes before managed attachment registration",
+      "preserve typed candidate, fetch, qualification, and attachment failures",
+      "forbid a zero-preview zero-failure result"
+    ],
+    "notReusedAsQh4Authority": [
+      "readable web_research source selection as the image candidate source",
+      "OG page metadata as the default image route",
+      "visible Browser or page screenshot fallback"
+    ],
+    "cherryPicked": false
+  },
+  "contract": {
+    "candidateIndependentFromReadableWebSource": true,
+    "pipeline": [
+      "typed_provider_candidate",
+      "public_fetch_and_redirect",
+      "magic_mime_decode_and_size",
+      "sha_duplicate_filter",
+      "managed_attachment",
+      "source_and_preview_result"
+    ],
+    "providerTiers": [
+      "dedicated_image_provider",
+      "structured_search_image_fields_not_guaranteed"
+    ],
+    "fallbacksForbidden": [
+      "page scraping",
+      "visible Browser",
+      "page screenshot"
+    ],
+    "failureStagesTyped": [
+      "candidate",
+      "fetch",
+      "qualification",
+      "attachment"
+    ],
+    "zeroPreviewZeroFailureAllowed": false
+  },
+  "fixtureQualification": {
+    "queries": [
+      "미니멀 카페 브랜드 디자인",
+      "윤동주 인물 사진",
+      "무선 헤드폰 제품 사진",
+      "서울 북촌 한옥마을",
+      "편집 디자인 레이아웃",
+      "마리 퀴리 인물 사진",
+      "세라믹 찻잔 제품 사진",
+      "부산 감천문화마을",
+      "모바일 앱 UI 디자인",
+      "제주 성산일출봉"
+    ],
+    "transport": "loopback_http_with_public_candidate_identity",
+    "providerCalls": 10,
+    "requestedPerQuery": 3,
+    "queriesWithThreeManagedPreviews": 10,
+    "managedPreviews": 30,
+    "sourceDirectIdentityPreserved": true,
+    "shaDuplicatesInSelectedPreviews": 0,
+    "visibleBrowserCalls": 0,
+    "typedCounterTests": [
+      "dedicated_image_provider_unavailable",
+      "provider_image_fields_absent",
+      "image_address_not_public",
+      "invalid_image_bytes",
+      "image_decode_failed",
+      "image_too_large",
+      "duplicate_image_sha"
+    ],
+    "focusedTests": {
+      "passed": 29,
+      "failed": 0
+    }
+  },
+  "publicProviderQualification": {
+    "provider": "OpenAI Responses web search structured image fields",
+    "dedicatedImageProviderAvailable": false,
+    "structuredFieldsExistenceAssumed": false,
+    "terra": {
+      "model": "gpt-5.6-terra",
+      "runId": "990be63c-9db4-46eb-bd2a-9cbf66d3c7d6",
+      "requested": 3,
+      "previewCount": 0,
+      "failureCount": 1,
+      "failureCode": "provider_image_fields_absent",
+      "providerCalls": 1,
+      "providerCallWallMs": 11072,
+      "runWallMs": 16376,
+      "modelCalls": 4,
+      "toolCalls": 2,
+      "providerTokens": 42663,
+      "visibleBrowserCalls": 0,
+      "modelWebFallbackCalls": 0,
+      "passed": true
+    },
+    "gpt55": {
+      "model": "gpt-5.5",
+      "runId": "d7163fdd-c236-4709-9618-230d802fd591",
+      "requested": 3,
+      "previewCount": 0,
+      "failureCount": 1,
+      "failureCode": "provider_image_fields_absent",
+      "providerCalls": 1,
+      "providerCallWallMs": 15475,
+      "runWallMs": 25654,
+      "modelCalls": 4,
+      "toolCalls": 2,
+      "providerTokens": 41718,
+      "visibleBrowserCalls": 0,
+      "modelWebFallbackCalls": 0,
+      "passed": true
+    },
+    "qualificationMeaning": "Current credentials have no dedicated image provider and the public structured-search sample returned no image fields. T5 returned one typed shortfall instead of fabricating previews or opening another route.",
+    "actualThreePreviewPublicCoverage": false
+  },
+  "regression": {
+    "coreExcludingSeparatedUiCase": {
+      "passed": 803,
+      "failed": 0
+    },
+    "productIntegration": {
+      "passed": 140,
+      "failed": 0,
+      "visibleBrowserLiveExecuted": false
+    },
+    "separatedExistingUiCase": {
+      "test": "refoundation/test/console-ui-state.test.js",
+      "failed": 1,
+      "reason": "current integrated UI source no longer matches the pre-existing clearSessionSelection assertion",
+      "qh4FilesChanged": 0
+    },
+    "legacySourceImports": 0
+  },
+  "scope": {
+    "changed": [
+      "typed image provider interface and candidate normalization",
+      "visual reference fetch, structural decode, SHA dedupe, managed attachment, typed result",
+      "console wiring for independent image providers",
+      "OpenAI structured image-field capability marker",
+      "QH-4 fixture and live qualification"
+    ],
+    "unchanged": [
+      "QH-1",
+      "QH-2",
+      "QH-3",
+      "Connecting",
+      "UI"
+    ]
+  },
+  "gate": {
+    "typedProviderQualificationClosed": true,
+    "currentProviderAbsenceHonestlyClosed": true,
+    "releaseRequirementActualThreeImagesMet": false,
+    "nextCondition": "A qualified dedicated image provider or an actually observed structured provider response with three usable candidates is required before claiming public image-three completion."
+  },
+  "passed": true
+}

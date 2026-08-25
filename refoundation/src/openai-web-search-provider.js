@@ -78,6 +78,9 @@ export function makeStoredOpenAIWebSearchProvider({
   return {
     id: 'openai',
     label: 'OpenAI Web Search',
+    // Responses web search may return structured image fields, but it is not a
+    // dedicated image-search endpoint and those fields must never be assumed.
+    imageCandidateMode: 'structured_search_fields',
     async available() {
       return await connection()
         ? { available: true }

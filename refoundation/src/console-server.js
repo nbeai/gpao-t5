@@ -53,6 +53,7 @@ import {
 import { makeSessionSearchTool } from './session-search-tool.js';
 import { makeWebSearchTool } from './web-search-tool.js';
 import { makeWebResearchTool } from './web-research-tool.js';
+import { makeImageSearchTool } from './image-search-tool.js';
 import { makeVisualReferenceTool } from './visual-reference-tool.js';
 import { makeWebReadTool } from './web-read-tool.js';
 import { makeBrowserObservationTool } from './browser-observation-tool.js';
@@ -280,6 +281,7 @@ export function makeConsoleServer({
   memoryFlushMode = 'pre-checkpoint-v0',
   memoryFlushMaxModelTurns = 8,
   webSearchProviders = [],
+  imageSearchProviders = [],
   webReadOptions = {},
   browserDriverFactory,
   browserHost,
@@ -440,6 +442,13 @@ export function makeConsoleServer({
   const webReadTool = makeWebReadTool(webReadOptions);
   const webSearchTool = makeWebSearchTool({ providers: webSearchProviders });
   const webResearchTool = makeWebResearchTool({ searchTool: webSearchTool, readTool: webReadTool });
+  const imageCandidateProviders = [...new Map([
+    ...imageSearchProviders,
+    ...webSearchProviders.filter((provider) => provider.imageCandidateMode === 'structured_search_fields'),
+  ].map((provider) => [provider.id, provider])).values()];
+  const imageSearchTool = makeImageSearchTool({
+    providers: imageCandidateProviders, sourceSearchTool: webSearchTool,
+  });
   const browserDrivers = new Map();
   const browserObservations = new Map();
   const browserArtifactRoot = resolve(stateDir, 'browser');
@@ -1162,13 +1171,15 @@ export function makeConsoleServer({
         }
       }
       offeredTools.unshift(webReadTool);
-      if ((await Promise.all(webSearchProviders.map(async (provider) => {
+      const webSearchAvailable = (await Promise.all(webSearchProviders.map(async (provider) => {
         try { return (await provider.available())?.available === true; }
         catch { return false; }
-      }))).some(Boolean)) offeredTools.unshift(
-        webSearchTool, webResearchTool,
-        makeVisualReferenceTool({ researchTool: webResearchTool, attachments, sessionId }),
-      );
+      }))).some(Boolean);
+      if (webSearchAvailable) offeredTools.unshift(webSearchTool, webResearchTool);
+      // The result tool remains explicit even when every provider is absent so
+      // the model gets one typed absence receipt instead of inventing a page
+      // scraping, Browser, or screenshot fallback.
+      offeredTools.unshift(makeVisualReferenceTool({ imageSearchTool, attachments, sessionId }));
       if (projection.recoverable.length) {
         offeredTools.unshift(makeConversationRecallTool({
           ledger: conversations, sessionId, allowedRefs: projection.recoverable,
