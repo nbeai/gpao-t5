@@ -1,0 +1,40 @@
+{
+  "schema": "t5.korea-business-full-settings-page-evidence.v1",
+  "recordedAt": "2026-08-25",
+  "sourceCommit": "ea9da1de",
+  "gate": "K1-B Full Settings Experience",
+  "status": "machine_complete_human_visual_qualification_pending",
+  "userCapability": [
+    "설정은 우측 overlay panel이 아니라 대화 옆 전체 작업면과 독립 경로를 가진다.",
+    "사용자는 설정의 모델·메신저·도구와 연결·스킬·자동화·기억·모양·소개를 고정된 탐색 구조에서 이동한다.",
+    "브라우저 뒤로가기와 닫기로 기존 대화 상태를 잃지 않고 돌아온다.",
+    "직접 /settings 또는 /settings/tools를 열어도 같은 서버 상태에서 시작한다.",
+    "OAuth와 API key/key-pair 연결은 같은 Connection Truth를 사용하고 credential은 브라우저 저장소에 남지 않는다."
+  ],
+  "verification": [
+    {
+      "command": "node --test settings full-page, visual navigation, connection UI and endpoint suites",
+      "result": "12_pass_0_fail"
+    },
+    {
+      "command": "npm run refoundation:integration",
+      "result": "136_pass_0_fail",
+      "visibleBrowserLive": false
+    },
+    {
+      "kind": "human_visual_console",
+      "result": "not_run",
+      "requiredBeforeGateClosure": true,
+      "checks": [
+        "desktop_and_narrow_layout",
+        "settings_discoverability",
+        "section_navigation_and_back",
+        "oauth_return_to_original_work",
+        "credential_form_clarity",
+        "screen_reader_and_keyboard_focus"
+      ]
+    }
+  ],
+  "knownObservation": "전체 refoundation core에는 이번 변경과 무관한 T5-SECOND-COMPLETION Gate 기대 문자열 한 건이 현재 정본과 불일치한다.",
+  "next": "인간 시각 종단을 통과한 뒤 Google Workspace를 첫 preregistered OAuth Connector로 연다."
+}
