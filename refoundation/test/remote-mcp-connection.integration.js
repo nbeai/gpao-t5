@@ -57,6 +57,112 @@ test('범용 Remote MCP는 DCR·사용자 OAuth·tools/list 확인 뒤에만 연
   await connection.close();
 });
 
+test('사전등록 OAuth Remote MCP는 DCR 없이 최소 scope와 관측된 계정 identity를 검증한다', async () => {
+  const values = new Map(); const store = { async get(k) { return structuredClone(values.get(k) ?? null); },
+    async set(k, v) { values.set(k, structuredClone(v)); }, async clear(k) { values.delete(k); } };
+  const calls = [];
+  const metadata = { issuer: 'https://accounts.workspace.test',
+    authorization_endpoint: 'https://accounts.workspace.test/authorize',
+    token_endpoint: 'https://accounts.workspace.test/token',
+    code_challenge_methods_supported: ['S256'],
+    scopes_supported: ['openid', 'profile', 'drive.readonly', 'drive.file', 'gmail.send'] };
+  const fetchImpl = async (url, options = {}) => {
+    calls.push({ url: String(url), method: options.method ?? 'GET', body: options.body ?? null });
+    if (String(url).includes('oauth-protected-resource')) {
+      return new Response(JSON.stringify({ authorization_servers: ['https://accounts.workspace.test'] }));
+    }
+    if (String(url).includes('oauth-authorization-server')) return new Response(JSON.stringify(metadata));
+    if (String(url).endsWith('/token')) return new Response(JSON.stringify({
+      access_token: 'WORKSPACE-ACCESS', refresh_token: 'WORKSPACE-REFRESH', expires_in: 3600,
+      scope: 'openid drive.readonly',
+    }));
+    throw new Error(`unexpected ${url}`);
+  };
+  const connection = makeRemoteMcpConnection({
+    id: 'google-workspace', label: 'Google Workspace', serverUrl: 'https://drivemcp.googleapis.test/mcp/v1',
+    resource: 'https://drivemcp.googleapis.test/mcp/v1', secretStore: store, fetchImpl, callbackPort: 0,
+    oauthClient: { client_id: 't5-google-client', client_secret: 'T5-GOOGLE-CLIENT-SECRET' },
+    requestedScopes: ['openid', 'drive.readonly'], requireObservedAccount: true,
+    runtimeFactory: () => ({
+      async listTools() { return [{ name: 'search_files', inputSchema: { type: 'object' }, annotations: { readOnlyHint: true } }]; },
+      async callTool() { return { content: [], isError: false }; }, invalidate() {}, async close() {},
+    }),
+    verifyConnection: async ({ grantedScopes, tools }) => {
+      assert.deepEqual(grantedScopes, ['openid', 'drive.readonly']); assert.equal(tools[0].name, 'search_files');
+      return { accountId: 'account-42', accountLabel: 'owner@example.com',
+        permissions: grantedScopes, resources: [{ id: 'drive-root', label: '내 드라이브', scope: 'drive' }] };
+    },
+  });
+  const started = await connection.start(); const auth = new URL(started.authorizeUrl);
+  assert.equal(auth.searchParams.get('client_id'), 't5-google-client');
+  assert.equal(auth.searchParams.get('scope'), 'openid drive.readonly');
+  assert.equal(calls.some((call) => call.url.endsWith('/register')), false);
+  const callback = new URL(auth.searchParams.get('redirect_uri'));
+  const completion = connection.awaitConnection();
+  await fetch(`${callback}?code=GOOGLE-CODE&state=${encodeURIComponent(auth.searchParams.get('state'))}`);
+  assert.equal((await completion).connected, true);
+  const inspected = await connection.inspect();
+  assert.equal(inspected.identity.accountId, 'account-42');
+  assert.equal(inspected.identity.accountLabel, 'owner@example.com');
+  assert.deepEqual(inspected.identity.permissions, ['openid', 'drive.readonly']);
+  assert.doesNotMatch(JSON.stringify(inspected), /WORKSPACE-ACCESS|WORKSPACE-REFRESH|T5-GOOGLE-CLIENT-SECRET|GOOGLE-CODE/u);
+  await connection.close();
+});
+
+test('계정 관측이 필수인 공식 연결은 tools 목록만으로 ready를 주장하지 않는다', async () => {
+  const values = new Map(); const store = { async get(k) { return structuredClone(values.get(k) ?? null); },
+    async set(k, v) { values.set(k, structuredClone(v)); }, async clear(k) { values.delete(k); } };
+  const metadata = { issuer: 'https://auth.example.test', authorization_endpoint: 'https://auth.example.test/authorize',
+    token_endpoint: 'https://auth.example.test/token', code_challenge_methods_supported: ['S256'], scopes_supported: ['read'] };
+  const connection = makeRemoteMcpConnection({
+    id: 'account-bound', label: 'Account Bound', serverUrl: 'https://mcp.example.test/mcp', secretStore: store,
+    oauthClient: { client_id: 't5-client' }, requestedScopes: ['read'], requireObservedAccount: true,
+    fetchImpl: async (url) => {
+      if (String(url).includes('oauth-protected-resource')) return new Response(JSON.stringify({ authorization_servers: ['https://auth.example.test'] }));
+      if (String(url).includes('oauth-authorization-server')) return new Response(JSON.stringify(metadata));
+      if (String(url).endsWith('/token')) return new Response(JSON.stringify({ access_token: 'ACCESS', refresh_token: 'REFRESH', scope: 'read' }));
+      throw new Error(`unexpected ${url}`);
+    },
+    runtimeFactory: () => ({ async listTools() { return [{ name: 'read', inputSchema: { type: 'object' } }]; },
+      async callTool() { return { content: [], isError: false }; }, invalidate() {}, async close() {} }),
+    verifyConnection: async () => ({ permissions: ['read'] }),
+  });
+  const auth = new URL((await connection.start()).authorizeUrl); const callback = new URL(auth.searchParams.get('redirect_uri'));
+  const completion = connection.awaitConnection();
+  const rejected = assert.rejects(completion, /account identity/u);
+  await fetch(`${callback}?code=CODE&state=${encodeURIComponent(auth.searchParams.get('state'))}`);
+  await rejected;
+  assert.equal((await connection.inspect()).state, 'needs_connection');
+  await connection.close();
+});
+
+test('OAuth 공급자가 필수 scope 일부만 허용하면 계정이 보여도 연결 완료로 올리지 않는다', async () => {
+  const values = new Map(); const store = { async get(k) { return structuredClone(values.get(k) ?? null); },
+    async set(k, v) { values.set(k, structuredClone(v)); }, async clear(k) { values.delete(k); } };
+  const metadata = { issuer: 'https://auth.scope.test', authorization_endpoint: 'https://auth.scope.test/authorize',
+    token_endpoint: 'https://auth.scope.test/token', code_challenge_methods_supported: ['S256'],
+    scopes_supported: ['openid', 'drive.readonly'] };
+  const connection = makeRemoteMcpConnection({
+    id: 'scope-bound', label: 'Scope Bound', serverUrl: 'https://mcp.scope.test/mcp', secretStore: store,
+    oauthClient: { client_id: 't5-client' }, requestedScopes: ['openid', 'drive.readonly'], requireObservedAccount: true,
+    fetchImpl: async (url) => {
+      if (String(url).includes('oauth-protected-resource')) return new Response(JSON.stringify({ authorization_servers: ['https://auth.scope.test'] }));
+      if (String(url).includes('oauth-authorization-server')) return new Response(JSON.stringify(metadata));
+      if (String(url).endsWith('/token')) return new Response(JSON.stringify({ access_token: 'ACCESS', refresh_token: 'REFRESH', scope: 'openid' }));
+      throw new Error(`unexpected ${url}`);
+    },
+    runtimeFactory: () => ({ async listTools() { return [{ name: 'read', inputSchema: { type: 'object' } }]; },
+      async callTool() { return { content: [], isError: false }; }, invalidate() {}, async close() {} }),
+    verifyConnection: async () => ({ accountId: 'account-1', accountLabel: 'owner@example.com' }),
+  });
+  const auth = new URL((await connection.start()).authorizeUrl); const callback = new URL(auth.searchParams.get('redirect_uri'));
+  const completion = connection.awaitConnection(); const rejected = assert.rejects(completion, /필요한 권한/u);
+  await fetch(`${callback}?code=CODE&state=${encodeURIComponent(auth.searchParams.get('state'))}`);
+  await rejected;
+  assert.equal((await connection.inspect()).state, 'needs_connection');
+  await connection.close();
+});
+
 test('동시에 만료 자격을 요청해도 Remote MCP refresh는 한 번만 실행되고 회전 token을 공유한다', async () => {
   const metadata = { token_endpoint: 'https://auth.linear.test/token' };
   const store = memorySecretStore({

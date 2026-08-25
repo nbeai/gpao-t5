@@ -1,0 +1,184 @@
+{
+  "schema": "t5.korea-business-connection-contracts.v1",
+  "recordedAt": "2026-08-25",
+  "targetAudience": ["solo_business", "small_business", "self_employed"],
+  "userCompletion": "사용자는 자기 사업의 공식 계정만 연결하고 판매·홍보·고객응대·사무 목적을 평소 말로 맡기며 T5는 정확한 계정·권한·실행·효과를 확인한 뒤에만 완료한다.",
+  "routePreference": [
+    "official_remote_mcp_oauth",
+    "official_api_oauth",
+    "official_api_key",
+    "official_partner_contract",
+    "verified_local_standard"
+  ],
+  "contracts": [
+    {
+      "id": "notion",
+      "role": "office",
+      "connectionClass": "official_remote_mcp",
+      "authMode": "mcp_oauth_dynamic",
+      "readiness": "qualified_positive_control",
+      "source": "https://developers.notion.com/guides/mcp/overview",
+      "closeoutProbe": "tools_list_and_exact_resource_read_write_readback"
+    },
+    {
+      "id": "google-workspace",
+      "role": "office_and_promotion",
+      "connectionClass": "official_remote_mcp",
+      "authMode": "oauth_preregistered_confidential",
+      "readiness": "developer_preview_requires_product_registration",
+      "source": "https://developers.google.com/workspace/guides/configure-mcp-servers",
+      "closeoutProbe": "account_product_scopes_and_product_specific_read_write"
+    },
+    {
+      "id": "microsoft-365",
+      "role": "office",
+      "connectionClass": "official_api",
+      "authMode": "oauth_preregistered_confidential",
+      "readiness": "implementation_required",
+      "source": "https://learn.microsoft.com/en-us/graph/auth/",
+      "closeoutProbe": "tenant_account_graph_permissions_and_exact_read_write"
+    },
+    {
+      "id": "naver-works",
+      "role": "office_and_channel",
+      "connectionClass": "official_api",
+      "authMode": "oauth_preregistered_confidential",
+      "readiness": "implementation_required",
+      "source": "https://developers.worksmobile.com/en/docs/api",
+      "closeoutProbe": "domain_member_permissions_and_exact_mail_calendar_drive_action"
+    },
+    {
+      "id": "slack",
+      "role": "office_and_channel",
+      "connectionClass": "official_remote_mcp",
+      "authMode": "oauth_preregistered_confidential",
+      "readiness": "marketplace_or_internal_app_required",
+      "source": "https://docs.slack.dev/ai/slack-mcp-server",
+      "closeoutProbe": "workspace_user_scopes_and_exact_channel_action"
+    },
+    {
+      "id": "telegram",
+      "role": "channel",
+      "connectionClass": "official_bot_api",
+      "authMode": "api_key",
+      "readiness": "qualified_positive_control",
+      "source": "https://core.telegram.org/bots/api",
+      "closeoutProbe": "bot_owner_inbound_attachment_and_outbound_delivery"
+    },
+    {
+      "id": "kakao",
+      "role": "identity_bundle",
+      "connectionClass": "service_bundle_no_single_connection",
+      "authMode": "oauth_preregistered_confidential",
+      "readiness": "must_split_account_channel_and_business_messaging",
+      "source": "https://developers.kakao.com/docs/ko/kakaologin/rest-api",
+      "closeoutProbe": "exact_kakao_application_account_and_granted_product"
+    },
+    {
+      "id": "kakao-channel",
+      "role": "customer_channel_and_promotion",
+      "connectionClass": "official_business_api",
+      "authMode": "provider_contract",
+      "readiness": "business_permission_and_template_review_required",
+      "source": "https://developers.kakao.com/docs/ko/getting-started/scope-of-support",
+      "closeoutProbe": "business_channel_template_recipient_and_delivery_acknowledgement"
+    },
+    {
+      "id": "naver",
+      "role": "search_identity_calendar_bundle",
+      "connectionClass": "service_bundle_no_single_connection",
+      "authMode": "oauth_preregistered_confidential",
+      "readiness": "must_split_search_personal_and_business_products",
+      "source": "https://developers.naver.com/docs/common/openapiguide/apilist.md",
+      "closeoutProbe": "exact_naver_product_account_and_supported_operation"
+    },
+    {
+      "id": "naver-smartstore",
+      "role": "commerce",
+      "connectionClass": "official_business_api",
+      "authMode": "oauth_server_to_server",
+      "readiness": "developer_and_seller_registration_required",
+      "source": "https://apicenter.commerce.naver.com/docs/auth",
+      "closeoutProbe": "seller_store_product_order_and_write_readback"
+    },
+    {
+      "id": "naver-smartplace",
+      "role": "local_business_and_promotion",
+      "connectionClass": "official_interface_unconfirmed",
+      "authMode": "provider_contract",
+      "readiness": "blocked_pending_official_management_api",
+      "source": "https://new.smartplace.naver.com/",
+      "closeoutProbe": "official_business_resource_identity_and_management_acknowledgement"
+    },
+    {
+      "id": "coupang-wing",
+      "role": "commerce",
+      "connectionClass": "official_business_api",
+      "authMode": "key_pair",
+      "readiness": "seller_key_and_ip_registration_required",
+      "source": "https://developers.coupangcorp.com/hc/ko",
+      "closeoutProbe": "vendor_product_order_inventory_signature_and_readback"
+    },
+    {
+      "id": "instagram-business",
+      "role": "promotion_and_customer",
+      "connectionClass": "official_api",
+      "authMode": "oauth_preregistered_confidential",
+      "readiness": "business_account_and_app_review_required",
+      "source": "https://developers.facebook.com/docs/instagram-platform/",
+      "closeoutProbe": "business_account_media_container_publication_and_comment_acknowledgement"
+    },
+    {
+      "id": "youtube",
+      "role": "promotion",
+      "connectionClass": "official_api",
+      "authMode": "oauth_preregistered_confidential",
+      "readiness": "google_app_verification_and_quota_required",
+      "source": "https://developers.google.com/youtube/v3/docs",
+      "closeoutProbe": "channel_video_comment_scope_upload_processing_and_readback"
+    },
+    {
+      "id": "channel-talk",
+      "role": "customer_channel",
+      "connectionClass": "official_business_api",
+      "authMode": "key_pair",
+      "readiness": "implementation_required",
+      "source": "https://developers.channel.io/en/articles/20516f31",
+      "closeoutProbe": "channel_customer_conversation_and_exact_delivery"
+    },
+    {
+      "id": "shopify",
+      "role": "commerce",
+      "connectionClass": "official_api",
+      "authMode": "oauth_preregistered_confidential",
+      "readiness": "product_registration_required",
+      "source": "https://shopify.dev/docs/apps/build/authentication-authorization/authenticate-standalone-apps",
+      "closeoutProbe": "shop_domain_scopes_product_order_inventory_and_readback"
+    },
+    {
+      "id": "shopee",
+      "role": "commerce",
+      "connectionClass": "official_business_api",
+      "authMode": "oauth_preregistered_confidential",
+      "readiness": "partner_registration_required",
+      "source": "https://open.shopee.com/",
+      "closeoutProbe": "market_shop_product_order_logistics_and_readback"
+    },
+    {
+      "id": "delivery-platforms",
+      "role": "commerce_and_operations",
+      "connectionClass": "official_interface_unconfirmed",
+      "authMode": "provider_contract",
+      "readiness": "blocked_pending_provider_contracts",
+      "source": "https://www.data.go.kr/",
+      "closeoutProbe": "provider_business_store_order_and_effect_acknowledgement"
+    }
+  ],
+  "nonGoals": [
+    "personal_kakaotalk_full_inbox_access",
+    "browser_ui_automation",
+    "unofficial_selector_or_reverse_engineered_api",
+    "financial_certificate_storage",
+    "connector_count_as_success"
+  ]
+}

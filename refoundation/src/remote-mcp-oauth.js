@@ -33,11 +33,15 @@ export async function discoverRemoteMcpOAuth({ serverUrl, fetchImpl = globalThis
     },
   ), `${label} 연결 준비를 확인하지 못했어요.`, 'authorization_discovery_failed');
   const expectedOrigin = httpsUrl(metadata.issuer ?? issuer, 'Remote MCP issuer').origin;
-  for (const key of ['authorization_endpoint', 'token_endpoint', 'registration_endpoint']) {
+  for (const key of ['authorization_endpoint', 'token_endpoint']) {
     if (!metadata[key]) throw new Error(`${label} OAuth metadata is missing ${key}`);
     if (httpsUrl(metadata[key], `Remote MCP ${key}`).origin !== expectedOrigin) {
       throw new Error(`${label} ${key} does not match the discovered issuer`);
     }
+  }
+  if (metadata.registration_endpoint
+    && httpsUrl(metadata.registration_endpoint, 'Remote MCP registration_endpoint').origin !== expectedOrigin) {
+    throw new Error(`${label} registration_endpoint does not match the discovered issuer`);
   }
   if (!metadata.code_challenge_methods_supported?.includes('S256')) {
     throw new Error(`${label} OAuth metadata does not support PKCE S256`);
@@ -76,12 +80,18 @@ export async function registerRemoteMcpClient({ metadata, redirectUri, fetchImpl
   };
 }
 
-export function buildRemoteMcpAuthorizeUrl({ metadata, client, redirectUri, challenge, state, resource = null } = {}) {
+export function buildRemoteMcpAuthorizeUrl({
+  metadata, client, redirectUri, challenge, state, resource = null, requestedScopes = null,
+} = {}) {
   const url = httpsUrl(metadata?.authorization_endpoint, 'Remote MCP authorization endpoint');
   if (!client?.client_id || !redirectUri || !challenge || !state) throw new TypeError('Remote MCP authorization input is required');
   url.searchParams.set('response_type', 'code'); url.searchParams.set('client_id', client.client_id);
   url.searchParams.set('redirect_uri', String(redirectUri));
-  const scopes = Array.isArray(metadata.scopes_supported) ? metadata.scopes_supported.filter(Boolean) : [];
+  const supported = Array.isArray(metadata.scopes_supported) ? metadata.scopes_supported.filter(Boolean).map(String) : [];
+  const scopes = requestedScopes == null ? supported : [...new Set(requestedScopes.map(String).filter(Boolean))];
+  if (supported.length && scopes.some((scope) => !supported.includes(scope))) {
+    throw new Error('Remote MCP requested an unsupported OAuth scope');
+  }
   if (scopes.length) url.searchParams.set('scope', scopes.join(' '));
   if (resource) url.searchParams.set('resource', String(resource));
   url.searchParams.set('state', String(state)); url.searchParams.set('code_challenge', String(challenge));
@@ -89,7 +99,7 @@ export function buildRemoteMcpAuthorizeUrl({ metadata, client, redirectUri, chal
   return url.toString();
 }
 
-function tokens(value, { now, previous = null, label }) {
+function tokens(value, { now, previous = null, requestedScopes = [], label }) {
   if (!value?.access_token) throw new Error(`${label} token response had no access token`);
   const expiresIn = Number(value.expires_in ?? 28_800);
   return {
@@ -97,11 +107,13 @@ function tokens(value, { now, previous = null, label }) {
     refreshToken: value.refresh_token ? String(value.refresh_token) : previous?.refreshToken ?? null,
     expiresAt: now() + Math.max(60, expiresIn - 300) * 1000,
     tokenType: String(value.token_type ?? 'Bearer'),
-    scopes: String(value.scope ?? '').split(/\s+/u).filter(Boolean),
+    scopes: value.scope == null
+      ? [...new Set((previous?.scopes ?? requestedScopes).map(String).filter(Boolean))]
+      : String(value.scope).split(/\s+/u).filter(Boolean),
   };
 }
 
-async function tokenRequest({ metadata, client, params, fetchImpl, now, previous, label }) {
+async function tokenRequest({ metadata, client, params, fetchImpl, now, previous, requestedScopes, label }) {
   const body = new URLSearchParams(params); body.set('client_id', client.client_id);
   if (client.client_secret) body.set('client_secret', client.client_secret);
   const response = await fetchImpl(httpsUrl(metadata.token_endpoint, 'Remote MCP token endpoint'), {
@@ -116,7 +128,7 @@ async function tokenRequest({ metadata, client, params, fetchImpl, now, previous
       ? `${label} 연결이 만료됐어요. 다시 연결해 주세요.` : `${label} 연결 자격을 확인하지 못했어요.`,
   ), { status: response.status || 502, reason: response.status === 400 && json?.error === 'invalid_grant'
     ? 'reauth_required' : 'token_request_failed' });
-  return tokens(json, { now, previous, label });
+  return tokens(json, { now, previous, requestedScopes, label });
 }
 
 export function exchangeRemoteMcpCode(input = {}, deps = {}) {
@@ -126,7 +138,7 @@ export function exchangeRemoteMcpCode(input = {}, deps = {}) {
     params: { grant_type: 'authorization_code', code: String(input.code),
       redirect_uri: String(input.redirectUri), code_verifier: String(input.verifier) },
     fetchImpl: deps.fetchImpl ?? globalThis.fetch, now: deps.now ?? Date.now,
-    previous: null, label: input.label ?? '서비스',
+    previous: null, requestedScopes: input.requestedScopes ?? [], label: input.label ?? '서비스',
   });
 }
 
@@ -136,7 +148,7 @@ export function refreshRemoteMcpTokens(input = {}, deps = {}) {
     metadata: input.metadata, client: input.client,
     params: { grant_type: 'refresh_token', refresh_token: String(input.tokens.refreshToken) },
     fetchImpl: deps.fetchImpl ?? globalThis.fetch, now: deps.now ?? Date.now,
-    previous: input.tokens, label: input.label ?? '서비스',
+    previous: input.tokens, requestedScopes: input.tokens.scopes ?? [], label: input.label ?? '서비스',
   });
 }
 

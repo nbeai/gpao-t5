@@ -3286,12 +3286,23 @@ export function makeConsoleServer({
         }); return;
       }
       const workspaceConnectionAction = req.method === 'POST' && url.pathname.match(
-        /^\/connections\/([a-z0-9-]+)\/(start|await|action|check|cancel|disconnect)$/u,
+        /^\/connections\/([a-z0-9-]+)\/(start|await|action|check|cancel|disconnect|credentials)$/u,
       );
       if (workspaceConnectionAction) {
         const [, id, action] = workspaceConnectionAction;
         const service = connectionServices.get(id);
         if (!service) { json(res, 404, { error: '연결 대상을 찾지 못했어요.' }); return; }
+        if (action === 'credentials') {
+          if (typeof service.connectCredentials !== 'function') {
+            json(res, 409, { error: '이 연결은 정보를 직접 입력하는 방식이 아니에요.' }); return;
+          }
+          const current = await service.inspect();
+          if (!current.actions?.some((candidate) => candidate.kind === 'credentials')) {
+            json(res, 409, { error: '이미 연결됐거나 지금은 연결 정보를 받을 수 없어요.' }); return;
+          }
+          const input = await body(req);
+          json(res, 200, await service.connectCredentials(input.credentials)); return;
+        }
         if (action === 'start') {
           if (typeof service.start !== 'function') { json(res, 409, { error: '이 연결은 지금 시작할 수 없어요.' }); return; }
           json(res, 200, await service.start()); return;

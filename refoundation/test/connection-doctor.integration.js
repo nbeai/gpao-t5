@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { makeConsoleServer } from '../src/console-server.js';
+import { makeApiCredentialConnection } from '../src/api-credential-connection.js';
 
 test('연결 닥터와 기존 connector truth는 같은 실제 연결 목록을 사용한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-connection-doctor-'));
@@ -138,5 +139,44 @@ test('설정의 사용자 행동 endpoint는 현재 연결 진실에 남아 있�
     server.closeWakeStreams(); await server.closeMessengers(); await server.closeWorkspaceConnections();
     await new Promise((resolve) => server.close(resolve));
     await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('설정의 사업자 credential endpoint는 비밀을 응답하지 않고 검증된 계정만 ready로 연다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-workspace-credential-action-'));
+  const values = new Map(); const secret = 'CHANNEL-SECRET-NEVER-RETURN';
+  const service = makeApiCredentialConnection({
+    id: 'channel-talk', label: 'Channel Talk', category: 'customer_channel',
+    secretStore: { async get(key) { return structuredClone(values.get(key) ?? null); },
+      async set(key, value) { values.set(key, structuredClone(value)); }, async clear(key) { values.delete(key); } },
+    credentialFields: [{ id: 'accessKey', label: 'Access Key', secret: true },
+      { id: 'accessSecret', label: 'Access Secret', secret: true }],
+    verifyCredentials: async () => ({ accountId: 'channel-42', accountLabel: '우리 가게',
+      permissions: ['conversations:read'], capabilities: { read: true, reply: true } }),
+  });
+  const server = makeConsoleServer({
+    stateDir: join(room, 'state'), workspace: room, workspaceConnectionServices: [service],
+    modelFactory: () => ({ respond: async () => ({ text: '네', toolCalls: [] }) }),
+    modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
+  });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const before = await fetch(`${base}/connections/doctor`).then((response) => response.json());
+    const candidate = before.connections.find((item) => item.id === 'channel-talk');
+    assert.equal(candidate.actions[0].kind, 'credentials');
+    assert.deepEqual(candidate.credentialRequest.fields.map((field) => field.id), ['accessKey', 'accessSecret']);
+    const response = await fetch(`${base}/connections/channel-talk/credentials`, { method: 'POST',
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify({ credentials: {
+        accessKey: 'CHANNEL-ACCESS', accessSecret: secret,
+      } }) });
+    assert.equal(response.status, 200); const text = await response.text(); assert.doesNotMatch(text, new RegExp(secret));
+    const after = await fetch(`${base}/connections/doctor`).then((result) => result.json());
+    const ready = after.connections.find((item) => item.id === 'channel-talk');
+    assert.equal(ready.state, 'ready'); assert.equal(ready.identity.accountId, 'channel-42');
+    assert.doesNotMatch(JSON.stringify(after), new RegExp(secret));
+  } finally {
+    server.closeWakeStreams(); await server.closeMessengers(); await server.closeWorkspaceConnections();
+    await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true });
   }
 });

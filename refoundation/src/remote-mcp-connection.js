@@ -10,15 +10,56 @@ function capabilitiesFromTools(tools) {
     create: /create|add/u.test(text), update: /update|edit|move/u.test(text), download: false, upload: false };
 }
 
+function oauthClient(value) {
+  if (value == null) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !String(value.client_id ?? '').trim()) {
+    throw new TypeError('Remote MCP pre-registered OAuth client is invalid');
+  }
+  return { client_id: String(value.client_id),
+    ...(value.client_secret ? { client_secret: String(value.client_secret) } : {}) };
+}
+
+function oauthScopes(value) {
+  if (value == null) return null;
+  if (!Array.isArray(value)) throw new TypeError('Remote MCP OAuth scopes must be an array');
+  const scopes = [...new Set(value.map(String).map((scope) => scope.trim()).filter(Boolean))];
+  if (!scopes.length || scopes.length > 64 || scopes.some((scope) => scope.length > 200 || /\s/u.test(scope))) {
+    throw new TypeError('Remote MCP OAuth scopes are invalid');
+  }
+  return scopes;
+}
+
+function verifiedIdentity(value, grantedScopes, requireObservedAccount) {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const accountId = String(source.accountId ?? '').trim().slice(0, 200);
+  const accountLabel = String(source.accountLabel ?? '').trim().slice(0, 200);
+  if (requireObservedAccount && !accountId) throw new Error('Remote MCP account identity was not observed');
+  const permissions = Array.isArray(source.permissions)
+    ? [...new Set(source.permissions.map(String).filter(Boolean))].slice(0, 64) : grantedScopes;
+  const resources = Array.isArray(source.resources) ? source.resources.slice(0, 32).flatMap((resource) => {
+    const id = String(resource?.id ?? '').trim().slice(0, 200);
+    const label = String(resource?.label ?? '').trim().slice(0, 200);
+    const scope = String(resource?.scope ?? '').trim().slice(0, 80);
+    return id && label && scope ? [{ id, label, scope }] : [];
+  }) : [];
+  return { ownerApplication: 'GPAO-T5', transport: 'remote_mcp',
+    ...(accountId ? { accountId } : {}), ...(accountLabel ? { accountLabel } : {}),
+    permissions, resources, observed: Boolean(accountId) };
+}
+
 export function makeRemoteMcpConnection({
   id, label, category = 'workspace', serverUrl, resource = null,
   secretStore, fetchImpl = globalThis.fetch, now = Date.now, callbackPort = 0,
-  runtimeFactory = makeRemoteMcpRuntime,
+  runtimeFactory = makeRemoteMcpRuntime, oauthClient: configuredOAuthClient = null,
+  requestedScopes: configuredScopes = null, verifyConnection = null, requireObservedAccount = false,
 } = {}) {
   if (!/^[a-z0-9][a-z0-9-]{1,63}$/u.test(String(id ?? '')) || !label || !/^https:\/\//u.test(String(serverUrl ?? ''))) {
     throw new TypeError('Remote MCP connection identity is required');
   }
   if (!secretStore?.get || !secretStore?.set || !secretStore?.clear) throw new TypeError('Remote MCP secure store is required');
+  const preRegisteredClient = oauthClient(configuredOAuthClient);
+  const requestedScopes = oauthScopes(configuredScopes);
+  if (verifyConnection != null && typeof verifyConnection !== 'function') throw new TypeError('Remote MCP verifier is invalid');
   const secretName = `remote-mcp-${id}`; let pending = null; let runtime = null; let refreshQueue = Promise.resolve();
   async function bundle() { return secretStore.get(secretName); }
   async function refresh(force = false) {
@@ -51,6 +92,7 @@ export function makeRemoteMcpConnection({
         userSafeSummary: connected ? `${label}에 연결되어 있어요.`
           : connecting ? `${label} 연결 화면에서 사용자 확인을 기다리고 있어요.` : `${label} 계정 연결을 시작할 수 있어요.`,
         capabilities: connected ? capabilitiesFromTools(current.tools ?? []) : emptyCapabilities(),
+        ...(connected && current.identity ? { identity: current.identity } : {}),
         routes: [{ kind: 'remote_mcp', label: `${label} 공식 연결`, state: connected ? 'connected' : 'needs_connection', canStart: !connected && !connecting }],
         actions: connected ? [{ id: 'disconnect', label: '연결 해제', kind: 'disconnect', endpoint: `/connections/${id}/disconnect` }]
           : connecting ? [{ id: 'cancel', label: '연결 취소', kind: 'cancel', endpoint: `/connections/${id}/cancel` }]
@@ -63,15 +105,20 @@ export function makeRemoteMcpConnection({
       try {
         const pkce = createRemoteMcpPkce(); callback = startRemoteMcpCallback({ state: pkce.state, label, port: callbackPort });
         const address = await callback.listening; let current = await bundle();
-        if (!current?.metadata || !current?.client || current.redirectUri !== address.redirectUri) {
+        if (!current?.metadata || !current?.client || current.redirectUri !== address.redirectUri
+          || Boolean(preRegisteredClient) !== (current.clientMode === 'pre_registered')) {
           const metadata = await discoverRemoteMcpOAuth({ serverUrl, fetchImpl, label });
-          const client = await registerRemoteMcpClient({ metadata, redirectUri: address.redirectUri, fetchImpl, label });
-          current = { version: 1, redirectUri: address.redirectUri, metadata, client };
+          const client = preRegisteredClient ?? await registerRemoteMcpClient({
+            metadata, redirectUri: address.redirectUri, fetchImpl, label,
+          });
+          current = { version: 1, redirectUri: address.redirectUri, metadata, client,
+            clientMode: preRegisteredClient ? 'pre_registered' : 'dynamic_registration' };
           await secretStore.set(secretName, current);
         }
         pending = { pkce, callback, bundle: current };
         return { authorizeUrl: buildRemoteMcpAuthorizeUrl({ metadata: current.metadata, client: current.client,
-          redirectUri: current.redirectUri, challenge: pkce.challenge, state: pkce.state, resource }), notice: `${label} 연결을 시작했어요.` };
+          redirectUri: current.redirectUri, challenge: pkce.challenge, state: pkce.state, resource,
+          requestedScopes }), notice: `${label} 연결을 시작했어요.` };
       } catch (error) { callback?.cancel(); pending = null; throw error; }
     },
     async awaitConnection() {
@@ -80,11 +127,19 @@ export function makeRemoteMcpConnection({
       try {
         const code = await current.callback.waitForCode;
         const tokens = await exchangeRemoteMcpCode({ metadata: current.bundle.metadata, client: current.bundle.client,
-          redirectUri: current.bundle.redirectUri, code, verifier: current.pkce.verifier, label }, { fetchImpl, now });
+          redirectUri: current.bundle.redirectUri, code, verifier: current.pkce.verifier,
+          requestedScopes: requestedScopes ?? [], label }, { fetchImpl, now });
+        if (requestedScopes?.some((scope) => !tokens.scopes.includes(scope))) {
+          throw new Error(`${label} 연결에 필요한 권한이 허용되지 않았어요.`);
+        }
         await secretStore.set(secretName, { ...current.bundle, tokens });
         const tools = await (await activeRuntime()).listTools();
         if (!tools.length) throw new Error(`${label} 연결에서 사용할 도구를 확인하지 못했어요.`);
-        await secretStore.set(secretName, { ...current.bundle, tokens, tools: tools.map((tool) => tool.name), verifiedAt: now() });
+        const observed = verifyConnection ? await verifyConnection({
+          runtime: await activeRuntime(), tools: structuredClone(tools), grantedScopes: [...tokens.scopes],
+        }) : null;
+        const identity = verifiedIdentity(observed, tokens.scopes, requireObservedAccount);
+        await secretStore.set(secretName, { ...current.bundle, tokens, tools: tools.map((tool) => tool.name), identity, verifiedAt: now() });
         return { connected: true, provider: id, userSafeSummary: `${label}을 연결했어요.` };
       } catch (error) { const saved = await bundle(); if (saved?.tokens && !saved.verifiedAt) {
         const { tokens: _tokens, ...registration } = saved; await secretStore.set(secretName, registration).catch(() => {}); }

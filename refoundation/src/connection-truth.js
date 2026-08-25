@@ -47,13 +47,25 @@ function safeActions(value) {
     const kind = String(action?.kind ?? '').trim();
     const endpoints = ['endpoint', 'startEndpoint', 'awaitEndpoint'].flatMap((key) => {
       const path = action?.[key] == null ? null : String(action[key]);
-      return path && /^\/connections\/[a-z0-9-]+\/(?:start|await|action|check|cancel|disconnect)$/u.test(path)
+      return path && /^\/connections\/[a-z0-9-]+\/(?:start|await|action|check|cancel|disconnect|credentials)$/u.test(path)
         ? [[key, path]] : [];
     });
     if (!/^[a-z][a-z0-9_-]{0,63}$/u.test(id) || !label
-      || !['oauth', 'user_action', 'cancel', 'disconnect'].includes(kind)) return [];
+      || !['oauth', 'credentials', 'user_action', 'cancel', 'disconnect'].includes(kind)) return [];
     return [{ id, label, kind, ...Object.fromEntries(endpoints) }];
   });
+}
+
+function safeCredentialRequest(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !Array.isArray(value.fields)) return null;
+  const fields = value.fields.slice(0, 16).flatMap((field) => {
+    const id = String(field?.id ?? '').trim(); const label = String(field?.label ?? '').trim();
+    const maxLength = Number(field?.maxLength ?? 4096);
+    return /^[a-z][A-Za-z0-9]{0,63}$/u.test(id) && label && Number.isInteger(maxLength)
+      && maxLength > 0 && maxLength <= 16_384
+      ? [{ id, label: label.slice(0, 120), secret: field?.secret !== false, maxLength }] : [];
+  });
+  return fields.length ? { fields } : null;
 }
 
 function safeIdentity(value) {
@@ -94,6 +106,8 @@ function safeResult(inspector, raw) {
     state, reason, userSafeSummary: summary,
     capabilities: safeCapabilities(raw?.capabilities), routes: safeRoutes(raw?.routes),
     actions: safeActions(raw?.actions),
+    ...(safeCredentialRequest(raw?.credentialRequest)
+      ? { credentialRequest: safeCredentialRequest(raw.credentialRequest) } : {}),
     ...(safeIdentity(raw?.identity) ? { identity: safeIdentity(raw.identity) } : {}),
   };
 }
