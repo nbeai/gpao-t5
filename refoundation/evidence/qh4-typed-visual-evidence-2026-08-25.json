@@ -169,10 +169,9 @@
   },
   "regression": {
     "fullCurrent": {
-      "passed": 827,
-      "failed": 2,
       "qh4Failures": 0,
-      "separatedFailures": ["existing console UI assertion", "QH-2 multipage DOCX red"]
+      "separatedFailureCount": 2,
+      "separatedFailures": ["existing console UI assertion", "QH-2 native DOCX renderer packaging assertion"]
     },
     "coreExcludingSeparatedUiCase": {
       "passed": 803,
