@@ -243,6 +243,15 @@ export function makeArtifactQualityOutputQualifier() {
   return async function qualifyArtifactQualityOutput({ filePath, workspace } = {}) {
     const source = resolve(String(filePath ?? ''));
     const extension = extname(source).toLowerCase();
+    const sourceStat = await lstat(source);
+    if (sourceStat.isSymbolicLink() || !sourceStat.isFile() || sourceStat.nlink !== 1) {
+      throw new Error('quality output must be one regular file');
+    }
+    const root = await realpath(workspace); const path = await realpath(source);
+    const rel = relative(root, path);
+    if (rel === '..' || rel.startsWith(`..${sep}`) || resolve(root, rel) !== path) {
+      throw new Error('quality output path is outside workspace');
+    }
     const sidecar = await readPurposeContract(source);
     if (sidecar.state === 'missing') return { applicable: false };
     if (!SUPPORTED_EXTENSIONS.has(extension)) return {
@@ -253,15 +262,10 @@ export function makeArtifactQualityOutputQualifier() {
       applicable: true, qualified: false, state: 'artifact_quality_unqualified',
       reason: sidecar.reason, verificationMissing: true,
     };
-    const root = await realpath(workspace); const path = await realpath(source);
-    const rel = relative(root, path);
-    if (rel === '..' || rel.startsWith(`..${sep}`) || resolve(root, rel) !== path) {
-      throw new Error('quality output path is outside workspace');
-    }
-    const stat = await lstat(path);
-    if (stat.isSymbolicLink() || !stat.isFile() || stat.nlink !== 1) {
-      throw new Error('quality output must be one regular file');
-    }
+    if (String(sidecar.contract?.artifact?.kind ?? '').toLowerCase() !== extension.slice(1)) return {
+      applicable: true, qualified: false, state: 'artifact_quality_unqualified',
+      reason: 'artifact_purpose_kind_mismatch', verificationMissing: true,
+    };
     const bytes = await readFile(path);
     const evidence = await collectEvidence(path, bytes, extension);
     const qualifier = makeArtifactQualityQualifier({

@@ -93,7 +93,7 @@ async function fixture(input) {
   const filePath = join(workspace, 'settlement.xlsx'); const bytes = settlementWorkbook(input);
   await writeFile(filePath, bytes);
   await writeFile(`${filePath}${ARTIFACT_QUALITY_OUTPUT_CONTRACT.suffix}`, JSON.stringify(contract(bytes)));
-  return { room, workspace, filePath, async close() { await rm(room, { recursive: true, force: true }); } };
+  return { room, workspace, filePath, bytes, async close() { await rm(room, { recursive: true, force: true }); } };
 }
 
 test('누락 고객 trace와 fitToWidth=2는 실제 재개방·OpenXML 관측으로 qualified되지 않는다', async () => {
@@ -132,6 +132,18 @@ test('purpose contract 없는 일반 문서 결과에는 품질 Gate를 무조�
     const result = await makeArtifactQualityOutputQualifier()({ filePath, workspace: room });
     assert.deepEqual(result, { applicable: false });
   } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('contract artifact kind는 실제 파일 형식을 바꿔 주장할 수 없다', async () => {
+  const app = await fixture();
+  try {
+    const mismatched = contract(app.bytes);
+    mismatched.artifact.kind = 'pdf';
+    await writeFile(`${app.filePath}${ARTIFACT_QUALITY_OUTPUT_CONTRACT.suffix}`, JSON.stringify(mismatched));
+    const result = await makeArtifactQualityOutputQualifier()({ filePath: app.filePath, workspace: app.workspace });
+    assert.equal(result.qualified, false);
+    assert.equal(result.reason, 'artifact_purpose_kind_mismatch');
+  } finally { await app.close(); }
 });
 
 test('register_output은 품질 계약의 누락 trace·print 결함을 artifact 등록 전에 차단한다', async () => {
