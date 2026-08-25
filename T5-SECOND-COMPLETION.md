@@ -1,9 +1,9 @@
 # T5 Second Completion — Current Development Source
 
-상태: `SECOND_COMPLETION_INTEGRATED_SOURCE_SEALED_WITH_RELEASE_BLOCKERS`
-현재 Gate: `CP COMPLETE · QH-1 COMPLETE · QH-2 OBSERVATION CORE COMPLETE · QH-3 CORE COMPLETE WITH MODEL OBSERVATION · QH-4 PROVIDER QUALIFIED ABSENT`
-기준 source: `24692264`
-배포 상태: `package 잠금 · 남은 실제 사용자 자격과 Connecting 회귀 정산 전 서명·공증 금지`
+상태: `SECOND_COMPLETION_SOURCE_COMPLETE_PACKAGE_READY`
+현재 Gate: `CP COMPLETE · P0 COMPLETE · QH-1 COMPLETE · QH-2 CORE ACCEPTED · QH-3 KNOWN OBSERVATION ACCEPTED · QH-4 PROVIDER DEFERRED`
+기준 source: `12b1aad4`
+배포 상태: `package source ready · 설치·서명·공증은 다음 Release 작업에서 실행`
 
 이 문서는 T5 2차 완성의 유일한 현재 작업 계획이다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은
 `AGENTS.md`, 1차 완성의 역사·실패 원본·과거 Gate는 `T5-REFOUNDATION.md`가 담당한다.
@@ -14,13 +14,23 @@
 |---|---|---|
 | CP 연결 프로토콜 | COMPLETE | durable generation fencing·인증 회복·readiness·공식 Remote MCP와 Channel Talk·Slack 제품 경계를 통합했다. Google 전용 연결 구현은 오너 결정으로 제거했고 카탈로그 후보만 남겼다. 실제 생산 계정 쓰기는 이번 봉인에서 수행하지 않았다. |
 | QH-1 실행 결과물 | COMPLETE | Terra·gpt-5.5 각 3/3. managed begin/finalize, 실제 launcher·새 파일 효과, exact operation recovery가 성립했다. |
-| QH-2 문서·표 품질 | CORE COMPLETE | 하드코딩·수식 lineage·cache 과장을 막고 한글 DOCX 전 페이지 native 관측을 세웠다. 독립 재계산 engine receipt가 없는 XLSX는 `unmeasured`다. |
-| QH-3 시간·입력 격리 | CORE COMPLETE · OBSERVATION | 입력 settlement·sideband lane·old/new surface 격리는 결정적으로 통과했다. 실제 Terra 대표 matrix는 13/15이며 남은 두 건은 최종 출력 누락·내부 용어 노출이다. |
-| QH-4 이미지 Evidence | PROVIDER QUALIFIED ABSENT | 실제 decode·stream 상한·source/direct identity·factual Web lane 분리는 통과했다. 현재 연결에는 실제 이미지 3개를 주는 dedicated provider가 없다. |
+| P0 결과물 생명주기 | COMPLETE | exact local-change 결과는 durable output handle로 Session·Run·SHA에 결속된다. 실패 뒤 200 unresolved로 보존하며 다음 턴에서 생성 재실행 없이 등록·전달한다. 실제 Terra 사무직·프리랜서 6/6과 다운로드 artifact·최종 ZIP을 확인했다. |
+| QH-2 문서·표 품질 | CORE ACCEPTED | 하드코딩·수식 lineage·cache 과장을 막고 한글 DOCX 전 페이지 native 관측을 세웠다. 오너 결정으로 독립 재계산 engine은 이번 설치본에서 제외하며, receipt가 없는 XLSX는 계속 `unmeasured`로 정직하게 남긴다. |
+| QH-3 시간·입력 격리 | KNOWN OBSERVATION ACCEPTED | 입력 settlement·sideband lane·old/new surface 격리는 결정적으로 통과했다. 실제 Terra 대표 matrix 13/15의 최종 출력 누락·내부 용어 노출 두 표본은 이번 설치본의 known observation으로 수용하고 추가 패치를 붙이지 않는다. |
+| QH-4 이미지 Evidence | PROVIDER DEFERRED | 실제 decode·stream 상한·source/direct identity·factual Web lane 분리는 통과했다. dedicated provider 연결은 오너 결정으로 다음 개발선에 보류하며 이번 설치본의 완료 조건에서 제외한다. |
 
-Release를 막는 것은 새 기능 목록이 아니다. `XLSX 독립 재계산`, `QH-3 실제 모델 15/15`,
-`실제 이미지 3-preview provider`, 멈춰 둔 Connecting의 기존 UI 회귀 정산이다. 이 네 경계를 열기 전에는
-QH 구현을 더 넓히거나 package·서명·공증을 시작하지 않는다.
+## 오너 Release 결정 — 2026-08-26
+
+| 결정 항목 | 이번 설치본 판정 |
+|---|---|
+| XLSX 독립 재계산 engine | 제외. 기존 formula·lineage·cache 관측을 유지하고 독립 engine receipt 부재는 `unmeasured`로 표시한다. |
+| QH-3 실제 모델 13/15 | known observation으로 수용. 추가 prompt·규칙·상태 patch 없이 종료한다. |
+| QH-4 실제 이미지 provider | 다음 개발선으로 보류. provider 부재는 지금처럼 정직하게 알린다. |
+| 최신 P0 이후 전체 인간 회귀 | 추가 전체 재실행을 요구하지 않는다. 새 코어 884/884·제품 통합 141/141·실제 Terra 사무직/프리랜서 6/6을 최종 자격으로 채택한다. |
+| package 잠금 | 해제. 다음 한 작업은 설치 package·상태 보존·서명·공증·rollback 자격이다. |
+
+현재 Release blocker는 소스 기능 개발이 아니라 아직 실행하지 않은 package 제작·새 설치 smoke·서명·공증
+절차뿐이다. 위에서 수용·보류한 세 경계를 package 작업 중 다시 개발하지 않는다.
 
 ## 1. 기준선과 목적
 
@@ -608,7 +618,8 @@ AND 실행 가능한 미시도 route가 남은 blocked 0
 
 새 package는 S2-A0~E와 실제로 열린 F Gate의 완료 문장, Terminal·Document 무회귀, 공개 웹 가시 Browser 0, resource control
 우회 0, 상태 단일 정본, 외부 효과·중복 실행 회귀 0, 비교군 Gate, 설치·재시작·상태 보존, 서명·공증·rollback,
-미측정 핵심 사용자 여정 0이 모두 성립한 뒤에만 만든다.
+오너 승인 제외 범위 외 미측정 핵심 사용자 여정 0이 모두 성립한 뒤에만 만든다. 승인 제외 범위는 위 Release
+결정표의 QH-2 독립 engine·QH-3 13/15 known observation·QH-4 provider다.
 
 ## 8. 현재 작업 시작점
 
