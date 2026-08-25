@@ -11,13 +11,22 @@ import { makeConsoleServer } from '../src/console-server.js';
 
 function sha256(bytes) { return createHash('sha256').update(bytes).digest('hex'); }
 
-function hp03Package({ broken, prepackagedResult = false }) {
+function hp03Package({ broken, prepackagedResult = false, arbitraryPurposeFact = false }) {
   const launcher = broken
     ? '#!/bin/zsh\ncd "${0:A:h}"\nnode app.js\nstatus=$?\nexit $status\n'
     : '#!/bin/zsh\ncd "${0:A:h}"\nnode app.js\n';
+  const resultObject = {
+    totalItems: 4, needsOrderCount: 2,
+    ...(arbitraryPurposeFact ? { missionAccomplished: true } : {}),
+  };
   const files = {
     'package/실행.command': [strToU8(launcher), { os: 3, attrs: (0o100755 << 16) >>> 0 }],
-    'package/app.js': strToU8("import { writeFileSync } from 'node:fs';\nimport inventory from './inventory.json' with { type: 'json' };\nconst result = { totalItems: inventory.items.length, needsOrderCount: inventory.items.filter((item) => item.stock <= item.reorderPoint).length };\nwriteFileSync('runtime-result.json', JSON.stringify(result));\nconsole.log(`ITEMS=${result.totalItems} NEEDS_ORDER=${result.needsOrderCount}`);\n"),
+    'package/app.js': strToU8(`import { writeFileSync } from 'node:fs';
+import inventory from './inventory.json' with { type: 'json' };
+const result = { totalItems: inventory.items.length, needsOrderCount: inventory.items.filter((item) => item.stock <= item.reorderPoint).length${arbitraryPurposeFact ? ', missionAccomplished: true' : ''} };
+writeFileSync('runtime-result.json', JSON.stringify(result));
+console.log(\`ITEMS=\${result.totalItems} NEEDS_ORDER=\${result.needsOrderCount}\`);
+`),
     'package/inventory.json': strToU8(JSON.stringify({ items: [
       { name: '우유', stock: 2, reorderPoint: 3 },
       { name: '종이컵', stock: 3, reorderPoint: 4 },
@@ -27,11 +36,12 @@ function hp03Package({ broken, prepackagedResult = false }) {
     'package/README.txt': strToU8('Mac: 실행.command를 실행합니다.\n'),
   };
   if (prepackagedResult) {
-    files['package/runtime-result.json'] = strToU8(JSON.stringify({ totalItems: 4, needsOrderCount: 2 }));
+    files['package/runtime-result.json'] = strToU8(JSON.stringify(resultObject));
   }
   const bytes = Buffer.from(zipSync(files, { mtime: new Date('2020-01-01T00:00:00.000Z') }));
-  const artifactId = broken ? 'hp03-broken' : prepackagedResult ? 'hp03-prepackaged' : 'hp03-qualified';
-  const resultBytes = Buffer.from(JSON.stringify({ totalItems: 4, needsOrderCount: 2 }));
+  const artifactId = broken ? 'hp03-broken' : prepackagedResult ? 'hp03-prepackaged'
+    : arbitraryPurposeFact ? 'hp03-arbitrary-purpose' : 'hp03-qualified';
+  const resultBytes = Buffer.from(JSON.stringify(resultObject));
   return {
     bytes,
     contract: {
@@ -56,8 +66,10 @@ function hp03Package({ broken, prepackagedResult = false }) {
         requiredFacts: [
           { name: 'resultPath', type: 'string', equals: 'package/runtime-result.json' },
           { name: 'resultSha256', type: 'string', equals: sha256(resultBytes) },
-          { name: 'totalItems', type: 'integer', equals: 4 },
-          { name: 'needsOrderCount', type: 'integer', equals: 2 },
+          { name: 'resultBytes', type: 'integer', equals: resultBytes.length },
+          { name: 'resultMime', type: 'string', equals: 'application/json' },
+          ...(arbitraryPurposeFact
+            ? [{ name: 'missionAccomplished', type: 'boolean', equals: true }] : []),
         ],
       }],
       platforms: [{
@@ -67,13 +79,14 @@ function hp03Package({ broken, prepackagedResult = false }) {
   };
 }
 
-async function fixtureServer({ broken, prepackagedResult = false }) {
+async function fixtureServer({ broken, prepackagedResult = false, arbitraryPurposeFact = false }) {
   const room = await mkdtemp(join(tmpdir(), 't5-qh1-output-console-'));
   const stateDir = join(room, 'state'); const workspace = join(room, 'workspace');
   await mkdir(workspace, { recursive: true });
   const outputPath = join(workspace, broken ? 'HP-03-broken.zip'
-    : prepackagedResult ? 'HP-03-prepackaged.zip' : 'HP-03-qualified.zip');
-  const fixture = hp03Package({ broken, prepackagedResult });
+    : prepackagedResult ? 'HP-03-prepackaged.zip'
+      : arbitraryPurposeFact ? 'HP-03-arbitrary-purpose.zip' : 'HP-03-qualified.zip');
+  const fixture = hp03Package({ broken, prepackagedResult, arbitraryPurposeFact });
   await writeFile(outputPath, fixture.bytes);
   await writeFile(`${outputPath}.t5-deliverable.json`, JSON.stringify(fixture.contract));
   let turn = 0; let attachmentResult = null; let completionResult = null;
@@ -117,8 +130,8 @@ async function fixtureServer({ broken, prepackagedResult = false }) {
   };
 }
 
-async function runJourney(broken, prepackagedResult = false) {
-  const app = await fixtureServer({ broken, prepackagedResult });
+async function runJourney(broken, prepackagedResult = false, arbitraryPurposeFact = false) {
+  const app = await fixtureServer({ broken, prepackagedResult, arbitraryPurposeFact });
   try {
     const session = await fetch(`${app.base}/sessions`, { method: 'POST' }).then((response) => response.json());
     const result = await fetch(`${app.base}/turn`, {
@@ -155,9 +168,11 @@ test('HP-03형 정상 launcher ZIP은 exact 실행과 새 typed 결과 파일 �
     assert.equal(entrypoint.executionQualification, 'actually_executed');
     assert.equal(entrypoint.outcomeObservations[0].receipt.producer.trusted, true);
     assert.equal(entrypoint.outcomeObservations[0].receipt.facts
-      .find((fact) => fact.name === 'totalItems').value, 4);
+      .find((fact) => fact.name === 'resultMime').value, 'application/json');
     assert.equal(entrypoint.outcomeObservations[0].receipt.facts
-      .find((fact) => fact.name === 'needsOrderCount').value, 2);
+      .some((fact) => fact.name === 'totalItems'), false);
+    assert.equal(observed.attachmentResult.executableQualification.receipt.qualificationScope,
+      'executable_wrapper_and_declared_outcome_observation');
     assert.equal(observed.completionResult.verifiedOutcome, 'achieved');
     assert.equal(result.artifacts.length, 1);
     assert.equal(result.artifacts[0].sha256, sha256(hp03Package({ broken: false }).bytes));
@@ -165,14 +180,29 @@ test('HP-03형 정상 launcher ZIP은 exact 실행과 새 typed 결과 파일 �
   } finally { await app.close(); }
 });
 
-test('archive에 미리 넣은 결과 JSON은 launcher가 만든 purpose effect로 승격되지 않는다', async () => {
+test('archive에 미리 넣은 결과 JSON은 launcher가 만든 external file effect로 승격되지 않는다', async () => {
   const { app, result, run, observed } = await runJourney(false, true);
   try {
     assert.equal(observed.attachmentResult.state, 'executable_artifact_unqualified');
     const entrypoint = observed.attachmentResult.receipt.entrypoints[0];
     assert.equal(entrypoint.executionQualification, 'actually_executed');
-    assert.equal(entrypoint.qualification, 'executed_but_purpose_failed');
+    assert.equal(entrypoint.qualification, 'executed_but_outcome_failed');
     assert.equal(entrypoint.outcomeObservations[0].receipt.reason, 'result_existed_before_execution');
+    assert.equal(observed.completionResult.verifiedOutcome, 'unresolved');
+    assert.equal(result.artifacts, undefined);
+    assert.ok(run.events.some((event) => event.type === 'work_unresolved'));
+  } finally { await app.close(); }
+});
+
+test('missionAccomplished 같은 arbitrary JSON field는 trusted QH-1 file effect가 아니다', async () => {
+  const { app, result, run, observed } = await runJourney(false, false, true);
+  try {
+    assert.equal(observed.attachmentResult.state, 'executable_artifact_unqualified');
+    const entrypoint = observed.attachmentResult.receipt.entrypoints[0];
+    assert.equal(entrypoint.executionQualification, 'actually_executed');
+    assert.equal(entrypoint.qualification, 'executed_but_outcome_failed');
+    assert.equal(entrypoint.outcomeObservations[0].receipt.reason, 'unsupported_file_effect_facts');
+    assert.equal(entrypoint.outcomeObservations[0].receipt.facts.length, 0);
     assert.equal(observed.completionResult.verifiedOutcome, 'unresolved');
     assert.equal(result.artifacts, undefined);
     assert.ok(run.events.some((event) => event.type === 'work_unresolved'));

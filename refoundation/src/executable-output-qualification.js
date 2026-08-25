@@ -11,6 +11,9 @@ const MAX_RESULT_BYTES = 64 * 1024;
 const PRODUCER_KIND = 'post_execution_file';
 const PRODUCER_ID = 't5.new-json-result.v1';
 const OBSERVATION_SCHEMA = 't5.new-json-result-observation.v1';
+const FILE_EFFECT_FACTS = Object.freeze({
+  resultPath: 'string', resultSha256: 'string', resultBytes: 'integer', resultMime: 'string',
+});
 const EXECUTABLE_EXTENSIONS = new Set(['.command', '.bat', '.cmd', '.ps1', '.exe']);
 
 function digest(bytes) { return createHash('sha256').update(bytes).digest('hex'); }
@@ -76,9 +79,9 @@ export function makeExecutableOutputQualifier() {
           return outcomeReceipt(context, { state: 'failed', reason: 'unsupported_observation_schema' });
         }
         const required = new Map(context.requiredObservation.requiredFacts.map((fact) => [fact.name, fact]));
-        if (!required.has('resultPath') || !required.has('resultSha256')
-          || [...required.keys()].filter((name) => !['resultPath', 'resultSha256'].includes(name)).length === 0) {
-          return outcomeReceipt(context, { state: 'failed', reason: 'purpose_facts_missing' });
+        if (required.size !== Object.keys(FILE_EFFECT_FACTS).length
+          || Object.entries(FILE_EFFECT_FACTS).some(([name, type]) => required.get(name)?.type !== type)) {
+          return outcomeReceipt(context, { state: 'failed', reason: 'unsupported_file_effect_facts' });
         }
         let resultPath;
         try { resultPath = safeResultPath(required.get('resultPath').equals); }
@@ -97,19 +100,15 @@ export function makeExecutableOutputQualifier() {
         if (stat.isSymbolicLink() || !stat.isFile() || stat.nlink !== 1 || stat.size > MAX_RESULT_BYTES) {
           return outcomeReceipt(context, { state: 'failed', reason: 'result_file_invalid' });
         }
-        const bytes = await readFile(target); let parsed;
-        try { parsed = JSON.parse(bytes.toString('utf8')); }
+        const bytes = await readFile(target);
+        try { JSON.parse(bytes.toString('utf8')); }
         catch { return outcomeReceipt(context, { state: 'failed', reason: 'result_json_invalid' }); }
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-          return outcomeReceipt(context, { state: 'failed', reason: 'result_json_invalid' });
-        }
-        const facts = context.requiredObservation.requiredFacts.map((fact) => ({
-          name: fact.name,
-          type: fact.type,
-          value: fact.name === 'resultPath' ? resultPath
-            : fact.name === 'resultSha256' ? digest(bytes)
-              : parsed[fact.name],
-        }));
+        const facts = [
+          { name: 'resultPath', type: 'string', value: resultPath },
+          { name: 'resultSha256', type: 'string', value: digest(bytes) },
+          { name: 'resultBytes', type: 'integer', value: bytes.length },
+          { name: 'resultMime', type: 'string', value: 'application/json' },
+        ];
         return outcomeReceipt(context, { facts });
       },
     }],
@@ -169,5 +168,6 @@ export const EXECUTABLE_OUTPUT_CONTRACT = Object.freeze({
   producerKind: PRODUCER_KIND,
   producerId: PRODUCER_ID,
   observationSchema: OBSERVATION_SCHEMA,
-  requiredFacts: Object.freeze(['resultPath', 'resultSha256', '<typed purpose fact>']),
+  requiredFacts: Object.freeze(Object.keys(FILE_EFFECT_FACTS)),
+  qualificationScope: 'executable_wrapper_and_declared_external_file_effect',
 });

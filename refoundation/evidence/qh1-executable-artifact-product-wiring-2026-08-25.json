@@ -1,8 +1,8 @@
 {
   "schema": "t5.qh1-executable-artifact-product-wiring.v1",
-  "recordedAt": "2026-08-25T15:50:45+09:00",
+  "recordedAt": "2026-08-25T16:04:47+09:00",
   "boundary": "attachment.register_output_to_work_completion",
-  "userActionEnabled": "an executable ZIP is surfaced only after its advertised current-platform launcher executes and a runtime-owned producer independently observes a new typed purpose-result file",
+  "userActionEnabled": "an executable ZIP is surfaced only after its advertised current-platform launcher executes and a runtime-owned producer independently observes the declared external result-file effect",
   "qualification": {
     "contractSidecar": ".t5-deliverable.json",
     "executionEvidence": [
@@ -11,28 +11,33 @@
       "runtime_owned_host_platform",
       "exit_stdout_stderr_and_process_residual"
     ],
-    "purposeEvidence": {
+    "declaredExternalFileEffectEvidence": {
       "producer": "post_execution_file/t5.new-json-result.v1",
       "observationSchema": "t5.new-json-result-observation.v1",
       "requires": [
         "result_path_absent_from_pre_execution_archive_baseline",
         "new_regular_json_result_file",
         "exact_result_sha256",
-        "at_least_one_typed_purpose_fact"
+        "exact_result_bytes",
+        "runtime_observed_result_mime"
       ]
     },
+    "qualificationScope": "executable_wrapper_and_declared_external_file_effect_only",
+    "domainPurposeVerified": false,
+    "arbitraryJsonFieldsAccepted": false,
     "registrationIdentityBound": true,
     "stdoutAloneQualifiesPurpose": false
   },
   "counterexamples": {
     "t5StatusReadonlyLauncher": "artifact_not_registered_and_work_unresolved",
     "prepackagedResultFile": "artifact_not_registered_and_work_unresolved",
+    "missionAccomplishedJsonField": "artifact_not_registered_and_work_unresolved",
     "normalHp03LauncherWithNewTypedResult": "artifact_registered_and_work_achieved"
   },
   "verification": {
     "focused": {
-      "tests": 49,
-      "passed": 49,
+      "tests": 50,
+      "passed": 50,
       "failed": 0
     },
     "refoundationCheck": {

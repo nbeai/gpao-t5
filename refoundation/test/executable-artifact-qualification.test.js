@@ -152,7 +152,7 @@ test('정상 Codex Mac launcher는 exact interpreter·path·cwd와 사용자 입
   });
   assert.equal(receipt.state, 'qualified');
   assert.equal(receipt.entrypoints[0].executionQualification, 'actually_executed');
-  assert.equal(receipt.entrypoints[0].qualification, 'qualified');
+  assert.equal(receipt.entrypoints[0].qualification, 'wrapper_and_declared_outcome_qualified');
   assert.equal(receipt.entrypoints[0].outcomeObservations[0].qualification, 'qualified');
   assert.equal(receipt.entrypoints[0].execution.exitCode, 0);
   assert.equal(receipt.entrypoints[0].execution.processResidual, false);
@@ -232,7 +232,7 @@ test('exit 0뿐인 no-op launcher는 typed expected observable 없이 자격 계
   assert.equal(spawned, false);
 });
 
-test('printf marker와 expected stdout이 맞아도 trusted outcome producer가 없으면 목적 미측정이다', async () => {
+test('printf marker와 expected stdout이 맞아도 trusted outcome producer가 없으면 declared outcome 미측정이다', async () => {
   const fixture = {
     id: 'stdout-marker-only',
     files: {
@@ -252,7 +252,7 @@ test('printf marker와 expected stdout이 맞아도 trusted outcome producer가 
     archiveBytes: bytes, contract: contractFor(fixture, bytes),
   });
   assert.equal(receipt.entrypoints[0].executionQualification, 'actually_executed');
-  assert.equal(receipt.entrypoints[0].qualification, 'executed_but_purpose_unmeasured');
+  assert.equal(receipt.entrypoints[0].qualification, 'executed_but_outcome_unmeasured');
   assert.equal(receipt.entrypoints[0].outcomeObservations[0].receipt.reason, 'producer_unavailable');
   assert.equal(receipt.state, 'unqualified');
 });
@@ -282,7 +282,7 @@ test('trusted producer의 malformed observation은 원문 없이 failed receipt�
     archiveBytes: bytes, contract: contractFor(fixture, bytes),
   });
   assert.equal(receipt.entrypoints[0].executionQualification, 'actually_executed');
-  assert.equal(receipt.entrypoints[0].qualification, 'executed_but_purpose_failed');
+  assert.equal(receipt.entrypoints[0].qualification, 'executed_but_outcome_failed');
   assert.equal(receipt.entrypoints[0].outcomeObservations[0].receipt.state, 'failed');
   assert.equal(
     receipt.entrypoints[0].outcomeObservations[0].receipt.reason,
@@ -315,7 +315,7 @@ test('artifact root cwd는 점 경로로 명시 관측되고 실제 launcher 실
   assert.equal(receipt.entrypoints[0].cwdIsArtifactRoot, true);
   assert.equal(receipt.entrypoints[0].cwdPresent, true);
   assert.equal(receipt.entrypoints[0].executionQualification, 'actually_executed');
-  assert.equal(receipt.entrypoints[0].qualification, 'qualified');
+  assert.equal(receipt.entrypoints[0].qualification, 'wrapper_and_declared_outcome_qualified');
 });
 
 test('launcher exit 0과 별개로 남은 process group을 관측하고 정리한다', async () => {

@@ -598,6 +598,7 @@ async function qualifyExecutableArtifactInternal({
   const identityMatched = actualSha256 === contract.artifact.sha256;
   const baseReceipt = {
     schema: RECEIPT_SCHEMA,
+    qualificationScope: 'executable_wrapper_and_declared_outcome_observation',
     artifact: { ...contract.artifact, observedSha256: actualSha256 },
     currentPlatform: platform,
   };
@@ -735,11 +736,11 @@ async function qualifyExecutableArtifactInternal({
           }));
         }
         if (outcomeObservations.every((observation) => observation.qualification === 'qualified')) {
-          qualification = 'qualified';
+          qualification = 'wrapper_and_declared_outcome_qualified';
         } else if (outcomeObservations.some((observation) => observation.qualification === 'failed')) {
-          qualification = 'executed_but_purpose_failed';
+          qualification = 'executed_but_outcome_failed';
         } else {
-          qualification = 'executed_but_purpose_unmeasured';
+          qualification = 'executed_but_outcome_unmeasured';
         }
       }
       entrypoints.push({
@@ -770,7 +771,7 @@ async function qualifyExecutableArtifactInternal({
       )),
       advertisedEntrypointsQualified: entrypoints.every((entrypoint) => (
         entrypoint.platform === platform
-          ? entrypoint.qualification === 'qualified'
+          ? entrypoint.qualification === 'wrapper_and_declared_outcome_qualified'
           : entrypoint.qualification === 'structurally_inspected'
       )),
       atLeastOneEntrypointActuallyExecuted: entrypoints.some((entrypoint) => (
