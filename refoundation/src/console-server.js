@@ -474,7 +474,7 @@ export function makeConsoleServer({
       const skill = byName.get(entry.name);
       const active = entry.activeByDefault || activeManaged.has(entry.name);
       return {
-        id: entry.name, label: entry.name, description: skill?.description ?? '',
+        id: entry.name, label: entry.display.label, description: entry.display.description,
         state: active ? 'admitted' : 'available', selection: entry.selection,
         active, contentDigest: skill?.contentDigest ?? null,
       };

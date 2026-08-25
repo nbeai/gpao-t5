@@ -32,6 +32,10 @@ test('오너 분류와 8월 19일 공식 초안 bytes를 그대로 보존한다'
   assert.deepEqual(group('environment_detected'), ['notion', 'blogwatcher', 'xurl', 'apple-notes', 'apple-reminders', 'obsidian']);
   assert.deepEqual(group('developer_selected'), ['github-workflow', 'python-debugpy', 'node-inspect-debugger', 'spike']);
   assert.deepEqual(group('restricted_selected'), ['himalaya-email', 'openhue', 'songsee']);
+  for (const entry of catalog.entries) {
+    assert.ok(entry.display.label);
+    assert.match(entry.display.description, /[가-힣]/u, `${entry.name} has no Korean user description`);
+  }
   for (const [name, expected] of Object.entries(expectedDigests)) {
     const base = ['diagrams', 'nano-pdf'].includes(name) ? 'skills' : 'skill-packages';
     const bytes = await readFile(join(root, base, name, 'SKILL.md'));

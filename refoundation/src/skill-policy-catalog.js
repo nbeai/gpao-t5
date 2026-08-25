@@ -14,8 +14,14 @@ export async function loadSkillPolicyCatalog(file) {
       || typeof raw.activeByDefault !== 'boolean') throw new Error('invalid skill catalog entry');
     if (raw.activeByDefault !== (raw.selection === 'minimum_default')
       || (raw.activeByDefault && raw.prepare !== 'bundled')) throw new Error('invalid default skill policy');
+    const displayLabel = String(raw.display?.label ?? name).trim();
+    const displayDescription = String(raw.display?.description ?? '').trim();
+    if (!displayLabel || displayLabel.length > 120 || !displayDescription || displayDescription.length > 500) {
+      throw new Error('invalid skill display metadata');
+    }
     names.add(name); entries.push({ name, selection: raw.selection, activeByDefault: raw.activeByDefault,
-      prepare: raw.prepare, requirements: raw.requirements && typeof raw.requirements === 'object'
+      prepare: raw.prepare, display: { label: displayLabel, description: displayDescription },
+      requirements: raw.requirements && typeof raw.requirements === 'object'
         ? structuredClone(raw.requirements) : {} });
   }
   return { schema: value.schema, entries, byName: new Map(entries.map((entry) => [entry.name, entry])) };

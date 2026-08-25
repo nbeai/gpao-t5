@@ -30,6 +30,8 @@ test('도구와 연결 page는 OAuth와 사업자 credential을 같은 Connectio
   assert.doesNotMatch(html, /localStorage\.setItem\([^\n]*credential/iu);
   assert.match(html, /mk\('div', 'connection-catalog-grid'\)/u);
   assert.match(html, /connectionIcon\(entry\.id, entry\.label, entry\.iconUrl\)/u);
+  assert.match(html, /image\.onload = \(\) => fallback\.remove\(\)/u);
+  assert.match(html, /실제 Connector는 아직 장착 전/u);
 });
 
 test('한국 사업자 catalog는 아이콘·용도·연결 준비 상태를 서비스별로 가진다', async () => {
