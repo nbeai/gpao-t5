@@ -153,16 +153,24 @@ test('Telegram 대화의 console Run은 사용자 입력을 동기화하고 선�
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     const session = await server.sessionStore.create({ origin: { channel: 'telegram', chatId: '555' } });
+    const consoleAttachment = await server.attachmentStore.receive({
+      sessionId: session.id, originalName: '콘솔에서_첨부.txt',
+      bytes: Buffer.from('console-input-attachment'),
+    });
     await server.messengerGateway.connect({ provider: 'telegram', token: 'fixture-token' });
     await server.messengerStateStore.bind('telegram', '555', session.id);
     const response = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sessionId: session.id, text: '휴대폰에서 받을 파일.bin을 내 Telegram에 첨부해줘' }) });
+      body: JSON.stringify({ sessionId: session.id,
+        text: '휴대폰에서 받을 파일.bin을 내 Telegram에 첨부해줘',
+        attachmentIds: [consoleAttachment.attachmentId] }) });
     assert.equal(response.status, 200);
     const result = await response.json();
     assert.equal(result.channelDelivery.sent, true);
     assert.equal(result.channelDelivery.files.length, 1);
     assert.equal(result.channelDelivery.files[0].messageId, 'file-1');
-    assert.deepEqual(fileDeliveries[0].bytes, original);
+    assert.equal(fileDeliveries.length, 2);
+    assert.deepEqual(fileDeliveries[0].bytes, Buffer.from('console-input-attachment'));
+    assert.deepEqual(fileDeliveries[1].bytes, original);
     assert.equal(textDeliveries.length, 2);
     assert.match(textDeliveries[0].text, /내 요청 · 콘솔에서/u);
     const run = (await server.runLedger.list({ sessionId: session.id }))[0];
