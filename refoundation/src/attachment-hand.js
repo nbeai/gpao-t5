@@ -271,7 +271,11 @@ export function makeAttachmentTool({
           description: 'Use only when preparation returned multiple guide candidates.',
         },
       },
-      required: ['action', 'attachmentId', 'filePath', 'maxChars', 'maxCells', 'maxPages'],
+      required: [
+        'action', 'attachmentId', 'filePath', 'maxChars', 'maxCells', 'maxPages',
+        'archiveResultPath', 'expectedResultFilePath', 'expectedStdoutIncludes',
+        'launcherCandidateId', 'guideCandidateId',
+      ],
     },
     async execute(args = {}) {
       if (args.action === 'list') {
