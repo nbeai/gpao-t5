@@ -84,3 +84,58 @@ test('approval·handoff·delivery 미달은 proposal과 final이 공유하는 bl
     assert.equal(first.blockerDigest, second.blockerDigest);
   }
 });
+
+function operationReceipt(operationHandle, status, overrides = {}) {
+  const sha256 = overrides.sha256 ?? 'a'.repeat(64);
+  return {
+    requestedCall: { name: 'attachment', args: {
+      action: 'finalize_executable_output', operationHandle,
+    } },
+    outcome: overrides.outcome ?? 'succeeded',
+    result: status === 'open' ? {
+      state: 'executable_output_incomplete', verificationMissing: true,
+      receiptRecovery: { kind: 'exact_operation', operationHandle, status: 'open' },
+    } : {
+      state: 'registered', artifact: { sha256 }, qualification: { passed: true },
+      receiptRecovery: { kind: 'exact_operation', operationHandle,
+        status: 'resolved', artifactSha256: overrides.recoverySha256 ?? sha256 },
+    },
+  };
+}
+
+test('같은 executable operation의 exact registered artifact만 앞선 verification 미달을 회복한다', () => {
+  const recovered = evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [
+    operationReceipt('operation-a', 'open'), operationReceipt('operation-a', 'resolved'),
+  ] });
+  assert.equal(recovered.verifiedOutcome, 'achieved'); assert.deepEqual(recovered.blockers, []);
+
+  for (const later of [
+    operationReceipt('operation-b', 'resolved'),
+    operationReceipt('operation-a', 'resolved', { recoverySha256: 'b'.repeat(64) }),
+    operationReceipt('operation-a', 'resolved', { outcome: 'failed' }),
+  ]) {
+    const blocked = evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [
+      operationReceipt('operation-a', 'open'), later,
+    ] });
+    assert.equal(blocked.verifiedOutcome, 'unresolved');
+    assert.ok(blocked.blockers.includes('requested_evidence_missing'));
+  }
+});
+
+test('같은 operation이 회복돼도 approval·unknown·handoff blocker는 절대 회복하지 않는다', () => {
+  const base = [operationReceipt('operation-a', 'open'),
+    { outcome: 'succeeded', result: { state: 'approval_required' } },
+    operationReceipt('operation-a', 'resolved')];
+  const approval = evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: base });
+  assert.equal(approval.verifiedOutcome, 'unresolved'); assert.deepEqual(approval.blockers, ['approval_pending']);
+
+  for (const extra of [
+    { outcome: 'unknown', result: { effectUnknown: true } },
+    { outcome: 'succeeded', result: { state: 'handoff_required' } },
+  ]) {
+    const result = evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [
+      operationReceipt('operation-a', 'open'), extra, operationReceipt('operation-a', 'resolved'),
+    ] });
+    assert.equal(result.verifiedOutcome, 'unresolved');
+  }
+});

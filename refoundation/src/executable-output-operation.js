@@ -217,12 +217,15 @@ export class ExecutableOutputOperationStore {
     return { operationHandle: handle, ...operation };
   }
   async recordFailure(operationHandle, result) {
+    const withRecovery = { ...result, receiptRecovery: {
+      kind: 'exact_operation', operationHandle, status: 'open',
+    } };
     await this.append(operationHandle, 'finalize_failed', {
       code: result.code, stage: result.stage, requiredReality: result.requiredReality,
       nextAction: result.nextAction,
       ...(result.candidates ? { candidates: result.candidates } : {}),
     });
-    return result;
+    return withRecovery;
   }
   async finalize({ operationHandle, sessionId, runId } = {}) {
     const operation = await this.readOwned(operationHandle, sessionId, runId);
@@ -232,7 +235,9 @@ export class ExecutableOutputOperationStore {
     if (operation.finalized?.attachmentId) {
       const artifact = await this.attachmentStore.get({ sessionId, attachmentId: operation.finalized.attachmentId });
       return { state: 'registered', effect: 'local_change', changed: false, operationHandle, artifact,
-        qualification: clone(operation.finalized.qualification), nextAction: 'finish the user result' };
+        qualification: clone(operation.finalized.qualification), receiptRecovery: {
+          kind: 'exact_operation', operationHandle, status: 'resolved', artifactSha256: artifact.sha256,
+        }, nextAction: 'finish the user result' };
     }
     const existing = operation.qualified && (await this.attachmentStore.list({ sessionId })).find((item) => (
       item.providerIdentity?.kind === 'executable_output_operation'
@@ -245,7 +250,9 @@ export class ExecutableOutputOperationStore {
       await this.append(operationHandle, 'finalized', { attachmentId: existing.attachmentId, qualification });
       await rm(operation.operationRoot, { recursive: true, force: true }).catch(() => {});
       return { state: 'registered', effect: 'local_change', changed: false, operationHandle,
-        artifact: existing, qualification, nextAction: 'finish the user result' };
+        artifact: existing, qualification, receiptRecovery: {
+          kind: 'exact_operation', operationHandle, status: 'resolved', artifactSha256: existing.sha256,
+        }, nextAction: 'finish the user result' };
     }
     const sourceRoot = await realpath(operation.sourceDirectory).catch(() => null);
     if (!sourceRoot) return this.recordFailure(operationHandle, boundedFailure(
@@ -257,13 +264,14 @@ export class ExecutableOutputOperationStore {
       'source_tree_empty', 'source_scan', 'application, launcher, guide, and data files',
       'write the source tree into the returned source directory',
     ));
-    if (scanned.files.some((file) => file.path === operation.resultRelativePath)) return this.recordFailure(operationHandle, boundedFailure(
-      'result_prepackaged', 'source_scan', 'a result created only when the launcher runs',
-      'remove the result from the source tree',
+    const sourceFiles = scanned.files.filter((file) => file.path !== operation.resultRelativePath);
+    if (!sourceFiles.length) return this.recordFailure(operationHandle, boundedFailure(
+      'source_tree_empty', 'source_scan', 'application, launcher, guide, and data files',
+      'write the source tree into the returned source directory',
     ));
-    const selected = selectLauncherAndGuide(scanned.files);
+    const selected = selectLauncherAndGuide(sourceFiles);
     if (selected.failure) return this.recordFailure(operationHandle, selected.failure);
-    const zipEntries = Object.fromEntries(scanned.files.map((file) => [file.path,
+    const zipEntries = Object.fromEntries(sourceFiles.map((file) => [file.path,
       extname(file.path).toLowerCase() === '.command'
         ? [new Uint8Array(file.bytes), { os: 3, attrs: (0o100755 << 16) >>> 0 }]
         : [new Uint8Array(file.bytes), { os: 3, attrs: (0o100644 << 16) >>> 0 }]]));
@@ -273,7 +281,7 @@ export class ExecutableOutputOperationStore {
     const contract = {
       schema: 't5.deliverable-contract.v1', id: `operation-${operationHandle}-contract`,
       artifact: { id: `operation-${operationHandle}`, sha256: artifactSha256 },
-      expectedFiles: scanned.files.map((file) => file.path),
+      expectedFiles: sourceFiles.map((file) => file.path),
       guideReferences: [{ guidePath: selected.guidePath, targetPath: selected.launcher.path }],
       advertisedEntrypoints: [{ id: entrypointId, platform: process.platform,
         interpreter: selected.launcher.interpreter, interpreterArgs: selected.launcher.interpreterArgs,
@@ -334,6 +342,8 @@ export class ExecutableOutputOperationStore {
     await this.append(operationHandle, 'finalized', { attachmentId: artifact.attachmentId, qualification });
     await rm(operation.operationRoot, { recursive: true, force: true }).catch(() => {});
     return { state: 'registered', effect: 'local_change', changed: true, operationHandle,
-      artifact, qualification, nextAction: 'finish the user result' };
+      artifact, qualification, receiptRecovery: {
+        kind: 'exact_operation', operationHandle, status: 'resolved', artifactSha256: artifact.sha256,
+      }, nextAction: 'finish the user result' };
   }
 }

@@ -10,6 +10,7 @@ import { AttachmentStore } from '../src/attachment-store.js';
 import { makeAttachmentTool } from '../src/attachment-hand.js';
 import { makeExecutableOutputQualifier } from '../src/executable-output-qualification.js';
 import { ExecutableOutputOperationStore } from '../src/executable-output-operation.js';
+import { inspectZipArchive } from '../src/archive-safety.js';
 
 const SESSION = '77777777-7777-4777-8777-777777777777';
 
@@ -127,12 +128,11 @@ test('artifact 등록 뒤 crash는 qualified identity와 provider binding으로 
   } finally { await app.close(); }
 });
 
-test('outside write는 무시하고 symlink·prepackaged result·multiple launcher/guide를 bounded 실패로 닫는다', async () => {
+test('outside write는 무시하고 symlink·multiple launcher/guide를 bounded 실패로 닫는다', async () => {
   const cases = [
     { name: 'symlink', prepare: async (source) => {
       await writeGoodSource(source); await symlink('/tmp', join(source, 'outside-link'));
     }, code: 'source_symlink_not_allowed' },
-    { name: 'prepackaged', prepare: (source) => writeGoodSource(source, { resultPrepackaged: true }), code: 'result_prepackaged' },
     { name: 'launchers', prepare: (source) => writeGoodSource(source, { extraLauncher: true }), code: 'multiple_launchers_observed' },
     { name: 'guides', prepare: (source) => writeGoodSource(source, { extraGuide: true }), code: 'multiple_guides_observed' },
   ];
@@ -154,6 +154,22 @@ test('outside write는 무시하고 symlink·prepackaged result·multiple launch
         && event.payload.code === item.code));
     } finally { await app.close(); }
   }
+});
+
+test('managed source의 dry-run result는 ZIP에서 exact 제외하고 fresh launcher effect만 자격한다', async () => {
+  const app = await fixture('run-dry-result');
+  try {
+    const started = await begin(app, { outputName: 'dry-result.zip' });
+    await writeGoodSource(started.sourceDirectory, { resultPrepackaged: true });
+    const result = await app.tool.execute(args('finalize_executable_output', {
+      operationHandle: started.operationHandle,
+    }));
+    assert.equal(result.state, 'registered'); assert.equal(result.qualification.passed, true);
+    const { bytes } = await app.store.readContent({ sessionId: SESSION,
+      attachmentId: result.artifact.attachmentId });
+    const manifest = inspectZipArchive(bytes);
+    assert.equal(manifest.entries.some((entry) => entry.path === 'package/runtime-result.json'), false);
+  } finally { await app.close(); }
 });
 
 test('status=$? launcher와 mismatched JSON은 artifact로 승격하지 않는다', async () => {
