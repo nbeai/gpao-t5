@@ -31,10 +31,10 @@
     "refoundationDoctor": "passed",
     "legacyImportBoundary": "passed",
     "refoundationTests": {
-      "passed": 758,
-      "failed": 1,
+      "passed": 759,
+      "failed": 0,
       "total": 759,
-      "existingFailure": "environment.test.js expects the superseded S2-B Gate text while T5-SECOND-COMPLETION.md contains the sealed QUALITY HARDENING Gate"
+      "gateAlignmentCommit": "c95cdbfa"
     }
   },
   "gateImpact": "core contract and counterfactual qualification ready; runtime render producers and product wiring remain unmeasured"
