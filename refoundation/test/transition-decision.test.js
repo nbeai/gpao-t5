@@ -6,6 +6,11 @@ import { decideTransition, transitionDecisionTool } from '../src/transition-deci
 test('transition decision은 provider strict schema와 forced 단일 도구만 사용한다', async () => {
   const tool = transitionDecisionTool();
   assert.deepEqual(Object.keys(tool.parameters.properties).toSorted(), tool.parameters.required.toSorted());
+  for (const choice of ['steer_current', 'followup_after_delivery', 'new_work',
+    'resume_paused', 'cancel', 'ambiguous']) {
+    assert.equal(tool.description.match(new RegExp(`\\b${choice}\\b`, 'gu'))?.length, 1);
+  }
+  assert.doesNotMatch(tool.description, /example|for example|e\.g\.|예시/iu);
   let observed;
   const decision = await decideTransition({
     currentWork: { objective: '현재 보고서', status: 'active', revision: 99, workId: 'raw-work' },

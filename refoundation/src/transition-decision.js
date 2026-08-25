@@ -6,7 +6,7 @@ export const TRANSITION_CHOICES = Object.freeze([
 export function transitionDecisionTool() {
   return {
     name: 'transition_decision', informationFamily: 'continuity',
-    description: 'Classify one newly admitted user input against the active purpose. Select exactly one transition lane. Use a paused target handle only for resume_paused. Use ambiguous when the intended lane or target is not sufficiently identified.',
+    description: 'Classify one newly admitted user input against the active purpose and select exactly one transition lane. steer_current = modify the still-undelivered current assistant answer; followup_after_delivery = leave the current answer unchanged, deliver it first, then handle the input in a separate later assistant response; new_work = start a separate durable purpose; resume_paused = switch to the selected paused purpose; cancel = stop the current purpose; ambiguous = the intended transition or target is insufficiently identified.',
     parameters: { type: 'object', additionalProperties: false, properties: {
       choice: { type: 'string', enum: TRANSITION_CHOICES },
       targetHandle: { type: ['string', 'null'] },
