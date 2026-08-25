@@ -200,12 +200,13 @@ export class AttachmentStore {
 
   async receive({
     sessionId, originalName, declaredMime = null, bytes, direction = 'input', sourcePath = null,
-    revisesAttachmentId = null,
+    revisesAttachmentId = null, providerIdentity = null,
   } = {}) {
     const content = Buffer.from(bytes ?? []);
     async function* chunks() { yield content; }
     return this.receiveStream({
       sessionId, originalName, declaredMime, stream: chunks(), direction, sourcePath, revisesAttachmentId,
+      providerIdentity,
     });
   }
 
@@ -366,6 +367,7 @@ export class AttachmentStore {
 
   async registerOutput({
     sessionId, workspace, filePath, revisesAttachmentId = null, expectedSha256 = null,
+    providerIdentity = null,
   } = {}) {
     const owner = safeUuid(sessionId, 'session');
     const requested = resolve(String(filePath ?? ''));
@@ -387,7 +389,7 @@ export class AttachmentStore {
     }
     return this.receive({
       sessionId: owner, originalName: basename(path), bytes,
-      direction: 'output', sourcePath: path, revisesAttachmentId,
+      direction: 'output', sourcePath: path, revisesAttachmentId, providerIdentity,
     });
   }
 
