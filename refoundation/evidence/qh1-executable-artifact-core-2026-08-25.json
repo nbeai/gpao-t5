@@ -1,6 +1,6 @@
 {
   "schema": "t5.qh1-executable-artifact-core-evidence.v1",
-  "recordedAt": "2026-08-25T14:51:14+09:00",
+  "recordedAt": "2026-08-25T15:17:52+09:00",
   "gate": "QH-1_EXECUTABLE_ARTIFACT_QUALIFICATION_CORE",
   "scope": {
     "implemented": [
@@ -10,6 +10,10 @@
       "archive_permission_observation",
       "runtime_owned_host_platform_identity",
       "typed_expected_observable_requirement",
+      "bounded_required_outcome_observation_contract",
+      "runtime_owned_trusted_outcome_producer_registry",
+      "identity_bound_typed_outcome_receipt",
+      "execution_and_purpose_qualification_separation",
       "artifact_root_cwd_observation",
       "exact_current_platform_entrypoint_execution",
       "exit_stdout_stderr_timeout_and_process_residual_observation",
@@ -32,21 +36,25 @@
     "callerPlatformOverride": "rejected_before_execution",
     "noOpExitZeroWithoutObservable": "rejected_before_execution",
     "artifactRootCwd": "explicitly_observed_and_actually_executed",
+    "stdoutPurposeMarkerOnly": "actually_executed_but_purpose_unmeasured",
+    "selfDeclaredOutcomeProducer": "rejected_before_execution",
+    "malformedOutcomeReceipt": "executed_but_purpose_failed",
+    "trustedIndependentOutcomeReceipt": "required_for_qualified",
     "residualProcess": "detected_separately_from_exit_zero",
     "timeout": "bounded_and_unqualified"
   },
   "verification": {
     "targeted": {
       "command": "node --check refoundation/src/executable-artifact-qualification.js && node --test refoundation/test/executable-artifact-qualification.test.js refoundation/test/archive-safety.test.js",
-      "tests": 15,
-      "passed": 15,
+      "tests": 18,
+      "passed": 18,
       "failed": 0
     },
     "refoundationCheck": {
       "command": "npm run refoundation:check",
       "sandboxRun": "failed_existing_tests_due_to_loopback_and_nested_sandbox_eperm",
       "unrestrictedRunAfterGateAlignment": {
-        "passed": 765,
+        "passed": 768,
         "failed": 0
       }
     }

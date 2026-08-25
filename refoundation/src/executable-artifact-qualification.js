@@ -9,6 +9,7 @@ import { extractSafeZip, inspectZipArchive } from './archive-safety.js';
 
 const CONTRACT_SCHEMA = 't5.deliverable-contract.v1';
 const RECEIPT_SCHEMA = 't5.executable-artifact-qualification.v1';
+const OUTCOME_RECEIPT_SCHEMA = 't5.outcome-observation-receipt.v1';
 const PLATFORMS = new Set(['darwin', 'linux', 'win32']);
 const QUALIFICATIONS = new Set(['unmeasured', 'structurally_inspected', 'actually_executed']);
 const QUALIFICATION_RANK = Object.freeze({
@@ -21,6 +22,9 @@ const MAX_GUIDE_REFERENCES = 64;
 const MAX_ENTRYPOINTS = 16;
 const MAX_PLATFORM_CLAIMS = 8;
 const MAX_EXPECTED_LITERALS = 16;
+const MAX_OUTCOME_OBSERVATIONS = 32;
+const MAX_OUTCOME_FACTS = 32;
+const FACT_TYPES = new Set(['string', 'number', 'integer', 'boolean']);
 const MAX_LITERAL_BYTES = 2_000;
 const DEFAULT_OUTPUT_BYTES = 64 * 1024;
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -70,11 +74,20 @@ function validateExpectedLiterals(value, label) {
   return literals;
 }
 
+function validateTypedValue(value, type, label) {
+  if (type === 'string') return boundedString(value, label, { maxBytes: 2_000, allowEmpty: true });
+  if (type === 'boolean' && typeof value === 'boolean') return value;
+  if (type === 'number' && typeof value === 'number' && Number.isFinite(value)) return value;
+  if (type === 'integer' && Number.isSafeInteger(value)) return value;
+  throw new TypeError(`${label} does not match type ${type}`);
+}
+
 export function validateDeliverableContract(contract) {
   if (!contract || typeof contract !== 'object' || Array.isArray(contract)) {
     throw new TypeError('deliverable contract must be an object');
   }
   if (contract.schema !== CONTRACT_SCHEMA) throw new TypeError(`unsupported deliverable contract: ${contract.schema}`);
+  const contractId = boundedString(contract.id, 'contract.id', { maxBytes: 200 });
   boundedString(contract.artifact?.id, 'artifact.id', { maxBytes: 200 });
   if (!/^[0-9a-f]{64}$/u.test(contract.artifact?.sha256 ?? '')) {
     throw new TypeError('artifact.sha256 must be an exact SHA-256 digest');
@@ -153,6 +166,70 @@ export function validateDeliverableContract(contract) {
   }
   unique(advertisedEntrypoints.map((entrypoint) => entrypoint.id), 'advertisedEntrypoints.id');
 
+  const requiredOutcomeObservations = boundedArray(
+    contract.requiredOutcomeObservations,
+    'requiredOutcomeObservations',
+    MAX_OUTCOME_OBSERVATIONS,
+  ).map((observation, index) => {
+    const requiredFacts = boundedArray(
+      observation?.requiredFacts,
+      `requiredOutcomeObservations[${index}].requiredFacts`,
+      MAX_OUTCOME_FACTS,
+    ).map((fact, factIndex) => {
+      const type = boundedString(
+        fact?.type, `requiredOutcomeObservations[${index}].requiredFacts[${factIndex}].type`,
+        { maxBytes: 20 },
+      );
+      if (!FACT_TYPES.has(type)) throw new TypeError(`unsupported outcome fact type: ${type}`);
+      return {
+        name: boundedString(
+          fact?.name, `requiredOutcomeObservations[${index}].requiredFacts[${factIndex}].name`,
+          { maxBytes: 200 },
+        ),
+        type,
+        equals: validateTypedValue(
+          fact?.equals, type,
+          `requiredOutcomeObservations[${index}].requiredFacts[${factIndex}].equals`,
+        ),
+      };
+    });
+    if (requiredFacts.length === 0) {
+      throw new TypeError(`requiredOutcomeObservations[${index}] requires at least one typed fact`);
+    }
+    unique(requiredFacts.map((fact) => fact.name), `requiredOutcomeObservations[${index}].requiredFacts.name`);
+    return {
+      id: boundedString(observation?.id, `requiredOutcomeObservations[${index}].id`, { maxBytes: 200 }),
+      observationSchema: boundedString(
+        observation?.observationSchema,
+        `requiredOutcomeObservations[${index}].observationSchema`, { maxBytes: 200 },
+      ),
+      entrypointId: boundedString(
+        observation?.entrypointId,
+        `requiredOutcomeObservations[${index}].entrypointId`, { maxBytes: 200 },
+      ),
+      producerKind: boundedString(
+        observation?.producerKind,
+        `requiredOutcomeObservations[${index}].producerKind`, { maxBytes: 100 },
+      ),
+      producerId: boundedString(
+        observation?.producerId,
+        `requiredOutcomeObservations[${index}].producerId`, { maxBytes: 200 },
+      ),
+      requiredFacts,
+    };
+  });
+  unique(requiredOutcomeObservations.map((observation) => observation.id), 'requiredOutcomeObservations.id');
+  for (const entrypoint of advertisedEntrypoints) {
+    if (!requiredOutcomeObservations.some((observation) => observation.entrypointId === entrypoint.id)) {
+      throw new TypeError(`entrypoint lacks required outcome observation: ${entrypoint.id}`);
+    }
+  }
+  for (const observation of requiredOutcomeObservations) {
+    if (!advertisedEntrypoints.some((entrypoint) => entrypoint.id === observation.entrypointId)) {
+      throw new TypeError(`outcome observation references unknown entrypoint: ${observation.entrypointId}`);
+    }
+  }
+
   const platforms = boundedArray(contract.platforms, 'platforms', MAX_PLATFORM_CLAIMS)
     .map((claim, index) => {
       const platform = boundedString(claim?.platform, `platforms[${index}].platform`, { maxBytes: 20 });
@@ -173,10 +250,12 @@ export function validateDeliverableContract(contract) {
   }
   return {
     ...contract,
+    id: contractId,
     artifact: { ...contract.artifact },
     expectedFiles,
     guideReferences,
     advertisedEntrypoints,
+    requiredOutcomeObservations,
     platforms,
   };
 }
@@ -351,10 +430,129 @@ function entrypointQualification(entrypoint, execution, currentPlatform) {
     : 'failed';
 }
 
+function producerKey(kind, id) { return `${kind}\0${id}`; }
+
+function unobservedOutcomeReceipt(contract, entrypoint, requirement, state, reason) {
+  return {
+    schema: OUTCOME_RECEIPT_SCHEMA,
+    state,
+    reason,
+    contract: {
+      id: contract.id,
+      schema: CONTRACT_SCHEMA,
+      artifactId: contract.artifact.id,
+      artifactSha256: contract.artifact.sha256,
+    },
+    artifact: { ...contract.artifact },
+    entrypointId: entrypoint.id,
+    observationSchema: requirement.observationSchema,
+    producer: { kind: requirement.producerKind, id: requirement.producerId, trusted: false },
+    facts: [],
+  };
+}
+
+function validateOutcomeReceipt(receipt, contract, entrypoint, requirement) {
+  if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) {
+    throw new TypeError('outcome receipt must be an object');
+  }
+  if (receipt.schema !== OUTCOME_RECEIPT_SCHEMA) throw new TypeError('outcome receipt schema mismatch');
+  if (!['observed', 'unknown', 'failed'].includes(receipt.state)) {
+    throw new TypeError('outcome receipt state is invalid');
+  }
+  if (receipt.contract?.id !== contract.id
+    || receipt.contract?.schema !== CONTRACT_SCHEMA
+    || receipt.contract?.artifactId !== contract.artifact.id
+    || receipt.contract?.artifactSha256 !== contract.artifact.sha256) {
+    throw new TypeError('outcome receipt contract identity mismatch');
+  }
+  if (receipt.artifact?.id !== contract.artifact.id
+    || receipt.artifact?.sha256 !== contract.artifact.sha256) {
+    throw new TypeError('outcome receipt artifact identity mismatch');
+  }
+  if (receipt.entrypointId !== entrypoint.id) throw new TypeError('outcome receipt entrypoint mismatch');
+  if (receipt.observationSchema !== requirement.observationSchema) {
+    throw new TypeError('outcome receipt observation schema mismatch');
+  }
+  if (receipt.producer?.kind !== requirement.producerKind
+    || receipt.producer?.id !== requirement.producerId) {
+    throw new TypeError('outcome receipt producer identity mismatch');
+  }
+  const facts = boundedArray(receipt.facts ?? [], 'outcome receipt facts', MAX_OUTCOME_FACTS)
+    .map((fact, index) => {
+      const name = boundedString(fact?.name, `outcome receipt facts[${index}].name`, { maxBytes: 200 });
+      const type = boundedString(fact?.type, `outcome receipt facts[${index}].type`, { maxBytes: 20 });
+      if (!FACT_TYPES.has(type)) throw new TypeError(`unsupported outcome receipt fact type: ${type}`);
+      return { name, type, value: validateTypedValue(fact?.value, type, `outcome receipt facts[${index}].value`) };
+    });
+  unique(facts.map((fact) => fact.name), 'outcome receipt facts.name');
+  if (receipt.state === 'observed' && facts.length === 0) {
+    throw new TypeError('observed outcome receipt requires facts');
+  }
+  return {
+    schema: OUTCOME_RECEIPT_SCHEMA,
+    state: receipt.state,
+    ...(receipt.state !== 'observed'
+      ? { reason: boundedString(receipt.reason, 'outcome receipt reason', { maxBytes: 200 }) }
+      : {}),
+    contract: { ...receipt.contract },
+    artifact: { ...receipt.artifact },
+    entrypointId: receipt.entrypointId,
+    observationSchema: receipt.observationSchema,
+    producer: { kind: receipt.producer.kind, id: receipt.producer.id, trusted: true },
+    facts,
+  };
+}
+
+async function observeRequiredOutcome({
+  contract, entrypoint, requirement, artifactRoot, producerRegistry,
+}) {
+  const producer = producerRegistry.get(producerKey(requirement.producerKind, requirement.producerId));
+  if (!producer) {
+    return {
+      requirementId: requirement.id,
+      qualification: 'unmeasured',
+      receipt: unobservedOutcomeReceipt(contract, entrypoint, requirement, 'unknown', 'producer_unavailable'),
+    };
+  }
+  let receipt;
+  try {
+    receipt = await producer.observe(Object.freeze({
+      artifactRoot,
+      contract: Object.freeze({ id: contract.id, schema: CONTRACT_SCHEMA }),
+      artifact: Object.freeze({ ...contract.artifact }),
+      entrypoint: Object.freeze({ id: entrypoint.id, path: entrypoint.path, cwd: entrypoint.cwd }),
+      requiredObservation: Object.freeze(structuredClone(requirement)),
+    }));
+    receipt = validateOutcomeReceipt(receipt, contract, entrypoint, requirement);
+  } catch {
+    return {
+      requirementId: requirement.id,
+      qualification: 'failed',
+      receipt: unobservedOutcomeReceipt(contract, entrypoint, requirement, 'failed', 'malformed_observation_receipt'),
+    };
+  }
+  if (receipt.state === 'unknown') {
+    return { requirementId: requirement.id, qualification: 'unmeasured', receipt };
+  }
+  if (receipt.state === 'failed') {
+    return { requirementId: requirement.id, qualification: 'failed', receipt };
+  }
+  const factMap = new Map(receipt.facts.map((fact) => [fact.name, fact]));
+  const factsMatched = requirement.requiredFacts.every((expected) => {
+    const observed = factMap.get(expected.name);
+    return observed?.type === expected.type && Object.is(observed.value, expected.equals);
+  });
+  return {
+    requirementId: requirement.id,
+    qualification: factsMatched ? 'qualified' : 'failed',
+    receipt,
+  };
+}
+
 function platformObservations(contract, entrypoints) {
   return contract.platforms.map((claim) => {
     const observations = entrypoints.filter((entrypoint) => entrypoint.platform === claim.platform)
-      .map((entrypoint) => entrypoint.qualification);
+      .map((entrypoint) => entrypoint.executionQualification);
     let observedQualification = 'unmeasured';
     if (observations.length && observations.every((value) => value === 'actually_executed')) {
       observedQualification = 'actually_executed';
@@ -376,7 +574,7 @@ function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
-export async function qualifyExecutableArtifact({
+async function qualifyExecutableArtifactInternal({
   archiveBytes: input,
   contract,
   platform: callerPlatform,
@@ -384,7 +582,7 @@ export async function qualifyExecutableArtifact({
   outputLimit = DEFAULT_OUTPUT_BYTES,
   temporaryRoot = null,
   archiveLimits,
-} = {}) {
+} = {}, producerRegistry) {
   if (callerPlatform != null) {
     throw new TypeError('current platform is runtime-owned and cannot be overridden by the caller');
   }
@@ -410,7 +608,8 @@ export async function qualifyExecutableArtifact({
       checks: {
         artifactIdentityMatched: false, safeArchive: false, expectedFilesPresent: false,
         guideReferencesResolved: false, advertisedEntrypointsQualified: false,
-        atLeastOneEntrypointActuallyExecuted: false, platformClaimsAccurate: false,
+        atLeastOneEntrypointActuallyExecuted: false, requiredOutcomeObservationsQualified: false,
+        platformClaimsAccurate: false,
       },
       state: 'unqualified', passed: false,
     };
@@ -429,7 +628,8 @@ export async function qualifyExecutableArtifact({
       checks: {
         artifactIdentityMatched: true, safeArchive: false, expectedFilesPresent: false,
         guideReferencesResolved: false, advertisedEntrypointsQualified: false,
-        atLeastOneEntrypointActuallyExecuted: false, platformClaimsAccurate: false,
+        atLeastOneEntrypointActuallyExecuted: false, requiredOutcomeObservationsQualified: false,
+        platformClaimsAccurate: false,
       },
       state: 'unqualified', passed: false,
     };
@@ -445,7 +645,8 @@ export async function qualifyExecutableArtifact({
       checks: {
         artifactIdentityMatched: true, safeArchive: false, expectedFilesPresent: false,
         guideReferencesResolved: false, advertisedEntrypointsQualified: false,
-        atLeastOneEntrypointActuallyExecuted: false, platformClaimsAccurate: false,
+        atLeastOneEntrypointActuallyExecuted: false, requiredOutcomeObservationsQualified: false,
+        platformClaimsAccurate: false,
       },
       state: 'unqualified', passed: false,
     };
@@ -513,9 +714,27 @@ export async function qualifyExecutableArtifact({
           entrypoint, root: extracted.root, home, spawnProcess, outputLimit,
         });
       }
-      const qualification = pathPresent && cwdPresent && executablePermissionSatisfied
+      const executionQualification = pathPresent && cwdPresent && executablePermissionSatisfied
         ? entrypointQualification(entrypoint, execution, platform)
         : 'failed';
+      let outcomeObservations = [];
+      let qualification = executionQualification;
+      if (executionQualification === 'actually_executed') {
+        const requirements = contract.requiredOutcomeObservations
+          .filter((requirement) => requirement.entrypointId === entrypoint.id);
+        for (const requirement of requirements) {
+          outcomeObservations.push(await observeRequiredOutcome({
+            contract, entrypoint, requirement, artifactRoot: extracted.root, producerRegistry,
+          }));
+        }
+        if (outcomeObservations.every((observation) => observation.qualification === 'qualified')) {
+          qualification = 'qualified';
+        } else if (outcomeObservations.some((observation) => observation.qualification === 'failed')) {
+          qualification = 'executed_but_purpose_failed';
+        } else {
+          qualification = 'executed_but_purpose_unmeasured';
+        }
+      }
       entrypoints.push({
         id: entrypoint.id, platform: entrypoint.platform,
         interpreter: entrypoint.interpreter, interpreterArgs: entrypoint.interpreterArgs,
@@ -529,6 +748,8 @@ export async function qualifyExecutableArtifact({
           stderrIncludes: entrypoint.expectedStderrIncludes,
         },
         execution,
+        executionQualification,
+        outcomeObservations,
         qualification,
       });
     }
@@ -542,12 +763,16 @@ export async function qualifyExecutableArtifact({
       )),
       advertisedEntrypointsQualified: entrypoints.every((entrypoint) => (
         entrypoint.platform === platform
-          ? entrypoint.qualification === 'actually_executed'
+          ? entrypoint.qualification === 'qualified'
           : entrypoint.qualification === 'structurally_inspected'
       )),
       atLeastOneEntrypointActuallyExecuted: entrypoints.some((entrypoint) => (
-        entrypoint.qualification === 'actually_executed'
+        entrypoint.executionQualification === 'actually_executed'
       )),
+      requiredOutcomeObservationsQualified: entrypoints
+        .filter((entrypoint) => entrypoint.platform === platform)
+        .every((entrypoint) => entrypoint.outcomeObservations.length > 0
+          && entrypoint.outcomeObservations.every((observation) => observation.qualification === 'qualified')),
       platformClaimsAccurate: platforms.every((claim) => claim.claimAccurate),
     };
     const passed = Object.values(checks).every(Boolean);
@@ -565,4 +790,33 @@ export async function qualifyExecutableArtifact({
   } finally {
     await rm(parent, { recursive: true, force: true });
   }
+}
+
+export function makeExecutableArtifactQualifier({ outcomeProducers = [] } = {}) {
+  const definitions = boundedArray(
+    outcomeProducers, 'outcomeProducers', MAX_OUTCOME_OBSERVATIONS,
+  ).map((producer, index) => {
+    const kind = boundedString(producer?.kind, `outcomeProducers[${index}].kind`, { maxBytes: 100 });
+    const id = boundedString(producer?.id, `outcomeProducers[${index}].id`, { maxBytes: 200 });
+    if (typeof producer?.observe !== 'function') {
+      throw new TypeError(`outcomeProducers[${index}].observe must be a function`);
+    }
+    return Object.freeze({ kind, id, observe: producer.observe });
+  });
+  unique(definitions.map((producer) => producerKey(producer.kind, producer.id)), 'outcomeProducers identity');
+  const producerRegistry = new Map(definitions.map((producer) => [
+    producerKey(producer.kind, producer.id), producer,
+  ]));
+  return async function qualifyWithTrustedOutcomeProducers(args = {}) {
+    if (Object.hasOwn(args, 'outcomeProducers')) {
+      throw new TypeError('outcome producer registry is runtime-owned and fixed when the qualifier is created');
+    }
+    return qualifyExecutableArtifactInternal(args, producerRegistry);
+  };
+}
+
+const qualifyWithoutOutcomeProducers = makeExecutableArtifactQualifier();
+
+export async function qualifyExecutableArtifact(args = {}) {
+  return qualifyWithoutOutcomeProducers(args);
 }

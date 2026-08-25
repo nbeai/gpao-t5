@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 import { strToU8, zipSync } from 'fflate';
 
 import {
+  makeExecutableArtifactQualifier,
   qualifyExecutableArtifact,
   validateDeliverableContract,
 } from '../src/executable-artifact-qualification.js';
@@ -29,6 +30,7 @@ function zipFixture(definition) {
 function contractFor(definition, bytes, overrides = {}) {
   return {
     schema: 't5.deliverable-contract.v1',
+    id: `${definition.id}-deliverable-contract`,
     artifact: {
       id: definition.id,
       sha256: createHash('sha256').update(bytes).digest('hex'),
@@ -36,6 +38,14 @@ function contractFor(definition, bytes, overrides = {}) {
     expectedFiles: definition.expectedFiles,
     guideReferences: definition.guideReferences,
     advertisedEntrypoints: [definition.entrypoint],
+    requiredOutcomeObservations: [{
+      id: `${definition.entrypoint.id}-outcome`,
+      observationSchema: 't5.fixture-outcome.v1',
+      entrypointId: definition.entrypoint.id,
+      producerKind: 'independent_fixture_probe',
+      producerId: 'fixture-probe-v1',
+      requiredFacts: [{ name: 'artifactCase', type: 'string', equals: definition.id }],
+    }],
     platforms: [{
       platform: definition.entrypoint.platform,
       advertisedSupport: true,
@@ -44,6 +54,36 @@ function contractFor(definition, bytes, overrides = {}) {
     }],
     ...overrides,
   };
+}
+
+function trustedOutcomeReceipt(context, { state = 'observed', facts, reason } = {}) {
+  return {
+    schema: 't5.outcome-observation-receipt.v1',
+    state,
+    ...(state === 'observed' ? {} : { reason: reason ?? 'fixture_unknown' }),
+    contract: {
+      id: context.contract.id,
+      schema: 't5.deliverable-contract.v1',
+      artifactId: context.artifact.id,
+      artifactSha256: context.artifact.sha256,
+    },
+    artifact: { ...context.artifact },
+    entrypointId: context.entrypoint.id,
+    observationSchema: context.requiredObservation.observationSchema,
+    producer: {
+      kind: context.requiredObservation.producerKind,
+      id: context.requiredObservation.producerId,
+    },
+    facts: facts ?? [{ name: 'artifactCase', type: 'string', value: context.artifact.id }],
+  };
+}
+
+function makeFixtureQualifier(observe = (context) => trustedOutcomeReceipt(context)) {
+  return makeExecutableArtifactQualifier({
+    outcomeProducers: [{
+      kind: 'independent_fixture_probe', id: 'fixture-probe-v1', observe,
+    }],
+  });
 }
 
 test('DeliverableContract는 작고 상대적인 산출물 경계만 허용한다', () => {
@@ -74,7 +114,7 @@ test('내부 앱 직접 실행 성공은 깨진 T5 advertised wrapper의 성공 
   assert.match(direct.stdout, /ITEMS=4 NEEDS_ORDER=2/u);
 
   const bytes = zipFixture(fixture);
-  const receipt = await qualifyExecutableArtifact({
+  const receipt = await makeFixtureQualifier()({
     archiveBytes: bytes,
     contract: contractFor(fixture, bytes),
   });
@@ -102,12 +142,18 @@ test('안내서가 가리킨 launcher가 ZIP에 없으면 내부 프로그램이
 test('정상 Codex Mac launcher는 exact interpreter·path·cwd와 사용자 입력으로 실제 통과한다', async () => {
   const fixture = FIXTURES.cases.find((item) => item.id === 'codex-mac-launcher');
   const bytes = zipFixture(fixture);
-  const receipt = await qualifyExecutableArtifact({
+  const qualifier = makeFixtureQualifier((context) => {
+    assert.equal(Object.hasOwn(context, 'execution'), false);
+    return trustedOutcomeReceipt(context);
+  });
+  const receipt = await qualifier({
     archiveBytes: bytes,
     contract: contractFor(fixture, bytes),
   });
   assert.equal(receipt.state, 'qualified');
-  assert.equal(receipt.entrypoints[0].qualification, 'actually_executed');
+  assert.equal(receipt.entrypoints[0].executionQualification, 'actually_executed');
+  assert.equal(receipt.entrypoints[0].qualification, 'qualified');
+  assert.equal(receipt.entrypoints[0].outcomeObservations[0].qualification, 'qualified');
   assert.equal(receipt.entrypoints[0].execution.exitCode, 0);
   assert.equal(receipt.entrypoints[0].execution.processResidual, false);
   assert.match(receipt.entrypoints[0].execution.stdout, /ITEMS=4 NEEDS_ORDER=2/u);
@@ -130,6 +176,12 @@ test('현재 OS에서 실행하지 않은 플랫폼은 verified로 승격하지 
     archiveBytes: bytes,
     contract: contractFor(fixture, bytes, {
       advertisedEntrypoints: [windowsEntrypoint],
+      requiredOutcomeObservations: [{
+        id: 'other-platform-outcome', observationSchema: 't5.fixture-outcome.v1',
+        entrypointId: windowsEntrypoint.id,
+        producerKind: 'independent_fixture_probe', producerId: 'fixture-probe-v1',
+        requiredFacts: [{ name: 'artifactCase', type: 'string', equals: fixture.id }],
+      }],
       platforms: [{
         platform: otherPlatform, advertisedSupport: true, claimedQualification: 'actually_executed',
       }],
@@ -180,6 +232,65 @@ test('exit 0뿐인 no-op launcher는 typed expected observable 없이 자격 계
   assert.equal(spawned, false);
 });
 
+test('printf marker와 expected stdout이 맞아도 trusted outcome producer가 없으면 목적 미측정이다', async () => {
+  const fixture = {
+    id: 'stdout-marker-only',
+    files: {
+      'README.txt': 'run launcher.command',
+      'launcher.command': '#!/bin/zsh\nprintf PURPOSE-ACHIEVED\n',
+    },
+    expectedFiles: ['README.txt', 'launcher.command'],
+    guideReferences: [{ guidePath: 'README.txt', targetPath: 'launcher.command' }],
+    entrypoint: {
+      id: 'mac-launcher', platform: 'darwin', interpreter: '/bin/zsh',
+      path: 'launcher.command', cwd: '.', requiresExecutablePermission: true,
+      expectedExitCode: 0, expectedStdoutIncludes: ['PURPOSE-ACHIEVED'],
+    },
+  };
+  const bytes = zipFixture(fixture);
+  const receipt = await qualifyExecutableArtifact({
+    archiveBytes: bytes, contract: contractFor(fixture, bytes),
+  });
+  assert.equal(receipt.entrypoints[0].executionQualification, 'actually_executed');
+  assert.equal(receipt.entrypoints[0].qualification, 'executed_but_purpose_unmeasured');
+  assert.equal(receipt.entrypoints[0].outcomeObservations[0].receipt.reason, 'producer_unavailable');
+  assert.equal(receipt.state, 'unqualified');
+});
+
+test('call input이 self-declared outcome producer를 넣어 trusted registry를 우회할 수 없다', async () => {
+  const fixture = FIXTURES.cases.find((item) => item.id === 'codex-mac-launcher');
+  const bytes = zipFixture(fixture);
+  let observed = false;
+  await assert.rejects(() => qualifyExecutableArtifact({
+    archiveBytes: bytes,
+    contract: contractFor(fixture, bytes),
+    outcomeProducers: [{
+      kind: 'independent_fixture_probe', id: 'fixture-probe-v1',
+      observe() { observed = true; },
+    }],
+  }), /runtime-owned/u);
+  assert.equal(observed, false);
+});
+
+test('trusted producer의 malformed observation은 원문 없이 failed receipt로 닫힌다', async () => {
+  const fixture = FIXTURES.cases.find((item) => item.id === 'codex-mac-launcher');
+  const bytes = zipFixture(fixture);
+  const qualifier = makeFixtureQualifier(() => ({
+    schema: 'wrong-schema', state: 'observed', facts: [],
+  }));
+  const receipt = await qualifier({
+    archiveBytes: bytes, contract: contractFor(fixture, bytes),
+  });
+  assert.equal(receipt.entrypoints[0].executionQualification, 'actually_executed');
+  assert.equal(receipt.entrypoints[0].qualification, 'executed_but_purpose_failed');
+  assert.equal(receipt.entrypoints[0].outcomeObservations[0].receipt.state, 'failed');
+  assert.equal(
+    receipt.entrypoints[0].outcomeObservations[0].receipt.reason,
+    'malformed_observation_receipt',
+  );
+  assert.equal(receipt.state, 'unqualified');
+});
+
 test('artifact root cwd는 점 경로로 명시 관측되고 실제 launcher 실행에 사용된다', async () => {
   const fixture = {
     id: 'artifact-root-cwd',
@@ -196,14 +307,15 @@ test('artifact root cwd는 점 경로로 명시 관측되고 실제 launcher 실
     },
   };
   const bytes = zipFixture(fixture);
-  const receipt = await qualifyExecutableArtifact({
+  const receipt = await makeFixtureQualifier()({
     archiveBytes: bytes, contract: contractFor(fixture, bytes),
   });
   assert.equal(receipt.state, 'qualified');
   assert.equal(receipt.entrypoints[0].cwd, '.');
   assert.equal(receipt.entrypoints[0].cwdIsArtifactRoot, true);
   assert.equal(receipt.entrypoints[0].cwdPresent, true);
-  assert.equal(receipt.entrypoints[0].qualification, 'actually_executed');
+  assert.equal(receipt.entrypoints[0].executionQualification, 'actually_executed');
+  assert.equal(receipt.entrypoints[0].qualification, 'qualified');
 });
 
 test('launcher exit 0과 별개로 남은 process group을 관측하고 정리한다', async () => {
