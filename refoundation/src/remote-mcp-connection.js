@@ -62,6 +62,7 @@ export function makeRemoteMcpConnection({
   secretStore, fetchImpl = globalThis.fetch, now = Date.now, callbackPort = 0,
   runtimeFactory = makeRemoteMcpRuntime, oauthClient: configuredOAuthClient = null,
   requestedScopes: configuredScopes = null, verifyConnection = null, requireObservedAccount = false,
+  authorizationParameters = null,
 } = {}) {
   if (!/^[a-z0-9][a-z0-9-]{1,63}$/u.test(String(id ?? '')) || !label || !/^https:\/\//u.test(String(serverUrl ?? ''))) {
     throw new TypeError('Remote MCP connection identity is required');
@@ -128,7 +129,7 @@ export function makeRemoteMcpConnection({
         pending = { pkce, callback, bundle: current };
         return { authorizeUrl: buildRemoteMcpAuthorizeUrl({ metadata: current.metadata, client: current.client,
           redirectUri: current.redirectUri, challenge: pkce.challenge, state: pkce.state, resource,
-          requestedScopes }), notice: `${label} 연결을 시작했어요.` };
+          requestedScopes, authorizationParameters }), notice: `${label} 연결을 시작했어요.` };
       } catch (error) { callback?.cancel(); pending = null; throw error; }
     },
     async awaitConnection() {

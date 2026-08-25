@@ -34,6 +34,7 @@ import { makeNotionCliInspector } from '../src/notion-cli-inspector.js';
 import { makeRemoteMcpConnection } from '../src/remote-mcp-connection.js';
 import { makeChannelTalkConnection } from '../src/channel-talk-connection.js';
 import { makeSlackMcpConnection } from '../src/slack-mcp-connection.js';
+import { makeGoogleWorkspaceDriveMcpConnection } from '../src/google-workspace-mcp-connection.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -102,6 +103,18 @@ const googleDriveService = {
   },
 };
 const platformSecretStore = makePlatformSecretStore({ platform: computerEnvironment.platform });
+const googleWorkspaceClientId = String(process.env.T5_GOOGLE_WORKSPACE_OAUTH_CLIENT_ID ?? '').trim();
+const googleWorkspaceClientSecret = String(process.env.T5_GOOGLE_WORKSPACE_OAUTH_CLIENT_SECRET ?? '').trim();
+const googleWorkspaceCallbackPort = Number(process.env.T5_GOOGLE_WORKSPACE_OAUTH_CALLBACK_PORT ?? 4186);
+if ((!googleWorkspaceClientId && googleWorkspaceClientSecret) || (googleWorkspaceClientId && !googleWorkspaceClientSecret)
+  || !Number.isInteger(googleWorkspaceCallbackPort) || googleWorkspaceCallbackPort < 1024
+  || googleWorkspaceCallbackPort > 65_535) {
+  throw new Error('T5 Google Workspace OAuth application configuration is incomplete');
+}
+const googleWorkspaceRemoteConnection = googleWorkspaceClientId
+  ? makeGoogleWorkspaceDriveMcpConnection({ secretStore: platformSecretStore,
+    clientId: googleWorkspaceClientId, clientSecret: googleWorkspaceClientSecret,
+    callbackPort: googleWorkspaceCallbackPort }) : null;
 const messengerCredentialStore = new MessengerPlatformCredentialStore(platformSecretStore);
 await migrateMessengerCredentials({
   source: new MessengerCredentialStore(join(stateDir, 'messenger')),
@@ -126,7 +139,8 @@ if ((!slackClientId && slackClientSecret) || (slackClientId && !slackClientSecre
 }
 const slackConnection = slackClientId ? makeSlackMcpConnection({ secretStore: platformSecretStore,
   clientId: slackClientId, clientSecret: slackClientSecret, callbackPort: slackCallbackPort }) : null;
-const workspaceConnectionServices = [googleDriveService, notionConnection, linearConnection, channelTalkConnection];
+const workspaceConnectionServices = [googleWorkspaceRemoteConnection ?? googleDriveService,
+  notionConnection, linearConnection, channelTalkConnection];
 if (slackConnection) workspaceConnectionServices.push(slackConnection);
 const localConsoleToken = randomBytes(32).toString('base64url');
 const server = makeConsoleServer({

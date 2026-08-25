@@ -82,6 +82,7 @@ export async function registerRemoteMcpClient({ metadata, redirectUri, fetchImpl
 
 export function buildRemoteMcpAuthorizeUrl({
   metadata, client, redirectUri, challenge, state, resource = null, requestedScopes = null,
+  authorizationParameters = null,
 } = {}) {
   const url = httpsUrl(metadata?.authorization_endpoint, 'Remote MCP authorization endpoint');
   if (!client?.client_id || !redirectUri || !challenge || !state) throw new TypeError('Remote MCP authorization input is required');
@@ -96,6 +97,17 @@ export function buildRemoteMcpAuthorizeUrl({
   if (resource) url.searchParams.set('resource', String(resource));
   url.searchParams.set('state', String(state)); url.searchParams.set('code_challenge', String(challenge));
   url.searchParams.set('code_challenge_method', 'S256'); url.searchParams.set('prompt', 'consent');
+  if (authorizationParameters != null) {
+    if (!authorizationParameters || typeof authorizationParameters !== 'object' || Array.isArray(authorizationParameters)) {
+      throw new TypeError('Remote MCP authorization parameters are invalid');
+    }
+    const allowed = { access_type: new Set(['offline']), include_granted_scopes: new Set(['true']) };
+    for (const [name, raw] of Object.entries(authorizationParameters)) {
+      const value = String(raw);
+      if (!allowed[name]?.has(value)) throw new TypeError('Remote MCP authorization parameter is not allowed');
+      url.searchParams.set(name, value);
+    }
+  }
   return url.toString();
 }
 
