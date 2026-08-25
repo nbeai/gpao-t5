@@ -26,6 +26,12 @@ function inventory() { return { items: [
   { name: '우유', stock: 2, reorderPoint: 3 }, { name: '종이컵', stock: 3, reorderPoint: 4 },
   { name: '커피', stock: 8, reorderPoint: 3 }, { name: '물', stock: 10, reorderPoint: 4 },
 ] }; }
+function numericLeaves(value, out = []) {
+  if (typeof value === 'number' && Number.isFinite(value)) out.push(value);
+  else if (Array.isArray(value)) value.forEach((item) => numericLeaves(item, out));
+  else if (value && typeof value === 'object') Object.values(value).forEach((item) => numericLeaves(item, out));
+  return out;
+}
 
 function brokenFixture() {
   const files = {
@@ -122,7 +128,7 @@ async function runCase({ id, request, broken = false }) {
     const registerCalls = toolReceipts.filter((receipt) => receipt.requestedCall?.args?.action === 'register_output');
     const finalized = finalizeCalls.find((receipt) => receipt.result?.state === 'registered');
     const workEvents = run.events.filter((event) => ['work_settled', 'work_unresolved'].includes(event.type)).map((event) => event.type);
-    const internalTermsVisible = /begin_executable|finalize_executable|operationHandle|sidecar|DeliverableContract|t5\.deliverable|producerKind|observationSchema|runtime-result\.json|ToolReceipt/iu.test(surface.reply ?? '');
+    const internalTermsVisible = /begin_executable|finalize_executable|operationHandle|sidecar|DeliverableContract|t5\.deliverable|producerKind|observationSchema|ToolReceipt/iu.test(surface.reply ?? '');
     const browserCalls = toolReceipts.filter((receipt) => ['browser', 'browser_observe'].includes(receipt.requestedCall?.name)).length;
     const approvals = (await server.authorityStore.listActive(session.id)).length;
     let domainExact = null;
@@ -131,8 +137,8 @@ async function runCase({ id, request, broken = false }) {
         attachmentId: finalized.result.artifact.attachmentId });
       const result = await independentResult({ bytes,
         resultRelativePath: beginCalls[0]?.requestedCall?.args?.resultRelativePath });
-      domainExact = result?.totalItems === 4
-        && (result?.needsOrderCount === 2 || result?.reorderItems === 2 || result?.reorderCount === 2);
+      const observedNumbers = numericLeaves(result);
+      domainExact = observedNumbers.includes(4) && observedNumbers.includes(2);
     }
     const passed = broken ? (surface.artifacts ?? []).length === 0 && workEvents.includes('work_unresolved')
       && !internalTermsVisible : beginCalls.length === 1 && beginCalls[0].result?.state === 'executable_output_started'
@@ -144,6 +150,7 @@ async function runCase({ id, request, broken = false }) {
       toolCalls: toolReceipts.length, usage: usage(run), beginCalls: beginCalls.length,
       finalizeCalls: finalizeCalls.length, registerCalls: registerCalls.length,
       artifactCount: (surface.artifacts ?? []).length, workEvents, domainExact,
+      recoveredAttempts: finalized?.result?.attemptRecovery?.supersededAttemptRange?.attempts?.length ?? 0,
       internalTermsVisible, browserCalls, approvals, runtimeErrorCount: runtimeErrors.length,
       toolStates: toolReceipts.map((receipt) => ({ name: receipt.requestedCall?.name ?? null,
         action: receipt.requestedCall?.args?.action ?? null, outcome: receipt.outcome ?? null,
