@@ -13,6 +13,11 @@
     "ambiguous remains unresolved and is not applied to current Work",
     "paused candidates are bounded visible-source summaries with runtime-owned opaque handles"
   ],
+  "environmentQualification": [
+    "transition decision receives runtime-owned pending delivery and authoritative-current-result temporal facts",
+    "steer_current dynamically requires formal work_completion settlement before publication",
+    "busy-free Runs add zero required settlement calls"
+  ],
   "providerInput": {
     "currentWorkFields": ["objective", "status"],
     "admittedInputFields": ["text", "attachmentCount", "sourceKind"],
@@ -23,10 +28,13 @@
   "checks": {
     "focused": { "passed": 73, "failed": 0 },
     "full": {
-      "passed": 813,
-      "failed": 1,
-      "total": 814,
-      "knownUnrelatedFailure": "console-ui-state openSettings selection reset assertion"
+      "passed": 814,
+      "failed": 2,
+      "total": 816,
+      "knownUnrelatedFailures": [
+        "console-ui-state openSettings selection reset assertion",
+        "concurrent QH-1 executable-output-preparation prepackaged-result assertion"
+      ]
     },
     "legacyImport": 0
   },

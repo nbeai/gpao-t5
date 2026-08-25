@@ -297,10 +297,13 @@ export async function runAgent({
   let lastResourceSituationKey = null;
   let completionReminderSent = false;
   let finalAnswerReminderSent = false;
+  let busySettlementRequired = false;
   let lastTurnToolCalls = 0;
   const projectedWorkInputIds = new Set();
-  const completionSatisfied = () => Boolean(requiredCompletionTool && receipts.some((receipt) => (
-    receipt.actualCall?.name === requiredCompletionTool && receipt.outcome === 'succeeded'
+  const requiredCompletionName = () => requiredCompletionTool
+    ?? (busySettlementRequired ? 'work_completion' : null);
+  const completionSatisfied = () => Boolean(requiredCompletionName() && receipts.some((receipt) => (
+    receipt.actualCall?.name === requiredCompletionName() && receipt.outcome === 'succeeded'
   )));
   if (requiredInitialTool != null && !registry.has(requiredInitialTool)) {
     throw new Error(`required initial tool is unavailable: ${requiredInitialTool}`);
@@ -336,7 +339,7 @@ export async function runAgent({
       currentRunMessages: transcript.slice(prior.length + 1),
       tools: definitions, toolExposures,
       requiredRecoveryTools: definitions.map((definition) => definition.name).filter((name) => (
-        name === 'tool_search' || name === requiredCompletionTool
+        name === 'tool_search' || name === requiredCompletionName()
         || registry.get(name)?.informationAlwaysVisible === true
       )),
     });
@@ -376,8 +379,8 @@ export async function runAgent({
       messages: structuredClone(transcript),
       tools: structuredClone(definitions),
       ...(situationBlock ? { runtimeContext: situationBlock } : {}),
-      ...(completionReminderSent && requiredCompletionTool && !completionSatisfied() ? {
-        toolChoice: { requiredToolName: requiredCompletionTool },
+      ...(completionReminderSent && requiredCompletionName() && !completionSatisfied() ? {
+        toolChoice: { requiredToolName: requiredCompletionName() },
       } : modelTurns === 1 && requiredInitialTool ? {
         toolChoice: { requiredToolName: requiredInitialTool },
       } : {}),
@@ -455,6 +458,7 @@ export async function runAgent({
         response.toolCalls = controlCalls;
       } else if (typeof applyAdmittedWorkInputs === 'function') {
         await applyAdmittedWorkInputs(admittedWorkInputs);
+        busySettlementRequired = true;
       }
       lastTurnToolCalls = response.toolCalls.length;
     }
@@ -493,19 +497,27 @@ export async function runAgent({
         ].join('\n') });
         continue;
       }
-      if (requiredCompletionTool && !completionSatisfied()) {
+      const completionName = requiredCompletionName();
+      if (completionName && !completionSatisfied()) {
         if (completionReminderSent) {
           const error = new Error('required completion receipt is missing');
           error.reason = 'required_completion_receipt_missing';
-          error.toolName = requiredCompletionTool;
+          error.toolName = completionName;
           throw error;
         }
         completionReminderSent = true;
-        const requiredTool = registry.get(requiredCompletionTool);
+        const requiredTool = registry.get(completionName);
         definitions = requiredTool ? [toolDefinition(requiredTool)] : [];
         transcript.push({
           role: 'user',
-          content: `[T5 RUNTIME COMPLETION CONTRACT] Before ending this scheduled Run, call ${requiredCompletionTool}. Declare not_achieved if any requested effect, delivery, verification, or result URL is still missing. A normal final answer cannot close this Run.`,
+          content: busySettlementRequired && !requiredCompletionTool ? [
+            '[T5 BUSY INPUT SETTLEMENT BOUNDARY]',
+            'Before this Run can publish, call work_completion exactly once.',
+            'Include one inputSettlements entry for every inputHandle supplied to this Run.',
+            'Use answered only for input reflected in the authoritative result; otherwise use unresolved, deferred, or superseded.',
+            'After the settlement receipt, write the final user answer.',
+          ].join('\n')
+            : `[T5 RUNTIME COMPLETION CONTRACT] Before ending this scheduled Run, call ${completionName}. Declare not_achieved if any requested effect, delivery, verification, or result URL is still missing. A normal final answer cannot close this Run.`,
         });
         continue;
       }
@@ -681,7 +693,7 @@ export async function runAgent({
         const hidden = [];
         for (const name of [...activeTools]) {
           const candidate = registry.get(name);
-          if (name === requested.name || name === requiredCompletionTool || name === 'tool_search'
+          if (name === requested.name || name === requiredCompletionName() || name === 'tool_search'
             || acceptedActivations.includes(name)
             || routeActivatedTools.has(name)
             || candidate?.informationAlwaysVisible === true
@@ -695,8 +707,8 @@ export async function runAgent({
       }
       definitions = [...activeTools].map((name) => toolDefinition(registry.get(name)));
       if (completionSatisfied()) definitions = [];
-      else if (completionReminderSent && requiredCompletionTool) {
-        definitions = definitions.filter((definition) => definition.name === requiredCompletionTool);
+      else if (completionReminderSent && requiredCompletionName()) {
+        definitions = definitions.filter((definition) => definition.name === requiredCompletionName());
       }
       await onEvent?.({
         type: 'tool_end', turn: modelTurns, name: call?.name, outcome: receipt.outcome,

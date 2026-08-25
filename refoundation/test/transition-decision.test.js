@@ -24,6 +24,10 @@ test('transition decision은 provider strict schema와 forced 단일 도구만 �
   assert.equal(observed.messages[0].content.includes('raw-work'), false);
   assert.equal(observed.messages[0].content.includes('raw-paused'), false);
   assert.equal(observed.messages[0].content.includes('"revision"'), false);
+  assert.deepEqual(JSON.parse(observed.messages[0].content).temporalFacts, {
+    admittedWhileActiveRun: true, currentSurfaceState: 'pending_not_delivered',
+    currentWorkResultStillAuthoritative: true,
+  });
   assert.equal(decision.choice, 'new_work');
 });
 

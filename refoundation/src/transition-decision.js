@@ -25,6 +25,8 @@ export async function decideTransition({ model, currentWork, input, pausedCandid
         status: currentWork.status ?? 'active' },
       admittedInput: { text: String(input.text ?? '').slice(0, 8_000),
         attachmentCount: Math.min(10, input.attachmentCount ?? 0), sourceKind: input.sourceKind ?? 'conversation' },
+      temporalFacts: { admittedWhileActiveRun: true,
+        currentSurfaceState: 'pending_not_delivered', currentWorkResultStillAuthoritative: true },
       pausedCandidates: pausedCandidates.slice(0, 8).map((candidate) => ({
         handle: candidate.handle, title: String(candidate.title ?? '').slice(0, 160),
         lastActivity: candidate.lastActivity ?? null, sourceKind: candidate.sourceKind ?? 'conversation',
