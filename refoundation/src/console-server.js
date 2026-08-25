@@ -37,7 +37,6 @@ import { makeWorkTransitionTool } from './work-transition-tool.js';
 import { makeWorkCompletionTool } from './work-completion-tool.js';
 import { evaluateWorkCompletion } from './work-completion-evaluator.js';
 import { makeInputSettlementScope } from './input-settlement-scope.js';
-import { makePausedWorkScope } from './paused-work-scope.js';
 import { memoryCandidateProjection, selectMemoryPortfolio, workingMemoryProjection } from './memory-portfolio.js';
 import { projectHistoricalConversationEntries } from './conversation-projection.js';
 import { makeConversationRecallTool } from './conversation-recall-tool.js';
@@ -767,7 +766,6 @@ export function makeConsoleServer({
     } });
     const inputSettlementScope = makeInputSettlementScope({ store: workStore, runId: run.runId,
       excludedInputIds: options.admittedInput ? [options.admittedInput.inputId] : [] });
-    const pausedWorkScope = makePausedWorkScope({ store: workStore, runId: run.runId });
     let resourceDiagnosticSequence = 0;
     const resourceRun = await resourceController.startRun({
       sessionId, runId: run.runId, trigger: options.trigger ?? 'user',
@@ -1061,7 +1059,6 @@ export function makeConsoleServer({
       }
       offeredTools.unshift(makeWorkTransitionTool({
         store: workStore, sessionId, runId: run.runId,
-        pausedWorkScope,
         stopProcesses: () => processes.stopOwner(sessionId, 'model_classified_cancel'),
       }));
       let visualObservationCount = 0;
@@ -1364,7 +1361,6 @@ export function makeConsoleServer({
           const objective = currentWork ? conversation.entries.find((candidate) => (
             candidate.messageId === currentWork.sourceMessageId
           ))?.message?.content ?? null : null;
-          const pausedWorkCandidates = await pausedWorkScope.candidates({ sessionId, conversation });
           return Promise.all(pending.map(async (input) => {
             const entry = conversation.entries.find((candidate) => candidate.messageId === input.messageId);
             const records = await Promise.all((input.attachmentIds ?? []).map((attachmentId) => (
@@ -1377,7 +1373,6 @@ export function makeConsoleServer({
                 objective: String(objective ?? '').slice(0, 2_000),
                 resultDeliveryAtAdmission: input.source?.admissionTime?.currentResultProduced === true
                   ? 'delivered_or_produced' : 'not_delivered' } : null,
-              pausedWorkCandidates,
               modelAttachments: await modelImageInputs({ store: attachments, sessionId, records }) };
           }));
         },

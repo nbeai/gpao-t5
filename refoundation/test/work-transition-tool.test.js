@@ -27,7 +27,7 @@ test('control이 없으면 presented input은 현재 Work R+1·현재 Run에 적
 
 test('defer_after_delivery는 base revision을 유지하고 activation 전까지 R+1을 만들지 않는다', async () => {
   const { store, input, tool } = await fixture();
-  await tool.execute({ action: 'defer_after_delivery', currentWorkDisposition: null, targetWorkHandle: null });
+  await tool.execute({ action: 'defer_after_delivery', currentWorkDisposition: null, targetWorkId: null });
   let state = await store.read(); let deferred = state.inputs.find((item) => item.inputId === input.inputId);
   assert.equal(state.works[0].revision, 1); assert.equal(deferred.state, 'scheduled');
   assert.equal(deferred.baseRevision, 1);
@@ -39,7 +39,7 @@ test('defer_after_delivery는 base revision을 유지하고 activation 전까지
 test('start_independent_work만 새 Work를 만들고 현재 Run의 completion을 내린다', async () => {
   const { store, work, input, tool } = await fixture();
   const result = await tool.execute({ action: 'start_independent_work',
-    currentWorkDisposition: 'pause', targetWorkHandle: null });
+    currentWorkDisposition: 'pause', targetWorkId: null });
   const state = await store.read(); assert.equal(state.works.length, 2);
   assert.equal(state.works.find((item) => item.workId === work.workId).status, 'paused');
   assert.notEqual(state.inputs.find((item) => item.inputId === input.inputId).workId, work.workId);
@@ -51,7 +51,7 @@ test('cancel_current_work는 process와 Work를 닫되 input terminal은 surface
   const tool = makeWorkTransitionTool({ store: base.store, sessionId: 'session', runId: 'current-run',
     stopProcesses: async () => { stops += 1; } });
   const result = await tool.execute({ action: 'cancel_current_work',
-    currentWorkDisposition: null, targetWorkHandle: null });
+    currentWorkDisposition: null, targetWorkId: null });
   const state = await base.store.read(); assert.equal(stops, 1);
   assert.equal(state.works[0].status, 'cancelled'); assert.equal(state.inputs[0].state, 'executing');
   assert.deepEqual(result.deactivatedTools, ['work_completion']);
@@ -65,12 +65,8 @@ test('resume_paused_work는 exact paused Work만 다시 활성화하고 새 Work
   await store.claimExecution({ workId: current.workId, revision: 1, runId: 'current-run' });
   const input = await store.admitInput({ sessionId: 'session', messageId: 'resume-message' });
   await store.presentInputs({ sessionId: 'session', workId: current.workId, revision: 1, runId: 'current-run' });
-  const tool = makeWorkTransitionTool({ store, sessionId: 'session', runId: 'current-run',
-    pausedWorkScope: { resolve: async (handle) => {
-      assert.equal(handle, 'paused_fixture_handle'); return { workId: paused.workId, revision: 1 };
-    } } });
-  await tool.execute({ action: 'resume_paused_work', currentWorkDisposition: 'pause',
-    targetWorkHandle: 'paused_fixture_handle' });
+  const tool = makeWorkTransitionTool({ store, sessionId: 'session', runId: 'current-run' });
+  await tool.execute({ action: 'resume_paused_work', currentWorkDisposition: 'pause', targetWorkId: paused.workId });
   const state = await store.read(); assert.equal(state.works.length, 2);
   assert.equal(state.works.find((item) => item.workId === current.workId).status, 'paused');
   assert.equal(state.works.find((item) => item.workId === paused.workId).status, 'active');

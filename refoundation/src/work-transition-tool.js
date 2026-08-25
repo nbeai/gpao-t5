@@ -1,5 +1,5 @@
 export function makeWorkTransitionTool({ store, sessionId, runId = null,
-  stopProcesses = async () => {}, pausedWorkScope = null } = {}) {
+  stopProcesses = async () => {} } = {}) {
   if (!store || !sessionId || !runId) throw new TypeError('work control identity is required');
   return {
     name: 'work_control',
@@ -11,8 +11,8 @@ export function makeWorkTransitionTool({ store, sessionId, runId = null,
         'defer_after_delivery', 'start_independent_work', 'cancel_current_work', 'resume_paused_work',
       ] },
       currentWorkDisposition: { type: ['string', 'null'], enum: ['pause', 'cancel', null] },
-      targetWorkHandle: { type: ['string', 'null'] },
-    }, required: ['action', 'currentWorkDisposition', 'targetWorkHandle'] },
+      targetWorkId: { type: ['string', 'null'] },
+    }, required: ['action', 'currentWorkDisposition', 'targetWorkId'] },
     async execute(args = {}) {
       const presented = await store.presentedInputs(sessionId, runId);
       if (!presented.length) throw new Error('presented input batch is required');
@@ -42,12 +42,11 @@ export function makeWorkTransitionTool({ store, sessionId, runId = null,
           deactivatedTools: ['work_completion'], workOwnershipRelinquished: true };
       }
       if (args.action === 'resume_paused_work') {
-        if (!args.targetWorkHandle || !pausedWorkScope) throw new TypeError('resume requires paused target handle');
-        const target = await pausedWorkScope.resolve(args.targetWorkHandle);
+        if (!args.targetWorkId) throw new TypeError('resume requires targetWorkId');
         const disposition = args.currentWorkDisposition ?? 'pause';
         if (disposition === 'cancel') await stopProcesses();
         const resumed = await store.resumePresentedBatchOnPausedWork({ inputIds,
-          currentWorkId: current.workId, targetWorkId: target.workId,
+          currentWorkId: current.workId, targetWorkId: args.targetWorkId,
           runId, currentWorkDisposition: disposition });
         return { state: 'paused_work_resumed', ...resumed,
           deactivatedTools: ['work_completion'], workOwnershipRelinquished: true };
