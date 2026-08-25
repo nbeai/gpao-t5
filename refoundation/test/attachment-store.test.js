@@ -10,6 +10,8 @@ import { AttachmentStore, detectAttachmentType } from '../src/attachment-store.j
 
 const SESSION_A = '11111111-1111-4111-8111-111111111111';
 const SESSION_B = '22222222-2222-4222-8222-222222222222';
+const RUN_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const RUN_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 function png(width = 3, height = 2) {
   const bytes = Buffer.alloc(24);
@@ -137,6 +139,48 @@ test('생성 결과 등록은 workspace 안 regular file만 복사하고 다운�
   await assert.rejects(() => store.registerOutput({
     sessionId: SESSION_A, workspace, filePath: linked,
   }), /symbolic link/i);
+});
+
+test('생성 관측 output handle은 재시작 뒤 exact SHA로 등록되고 다른 Session·변경 파일은 거부된다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-output-provenance-'));
+  const workspace = join(room, 'workspace'); await mkdir(workspace);
+  const file = join(workspace, 'result.txt'); await writeFile(file, 'PRODUCED-1');
+  const directory = join(room, 'attachments');
+  const first = new AttachmentStore(directory);
+  const produced = await first.recordProducedOutput({
+    sessionId: SESSION_A, workspace, runId: RUN_A,
+    toolCallId: 'exec-1', filePath: file,
+  });
+  assert.match(produced.outputHandle, /^[0-9a-f-]{36}$/i);
+  assert.equal((await first.pendingProducedOutputs({ sessionId: SESSION_A })).length, 1);
+  await assert.rejects(() => first.producedOutput({
+    sessionId: SESSION_B, outputHandle: produced.outputHandle,
+  }), /not found/i);
+
+  const restored = new AttachmentStore(directory);
+  const exact = await restored.producedOutput({
+    sessionId: SESSION_A, outputHandle: produced.outputHandle,
+  });
+  assert.equal(exact.sha256, produced.sha256);
+  await writeFile(file, 'CHANGED');
+  await assert.rejects(() => restored.registerOutput({
+    sessionId: SESSION_A, workspace, filePath: exact.sourcePath,
+    expectedSha256: exact.sha256,
+  }), /identity changed/i);
+
+  await writeFile(file, 'PRODUCED-1');
+  const artifact = await restored.registerOutput({
+    sessionId: SESSION_A, workspace, filePath: exact.sourcePath,
+    expectedSha256: exact.sha256,
+  });
+  await restored.markProducedOutputRegistered({
+    sessionId: SESSION_A, outputHandle: produced.outputHandle,
+    attachmentId: artifact.attachmentId, registeringRunId: RUN_B,
+  });
+  assert.equal((await restored.pendingProducedOutputs({ sessionId: SESSION_A })).length, 0);
+  assert.equal((await restored.producedOutput({
+    sessionId: SESSION_A, outputHandle: produced.outputHandle,
+  })).attachmentId, artifact.attachmentId);
 });
 
 test('HTML·SVG·정적 웹 꾸러미는 다운로드 파일이 아니라 관리 preview 결과물로도 식별된다', () => {

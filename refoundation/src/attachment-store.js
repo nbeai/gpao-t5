@@ -198,6 +198,108 @@ export class AttachmentStore {
     return records;
   }
 
+  producedOutputsFrom(events) {
+    const outputs = new Map();
+    for (const event of events) {
+      if (event.type === 'output_produced') {
+        outputs.set(event.payload.output.outputHandle, {
+          ...clone(event.payload.output), state: 'produced', attachmentId: null,
+        });
+      } else if (event.type === 'output_registered_from_provenance') {
+        const output = outputs.get(event.payload.outputHandle);
+        if (output) {
+          output.state = 'registered';
+          output.attachmentId = event.payload.attachmentId;
+          output.registeringRunId = event.payload.registeringRunId;
+        }
+      }
+    }
+    return outputs;
+  }
+
+  async readWorkspaceOutput({ workspace, filePath, expectedSha256 = null } = {}) {
+    const root = await realpath(workspace);
+    const requested = resolve(root, String(filePath ?? ''));
+    const stat = await lstat(requested);
+    if (stat.isSymbolicLink()) throw new Error('output path must not be a symbolic link');
+    if (!stat.isFile()) throw new Error('output path must be a regular file');
+    if (stat.nlink !== 1) throw new Error('output path must not be a hard link');
+    const path = await realpath(requested);
+    const rel = relative(root, path);
+    if (rel === '..' || rel.startsWith(`..${sep}`) || resolve(root, rel) !== path) {
+      throw new Error('output path is outside workspace');
+    }
+    if (stat.size > this.maxFileBytes) throw new Error('attachment file size limit exceeded');
+    const bytes = await readFile(path);
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    if (expectedSha256 != null && sha256 !== expectedSha256) {
+      throw new Error('output file identity changed after qualification');
+    }
+    return { path, bytes, sha256, size: stat.size };
+  }
+
+  async recordProducedOutput({ sessionId, workspace, runId, toolCallId, filePath } = {}) {
+    const owner = safeUuid(sessionId, 'session');
+    const producerRunId = safeUuid(runId, 'run');
+    const observed = await this.readWorkspaceOutput({ workspace, filePath });
+    return this.serialize(async () => {
+      const events = await this.events();
+      const existing = [...this.producedOutputsFrom(events).values()].find((output) => (
+        output.sessionId === owner && output.producerRunId === producerRunId
+        && output.sourcePath === observed.path && output.sha256 === observed.sha256
+      ));
+      if (existing) return clone(existing);
+      const output = {
+        outputHandle: randomUUID(), sessionId: owner, producerRunId,
+        toolCallId: String(toolCallId ?? ''), sourcePath: observed.path,
+        originalName: safeName(observed.path), bytes: observed.size, sha256: observed.sha256,
+        createdAt: new Date().toISOString(),
+      };
+      await this.append('output_produced', { output });
+      return { ...clone(output), state: 'produced', attachmentId: null };
+    });
+  }
+
+  async producedOutput({ sessionId, outputHandle } = {}) {
+    const owner = safeUuid(sessionId, 'session');
+    const handle = safeUuid(outputHandle, 'output');
+    const output = this.producedOutputsFrom(await this.events()).get(handle);
+    if (!output || output.sessionId !== owner) {
+      throw Object.assign(new Error('produced output not found'), { status: 404 });
+    }
+    return clone(output);
+  }
+
+  async pendingProducedOutputs({ sessionId, producerRunId = null } = {}) {
+    const owner = safeUuid(sessionId, 'session');
+    return clone([...this.producedOutputsFrom(await this.events()).values()]
+      .filter((output) => output.sessionId === owner && output.state === 'produced'
+        && (producerRunId == null || output.producerRunId === String(producerRunId)))
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt)));
+  }
+
+  async markProducedOutputRegistered({ sessionId, outputHandle, attachmentId, registeringRunId } = {}) {
+    const owner = safeUuid(sessionId, 'session');
+    const handle = safeUuid(outputHandle, 'output');
+    const artifactId = safeUuid(attachmentId, 'attachment');
+    const runId = safeUuid(registeringRunId, 'run');
+    return this.serialize(async () => {
+      const events = await this.events();
+      const output = this.producedOutputsFrom(events).get(handle);
+      if (!output || output.sessionId !== owner) {
+        throw Object.assign(new Error('produced output not found'), { status: 404 });
+      }
+      if (output.state === 'registered') {
+        if (output.attachmentId !== artifactId) throw new Error('output handle is already registered');
+        return clone(output);
+      }
+      await this.append('output_registered_from_provenance', {
+        sessionId: owner, outputHandle: handle, attachmentId: artifactId, registeringRunId: runId,
+      });
+      return this.producedOutput({ sessionId: owner, outputHandle: handle });
+    });
+  }
+
   async receive({
     sessionId, originalName, declaredMime = null, bytes, direction = 'input', sourcePath = null,
     revisesAttachmentId = null, providerIdentity = null,
@@ -370,26 +472,10 @@ export class AttachmentStore {
     providerIdentity = null,
   } = {}) {
     const owner = safeUuid(sessionId, 'session');
-    const requested = resolve(String(filePath ?? ''));
-    const stat = await lstat(requested);
-    if (stat.isSymbolicLink()) throw new Error('output path must not be a symbolic link');
-    if (!stat.isFile()) throw new Error('output path must be a regular file');
-    if (stat.nlink !== 1) throw new Error('output path must not be a hard link');
-    const root = await realpath(workspace);
-    const path = await realpath(requested);
-    const rel = relative(root, path);
-    if (rel === '..' || rel.startsWith(`..${sep}`) || resolve(root, rel) !== path) {
-      throw new Error('output path is outside workspace');
-    }
-    if (stat.size > this.maxFileBytes) throw new Error('attachment file size limit exceeded');
-    const bytes = await readFile(path);
-    if (expectedSha256 != null
-      && createHash('sha256').update(bytes).digest('hex') !== expectedSha256) {
-      throw new Error('output file identity changed after qualification');
-    }
+    const observed = await this.readWorkspaceOutput({ workspace, filePath, expectedSha256 });
     return this.receive({
-      sessionId: owner, originalName: basename(path), bytes,
-      direction: 'output', sourcePath: path, revisesAttachmentId, providerIdentity,
+      sessionId: owner, originalName: basename(observed.path), bytes: observed.bytes,
+      direction: 'output', sourcePath: observed.path, revisesAttachmentId, providerIdentity,
     });
   }
 

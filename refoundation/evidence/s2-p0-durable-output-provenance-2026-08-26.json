@@ -1,0 +1,49 @@
+{
+  "schema": "t5.s2-p0-durable-output-provenance.v1",
+  "recordedAt": "2026-08-26T00:00:00+09:00",
+  "sourceBase": "8d09255d",
+  "userOutcome": "A workspace file proven by an exact local-change receipt receives a durable session/run-bound output handle, survives a failed Run, and can be registered and delivered later without recreating its bytes.",
+  "boundaries": {
+    "relativeTargetsResolveFromWorkspace": true,
+    "emptyLocalChangeTargetsExecute": false,
+    "producedIdentity": ["sessionId", "producerRunId", "toolCallId", "sourcePath", "bytes", "sha256"],
+    "crossSessionHandleReuse": false,
+    "symlinkOrHardlink": false,
+    "changedAfterProduction": false,
+    "pendingOutputFailureSurface": "http_200_unresolved",
+    "restartRecoveryRecreatesOutput": false
+  },
+  "checks": {
+    "focusedOutputAndTerminal": { "passed": 38, "failed": 0 },
+    "providerAttachmentAndQuality": { "passed": 24, "failed": 0 },
+    "productIntegration": { "passed": 141, "failed": 0 },
+    "fullCore": {
+      "p0Failures": 0,
+      "separateExistingFailure": "console-ui-state openSettings selection-reset assertion"
+    }
+  },
+  "actualModel": {
+    "model": "gpt-5.6-terra",
+    "officeWorker": {
+      "turns": 3,
+      "http200": 3,
+      "wallMs": 38192,
+      "artifacts": ["실행목록.xlsx", "실행목록_수정.xlsx"],
+      "result": "pass"
+    },
+    "freelancer": {
+      "turns": 3,
+      "http200": 3,
+      "wallMs": 113192,
+      "artifacts": [
+        "제안서.docx", "견적.xlsx", "제안서_수정본.docx",
+        "견적_수정본.xlsx", "전달용_최종본.zip"
+      ],
+      "zipEntries": ["제안서_최종본.docx", "견적_최종본.xlsx"],
+      "result": "pass"
+    }
+  },
+  "notInScope": ["image search provider", "UI redesign", "prompt examples", "path regex authorization"],
+  "visibleBrowser": 0,
+  "externalAccountWrites": 0
+}

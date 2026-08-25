@@ -214,6 +214,110 @@ test('모델이 만든 workspace 결과는 attachment register 뒤 surface 다�
   } finally { await app.close(); }
 });
 
+test('exec가 workspace 상대 target으로 만든 결과도 같은 Run의 exact output으로 등록한다', async () => {
+  let turn = 0;
+  let outputPath;
+  let registrationReceipt;
+  const app = await fixtureServer(() => ({ async respond(input) {
+    turn += 1;
+    if (turn === 1) {
+      outputPath = join(app.workspace, 'nested', 'result-relative.txt');
+      return { text: '', toolCalls: [{ id: 'make-relative-output', name: 'exec', args: {
+        command: `mkdir -p '${join(app.workspace, 'nested')}' && printf 'RELATIVE-8842' > '${outputPath}'`,
+        cwd: null,
+        effect: {
+          kind: 'local_change', summary: '상대경로 결과 파일 생성',
+          targets: ['nested/result-relative.txt'], reversible: true,
+          backupAvailable: false, recipientNew: false, approvalToken: null,
+        },
+      } }] };
+    }
+    if (turn === 2) {
+      const outputHandle = input.runtimeContext.match(/"outputHandle":"([0-9a-f-]{36})"/iu)?.[1];
+      assert.ok(outputHandle, input.runtimeContext);
+      return { text: '', toolCalls: [{ id: 'register-relative-output', name: 'attachment', args: {
+        action: 'register_output', attachmentId: null, filePath: null,
+        maxChars: null, maxCells: null, maxPages: null,
+        outputName: null, resultRelativePath: null, expectedResultJson: null,
+        expectedStdoutIncludes: null, operationHandle: null, outputHandle,
+      } }] };
+    }
+    registrationReceipt = JSON.parse(input.messages.at(-1).content);
+    return { text: '상대경로 결과 파일을 만들었습니다.', toolCalls: [] };
+  } }));
+  try {
+    const session = await newSession(app.base);
+    const response = await fetch(`${app.base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: 'nested 폴더에 결과 파일을 만들어줘.' }),
+    });
+    const reply = await response.json();
+    assert.equal(registrationReceipt?.result?.state, 'registered', JSON.stringify(registrationReceipt));
+    assert.equal(response.status, 200, JSON.stringify(reply));
+    assert.equal(reply.artifacts?.[0]?.originalName, 'result-relative.txt', JSON.stringify(reply));
+    assert.equal(await fetch(`${app.base}${reply.artifacts[0].downloadUrl}`).then((item) => item.text()),
+      'RELATIVE-8842');
+  } finally { await app.close(); }
+});
+
+test('생성 뒤 Run 실패는 200 unresolved로 handle을 보존하고 다음 턴이 재생성 없이 등록한다', async () => {
+  let modelTurn = 0;
+  let createCalls = 0;
+  let outputPath;
+  const app = await fixtureServer(() => ({ async respond(input) {
+    modelTurn += 1;
+    if (modelTurn === 1) {
+      outputPath = join(app.workspace, 'recoverable-result.txt');
+      createCalls += 1;
+      return { text: '', toolCalls: [{ id: 'create-before-failure', name: 'exec', args: {
+        command: `printf 'RECOVERABLE-9901' > '${outputPath}'`, cwd: null,
+        effect: {
+          kind: 'local_change', summary: '복구할 결과 생성',
+          targets: ['recoverable-result.txt'], reversible: true,
+          backupAvailable: false, recipientNew: false, approvalToken: null,
+        },
+      } }] };
+    }
+    if (modelTurn === 2) throw new Error('fixture model failed after producing output');
+    if (modelTurn === 3) {
+      assert.match(input.runtimeContext, /pendingOutputs=/u);
+      const outputHandle = input.runtimeContext.match(/"outputHandle":"([0-9a-f-]{36})"/iu)?.[1];
+      assert.ok(outputHandle, input.runtimeContext);
+      return { text: '', toolCalls: [{ id: 'register-recovered-output', name: 'attachment', args: {
+        action: 'register_output', attachmentId: null, filePath: null,
+        maxChars: null, maxCells: null, maxPages: null,
+        outputName: null, resultRelativePath: null, expectedResultJson: null,
+        expectedStdoutIncludes: null, operationHandle: null, outputHandle,
+      } }] };
+    }
+    const receipt = JSON.parse(input.messages.at(-1).content);
+    assert.equal(receipt.result.state, 'registered');
+    return { text: '보존한 결과 파일을 전달했습니다.', toolCalls: [] };
+  } }));
+  try {
+    const session = await newSession(app.base);
+    const failedResponse = await fetch(`${app.base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: '결과 파일을 만들어줘.' }),
+    });
+    const failed = await failedResponse.json();
+    assert.equal(failedResponse.status, 200, JSON.stringify(failed));
+    assert.equal(failed.kind, 'unresolved');
+    assert.equal(failed.pendingOutputs.length, 1);
+
+    const recoveredResponse = await fetch(`${app.base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: '방금 만든 결과 파일을 그대로 전달해줘.' }),
+    });
+    const recovered = await recoveredResponse.json();
+    assert.equal(recoveredResponse.status, 200, JSON.stringify(recovered));
+    assert.equal(createCalls, 1);
+    assert.equal(recovered.artifacts.length, 1);
+    assert.equal(await fetch(`${app.base}${recovered.artifacts[0].downloadUrl}`).then((item) => item.text()),
+      'RECOVERABLE-9901');
+  } finally { await app.close(); }
+});
+
 test('사용자가 workspace 안 두 구간 상대경로로 지정한 기존 파일도 exact output으로 등록한다', async () => {
   let turn = 0; let outputPath;
   const app = await fixtureServer(() => ({ async respond(input) {

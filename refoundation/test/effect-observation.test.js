@@ -49,6 +49,25 @@ test('foreground exec Receipt는 선언 효과와 target 전후 현실을 분리
   }
 });
 
+test('local_change는 관측할 exact target 없이 실행할 수 없다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-effect-target-required-'));
+  try {
+    const target = join(root, 'unobserved.txt');
+    const tool = makeExecTool({ workspace: root });
+    await assert.rejects(() => tool.execute({
+      command: `printf unsafe > '${target}'`, cwd: null,
+      effect: {
+        kind: 'local_change', summary: 'target 없는 파일 생성', targets: [],
+        reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null,
+      },
+    }), (error) => error?.code === 'T5_EFFECT_TARGET_REQUIRED');
+    await assert.rejects(() => import('node:fs/promises').then(({ access }) => access(target)),
+      (error) => error?.code === 'ENOENT');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('외부 효과는 선언과 실행 결과를 기록하되 실제 도착을 관측한 척하지 않는다', async () => {
   for (const kind of ['external_change', 'external_send']) {
     const observed = await observeDeclaredEffect({

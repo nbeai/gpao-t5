@@ -107,6 +107,12 @@ function makeCommandTool(options = {}, { managed }) {
     async execute(args = {}, context = {}) {
       const command = String(args.command ?? '').trim();
       if (!command) throw new TypeError('command is required');
+      if (args.effect?.kind === 'local_change'
+        && !(args.effect.targets ?? []).some((target) => String(target ?? '').trim())) {
+        throw Object.assign(new Error('local_change requires at least one exact effect target'), {
+          code: 'T5_EFFECT_TARGET_REQUIRED',
+        });
+      }
       const browserControlSignature = /DevToolsActivePort|\/devtools\/browser\/|Runtime\.evaluate|Input\.(?:insertText|dispatchMouseEvent)|Page\.bringToFront|--remote-debugging-port/iu;
       const protectedRootMentioned = protectedBrowserRoots.some((root) => (
         String(root ?? '').trim() && command.includes(String(root))

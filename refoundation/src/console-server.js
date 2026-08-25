@@ -747,7 +747,7 @@ export function makeConsoleServer({
     const modelRequest = attachmentBlock ? `${text}\n\n${attachmentBlock}` : text;
     const imageInputs = await modelImageInputs({ store: attachments, sessionId, records: currentAttachments });
     const outputCandidates = new Set();
-    const outputKey = (path) => resolve(String(path ?? '')).normalize('NFC');
+    const outputKey = (path) => resolve(workspace, String(path ?? '')).normalize('NFC');
     await conversations.ensure({ sessionId, legacyMessages: historyFrom(session) });
     await memories.ensure();
     const memorySnapshot = await memories.read();
@@ -1375,6 +1375,7 @@ export function makeConsoleServer({
           activeOutputOperations: await executableOutputOperations.activeProjection({
             sessionId, runId: run.runId,
           }),
+          pendingOutputs: await attachments.pendingProducedOutputs({ sessionId }),
         }),
         takeAdmittedWorkInputs: async () => {
           const undecided = await workStore.undecidedInputs(sessionId);
@@ -1558,8 +1559,33 @@ export function makeConsoleServer({
             publishProgress('tool_progress', toolProgressText(event.name, event.args), 'tool');
           } else if (event.type === 'tool_end') {
             if (event.receipt.result?.effectObservation?.changed === true) {
-              for (const target of event.receipt.result.effectObservation.declared?.targets ?? []) {
-                outputCandidates.add(outputKey(target));
+              const beforeByPath = new Map((event.receipt.result.effectObservation.before?.targets ?? [])
+                .map((target) => [outputKey(target.path), target]));
+              for (const target of event.receipt.result.effectObservation.after?.targets ?? []) {
+                if (target?.exists !== true || target?.type !== 'file') continue;
+                const previous = beforeByPath.get(outputKey(target.path));
+                if (previous && previous.exists === true && previous.size === target.size
+                  && previous.mtimeMs === target.mtimeMs && previous.sha256 === target.sha256) continue;
+                outputCandidates.add(outputKey(target.path));
+                try {
+                  const produced = await attachments.recordProducedOutput({
+                    sessionId, workspace, runId: run.runId,
+                    toolCallId: event.receipt.toolCallId, filePath: target.path,
+                  });
+                  await run.append({
+                    type: 'output_produced', stepId: `output-${produced.outputHandle}`,
+                    payload: {
+                      outputHandle: produced.outputHandle, name: produced.originalName,
+                      bytes: produced.bytes, sha256: produced.sha256,
+                      producerRunId: produced.producerRunId,
+                    },
+                  });
+                } catch (outputError) {
+                  await run.append({ type: 'output_provenance_skipped', payload: {
+                    toolCallId: event.receipt.toolCallId,
+                    reason: outputError?.message ?? String(outputError),
+                  } });
+                }
               }
             }
             await run.append({
@@ -1894,6 +1920,18 @@ export function makeConsoleServer({
         kind: 'error', reply: failure.text, nextSafeAction: failure.nextSafeAction,
         failureCode: failure.code, runId: run.runId,
       };
+      const pendingOutputs = await attachments.pendingProducedOutputs({
+        sessionId, producerRunId: run.runId,
+      }).catch(() => []);
+      if (pendingOutputs.length) {
+        failureSurface.kind = 'unresolved';
+        failureSurface.reply = `${failureSurface.reply}\n\n만든 결과 파일은 그대로 보존했어요. 같은 대화에서 이어서 전달할 수 있어요.`;
+        failureSurface.nextSafeAction = '같은 대화에서 결과 파일 전달을 이어서 요청해 주세요.';
+        failureSurface.pendingOutputs = pendingOutputs.map((output) => ({
+          outputHandle: output.outputHandle, name: output.originalName,
+          bytes: output.bytes, sha256: output.sha256,
+        }));
+      }
       const recoveryEvidence = recoveryEvidenceForTurn({
         userText: text, reply: failureSurface.reply, kind: failureSurface.kind,
         failureCode: failureSurface.failureCode, receipts: [],
@@ -1957,6 +1995,11 @@ export function makeConsoleServer({
       }
       resourceRunStatus = 'failed';
       finishActivity('failed');
+      if (pendingOutputs.length) return {
+        kind: 'unresolved', runId: run.runId,
+        result: { status: 'failed', answer: failureSurface.reply, receipts: [], modelTurns: null },
+        surfaceResult: failureSurface,
+      };
       if (error && typeof error === 'object') error.surfaceResult = failureSurface;
       throw error;
     } finally {
