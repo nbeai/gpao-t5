@@ -313,6 +313,16 @@ export function makeAttachmentTool({
         return attemptRecovery ? { ...result, attemptRecovery } : result;
       }
       if (args.action === 'register_output') {
+        if (args.attachmentId && !args.filePath && !args.outputHandle) {
+          if (!runId) throw new Error('output reuse requires a current Run');
+          const artifact = await store.get({ sessionId, attachmentId: args.attachmentId });
+          if (artifact.direction !== 'output') {
+            throw new Error('only an existing output artifact can be reused for delivery');
+          }
+          await store.link({ sessionId, attachmentIds: [artifact.attachmentId],
+            messageId: `${runId}:output:${artifact.attachmentId}`, runId });
+          return { state: 'registered', effect: 'reuse', artifact, reused: true };
+        }
         let produced = args.outputHandle
           ? await store.producedOutput({ sessionId, outputHandle: args.outputHandle }) : null;
         if (!produced && args.filePath && runId) {
