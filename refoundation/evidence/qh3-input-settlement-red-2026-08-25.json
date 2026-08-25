@@ -1,0 +1,67 @@
+{
+  "schema": "t5.qh3-input-settlement-red.v1",
+  "sourceHead": "3eb09848",
+  "gate": "QH-3 Temporal Input & Publication Isolation — settlement boundary red",
+  "sevenLineContract": {
+    "productPromise": "사용자가 평소 말로 목적을 말하면 T5가 컴퓨터와 외부 자원을 활용해 실제로 끝낸다",
+    "currentGate": "QH-3 temporal input and publication isolation",
+    "userCompletion": "deferred request is separated into the first and next surface and continues exactly once after terminal delivery",
+    "existingEvidence": "QH-1 and QH-2 product wiring plus B durable admission, restart, and publication boundaries",
+    "largestGap": "an execution claim is promoted to executed even when the input is not owned by the persisted result surface",
+    "change": "add deterministic model-free fixture tests at WorkStore and console settlement",
+    "nonGoals": [
+      "product implementation",
+      "projection or classifier changes",
+      "prompt, few-shot, keyword, or regex changes",
+      "B rewrite",
+      "QH-4"
+    ]
+  },
+  "command": "node --check refoundation/test/qh3-input-settlement-boundary.test.js && node --test refoundation/test/qh3-input-settlement-boundary.test.js",
+  "observed": {
+    "tests": 2,
+    "passed": 0,
+    "failed": 2,
+    "unaddressedDeferredActualState": "executed",
+    "foreignWorkActualState": "executed"
+  },
+  "eventSequences": {
+    "unaddressedDeferred": [
+      "input_admitted",
+      "input_presented(prior delivered run, Work A R1)",
+      "input_deferred_after_delivery",
+      "result_ready_pending_surface(prior run)",
+      "result_surface_persisted(prior run)",
+      "result_delivery_terminal(prior run: persisted)",
+      "input_schedule_activated(Work A R2)",
+      "input_execution_claimed(current Run for Work A R1)",
+      "result_ready_pending_surface(current result: Work A R1)",
+      "input_completed_pending_surface(deferred input: Work A R2, same digest)",
+      "result_surface_persisted(current result)",
+      "input_executed"
+    ],
+    "foreignWork": [
+      "input_admitted",
+      "input_presented(current Run, Work A R1)",
+      "input_forked_to_work(Work B R1)",
+      "input_execution_claimed(current Run)",
+      "result_ready_pending_surface(current result: Work A R1)",
+      "input_completed_pending_surface(foreign input: Work B R1, same digest)",
+      "result_surface_persisted(current result)",
+      "input_executed"
+    ]
+  },
+  "redReason": "console-server iterates every executingInputsForRun(runId), assigns the one current surface resultDigest, then commits every pending input after that surface is persisted; it does not require result Work/revision ownership or input-addressed evidence",
+  "nextMinimumContract": [
+    "settlement candidates are explicit input IDs addressed by the accepted result, not every execution claim on the Run",
+    "each candidate must match the result Work identity and revision",
+    "only those exact candidates receive resultPointer and resultDigest and can become executed",
+    "unmatched deferred or foreign inputs remain queued/executing for their own authoritative surface"
+  ],
+  "regressionControl": {
+    "command": "node --test refoundation/test/turn-admission.integration.js",
+    "passed": 14,
+    "failed": 0
+  },
+  "productCodeChanged": false
+}
