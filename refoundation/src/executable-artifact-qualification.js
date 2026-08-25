@@ -29,22 +29,30 @@ const MAX_LITERAL_BYTES = 2_000;
 const DEFAULT_OUTPUT_BYTES = 64 * 1024;
 const DEFAULT_TIMEOUT_MS = 10_000;
 
+function contractError(field, code, message) {
+  return Object.assign(new TypeError(message), {
+    stage: 'contract_validation', field: String(field), code: String(code),
+  });
+}
+
 function boundedString(value, label, { maxBytes = 1_024, allowEmpty = false } = {}) {
   if (typeof value !== 'string' || (!allowEmpty && !value.trim()) || value.includes('\0')) {
-    throw new TypeError(`${label} must be a non-empty string`);
+    throw contractError(label, 'invalid_string', `${label} must be a non-empty string`);
   }
-  if (Buffer.byteLength(value, 'utf8') > maxBytes) throw new TypeError(`${label} is too large`);
+  if (Buffer.byteLength(value, 'utf8') > maxBytes) {
+    throw contractError(label, 'string_too_large', `${label} is too large`);
+  }
   return value.normalize('NFC');
 }
 
 function artifactPath(value, label) {
   const path = boundedString(value, label, { maxBytes: 1_024 });
   if (isAbsolute(path) || /^[A-Za-z]:/u.test(path) || path.includes('\\')) {
-    throw new TypeError(`${label} must be a relative artifact path`);
+    throw contractError(label, 'relative_path_required', `${label} must be a relative artifact path`);
   }
   const parts = path.replace(/\/$/u, '').split('/');
   if (parts.some((part) => !part || part === '.' || part === '..')) {
-    throw new TypeError(`${label} must be a relative artifact path`);
+    throw contractError(label, 'relative_path_required', `${label} must be a relative artifact path`);
   }
   return path;
 }
@@ -55,13 +63,17 @@ function artifactDirectory(value, label) {
 }
 
 function boundedArray(value, label, maximum) {
-  if (!Array.isArray(value)) throw new TypeError(`${label} must be an array`);
-  if (value.length > maximum) throw new TypeError(`${label} must contain at most ${maximum} items`);
+  if (!Array.isArray(value)) throw contractError(label, 'array_required', `${label} must be an array`);
+  if (value.length > maximum) {
+    throw contractError(label, 'too_many_items', `${label} must contain at most ${maximum} items`);
+  }
   return value;
 }
 
 function unique(values, label) {
-  if (new Set(values).size !== values.length) throw new TypeError(`${label} must be unique`);
+  if (new Set(values).size !== values.length) {
+    throw contractError(label, 'duplicate_value', `${label} must be unique`);
+  }
 }
 
 function validateExpectedLiterals(value, label) {
@@ -79,18 +91,20 @@ function validateTypedValue(value, type, label) {
   if (type === 'boolean' && typeof value === 'boolean') return value;
   if (type === 'number' && typeof value === 'number' && Number.isFinite(value)) return value;
   if (type === 'integer' && Number.isSafeInteger(value)) return value;
-  throw new TypeError(`${label} does not match type ${type}`);
+  throw contractError(label, 'typed_value_mismatch', `${label} does not match type ${type}`);
 }
 
 export function validateDeliverableContract(contract) {
   if (!contract || typeof contract !== 'object' || Array.isArray(contract)) {
-    throw new TypeError('deliverable contract must be an object');
+    throw contractError('contract', 'object_required', 'deliverable contract must be an object');
   }
-  if (contract.schema !== CONTRACT_SCHEMA) throw new TypeError(`unsupported deliverable contract: ${contract.schema}`);
+  if (contract.schema !== CONTRACT_SCHEMA) {
+    throw contractError('schema', 'unsupported_schema', `unsupported deliverable contract: ${contract.schema}`);
+  }
   const contractId = boundedString(contract.id, 'contract.id', { maxBytes: 200 });
   boundedString(contract.artifact?.id, 'artifact.id', { maxBytes: 200 });
   if (!/^[0-9a-f]{64}$/u.test(contract.artifact?.sha256 ?? '')) {
-    throw new TypeError('artifact.sha256 must be an exact SHA-256 digest');
+    throw contractError('artifact.sha256', 'invalid_digest', 'artifact.sha256 must be an exact SHA-256 digest');
   }
 
   const expectedFiles = boundedArray(contract.expectedFiles, 'expectedFiles', MAX_EXPECTED_FILES)
@@ -110,14 +124,16 @@ export function validateDeliverableContract(contract) {
     const platform = boundedString(entrypoint?.platform, `advertisedEntrypoints[${index}].platform`, {
       maxBytes: 20,
     });
-    if (!PLATFORMS.has(platform)) throw new TypeError(`unsupported entrypoint platform: ${platform}`);
+    if (!PLATFORMS.has(platform)) {
+      throw contractError(`advertisedEntrypoints[${index}].platform`, 'unsupported_platform', `unsupported entrypoint platform: ${platform}`);
+    }
     const timeoutMs = entrypoint.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 30_000) {
-      throw new TypeError(`advertisedEntrypoints[${index}].timeoutMs must be between 100 and 30000`);
+      throw contractError(`advertisedEntrypoints[${index}].timeoutMs`, 'invalid_timeout', `advertisedEntrypoints[${index}].timeoutMs must be between 100 and 30000`);
     }
     const expectedExitCode = entrypoint.expectedExitCode ?? 0;
     if (!Number.isInteger(expectedExitCode) || expectedExitCode < 0 || expectedExitCode > 255) {
-      throw new TypeError(`advertisedEntrypoints[${index}].expectedExitCode is invalid`);
+      throw contractError(`advertisedEntrypoints[${index}].expectedExitCode`, 'invalid_exit_code', `advertisedEntrypoints[${index}].expectedExitCode is invalid`);
     }
     const interpreterArgs = boundedArray(
       entrypoint.interpreterArgs ?? [], `advertisedEntrypoints[${index}].interpreterArgs`, 16,
@@ -131,7 +147,7 @@ export function validateDeliverableContract(contract) {
     );
     if (entrypoint.requiresExecutablePermission != null
       && typeof entrypoint.requiresExecutablePermission !== 'boolean') {
-      throw new TypeError(
+      throw contractError(`advertisedEntrypoints[${index}].requiresExecutablePermission`, 'boolean_required',
         `advertisedEntrypoints[${index}].requiresExecutablePermission must be boolean`,
       );
     }
@@ -159,7 +175,7 @@ export function validateDeliverableContract(contract) {
   for (const [index, entrypoint] of advertisedEntrypoints.entries()) {
     if (entrypoint.expectedStdoutIncludes.length === 0
       && entrypoint.expectedStderrIncludes.length === 0) {
-      throw new TypeError(
+      throw contractError(`advertisedEntrypoints[${index}]`, 'expected_output_required',
         `advertisedEntrypoints[${index}] requires a typed expected stdout or stderr observable`,
       );
     }
@@ -180,7 +196,9 @@ export function validateDeliverableContract(contract) {
         fact?.type, `requiredOutcomeObservations[${index}].requiredFacts[${factIndex}].type`,
         { maxBytes: 20 },
       );
-      if (!FACT_TYPES.has(type)) throw new TypeError(`unsupported outcome fact type: ${type}`);
+      if (!FACT_TYPES.has(type)) {
+        throw contractError(`requiredOutcomeObservations[${index}].requiredFacts[${factIndex}].type`, 'unsupported_fact_type', `unsupported outcome fact type: ${type}`);
+      }
       return {
         name: boundedString(
           fact?.name, `requiredOutcomeObservations[${index}].requiredFacts[${factIndex}].name`,
@@ -194,7 +212,7 @@ export function validateDeliverableContract(contract) {
       };
     });
     if (requiredFacts.length === 0) {
-      throw new TypeError(`requiredOutcomeObservations[${index}] requires at least one typed fact`);
+      throw contractError(`requiredOutcomeObservations[${index}].requiredFacts`, 'fact_required', `requiredOutcomeObservations[${index}] requires at least one typed fact`);
     }
     unique(requiredFacts.map((fact) => fact.name), `requiredOutcomeObservations[${index}].requiredFacts.name`);
     return {
@@ -221,31 +239,33 @@ export function validateDeliverableContract(contract) {
   unique(requiredOutcomeObservations.map((observation) => observation.id), 'requiredOutcomeObservations.id');
   for (const entrypoint of advertisedEntrypoints) {
     if (!requiredOutcomeObservations.some((observation) => observation.entrypointId === entrypoint.id)) {
-      throw new TypeError(`entrypoint lacks required outcome observation: ${entrypoint.id}`);
+      throw contractError('requiredOutcomeObservations', 'entrypoint_observation_missing', `entrypoint lacks required outcome observation: ${entrypoint.id}`);
     }
   }
   for (const observation of requiredOutcomeObservations) {
     if (!advertisedEntrypoints.some((entrypoint) => entrypoint.id === observation.entrypointId)) {
-      throw new TypeError(`outcome observation references unknown entrypoint: ${observation.entrypointId}`);
+      throw contractError('requiredOutcomeObservations.entrypointId', 'unknown_entrypoint', `outcome observation references unknown entrypoint: ${observation.entrypointId}`);
     }
   }
 
   const platforms = boundedArray(contract.platforms, 'platforms', MAX_PLATFORM_CLAIMS)
     .map((claim, index) => {
       const platform = boundedString(claim?.platform, `platforms[${index}].platform`, { maxBytes: 20 });
-      if (!PLATFORMS.has(platform)) throw new TypeError(`unsupported platform claim: ${platform}`);
+      if (!PLATFORMS.has(platform)) {
+        throw contractError(`platforms[${index}].platform`, 'unsupported_platform', `unsupported platform claim: ${platform}`);
+      }
       if (typeof claim.advertisedSupport !== 'boolean') {
-        throw new TypeError(`platforms[${index}].advertisedSupport must be boolean`);
+        throw contractError(`platforms[${index}].advertisedSupport`, 'boolean_required', `platforms[${index}].advertisedSupport must be boolean`);
       }
       if (!QUALIFICATIONS.has(claim.claimedQualification)) {
-        throw new TypeError(`platforms[${index}].claimedQualification is invalid`);
+        throw contractError(`platforms[${index}].claimedQualification`, 'invalid_qualification', `platforms[${index}].claimedQualification is invalid`);
       }
       return { ...claim, platform };
     });
   unique(platforms.map((claim) => claim.platform), 'platforms.platform');
   for (const entrypoint of advertisedEntrypoints) {
     if (!platforms.some((claim) => claim.platform === entrypoint.platform && claim.advertisedSupport)) {
-      throw new TypeError(`entrypoint platform lacks advertised support claim: ${entrypoint.platform}`);
+      throw contractError('platforms', 'entrypoint_platform_unclaimed', `entrypoint platform lacks advertised support claim: ${entrypoint.platform}`);
     }
   }
   return {
