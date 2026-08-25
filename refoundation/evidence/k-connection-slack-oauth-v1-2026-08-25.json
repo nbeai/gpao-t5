@@ -1,0 +1,42 @@
+{
+  "schema": "t5.korea-connection-slack-evidence.v1",
+  "recordedAt": "2026-08-25",
+  "sourceCommit": "89b7ee7f",
+  "branch": "codex/t5-connection-protocol",
+  "status": "isolated_machine_complete_app_registration_and_live_oauth_pending",
+  "officialContracts": [
+    "https://docs.slack.dev/ai/slack-mcp-server",
+    "https://api.slack.com/methods/auth.test",
+    "https://api.slack.com/authentication/rotation"
+  ],
+  "userFlow": [
+    "show connect only when the packaged T5 Slack OAuth app registration is complete",
+    "open official Slack authorization",
+    "request the minimum public search scope",
+    "exchange code with the preregistered confidential client",
+    "probe exact workspace and user with auth.test",
+    "discover protected MCP tools",
+    "mark ready and resume the original Work"
+  ],
+  "verifiedBoundaries": [
+    "dynamic client registration is never called",
+    "incomplete client ID or secret never exposes a connect action",
+    "tools list without auth.test identity is not ready",
+    "Slack token and T5 client secret are absent from Connection Truth",
+    "initial capability is search and read only"
+  ],
+  "verification": {
+    "focusedSlackAndRemoteMcp": "13_pass_0_fail",
+    "productIntegration": "136_pass_0_fail",
+    "boundary": "legacy_import_0",
+    "visibleBrowser": 0,
+    "qhFilesChanged": 0
+  },
+  "notQualified": [
+    "T5-owned Slack Marketplace or internal app registration",
+    "real Slack workspace OAuth",
+    "rotating token live expiry",
+    "human settings journey",
+    "write and private message scopes"
+  ]
+}
