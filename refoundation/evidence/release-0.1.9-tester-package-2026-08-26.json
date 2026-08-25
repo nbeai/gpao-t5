@@ -1,0 +1,35 @@
+{
+  "schema": "t5.release.tester-package.v1",
+  "version": "0.1.9",
+  "sourceCommit": "ac77a738b5427e79a3812175961c808f588832ff",
+  "sourceDirty": false,
+  "package": {
+    "path": "dist/GPAO-T5-0.1.9-universal.pkg",
+    "bytes": 185867356,
+    "sha256": "02e5af7399b6281462f2d7a69109267fe43ac130433134737252e4ab5f77cdb2",
+    "architectures": ["arm64", "x86_64"]
+  },
+  "signing": {
+    "application": "Developer ID Application",
+    "installer": "Developer ID Installer",
+    "trustedTimestamp": true
+  },
+  "notarization": {
+    "submissionId": "727b0c58-1742-44d1-a226-bdf325b9f251",
+    "status": "Accepted",
+    "issues": 0,
+    "gatekeeper": "Notarized Developer ID",
+    "stapled": false,
+    "stapleBoundary": "Apple ticket returned but local stapler validation failed with Error 65"
+  },
+  "verification": {
+    "packageFocused": { "passed": 15, "failed": 0 },
+    "coreBeforePackagingBoundary": { "passed": 885, "failed": 0 },
+    "productIntegrationBeforePackagingBoundary": { "passed": 142, "failed": 0 },
+    "expandedPayload": "passed",
+    "packagedConsoleHealth": "passed",
+    "sharpDecode": "passed",
+    "unusedKordocAiDependenciesPresent": false,
+    "credentialsOrUserDataPresent": false
+  }
+}
