@@ -1,14 +1,14 @@
 {
   "schema": "t5.qh2-artifact-quality-core-evidence.v1",
   "gate": "QH-2 Artifact Quality & Presentation Core",
-  "sourceHead": "261a90b4",
+  "sourceHead": "11a6db36",
   "scope": {
     "implemented": [
       "bounded ArtifactPurposeContract",
       "five independent quality lanes",
       "typed render coverage and OpenXML page setup facts",
       "required artifact form and visual hierarchy evidence binding",
-      "schema and artifact-bound observation receipts from construction-time trusted producers",
+      "schema and artifact-bound observation receipts produced only by construction-time verifier callbacks",
       "QualityReceipt without aggregate score"
     ],
     "notImplemented": [
@@ -29,16 +29,15 @@
     "overallQualified": false
   },
   "checks": {
-    "targeted": { "passed": 9, "failed": 0 },
+    "targeted": { "passed": 10, "failed": 0 },
     "refoundationDoctor": "passed",
     "legacyImportBoundary": "passed",
     "refoundationTests": {
-      "passed": 763,
-      "failed": 0,
-      "total": 763,
+      "status": "pending_shared_integration_check",
+      "lastCleanPassedBeforeProvenanceRepair": 768,
       "gateAlignmentCommit": "c95cdbfa",
-      "auditRepairCommits": ["5b3194d0", "261a90b4"]
+      "auditRepairCommits": ["5b3194d0", "261a90b4", "11a6db36"]
     }
   },
-  "gateImpact": "core contract no longer qualifies unobserved purpose fields or self-declared/malformed observations; runtime render producers and product wiring remain unmeasured"
+  "gateImpact": "core contract no longer qualifies unobserved purpose fields, copied trusted producer strings, call-time observations, or self-declared/malformed observations; runtime render producers and product wiring remain unmeasured"
 }
