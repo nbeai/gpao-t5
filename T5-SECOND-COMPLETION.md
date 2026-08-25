@@ -2,7 +2,7 @@
 
 상태: `SECOND_COMPLETION_CLOSED_WITH_QUALITY_RELEASE_BLOCKERS`
 현재 Gate: `QUALITY HARDENING REFERENCE SEALED · QH-1 READY · IMPLEMENTATION NOT STARTED`
-기준 source: `269cbfc8`
+기준 source: `775d2a59`
 배포 상태: `package 잠금 · executable artifact와 document quality blocker 수정 전 서명·공증 금지`
 
 이 문서는 T5 2차 완성의 유일한 현재 작업 계획이다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은
