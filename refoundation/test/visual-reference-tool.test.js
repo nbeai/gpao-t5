@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer, get } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -18,6 +18,14 @@ const QUERIES = [
   '편집 디자인 레이아웃', '마리 퀴리 인물 사진', '세라믹 찻잔 제품 사진', '부산 감천문화마을',
   '모바일 앱 UI 디자인', '제주 성산일출봉',
 ];
+
+test('실제 decoder는 refoundation production runtime에 exact dependency와 platform binary로 포함된다', async () => {
+  const runtimePackage = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  const installer = await readFile(new URL('../scripts/build-macos-installer.mjs', import.meta.url), 'utf8');
+  assert.equal(runtimePackage.dependencies.sharp, '0.35.3');
+  assert.match(installer, /npm', \['ci', '--omit=dev'\]/u);
+  assert.doesNotMatch(installer, /omit=optional/u);
+});
 
 function imageResponse(bodyInput, { status = 200, headers = {} } = {}) {
   const body = Buffer.from(bodyInput); const normalized = new Map(

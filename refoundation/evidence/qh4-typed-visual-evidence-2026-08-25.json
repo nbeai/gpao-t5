@@ -145,7 +145,7 @@
       "headerOnlyInvalidPngJpegGifWebp": "blocked_before_attachment",
       "noContentLengthElevenMegabytes": "reader_cancelled_at_limit",
       "noProviderMixedFactualRequest": "web_read_remains_visible",
-      "focused": "33/33"
+      "focused": "35/35"
     },
     "actualProviderAbsence": {
       "terra": {
