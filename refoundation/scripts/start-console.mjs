@@ -33,6 +33,7 @@ import { makeNotionMcpConnection } from '../src/notion-mcp-connection.js';
 import { makeNotionCliInspector } from '../src/notion-cli-inspector.js';
 import { makeRemoteMcpConnection } from '../src/remote-mcp-connection.js';
 import { makeChannelTalkConnection } from '../src/channel-talk-connection.js';
+import { makeSlackMcpConnection } from '../src/slack-mcp-connection.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -116,6 +117,17 @@ const linearConnection = makeRemoteMcpConnection({
   resource: 'https://mcp.linear.app/mcp', secretStore: platformSecretStore,
 });
 const channelTalkConnection = makeChannelTalkConnection({ secretStore: platformSecretStore });
+const slackClientId = String(process.env.T5_SLACK_OAUTH_CLIENT_ID ?? '').trim();
+const slackClientSecret = String(process.env.T5_SLACK_OAUTH_CLIENT_SECRET ?? '').trim();
+const slackCallbackPort = Number(process.env.T5_SLACK_OAUTH_CALLBACK_PORT ?? 4185);
+if ((!slackClientId && slackClientSecret) || (slackClientId && !slackClientSecret)
+  || !Number.isInteger(slackCallbackPort) || slackCallbackPort < 1024 || slackCallbackPort > 65_535) {
+  throw new Error('T5 Slack OAuth application configuration is incomplete');
+}
+const slackConnection = slackClientId ? makeSlackMcpConnection({ secretStore: platformSecretStore,
+  clientId: slackClientId, clientSecret: slackClientSecret, callbackPort: slackCallbackPort }) : null;
+const workspaceConnectionServices = [googleDriveService, notionConnection, linearConnection, channelTalkConnection];
+if (slackConnection) workspaceConnectionServices.push(slackConnection);
 const localConsoleToken = randomBytes(32).toString('base64url');
 const server = makeConsoleServer({
   stateDir,
@@ -134,7 +146,7 @@ const server = makeConsoleServer({
     includeGoogle: false,
     includeNotion: false,
   }),
-  workspaceConnectionServices: [googleDriveService, notionConnection, linearConnection, channelTalkConnection],
+  workspaceConnectionServices,
   messengerCredentialStore,
   localConsoleToken,
   onError: (error) => console.error('[refoundation-console]', error?.message ?? error),

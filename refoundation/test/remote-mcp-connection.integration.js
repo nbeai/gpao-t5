@@ -87,10 +87,12 @@ test('사전등록 OAuth Remote MCP는 DCR 없이 최소 scope와 관측된 계�
       async listTools() { return [{ name: 'search_files', inputSchema: { type: 'object' }, annotations: { readOnlyHint: true } }]; },
       async callTool() { return { content: [], isError: false }; }, invalidate() {}, async close() {},
     }),
-    verifyConnection: async ({ grantedScopes, tools }) => {
+    verifyConnection: async ({ grantedScopes, tools, credential }) => {
       assert.deepEqual(grantedScopes, ['openid', 'drive.readonly']); assert.equal(tools[0].name, 'search_files');
+      assert.equal(credential.accessToken, 'WORKSPACE-ACCESS');
       return { accountId: 'account-42', accountLabel: 'owner@example.com',
-        permissions: grantedScopes, resources: [{ id: 'drive-root', label: '내 드라이브', scope: 'drive' }] };
+        permissions: grantedScopes, resources: [{ id: 'drive-root', label: '내 드라이브', scope: 'drive' }],
+        capabilities: { search: true, read: true, create: false, update: false } };
     },
   });
   const started = await connection.start(); const auth = new URL(started.authorizeUrl);
@@ -105,6 +107,7 @@ test('사전등록 OAuth Remote MCP는 DCR 없이 최소 scope와 관측된 계�
   assert.equal(inspected.identity.accountId, 'account-42');
   assert.equal(inspected.identity.accountLabel, 'owner@example.com');
   assert.deepEqual(inspected.identity.permissions, ['openid', 'drive.readonly']);
+  assert.deepEqual(inspected.capabilities, { search: true, read: true, create: false, update: false });
   assert.doesNotMatch(JSON.stringify(inspected), /WORKSPACE-ACCESS|WORKSPACE-REFRESH|T5-GOOGLE-CLIENT-SECRET|GOOGLE-CODE/u);
   await connection.close();
 });

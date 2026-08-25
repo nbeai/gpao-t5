@@ -47,6 +47,16 @@ function verifiedIdentity(value, grantedScopes, requireObservedAccount) {
     permissions, resources, observed: Boolean(accountId) };
 }
 
+function verifiedCapabilities(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const entries = Object.entries(value);
+  if (!entries.length || entries.length > 32
+    || entries.some(([key, available]) => !/^[a-z][a-z0-9_]{0,63}$/u.test(key) || typeof available !== 'boolean')) {
+    throw new Error('Remote MCP verifier returned invalid capabilities');
+  }
+  return Object.fromEntries(entries);
+}
+
 export function makeRemoteMcpConnection({
   id, label, category = 'workspace', serverUrl, resource = null,
   secretStore, fetchImpl = globalThis.fetch, now = Date.now, callbackPort = 0,
@@ -91,7 +101,7 @@ export function makeRemoteMcpConnection({
         reason: connected ? 'verified_remote_mcp' : connecting ? 'oauth_in_progress' : 'remote_mcp_not_connected',
         userSafeSummary: connected ? `${label}에 연결되어 있어요.`
           : connecting ? `${label} 연결 화면에서 사용자 확인을 기다리고 있어요.` : `${label} 계정 연결을 시작할 수 있어요.`,
-        capabilities: connected ? capabilitiesFromTools(current.tools ?? []) : emptyCapabilities(),
+        capabilities: connected ? current.capabilities ?? capabilitiesFromTools(current.tools ?? []) : emptyCapabilities(),
         ...(connected && current.identity ? { identity: current.identity } : {}),
         routes: [{ kind: 'remote_mcp', label: `${label} 공식 연결`, state: connected ? 'connected' : 'needs_connection', canStart: !connected && !connecting }],
         actions: connected ? [{ id: 'disconnect', label: '연결 해제', kind: 'disconnect', endpoint: `/connections/${id}/disconnect` }]
@@ -137,9 +147,12 @@ export function makeRemoteMcpConnection({
         if (!tools.length) throw new Error(`${label} 연결에서 사용할 도구를 확인하지 못했어요.`);
         const observed = verifyConnection ? await verifyConnection({
           runtime: await activeRuntime(), tools: structuredClone(tools), grantedScopes: [...tokens.scopes],
+          credential: { accessToken: tokens.accessToken },
         }) : null;
         const identity = verifiedIdentity(observed, tokens.scopes, requireObservedAccount);
-        await secretStore.set(secretName, { ...current.bundle, tokens, tools: tools.map((tool) => tool.name), identity, verifiedAt: now() });
+        const capabilities = verifiedCapabilities(observed?.capabilities);
+        await secretStore.set(secretName, { ...current.bundle, tokens, tools: tools.map((tool) => tool.name), identity,
+          ...(capabilities ? { capabilities } : {}), verifiedAt: now() });
         return { connected: true, provider: id, userSafeSummary: `${label}을 연결했어요.` };
       } catch (error) { const saved = await bundle(); if (saved?.tokens && !saved.verifiedAt) {
         const { tokens: _tokens, ...registration } = saved; await secretStore.set(secretName, registration).catch(() => {}); }
