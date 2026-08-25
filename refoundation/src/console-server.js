@@ -67,6 +67,8 @@ import {
 import {
   attachmentContext, makeAttachmentTool, modelImageInputs,
 } from './attachment-hand.js';
+import { ExecutableOutputOperationStore } from './executable-output-operation.js';
+import { workspaceRuntimeContextBlock } from './workspace-runtime-context.js';
 import { MessengerCredentialStore } from './messenger-credential-store.js';
 import { makeMessengerGateway, MessengerStateStore } from './messenger-gateway.js';
 import {
@@ -383,6 +385,9 @@ export function makeConsoleServer({
   const learningAdvances = new Set();
   const authority = new AuthorityStore(join(stateDir, 'authority'));
   const attachments = attachmentStore ?? new AttachmentStore(join(stateDir, 'attachments'));
+  const executableOutputOperations = new ExecutableOutputOperationStore({
+    attachmentStore: attachments, workspace,
+  });
   async function recoverTerminalFailedWorkClaims() {
     const state = await workStore.read(); const released = [];
     for (const claim of state.claims.filter((item) => item.state === 'active')) {
@@ -1063,6 +1068,7 @@ export function makeConsoleServer({
       let visualObservationCount = 0;
       offeredTools.unshift(makeAttachmentTool({
         store: attachments, sessionId, workspace, runId: run.runId,
+        executableOperationStore: executableOutputOperations,
         authorizeOutputPath: (candidate) => (
           requestContainsWorkspacePath(text, candidate, workspace) || outputCandidates.has(outputKey(candidate))
         ),
@@ -1348,6 +1354,12 @@ export function makeConsoleServer({
         focusToolSurface: informationControl === 'research-first-v1',
         resourceSituationMode,
         activeOptimizationMode,
+        runtimeContextProvider: async () => workspaceRuntimeContextBlock({
+          absoluteRoot: resolve(workspace), writableRoots: [resolve(workspace)],
+          activeOutputOperations: await executableOutputOperations.activeProjection({
+            sessionId, runId: run.runId,
+          }),
+        }),
         takeAdmittedWorkInputs: async () => {
           const undecided = await workStore.undecidedInputs(sessionId);
           for (const input of undecided) {
@@ -3552,6 +3564,7 @@ export function makeConsoleServer({
   });
   server.advanceLearningProposal = advanceLearningProposal;
   server.attachmentStore = attachments;
+  server.executableOutputOperationStore = executableOutputOperations;
   server.recoverPreparedAdmissions = () => admissionRecovery;
   server.recoverResultPublications = () => resultPublicationRecovery;
   server.messengerGateway = messenger;

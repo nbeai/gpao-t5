@@ -228,6 +228,7 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [],
  *   historyInformation?:object,
  *   focusToolSurface?:boolean,
  *   resourceSituationMode?:'off'|'current-v1',
+ *   runtimeContextProvider?:((facts:{turn:number})=>Promise<string|null>|string|null)|null,
  *   activeOptimizationMode?:'off'|'model-selected-v1',
  *   takeAdmittedWorkInputs?:()=>Promise<Array<{inputId:string,text:string,attachmentIds?:string[],source?:object,currentWork?:object,modelAttachments?:object[]}>>,
  *   applyAdmittedWorkInputs?:(inputs:Array<{inputId:string}>)=>Promise<unknown>,
@@ -248,6 +249,7 @@ export async function runAgent({
   historyInformation = {},
   focusToolSurface = false,
   resourceSituationMode = 'current-v1',
+  runtimeContextProvider = null,
   activeOptimizationMode = 'model-selected-v1',
   takeAdmittedWorkInputs = null,
   applyAdmittedWorkInputs = null,
@@ -261,6 +263,9 @@ export async function runAgent({
   if (!Number.isInteger(parallelCapacity) || parallelCapacity < 1) throw new TypeError('parallelCapacity must be positive');
   if (!['off', 'current-v1'].includes(resourceSituationMode)) {
     throw new TypeError('unsupported resource situation mode');
+  }
+  if (runtimeContextProvider != null && typeof runtimeContextProvider !== 'function') {
+    throw new TypeError('runtimeContextProvider must be a function');
   }
   if (!['off', 'model-selected-v1'].includes(activeOptimizationMode)) {
     throw new TypeError('unsupported active optimization mode');
@@ -375,10 +380,16 @@ export async function runAgent({
     const resourceObserver = resourceRun?.modelObserver({
       logicalCallId: `${resourcePurpose}:${modelTurns}`, purpose: resourcePurpose,
     });
+    const observedRuntimeContext = runtimeContextProvider == null ? null
+      : await runtimeContextProvider({ turn: modelTurns });
+    if (observedRuntimeContext != null && typeof observedRuntimeContext !== 'string') {
+      throw new TypeError('runtimeContextProvider must return a string or null');
+    }
+    const runtimeContext = [observedRuntimeContext, situationBlock].filter(Boolean).join('\n\n');
     const response = normalizeResponse(await model.respond({
       messages: structuredClone(transcript),
       tools: structuredClone(definitions),
-      ...(situationBlock ? { runtimeContext: situationBlock } : {}),
+      ...(runtimeContext ? { runtimeContext } : {}),
       ...(completionReminderSent && requiredCompletionName() && !completionSatisfied() ? {
         toolChoice: { requiredToolName: requiredCompletionName() },
       } : modelTurns === 1 && requiredInitialTool ? {

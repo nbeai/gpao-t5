@@ -232,11 +232,12 @@ export async function modelImageInputs({ store, sessionId, records = [] } = {}) 
 export function makeAttachmentTool({
   store, sessionId, workspace, runId = null, authorizeOutputPath = null,
   observeImagePixels = null, inspectQualifiedDocumentImpl = inspectQualifiedDocument,
-  renderDocxPreview = renderDocxFirstPage,
+  renderDocxPreview = renderDocxFirstPage, executableOperationStore = null,
 } = {}) {
   if (!store || !sessionId || !workspace) throw new TypeError('attachment store, sessionId, and workspace are required');
   const qualifyExecutableOutput = makeExecutableOutputQualifier();
-  const executableOperations = new ExecutableOutputOperationStore({ attachmentStore: store, workspace });
+  const executableOperations = executableOperationStore
+    ?? new ExecutableOutputOperationStore({ attachmentStore: store, workspace });
   const qualifyArtifactQualityOutput = makeArtifactQualityOutputQualifier();
   return {
     name: 'attachment',

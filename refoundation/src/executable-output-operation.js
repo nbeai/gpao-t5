@@ -163,6 +163,23 @@ export class ExecutableOutputOperationStore {
     const finalized = own.findLast((event) => event.type === 'finalized')?.payload ?? null;
     return begun ? { ...clone(begun), qualified, finalized } : null;
   }
+  async activeProjection({ sessionId, runId, maximum = 4 } = {}) {
+    const events = await this.events();
+    const handles = [...new Set(events.filter((event) => event.type === 'begun')
+      .map((event) => event.operationHandle))];
+    return handles.map((handle) => {
+      const operation = this.operationFrom(events, handle);
+      if (!operation || operation.finalized || operation.sessionId !== String(sessionId)
+        || operation.runId !== String(runId)) return null;
+      const latest = events.findLast((event) => event.operationHandle === handle);
+      const state = operation.qualified ? 'qualified_pending_recovery'
+        : latest?.type === 'finalize_failed' ? 'needs_revision' : 'source_open';
+      return { handle, sourceRoot: operation.sourceDirectory,
+        outputName: operation.outputName, state, sequence: latest?.sequence ?? 0 };
+    }).filter(Boolean).toSorted((left, right) => right.sequence - left.sequence)
+      .slice(0, Math.max(0, Math.min(4, Number(maximum) || 0)))
+      .map(({ sequence: _sequence, ...operation }) => operation);
+  }
   async begin({ sessionId, runId, outputName, resultRelativePath, expectedResultJson, expectedStdoutIncludes } = {}) {
     const name = safeOutputName(outputName); const resultPath = safeRelativePath(resultRelativePath);
     if (!sessionId || !runId || !name || !resultPath || extname(resultPath).toLowerCase() !== '.json') return boundedFailure(
