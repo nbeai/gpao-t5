@@ -1,0 +1,61 @@
+{
+  "schema": "t5.second-completion-human-closeout.v1",
+  "recordedDate": "2026-08-25",
+  "baselineCommit": "98bc50d3",
+  "scope": "actual development console human journeys",
+  "result": "closed_with_known_limitation",
+  "qualified": {
+    "terminal": true,
+    "documents": true,
+    "fileOrganization": true,
+    "programAnalysisAndArtifacts": true,
+    "publicWebNoVisibleBrowser": true,
+    "memoryAndEpisodeRecall": true,
+    "automationConsoleAndTelegram": true,
+    "learningSafetyAndQualification": true,
+    "telegramInboundDocuments": true,
+    "telegramOutboundFile": true,
+    "notionWriteAndExactReadback": true
+  },
+  "telegramActual": {
+    "documentsRead": ["pdf", "docx", "xlsx"],
+    "damagedImageClaimedRead": false,
+    "documentSummaryVerified": true,
+    "outboundArtifact": {
+      "name": "F-결과물.txt",
+      "bytes": 117,
+      "sha256": "9e9f121f667159d035768e5bfe8edfda3df2223365e8c4645c7c9c1ddf546318",
+      "messageReceiptPresent": true,
+      "fileReceiptPresent": true,
+      "visibleFileCardPresent": true,
+      "modelReportMatchesDelivery": true
+    }
+  },
+  "regressionBoundaries": {
+    "visibleBrowserForPublicWeb": 0,
+    "approvalForQualifiedNotionWrite": 0,
+    "telegramSecretInPublicEvidence": 0,
+    "blindRetryAfterUnknownDelivery": 0,
+    "falseCompletionInFinalTelegramRetest": 0
+  },
+  "knownLimitations": [
+    {
+      "area": "B after_delivery natural-language exception",
+      "status": "owner_accepted",
+      "preservedGuarantees": [
+        "durable admission",
+        "ordered mailbox",
+        "current-work correction",
+        "cancel",
+        "restart recovery",
+        "surface publication"
+      ]
+    },
+    {
+      "area": "visual reference candidate count",
+      "status": "model_provider_variance",
+      "guarantee": "verified previews only and honest shortfall"
+    }
+  ],
+  "excluded": ["S2-G UI-only Hand", "package signing and notarization"]
+}

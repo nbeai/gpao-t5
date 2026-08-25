@@ -515,18 +515,14 @@ Telegram loopback, Terra·gpt-5.5 동일 여정.
 모델 주장만으로 Episode 성공, 실패 방법 승격, 사용자 교정 누락, Core 자동 수정은 0이다. 학습은 설명·교정·
 시간·목적당 비용을 줄이고 정확도를 유지할 때만 승격한다.
 
-인간 종단 재자격 — REOPENED. 실제 자연어 시험에서 후보 생성·near-miss 격리·잘못된 승격 방지는
-성립했지만, 복구된 성공이 과거 failed Receipt 하나로 학습 원천에서 제외됐고 pending 후보 사용은
-`tool_search→list→view`로 baseline보다 무거웠다. 같은 관측 Hand의 후속 성공이 확인된 읽기 실패만
-recovered로 정산하고, 성공 영수증에서 비밀·절대경로·원문 없이 bounded method trace를 만들며, pending
-후보 identity를 한 개의 직접 trial Hand로 공급하는 교정은 완료했다. 저장된 실제 모델 연결을 사용하는
-재자격은 저장소 실행 정책상 정상 개발 콘솔 통합 뒤 수행하며, 그 전에는 E 인간 완료로 승격하지 않는다.
-
-통합 뒤 Terra 인간 재자격에서도 결과 정확도·후보 생성·near-miss 격리는 성립했지만, 후보가 bounded
-method trace의 exact 절차를 보존하지 않고 재탐색 일반론으로 바뀌었다. 힌트 없는 관련 작업의
-`learning_trial view`는 0이었고 baseline 평균 5 turns·4 tools·10.779초보다 field가 6 turns·5 tools·
-12.703초로 악화해 승격하지 않았다. 0ms 연속 foreground와 reviewer의 새 Run 읽기 경합도 한 번 확인됐다.
-따라서 gpt-5.5·독립 3번째 성공·active·rollback은 열지 않고 E를 인간 미달로 유지한다.
+S2-E — REPAIRED COMPLETE. 인간 종단에서 드러난 method trace 유실, 전역 pending 후보, near-miss trial,
+foreground writer와 background reviewer의 JSONL 읽기 경합을 교정했다. 검증된 공통 exact method는
+비밀·stdout·절대경로 없이 immutable METHOD evidence와 digest로 보존하며, 관련 natural-language Work에만
+직접 trial view를 공급한다. Terra·gpt-5.5 실제 자격에서 unrelated view 0, 관련 view 1, field observation 1,
+정답 유지와 4 model turns·3 tools를 확인했다. 실제 통합 인간시험에서 이익이 없던 후보는 세 field 뒤
+Pareto 실패로 `rejected`되어 active Skill을 오염시키지 않았다. promotion·unsupported regression archive는
+반대시험으로 통과했다. 즉 학습하지 않은 것이 실패가 아니라, 사용자 이익이 없는 방법을 배우지 않은
+정상 결과다. 근거: `refoundation/evidence/s2-e-learning-runtime-repair-2026-08-25.json`.
 
 ### S2-F — Hand & Connected Reality
 
@@ -540,13 +536,14 @@ connection truth → resource identity → authority → execution
 
 긴급 P0 복구 외의 넓은 Web·Connection·App 기능 확장은 앞선 정보 기반보다 먼저 열지 않는다.
 
-인간형 loopback 종단 — FAIL. 실제 Telegram 계정·서버를 사용한 인간 종단은 아직 실행하지 않았다. 격리된
-Telegram provider loopback과 Terra에서 4종 파일 수신·caption/reply, secret 이관·재시작,
-Notion 연결 identity·권한·resource set, verified write·exact readback과 불일치 unresolved는 통과했다. 그러나
-사용자가 지정한 기존 로컬 파일을 현재 Run의 output artifact로 등록하는 `attachment register_output`이
-두 번 실패해 공식 `sendDocument`와 message/file/hash receipt가 0이었다. 따라서 ACK unknown 인간 여정도
-미측정이다. 실제 계정 시험 전에 `exact local file→managed artifact→provider sendDocument→delivery receipt`
-경계를 loopback에서 먼저 복구해야 한다.
+S2-F — REPAIRED COMPLETE. 실제 Telegram 개인 대화에서 PDF·DOCX·XLSX를 한 Turn으로 받아 실제 독해했고,
+손상된 122B PNG는 provider 입력에서 제외해 읽었다고 꾸미지 않았다. terminal failed Run의 Work claim은
+release되어 같은 대화에서 재개됐다. 기존 로컬 `F-결과물.txt`는 exact SHA-256·117B output artifact로 등록,
+공식 `sendDocument`를 통해 실제 파일 카드로 전달됐으며 Telegram text/file message와 file/hash Receipt가
+일치했다. 모델에게 `register_output→runtime publication` 계약을 공급해 “첨부 성공 뒤 발신 불가”라는 모순도
+실제 재시험에서 제거했다. Notion은 official remote MCP의 account·transport·permission·resource identity를
+분리하고 external change·page ID를 정규화해 승인 0, 실제 write와 exact readback을 통과했다. 비밀 원문,
+가시 Browser, 개인 계정 우회 호출은 0이다.
 
 ### S2-G — UI-only Hand — EXCLUDED FROM SECOND COMPLETION
 
@@ -601,9 +598,10 @@ AND 실행 가능한 미시도 route가 남은 blocked 0
 
 ## 8. 현재 작업 시작점
 
-S2-A·C·D는 승인된 종료점을 유지한다. S2-B는 위 exception-surface 한 조각이 열린 상태로 더 시도하지 않는다.
-S2-E와 S2-F는 구현·기계·좁은 실제 모델 자격은 통과했지만 통합
-인간 종단에서 각각 실제 사용자 성능 미달이 확인돼 재개방됐다. G와 package는 계속 잠근다.
+T5 2차 완성은 S2-A·C·D·E·F 완료와 S2-B의 승인된 known limitation으로 닫는다. B의 durable admission,
+ordered mailbox, correction·cancel·restart·publication은 보존하며, 자연어 `after_delivery` 예외 의미의 모델별
+불안정은 숨기지 않고 다음 독립 개선선의 입력으로 남긴다. G는 오너 결정대로 제외한다. 전체 실제 인간
+시나리오 결과는 개발 콘솔 작업공간의 `결과_기록.md`에 보존했으며, package 제작은 별도 Release 작업이다.
 
 ```text
 F Telegram:
@@ -628,10 +626,8 @@ T5 application·account·transport·permission·resource identity
 Terra·gpt-5.5 실제 verified-write 자격을 통과했다. 실제 모델 자격은 각각 8.1초·17.4초였고 write는
 각 1회, exact readback은 1회·2회였다. 가시 Browser 호출은 0이다.
 
-다음 작업은 B를 다시 여는 것이 아니라 E·F 두 경계를 섞지 않고 좁게 복구하는 것이다. E는 reviewer가 verified method trace를 실제 후보에
-보존하고 관련 자연어 Work가 별도 검색 없이 trial을 선택하는 경계를, F는 기존 로컬 파일의 exact output
-등록 실패 원인과 provider-owned sendDocument 연결을 먼저 닫는다. 각 Terra 인간 종단이 통과할 때만
-gpt-5.5로 확장하며, 수정 전에는 G·전체 테스터 회귀·package를 열지 않는다.
+다음 한 작업은 새 기능 개발이 아니라 Release 자격이다. 현재 소스를 고정하고 설치 package·서명·공증·
+새 설치 상태 보존만 검증한다. G를 열거나 B known limitation을 Release 도중 다시 개발하지 않는다.
 
 현재 비목표와 제외 범위:
 
