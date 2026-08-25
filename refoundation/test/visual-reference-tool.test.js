@@ -4,10 +4,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer, get } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import sharp from 'sharp';
 
 import { AttachmentStore } from '../src/attachment-store.js';
 import { makeImageSearchTool } from '../src/image-search-tool.js';
 import { makeVisualReferenceTool } from '../src/visual-reference-tool.js';
+import { runAgent } from '../src/agent-loop.js';
 
 const SESSION = '11111111-1111-4111-8111-111111111111';
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
@@ -21,11 +23,23 @@ function imageResponse(bodyInput, { status = 200, headers = {} } = {}) {
   const body = Buffer.from(bodyInput); const normalized = new Map(
     Object.entries(headers).map(([name, value]) => [name.toLowerCase(), String(value)]),
   );
+  let sent = false; let cancelled = false;
   return {
     status, ok: status >= 200 && status < 300,
     headers: { get(name) { return normalized.get(String(name).toLowerCase()) ?? null; } },
-    async arrayBuffer() { return body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength); },
+    body: { getReader() { return {
+      async read() { if (sent) return { done: true }; sent = true; return { done: false, value: body }; },
+      async cancel() { cancelled = true; }, releaseLock() {},
+    }; } },
+    async arrayBuffer() { throw new Error('visual fetch must not use arrayBuffer'); },
+    get cancelled() { return cancelled; },
   };
+}
+
+async function coloredPng(serial) {
+  return sharp({ create: { width: 1, height: 1, channels: 4,
+    background: { r: serial % 255, g: (serial * 7) % 255, b: (serial * 13) % 255, alpha: 1 } } })
+    .png().toBuffer();
 }
 
 function fixtureProvider() {
@@ -53,10 +67,10 @@ test('10개 디자인·인물·제품·한국 장소 query가 typed candidate→
     const provider = fixtureProvider();
     const imageSearchTool = makeImageSearchTool({ providers: [provider] });
     let serial = 0;
-    const server = createServer((_request, response) => {
+    const server = createServer(async (_request, response) => {
       serial += 1;
       response.writeHead(200, { 'content-type': 'application/octet-stream' });
-      response.end(Buffer.concat([PNG, Buffer.from([serial])]));
+            response.end(await coloredPng(serial));
     });
     await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
     try {
@@ -116,9 +130,7 @@ test('자격 image provider가 없으면 0 preview와 함께 exact typed failure
     assert.equal(result.failures[0].failureCode, 'dedicated_image_provider_unavailable');
     assert.equal(result.failures[0].failedStage, 'candidate');
     assert.equal(result.stopFurtherResearch, true); assert.equal(result.verificationMissing, true);
-    assert.deepEqual(result.deactivatedTools, [
-      'visual_reference', 'web_research', 'web_search', 'web_read', 'browser',
-    ]);
+    assert.deepEqual(result.deactivatedTools, ['visual_reference']);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 
@@ -192,12 +204,102 @@ test('같은 image bytes는 sha duplicate로 제외하고 다음 candidate로 re
       fetchImpl: async () => {
         call += 1;
         const suffix = call === 2 ? 1 : call;
-        return imageResponse(Buffer.concat([PNG, Buffer.from([suffix])]), { status: 200 });
+        return imageResponse(await coloredPng(suffix), { status: 200 });
       },
     });
     const result = await tool.execute({ query: 'duplicate', limit: 3, domains: null });
     assert.equal(result.previews.length, 3);
     assert.equal(new Set(result.previews.map((row) => row.sha256)).size, 3);
     assert.ok(result.failures.some((row) => row.failureCode === 'duplicate_image_sha'));
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('CRC와 압축 payload가 무효인 header-only PNG는 preview로 승격하지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-qh4-real-decode-'));
+  try {
+    const attachments = new AttachmentStore(join(room, 'attachments'));
+    const chunk = (type, data) => { const output = Buffer.alloc(12 + data.length);
+      output.writeUInt32BE(data.length, 0); output.write(type, 4, 4, 'ascii'); data.copy(output, 8); return output; };
+    const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(1, 0); ihdr.writeUInt32BE(1, 4); ihdr[8] = 8; ihdr[9] = 2;
+    const invalid = Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), chunk('IHDR', ihdr),
+      chunk('IDAT', Buffer.from([0])), chunk('IEND', Buffer.alloc(0))]);
+    const imageSearchTool = { async execute() { return { state: 'candidates', query: 'invalid',
+      candidates: [1, 2, 3].map((rank) => ({ title: `invalid ${rank}`,
+        imageUrl: `https://images.example/${rank}.png`, contextUrl: `https://source.example/${rank}`,
+        provider: { id: 'fixture', tier: 'dedicated' } })), failures: [], calls: [],
+      providerQualification: { dedicated: 'available' } }; } };
+    const result = await makeVisualReferenceTool({ imageSearchTool, attachments, sessionId: SESSION,
+      resolveHost: async () => ['93.184.216.34'], fetchImpl: async () => imageResponse(invalid) })
+      .execute({ query: 'invalid', limit: 3, domains: null });
+    assert.equal(result.state, 'no_previews'); assert.equal(result.previews.length, 0);
+    assert.deepEqual(new Set(result.failures.map((row) => row.failureCode)), new Set(['image_decode_failed']));
+    assert.equal((await attachments.list({ sessionId: SESSION })).length, 0);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('header-only JPEG·GIF·WebP도 실제 pixel decode 없이는 preview로 승격하지 않는다', async () => {
+  const invalids = [
+    ['jpeg', Buffer.from('ffd8ffc00011080001000103011100021100031100ffd9', 'hex')],
+    ['gif', Buffer.from('47494638396101000100800000000000ffffff3b', 'hex')],
+    ['webp', Buffer.from('524946461600000057454250565038580a0000000000000000000000000000', 'hex')],
+  ];
+  for (const [label, invalid] of invalids) {
+    const room = await mkdtemp(join(tmpdir(), `t5-qh4-real-decode-${label}-`));
+    try {
+      const attachments = new AttachmentStore(join(room, 'attachments'));
+      const imageSearchTool = { async execute() { return { state: 'candidates', query: label,
+        candidates: [{ title: label, imageUrl: `https://images.example/${label}`,
+          contextUrl: `https://source.example/${label}`, provider: { id: 'fixture', tier: 'dedicated' } }],
+        failures: [], calls: [], providerQualification: { dedicated: 'available' } }; } };
+      const result = await makeVisualReferenceTool({ imageSearchTool, attachments, sessionId: SESSION,
+        resolveHost: async () => ['93.184.216.34'], fetchImpl: async () => imageResponse(invalid) })
+        .execute({ query: label, limit: 3, domains: null });
+      assert.equal(result.previews.length, 0, label);
+      assert.equal(result.failures[0].failureCode, 'image_decode_failed', label);
+      assert.equal((await attachments.list({ sessionId: SESSION })).length, 0, label);
+    } finally { await rm(room, { recursive: true, force: true }); }
+  }
+});
+
+test('Content-Length 없는 과대 body도 10MB에서 reader를 취소하고 attachment 전에 멈춘다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-qh4-stream-bound-'));
+  try {
+    const attachments = new AttachmentStore(join(room, 'attachments')); let cancelled = false; let reads = 0;
+    const response = { status: 200, ok: true, headers: { get() { return null; } }, body: { getReader() { return {
+      async read() { reads += 1; return reads <= 11
+        ? { done: false, value: Buffer.alloc(1024 * 1024) } : { done: true }; },
+      async cancel() { cancelled = true; }, releaseLock() {},
+    }; } }, async arrayBuffer() { throw new Error('must not allocate the whole body'); } };
+    const imageSearchTool = { async execute() { return { state: 'candidates', query: 'large', candidates: [{
+      title: 'large', imageUrl: 'https://images.example/large.png', contextUrl: 'https://source.example/large',
+      provider: { id: 'fixture', tier: 'dedicated' } }], failures: [], calls: [],
+      providerQualification: { dedicated: 'available' } }; } };
+    const result = await makeVisualReferenceTool({ imageSearchTool, attachments, sessionId: SESSION,
+      resolveHost: async () => ['93.184.216.34'], fetchImpl: async () => response })
+      .execute({ query: 'large', limit: 3, domains: null });
+    assert.equal(cancelled, true); assert.equal(reads, 11);
+    assert.equal(result.failures[0].failureCode, 'image_too_large');
+    assert.equal((await attachments.list({ sessionId: SESSION })).length, 0);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('visual lane의 성공·실패는 같은 요청의 factual web lane을 비활성화하지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-qh4-lane-separation-'));
+  try {
+    const attachments = new AttachmentStore(join(room, 'attachments'));
+    const visual = makeVisualReferenceTool({ imageSearchTool: makeImageSearchTool({ providers: [] }),
+      attachments, sessionId: SESSION });
+    const read = { name: 'web_read', description: 'read one factual public URL',
+      parameters: { type: 'object' }, async execute() { return { state: 'read' }; } };
+    let turn = 0;
+    const result = await runAgent({ request: '이미지와 사실 출처를 함께 찾아줘', tools: [visual, read], model: {
+      async respond({ tools }) { turn += 1;
+        if (turn === 1) return { text: '', toolCalls: [{ id: 'visual', name: 'visual_reference',
+          args: { query: 'reference', limit: 3, domains: null } }] };
+        assert.deepEqual(tools.map((tool) => tool.name), ['web_read']);
+        return { text: '이미지는 없지만 사실 조사는 계속할 수 있어요.', toolCalls: [] };
+      },
+    } });
+    assert.equal(result.answer, '이미지는 없지만 사실 조사는 계속할 수 있어요.');
   } finally { await rm(room, { recursive: true, force: true }); }
 });

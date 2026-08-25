@@ -1,5 +1,6 @@
 import { lookup } from 'node:dns/promises';
 import { createHash } from 'node:crypto';
+import sharp from 'sharp';
 
 import { detectAttachmentType } from './attachment-store.js';
 import { isPrivateWebAddress, normalizeWebUrl } from './web-read-tool.js';
@@ -24,66 +25,38 @@ async function imageBytes(response) {
   if (Number.isFinite(declared) && declared > MAX_IMAGE_BYTES) {
     throw previewError('image_too_large', 'qualification', 'preview image is too large');
   }
-  const bytes = Buffer.from(await response.arrayBuffer());
-  if (bytes.length > MAX_IMAGE_BYTES) throw previewError('image_too_large', 'qualification', 'preview image is too large');
-  return bytes;
+  const reader = response.body?.getReader?.();
+  if (!reader) throw previewError('image_body_unreadable', 'fetch', 'preview response body is not stream-readable');
+  const chunks = []; let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = Buffer.from(value ?? []); total += chunk.length;
+      if (total > MAX_IMAGE_BYTES) {
+        await reader.cancel('image_too_large').catch(() => {});
+        throw previewError('image_too_large', 'qualification', 'preview image is too large');
+      }
+      chunks.push(chunk);
+    }
+  } finally { reader.releaseLock?.(); }
+  return Buffer.concat(chunks, total);
 }
 
-function decodedImageSize(bytes, mimeType) {
-  if (mimeType === 'image/png' && bytes.length >= 24) {
-    let offset = 8; let hasIdat = false; let hasIend = false;
-    while (offset + 12 <= bytes.length) {
-      const length = bytes.readUInt32BE(offset); const end = offset + 12 + length;
-      if (end > bytes.length) break;
-      const type = bytes.subarray(offset + 4, offset + 8).toString('ascii');
-      if (type === 'IDAT') hasIdat = true;
-      if (type === 'IEND' && length === 0) { hasIend = true; break; }
-      offset = end;
-    }
-    const width = bytes.readUInt32BE(16); const height = bytes.readUInt32BE(20);
-    if (width > 0 && height > 0 && hasIdat && hasIend) return { width, height };
+async function decodedImageSize(bytes, mimeType) {
+  try {
+    const decoder = sharp(bytes, {
+      failOn: 'warning', limitInputPixels: 40_000_000, sequentialRead: true, pages: 1,
+    });
+    const metadata = await decoder.metadata();
+    const observedMime = ({ png: 'image/png', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' })[metadata.format];
+    if (observedMime !== mimeType || !metadata.width || !metadata.height) throw new Error('decoded format mismatch');
+    await decoder.clone().resize({ width: 1, height: 1, fit: 'inside', withoutEnlargement: false })
+      .raw().toBuffer();
+    return { width: metadata.width, height: metadata.height };
+  } catch {
+    throw previewError('image_decode_failed', 'qualification', 'image pixels could not be decoded');
   }
-  if (mimeType === 'image/gif' && bytes.length >= 10) {
-    const width = bytes.readUInt16LE(6); const height = bytes.readUInt16LE(8);
-    if (width > 0 && height > 0 && bytes.includes(0x3b, 10)) return { width, height };
-  }
-  if (mimeType === 'image/jpeg' && bytes.length >= 4) {
-    const startOfFrame = new Set([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf]);
-    let offset = 2;
-    while (offset + 4 <= bytes.length) {
-      if (bytes[offset] !== 0xff) { offset += 1; continue; }
-      const marker = bytes[offset + 1]; offset += 2;
-      if (marker === 0xd8 || marker === 0xd9 || (marker >= 0xd0 && marker <= 0xd7)) continue;
-      if (offset + 2 > bytes.length) break;
-      const length = bytes.readUInt16BE(offset);
-      if (length < 2 || offset + length > bytes.length) break;
-      if (startOfFrame.has(marker) && length >= 7) {
-        const height = bytes.readUInt16BE(offset + 3); const width = bytes.readUInt16BE(offset + 5);
-        if (width > 0 && height > 0 && bytes.subarray(-2).equals(Buffer.from([0xff, 0xd9]))) {
-          return { width, height };
-        }
-      }
-      offset += length;
-    }
-  }
-  if (mimeType === 'image/webp' && bytes.length >= 30) {
-    const riffComplete = bytes.readUInt32LE(4) + 8 <= bytes.length;
-    const chunk = bytes.subarray(12, 16).toString('ascii');
-    if (riffComplete && chunk === 'VP8X') {
-      const width = 1 + bytes.readUIntLE(24, 3); const height = 1 + bytes.readUIntLE(27, 3);
-      if (width > 0 && height > 0) return { width, height };
-    }
-    if (riffComplete && chunk === 'VP8 ' && bytes.subarray(23, 26).equals(Buffer.from([0x9d, 0x01, 0x2a]))) {
-      const width = bytes.readUInt16LE(26) & 0x3fff; const height = bytes.readUInt16LE(28) & 0x3fff;
-      if (width > 0 && height > 0) return { width, height };
-    }
-    if (riffComplete && chunk === 'VP8L' && bytes[20] === 0x2f && bytes.length >= 25) {
-      const packed = bytes.readUInt32LE(21);
-      const width = 1 + (packed & 0x3fff); const height = 1 + ((packed >>> 14) & 0x3fff);
-      if (width > 0 && height > 0) return { width, height };
-    }
-  }
-  throw previewError('image_decode_failed', 'qualification', 'image dimensions could not be decoded');
 }
 
 async function fetchManagedImage(rawUrl, {
@@ -108,7 +81,7 @@ async function fetchManagedImage(rawUrl, {
     if (detected.kind !== 'image' || !ALLOWED_IMAGE_TYPES.has(detected.mimeType)) {
       throw previewError('invalid_image_bytes', 'qualification', 'preview bytes are not a supported image');
     }
-    const dimensions = decodedImageSize(bytes, detected.mimeType);
+    const dimensions = await decodedImageSize(bytes, detected.mimeType);
     return {
       url, mimeType: detected.mimeType, declaredMimeType,
       bytes, status: response.status, ...dimensions,
@@ -153,7 +126,7 @@ export function makeVisualReferenceTool({
       if (accumulated.length >= limit) return {
         state: 'already_satisfied', requested: limit, previews: accumulated.slice(0, 5), failures: [],
         coverage: { requested: limit, previewed: accumulated.length }, stopFurtherResearch: true,
-        deactivatedTools: ['visual_reference', 'web_research', 'web_search', 'web_read', 'browser'],
+        deactivatedTools: ['visual_reference'],
         completedCapabilityGroups: ['visual_reference'],
       };
       const search = await imageSearchTool.execute({
@@ -257,7 +230,7 @@ export function makeVisualReferenceTool({
         },
         stopFurtherResearch: true,
         verificationMissing: accumulated.length < limit,
-        deactivatedTools: ['visual_reference', 'web_research', 'web_search', 'web_read', 'browser'],
+        deactivatedTools: ['visual_reference'],
         completedCapabilityGroups: ['visual_reference'],
       };
     },
