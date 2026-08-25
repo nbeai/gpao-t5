@@ -1,0 +1,44 @@
+{
+  "schema": "t5.korea-connection-channel-talk-evidence.v1",
+  "recordedAt": "2026-08-25",
+  "sourceCommit": "f03cf98d",
+  "branch": "codex/t5-connection-protocol",
+  "status": "isolated_machine_complete_live_account_pending",
+  "officialContracts": [
+    "https://developers.channel.io/en/articles/20516f31",
+    "https://developers.channel.io/en/articles/c98d2b06",
+    "https://developers.channel.io/en/articles/List-of-UserChats-a7e8e5d1",
+    "https://developers.channel.io/en/articles/738ccde7"
+  ],
+  "userFlow": [
+    "click Channel Talk connection",
+    "enter Access Key and Access Secret in the dedicated settings form",
+    "probe official managers endpoint",
+    "observe exact channelId",
+    "mark ready and expose read-only Channel Talk hand",
+    "list customer chats and read exact chat messages",
+    "disconnect without showing the secret again"
+  ],
+  "verifiedBoundaries": [
+    "invalid key stores zero credential",
+    "missing channel identity is not ready",
+    "credential and provider error expose zero secret",
+    "write and reply capability remain false",
+    "non-observe tool call is rejected",
+    "product entrypoint uses platform secret store"
+  ],
+  "verification": {
+    "focusedConnectorAndSettings": "10_pass_0_fail",
+    "productIntegration": "136_pass_0_fail",
+    "boundary": "legacy_import_0",
+    "visibleBrowser": 0,
+    "qhFilesChanged": 0
+  },
+  "notQualified": [
+    "real Channel Talk account key",
+    "human settings journey",
+    "message reply or write",
+    "webhook delivery"
+  ],
+  "writeBlocker": "The current public official send-message page does not expose a usable request body schema. Do not infer it from community code."
+}
