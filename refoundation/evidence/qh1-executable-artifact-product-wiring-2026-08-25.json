@@ -1,0 +1,52 @@
+{
+  "schema": "t5.qh1-executable-artifact-product-wiring.v1",
+  "recordedAt": "2026-08-25T15:50:45+09:00",
+  "boundary": "attachment.register_output_to_work_completion",
+  "userActionEnabled": "an executable ZIP is surfaced only after its advertised current-platform launcher executes and a runtime-owned producer independently observes a new typed purpose-result file",
+  "qualification": {
+    "contractSidecar": ".t5-deliverable.json",
+    "executionEvidence": [
+      "exact_archive_sha256",
+      "advertised_entrypoint_path_and_permission",
+      "runtime_owned_host_platform",
+      "exit_stdout_stderr_and_process_residual"
+    ],
+    "purposeEvidence": {
+      "producer": "post_execution_file/t5.new-json-result.v1",
+      "observationSchema": "t5.new-json-result-observation.v1",
+      "requires": [
+        "result_path_absent_from_pre_execution_archive_baseline",
+        "new_regular_json_result_file",
+        "exact_result_sha256",
+        "at_least_one_typed_purpose_fact"
+      ]
+    },
+    "registrationIdentityBound": true,
+    "stdoutAloneQualifiesPurpose": false
+  },
+  "counterexamples": {
+    "t5StatusReadonlyLauncher": "artifact_not_registered_and_work_unresolved",
+    "prepackagedResultFile": "artifact_not_registered_and_work_unresolved",
+    "normalHp03LauncherWithNewTypedResult": "artifact_registered_and_work_achieved"
+  },
+  "verification": {
+    "focused": {
+      "tests": 49,
+      "passed": 49,
+      "failed": 0
+    },
+    "refoundationCheck": {
+      "passed": false,
+      "failed": 1,
+      "qh1Failures": 0,
+      "knownUnrelatedFailure": "refoundation/test/console-ui-state.test.js expects openSettings to immediately call clearSessionSelection"
+    }
+  },
+  "nonGoalsPreserved": [
+    "no_real_probe_catalog",
+    "no_workflow_or_template_system",
+    "no_connecting_change",
+    "no_qh2_or_qh3_change",
+    "no_package_build"
+  ]
+}

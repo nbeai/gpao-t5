@@ -364,7 +364,9 @@ export class AttachmentStore {
     });
   }
 
-  async registerOutput({ sessionId, workspace, filePath, revisesAttachmentId = null } = {}) {
+  async registerOutput({
+    sessionId, workspace, filePath, revisesAttachmentId = null, expectedSha256 = null,
+  } = {}) {
     const owner = safeUuid(sessionId, 'session');
     const requested = resolve(String(filePath ?? ''));
     const stat = await lstat(requested);
@@ -378,8 +380,13 @@ export class AttachmentStore {
       throw new Error('output path is outside workspace');
     }
     if (stat.size > this.maxFileBytes) throw new Error('attachment file size limit exceeded');
+    const bytes = await readFile(path);
+    if (expectedSha256 != null
+      && createHash('sha256').update(bytes).digest('hex') !== expectedSha256) {
+      throw new Error('output file identity changed after qualification');
+    }
     return this.receive({
-      sessionId: owner, originalName: basename(path), bytes: await readFile(path),
+      sessionId: owner, originalName: basename(path), bytes,
       direction: 'output', sourcePath: path, revisesAttachmentId,
     });
   }

@@ -504,7 +504,7 @@ function validateOutcomeReceipt(receipt, contract, entrypoint, requirement) {
 }
 
 async function observeRequiredOutcome({
-  contract, entrypoint, requirement, artifactRoot, producerRegistry,
+  contract, entrypoint, requirement, artifactRoot, preExecutionFiles, producerRegistry,
 }) {
   const producer = producerRegistry.get(producerKey(requirement.producerKind, requirement.producerId));
   if (!producer) {
@@ -521,6 +521,7 @@ async function observeRequiredOutcome({
       contract: Object.freeze({ id: contract.id, schema: CONTRACT_SCHEMA }),
       artifact: Object.freeze({ ...contract.artifact }),
       entrypoint: Object.freeze({ id: entrypoint.id, path: entrypoint.path, cwd: entrypoint.cwd }),
+      preExecutionFiles: Object.freeze(preExecutionFiles.map((file) => Object.freeze({ ...file }))),
       requiredObservation: Object.freeze(structuredClone(requirement)),
     }));
     receipt = validateOutcomeReceipt(receipt, contract, entrypoint, requirement);
@@ -679,6 +680,11 @@ async function qualifyExecutableArtifactInternal({
       guidePresent: manifestPaths.has(reference.guidePath),
       targetPresent: manifestPaths.has(reference.targetPath),
     }));
+    const preExecutionFiles = extracted.files.map((file) => ({
+      path: file.path.slice(extracted.root.length + sep.length).split(sep).join('/'),
+      bytes: file.bytes,
+      sha256: file.sha256,
+    }));
     const entrypoints = [];
     for (const entrypoint of contract.advertisedEntrypoints) {
       const pathPresent = manifestPaths.has(entrypoint.path);
@@ -724,7 +730,8 @@ async function qualifyExecutableArtifactInternal({
           .filter((requirement) => requirement.entrypointId === entrypoint.id);
         for (const requirement of requirements) {
           outcomeObservations.push(await observeRequiredOutcome({
-            contract, entrypoint, requirement, artifactRoot: extracted.root, producerRegistry,
+            contract, entrypoint, requirement, artifactRoot: extracted.root,
+            preExecutionFiles, producerRegistry,
           }));
         }
         if (outcomeObservations.every((observation) => observation.qualification === 'qualified')) {
