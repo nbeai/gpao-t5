@@ -23,7 +23,7 @@ test('두 achieved Work 뒤 reviewer는 foreground를 막지 않고 proposal 하
       }
       if (last.role === 'tool') return { text: '작업 결과를 확인했습니다.', toolCalls: [] };
       return { text: '', toolCalls: [{ id: `complete-${Date.now()}`, name: 'work_completion',
-        args: { outcome: 'achieved' } }] };
+        args: { outcome: 'achieved', inputSettlements: [] } }] };
     } }) });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   const base = `http://127.0.0.1:${server.address().port}`;

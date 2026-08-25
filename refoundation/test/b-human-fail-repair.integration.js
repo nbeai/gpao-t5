@@ -90,7 +90,8 @@ test('Hand focus 뒤에도 work_completion이 남고 proposal·settlement가 같
     modelFactory: () => ({ async respond(input) { turn += 1;
       if (turn === 1) return { text: '', toolCalls: [{ id: 'exec', name: 'exec', args: { command: 'pwd' } }] };
       if (turn === 2) { assert.equal(input.tools.some((tool) => tool.name === 'work_completion'), true);
-        return { text: '', toolCalls: [{ id: 'complete', name: 'work_completion', args: { outcome: 'achieved' } }] }; }
+        return { text: '', toolCalls: [{ id: 'complete', name: 'work_completion',
+          args: { outcome: 'achieved', inputSettlements: [] } }] }; }
       return { text: '완료했습니다.', toolCalls: [] };
     } }) });
   const base = await listen(server);

@@ -51,7 +51,8 @@ test('baseline→proposal→near-miss→trial replay→field promotion→regress
           }
           if (['learning_trial', 'skill'].includes(receipt.requestedCall.name)) {
             return { text: '', toolCalls: [{ id: 'complete', name: 'work_completion',
-              args: { outcome: mode === 'regression' ? 'unresolved' : 'achieved' } }] };
+              args: { outcome: mode === 'regression' ? 'unresolved' : 'achieved',
+                inputSettlements: [] } }] };
           }
           if (receipt.requestedCall.name === 'work_completion') return { text: '완료', toolCalls: [] };
           if (mode === 'baseline' && turn < 5) return { text: '', toolCalls: [{ id: `observe-${turn}`,
@@ -59,7 +60,7 @@ test('baseline→proposal→near-miss→trial replay→field promotion→regress
               summary: '결과 확인', targets: [], reversible: true, backupAvailable: true,
               recipientNew: false, approvalToken: null } } }] };
           return { text: '', toolCalls: [{ id: 'complete-base', name: 'work_completion',
-            args: { outcome: 'achieved' } }] };
+            args: { outcome: 'achieved', inputSettlements: [] } }] };
         }
         if (mode === 'field' || mode === 'regression') return { text: '', toolCalls: [{
           id: 'search-method', name: 'tool_search', args: { query: 'recover durable work learned procedure' } }] };

@@ -105,7 +105,7 @@ async function fixtureServer({ broken, prepackagedResult = false, arbitraryPurpo
     if (turn === 3) {
       attachmentResult = JSON.parse(input.messages.at(-1).content).result;
       return { text: '', toolCalls: [{
-        id: 'complete-work', name: 'work_completion', args: { outcome: 'achieved' },
+        id: 'complete-work', name: 'work_completion', args: { outcome: 'achieved', inputSettlements: [] },
       }] };
     }
     completionResult = JSON.parse(input.messages.at(-1).content).result;

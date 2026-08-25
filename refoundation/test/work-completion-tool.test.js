@@ -16,7 +16,7 @@ async function fixture() {
 
 test('모델이 명시적 achieved를 제안하고 blocker Receipt가 없을 때만 achieved 후보가 된다', async () => {
   const { store, tool } = await fixture();
-  const result = await tool.execute({ outcome: 'achieved' }, { priorReceipts: [] });
+  const result = await tool.execute({ outcome: 'achieved', inputSettlements: [] }, { priorReceipts: [] });
   assert.equal(result.verifiedOutcome, 'achieved');
   assert.equal((await store.proposalForRun('run')).verifiedOutcome, 'achieved');
 });
@@ -28,9 +28,20 @@ test('effect unknown·미복구 failed Receipt가 있으면 모델 achieved 제�
     { outcome: 'failed', result: {} },
   ]) {
     const { tool } = await fixture();
-    const result = await tool.execute({ outcome: 'achieved' }, { priorReceipts: [receipt] });
+    const result = await tool.execute({ outcome: 'achieved', inputSettlements: [] }, { priorReceipts: [receipt] });
     assert.equal(result.verifiedOutcome, 'unresolved');
   }
+});
+
+test('OpenAI strict function schema는 모든 property를 required로 선언하고 busy 없는 정본은 빈 배열이다', async () => {
+  const { tool } = await fixture();
+  assert.deepEqual(tool.parameters.required, ['outcome', 'inputSettlements']);
+  assert.deepEqual(Object.keys(tool.parameters.properties).toSorted(),
+    [...tool.parameters.required].toSorted());
+  const result = await tool.execute({ outcome: 'unresolved', inputSettlements: [] },
+    { priorReceipts: [] });
+  assert.equal(result.verifiedOutcome, 'unresolved');
+  assert.deepEqual(result.inputSettlements, []);
 });
 
 test('실패한 읽기 route 뒤 다른 Hand의 성공 Evidence도 과거 실패만으로 완료를 막지 않는다', () => {

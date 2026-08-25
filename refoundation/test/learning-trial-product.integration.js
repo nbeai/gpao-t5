@@ -27,7 +27,7 @@ test('pending candidate는 관련 Work의 on-demand trial로만 열리고 Run re
           } }] };
         }
         if (receipt.requestedCall.name === 'learning_trial') return { text: '', toolCalls: [{
-          id: 'complete', name: 'work_completion', args: { outcome: 'achieved' },
+          id: 'complete', name: 'work_completion', args: { outcome: 'achieved', inputSettlements: [] },
         }] };
         return { text: '결과를 확인했습니다.', toolCalls: [] };
       }

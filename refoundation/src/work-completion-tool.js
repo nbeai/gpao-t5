@@ -12,7 +12,7 @@ export function makeWorkCompletionTool({ store, runId, inputSettlementScope = nu
           handle: { type: 'string' },
           disposition: { type: 'string', enum: inputSettlementDispositions },
         }, required: ['handle', 'disposition'], additionalProperties: false } },
-    }, required: ['outcome'], additionalProperties: false },
+    }, required: ['outcome', 'inputSettlements'], additionalProperties: false },
     async execute(args, context = {}) {
       const work = await store.workForRun(runId);
       if (!work || work.status !== 'active' || work.revision !== work.claimedRevision) {
