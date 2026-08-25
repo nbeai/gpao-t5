@@ -32,6 +32,7 @@ import { MessengerCredentialStore } from '../src/messenger-credential-store.js';
 import { makeNotionMcpConnection } from '../src/notion-mcp-connection.js';
 import { makeNotionCliInspector } from '../src/notion-cli-inspector.js';
 import { makeRemoteMcpConnection } from '../src/remote-mcp-connection.js';
+import { makeChannelTalkConnection } from '../src/channel-talk-connection.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -114,6 +115,7 @@ const linearConnection = makeRemoteMcpConnection({
   id: 'linear', label: 'Linear', serverUrl: 'https://mcp.linear.app/mcp',
   resource: 'https://mcp.linear.app/mcp', secretStore: platformSecretStore,
 });
+const channelTalkConnection = makeChannelTalkConnection({ secretStore: platformSecretStore });
 const localConsoleToken = randomBytes(32).toString('base64url');
 const server = makeConsoleServer({
   stateDir,
@@ -132,7 +134,7 @@ const server = makeConsoleServer({
     includeGoogle: false,
     includeNotion: false,
   }),
-  workspaceConnectionServices: [googleDriveService, notionConnection, linearConnection],
+  workspaceConnectionServices: [googleDriveService, notionConnection, linearConnection, channelTalkConnection],
   messengerCredentialStore,
   localConsoleToken,
   onError: (error) => console.error('[refoundation-console]', error?.message ?? error),
