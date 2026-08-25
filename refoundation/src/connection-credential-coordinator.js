@@ -19,9 +19,7 @@ export class ConnectionCredentialCoordinator {
   }
 
   secretRef(connectionKey, generation) {
-    const suffix = required(this.makeId(), 'credential id').replace(/[^a-zA-Z0-9]/gu, '').slice(0, 12);
-    if (!suffix) throw new TypeError('credential id is invalid');
-    return `conn-${connectionKey.slice(0, 12)}-g${generation}-${suffix}`.toLowerCase();
+    return `conn-${connectionKey.slice(0, 32)}-g${generation}`.toLowerCase();
   }
 
   async read(connectionKey) {
@@ -35,37 +33,52 @@ export class ConnectionCredentialCoordinator {
     return { state, credential: clone(bundle.credential) };
   }
 
+  async drainCleanup(connectionKey) {
+    if (!this.stateStore.listSecretCleanup || !this.stateStore.completeSecretCleanup) return { pending: 0 };
+    for (const item of this.stateStore.listSecretCleanup(connectionKey)) {
+      try { await this.secretStore.clear(item.secretRef); this.stateStore.completeSecretCleanup(connectionKey, item.secretRef); }
+      catch { /* durable queue remains authoritative for the next boundary */ }
+    }
+    return { pending: this.stateStore.listSecretCleanup(connectionKey).length };
+  }
+
   async commit({ connectionKey, expectedGeneration, credential, issuer, identity, scopes,
-    capabilities, lease, attemptId = null } = {}) {
+    capabilities, lease, attemptId = null, additionalCleanupRefs = [] } = {}) {
     if (!credential || typeof credential !== 'object' || Array.isArray(credential)) {
       throw new TypeError('connection credential is required');
     }
     const previous = this.stateStore.readCredential(connectionKey);
     if (previous.generation !== expectedGeneration) throw new Error('credential generation is stale');
     const generation = expectedGeneration + 1; const secretRef = this.secretRef(connectionKey, generation);
-    await this.secretStore.set(secretRef, { schema: 't5.connection-credential.v1', connectionKey,
-      generation, credential: clone(credential) });
+    this.stateStore.prepareCredentialSecret({ connectionKey, expectedGeneration, secretRef, lease });
+    try {
+      await this.secretStore.set(secretRef, { schema: 't5.connection-credential.v1', connectionKey,
+        generation, credential: clone(credential) });
+    } catch (error) {
+      try { this.stateStore.cancelCredentialPrepare({ connectionKey, secretRef,
+        reason: 'credential_secret_write_failed', lease }); } catch { /* restart reconciliation owns the prepare */ }
+      await this.drainCleanup(connectionKey); throw error;
+    }
     let state;
     try {
       state = this.stateStore.commitCredential({ connectionKey, expectedGeneration, secretRef,
-        issuer, identity, scopes, capabilities, lease, attemptId });
+        issuer, identity, scopes, capabilities, lease, attemptId, additionalCleanupRefs });
     } catch (error) {
-      await this.secretStore.clear(secretRef).catch(() => {}); throw error;
+      if (this.stateStore.cancelCredentialPrepare) {
+        try { this.stateStore.cancelCredentialPrepare({ connectionKey, secretRef,
+          reason: 'credential_commit_failed', lease }); } catch { /* restart reconciliation owns the prepare */ }
+        await this.drainCleanup(connectionKey);
+      } else await this.secretStore.clear(secretRef).catch(() => {});
+      throw error;
     }
-    let cleanupPending = false;
-    if (previous.secretRef && previous.secretRef !== secretRef) {
-      await this.secretStore.clear(previous.secretRef).catch(() => { cleanupPending = true; });
-    }
+    const cleanupPending = (await this.drainCleanup(connectionKey)).pending > 0;
     return { state, cleanupPending };
   }
 
   async clear({ connectionKey, expectedGeneration, lease } = {}) {
     const previous = this.stateStore.readCredential(connectionKey);
     const state = this.stateStore.clearCredential({ connectionKey, expectedGeneration, lease });
-    let cleanupPending = false;
-    if (previous.secretRef) {
-      await this.secretStore.clear(previous.secretRef).catch(() => { cleanupPending = true; });
-    }
+    const cleanupPending = (await this.drainCleanup(connectionKey)).pending > 0;
     return { state, cleanupPending };
   }
 }

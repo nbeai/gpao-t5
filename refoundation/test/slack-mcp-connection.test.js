@@ -10,24 +10,29 @@ function memorySecretStore() {
 }
 
 test('Slack은 DCR 없이 T5 사전등록 OAuth와 auth.test identity 뒤에만 연결된다', async () => {
-  const calls = []; const metadata = { issuer: 'https://slack.test',
-    authorization_endpoint: 'https://slack.test/oauth/authorize', token_endpoint: 'https://slack.test/oauth/token',
+  const calls = []; const metadata = { issuer: 'https://mcp.slack.com',
+    authorization_endpoint: 'https://slack.com/oauth/v2_user/authorize', token_endpoint: 'https://slack.com/api/oauth.v2.user.access',
     code_challenge_methods_supported: ['S256'], scopes_supported: ['search:read.public', 'chat:write'] };
   const connection = makeSlackMcpConnection({ secretStore: memorySecretStore(), clientId: 'T5-SLACK-CLIENT',
     clientSecret: 'T5-SLACK-SECRET', callbackPort: 0,
+    publicSearchPolicy: { toolName: 'search_public_messages', probeArguments: { query: 't5-connection-probe' } },
     fetchImpl: async (url, init = {}) => {
       calls.push({ url: String(url), method: init.method ?? 'GET', headers: structuredClone(init.headers ?? {}) });
-      if (String(url).includes('oauth-protected-resource')) return new Response(JSON.stringify({ authorization_servers: ['https://slack.test'] }));
+      if (String(url).endsWith('/oauth-protected-resource/mcp')) return new Response('', { status: 404 });
+      if (String(url).endsWith('/oauth-protected-resource')) return new Response(JSON.stringify({
+        resource: 'https://mcp.slack.com', authorization_servers: ['https://mcp.slack.com'] }));
       if (String(url).includes('oauth-authorization-server')) return new Response(JSON.stringify(metadata));
-      if (String(url).endsWith('/oauth/token')) return new Response(JSON.stringify({ access_token: 'SLACK-ACCESS',
+      if (String(url) === 'https://slack.com/api/oauth.v2.user.access') return new Response(JSON.stringify({ access_token: 'SLACK-ACCESS',
         refresh_token: 'SLACK-REFRESH', expires_in: 3600, scope: 'search:read.public' }));
       if (String(url) === 'https://slack.com/api/auth.test') return new Response(JSON.stringify({
         ok: true, team_id: 'T123', team: '우리 회사', user_id: 'U123', user: 'owner', url: 'https://team.slack.com/',
       }));
       throw new Error(`unexpected ${url}`);
     },
-    runtimeFactory: () => ({ async listTools() { return [{ name: 'slack_search', inputSchema: { type: 'object' },
-      annotations: { readOnlyHint: true } }]; }, async callTool() { return { content: [], isError: false }; },
+    runtimeFactory: () => ({ async listTools() { return [{ name: 'search_public_messages', inputSchema: { type: 'object' },
+      annotations: { readOnlyHint: true } }, { name: 'read_private_history', inputSchema: { type: 'object' },
+      annotations: { readOnlyHint: true } }]; }, async callTool({ name }) { assert.equal(name, 'search_public_messages');
+      return { content: [], isError: false }; },
     invalidate() {}, async close() {} }),
   });
   const started = await connection.start(); const authorize = new URL(started.authorizeUrl);
@@ -39,21 +44,24 @@ test('Slack은 DCR 없이 T5 사전등록 OAuth와 auth.test identity 뒤에만 
   assert.equal((await completion).connected, true);
   const inspected = await connection.inspect(); assert.equal(inspected.identity.accountId, 'T123:U123');
   assert.equal(inspected.identity.accountLabel, '우리 회사 · owner');
-  assert.deepEqual(inspected.capabilities, { search: true, read: true, create: false, update: false });
+  assert.deepEqual(inspected.capabilities, { search: true, read: false, create: false, update: false });
   assert.doesNotMatch(JSON.stringify(inspected), /SLACK-ACCESS|SLACK-REFRESH|T5-SLACK-SECRET/u);
   assert.equal(calls.find((call) => call.url === 'https://slack.com/api/auth.test').headers.authorization, 'Bearer SLACK-ACCESS');
   await connection.close();
 });
 
 test('Slack auth.test가 다른 형식이거나 실패하면 tools/list 성공도 ready가 아니다', async () => {
-  const metadata = { issuer: 'https://slack.test', authorization_endpoint: 'https://slack.test/oauth/authorize',
-    token_endpoint: 'https://slack.test/oauth/token', code_challenge_methods_supported: ['S256'],
+  const metadata = { issuer: 'https://mcp.slack.com', authorization_endpoint: 'https://slack.com/oauth/v2_user/authorize',
+    token_endpoint: 'https://slack.com/api/oauth.v2.user.access', code_challenge_methods_supported: ['S256'],
     scopes_supported: ['search:read.public'] };
   const connection = makeSlackMcpConnection({ secretStore: memorySecretStore(), clientId: 'CLIENT', clientSecret: 'SECRET',
-    callbackPort: 0, fetchImpl: async (url) => {
-      if (String(url).includes('oauth-protected-resource')) return new Response(JSON.stringify({ authorization_servers: ['https://slack.test'] }));
+    callbackPort: 0, publicSearchPolicy: { toolName: 'search_public_messages', probeArguments: { query: 'probe' } },
+    fetchImpl: async (url) => {
+      if (String(url).endsWith('/oauth-protected-resource/mcp')) return new Response('', { status: 404 });
+      if (String(url).endsWith('/oauth-protected-resource')) return new Response(JSON.stringify({
+        resource: 'https://mcp.slack.com', authorization_servers: ['https://mcp.slack.com'] }));
       if (String(url).includes('oauth-authorization-server')) return new Response(JSON.stringify(metadata));
-      if (String(url).endsWith('/oauth/token')) return new Response(JSON.stringify({ access_token: 'ACCESS', scope: 'search:read.public' }));
+      if (String(url) === 'https://slack.com/api/oauth.v2.user.access') return new Response(JSON.stringify({ access_token: 'ACCESS', scope: 'search:read.public' }));
       if (String(url) === 'https://slack.com/api/auth.test') return new Response(JSON.stringify({ ok: false, error: 'invalid_auth' }));
       throw new Error(`unexpected ${url}`);
     }, runtimeFactory: () => ({ async listTools() { return [{ name: 'slack_search', inputSchema: { type: 'object' } }]; },

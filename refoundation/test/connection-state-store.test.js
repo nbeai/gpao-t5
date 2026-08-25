@@ -56,6 +56,20 @@ test('OAuth attempt는 connection별 최신 state만 exact-once claim하고 오�
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 
+test('비정상 종료 뒤 TTL이 지난 OAuth attempt는 다음 lease 경계에서 expired와 cleanup 책임으로 회수된다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-oauth-attempt-reaper-')); let now = 1_000;
+  try {
+    const store = new ConnectionStateStore(join(room, 'connections.sqlite'), { now: () => now });
+    const connectionKey = key('reaper'); const attempt = store.beginOAuthAttempt({ connectionKey,
+      state: 'abandoned', secretRef: 'oauth-abandoned-secret', redirectUri: 'http://127.0.0.1:41004/', ttlMs: 10 });
+    now += 11; const lease = store.acquireLease({ connectionKey, ownerId: 'restart' });
+    assert.equal(store.reconcileExpiredOAuthAttempts({ connectionKey, lease }), 1);
+    assert.equal(store.readOAuthAttempt(attempt.attemptId).status, 'expired');
+    assert.deepEqual(store.listSecretCleanup(connectionKey).map((item) => item.secretRef), ['oauth-abandoned-secret']);
+    store.close();
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
 test('두 store의 refresh lease는 한 owner만 허용하고 stale fence의 credential commit을 막는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-connection-lease-')); let now = 10_000;
   try {
@@ -65,6 +79,8 @@ test('두 store의 refresh lease는 한 owner만 허용하고 stale fence의 cre
     const notionKey = key('notion');
     const leaseA = first.acquireLease({ connectionKey: notionKey, ownerId: 'process-a', leaseMs: 1_000 });
     assert.ok(leaseA); assert.equal(second.acquireLease({ connectionKey: notionKey, ownerId: 'process-b', leaseMs: 1_000 }), null);
+    first.prepareCredentialSecret({ connectionKey: notionKey, expectedGeneration: 0,
+      secretRef: 'remote-mcp-notion-generation-1', lease: leaseA });
     const committed = first.commitCredential({ connectionKey: notionKey, expectedGeneration: 0,
       secretRef: 'remote-mcp-notion-generation-1', issuer: 'https://mcp.notion.com',
       identity: { accountId: 'account-a' }, scopes: ['read'], capabilities: { read: true }, lease: leaseA });
@@ -79,6 +95,8 @@ test('두 store의 refresh lease는 한 owner만 허용하고 stale fence의 cre
     assert.throws(() => first.commitCredential({ connectionKey: notionKey, expectedGeneration: 1,
       secretRef: 'late-process-a', issuer: 'https://mcp.notion.com', identity: { accountId: 'account-a' },
       scopes: ['read'], capabilities: { read: true }, lease: leaseA }), /lease is stale/u);
+    second.prepareCredentialSecret({ connectionKey: notionKey, expectedGeneration: 1,
+      secretRef: 'remote-mcp-notion-generation-2', lease: leaseB });
     const rotated = second.commitCredential({ connectionKey: notionKey, expectedGeneration: 1,
       secretRef: 'remote-mcp-notion-generation-2', issuer: 'https://mcp.notion.com',
       identity: { accountId: 'account-a' }, scopes: ['read', 'write'], capabilities: { read: true, update: true }, lease: leaseB });
@@ -110,11 +128,15 @@ test('새 OAuth attempt는 이미 claim된 이전 exchange도 supersede하고 cr
       secretRef: 'new-verifier', redirectUri: 'http://127.0.0.1:42002/', requestedScopes: ['openid'] });
     assert.equal(store.readOAuthAttempt(oldAttempt.attemptId).status, 'superseded');
     const lease = store.acquireLease({ connectionKey: googleKey, ownerId: 'exchange-worker', leaseMs: 5_000 });
+    store.prepareCredentialSecret({ connectionKey: googleKey, expectedGeneration: 0,
+      secretRef: 'old-token-bundle', lease });
     assert.throws(() => store.commitCredential({ connectionKey: googleKey, expectedGeneration: 0,
       secretRef: 'old-token-bundle', issuer: 'https://accounts.google.com', identity: { accountId: 'account-a' },
       scopes: ['openid'], capabilities: { read: true }, lease, attemptId: oldAttempt.attemptId }), /OAuth attempt is stale/u);
     assert.equal(store.readCredential(googleKey).generation, 0);
     assert.equal(store.claimOAuthAttempt('new-state').attemptId, newAttempt.attemptId);
+    store.prepareCredentialSecret({ connectionKey: googleKey, expectedGeneration: 0,
+      secretRef: 'new-token-bundle', lease });
     const committed = store.commitCredential({ connectionKey: googleKey, expectedGeneration: 0,
       secretRef: 'new-token-bundle', issuer: 'https://accounts.google.com', identity: { accountId: 'account-a' },
       scopes: ['openid'], capabilities: { read: true }, lease, attemptId: newAttempt.attemptId });
@@ -129,6 +151,8 @@ test('logout은 generation을 전진시킨 cleared 정본이며 token 원문은 
     const file = join(room, 'connections.sqlite'); const store = new ConnectionStateStore(file);
     const linearKey = key('linear');
     const lease = store.acquireLease({ connectionKey: linearKey, ownerId: 'process', leaseMs: 5_000 });
+    store.prepareCredentialSecret({ connectionKey: linearKey, expectedGeneration: 0,
+      secretRef: 'remote-mcp-linear-generation-1', lease });
     store.commitCredential({ connectionKey: linearKey, expectedGeneration: 0,
       secretRef: 'remote-mcp-linear-generation-1', issuer: 'https://linear.app', identity: { accountId: 'account-a' },
       scopes: ['read'], capabilities: { read: true }, lease });

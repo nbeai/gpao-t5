@@ -24,3 +24,15 @@ test('catalog나 provider adapter는 state·redirect·client·PKCE·임의 autho
     { access_type: 'online' }, { include_granted_scopes: 'false' },
   ]) assert.throws(() => buildRemoteMcpAuthorizeUrl({ ...input, authorizationParameters }), /authorization parameter/u);
 });
+
+test('OIDC scopes_supported가 API resource scope의 완전한 목록인 것처럼 정상 Google 권한을 거부하지 않는다', () => {
+  const url = new URL(buildRemoteMcpAuthorizeUrl({
+    metadata: { authorization_endpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+      scopes_supported: ['openid', 'email', 'profile'] },
+    client: { client_id: 'client' }, redirectUri: 'http://127.0.0.1:4186/',
+    challenge: 'challenge', state: 'state', requestedScopes: [
+      'openid', 'email', 'profile', 'https://www.googleapis.com/auth/drive.readonly',
+    ],
+  }));
+  assert.match(url.searchParams.get('scope'), /drive\.readonly/u);
+});

@@ -31,6 +31,9 @@ export function qualifyConnectionReadiness({
   if (!credential || credential.state === 'cleared') return closed('needs_connection', 'credential_missing', generation);
   if (credential.state === 'revoked') return closed('revoked', 'credential_revoked', generation);
   if (credential.state === 'needs_reauth') return closed('needs_reauth', 'credential_reauthentication_required', generation);
+  if (credential.state === 'needs_additional_permission') {
+    return closed('needs_additional_permission', 'credential_additional_permission_required', generation);
+  }
   if (credential.state !== 'ready') return closed('verifying', 'credential_not_verified', generation);
   if (!identityMatches(expectedIdentity, observedIdentity)) {
     return closed('needs_account_selection', 'provider_identity_mismatch', generation);

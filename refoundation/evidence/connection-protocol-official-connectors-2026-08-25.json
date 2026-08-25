@@ -1,0 +1,43 @@
+{
+  "schema": "t5.connection-protocol-official-connectors.v1",
+  "date": "2026-08-25",
+  "comparisonSources": {
+    "openClawCommit": "eca3660c51ad410b60d22adead6458e4c874a392",
+    "hermesCommit": "6ce7ab8b",
+    "principlesAdopted": [
+      "one connection lease owns callback claim through credential commit",
+      "disconnect clears credential and active authorization attempts atomically",
+      "rejected request generation fences refresh and authorization state changes",
+      "credential secrets are durably prepared before external secret-store writes",
+      "failed secret deletion remains in a durable cleanup queue",
+      "provider scope challenge is preserved into the next authorization request"
+    ]
+  },
+  "qualification": {
+    "focused": { "passed": 66, "failed": 0 },
+    "productIntegration": { "passed": 136, "failed": 0 },
+    "visibleBrowserLiveExecuted": false,
+    "twoProcessRefreshPosts": 1,
+    "credentialPrepareCrashExitCode": 23,
+    "credentialPrepareRecoveredAfterRestart": true
+  },
+  "connectorState": {
+    "googleWorkspaceDrive": {
+      "codeContract": "pass",
+      "mode": "read_only",
+      "stability": "developer_preview",
+      "liveQualification": "pending_external_oauth_app_and_preview_access"
+    },
+    "slack": {
+      "codeContract": "pass",
+      "mode": "public_search_read_only",
+      "productEnabledWithoutMeasuredToolPolicy": false,
+      "liveQualification": "pending_official_app_and_workspace_tool_capture"
+    }
+  },
+  "observations": [
+    "refoundation:check has one unrelated console UI baseline mismatch in this isolated pre-QH branch",
+    "node:sqlite emits an ExperimentalWarning on the current Node 24 runtime",
+    "no real user credential, provider write, package install, or visible browser was used"
+  ]
+}

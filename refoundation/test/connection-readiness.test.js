@@ -57,4 +57,7 @@ test('probe가 성공해도 runtime health가 없으면 ready가 아니라 degra
 test('revoked·needs_reauth credential은 probe 없이 terminal auth state를 보존한다', () => {
   assert.equal(qualifyConnectionReadiness({ ...base, credential: { state: 'revoked', generation: 3, scopes: [] } }).state, 'revoked');
   assert.equal(qualifyConnectionReadiness({ ...base, credential: { state: 'needs_reauth', generation: 3, scopes: [] } }).state, 'needs_reauth');
+  assert.equal(qualifyConnectionReadiness({ ...base,
+    credential: { state: 'needs_additional_permission', generation: 3, scopes: [] } }).state,
+  'needs_additional_permission');
 });

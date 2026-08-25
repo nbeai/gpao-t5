@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 const MAX_JSON_BYTES = 64 * 1024;
 const ATTEMPT_STATUS = new Set(['pending', 'claimed', 'superseded', 'expired', 'cancelled', 'failed', 'completed']);
-const CREDENTIAL_STATE = new Set(['ready', 'needs_reauth', 'revoked', 'cleared']);
+const CREDENTIAL_STATE = new Set(['ready', 'needs_reauth', 'needs_additional_permission', 'revoked', 'cleared']);
 const CONNECTION_KEY = /^[0-9a-f]{64}$/u;
 
 function required(value, label, max = 500) {
@@ -54,6 +54,7 @@ function attempt(row) {
   return { attemptId: row.attempt_id, connectionKey: row.connection_key, state: row.oauth_state,
     secretRef: row.secret_ref, redirectUri: row.redirect_uri,
     requestedScopes: parsed(row.requested_scopes_json, []), status: row.status,
+    baseGeneration: Number(row.base_generation ?? 0),
     createdAt: row.created_at, expiresAt: row.expires_at,
     supersededBy: row.superseded_by, claimedAt: row.claimed_at,
     terminalReason: row.terminal_reason };
@@ -61,11 +62,12 @@ function attempt(row) {
 
 function credential(row) {
   if (!row) return { generation: 0, state: 'cleared', secretRef: null, issuer: null,
-    identity: null, scopes: [], capabilities: {}, verifiedAt: null, updatedAt: null };
+    identity: null, scopes: [], pendingScopes: [], capabilities: {}, verifiedAt: null, updatedAt: null };
   if (!CREDENTIAL_STATE.has(row.state)) throw new Error('credential state is invalid');
   return { connectionKey: row.connection_key, generation: row.generation, state: row.state,
     secretRef: row.secret_ref, issuer: row.issuer,
     identity: parsed(row.identity_json, null), scopes: parsed(row.scopes_json, []),
+    pendingScopes: parsed(row.pending_scopes_json, []),
     capabilities: parsed(row.capabilities_json, {}), verifiedAt: row.verified_at, updatedAt: row.updated_at };
 }
 
@@ -85,6 +87,7 @@ export class ConnectionStateStore {
         issuer TEXT,
         identity_json TEXT,
         scopes_json TEXT NOT NULL,
+        pending_scopes_json TEXT NOT NULL DEFAULT '[]',
         capabilities_json TEXT NOT NULL,
         verified_at INTEGER,
         updated_at INTEGER NOT NULL
@@ -103,6 +106,7 @@ export class ConnectionStateStore {
         secret_ref TEXT NOT NULL,
         redirect_uri TEXT NOT NULL,
         requested_scopes_json TEXT NOT NULL,
+        base_generation INTEGER NOT NULL,
         status TEXT NOT NULL,
         created_at INTEGER NOT NULL,
         expires_at INTEGER NOT NULL,
@@ -112,7 +116,32 @@ export class ConnectionStateStore {
       );
       CREATE INDEX IF NOT EXISTS oauth_attempt_connection_status
         ON oauth_attempts(connection_key, status);
+      CREATE TABLE IF NOT EXISTS connection_secret_cleanup (
+        secret_ref TEXT PRIMARY KEY,
+        connection_key TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS connection_secret_cleanup_key
+        ON connection_secret_cleanup(connection_key, created_at);
+      CREATE TABLE IF NOT EXISTS connection_credential_prepares (
+        secret_ref TEXT PRIMARY KEY,
+        connection_key TEXT NOT NULL,
+        expected_generation INTEGER NOT NULL,
+        candidate_generation INTEGER NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS connection_credential_prepare_key
+        ON connection_credential_prepares(connection_key, created_at);
     `);
+    const attemptColumns = this.database.prepare('PRAGMA table_info(oauth_attempts)').all();
+    if (!attemptColumns.some((column) => column.name === 'base_generation')) {
+      this.database.exec('ALTER TABLE oauth_attempts ADD COLUMN base_generation INTEGER NOT NULL DEFAULT 0;');
+    }
+    const credentialColumns = this.database.prepare('PRAGMA table_info(connection_credentials)').all();
+    if (!credentialColumns.some((column) => column.name === 'pending_scopes_json')) {
+      this.database.exec("ALTER TABLE connection_credentials ADD COLUMN pending_scopes_json TEXT NOT NULL DEFAULT '[]';");
+    }
     chmodSync(file, 0o600);
   }
 
@@ -122,6 +151,13 @@ export class ConnectionStateStore {
     catch (error) { try { this.database.exec('ROLLBACK'); } catch {} throw error; }
   }
 
+  queueSecretCleanup(database, connectionKey, refs, reason) {
+    const statement = database.prepare(`INSERT INTO connection_secret_cleanup
+      (secret_ref,connection_key,reason,created_at) VALUES (?,?,?,?)
+      ON CONFLICT(secret_ref) DO NOTHING`);
+    for (const ref of new Set(refs.filter(Boolean).map(String))) statement.run(ref, connectionKey, reason, this.now());
+  }
+
   beginOAuthAttempt({ connectionKey, state, secretRef, redirectUri, requestedScopes = [], ttlMs = 600_000 } = {}) {
     const key = opaqueConnectionKey(connectionKey); const oauthState = required(state, 'OAuth state');
     const reference = required(secretRef, 'OAuth attempt secret reference');
@@ -129,14 +165,19 @@ export class ConnectionStateStore {
     if (!Number.isInteger(ttlMs) || ttlMs < 1 || ttlMs > 60 * 60_000) throw new TypeError('OAuth attempt TTL is invalid');
     const attemptId = this.makeId(); const current = this.now();
     return this.transaction(() => {
+      const currentCredential = this.readCredential(key);
+      const supersededSecretRefs = this.database.prepare(`SELECT secret_ref FROM oauth_attempts
+        WHERE connection_key=? AND status IN ('pending','claimed')`).all(key).map((row) => row.secret_ref);
       this.database.prepare(`UPDATE oauth_attempts SET status='superseded', superseded_by=?, terminal_reason='new_attempt'
         WHERE connection_key=? AND status IN ('pending','claimed')`).run(attemptId, key);
       this.database.prepare(`INSERT INTO oauth_attempts
         (attempt_id, connection_key, oauth_state, secret_ref, redirect_uri, requested_scopes_json,
-         status, created_at, expires_at, superseded_by, claimed_at, terminal_reason)
-        VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, NULL, NULL, NULL)`)
-        .run(attemptId, key, oauthState, reference, redirect, json(requested, 'OAuth scopes'), current, current + ttlMs);
-      return this.readOAuthAttempt(attemptId);
+         base_generation, status, created_at, expires_at, superseded_by, claimed_at, terminal_reason)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, NULL, NULL, NULL)`)
+        .run(attemptId, key, oauthState, reference, redirect, json(requested, 'OAuth scopes'),
+          currentCredential.generation, current, current + ttlMs);
+      this.queueSecretCleanup(this.database, key, supersededSecretRefs, 'oauth_attempt_superseded');
+      return { ...this.readOAuthAttempt(attemptId), supersededSecretRefs };
     });
   }
 
@@ -164,11 +205,15 @@ export class ConnectionStateStore {
   }
 
   settleOAuthAttempt(attemptId, status, reason = null) {
-    if (!['cancelled', 'failed', 'completed'].includes(status)) throw new TypeError('OAuth terminal status is invalid');
+    if (!['cancelled', 'failed'].includes(status)) throw new TypeError('OAuth terminal status is invalid');
     const id = required(attemptId, 'OAuth attempt id');
     return this.transaction(() => {
+      const current = this.database.prepare('SELECT * FROM oauth_attempts WHERE attempt_id=?').get(id);
       const result = this.database.prepare(`UPDATE oauth_attempts SET status=?, terminal_reason=?
         WHERE attempt_id=? AND status IN ('pending','claimed')`).run(status, reason == null ? null : String(reason).slice(0, 200), id);
+      if (result.changes === 1 && current?.secret_ref) {
+        this.queueSecretCleanup(this.database, current.connection_key, [current.secret_ref], `oauth_attempt_${status}`);
+      }
       return result.changes === 1 ? this.readOAuthAttempt(id) : null;
     });
   }
@@ -220,8 +265,79 @@ export class ConnectionStateStore {
       .get(opaqueConnectionKey(connectionKey)));
   }
 
+  prepareCredentialSecret({ connectionKey, expectedGeneration, secretRef, lease } = {}) {
+    const key = opaqueConnectionKey(connectionKey); const reference = required(secretRef, 'credential secret reference');
+    if (!Number.isInteger(expectedGeneration) || expectedGeneration < 0) throw new TypeError('credential generation is invalid');
+    return this.transaction(() => {
+      this.assertLease(lease); const current = this.readCredential(key);
+      if (current.generation !== expectedGeneration) throw new Error('credential generation is stale');
+      this.database.prepare(`INSERT INTO connection_credential_prepares
+        (secret_ref,connection_key,expected_generation,candidate_generation,created_at)
+        VALUES (?,?,?,?,?) ON CONFLICT(secret_ref) DO UPDATE SET
+        connection_key=excluded.connection_key,expected_generation=excluded.expected_generation,
+        candidate_generation=excluded.candidate_generation,created_at=excluded.created_at`)
+        .run(reference, key, expectedGeneration, expectedGeneration + 1, this.now());
+      return { connectionKey: key, secretRef: reference, expectedGeneration, candidateGeneration: expectedGeneration + 1 };
+    });
+  }
+
+  cancelCredentialPrepare({ connectionKey, secretRef, reason = 'credential_prepare_failed', lease } = {}) {
+    const key = opaqueConnectionKey(connectionKey); const reference = required(secretRef, 'credential secret reference');
+    return this.transaction(() => {
+      this.assertLease(lease);
+      this.database.prepare('DELETE FROM connection_credential_prepares WHERE connection_key=? AND secret_ref=?')
+        .run(key, reference);
+      this.queueSecretCleanup(this.database, key, [reference], reason);
+    });
+  }
+
+  reconcileCredentialPrepares({ connectionKey, lease } = {}) {
+    const key = opaqueConnectionKey(connectionKey);
+    return this.transaction(() => {
+      this.assertLease(lease); const current = this.readCredential(key);
+      const rows = this.database.prepare('SELECT * FROM connection_credential_prepares WHERE connection_key=?').all(key);
+      for (const row of rows) {
+        if (current.secretRef !== row.secret_ref) {
+          this.queueSecretCleanup(this.database, key, [row.secret_ref], 'credential_prepare_recovered');
+        }
+        this.database.prepare('DELETE FROM connection_credential_prepares WHERE secret_ref=?').run(row.secret_ref);
+      }
+      return rows.length;
+    });
+  }
+
+  reconcileExpiredOAuthAttempts({ connectionKey, lease } = {}) {
+    const key = opaqueConnectionKey(connectionKey);
+    return this.transaction(() => {
+      this.assertLease(lease); const current = this.now();
+      const rows = this.database.prepare(`SELECT attempt_id,secret_ref FROM oauth_attempts
+        WHERE connection_key=? AND status IN ('pending','claimed') AND expires_at<?`).all(key, current);
+      this.database.prepare(`UPDATE oauth_attempts SET status='expired', terminal_reason='ttl_expired'
+        WHERE connection_key=? AND status IN ('pending','claimed') AND expires_at<?`).run(key, current);
+      this.queueSecretCleanup(this.database, key, rows.map((row) => row.secret_ref), 'oauth_attempt_expired');
+      return rows.length;
+    });
+  }
+
+  setCredentialState({ connectionKey, expectedGeneration, state, requiredScopes = [], lease } = {}) {
+    const key = opaqueConnectionKey(connectionKey);
+    if (!['needs_reauth', 'needs_additional_permission', 'revoked'].includes(state)) throw new TypeError('credential state transition is invalid');
+    if (!Number.isInteger(expectedGeneration) || expectedGeneration < 1) throw new TypeError('credential generation is invalid');
+    return this.transaction(() => {
+      this.assertLease(lease); const current = this.readCredential(key);
+      if (current.generation !== expectedGeneration || !current.secretRef) throw new Error('credential generation is stale');
+      const timestamp = this.now(); const pending = state === 'needs_additional_permission'
+        ? scopes([...current.pendingScopes, ...requiredScopes]) : current.pendingScopes;
+      const updated = this.database.prepare(`UPDATE connection_credentials SET state=?, pending_scopes_json=?, updated_at=?
+        WHERE connection_key=? AND generation=? AND secret_ref=?`)
+        .run(state, json(pending, 'pending credential scopes'), timestamp, key, expectedGeneration, current.secretRef);
+      if (updated.changes !== 1) throw new Error('credential generation is stale');
+      return this.readCredential(key);
+    });
+  }
+
   commitCredential({ connectionKey, expectedGeneration, secretRef, issuer, identity, scopes: grantedScopes = [],
-    capabilities = {}, lease, attemptId = null, verifiedAt = this.now() } = {}) {
+    capabilities = {}, lease, attemptId = null, verifiedAt = this.now(), additionalCleanupRefs = [] } = {}) {
     const key = opaqueConnectionKey(connectionKey); const reference = required(secretRef, 'credential secret reference');
     const issuedBy = required(issuer, 'credential issuer', 2_000); const granted = scopes(grantedScopes);
     if (!Number.isInteger(expectedGeneration) || expectedGeneration < 0) throw new TypeError('credential generation is invalid');
@@ -229,25 +345,36 @@ export class ConnectionStateStore {
     return this.transaction(() => {
       this.assertLease(lease); const current = this.readCredential(key);
       if (current.generation !== expectedGeneration) throw new Error('credential generation is stale');
+      const prepared = this.database.prepare(`SELECT * FROM connection_credential_prepares
+        WHERE connection_key=? AND secret_ref=? AND expected_generation=? AND candidate_generation=?`)
+        .get(key, reference, expectedGeneration, expectedGeneration + 1);
+      if (!prepared) throw new Error('credential secret was not durably prepared');
       const authorizationAttempt = attemptId == null ? null
         : this.database.prepare('SELECT * FROM oauth_attempts WHERE attempt_id=?').get(String(attemptId));
       if (attemptId != null && (!authorizationAttempt || authorizationAttempt.connection_key !== key
-        || authorizationAttempt.status !== 'claimed' || authorizationAttempt.expires_at < this.now())) {
+        || authorizationAttempt.status !== 'claimed' || authorizationAttempt.expires_at < this.now()
+        || Number(authorizationAttempt.base_generation ?? 0) !== expectedGeneration)) {
         throw new Error('OAuth attempt is stale');
       }
       const generation = expectedGeneration + 1; const timestamp = this.now();
       this.database.prepare(`INSERT INTO connection_credentials
-        (connection_key,generation,state,secret_ref,issuer,identity_json,scopes_json,capabilities_json,verified_at,updated_at)
-        VALUES (?,?,'ready',?,?,?,?,?,?,?) ON CONFLICT(connection_key) DO UPDATE SET
+        (connection_key,generation,state,secret_ref,issuer,identity_json,scopes_json,pending_scopes_json,capabilities_json,verified_at,updated_at)
+        VALUES (?,?,'ready',?,?,?,?,'[]',?,?,?) ON CONFLICT(connection_key) DO UPDATE SET
         generation=excluded.generation,state='ready',secret_ref=excluded.secret_ref,issuer=excluded.issuer,
         identity_json=excluded.identity_json,scopes_json=excluded.scopes_json,
-        capabilities_json=excluded.capabilities_json,verified_at=excluded.verified_at,updated_at=excluded.updated_at`)
+        pending_scopes_json='[]',capabilities_json=excluded.capabilities_json,verified_at=excluded.verified_at,updated_at=excluded.updated_at`)
         .run(key, generation, reference, issuedBy, identityJson, json(granted, 'credential scopes'), capabilityJson, verifiedAt, timestamp);
       if (authorizationAttempt) {
         const completed = this.database.prepare(`UPDATE oauth_attempts SET status='completed', terminal_reason=NULL
           WHERE attempt_id=? AND status='claimed'`).run(authorizationAttempt.attempt_id);
         if (completed.changes !== 1) throw new Error('OAuth attempt is stale');
       }
+      this.queueSecretCleanup(this.database, key, [
+        ...(current.secretRef && current.secretRef !== reference ? [current.secretRef] : []),
+        ...(authorizationAttempt?.secret_ref ? [authorizationAttempt.secret_ref] : []),
+        ...additionalCleanupRefs,
+      ], authorizationAttempt ? 'credential_commit' : 'credential_rotation');
+      this.database.prepare('DELETE FROM connection_credential_prepares WHERE secret_ref=?').run(reference);
       return this.readCredential(key);
     });
   }
@@ -260,13 +387,37 @@ export class ConnectionStateStore {
       if (current.generation !== expectedGeneration) throw new Error('credential generation is stale');
       const generation = expectedGeneration + 1; const timestamp = this.now();
       this.database.prepare(`INSERT INTO connection_credentials
-        (connection_key,generation,state,secret_ref,issuer,identity_json,scopes_json,capabilities_json,verified_at,updated_at)
-        VALUES (?,?,'cleared',NULL,NULL,NULL,'[]','{}',NULL,?) ON CONFLICT(connection_key) DO UPDATE SET
+        (connection_key,generation,state,secret_ref,issuer,identity_json,scopes_json,pending_scopes_json,capabilities_json,verified_at,updated_at)
+        VALUES (?,?,'cleared',NULL,NULL,NULL,'[]','[]','{}',NULL,?) ON CONFLICT(connection_key) DO UPDATE SET
         generation=excluded.generation,state='cleared',secret_ref=NULL,issuer=NULL,identity_json=NULL,
-        scopes_json='[]',capabilities_json='{}',verified_at=NULL,updated_at=excluded.updated_at`)
+        scopes_json='[]',pending_scopes_json='[]',capabilities_json='{}',verified_at=NULL,updated_at=excluded.updated_at`)
         .run(key, generation, timestamp);
+      const activeAttempts = this.database.prepare(`SELECT attempt_id,secret_ref FROM oauth_attempts
+        WHERE connection_key=? AND status IN ('pending','claimed')`).all(key);
+      this.database.prepare(`UPDATE oauth_attempts SET status='cancelled', terminal_reason='credential_cleared'
+        WHERE connection_key=? AND status IN ('pending','claimed')`).run(key);
+      this.queueSecretCleanup(this.database, key, [current.secretRef,
+        ...activeAttempts.map((row) => row.secret_ref)], 'credential_cleared');
       return this.readCredential(key);
     });
+  }
+
+  listSecretCleanup(connectionKey, limit = 100) {
+    const key = opaqueConnectionKey(connectionKey);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 1_000) throw new TypeError('cleanup limit is invalid');
+    return this.database.prepare(`SELECT secret_ref AS secretRef, reason, created_at AS createdAt
+      FROM connection_secret_cleanup WHERE connection_key=? ORDER BY created_at,secret_ref LIMIT ?`).all(key, limit);
+  }
+
+  completeSecretCleanup(connectionKey, secretRef) {
+    return this.database.prepare('DELETE FROM connection_secret_cleanup WHERE connection_key=? AND secret_ref=?')
+      .run(opaqueConnectionKey(connectionKey), required(secretRef, 'secret reference')).changes === 1;
+  }
+
+  scheduleSecretCleanup(connectionKey, secretRefs, reason = 'cleanup_required') {
+    const key = opaqueConnectionKey(connectionKey);
+    return this.transaction(() => { this.queueSecretCleanup(this.database, key,
+      Array.isArray(secretRefs) ? secretRefs : [secretRefs], String(reason).slice(0, 100)); });
   }
 
   close() { this.database.close(); }
