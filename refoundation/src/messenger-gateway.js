@@ -395,13 +395,7 @@ export function makeMessengerGateway({
         const deliver = async ({ text, artifactIds = [] } = {}) => {
           if (ownedDelivery) return structuredClone(ownedDelivery);
           const messageIds = []; const files = [];
-          if (String(text ?? '').trim()) {
-            const textDelivery = progress ? await progress.finalize(text, { signal })
-              : await runtime.sendReply({
-                chatId: update.message.chatId, threadId: update.message.threadId, text, signal,
-              });
-            messageIds.push(...(textDelivery?.messageIds ?? []));
-          }
+          if (artifactIds.length) await progress?.discard?.().catch(() => {});
           for (const attachmentId of artifactIds) {
             if (!attachmentStore || typeof runtime.sendDocument !== 'function') {
               throw Object.assign(new Error('messenger artifact delivery unavailable'), {
@@ -415,6 +409,13 @@ export function makeMessengerGateway({
             });
             if (sent.messageId) messageIds.push(sent.messageId);
             files.push(sent);
+          }
+          if (String(text ?? '').trim()) {
+            const textDelivery = artifactIds.length || !progress
+              ? await runtime.sendReply({
+                chatId: update.message.chatId, threadId: update.message.threadId, text, signal,
+              }) : await progress.finalize(text, { signal });
+            messageIds.push(...(textDelivery?.messageIds ?? []));
           }
           ownedDelivery = { sent: true, provider, chatId: update.message.chatId, messageIds, files };
           return structuredClone(ownedDelivery);
@@ -505,10 +506,6 @@ export function makeMessengerGateway({
       const chatId = topic ? topic[1] : binding.chatId;
       const threadId = topic ? topic[2] : null;
       const messageIds = []; const files = [];
-      if (String(text ?? '').trim()) {
-        const reply = await loaded.provider.sendReply({ chatId, threadId, text: String(text), signal });
-        messageIds.push(...(reply?.messageIds ?? (reply?.messageId ? [reply.messageId] : [])));
-      }
       for (const attachmentId of artifactIds) {
         if (!attachmentStore || typeof loaded.provider.sendDocument !== 'function') {
           throw Object.assign(new Error('messenger artifact delivery unavailable'), {
@@ -519,6 +516,10 @@ export function makeMessengerGateway({
         const sent = await loaded.provider.sendDocument({ chatId, threadId, artifact, signal });
         if (sent?.messageId) messageIds.push(sent.messageId);
         files.push(sent);
+      }
+      if (String(text ?? '').trim()) {
+        const reply = await loaded.provider.sendReply({ chatId, threadId, text: String(text), signal });
+        messageIds.push(...(reply?.messageIds ?? (reply?.messageId ? [reply.messageId] : [])));
       }
       return { sent: true, provider: binding.provider, chatId, messageIds, files };
     },

@@ -669,6 +669,7 @@ test('Telegram provider가 exact output artifact를 sendDocument로 보내고 me
     providerFactory: ({ token }) => makeTelegramMessengerProvider({ token, apiBase: fixture.base, pollTimeoutSeconds: 0 }),
     createSession: async () => sessionId, authorizeInbound: async () => true,
     onInbound: async (_message, controls) => {
+      await controls.progress('파일을 준비하고 있어요');
       delivery = await controls.deliver({ text: '결과 파일이에요.', artifactIds: [artifact.attachmentId] });
       return { text: null, delivery };
     },
@@ -681,7 +682,10 @@ test('Telegram provider가 exact output artifact를 sendDocument로 보내고 me
     assert.equal(delivery.files[0].file.fileId, 'sent-file-id');
     assert.equal(delivery.files[0].artifact.attachmentId, artifact.attachmentId);
     assert.equal(delivery.files[0].artifact.sha256, artifact.sha256);
-    assert.deepEqual(delivery.messageIds, ['900', '901']);
+    assert.deepEqual(delivery.messageIds, ['901', '900']);
+    assert.deepEqual(fixture.calls.filter((call) => (
+      ['sendDocument', 'sendMessage', 'deleteMessage'].includes(call.method)
+    )).map((call) => call.method), ['sendMessage', 'deleteMessage', 'sendDocument', 'sendMessage']);
     assert.equal((await new MessengerStateStore(room).ingress('telegram', 100)).files[0].file.fileUniqueId, 'sent-unique-id');
   } finally { await fixture.close(); }
 });
@@ -707,7 +711,9 @@ test('Telegram binding에 대한 일반 session delivery도 text와 exact artifa
       sessionId, text: '휴대폰에서 받을 파일이에요.', artifactIds: [artifact.attachmentId],
     });
     assert.equal(fixture.calls.filter((call) => call.method === 'sendDocument').length, 1);
-    assert.deepEqual(delivery.messageIds, ['900', '901']);
+    assert.deepEqual(delivery.messageIds, ['901', '900']);
+    assert.deepEqual(fixture.calls.filter((call) => ['sendDocument', 'sendMessage'].includes(call.method))
+      .map((call) => call.method), ['sendDocument', 'sendMessage']);
     assert.equal(delivery.files.length, 1);
     assert.equal(delivery.files[0].artifact.attachmentId, artifact.attachmentId);
     assert.equal(delivery.files[0].artifact.sha256, artifact.sha256);
