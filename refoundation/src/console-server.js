@@ -103,6 +103,7 @@ const bundledSkillPackagesRoot = resolve(repositoryRoot, 'refoundation', 'skill-
 const bundledSkillCatalogFile = resolve(repositoryRoot, 'refoundation', 'config', 'skill-catalog.json');
 const bundledCliCatalogFile = resolve(repositoryRoot, 'refoundation', 'config', 'cli-catalog.json');
 const bundledCapabilitiesRoot = resolve(repositoryRoot, 'refoundation', 'capabilities');
+const bundledBusinessConnectionCatalogFile = resolve(repositoryRoot, 'refoundation', 'config', 'korea-business-connection-catalog.json');
 const bundledDocumentCli = resolve(repositoryRoot, 'refoundation', 'bin', 't5-document.mjs');
 const founderManifestoPath = resolve(
   repositoryRoot, 'docs', '00-product', 'GPAO-T5-FOUNDER-MANIFESTO-ko.md',
@@ -452,6 +453,8 @@ export function makeConsoleServer({
   const cliRoot = managedCliRoot ?? join(stateDir, 'managed-cli');
   const skillPackageSnapshotPromise = loadSkillSnapshot({ directory: skillPackagesRoot });
   const skillPolicyCatalogPromise = loadSkillPolicyCatalog(skillCatalogFile);
+  const capabilityCatalogPromise = loadCapabilityCatalog({ directory: capabilitiesRoot });
+  const businessConnectionCatalogPromise = readFile(bundledBusinessConnectionCatalogFile, 'utf8').then(JSON.parse);
   const managedSkillStorePromise = Promise.all([skillPackageSnapshotPromise, skillPolicyCatalogPromise])
     .then(([catalogSnapshot, policyCatalog]) => new ManagedSkillStore({ root: managedRoot, catalogSnapshot, policyCatalog }));
   const managedCliStorePromise = loadCliCatalog(cliCatalogFile).then((catalog) => new ManagedCliStore({
@@ -1036,7 +1039,7 @@ export function makeConsoleServer({
         skillPackageSnapshotPromise, managedSkillStorePromise,
       ]);
       const skillSnapshot = mergeSkillSnapshots([bundledSkillSnapshot, managedSkillSnapshot]);
-      const capabilitySnapshot = await loadCapabilityCatalog({ directory: capabilitiesRoot });
+      const capabilitySnapshot = await capabilityCatalogPromise;
       const offeredTools = [...terminal.tools];
       if (!options.observationOnly && options.trigger !== 'automation') {
         offeredTools.unshift(makeWorkCompletionTool({ store: workStore, runId: run.runId }));
@@ -3219,6 +3222,29 @@ export function makeConsoleServer({
       if (req.method === 'GET' && url.pathname === '/skills') {
         json(res, 200, { skills: await skillSurface() }); return;
       }
+      if (req.method === 'GET' && url.pathname === '/connections/catalog') {
+        const [catalog, business, report] = await Promise.all([
+          capabilityCatalogPromise, businessConnectionCatalogPromise, connectionDoctor.inspect(),
+        ]);
+        const current = new Map(report.connections.map((connection) => [connection.id, connection]));
+        const merged = new Map(business.entries.map((entry) => [entry.id, entry]));
+        for (const entry of catalog.entries) if (!merged.has(entry.id)) merged.set(entry.id, entry);
+        json(res, 200, { catalogDigest: catalog.digest, entries: [...merged.values()].map((entry) => ({
+          ...entry, iconUrl: entry.icon ? `/connection-icons/${entry.icon}` : null, current: current.has(entry.id),
+          state: current.get(entry.id)?.state ?? entry.state,
+          userSafeSummary: current.get(entry.id)?.userSafeSummary ?? entry.userSafeSummary,
+          canStart: current.get(entry.id)?.actions?.some((action) => ['oauth', 'credentials', 'user_action'].includes(action.kind))
+            ?? entry.canStart,
+        })) }); return;
+      }
+      const connectionIcon = req.method === 'GET' && url.pathname.match(/^\/connection-icons\/([a-z0-9-]+\.svg)$/u);
+      if (connectionIcon) {
+        try {
+          const bytes = await readFile(resolve(uiRoot, 'connection-icons', connectionIcon[1]));
+          res.writeHead(200, { 'content-type': 'image/svg+xml', 'cache-control': 'public, max-age=86400' });
+          res.end(bytes); return;
+        } catch { json(res, 404, { error: '아이콘을 찾지 못했어요.' }); return; }
+      }
       if (req.method === 'GET' && url.pathname === '/automation') { json(res, 200, await automationStore.publicList()); return; }
       if (req.method === 'POST' && url.pathname === '/automation/pause') {
         const input = await body(req); const job = await automationStore.pause(input.jobId);
@@ -3235,6 +3261,18 @@ export function makeConsoleServer({
       if (req.method === 'POST' && url.pathname === '/automation/run') {
         const input = await body(req); const run = await automationScheduler.runNow(input.jobId);
         json(res, 200, { ok: true, enqueued: true, runId: run.id }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/automation/archive') {
+        const input = await body(req); json(res, 200, { ok: true, job: await automationStore.archive(input.jobId) }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/automation/archive/restore') {
+        const input = await body(req); json(res, 200, { ok: true, job: await automationStore.restoreArchived(input.jobId) }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/automation/delete') {
+        const input = await body(req); json(res, 200, { ok: true, job: await automationStore.trash(input.jobId) }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/automation/delete/restore') {
+        const input = await body(req); json(res, 200, { ok: true, job: await automationStore.restoreTrashed(input.jobId) }); return;
       }
       if (req.method === 'GET' && url.pathname === '/overview') {
         await memories.ensure();

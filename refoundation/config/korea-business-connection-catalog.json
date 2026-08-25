@@ -1,0 +1,21 @@
+{
+  "schema": "t5.korea-business-connection-catalog.v1",
+  "entries": [
+    {"id":"kakaotalk","label":"카카오톡","category":"메시지와 고객","description":"T5와 대화하고 파일과 결과를 주고받아요.","icon":"kakaotalk.svg","availability":"planned_official_channel"},
+    {"id":"naver","label":"네이버","category":"검색과 사업","description":"검색·캘린더·사업 서비스를 필요한 범위로 연결해요.","icon":"naver.svg","availability":"product_split_required"},
+    {"id":"naver-works","label":"NAVER WORKS","category":"사무와 협업","description":"회사 메일·캘린더·드라이브·업무를 연결해요.","icon":"naver-works.svg","availability":"product_registration_required"},
+    {"id":"google-workspace","label":"Google Workspace","category":"사무와 협업","description":"Drive·Docs·Sheets·Gmail·Calendar를 함께 사용해요.","icon":"google-workspace.svg","availability":"product_registration_required"},
+    {"id":"microsoft-365","label":"Microsoft 365","category":"사무와 협업","description":"Outlook·OneDrive·Word·Excel·Calendar를 연결해요.","icon":"microsoft-365.svg","availability":"product_registration_required"},
+    {"id":"notion","label":"Notion","category":"사무와 협업","description":"문서와 지식·프로젝트를 읽고 관리해요.","icon":"notion.svg","availability":"user_authorization_available"},
+    {"id":"slack","label":"Slack","category":"메시지와 고객","description":"워크스페이스 대화와 파일·알림을 연결해요.","icon":"slack.svg","availability":"product_registration_required"},
+    {"id":"telegram","label":"Telegram","category":"메시지와 고객","description":"내 T5 봇과 메시지·파일을 주고받아요.","icon":"telegram.svg","availability":"api_key_available"},
+    {"id":"naver-smartstore","label":"네이버 스마트스토어","category":"판매와 주문","description":"상품·주문·재고·배송 업무를 연결해요.","icon":"naver.svg","availability":"seller_registration_required"},
+    {"id":"coupang-wing","label":"쿠팡 Wing","category":"판매와 주문","description":"상품·주문·재고·송장 업무를 연결해요.","icon":"coupang-wing.svg","availability":"key_pair_required"},
+    {"id":"kakao-channel","label":"카카오톡 채널","category":"홍보와 고객","description":"사업자 채널의 고객 응대와 허용된 메시지를 관리해요.","icon":"kakaotalk.svg","availability":"business_approval_required"},
+    {"id":"instagram-business","label":"Instagram Business","category":"홍보와 콘텐츠","description":"게시물·댓글·성과 정보를 연결해요.","icon":"instagram-business.svg","availability":"app_review_required"},
+    {"id":"youtube","label":"YouTube","category":"홍보와 콘텐츠","description":"채널·영상·댓글과 업로드를 관리해요.","icon":"youtube.svg","availability":"product_registration_required"},
+    {"id":"channel-talk","label":"Channel Talk","category":"홍보와 고객","description":"고객 상담과 대화 업무를 연결해요.","icon":"channel-talk.svg","availability":"key_pair_available"},
+    {"id":"shopify","label":"Shopify","category":"판매와 주문","description":"상품·주문·재고·배송 업무를 연결해요.","icon":"shopify.svg","availability":"merchant_oauth_available"},
+    {"id":"shopee","label":"Shopee","category":"판매와 주문","description":"해외 판매 상품·주문·물류를 연결해요.","icon":"shopee.svg","availability":"partner_registration_required"}
+  ]
+}

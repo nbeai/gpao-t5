@@ -28,4 +28,17 @@ test('도구와 연결 page는 OAuth와 사업자 credential을 같은 Connectio
   assert.match(html, /type = field\.secret \? 'password' : 'text'/u);
   assert.match(html, /JSON\.stringify\(\{ credentials \}\)/u);
   assert.doesNotMatch(html, /localStorage\.setItem\([^\n]*credential/iu);
+  assert.match(html, /mk\('div', 'connection-catalog-grid'\)/u);
+  assert.match(html, /connectionIcon\(entry\.id, entry\.label, entry\.iconUrl\)/u);
+});
+
+test('한국 사업자 catalog는 아이콘·용도·연결 준비 상태를 서비스별로 가진다', async () => {
+  const catalog = JSON.parse(await readFile(resolve(root,
+    'refoundation/config/korea-business-connection-catalog.json'), 'utf8'));
+  const byId = Object.fromEntries(catalog.entries.map((entry) => [entry.id, entry]));
+  for (const id of ['kakaotalk', 'naver', 'naver-works', 'google-workspace', 'microsoft-365', 'notion',
+    'slack', 'telegram', 'naver-smartstore', 'coupang-wing', 'kakao-channel', 'instagram-business',
+    'youtube', 'channel-talk', 'shopify', 'shopee']) {
+    assert.ok(byId[id]); assert.ok(byId[id].icon); assert.ok(byId[id].description); assert.ok(byId[id].availability);
+  }
 });

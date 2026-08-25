@@ -438,6 +438,31 @@
   #setpanel #set-tabs { display:flex; flex-direction:column; align-items:stretch; gap:var(--sp-1); }
   #setpanel #set-tabs .tb-badge { border:0; border-radius:var(--r-sm); padding:var(--sp-2) var(--sp-3);
     background:transparent; text-align:left; }
+  .settings-section { margin-bottom:var(--sp-7); }
+  .settings-section-head { display:flex; align-items:end; gap:var(--sp-3); margin-bottom:var(--sp-3); }
+  .settings-section-head h3 { margin:0; color:var(--fg-strong); font-size:18px; }
+  .settings-section-head p { margin:0; color:var(--muted); font-size:var(--fs-sm); }
+  .settings-list { display:grid; gap:var(--sp-2); }
+  .connection-catalog-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--sp-2) var(--sp-5); }
+  .settings-item { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:var(--sp-4); align-items:center;
+    border:1px solid var(--line); border-radius:var(--r-md); background:var(--elevated); padding:var(--sp-4); }
+  .settings-item-main { min-width:0; }
+  .settings-item-title { color:var(--fg-strong); font-weight:650; }
+  .settings-item-desc { margin-top:var(--sp-1); color:var(--muted); font-size:var(--fs-sm); line-height:1.55; }
+  .settings-item-state { white-space:nowrap; color:var(--muted); font-size:var(--fs-xs); }
+  .settings-item-state.ready { color:var(--ok); font-weight:650; }
+  .connection-catalog-item { display:grid; grid-template-columns:48px minmax(0,1fr) auto; gap:var(--sp-3); align-items:center;
+    min-height:76px; padding:var(--sp-3) 0; border-bottom:1px solid var(--line); }
+  .connection-icon { width:44px; height:44px; border:1px solid var(--line); border-radius:var(--r-md); background:var(--elevated);
+    display:grid; place-items:center; overflow:hidden; color:var(--muted); font-weight:700; }
+  .connection-icon img { width:28px; height:28px; object-fit:contain; }
+  #setpanel .ov { display:grid; gap:var(--sp-2); }
+  #setpanel .ov-row { display:grid; grid-template-columns:140px minmax(0,1fr); gap:var(--sp-3); align-items:start;
+    padding:var(--sp-3); border:1px solid var(--line); border-radius:var(--r-sm); background:var(--elevated); }
+  #setpanel .ov-on { color:var(--ok); font-weight:650; }
+  #setpanel .ov-off { color:var(--muted); font-weight:650; }
+  #setpanel .ov-k { min-width:0; color:var(--fg); line-height:1.6; }
+  #setpanel .ov-act { margin-left:var(--sp-2); border:0; background:transparent; color:var(--accent); cursor:pointer; }
   .tb-head { padding:var(--sp-5) var(--sp-5) var(--sp-3); border-bottom:1px solid var(--line); }
   .tb-head h2 { font-size:var(--fs-base); color:var(--fg-strong); display:flex; align-items:center; gap:var(--sp-2); }
   .tb-head .tb-x { margin-left:auto; width:36px; height:36px; display:grid; place-items:center;
@@ -527,6 +552,7 @@
     #setpanel #set-tabs { flex-direction:row; overflow-x:auto; }
     #setpanel #set-tabs .tb-badge { flex:none; }
     #setpanel > .tb-body { padding:var(--sp-5) var(--sp-3); }
+    .connection-catalog-grid { grid-template-columns:1fr; }
   }
   @media (max-width:420px) {
     .tb-head { padding:var(--sp-4) var(--sp-3) var(--sp-3); }
@@ -1480,20 +1506,25 @@ const AE_RUN_LABEL = {
 function automationJobActions(job) {
   const state = job?.state;
   if (state === 'scheduled') return [
-    { id: 'run', label: '지금 실행', path: '/automation/run' },
-    { id: 'pause', label: '멈추기', path: '/automation/pause' },
-    { id: 'cancel', label: '취소', path: '/automation/cancel' },
+    { id: 'run', label: '실행', path: '/automation/run' },
+    { id: 'pause', label: '끄기', path: '/automation/pause' },
   ];
   if (state === 'paused' || state === 'approved') {
     return [
-      { id: 'run', label: '한 번 실행', path: '/automation/run' },
-      { id: 'resume', label: '다시 켜기', path: '/automation/resume' },
-      { id: 'cancel', label: '취소', path: '/automation/cancel' },
+      { id: 'run', label: '실행', path: '/automation/run' },
+      { id: 'resume', label: '켜기', path: '/automation/resume' },
+      { id: 'archive', label: '보관', path: '/automation/archive' },
+      { id: 'delete', label: '삭제', path: '/automation/delete' },
     ];
   }
   if (state === 'needs_review') return [
-    { id: 'run', label: '다시 실행', path: '/automation/run' },
-    { id: 'cancel', label: '취소', path: '/automation/cancel' },
+    { id: 'run', label: '실행', path: '/automation/run' },
+    { id: 'archive', label: '보관', path: '/automation/archive' },
+    { id: 'delete', label: '삭제', path: '/automation/delete' },
+  ];
+  if (state === 'cancelled' || state === 'expired') return [
+    { id: 'archive', label: '보관', path: '/automation/archive' },
+    { id: 'delete', label: '삭제', path: '/automation/delete' },
   ];
   return [];
 }
@@ -1865,7 +1896,13 @@ async function openSettings(section = 'model', { updateHistory = true } = {}) {
   catch { setBody.replaceChildren(mk('div', 'tb-empty', '이 영역을 지금 불러오지 못했어요. 잠시 후 다시 열어 볼까요?')); }
 }
 
-async function renderConnectionDoctor(target) {
+function connectionIcon(id, label, iconUrl = null) {
+  const icon = mk('div', 'connection-icon', String(label ?? '?').slice(0, 1));
+  const image = document.createElement('img'); image.src = iconUrl ?? `/connection-icons/${id}.svg`; image.alt = '';
+  image.onerror = () => image.remove(); icon.prepend(image); return icon;
+}
+
+async function renderConnectionDoctor(target, { excludeIds = new Set() } = {}) {
   const card = mk('div', 'tb-card'); card.id = 'connectionDoctor';
   const head = mk('div', 'connection-row');
   head.appendChild(mk('div', 'tb-name connection-label', '연결 상태 확인'));
@@ -1884,11 +1921,12 @@ async function renderConnectionDoctor(target) {
     if (!report?.connections) result.textContent = '연결 상태를 불러오지 못했어요. 잠시 후 다시 확인해 주세요.';
     else {
       result.appendChild(mk('div', 'tb-hint', report.userSafeSummary ?? '현재 연결 상태를 확인했어요.'));
-      for (const connection of report.connections) {
-        const row = mk('div', `connection-row connection-${connection.state}`);
+      for (const connection of report.connections.filter((item) => !excludeIds.has(item.id))) {
+        const row = mk('div', `connection-catalog-item connection-${connection.state}`);
         const text = mk('div', 'connection-label');
-        text.appendChild(mk('div', 'tb-name', connection.label));
-        text.appendChild(mk('div', 'tb-hint', connection.userSafeSummary));
+        text.classList.add('settings-item-main');
+        text.appendChild(mk('div', 'settings-item-title', connection.label));
+        text.appendChild(mk('div', 'settings-item-desc', connection.userSafeSummary));
         if (connection.actions?.length) {
           const actionRow = mk('div', 'connection-actions');
           const actionStatus = mk('div', 'tb-hint');
@@ -1979,8 +2017,10 @@ async function renderConnectionDoctor(target) {
           }
           text.append(actionRow, actionStatus);
         }
+        row.appendChild(connectionIcon(connection.id, connection.label));
         row.appendChild(text);
-        row.appendChild(mk('div', 'connection-current', stateLabel[connection.state] ?? '확인 필요'));
+        row.appendChild(mk('div', `settings-item-state ${['connected', 'ready'].includes(connection.state) ? 'ready' : ''}`,
+          stateLabel[connection.state] ?? '확인 필요'));
         result.appendChild(row);
       }
     }
@@ -1990,6 +2030,30 @@ async function renderConnectionDoctor(target) {
   refresh.onclick = load;
   target.appendChild(card);
   await load();
+}
+
+async function renderConnectionCatalog(target) {
+  const response = await fetch('/connections/catalog').catch(() => null);
+  const catalog = response?.ok ? await response.json().catch(() => null) : null;
+  const section = mk('section', 'settings-section');
+  const head = mk('div', 'settings-section-head');
+  const titles = document.createElement('div'); titles.appendChild(mk('h3', null, '연결 카탈로그'));
+  titles.appendChild(mk('p', null, '필요한 서비스를 연결하면 T5가 원래 부탁을 이어서 처리해요.'));
+  head.appendChild(titles); section.appendChild(head);
+  const list = mk('div', 'connection-catalog-grid');
+  if (!catalog?.entries?.length) list.appendChild(mk('div', 'tb-empty', '현재 추가로 준비된 연결 후보가 없어요.'));
+  for (const entry of catalog?.entries ?? []) {
+    if (entry.current) continue;
+    const row = mk('div', 'connection-catalog-item');
+    const icon = connectionIcon(entry.id, entry.label, entry.iconUrl);
+    const main = mk('div', 'settings-item-main');
+    main.appendChild(mk('div', 'settings-item-title', entry.label));
+    main.appendChild(mk('div', 'settings-item-desc', entry.userSafeSummary ?? entry.description));
+    row.append(icon, main, mk('div', `settings-item-state ${entry.canStart ? 'ready' : ''}`,
+      entry.canStart ? '연결 가능' : '준비 중'));
+    list.appendChild(row);
+  }
+  section.appendChild(list); target.appendChild(section);
 }
 
 const SET_RENDER = {
@@ -2003,36 +2067,38 @@ const SET_RENDER = {
   },
   async tools() {
     setBody.replaceChildren();
-    await renderConnectionDoctor(setBody);
-    const box = mk('div', 'tb-card');
-    box.appendChild(mk('div', 'tb-name', '도구와 연결'));
-    box.appendChild(mk('div', 'tb-hint', '도구함에서 실제 연결 상태를 보고, 눌러서 시험하고, 붙일 수 없게 된 선언을 정리할 수 있어요.'));
-    const b = document.createElement('button'); b.className = 'tb-test'; b.textContent = '도구함 열기';
-    b.onclick = () => { closeSettings(); openToolbox(); };
-    box.appendChild(b);
-    setBody.appendChild(box);
+    const current = mk('section', 'settings-section'); const head = mk('div', 'settings-section-head');
+    const titles = document.createElement('div'); titles.appendChild(mk('h3', null, '내 연결'));
+    titles.appendChild(mk('p', null, '모델과 메신저는 각각의 설정 페이지에서 관리해요.'));
+    head.appendChild(titles); current.appendChild(head); setBody.appendChild(current);
+    await renderConnectionDoctor(current, { excludeIds: new Set(['model', 'telegram', 't5-browser']) });
+    await renderConnectionCatalog(setBody);
   },
   async skills() {
     setBody.replaceChildren();
-    const box = mk('div', 'tb-card');
-    box.appendChild(mk('div', 'tb-name', '스킬'));
     try {
       const { skills } = await (await fetch('/skills')).json();
-      if (!skills?.length) box.appendChild(mk('div', 'tb-hint', '현재 사용할 수 있는 작업 방법이 없어요.'));
-      for (const sk of skills ?? []) {
-        const stateText = sk.state === 'admitted' ? '사용 중'
-          : sk.state === 'available' ? '필요할 때 준비'
-            : sk.state === 'candidate' || sk.state === 'replay_required' ? '추천됨(아직 아님)' : sk.state;
-        const row = mk('div', 'tb-hint', `${sk.label ?? sk.id} — ${stateText}`);
-        if (sk.state === 'candidate' || sk.state === 'replay_required') {
-          const b = document.createElement('button'); b.className = 'tb-test'; b.textContent = '승인';
-          b.onclick = async () => { await fetch(`/skills/${sk.id}/approve`, { method: 'POST' }); SET_RENDER.skills(); };
-          row.appendChild(b);
+      const groups = [
+        ['사용 중', '현재 T5가 필요할 때 사용할 수 있는 작업 방법이에요.', (sk) => sk.active],
+        ['필요할 때 준비', '현재 작업에서 필요해지면 T5가 적합성을 확인하고 준비해요.', (sk) => !sk.active],
+      ];
+      if (!skills?.length) setBody.appendChild(mk('div', 'tb-empty', '현재 사용할 수 있는 작업 방법이 없어요.'));
+      for (const [title, description, select] of groups) {
+        const selected = (skills ?? []).filter(select); if (!selected.length) continue;
+        const section = mk('section', 'settings-section'); const head = mk('div', 'settings-section-head');
+        const titles = document.createElement('div'); titles.appendChild(mk('h3', null, title));
+        titles.appendChild(mk('p', null, description)); head.appendChild(titles); section.appendChild(head);
+        const list = mk('div', 'settings-list');
+        for (const sk of selected) {
+          const row = mk('div', 'settings-item'); const main = mk('div', 'settings-item-main');
+          main.appendChild(mk('div', 'settings-item-title', sk.label ?? sk.id));
+          main.appendChild(mk('div', 'settings-item-desc', sk.description || '이 작업 방법에 대한 설명이 아직 없어요.'));
+          row.append(main, mk('div', `settings-item-state ${sk.active ? 'ready' : ''}`, sk.active ? '사용 중' : '필요할 때 준비'));
+          list.appendChild(row);
         }
-        box.appendChild(row);
+        section.appendChild(list); setBody.appendChild(section);
       }
-    } catch { box.appendChild(mk('div', 'tb-hint', '스킬 목록을 불러오지 못했어요.')); }
-    setBody.appendChild(box);
+    } catch { setBody.appendChild(mk('div', 'tb-empty', '스킬 목록을 불러오지 못했어요.')); }
   },
   // ── 조각 E · 백엔드가 이미 답하는 것에 문을 낸다 ──────────────────────────
   // 서버 수정 0. `GET /automation` 이 이미 내는 것을 사람 문장으로 옮긴다. 판단(어떤 버튼을
@@ -2127,60 +2193,72 @@ const SET_RENDER = {
       }
       setBody.appendChild(e);
     }
+    if (답.archivedJobs?.length) {
+      const section = mk('section', 'settings-section'); const head = mk('div', 'settings-section-head');
+      const titles = document.createElement('div'); titles.appendChild(mk('h3', null, '보관한 자동화'));
+      titles.appendChild(mk('p', null, '다시 목록으로 되돌리거나 삭제할 수 있어요.')); head.appendChild(titles); section.appendChild(head);
+      const list = mk('div', 'settings-list');
+      for (const job of 답.archivedJobs) {
+        const row = mk('div', 'settings-item'); const main = mk('div', 'settings-item-main');
+        main.appendChild(mk('div', 'settings-item-title', job.name)); main.appendChild(mk('div', 'settings-item-desc', '보관됨'));
+        const actions = mk('div', 'connection-actions');
+        for (const [label, path] of [['되돌리기', '/automation/archive/restore'], ['삭제', '/automation/delete']]) {
+          const button = document.createElement('button'); button.className = 'connection-button'; button.textContent = label;
+          button.onclick = async () => { button.disabled = true; await fetch(path, { method: 'POST',
+            headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId: job.id }) }); SET_RENDER.automation(); };
+          actions.appendChild(button);
+        }
+        row.append(main, actions); list.appendChild(row);
+      }
+      section.appendChild(list); setBody.appendChild(section);
+    }
+    if (답.trashedJobs?.length) {
+      const section = mk('section', 'settings-section'); const head = mk('div', 'settings-section-head');
+      const titles = document.createElement('div'); titles.appendChild(mk('h3', null, '삭제한 자동화'));
+      titles.appendChild(mk('p', null, '실수로 삭제했다면 되돌릴 수 있어요.')); head.appendChild(titles); section.appendChild(head);
+      const list = mk('div', 'settings-list');
+      for (const job of 답.trashedJobs) {
+        const row = mk('div', 'settings-item'); const main = mk('div', 'settings-item-main');
+        main.appendChild(mk('div', 'settings-item-title', job.name)); main.appendChild(mk('div', 'settings-item-desc', '삭제됨'));
+        const button = document.createElement('button'); button.className = 'connection-button'; button.textContent = '되돌리기';
+        button.onclick = async () => { button.disabled = true; await fetch('/automation/delete/restore', { method: 'POST',
+          headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId: job.id }) }); SET_RENDER.automation(); };
+        row.append(main, button); list.appendChild(row);
+      }
+      section.appendChild(list); setBody.appendChild(section);
+    }
   },
   async memory() {
     setBody.replaceChildren();
-    const box = mk('div', 'tb-card');
-    box.appendChild(mk('div', 'tb-name', '기억과 개인정보'));
     try {
-      const o = await (await fetch(`/overview?sessionId=${encodeURIComponent(currentSessionId || '')}`)).json();
-      const rows = document.createElement('div');
-      const actsHtml = (items, pairs, key) => (items && items.length)
-        ? items.map((it) => `${esc(it[key])} ${pairs.map(([act, label]) => `<button class="ov-act" data-act="${esc(act)}" data-id="${esc(it.id)}">${esc(label)}</button>`).join('')}`).join('<br>')
-        : '없음';
-      rows.className = 'ov';
-      rows.innerHTML = [
-        `<div class="ov-row"><span class="ov-on">반영 중 선호</span> <span class="ov-k">${actsHtml(o.preferences.reflected, [['rollback-memory', '잊기']], 'statement')}</span></div>`,
-        `<div class="ov-row"><span class="ov-off">확인 대기</span> <span class="ov-k">${actsHtml(o.preferences.pending, [['confirm-pref', '확인(반영)'], ['reject-memory', '지우기']], 'statement')}</span></div>`,
-        `<div class="ov-row"><span class="ov-on">반영 중 기억</span> <span class="ov-k">${actsHtml(o.memories.reflected, [['rollback-memory', '잊기']], 'statement')}</span></div>`,
-      ].join('');
-      box.appendChild(rows);
-      // S5-5 · **하나의 목록**을 그대로 그린다. 상태를 화면에서 다시 계산하지 않는다 —
-      // 그러면 서버와 화면이 다른 말을 하게 된다.
-      try {
-        const st = await (await fetch('/memory/state')).json();
-        const 이름 = { user: '선호', work: '이어받을 작업', preference: '선호', operating_principle: '원리', lane: '이어받을 작업' };
-        const 상태말 = {
-          active: '쓰이는 중', pinned: '붙들어 둠', archived: '치워 둠', decayed: '내려감',
-        };
-        const 버튼 = (it) => {
-          if (!it.manageable) return '';
-          const b = [];
-          if (it.state === 'archived' || it.state === 'decayed') b.push(['restore-memory', '되돌리기']);
-          else {
-            b.push(it.state === 'pinned' ? ['unpin-memory', '붙듦 해제'] : ['pin-memory', '붙들어 두기']);
-            b.push(['archive-memory', '치워 두기']);
-          }
-          return b.map(([a, l]) => `<button class="ov-act" data-act="${a}" data-id="${esc(it.id)}">${esc(l)}</button>`).join('');
-        };
-        const 성장 = document.createElement('div');
-        성장.className = 'ov';
-        성장.innerHTML = (st.items ?? []).length
-          ? (st.items ?? []).map((raw) => { const it = {
-            ...raw, id: raw.id ?? raw.memoryId, statement: raw.statement ?? raw.content,
-            state: raw.state ?? 'active', manageable: raw.id != null && raw.state != null,
-          }; return `<div class="ov-row"><span class="${it.state === 'active' || it.state === 'pinned' ? 'ov-on' : 'ov-off'}">${esc(이름[it.kind] ?? it.kind)} · ${esc(상태말[it.state] ?? it.state)}</span> <span class="ov-k">${esc(it.statement ?? '')} ${버튼(it)}</span></div>`; }).join('')
-          : '<div class="ov-row"><span class="ov-off">아직 없음</span></div>';
-        box.appendChild(mk('div', 'tb-name', '기억·원리·이어받을 작업'));
-        box.appendChild(성장);
-        box.appendChild(mk('div', 'tb-hint', '기억을 바꾸거나 지우고 싶으면 대화에서 평소 말로 알려 주세요. 과거 대화는 그대로 남아요.'));
-      } catch { box.appendChild(mk('div', 'tb-hint', '기억 상태를 불러오지 못했어요.')); }
-
+      const st = await (await fetch('/memory/state')).json();
+      const groups = [['user', '나에 대한 기억', '직접 말한 사실·선호·결정이에요.'],
+        ['work', '이어받을 작업', '다음 대화에서도 이어야 할 현재 작업 정보예요.']];
+      for (const [kind, title, description] of groups) {
+        const section = mk('section', 'settings-section'); const head = mk('div', 'settings-section-head');
+        const titles = document.createElement('div'); titles.appendChild(mk('h3', null, title));
+        titles.appendChild(mk('p', null, description)); head.appendChild(titles); section.appendChild(head);
+        const list = mk('div', 'settings-list'); const items = (st.items ?? []).filter((item) => item.kind === kind);
+        if (!items.length) list.appendChild(mk('div', 'tb-empty', '아직 저장된 내용이 없어요.'));
+        for (const item of items) {
+          const row = mk('div', 'settings-item'); const main = mk('div', 'settings-item-main');
+          main.appendChild(mk('div', 'settings-item-title', item.content));
+          main.appendChild(mk('div', 'settings-item-desc', '사용자가 직접 말한 출처가 있는 기억'));
+          const forget = document.createElement('button'); forget.className = 'connection-button'; forget.textContent = '잊기';
+          forget.onclick = async () => { forget.disabled = true; await fetch('/memory/rollback', { method: 'POST',
+            headers: { 'content-type': 'application/json' }, body: JSON.stringify({ candidateId: item.memoryId }) }); SET_RENDER.memory(); };
+          row.append(main, forget); list.appendChild(row);
+        }
+        section.appendChild(list); setBody.appendChild(section);
+      }
       const led = await (await fetch('/memory/ledger')).json().catch(() => ({ entries: [] }));
-      box.appendChild(mk('div', 'tb-hint', `기억 기록 영수증 ${led.entries?.length ?? 0}건 — 내용 원문은 기록에 저장되지 않아요(지문만).`));
-      box.appendChild(mk('div', 'tb-hint', '기억은 확인한 것만 반영되고, 언제든 되돌릴 수 있어요. 확인 전 후보는 아무 영향이 없어요.'));
-    } catch { box.appendChild(mk('div', 'tb-hint', '기억 상태를 불러오지 못했어요.')); }
-    setBody.appendChild(box);
+      const privacy = mk('section', 'settings-section'); const head = mk('div', 'settings-section-head');
+      const titles = document.createElement('div'); titles.appendChild(mk('h3', null, '개인정보와 기록'));
+      titles.appendChild(mk('p', null, '기억은 출처와 함께 관리하고 과거 대화 원문은 여기 복제하지 않아요.'));
+      head.appendChild(titles); privacy.append(head,
+        mk('div', 'settings-item-desc', `현재 기억 기록 ${led.entries?.length ?? 0}건 · 기억은 언제든 잊게 할 수 있어요.`));
+      setBody.appendChild(privacy);
+    } catch { setBody.appendChild(mk('div', 'tb-empty', '기억 상태를 불러오지 못했어요.')); }
   },
   async looks() {
     setBody.replaceChildren();

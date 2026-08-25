@@ -144,7 +144,10 @@ export class AutomationStore {
   async list() { const state = await this.read(); return { jobs: clone(state.jobs), runs: clone(state.runs), candidates: [] }; }
   async publicList() {
     const state = await this.read();
-    return { jobs: clone(state.jobs), runs: state.runs.map((run) => ({
+    const visible = state.jobs.filter((job) => !job.archivedAt && !job.trashedAt);
+    const archivedJobs = state.jobs.filter((job) => job.archivedAt && !job.trashedAt);
+    const trashedJobs = state.jobs.filter((job) => job.trashedAt);
+    return { jobs: clone(visible), archivedJobs: clone(archivedJobs), trashedJobs: clone(trashedJobs), runs: state.runs.map((run) => ({
       id: run.id, jobId: run.jobId, status: run.status, scheduledFor: run.scheduledFor,
       startedAt: run.startedAt, finishedAt: run.finishedAt,
       executionStatus: run.executionStatus, objectiveStatus: run.objectiveStatus,
@@ -171,6 +174,16 @@ export class AutomationStore {
       run.userSafeSummary = '사용자가 예약 실행을 중단했어요.';
     }
     job.runningAt = null; job.state = 'cancelled'; job.nextRunAt = null; job.updatedAt = current; return job; }); }
+  async archive(jobId) { return this.change((state) => { const job = state.jobs.find((item) => item.id === jobId); if (!job) throw new Error('automation not found');
+    if (job.runningAt || job.state === 'scheduled') throw new Error('pause or turn off automation before archive');
+    job.archivedAt = this.now(); job.trashedAt = null; job.updatedAt = this.now(); return job; }); }
+  async restoreArchived(jobId) { return this.change((state) => { const job = state.jobs.find((item) => item.id === jobId); if (!job) throw new Error('automation not found');
+    job.archivedAt = null; job.updatedAt = this.now(); return job; }); }
+  async trash(jobId) { return this.change((state) => { const job = state.jobs.find((item) => item.id === jobId); if (!job) throw new Error('automation not found');
+    if (job.runningAt || job.state === 'scheduled') throw new Error('pause or turn off automation before delete');
+    job.trashedAt = this.now(); job.updatedAt = this.now(); return job; }); }
+  async restoreTrashed(jobId) { return this.change((state) => { const job = state.jobs.find((item) => item.id === jobId); if (!job) throw new Error('automation not found');
+    job.trashedAt = null; job.updatedAt = this.now(); return job; }); }
   async quarantineUnqualified() { return this.change((state) => { const current = this.now(); const quarantined = [];
     for (const job of state.jobs.filter((item) => (
       !['cancelled', 'expired'].includes(item.state) && (!item.requirements || !item.delivery)

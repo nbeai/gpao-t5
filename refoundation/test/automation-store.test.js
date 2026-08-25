@@ -69,6 +69,21 @@ test('제품에서 제거된 도구를 요구하는 기존 예약은 실행 전�
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 
+test('자동화 보관과 삭제는 실행 상태와 분리된 복구 가능한 정리 상태다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-automation-organize-')); const now = Date.parse('2026-08-21T00:00:00Z');
+  try {
+    const store = new AutomationStore(join(room, 'automation.json'), { now: () => now });
+    const job = await store.create({ name: '매일 보고', prompt: '보고', sessionId: 's',
+      scheduleKind: 'every', schedule: '1d', timezone: 'Asia/Seoul' });
+    await assert.rejects(() => store.archive(job.id), /pause or turn off/u);
+    await store.pause(job.id); await store.archive(job.id);
+    let surface = await store.publicList(); assert.equal(surface.jobs.length, 0); assert.equal(surface.archivedJobs[0].id, job.id);
+    await store.restoreArchived(job.id); assert.equal((await store.publicList()).jobs[0].state, 'paused');
+    await store.trash(job.id); surface = await store.publicList(); assert.equal(surface.jobs.length, 0); assert.equal(surface.trashedJobs[0].id, job.id);
+    await store.restoreTrashed(job.id); assert.equal((await store.publicList()).jobs[0].id, job.id);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
 test('occurrence claim은 owner·fence·Work·Resource identity를 고정하고 stale worker 정산을 거부한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-automation-occurrence-'));
   let now = Date.parse('2026-08-21T00:00:00Z');
