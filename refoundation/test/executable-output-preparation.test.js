@@ -69,9 +69,15 @@ test('begin은 managed source만 주고 finalize가 ZIP·private contract·실�
     assert.match(started.operationHandle, /^[0-9a-f-]{36}$/u);
     assert.equal(started.allowedPaths.length, 1);
     await writeGoodSource(started.sourceDirectory);
+    const beginReceipt = { toolCallId: 'begin-1', requestedCall: { name: 'attachment', args: {
+      action: 'begin_executable_output',
+    } }, outcome: 'succeeded', result: started };
+    const failedReceipt = { toolCallId: 'write-1', requestedCall: { name: 'exec', args: {
+      effect: { kind: 'local_change', targets: [join(started.sourceDirectory, 'package', '실행.command')] },
+    } }, outcome: 'failed', result: {} };
     const finalized = await app.tool.execute(args('finalize_executable_output', {
       operationHandle: started.operationHandle,
-    }));
+    }), { toolCallId: 'finalize-1', priorReceipts: [beginReceipt, failedReceipt] });
     assert.equal(finalized.state, 'registered');
     assert.equal(finalized.changed, true);
     assert.equal(finalized.qualification.passed, true);
@@ -80,6 +86,10 @@ test('begin은 managed source만 주고 finalize가 ZIP·private contract·실�
     assert.equal((await app.store.list({ sessionId: SESSION })).length, 1);
     assert.equal(JSON.stringify(finalized).includes('totalItems'), false);
     assert.equal(JSON.stringify(finalized).includes('producerKind'), false);
+    assert.equal(finalized.attemptRecovery.beginToolCallId, 'begin-1');
+    assert.equal(finalized.attemptRecovery.finalizeToolCallId, 'finalize-1');
+    assert.deepEqual(finalized.attemptRecovery.supersededAttemptRange.attempts,
+      [{ toolCallId: 'write-1', kind: 'operation_attempt_failure' }]);
   } finally { await app.close(); }
 });
 

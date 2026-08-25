@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { validExecutableOperationRecovery } from './executable-operation-attempt-recovery.js';
 
 function recoveredFailure(receipts, index) {
   const failed = receipts[index];
@@ -17,34 +18,11 @@ function recoveredFailure(receipts, index) {
       ?? finalEvidence?.requestedCall?.args?.effect?.kind ?? 'observe') === 'observe';
 }
 
-function recoveredExactOperation(receipts, index) {
-  const failed = receipts[index];
-  const prior = failed?.result?.receiptRecovery;
-  const priorAction = failed?.requestedCall?.args?.action ?? failed?.actualCall?.args?.action;
-  if (failed?.requestedCall?.name !== 'attachment'
-    || priorAction !== 'finalize_executable_output'
-    || prior?.kind !== 'exact_operation' || prior?.status !== 'open'
-    || !String(prior.operationHandle ?? '')) return false;
-  return receipts.slice(index + 1).some((receipt) => {
-    const recovery = receipt?.result?.receiptRecovery;
-    const action = receipt?.requestedCall?.args?.action ?? receipt?.actualCall?.args?.action;
-    const artifactSha256 = receipt?.result?.artifact?.sha256;
-    return receipt?.requestedCall?.name === 'attachment'
-      && action === priorAction
-      && receipt.outcome === 'succeeded'
-      && receipt.result?.state === 'registered'
-      && receipt.result?.qualification?.passed === true
-      && receipt.result?.effectUnknown !== true
-      && recovery?.kind === 'exact_operation'
-      && recovery?.status === 'resolved'
-      && recovery?.operationHandle === prior.operationHandle
-      && typeof artifactSha256 === 'string'
-      && /^[0-9a-f]{64}$/u.test(artifactSha256)
-      && recovery.artifactSha256 === artifactSha256;
-  });
-}
-
 function blockerForReceipt(receipt, index, receipts) {
+  const recoveredAttempt = receipts.slice(index + 1).some((candidate, offset) => (
+    validExecutableOperationRecovery(receipts, index + 1 + offset, index)
+  ));
+  if (recoveredAttempt) return null;
   if (receipt?.outcome === 'failed') return recoveredFailure(receipts, index) ? null : 'failed';
   if (receipt?.outcome === 'unknown' || receipt?.result?.effectUnknown === true) return 'effect_unknown';
   if (receipt?.result?.state === 'approval_required') return 'approval_pending';
@@ -53,7 +31,7 @@ function blockerForReceipt(receipt, index, receipts) {
   }
   if (receipt?.result?.delivery?.sent === false || receipt?.result?.delivered === false) return 'delivery_missing';
   if (receipt?.result?.verificationMissing === true) {
-    return recoveredExactOperation(receipts, index) ? null : 'requested_evidence_missing';
+    return 'requested_evidence_missing';
   }
   return null;
 }

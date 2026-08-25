@@ -103,6 +103,32 @@ test('대화 회복은 승인 전·승인 후 미소비 요청을 모두 철회�
   }
 });
 
+test('operation 성공 철회는 exact pending만 철회하고 승인·소비·다른 session은 보존한다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-authority-exact-withdraw-'));
+  try {
+    const store = new AuthorityStore(root);
+    const propose = (sessionId) => store.propose({ sessionId, toolName: 'exec', args: {
+      command: 'change', cwd: null, effect: { kind: 'destructive', summary: 'change',
+        targets: ['/tmp/x'], reversible: false, backupAvailable: false,
+        recipientNew: false, approvalToken: null },
+    } });
+    const pending = await propose('session-a'); const approved = await propose('session-a');
+    const other = await propose('session-b'); await store.approve(approved.pendingId);
+    assert.equal((await store.withdraw(pending.pendingId, {
+      sessionId: 'session-a', reason: 'superseded_by_operation_success',
+    })).withdrawn, true);
+    assert.equal((await store.withdraw(approved.pendingId, {
+      sessionId: 'session-a', reason: 'superseded_by_operation_success',
+    })).withdrawn, false);
+    assert.equal((await store.withdraw(other.pendingId, {
+      sessionId: 'session-a', reason: 'superseded_by_operation_success',
+    })).withdrawn, false);
+    assert.equal((await store.read(pending.pendingId)).status, 'withdrawn');
+    assert.equal((await store.read(approved.pendingId)).status, 'approved');
+    assert.equal((await store.read(other.pendingId)).status, 'pending');
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test('명백한 파괴·외부 전송을 observe로 낮춰 선언하면 preflight가 거부한다', () => {
   assert.equal(effectDeclarationMismatch("rm -f '/tmp/a'", { kind: 'observe' }), 'destructive_required');
   assert.equal(effectDeclarationMismatch("find /tmp/x -type f -delete", { kind: 'local_change' }), 'destructive_required');

@@ -14,6 +14,7 @@ import {
   makeExecutableOutputQualifier,
 } from './executable-output-qualification.js';
 import { ExecutableOutputOperationStore } from './executable-output-operation.js';
+import { buildExecutableOperationAttemptRecovery } from './executable-operation-attempt-recovery.js';
 import {
   ARTIFACT_QUALITY_OUTPUT_CONTRACT, makeArtifactQualityOutputQualifier,
 } from './artifact-quality-output-qualification.js';
@@ -233,6 +234,7 @@ export function makeAttachmentTool({
   store, sessionId, workspace, runId = null, authorizeOutputPath = null,
   observeImagePixels = null, inspectQualifiedDocumentImpl = inspectQualifiedDocument,
   renderDocxPreview = renderDocxFirstPage, executableOperationStore = null,
+  withdrawPendingApproval = null,
 } = {}) {
   if (!store || !sessionId || !workspace) throw new TypeError('attachment store, sessionId, and workspace are required');
   const qualifyExecutableOutput = makeExecutableOutputQualifier();
@@ -279,7 +281,7 @@ export function makeAttachmentTool({
         'operationHandle',
       ],
     },
-    async execute(args = {}) {
+    async execute(args = {}, context = {}) {
       if (args.action === 'list') {
         const records = await store.list({ sessionId });
         return { state: 'listed', attachments: records };
@@ -293,9 +295,18 @@ export function makeAttachmentTool({
       }
       if (args.action === 'finalize_executable_output') {
         if (!runId) throw new Error('executable output requires a current Run');
-        return executableOperations.finalize({
+        const result = await executableOperations.finalize({
           operationHandle: args.operationHandle, sessionId, runId,
         });
+        if (result.state !== 'registered' || result.qualification?.passed !== true) return result;
+        const operation = await executableOperations.readOwned(args.operationHandle, sessionId, runId);
+        const attemptRecovery = await buildExecutableOperationAttemptRecovery({
+          priorReceipts: context.priorReceipts, operationHandle: args.operationHandle,
+          finalizeToolCallId: context.toolCallId, artifact: result.artifact,
+          qualification: result.qualification, sourceDirectory: operation?.sourceDirectory,
+          withdrawPendingApproval,
+        });
+        return attemptRecovery ? { ...result, attemptRecovery } : result;
       }
       if (args.action === 'register_output') {
         if (!args.filePath) throw new TypeError('filePath is required');

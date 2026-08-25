@@ -169,6 +169,21 @@ export class AuthorityStore {
     return (await this.listActive(sessionId)).find((item) => item.callDigest === digest) ?? null;
   }
 
+  withdraw(pendingId, { sessionId, reason } = {}) {
+    const id = safeId(pendingId);
+    return this.serialize(id, async () => {
+      const current = await this.read(id);
+      if (current.sessionId !== String(sessionId ?? '')) {
+        return { withdrawn: false, reason: 'session_mismatch', proposal: current };
+      }
+      if (current.status !== 'pending') {
+        return { withdrawn: false, reason: `approval_is_${current.status}`, proposal: current };
+      }
+      await this.append(id, { type: 'withdrawn', payload: { reason: String(reason ?? 'withdrawn') } });
+      return { withdrawn: true, proposal: await this.read(id) };
+    });
+  }
+
   async withdrawActive(sessionId, reason = 'session_recovered') {
     const active = await this.listActive(sessionId);
     for (const item of active) {

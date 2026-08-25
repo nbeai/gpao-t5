@@ -88,6 +88,7 @@ test('approval·handoff·delivery 미달은 proposal과 final이 공유하는 bl
 function operationReceipt(operationHandle, status, overrides = {}) {
   const sha256 = overrides.sha256 ?? 'a'.repeat(64);
   return {
+    toolCallId: overrides.toolCallId ?? (status === 'open' ? 'attempt' : 'final'),
     requestedCall: { name: 'attachment', args: {
       action: 'finalize_executable_output', operationHandle,
     } },
@@ -96,16 +97,35 @@ function operationReceipt(operationHandle, status, overrides = {}) {
       state: 'executable_output_incomplete', verificationMissing: true,
       receiptRecovery: { kind: 'exact_operation', operationHandle, status: 'open' },
     } : {
-      state: 'registered', artifact: { sha256 }, qualification: { passed: true },
+      state: 'registered', artifact: { attachmentId: 'artifact-a', sha256 }, qualification: { passed: true },
       receiptRecovery: { kind: 'exact_operation', operationHandle,
         status: 'resolved', artifactSha256: overrides.recoverySha256 ?? sha256 },
+      ...(overrides.attemptRecovery ? { attemptRecovery: overrides.attemptRecovery } : {}),
     },
   };
 }
 
+function operationBegin(operationHandle) {
+  return { toolCallId: 'begin', requestedCall: { name: 'attachment', args: {
+    action: 'begin_executable_output',
+  } }, outcome: 'succeeded', result: {
+    state: 'executable_output_started', operationHandle,
+  } };
+}
+
+function operationRecovery(operationHandle, sha256 = 'a'.repeat(64)) {
+  return { schema: 't5.executable-operation-attempt-recovery.v1', operationHandle,
+    beginToolCallId: 'begin', finalizeToolCallId: 'final',
+    artifact: { attachmentId: 'artifact-a', sha256 },
+    supersededAttemptRange: { attempts: [
+      { toolCallId: 'attempt', kind: 'same_operation_verification' },
+    ], withdrawnApprovalIds: [] } };
+}
+
 test('같은 executable operation의 exact registered artifact만 앞선 verification 미달을 회복한다', () => {
   const recovered = evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [
-    operationReceipt('operation-a', 'open'), operationReceipt('operation-a', 'resolved'),
+    operationBegin('operation-a'), operationReceipt('operation-a', 'open'),
+    operationReceipt('operation-a', 'resolved', { attemptRecovery: operationRecovery('operation-a') }),
   ] });
   assert.equal(recovered.verifiedOutcome, 'achieved'); assert.deepEqual(recovered.blockers, []);
 
@@ -115,7 +135,7 @@ test('같은 executable operation의 exact registered artifact만 앞선 verific
     operationReceipt('operation-a', 'resolved', { outcome: 'failed' }),
   ]) {
     const blocked = evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [
-      operationReceipt('operation-a', 'open'), later,
+      operationBegin('operation-a'), operationReceipt('operation-a', 'open'), later,
     ] });
     assert.equal(blocked.verifiedOutcome, 'unresolved');
     assert.ok(blocked.blockers.includes('requested_evidence_missing'));
@@ -123,9 +143,9 @@ test('같은 executable operation의 exact registered artifact만 앞선 verific
 });
 
 test('같은 operation이 회복돼도 approval·unknown·handoff blocker는 절대 회복하지 않는다', () => {
-  const base = [operationReceipt('operation-a', 'open'),
+  const base = [operationBegin('operation-a'), operationReceipt('operation-a', 'open'),
     { outcome: 'succeeded', result: { state: 'approval_required' } },
-    operationReceipt('operation-a', 'resolved')];
+    operationReceipt('operation-a', 'resolved', { attemptRecovery: operationRecovery('operation-a') })];
   const approval = evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: base });
   assert.equal(approval.verifiedOutcome, 'unresolved'); assert.deepEqual(approval.blockers, ['approval_pending']);
 
@@ -134,7 +154,8 @@ test('같은 operation이 회복돼도 approval·unknown·handoff blocker는 절
     { outcome: 'succeeded', result: { state: 'handoff_required' } },
   ]) {
     const result = evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [
-      operationReceipt('operation-a', 'open'), extra, operationReceipt('operation-a', 'resolved'),
+      operationBegin('operation-a'), operationReceipt('operation-a', 'open'), extra,
+      operationReceipt('operation-a', 'resolved', { attemptRecovery: operationRecovery('operation-a') }),
     ] });
     assert.equal(result.verifiedOutcome, 'unresolved');
   }

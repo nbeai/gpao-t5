@@ -1069,6 +1069,9 @@ export function makeConsoleServer({
       offeredTools.unshift(makeAttachmentTool({
         store: attachments, sessionId, workspace, runId: run.runId,
         executableOperationStore: executableOutputOperations,
+        withdrawPendingApproval: (pendingId) => authority.withdraw(pendingId, {
+          sessionId, reason: 'superseded_by_operation_success',
+        }),
         authorizeOutputPath: (candidate) => (
           requestContainsWorkspacePath(text, candidate, workspace) || outputCandidates.has(outputKey(candidate))
         ),
@@ -1576,8 +1579,10 @@ export function makeConsoleServer({
         throw new Error(`agent ended without an answer: ${result.status}`);
       }
       const connection = await status();
+      const activeApprovalIds = new Set((await authority.listActive(sessionId)).map((item) => item.pendingId));
       const approvalReceipt = [...result.receipts].reverse().find((receipt) => (
         receipt.result?.state === 'approval_required'
+        && activeApprovalIds.has(receipt.result?.pendingId)
       ));
       const outputArtifacts = result.receipts.filter((receipt) => (
         receipt.outcome === 'succeeded' && receipt.result?.artifact
