@@ -123,6 +123,7 @@
   },
   "auditRepair": {
     "sourceCommit": "8cf778fe",
+    "packagingCommit": "3066829b",
     "decoder": {
       "engine": "sharp",
       "productionDependency": "0.35.3",
