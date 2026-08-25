@@ -127,6 +127,11 @@ async function runCase({ id, request, broken = false }) {
     const finalizeCalls = toolReceipts.filter((receipt) => receipt.requestedCall?.args?.action === 'finalize_executable_output');
     const registerCalls = toolReceipts.filter((receipt) => receipt.requestedCall?.args?.action === 'register_output');
     const finalized = finalizeCalls.find((receipt) => receipt.result?.state === 'registered');
+    const beginHandle = beginCalls[0]?.result?.operationHandle;
+    const finalizeIdentityExact = Boolean(beginHandle) && finalizeCalls.length >= 1
+      && finalizeCalls.filter((receipt) => receipt.result?.state === 'registered').length === 1
+      && finalizeCalls.every((receipt) => receipt.requestedCall?.args?.operationHandle === beginHandle)
+      && finalizeCalls.at(-1)?.result?.state === 'registered';
     const workEvents = run.events.filter((event) => ['work_settled', 'work_unresolved'].includes(event.type)).map((event) => event.type);
     const internalTermsVisible = /begin_executable|finalize_executable|operationHandle|sidecar|DeliverableContract|t5\.deliverable|producerKind|observationSchema|ToolReceipt/iu.test(surface.reply ?? '');
     const browserCalls = toolReceipts.filter((receipt) => ['browser', 'browser_observe'].includes(receipt.requestedCall?.name)).length;
@@ -142,7 +147,7 @@ async function runCase({ id, request, broken = false }) {
     }
     const passed = broken ? (surface.artifacts ?? []).length === 0 && workEvents.includes('work_unresolved')
       && !internalTermsVisible : beginCalls.length === 1 && beginCalls[0].result?.state === 'executable_output_started'
-      && finalizeCalls.length === 1 && Boolean(finalized) && registerCalls.length === 0
+      && finalizeIdentityExact && Boolean(finalized) && registerCalls.length === 0
       && (surface.artifacts ?? []).length === 1 && workEvents.includes('work_settled') && domainExact
       && !internalTermsVisible;
     results.push({ id, passed, wallMs: Math.round(performance.now() - began),
