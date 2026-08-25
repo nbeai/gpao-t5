@@ -29,6 +29,7 @@ test('음영은 사이드바·상단·입력·오버레이처럼 실제 레이�
   assert.match(html, /#side \{[^}]*box-shadow:var\(--sh-sm\)/su);
   assert.match(html, /\.crumb \{[^}]*background:var\(--surface\); box-shadow:var\(--sh-sm\)/su);
   assert.match(html, /\.composer \{[^}]*box-shadow:0 -4px 14px var\(--accent-glow\)/su);
-  assert.match(html, /#tbpanel, #setpanel \{[^}]*box-shadow:var\(--sh-lg\)/su);
+  assert.match(html, /#tbpanel \{[^}]*box-shadow:var\(--sh-lg\)/su);
+  assert.match(html, /#setpanel \{[^}]*box-shadow:none/su);
   assert.doesNotMatch(html, /\.msg \{[^}]*box-shadow:var\(--sh-lg\)/su);
 });

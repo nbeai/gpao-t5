@@ -2599,7 +2599,8 @@ export function makeConsoleServer({
       await admissionRecovery;
       await failedWorkClaimRecovery;
       await resultPublicationRecovery;
-      if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
+      if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html'
+        || url.pathname === '/settings' || /^\/settings\/[a-z0-9-]+$/u.test(url.pathname))) {
         const source = await readFile(resolve(uiRoot, 'index.html'), 'utf8');
         const withRuntime = source.replace(
           '</head>',

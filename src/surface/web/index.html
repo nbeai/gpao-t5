@@ -21,6 +21,7 @@
   :root {
     color-scheme: light dark;
     --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-7:32px;
+    --side-width:252px;
     --r-sm:8px; --r-md:12px; --r-lg:16px; --r-full:999px;
     --fs-xs:11.5px; --fs-sm:13px; --fs-md:13.5px; --fs-base:15px; --lh:1.55;
     --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
@@ -84,7 +85,7 @@
     font:var(--fs-base)/var(--lh) var(--font); display:flex; overflow:hidden; -webkit-font-smoothing:antialiased; }
 
   /* ── 사이드바 ── */
-  #side { width:252px; flex:none; background:var(--panel); border-right:1px solid var(--line);
+  #side { width:var(--side-width); flex:none; background:var(--panel); border-right:1px solid var(--line);
     display:flex; flex-direction:column; height:100dvh; box-shadow:var(--sh-sm); position:relative; z-index:2; }
   .brand { display:flex; align-items:center; gap:var(--sp-2); padding:var(--sp-4) var(--sp-4) var(--sp-3); }
   .brand .logo { width:24px; height:24px; border-radius:var(--r-sm); background:#fff;
@@ -423,10 +424,20 @@
   .statusrow .spacer { flex:1; min-width:8px; }
 
   /* ── 도구함 (2.0-A) ── */
-  #tbov, #setov { position:fixed; inset:0; z-index:30; display:none; background:rgba(0,0,0,0.28); }
-  #tbov.open, #setov.open { display:block; }
-  #tbpanel, #setpanel { position:absolute; top:0; right:0; height:100%; width:min(440px,100%); background:var(--surface);
+  #tbov { position:fixed; inset:0; z-index:30; display:none; background:rgba(0,0,0,0.28); }
+  #tbov.open { display:block; }
+  #tbpanel { position:absolute; top:0; right:0; height:100%; width:min(440px,100%); background:var(--surface);
     border-left:1px solid var(--line); box-shadow:var(--sh-lg); display:flex; flex-direction:column; }
+  #setov { position:fixed; inset:0 0 0 var(--side-width); z-index:25; display:none; background:var(--surface); }
+  #setov.open { display:block; }
+  #setpanel { width:100%; height:100%; background:var(--surface); box-shadow:none;
+    display:grid; grid-template-columns:240px minmax(0,1fr); }
+  #setpanel > .tb-head { min-width:0; overflow-y:auto; border-right:1px solid var(--line); border-bottom:0;
+    background:var(--panel); }
+  #setpanel > .tb-body { width:100%; max-width:1040px; margin:0 auto; padding:var(--sp-7); }
+  #setpanel #set-tabs { display:flex; flex-direction:column; align-items:stretch; gap:var(--sp-1); }
+  #setpanel #set-tabs .tb-badge { border:0; border-radius:var(--r-sm); padding:var(--sp-2) var(--sp-3);
+    background:transparent; text-align:left; }
   .tb-head { padding:var(--sp-5) var(--sp-5) var(--sp-3); border-bottom:1px solid var(--line); }
   .tb-head h2 { font-size:var(--fs-base); color:var(--fg-strong); display:flex; align-items:center; gap:var(--sp-2); }
   .tb-head .tb-x { margin-left:auto; width:36px; height:36px; display:grid; place-items:center;
@@ -509,7 +520,13 @@
     #log { padding:var(--sp-5) var(--sp-3); }
     #state, #search { padding-left:var(--sp-3); padding-right:var(--sp-3); }
     .statusrow .hint { display:none; }
-    #tbpanel, #setpanel { width:100%; border-left:none; }
+    #tbpanel { width:100%; border-left:none; }
+    #setov { left:0; }
+    #setpanel { grid-template-columns:1fr; grid-template-rows:auto minmax(0,1fr); }
+    #setpanel > .tb-head { overflow:visible; border-right:0; border-bottom:1px solid var(--line); }
+    #setpanel #set-tabs { flex-direction:row; overflow-x:auto; }
+    #setpanel #set-tabs .tb-badge { flex:none; }
+    #setpanel > .tb-body { padding:var(--sp-5) var(--sp-3); }
   }
   @media (max-width:420px) {
     .tb-head { padding:var(--sp-4) var(--sp-3) var(--sp-3); }
@@ -629,7 +646,7 @@
     </div>
   </div>
 
-  <div id="setov">
+  <div id="setov" aria-hidden="true">
     <div id="setpanel">
       <div class="tb-head">
         <h2>⚙ <span id="set-title">설정</span> <button class="tb-x" id="set-x" title="대화로 돌아가기" aria-label="설정 닫기">✕</button></h2>
@@ -1810,11 +1827,28 @@ const SET_SECTIONS = [
   ['skills', '스킬'], ['automation', '자동화'], ['memory', '기억과 개인정보'], ['looks', '모양'],
   ['about', 'T5에 대하여'],
 ];
-function closeSettings() { setov.classList.remove('open'); }
-async function openSettings(section = 'model') {
+const SETTINGS_PATH = Object.fromEntries(SET_SECTIONS.map(([id]) => [id, id === 'model' ? '/settings' : `/settings/${id}`]));
+function settingsSectionFromPath(pathname) {
+  if (pathname === '/settings') return 'model';
+  const match = pathname.match(/^\/settings\/([a-z0-9-]+)$/u);
+  return SET_SECTIONS.some(([id]) => id === match?.[1]) ? match[1] : null;
+}
+function hideSettingsPage() { setov.classList.remove('open'); setov.setAttribute('aria-hidden', 'true'); }
+function closeSettings() {
+  hideSettingsPage();
+  if (window.location.pathname.startsWith('/settings')) {
+    history.pushState({ t5View: 'chat' }, '', '/');
+  }
+}
+async function openSettings(section = 'model', { updateHistory = true } = {}) {
   clearSessionSelection();
   setov.classList.add('open');
+  setov.setAttribute('aria-hidden', 'false');
   document.body.classList.remove('nav-open');
+  const path = SETTINGS_PATH[section] ?? SETTINGS_PATH.model;
+  if (updateHistory && window.location.pathname !== path) {
+    history.pushState({ t5View: 'settings', section }, '', path);
+  }
   const currentLabel = SET_SECTIONS.find(([id]) => id === section)?.[1] ?? '설정';
   setTitle.textContent = section === 'model' ? '설정' : `설정 › ${currentLabel}`;
   setBack.textContent = section === 'model' ? '← 대화로 돌아가기' : '← 설정으로 돌아가기';
@@ -1863,6 +1897,29 @@ async function renderConnectionDoctor(target) {
             button.textContent = action.label;
             button.onclick = async () => {
               button.disabled = true;
+              if (action.kind === 'credentials') {
+                actionStatus.replaceChildren();
+                const form = mk('div', 'connection-fields'); const inputs = new Map();
+                for (const field of connection.credentialRequest?.fields ?? []) {
+                  const label = document.createElement('label'); label.textContent = field.label;
+                  const input = document.createElement('input'); input.type = field.secret ? 'password' : 'text';
+                  input.autocomplete = 'off'; input.maxLength = field.maxLength; label.appendChild(input);
+                  inputs.set(field.id, input); form.appendChild(label);
+                }
+                const connect = document.createElement('button'); connect.className = 'connection-button primary';
+                connect.textContent = '확인하고 연결'; form.appendChild(connect); actionStatus.appendChild(form);
+                connect.onclick = async () => {
+                  connect.disabled = true; const credentials = Object.fromEntries([...inputs].map(([id, input]) => [id, input.value]));
+                  const verified = await endpointJson(action.endpoint, { method: 'POST',
+                    headers: { 'content-type': 'application/json' }, body: JSON.stringify({ credentials }) });
+                  for (const input of inputs.values()) input.value = '';
+                  actionStatus.textContent = verified.ok
+                    ? (verified.data?.userSafeSummary ?? '계정을 연결했어요.')
+                    : endpointError(verified, '연결 정보를 확인하지 못했어요.');
+                  if (verified.ok) await load(); else { connect.disabled = false; button.disabled = false; }
+                };
+                return;
+              }
               if (action.kind === 'oauth') {
                 const popup = window.open('about:blank', '_blank');
                 if (popup) popup.opener = null;
@@ -2150,7 +2207,11 @@ const SET_RENDER = {
 };
 document.getElementById('settingsbtn').onclick = () => openSettings();
 document.getElementById('set-x').onclick = closeSettings;
-setov.onclick = (e) => { if (e.target === setov) closeSettings(); };
+window.addEventListener('popstate', () => {
+  const section = settingsSectionFromPath(window.location.pathname);
+  if (section) openSettings(section, { updateHistory: false }).catch(() => {});
+  else hideSettingsPage();
+});
 // 기억 액션은 공통 통로(memAction·onOverviewAction)를 그대로 쓴다 — 표면마다 갈라지지 않게.
 setBody.addEventListener('click', async (e) => {
   if (!e.target.closest('.ov-act')) return;
@@ -3801,6 +3862,8 @@ async function maybeWelcome(sessionId) {
     await restorePageStateAfterReload(saved);
   } catch { await newSession(); }
   try {
+    const directSettings = settingsSectionFromPath(window.location.pathname);
+    if (directSettings) { await openSettings(directSettings, { updateHistory: false }); return; }
     const onboarding = await maybeRunOnboarding();
     if (!onboarding && currentSessionId) await maybeWelcome(currentSessionId);
   } catch { /* 온보딩 실패가 채팅을 막지 않는다 */ }
