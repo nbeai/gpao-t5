@@ -150,3 +150,44 @@ test('QH-3 red: foreign Work/revision input은 current result에 결속하지 �
   assert.equal(state.events.some((event) => event.type === 'input_executed'
     && event.inputId === arranged.inputId), false);
 });
+
+test('projected busy input settlement을 모델이 생략하면 digest나 executed로 암묵 승격하지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-qh3-omitted-settlement-'));
+  const stateDir = join(room, 'state'); const workspace = join(room, 'workspace');
+  await mkdir(workspace, { recursive: true });
+  let entered; const started = new Promise((resolve) => { entered = resolve; });
+  let release; const gate = new Promise((resolve) => { release = resolve; }); let turn = 0;
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => ({ async respond(input) {
+    turn += 1;
+    if (turn === 1) { entered(); await gate; return { text: 'STALE-BASE', toolCalls: [] }; }
+    assert.match(input.messages.find((message) => String(message.content)
+      .includes('T5 NEWLY ADMITTED USER MESSAGE'))?.content ?? '', /inputHandle=busy_1/u);
+    return { text: 'SETTLEMENT-OMITTED-RESULT', toolCalls: [] };
+  } }) });
+  const base = await listen(server);
+  try {
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const first = await fetch(`${base}/turn/stream-start`, { method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: '기준 작업' }) }).then((response) => response.json());
+    const stream = fetch(`${base}/turn/stream?streamId=${first.streamId}`).then((response) => response.text());
+    await started;
+    const admitted = await fetch(`${base}/turn/stream-start`, { method: 'POST',
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: session.id,
+        text: '이 busy 요구도 반영해' }) }).then((response) => response.json());
+    release(); const wire = await stream; assert.match(wire, /SETTLEMENT-OMITTED-RESULT/u);
+    const state = await server.workStore.read();
+    const input = state.inputs.find((candidate) => candidate.inputId === admitted.inputId);
+    assert.equal(input.state, 'classified');
+    assert.equal(input.schedule, 'settlement_retry');
+    assert.equal(input.settlementReason, 'admitted_input_unaddressed');
+    assert.equal(input.resultDigest, undefined);
+    assert.equal(state.events.some((event) => event.type === 'input_completed_pending_surface'
+      && event.inputId === admitted.inputId), false);
+    assert.equal(state.events.some((event) => event.type === 'input_executed'
+      && event.inputId === admitted.inputId), false);
+    const run = (await server.runLedger.list({ sessionId: session.id }))[0];
+    const settlement = run.events.find((event) => event.type === 'work_unresolved');
+    assert.ok(settlement.payload.blockers.includes('admitted_input_unaddressed'));
+  } finally { release?.(); await close(server, room); }
+});

@@ -9,6 +9,27 @@ import { ConsoleSessionStore } from '../src/console-session-store.js';
 import { ManagedProcessRegistry } from '../src/managed-process.js';
 import { WorkStore } from '../src/work-store.js';
 
+function settlementAware(respond) {
+  let pendingFinal = null; let call = 0;
+  return { async respond(input) {
+    if (pendingFinal) { const response = pendingFinal; pendingFinal = null; return response; }
+    const response = await respond(input);
+    const handles = [...new Set(input.messages.flatMap((message) => (
+      [...String(message.content ?? '').matchAll(/inputHandle=(busy_\d+)/gu)].map((match) => match[1])
+    )))];
+    const completionAvailable = input.tools.some((tool) => tool.name === 'work_completion');
+    if (handles.length && completionAvailable && response.toolCalls.length === 0
+      && String(response.text ?? '').trim()) {
+      pendingFinal = response; call += 1;
+      return { text: '', toolCalls: [{ id: `fixture-settlement-${call}`, name: 'work_completion',
+        args: { outcome: 'unresolved', inputSettlements: handles.map((handle) => (
+          { handle, disposition: 'answered' }
+        )) } }] };
+    }
+    return response;
+  } };
+}
+
 test('실행 중 같은 대화의 새 발화는 의미 판단 전 Conversation·Work에 durable admission된다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-turn-admission-'));
   const stateDir = join(room, 'state'); const workspace = join(room, 'workspace');
@@ -16,7 +37,7 @@ test('실행 중 같은 대화의 새 발화는 의미 판단 전 Conversation·
   let entered; const started = new Promise((resolve) => { entered = resolve; });
   let release; const gate = new Promise((resolve) => { release = resolve; });
   let modelTurn = 0;
-  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => ({ async respond(input) {
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => settlementAware(async (input) => {
     modelTurn += 1;
     if (modelTurn === 1) {
       assert.equal(input.tools.some((tool) => tool.name === 'work_control'), false);
@@ -31,7 +52,7 @@ test('실행 중 같은 대화의 새 발화는 의미 판단 전 Conversation·
       return { text: '교정을 반영해 완료했습니다.', toolCalls: [] };
     }
     throw new Error('unexpected extra model turn');
-  } }) });
+  }) });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
@@ -98,7 +119,7 @@ test('현재 결과 선 delivery가 명시된 extension만 exact 새 Run으로 �
   let release; const gate = new Promise((resolve) => { release = resolve; }); let turn = 0;
   let classified; const classifiedPromise = new Promise((resolve) => { classified = resolve; });
   let deliver; const deliveryGate = new Promise((resolve) => { deliver = resolve; });
-  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => ({ async respond(input) {
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => settlementAware(async (input) => {
     turn += 1;
     if (turn === 1) { entered(); await gate; return { text: '첫 작업 결과', toolCalls: [] }; }
     if (turn === 2) {
@@ -112,7 +133,7 @@ test('현재 결과 선 delivery가 명시된 extension만 exact 새 Run으로 �
     assert.equal(input.messages.filter((message) => String(message.content)
       .includes('현재 요약은 먼저 전달하고, 별도 응답에서 비교표를 작성해줘')).length, 1);
     return { text: '후속 표 정리를 완료했습니다.', toolCalls: [] };
-  } }) });
+  }) });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
@@ -150,7 +171,7 @@ test('현재 Work 확장은 같은 Work·Run에서 추가 결과까지 만들고
   const stateDir = join(room, 'state'); const workspace = join(room, 'workspace'); await mkdir(workspace);
   let entered; const started = new Promise((resolve) => { entered = resolve; });
   let release; const gate = new Promise((resolve) => { release = resolve; }); let turn = 0;
-  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => ({ async respond(input) {
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => settlementAware(async (input) => {
     turn += 1;
     if (turn === 1) { entered(); await gate; return { text: '검토 초안', toolCalls: [] }; }
     if (turn === 2) {
@@ -158,7 +179,7 @@ test('현재 Work 확장은 같은 Work·Run에서 추가 결과까지 만들고
       assert.ok(admitted); return { text: '검토 결과\n\n리스크 목록: R1, R2', toolCalls: [] };
     }
     throw new Error('unexpected extra model turn');
-  } }) });
+  }) });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
@@ -183,7 +204,7 @@ test('independent 전환은 현재 Run을 completion 없이 닫고 새 Work를 �
   const stateDir = join(room, 'state'); const workspace = join(room, 'workspace'); await mkdir(workspace);
   let entered; const started = new Promise((resolve) => { entered = resolve; });
   let release; const gate = new Promise((resolve) => { release = resolve; }); let turn = 0;
-  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => ({ async respond(input) {
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => settlementAware(async (input) => {
     turn += 1;
     if (turn === 1) { entered(); await gate; return { text: '기존 작업 중간 상태', toolCalls: [] }; }
     if (turn === 2) return { text: '', toolCalls: [{ id: 'independent', name: 'work_control', args: {
@@ -194,7 +215,7 @@ test('independent 전환은 현재 Run을 completion 없이 닫고 새 Work를 �
       return { text: '기존 작업은 두고 새 요청으로 전환했습니다.', toolCalls: [] };
     }
     return { text: '새 일정 확인 결과: SCHEDULE-731', toolCalls: [] };
-  } }) });
+  }) });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
@@ -223,7 +244,7 @@ test('independent 전환은 현재 Run을 completion 없이 닫고 새 Work를 �
   } finally { release?.(); await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true }); }
 });
 
-test('cancel은 process와 Work를 끝내고 completion proposal 없이 중단 surface 하나만 남긴다', async () => {
+test('cancel은 process와 Work를 끝내고 proposal 없는 busy input을 executed로 승격하지 않는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-work-cancel-console-')); const stateDir = join(room, 'state');
   const workspace = join(room, 'workspace'); await mkdir(workspace); const sessions = new ConsoleSessionStore(stateDir);
   const session = await sessions.create(); const processes = new ManagedProcessRegistry({ stopGraceMs: 50, killGraceMs: 100 });
@@ -250,7 +271,8 @@ test('cancel은 process와 Work를 끝내고 completion proposal 없이 중단 s
       body: JSON.stringify({ sessionId: session.id, text: '이 작업을 중단해줘' }) }).then((response) => response.json());
     release(); const wire = await stream; assert.match(wire, /요청대로 중단했습니다/u);
     const state = await server.workStore.read(); const input = state.inputs.find((item) => item.inputId === admitted.inputId);
-    assert.equal(input.state, 'executed'); assert.equal(state.works[0].status, 'cancelled');
+    assert.equal(input.state, 'classified'); assert.equal(input.schedule, 'settlement_retry');
+    assert.equal(input.resultDigest, undefined); assert.equal(state.works[0].status, 'cancelled');
     assert.equal(state.proposals.length, 0); assert.equal(processes.list(session.id)[0].state, 'stopped');
     await new Promise((resolve) => setTimeout(resolve, 30));
     const view = await fetch(`${base}/sessions/${session.id}`).then((response) => response.json());
@@ -324,7 +346,7 @@ test('tool 실행 중 admission은 시작한 Hand만 정산하고 아직 시작�
   const workspace = join(room, 'workspace'); await mkdir(workspace); let turn = 0;
   const effect = { kind: 'local_change', summary: '격리 fixture 변경', targets: [workspace],
     reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null };
-  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => ({ async respond(input) {
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => settlementAware(async (input) => {
     turn += 1;
     if (turn === 1) return { text: '', toolCalls: [
       { id: 'first-tool', name: 'exec', args: { command: "touch tool-started; sleep 0.2; printf FIRST", cwd: null, effect } },
@@ -332,7 +354,7 @@ test('tool 실행 중 admission은 시작한 Hand만 정산하고 아직 시작�
     ] };
     const admitted = input.messages.find((message) => /T5 NEWLY ADMITTED USER MESSAGE/u.test(message.content));
     assert.ok(admitted); return { text: '새 입력을 반영해 마쳤습니다.', toolCalls: [] };
-  } }) });
+  }) });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
@@ -366,7 +388,7 @@ test('같은 boundary 전에 admission된 A·B·C는 순서 보존 한 model cal
   const workspace = join(room, 'workspace'); await mkdir(workspace); let turn = 0;
   let entered; const started = new Promise((resolve) => { entered = resolve; });
   let release; const gate = new Promise((resolve) => { release = resolve; });
-  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => ({ async respond(input) {
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => settlementAware(async (input) => {
     turn += 1;
     if (turn === 1) { entered(); await gate; return { text: 'STALE-BATCH', toolCalls: [] }; }
     const presented = input.messages.filter((message) => /T5 NEWLY ADMITTED USER MESSAGE/u.test(message.content));
@@ -374,7 +396,7 @@ test('같은 boundary 전에 admission된 A·B·C는 순서 보존 한 model cal
       '계약서 범위로 확인해', '견적서도 함께 포함해', '금액은 세금 포함으로 계산해',
     ]);
     return { text: '계약서·견적서·세금 포함 금액을 함께 반영했습니다.', toolCalls: [] };
-  } }) });
+  }) });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
@@ -407,7 +429,7 @@ test('A·B model call 중 C admission은 미적용 A·B·C 전체를 재제시�
   let batchRelease; const batchGate = new Promise((resolve) => { batchRelease = resolve; });
   const effect = { kind: 'local_change', summary: 'stale fixture', targets: [workspace],
     reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null };
-  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => ({ async respond(input) {
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => settlementAware(async (input) => {
     turn += 1;
     if (turn === 1) { firstEntered(); await firstGate; return { text: 'STALE-INITIAL', toolCalls: [] }; }
     if (turn === 2) { batchEntered(); await batchGate; return { text: '', toolCalls: [{
@@ -416,7 +438,7 @@ test('A·B model call 중 C admission은 미적용 A·B·C 전체를 재제시�
     const presented = input.messages.filter((message) => /T5 NEWLY ADMITTED USER MESSAGE/u.test(message.content));
     assert.deepEqual(presented.map((message) => message.content.split('\n').at(-1)), ['A 조건', 'B 조건', 'C 최종 조건']);
     return { text: 'A·B·C 최종 조건을 반영했습니다.', toolCalls: [] };
-  } }) });
+  }) });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
@@ -498,10 +520,10 @@ test('followup input은 surface 전 pending이고 exact surface receipt 뒤에�
   let release; const modelGate = new Promise((resolve) => { release = resolve; });
   let publishing; const publishStarted = new Promise((resolve) => { publishing = resolve; });
   let allowSurface; const surfaceGate = new Promise((resolve) => { allowSurface = resolve; });
-  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => ({ async respond() {
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => settlementAware(async () => {
     turn += 1; if (turn === 1) { entered(); await modelGate; return { text: 'STALE', toolCalls: [] }; }
     return { text: 'PENDING-SURFACE-RESULT-731', toolCalls: [] };
-  } }) });
+  }) });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   const base = `http://127.0.0.1:${server.address().port}`;
   try {

@@ -13,6 +13,7 @@
     "result surface binding to exact current Work claim revision",
     "initial scheduled request exclusion from the busy mailbox contract"
   ],
+  "auditRepair": "projected busy input has no implicit answered path; absent work_completion input settlement is unaddressed and cannot receive the current result digest",
   "blocked": {
     "unaddressed": "admitted_input_unaddressed",
     "identityMismatch": "admitted_input_identity_mismatch",
@@ -21,14 +22,14 @@
   "checks": {
     "focused": {
       "command": "node --test input settlement, red boundary, B admission/publication/restart/cancel/process suites",
-      "passed": 64,
+      "passed": 65,
       "failed": 0
     },
     "coreFull": {
       "command": "npm run refoundation:check",
-      "passed": 796,
+      "passed": 797,
       "failed": 1,
-      "total": 797,
+      "total": 798,
       "knownUnrelatedFailure": "console-ui-state openSettings selection reset assertion"
     },
     "productIntegration": {
@@ -41,6 +42,7 @@
   "counterfactuals": {
     "unaddressedDeferred": "not executed and no current result digest",
     "foreignWorkRevision": "not executed and no current result digest",
+    "omittedBusySettlement": "admitted_input_unaddressed blocker, no digest, pending surface, or executed promotion",
     "validAnswered": "surface persisted receipt may commit executed",
     "unresolvedDeferredSuperseded": "released to retryable or rescheduled state without executed promotion"
   },

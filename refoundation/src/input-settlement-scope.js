@@ -58,19 +58,7 @@ export function makeInputSettlementScope({ store, runId, excludedInputIds = [] }
     return { settlements: accepted, blockers: [...new Set(blockers)].toSorted() };
   }
 
-  async function implicitAnswered({ workId, revision } = {}) {
-    const state = await store.read(); const settlements = [];
-    for (const record of byHandle.values()) {
-      const input = state.inputs.find((candidate) => candidate.inputId === record.inputId);
-      if (input?.state === 'executing' && input.executionRunId === runId
-        && input.workId === workId && input.revision === revision) {
-        settlements.push({ ...record, workId, revision, disposition: 'answered' });
-      }
-    }
-    return settlements;
-  }
-
-  return { register, handles, evaluate, implicitAnswered };
+  return { register, handles, evaluate };
 }
 
 export const inputSettlementDispositions = [...DISPOSITIONS];

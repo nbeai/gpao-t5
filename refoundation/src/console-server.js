@@ -1594,9 +1594,11 @@ export function makeConsoleServer({
           proposedOutcome: proposal?.proposedOutcome ?? 'unresolved', receipts: result.receipts,
           facts: { approvalPending: Boolean(approvalReceipt),
             handoffPending: Boolean(browserHandoff || connectionHandoff),
-            inputSettlementBlockers: (proposal?.blockers ?? []).filter((blocker) => (
-              blocker.startsWith('admitted_input_')
-            )) },
+            inputSettlementBlockers: [
+              ...(proposal?.blockers ?? []).filter((blocker) => blocker.startsWith('admitted_input_')),
+              ...(!proposal && inputSettlementScope.handles().length
+                ? ['admitted_input_unaddressed'] : []),
+            ] },
         });
         if (proposal) await workStore.verifyCompletion({ workId: settledWork.workId,
           revision: settledWork.revision, runId: run.runId,
@@ -1613,8 +1615,7 @@ export function makeConsoleServer({
       }
       const resultWorkId = settledWork?.workId ?? null;
       const resultRevision = settledWork?.claimedRevision ?? null;
-      const explicitSettlements = proposal ? proposal.inputSettlements ?? []
-        : await inputSettlementScope.implicitAnswered({ workId: resultWorkId, revision: resultRevision });
+      const explicitSettlements = proposal ? proposal.inputSettlements ?? [] : [];
       if (options.admittedInput) {
         const admitted = (await workStore.executingInputsForRun(run.runId))
           .find((input) => input.inputId === options.admittedInput.inputId);
