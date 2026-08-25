@@ -1,0 +1,50 @@
+{
+  "schema": "t5.qh1-executable-artifact-core-evidence.v1",
+  "recordedAt": "2026-08-25T14:41:51+09:00",
+  "gate": "QH-1_EXECUTABLE_ARTIFACT_QUALIFICATION_CORE",
+  "scope": {
+    "implemented": [
+      "bounded_deliverable_contract",
+      "exact_zip_identity_and_safe_extraction",
+      "guide_target_and_expected_file_observation",
+      "archive_permission_observation",
+      "exact_current_platform_entrypoint_execution",
+      "exit_stdout_stderr_timeout_and_process_residual_observation",
+      "platform_claim_separation"
+    ],
+    "notIntegrated": [
+      "console",
+      "attachment",
+      "connection",
+      "work",
+      "package_build",
+      "windows_execution"
+    ]
+  },
+  "counterexamples": {
+    "t5ReadonlyZshStatus": "detected_unqualified_while_direct_app_positive_control_succeeded",
+    "guideTargetMissing": "detected_before_execution",
+    "codexMacLauncher": "actually_executed_with_expected_output",
+    "unexecutedPlatformClaim": "not_promoted_to_actually_executed",
+    "residualProcess": "detected_separately_from_exit_zero",
+    "timeout": "bounded_and_unqualified"
+  },
+  "verification": {
+    "targeted": {
+      "command": "node --check refoundation/src/executable-artifact-qualification.js && node --test refoundation/test/executable-artifact-qualification.test.js refoundation/test/archive-safety.test.js",
+      "tests": 12,
+      "passed": 12,
+      "failed": 0
+    },
+    "refoundationCheck": {
+      "command": "npm run refoundation:check",
+      "sandboxRun": "failed_existing_tests_due_to_loopback_and_nested_sandbox_eperm",
+      "unrestrictedRun": "qh1_and_existing_runtime_tests_passed_except_one_stale_plan_assertion",
+      "knownUnrelatedFailure": {
+        "test": "refoundation/test/environment.test.js",
+        "reason": "expects the retired S2-B Gate string while T5-SECOND-COMPLETION.md is already QH-1 READY"
+      }
+    }
+  },
+  "gateEffect": "QH-1 core is ready for later integration, but QH-1 is not closed and package remains locked"
+}

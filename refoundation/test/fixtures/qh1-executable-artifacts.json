@@ -1,0 +1,87 @@
+{
+  "schema": "t5.qh1-executable-artifact-fixtures.v1",
+  "cases": [
+    {
+      "id": "t5-zsh-readonly-status",
+      "source": {
+        "kind": "deidentified_exact_launcher",
+        "sha256": "1a6c90bf51c1d43810a4d231f8d0b6446f194944a8b17798f9dd089cc0263bc7"
+      },
+      "files": {
+        "package/app.js": "console.log('ITEMS=4 NEEDS_ORDER=2');\n",
+        "package/README.txt": "Mac: 실행.command를 실행합니다.\n",
+        "package/실행.command": "#!/bin/zsh\ncd \"$(dirname \"$0\")\"\necho \"작은가게 재고 알림을 실행합니다...\"\n/usr/bin/env node app.js\nstatus=$?\necho\necho \"창을 닫으려면 Return 키를 누르세요.\"\nread -r\nexit $status\n"
+      },
+      "expectedFiles": ["package/app.js", "package/README.txt", "package/실행.command"],
+      "guideReferences": [
+        { "guidePath": "package/README.txt", "targetPath": "package/실행.command" }
+      ],
+      "entrypoint": {
+        "id": "mac-launcher",
+        "platform": "darwin",
+        "interpreter": "/bin/zsh",
+        "path": "package/실행.command",
+        "cwd": "package",
+        "requiresExecutablePermission": true,
+        "stdin": "\n",
+        "expectedExitCode": 0,
+        "expectedStdoutIncludes": ["ITEMS=4 NEEDS_ORDER=2"]
+      },
+      "expectedQualification": "failed"
+    },
+    {
+      "id": "hermes-guide-missing-launcher",
+      "source": {
+        "kind": "deidentified_counterexample",
+        "note": "guide-advertised launcher absent from package"
+      },
+      "files": {
+        "package/app.js": "console.log('ITEMS=4 NEEDS_ORDER=2');\n",
+        "package/README.txt": "Mac: 실행.command를 실행합니다.\n"
+      },
+      "expectedFiles": ["package/app.js", "package/README.txt"],
+      "guideReferences": [
+        { "guidePath": "package/README.txt", "targetPath": "package/실행.command" }
+      ],
+      "entrypoint": {
+        "id": "mac-launcher",
+        "platform": "darwin",
+        "interpreter": "/bin/zsh",
+        "path": "package/실행.command",
+        "cwd": "package",
+        "requiresExecutablePermission": true,
+        "expectedExitCode": 0,
+        "expectedStdoutIncludes": ["ITEMS=4 NEEDS_ORDER=2"]
+      },
+      "expectedQualification": "failed"
+    },
+    {
+      "id": "codex-mac-launcher",
+      "source": {
+        "kind": "deidentified_exact_launcher",
+        "sha256": "09b9239e4466fc5f208e9b035b38a5a9b006a6c1bbda4788a5bbd7e5a3198daf"
+      },
+      "files": {
+        "package/app.js": "console.log('ITEMS=4 NEEDS_ORDER=2');\n",
+        "package/README.md": "Mac: 실행.command를 실행합니다.\n",
+        "package/실행.command": "#!/bin/zsh\ncd \"${0:A:h}\"\nnode app.js\nprintf '\\n창을 닫으려면 Enter 키를 누르세요.'\nread\n"
+      },
+      "expectedFiles": ["package/app.js", "package/README.md", "package/실행.command"],
+      "guideReferences": [
+        { "guidePath": "package/README.md", "targetPath": "package/실행.command" }
+      ],
+      "entrypoint": {
+        "id": "mac-launcher",
+        "platform": "darwin",
+        "interpreter": "/bin/zsh",
+        "path": "package/실행.command",
+        "cwd": "package",
+        "requiresExecutablePermission": true,
+        "stdin": "\n",
+        "expectedExitCode": 0,
+        "expectedStdoutIncludes": ["ITEMS=4 NEEDS_ORDER=2"]
+      },
+      "expectedQualification": "qualified"
+    }
+  ]
+}

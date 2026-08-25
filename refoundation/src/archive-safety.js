@@ -85,6 +85,7 @@ export function inspectZipArchive(input, {
     const entry = {
       path, directory, compressedBytes, uncompressedBytes,
       compressionMethod: method, compressionRatio: Number.isFinite(ratio) ? Number(ratio.toFixed(2)) : null,
+      unixMode: unixMode || null,
       ...(reason ? { reason } : {}),
     };
     entries.push(entry);
