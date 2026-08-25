@@ -19,7 +19,8 @@ test('정본은 제품·현재 계획·1차 역사·작업 규율로 분리된�
   assert.match(product, /개선·교체·비활성·제거/);
   assert.match(product, /Core와 사용자별로 성장하는\s*Capability Layer를 분리/);
   assert.match(product, /필요한 능력만 갖추고 개선·정리하는 적응성/);
-  assert.match(plan, /현재 Gate: `QUALITY HARDENING REFERENCE SEALED · QH-1 READY · IMPLEMENTATION NOT STARTED`/);
+  assert.match(plan, /현재 Gate: `QH-1 COMPLETE · QH-2 OBSERVATION CORE COMPLETE · QH-3 CORE COMPLETE WITH MODEL OBSERVATION · QH-4 PROVIDER QUALIFIED ABSENT`/);
+  assert.match(plan, /XLSX 독립 재계산.*QH-3 실제 모델 15\/15.*실제 이미지 3-preview provider/su);
   assert.match(plan, /S2-G — UI-only Hand — EXCLUDED FROM SECOND COMPLETION/u);
   assert.doesNotMatch(plan, /S2-G — UI-only Hand — NOT OPEN/u);
   assert.match(plan, /A1-2 anomaly shadow — COMPLETE\s*→ S2-A2 Information Control\s*→ A1-3/u);

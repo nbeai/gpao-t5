@@ -1,12 +1,25 @@
 # T5 Second Completion — Current Development Source
 
 상태: `SECOND_COMPLETION_CLOSED_WITH_QUALITY_RELEASE_BLOCKERS`
-현재 Gate: `QUALITY HARDENING REFERENCE SEALED · QH-1 READY · IMPLEMENTATION NOT STARTED`
-기준 source: `775d2a59`
-배포 상태: `package 잠금 · executable artifact와 document quality blocker 수정 전 서명·공증 금지`
+현재 Gate: `QH-1 COMPLETE · QH-2 OBSERVATION CORE COMPLETE · QH-3 CORE COMPLETE WITH MODEL OBSERVATION · QH-4 PROVIDER QUALIFIED ABSENT`
+기준 source: `abc3b1cd`
+배포 상태: `package 잠금 · 남은 실제 사용자 자격과 Connecting 회귀 정산 전 서명·공증 금지`
 
 이 문서는 T5 2차 완성의 유일한 현재 작업 계획이다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은
 `AGENTS.md`, 1차 완성의 역사·실패 원본·과거 Gate는 `T5-REFOUNDATION.md`가 담당한다.
+
+## 현재 Quality Hardening 정산
+
+| 영역 | 현재 판정 | 남은 정확한 경계 |
+|---|---|---|
+| QH-1 실행 결과물 | COMPLETE | Terra·gpt-5.5 각 3/3. managed begin/finalize, 실제 launcher·새 파일 효과, exact operation recovery가 성립했다. |
+| QH-2 문서·표 품질 | CORE COMPLETE | 하드코딩·수식 lineage·cache 과장을 막고 한글 DOCX 전 페이지 native 관측을 세웠다. 독립 재계산 engine receipt가 없는 XLSX는 `unmeasured`다. |
+| QH-3 시간·입력 격리 | CORE COMPLETE · OBSERVATION | 입력 settlement·sideband lane·old/new surface 격리는 결정적으로 통과했다. 실제 Terra 대표 matrix는 13/15이며 남은 두 건은 최종 출력 누락·내부 용어 노출이다. |
+| QH-4 이미지 Evidence | PROVIDER QUALIFIED ABSENT | 실제 decode·stream 상한·source/direct identity·factual Web lane 분리는 통과했다. 현재 연결에는 실제 이미지 3개를 주는 dedicated provider가 없다. |
+
+Release를 막는 것은 새 기능 목록이 아니다. `XLSX 독립 재계산`, `QH-3 실제 모델 15/15`,
+`실제 이미지 3-preview provider`, 멈춰 둔 Connecting의 기존 UI 회귀 정산이다. 이 네 경계를 열기 전에는
+QH 구현을 더 넓히거나 package·서명·공증을 시작하지 않는다.
 
 ## 1. 기준선과 목적
 
