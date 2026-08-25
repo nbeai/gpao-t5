@@ -1,0 +1,45 @@
+{
+  "schema": "t5.korea-connection-cp1-evidence.v1",
+  "recordedAt": "2026-08-25",
+  "sourceCommit": "8193457f",
+  "branch": "codex/t5-connection-protocol",
+  "worktree": "isolated_from_qh",
+  "status": "isolated_complete_integration_pending_qh",
+  "completed": [
+    "opaque connection identity digest",
+    "durable OAuth attempt with TTL and exact state claim",
+    "new attempt supersedes pending and claimed prior attempt",
+    "cross-process refresh lease with owner and fence token",
+    "credential generation conditional commit",
+    "OAuth attempt and credential generation atomic commit",
+    "Keychain prepare then state commit then prior generation cleanup",
+    "logout advances a cleared generation before secret cleanup"
+  ],
+  "counterTests": [
+    "wrong, expired and replayed callback state exchanges zero times",
+    "two real Node processes acquire one shared refresh lease",
+    "expired lease result cannot commit after takeover",
+    "stale credential generation cannot overwrite current generation",
+    "claimed old OAuth attempt cannot commit after a newer attempt",
+    "state commit failure removes only newly prepared secret",
+    "Keychain cleanup failure after logout does not reactivate old token",
+    "SQLite state contains no access or refresh token payload"
+  ],
+  "verification": {
+    "focusedTests": "8_pass_0_fail",
+    "boundary": "legacy_import_0",
+    "visibleBrowser": 0,
+    "qhFilesChanged": 0
+  },
+  "integrationObservation": {
+    "nodeSqlite": "Node 24 built-in SQLite passes all tests but emits ExperimentalWarning",
+    "decision": "Do not import from the product entrypoint until QH fixes the packaged runtime/storage policy"
+  },
+  "nextAfterQh": [
+    "select approved SQLite or existing durable storage adapter",
+    "wire state store into remote-mcp OAuth callback and refresh",
+    "replace premature callback success wording",
+    "add 401 one-retry and 403 insufficient-scope progression",
+    "run Notion DCR and Linear preregistered OAuth positive controls"
+  ]
+}
