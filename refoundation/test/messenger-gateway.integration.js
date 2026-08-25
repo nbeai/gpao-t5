@@ -658,6 +658,35 @@ test('Telegram provider가 exact output artifact를 sendDocument로 보내고 me
   } finally { await fixture.close(); }
 });
 
+test('Telegram binding에 대한 일반 session delivery도 text와 exact artifact를 함께 보낸다', async () => {
+  const fixture = await telegramFixture();
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-session-document-'));
+  const sessionId = randomUUID(); const stateStore = new MessengerStateStore(room);
+  const attachmentStore = new AttachmentStore(join(room, 'attachments'));
+  const resultPath = join(room, 'phone-download.bin');
+  const bytes = Buffer.from('intact-file-bytes'); await writeFile(resultPath, bytes);
+  const artifact = await attachmentStore.registerOutput({ sessionId, workspace: room, filePath: resultPath });
+  const gateway = makeMessengerGateway({
+    credentialStore: new MessengerCredentialStore(room), stateStore, attachmentStore,
+    providerFactory: ({ token }) => makeTelegramMessengerProvider({ token, apiBase: fixture.base, pollTimeoutSeconds: 0 }),
+    createSession: async () => sessionId, authorizeInbound: async () => true,
+    onInbound: async () => null,
+  });
+  try {
+    await gateway.connect({ provider: 'telegram', token: TOKEN });
+    await stateStore.bind('telegram', '555', sessionId);
+    const delivery = await gateway.sendToSession({
+      sessionId, text: '휴대폰에서 받을 파일이에요.', artifactIds: [artifact.attachmentId],
+    });
+    assert.equal(fixture.calls.filter((call) => call.method === 'sendDocument').length, 1);
+    assert.deepEqual(delivery.messageIds, ['900', '901']);
+    assert.equal(delivery.files.length, 1);
+    assert.equal(delivery.files[0].artifact.attachmentId, artifact.attachmentId);
+    assert.equal(delivery.files[0].artifact.sha256, artifact.sha256);
+    assert.equal(delivery.files[0].artifact.bytes, bytes.length);
+  } finally { await fixture.close(); }
+});
+
 test('sendDocument ACK가 사라지면 unknown으로 보존하고 같은 artifact를 blind retry하지 않는다', async () => {
   const fixture = await telegramFixture();
   const room = await mkdtemp(join(tmpdir(), 't5-messenger-send-unknown-'));

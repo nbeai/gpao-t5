@@ -491,8 +491,14 @@ export function makeMessengerGateway({
 
     pollOnce,
 
-    async sendToSession({ sessionId, text, signal } = {}) {
-      if (!sessionId || !String(text ?? '').trim()) throw new TypeError('messenger session and text are required');
+    async sendToSession({ sessionId, text, artifactIds = [], signal } = {}) {
+      if (!sessionId || (!String(text ?? '').trim() && !artifactIds.length)) {
+        throw new TypeError('messenger session and text or artifacts are required');
+      }
+      if (!Array.isArray(artifactIds) || artifactIds.length > 10
+        || artifactIds.some((attachmentId) => !String(attachmentId ?? '').trim())) {
+        throw new TypeError('messenger artifacts are invalid');
+      }
       const binding = (await stateStore.listBindings()).find((entry) => entry.sessionId === String(sessionId));
       if (!binding) return { sent: false, reason: 'session_not_bound_to_messenger' };
       const loaded = activeProvider?.id === binding.provider
@@ -501,7 +507,23 @@ export function makeMessengerGateway({
       const topic = binding.chatId.match(/^(.*):topic:([^:]+)$/u);
       const chatId = topic ? topic[1] : binding.chatId;
       const threadId = topic ? topic[2] : null;
-      return loaded.provider.sendReply({ chatId, threadId, text: String(text), signal });
+      const messageIds = []; const files = [];
+      if (String(text ?? '').trim()) {
+        const reply = await loaded.provider.sendReply({ chatId, threadId, text: String(text), signal });
+        messageIds.push(...(reply?.messageIds ?? (reply?.messageId ? [reply.messageId] : [])));
+      }
+      for (const attachmentId of artifactIds) {
+        if (!attachmentStore || typeof loaded.provider.sendDocument !== 'function') {
+          throw Object.assign(new Error('messenger artifact delivery unavailable'), {
+            code: 'messenger_artifact_delivery_unavailable',
+          });
+        }
+        const artifact = await attachmentStore.readContent({ sessionId, attachmentId: String(attachmentId) });
+        const sent = await loaded.provider.sendDocument({ chatId, threadId, artifact, signal });
+        if (sent?.messageId) messageIds.push(sent.messageId);
+        files.push(sent);
+      }
+      return { sent: true, provider: binding.provider, chatId, messageIds, files };
     },
 
     async resolveOwnerDelivery(provider = 'telegram') {

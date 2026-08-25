@@ -366,9 +366,22 @@ export function makeConsoleServer({
     if (!entry?.message?.content) return false;
     scheduledWorkInputs.add(queued.inputId);
     queueMicrotask(() => {
+      const telegramSource = queued.source?.channel === 'telegram';
       executeTurn(sessionId, entry.message.content, () => {}, {
-        trigger: 'work_followup', attachmentIds: queued.attachmentIds,
+        trigger: telegramSource ? 'messenger_followup' : 'work_followup',
+        attachmentIds: queued.attachmentIds,
         admittedInput: { inputId: queued.inputId, messageId: queued.messageId },
+        ...(telegramSource ? {
+          metadata: {
+            provider: 'telegram', chatId: queued.source?.chatId ?? null,
+            threadId: queued.source?.threadId ?? null, userId: queued.source?.senderId ?? null,
+            sourceMessageId: queued.source?.sourceMessageId ?? null,
+            replyIdentity: queued.source?.replyIdentity ?? null,
+          },
+          deliverSurface: ({ reply, artifactIds }) => messenger.sendToSession({
+            sessionId, text: reply, artifactIds,
+          }),
+        } : {}),
       }).catch((error) => onError?.(error)).finally(() => scheduledWorkInputs.delete(queued.inputId));
     });
     return true;
@@ -1782,10 +1795,13 @@ export function makeConsoleServer({
         await workStore.markResultDeliveryStarted(run.runId, { provider: 'telegram', state: 'started' });
         try {
           const delivery = await messenger.sendToSession({
-            sessionId, text: surfaceResult.reply, signal: controller.signal,
+            sessionId, text: surfaceResult.reply,
+            artifactIds: outputArtifacts.map((artifact) => artifact.attachmentId),
+            signal: controller.signal,
           });
           deliveryTerminal = delivery.sent ? { provider: 'telegram', state: 'sent',
-            messageIds: structuredClone(delivery.messageIds ?? []) }
+            messageIds: structuredClone(delivery.messageIds ?? []),
+            files: structuredClone(delivery.files ?? []) }
             : { provider: 'telegram', state: 'failed', reason: 'not_sent' };
         } catch (error) {
           deliveryTerminal = { provider: 'telegram', state: 'failed',
@@ -1793,6 +1809,7 @@ export function makeConsoleServer({
         }
         surfaceResult.channelDelivery = { provider: 'telegram', sent: deliveryTerminal.state === 'sent',
           ...(deliveryTerminal.messageIds ? { messageIds: deliveryTerminal.messageIds } : {}),
+          ...(deliveryTerminal.files ? { files: deliveryTerminal.files } : {}),
           ...(deliveryTerminal.reason ? { reason: deliveryTerminal.reason } : {}) };
         await run.append({ type: deliveryTerminal.state === 'sent'
           ? 'channel_delivery_completed' : 'channel_delivery_failed', stepId: 'telegram-delivery',

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -105,6 +105,70 @@ test('Telegram에서 생긴 대화에 콘솔로 이어 말하면 같은 Telegram
   } finally {
     await server.closeMessengers();
     await new Promise((resolveClose) => server.close(resolveClose));
+  }
+});
+
+test('Telegram 대화의 console Run도 등록한 원본 파일을 sendDocument로 함께 전달한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-console-file-'));
+  const filePath = join(room, '휴대폰에서 받을 파일.bin');
+  const original = Buffer.from('exact-phone-download-bytes'); await writeFile(filePath, original);
+  const textDeliveries = []; const fileDeliveries = []; let modelTurn = 0;
+  const provider = {
+    id: 'telegram', inboundMode: 'long_polling',
+    async validate() { return { id: '77', username: 't5_fixture_bot' }; },
+    async sendReply(input) { textDeliveries.push(structuredClone(input)); return {
+      sent: true, provider: 'telegram', chatId: input.chatId,
+      messageId: 'text-1', messageIds: ['text-1'], chunks: 1,
+    }; },
+    async sendDocument(input) {
+      fileDeliveries.push({ ...structuredClone(input), bytes: Buffer.from(input.artifact.bytes) });
+      return { sent: true, provider: 'telegram', chatId: input.chatId, messageId: 'file-1',
+        file: { fileId: 'provider-file-1', fileUniqueId: 'provider-unique-1',
+          fileName: input.artifact.record.originalName, mimeType: input.artifact.record.mimeType,
+          bytes: input.artifact.bytes.length },
+        artifact: { attachmentId: input.artifact.record.attachmentId,
+          sha256: input.artifact.record.sha256, bytes: input.artifact.bytes.length } };
+    },
+  };
+  const server = makeConsoleServer({
+    stateDir: room, workspace: room, messengerProviderFactory: () => provider,
+    modelFactory: () => ({ async respond() {
+      modelTurn += 1;
+      if (modelTurn === 1) return { text: '', toolCalls: [{
+        id: 'register-file', name: 'attachment', args: {
+          action: 'register_output', attachmentId: null, filePath,
+          maxChars: null, maxCells: null, maxPages: null, outputName: null,
+          resultRelativePath: null, expectedResultJson: null,
+          expectedStdoutIncludes: [], operationHandle: null,
+        },
+      }] };
+      return { text: '요청한 파일을 첨부했어요.', toolCalls: [] };
+    } }),
+    modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
+  });
+  await new Promise((resolveListen, reject) => {
+    server.once('error', reject); server.listen(0, '127.0.0.1', resolveListen);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const session = await server.sessionStore.create({ origin: { channel: 'telegram', chatId: '555' } });
+    await server.messengerGateway.connect({ provider: 'telegram', token: 'fixture-token' });
+    await server.messengerStateStore.bind('telegram', '555', session.id);
+    const response = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: `${filePath} 파일을 내 Telegram에 첨부해줘` }) });
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.equal(result.channelDelivery.sent, true);
+    assert.equal(result.channelDelivery.files.length, 1);
+    assert.equal(result.channelDelivery.files[0].messageId, 'file-1');
+    assert.deepEqual(fileDeliveries[0].bytes, original);
+    assert.equal(textDeliveries.length, 1);
+    const run = (await server.runLedger.list({ sessionId: session.id }))[0];
+    const terminal = run.events.find((event) => event.type === 'delivery_terminal');
+    assert.equal(terminal.payload.files[0].messageId, 'file-1');
+    assert.equal(result.channelDelivery.files[0].artifact.sha256, result.artifacts[0].sha256);
+  } finally {
+    await server.closeMessengers(); await new Promise((resolveClose) => server.close(resolveClose));
   }
 });
 
