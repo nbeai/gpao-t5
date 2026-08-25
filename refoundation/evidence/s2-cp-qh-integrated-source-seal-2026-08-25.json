@@ -1,0 +1,28 @@
+{
+  "schema": "t5.s2-cp-qh-integrated-source-seal.v1",
+  "recordedAt": "2026-08-25T20:20:00+09:00",
+  "sources": {
+    "qualityHardening": "54679218",
+    "connectionProtocol": "e021d50e",
+    "continuityRepair": "5213d88b",
+    "integratedBeforeSeal": "24692264"
+  },
+  "verification": {
+    "connectionAndContinuity": { "passed": 105, "failed": 0 },
+    "qualityHardening": { "passed": 89, "failed": 0 },
+    "legacyImports": 0
+  },
+  "boundaries": {
+    "productionAccountWrites": 0,
+    "visibleBrowserRuns": 0,
+    "packageBuilt": false,
+    "notarizationStarted": false,
+    "userOwnedFilesChanged": false
+  },
+  "releaseBlockers": [
+    "xlsx_qualified_recalculation_engine_absent",
+    "qh3_actual_model_outcome_13_of_15",
+    "dedicated_public_image_provider_absent",
+    "connecting_ui_regression_not_yet_settled"
+  ]
+}

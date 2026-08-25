@@ -1,8 +1,8 @@
 # T5 Second Completion — Current Development Source
 
-상태: `SECOND_COMPLETION_CLOSED_WITH_QUALITY_RELEASE_BLOCKERS`
-현재 Gate: `QH-1 COMPLETE · QH-2 OBSERVATION CORE COMPLETE · QH-3 CORE COMPLETE WITH MODEL OBSERVATION · QH-4 PROVIDER QUALIFIED ABSENT`
-기준 source: `abc3b1cd`
+상태: `SECOND_COMPLETION_INTEGRATED_SOURCE_SEALED_WITH_RELEASE_BLOCKERS`
+현재 Gate: `CP COMPLETE · QH-1 COMPLETE · QH-2 OBSERVATION CORE COMPLETE · QH-3 CORE COMPLETE WITH MODEL OBSERVATION · QH-4 PROVIDER QUALIFIED ABSENT`
+기준 source: `24692264`
 배포 상태: `package 잠금 · 남은 실제 사용자 자격과 Connecting 회귀 정산 전 서명·공증 금지`
 
 이 문서는 T5 2차 완성의 유일한 현재 작업 계획이다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은
@@ -12,6 +12,7 @@
 
 | 영역 | 현재 판정 | 남은 정확한 경계 |
 |---|---|---|
+| CP 연결 프로토콜 | COMPLETE | durable generation fencing·인증 회복·readiness·공식 Remote MCP와 Channel Talk·Slack·Google Workspace 제품 경계를 통합했다. 실제 생산 계정 쓰기는 이번 봉인에서 수행하지 않았다. |
 | QH-1 실행 결과물 | COMPLETE | Terra·gpt-5.5 각 3/3. managed begin/finalize, 실제 launcher·새 파일 효과, exact operation recovery가 성립했다. |
 | QH-2 문서·표 품질 | CORE COMPLETE | 하드코딩·수식 lineage·cache 과장을 막고 한글 DOCX 전 페이지 native 관측을 세웠다. 독립 재계산 engine receipt가 없는 XLSX는 `unmeasured`다. |
 | QH-3 시간·입력 격리 | CORE COMPLETE · OBSERVATION | 입력 settlement·sideband lane·old/new surface 격리는 결정적으로 통과했다. 실제 Terra 대표 matrix는 13/15이며 남은 두 건은 최종 출력 누락·내부 용어 노출이다. |
