@@ -1,6 +1,6 @@
 {
   "schema": "t5.qh2-artifact-quality-product-wiring-evidence.v1",
-  "sourceHead": "d6ee1156",
+  "sourceHead": "208344e8",
   "gate": "QH-2 Artifact Quality & Presentation Product Wiring",
   "userBoundary": {
     "appliesOnlyWhen": "an adjacent .t5-artifact-purpose.json contract exists for PDF, DOCX, or XLSX register_output",
@@ -10,6 +10,7 @@
   "runtimeObservations": {
     "measured": [
       "exact reopened artifact SHA-256",
+      "actual file kind versus contracted artifact kind",
       "XLSX formula and schema errors",
       "actual document forms",
       "screen preview render coverage",
@@ -31,11 +32,11 @@
     "wellFormedWithoutIndependentSemanticDomainVisualEvidence": "unmeasured_and_not_registered"
   },
   "checks": {
-    "focused": { "passed": 31, "failed": 0 },
+    "focused": { "passed": 32, "failed": 0 },
     "full": {
-      "passed": 789,
+      "passed": 790,
       "failed": 1,
-      "total": 790,
+      "total": 791,
       "knownUnrelatedFailure": "console-ui-state: openSettings selection-reset source assertion"
     },
     "legacyImport": 0,
