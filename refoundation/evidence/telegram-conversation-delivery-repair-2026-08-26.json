@@ -1,0 +1,24 @@
+{
+  "schema": "t5.telegram-conversation-delivery-repair.v1",
+  "date": "2026-08-26",
+  "scope": [
+    "unchanged_existing_file_exact_bytes",
+    "console_input_and_attachment_mirror_to_bound_telegram",
+    "runtime_failure_not_delivered_as_assistant_reply",
+    "progress_message_removed_on_failure",
+    "protected_historical_projection_not_publishable",
+    "non_card_console_failure_surface"
+  ],
+  "verification": {
+    "focused": { "passed": 70, "failed": 0 },
+    "core": { "passed": 885, "failed": 0 },
+    "productIntegration": { "passed": 142, "failed": 0 },
+    "legacyImports": 0
+  },
+  "externalEffects": {
+    "realTelegramSend": false,
+    "loopbackTelegram": true,
+    "browser": false,
+    "userFilesChanged": false
+  }
+}

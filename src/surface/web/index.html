@@ -3724,12 +3724,9 @@ function renderRecovery(box, r) {
 }
 
 function failureMessage(result = {}) {
-  const message = el('msg bot error');
-  message.appendChild(el('failure-title', '이번 작업을 끝내지 못했어요'));
-  message.appendChild(el('failure-label', '이유'));
+  const message = el('msg bot');
   message.appendChild(el('failure-reason', result.reply ?? '처리 중 문제가 생겼어요.'));
   if (result.nextSafeAction) {
-    message.appendChild(el('failure-label', '계속하려면'));
     message.appendChild(el('failure-next', result.nextSafeAction));
   }
   return message;

@@ -15,6 +15,26 @@ import { createGeneratedCompatibilityFixtures } from '../src/document-compatibil
 
 const SESSION = '33333333-3333-4333-8333-333333333333';
 
+test('요청한 기존 파일은 변환 없이 exact bytes로 output artifact가 된다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-existing-file-delivery-'));
+  const store = new AttachmentStore(join(room, 'attachments'));
+  const source = join(room, '소스_및_드레싱.xls');
+  const bytes = Buffer.from('original-biff8-like-bytes');
+  await writeFile(source, bytes);
+  const tool = makeAttachmentTool({
+    store, sessionId: SESSION, workspace: room,
+    runId: '44444444-4444-4444-8444-444444444444',
+    authorizeExistingFilePath: () => true,
+  });
+  const result = await tool.execute({ action: 'register_existing_file', filePath: source });
+  assert.equal(result.state, 'registered');
+  assert.equal(result.artifact.originalName, '소스_및_드레싱.xls');
+  assert.equal(result.artifact.bytes, bytes.length);
+  assert.deepEqual((await store.readContent({
+    sessionId: SESSION, attachmentId: result.artifact.attachmentId,
+  })).bytes, bytes);
+});
+
 function png(width = 4, height = 3) {
   const crc = (input) => {
     let value = 0xffffffff;

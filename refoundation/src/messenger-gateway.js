@@ -452,10 +452,7 @@ export function makeMessengerGateway({
             nextOffset = await stateStore.saveOffset(provider, acknowledgedOffset);
             continue;
           }
-          const failureText = failure?.reply
-            ? `${failure.reply}${failure.nextSafeAction ? `\n\n${failure.nextSafeAction}` : ''}`
-            : undefined;
-          await progress?.fail(failureText).catch(() => {});
+          await progress?.discard?.().catch(() => {});
           await stateStore.markIngress(provider, updateId, 'adopted_unknown', {
             sessionId, reason: String(code).slice(0, 160), failedAt: Date.now(),
           });

@@ -232,6 +232,7 @@ export async function modelImageInputs({ store, sessionId, records = [] } = {}) 
 
 export function makeAttachmentTool({
   store, sessionId, workspace, runId = null, authorizeOutputPath = null,
+  authorizeExistingFilePath = null,
   observeImagePixels = null, inspectQualifiedDocumentImpl = inspectQualifiedDocument,
   renderDocxPreview = renderDocxFirstPage, executableOperationStore = null,
   withdrawPendingApproval = null,
@@ -248,7 +249,7 @@ export function makeAttachmentTool({
     parameters: {
       type: 'object', additionalProperties: false,
       properties: {
-        action: { type: 'string', enum: ['list', 'inspect', 'extract_archive', 'begin_executable_output', 'finalize_executable_output', 'register_output'] },
+        action: { type: 'string', enum: ['list', 'inspect', 'extract_archive', 'begin_executable_output', 'finalize_executable_output', 'register_existing_file', 'register_output'] },
         attachmentId: { type: ['string', 'null'] },
         filePath: { type: ['string', 'null'] },
         maxChars: { type: ['integer', 'null'], minimum: 1, maximum: 200_000 },
@@ -311,6 +312,29 @@ export function makeAttachmentTool({
           withdrawPendingApproval,
         });
         return attemptRecovery ? { ...result, attemptRecovery } : result;
+      }
+      if (args.action === 'register_existing_file') {
+        if (!runId) throw new Error('existing file delivery requires a current Run');
+        if (!args.filePath) throw new TypeError('filePath is required');
+        const requested = isAbsolute(args.filePath) ? args.filePath : resolve(workspace, args.filePath);
+        const sourcePath = await realpath(requested);
+        const sourceFacts = await lstat(requested);
+        if (sourceFacts.isSymbolicLink() || !sourceFacts.isFile()) {
+          return { state: 'unavailable', reason: 'existing_file_not_regular' };
+        }
+        if (typeof authorizeExistingFilePath !== 'function'
+          || !await authorizeExistingFilePath(sourcePath)) {
+          return { state: 'unavailable', reason: 'existing_file_not_authorized' };
+        }
+        const artifact = await store.registerOutput({ sessionId, workspace, filePath: sourcePath });
+        await store.link({
+          sessionId, attachmentIds: [artifact.attachmentId],
+          messageId: `${runId}:output:${artifact.attachmentId}`, runId,
+        });
+        return {
+          state: 'registered', effect: 'existing_file_selected', artifact,
+          sourceIdentity: { bytes: artifact.bytes, sha256: artifact.sha256 },
+        };
       }
       if (args.action === 'register_output') {
         if (args.attachmentId && !args.filePath && !args.outputHandle) {

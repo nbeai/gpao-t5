@@ -407,6 +407,17 @@ export function makeTelegramMessengerProvider({
           }
           stopped = true;
         },
+        async discard() {
+          await queue;
+          if (messageId != null) {
+            try {
+              await call('deleteMessage', {
+                chat_id: String(chatId), message_id: Number(messageId), ...thread,
+              }, undefined, 8_000);
+            } catch { /* 진행 표시 정리는 best effort */ }
+          }
+          stopped = true;
+        },
       };
     },
 

@@ -100,15 +100,16 @@ test('Telegram에서 생긴 대화에 콘솔로 이어 말하면 같은 Telegram
     assert.equal(turn.status, 200);
     const result = await turn.json();
     assert.equal(result.channelDelivery?.sent, true);
-    assert.equal(deliveries.length, 2);
-    assert.equal(deliveries[1].chatId, '555');
+    assert.equal(deliveries.length, 3);
+    assert.match(deliveries[1].text, /내 요청 · 콘솔에서/u);
+    assert.equal(deliveries[2].chatId, '555');
   } finally {
     await server.closeMessengers();
     await new Promise((resolveClose) => server.close(resolveClose));
   }
 });
 
-test('Telegram 대화의 console Run도 등록한 원본 파일을 sendDocument로 함께 전달한다', async () => {
+test('Telegram 대화의 console Run은 사용자 입력을 동기화하고 선택한 기존 원본 파일을 sendDocument로 전달한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-messenger-console-file-'));
   const filePath = join(room, '휴대폰에서 받을 파일.bin');
   const original = Buffer.from('exact-phone-download-bytes'); await writeFile(filePath, original);
@@ -136,7 +137,7 @@ test('Telegram 대화의 console Run도 등록한 원본 파일을 sendDocument�
       modelTurn += 1;
       if (modelTurn === 1) return { text: '', toolCalls: [{
         id: 'register-file', name: 'attachment', args: {
-          action: 'register_output', attachmentId: null, filePath,
+          action: 'register_existing_file', attachmentId: null, filePath,
           maxChars: null, maxCells: null, maxPages: null, outputName: null,
           resultRelativePath: null, expectedResultJson: null,
           expectedStdoutIncludes: [], operationHandle: null,
@@ -155,14 +156,15 @@ test('Telegram 대화의 console Run도 등록한 원본 파일을 sendDocument�
     await server.messengerGateway.connect({ provider: 'telegram', token: 'fixture-token' });
     await server.messengerStateStore.bind('telegram', '555', session.id);
     const response = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sessionId: session.id, text: `${filePath} 파일을 내 Telegram에 첨부해줘` }) });
+      body: JSON.stringify({ sessionId: session.id, text: '휴대폰에서 받을 파일.bin을 내 Telegram에 첨부해줘' }) });
     assert.equal(response.status, 200);
     const result = await response.json();
     assert.equal(result.channelDelivery.sent, true);
     assert.equal(result.channelDelivery.files.length, 1);
     assert.equal(result.channelDelivery.files[0].messageId, 'file-1');
     assert.deepEqual(fileDeliveries[0].bytes, original);
-    assert.equal(textDeliveries.length, 1);
+    assert.equal(textDeliveries.length, 2);
+    assert.match(textDeliveries[0].text, /내 요청 · 콘솔에서/u);
     const run = (await server.runLedger.list({ sessionId: session.id }))[0];
     const terminal = run.events.find((event) => event.type === 'delivery_terminal');
     assert.equal(terminal.payload.files[0].messageId, 'file-1');
@@ -225,13 +227,12 @@ test('provider 실패 안내도 Telegram delivery receipt로 닫히고 같은 Se
     }
     const first = await server.messengerStateStore.ingress('telegram', 1);
     const second = await server.messengerStateStore.ingress('telegram', 2);
-    assert.equal(first.state, 'completed');
-    assert.equal(first.failedTurn, true);
-    assert.equal(first.messageIds.length, 1);
+    assert.equal(first.state, 'adopted_unknown');
+    assert.equal(first.messageIds?.length ?? 0, 0);
     assert.equal(second.state, 'completed');
     assert.equal(modelCalls, 2);
-    assert.equal(deliveries.length, 2);
-    assert.match(deliveries[1], /두 번째 요청/u);
+    assert.equal(deliveries.length, 1);
+    assert.match(deliveries[0], /두 번째 요청/u);
     const work = await server.workStore.read();
     assert.ok(work.claims.some((claim) => claim.state === 'released'));
     assert.equal(work.claims.length, 2);

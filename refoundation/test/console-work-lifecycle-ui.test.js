@@ -30,15 +30,14 @@ test('초기 세션 목록만 180ms 뒤 고정 형태 스켈레톤을 보이고 
   assert.match(html, /const loadingTimer = scheduleSessionSkeleton\(sequence\);[\s\S]*fetch\('\/sessions'\)/u);
 });
 
-test('실행 중에는 중지 버튼이 있고 실패는 이유와 계속 조건을 분리해 보여준다', async () => {
+test('실행 중에는 중지 버튼이 있고 미완료 상태를 정형 오류 카드로 만들지 않는다', async () => {
   const html = await readFile(consoleHtml, 'utf8');
   assert.match(html, /createElement\('button'\); stop\.type = 'button'; stop\.className = 'stopbtn'/u);
   assert.match(html, /aria-label', '현재 작업 멈추기'/u);
   assert.match(html, /fetch\('\/turn\/cancel'/u);
   assert.match(html, /if \(activeLocalTurns > 0\) return/u);
-  assert.match(html, /이번 작업을 끝내지 못했어요/u);
-  assert.match(html, /failure-label', '이유'/u);
-  assert.match(html, /failure-label', '계속하려면'/u);
+  assert.doesNotMatch(html, /failure-title', '이번 작업을 끝내지 못했어요'/u);
+  assert.doesNotMatch(html, /el\('msg bot error'\)/u);
   assert.match(html, /failure-reason/u);
   assert.match(html, /failure-next/u);
 });

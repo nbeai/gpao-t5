@@ -83,6 +83,10 @@ async function telegramFixture() {
       } }));
       return;
     }
+    if (method === 'deleteMessage') {
+      response.end(JSON.stringify({ ok: true, result: true }));
+      return;
+    }
     if (method === 'sendChatAction') {
       response.end(JSON.stringify({ ok: true, result: true }));
       return;
@@ -318,6 +322,30 @@ test('Telegram 작업 채택 뒤 실패는 불명확 효과를 다시 실행하�
 
     assert.deepEqual(await gateway().pollOnce(), { received: 0, accepted: 0, replied: 0, offset: 61 });
     assert.equal(executions, 1, '채택된 작업을 restart 뒤 자동 재실행하면 안 된다');
+  } finally { await fixture.close(); }
+});
+
+test('Telegram 작업 실패는 진행 말풍선을 정형 오류문으로 바꾸지 않고 제거한다', async () => {
+  const fixture = await telegramFixture();
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-failure-discard-'));
+  const gateway = makeMessengerGateway({
+    credentialStore: new MessengerCredentialStore(room),
+    stateStore: new MessengerStateStore(room),
+    providerFactory: ({ token }) => makeTelegramMessengerProvider({
+      token, apiBase: fixture.base, pollTimeoutSeconds: 0,
+    }),
+    createSession: async () => 'failure-session', authorizeInbound: async () => true,
+    onInbound: async (_message, { progress }) => {
+      await progress('파일을 찾고 있어요');
+      throw new Error('fixture failure');
+    },
+  });
+  try {
+    await gateway.connect({ provider: 'telegram', token: TOKEN });
+    fixture.updates.push(update(61, { text: '파일 보내줘' }));
+    await gateway.pollOnce();
+    assert.equal(fixture.calls.filter((call) => call.method === 'deleteMessage').length, 1);
+    assert.equal(fixture.calls.filter((call) => call.method === 'editMessageText').length, 0);
   } finally { await fixture.close(); }
 });
 

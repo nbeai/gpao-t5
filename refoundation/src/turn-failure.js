@@ -12,6 +12,11 @@ function modelLabel(error, connection) {
 
 export function userSafeTurnFailure(error, connection = null) {
   const label = modelLabel(error, connection);
+  if (error?.reason === 'protected_runtime_context_in_user_surface') return {
+    code: 'protected_runtime_context_suppressed',
+    text: '답에 내부 작업 정보가 섞여 그대로 표시하거나 보내지 않았어요.',
+    nextSafeAction: '요청과 진행 상태는 보존했습니다.',
+  };
   if (error?.reason === 'verified_resource_runaway') return {
     code: 'verified_repeated_method_stopped',
     text: '같은 방법이 같은 결과만 낸 뒤 차단 영수증에도 반복되어 이번 작업을 멈췄어요.',

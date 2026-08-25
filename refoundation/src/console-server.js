@@ -1,8 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { homedir } from 'node:os';
 
 import { runAgent } from './agent-loop.js';
 import { ConsoleSessionStore } from './console-session-store.js';
@@ -188,6 +189,25 @@ export function requestContainsWorkspacePath(request, candidate, workspace) {
     if (suffix.includes('/') && normalizedRequest.includes(suffix)) return true;
   }
   return false;
+}
+
+async function personalFileDeliveryAllowed(candidate, workspace, request) {
+  const path = resolve(String(candidate ?? ''));
+  const roots = await Promise.all([resolve(workspace), resolve(homedir())]
+    .map((root) => realpath(root).catch(() => root)));
+  if (!roots.some((root) => path === root || path.startsWith(`${root}${sep}`))) return false;
+  const relativeHomeText = relative(resolve(homedir()), path);
+  const relativeHome = relativeHomeText.split(sep);
+  const denied = new Set(['.ssh', '.aws', '.gnupg', '.kube', '.docker', '.config']);
+  if (relativeHome.some((part) => denied.has(part))) return false;
+  if (relativeHomeText === join('Library', 'Keychains')
+    || relativeHomeText.startsWith(`${join('Library', 'Keychains')}${sep}`)) return false;
+  const leaf = basename(path).toLowerCase();
+  if (['.env', 'auth.json', 'credentials', 'google_token.json', '.anthropic_oauth.json']
+    .includes(leaf)) return false;
+  const semanticName = (value) => String(value ?? '').normalize('NFC').toLowerCase()
+    .replace(/[\s_-]+/gu, '');
+  return semanticName(request).includes(semanticName(leaf));
 }
 
 async function body(req, limit = 1024 * 1024) {
@@ -1088,6 +1108,7 @@ export function makeConsoleServer({
         authorizeOutputPath: (candidate) => (
           requestContainsWorkspacePath(text, candidate, workspace) || outputCandidates.has(outputKey(candidate))
         ),
+        authorizeExistingFilePath: (candidate) => personalFileDeliveryAllowed(candidate, workspace, text),
         observeImagePixels: async (modelAttachments) => {
           visualObservationCount += 1; const index = visualObservationCount;
           await run.append({ type: 'visual_observation_model_started', stepId: `visual-observation-${index}`, payload: { index } });
@@ -1617,6 +1638,11 @@ export function makeConsoleServer({
       if (result.status !== 'completed' || !String(result.answer ?? '').trim()) {
         throw new Error(`agent ended without an answer: ${result.status}`);
       }
+      if (String(result.answer).includes('[T5 HISTORICAL ASSISTANT/TOOL PROJECTION')) {
+        throw Object.assign(new Error('model returned protected runtime context'), {
+          reason: 'protected_runtime_context_in_user_surface',
+        });
+      }
       const connection = await status();
       const activeApprovalIds = new Set((await authority.listActive(sessionId)).map((item) => item.pendingId));
       const approvalReceipt = [...result.receipts].reverse().find((receipt) => (
@@ -1958,31 +1984,13 @@ export function makeConsoleServer({
         }).catch(() => {});
         let failureDelivery = { provider: 'console', state: 'persisted' };
         if (typeof options.deliverSurface === 'function') {
-          await workStore.markResultDeliveryStarted(run.runId,
-            { provider: 'telegram', state: 'started' }).catch(() => {});
-          try {
-            const delivered = await options.deliverSurface({ reply: failureSurface.reply, artifactIds: [] });
-            failureDelivery = delivered?.sent ? {
-              provider: 'telegram', state: 'sent',
-              messageIds: structuredClone(delivered.messageIds ?? []),
-              files: structuredClone(delivered.files ?? []),
-            } : { provider: 'telegram', state: 'failed', reason: 'not_sent' };
-          } catch (deliveryError) {
-            failureDelivery = {
-              provider: 'telegram', state: deliveryError?.effectUnknown ? 'unknown' : 'failed',
-              reason: deliveryError?.code ?? 'telegram_delivery_failed',
-              retrySafe: deliveryError?.retrySafe !== false,
-            };
-          }
+          failureDelivery = { provider: 'telegram', state: 'not_sent',
+            reason: 'runtime_failure_is_not_a_user_authored_reply' };
           failureSurface.channelDelivery = {
-            provider: 'telegram', sent: failureDelivery.state === 'sent', state: failureDelivery.state,
-            ...(failureDelivery.messageIds ? { messageIds: failureDelivery.messageIds } : {}),
-            ...(failureDelivery.files ? { files: failureDelivery.files } : {}),
+            provider: 'telegram', sent: false, state: failureDelivery.state,
             ...(failureDelivery.reason ? { reason: failureDelivery.reason } : {}),
           };
-          await run.append({ type: failureDelivery.state === 'sent'
-            ? 'channel_delivery_completed' : failureDelivery.state === 'unknown'
-              ? 'channel_delivery_unknown' : 'channel_delivery_failed', stepId: 'telegram-delivery',
+          await run.append({ type: 'channel_delivery_suppressed', stepId: 'telegram-delivery',
           payload: failureSurface.channelDelivery }).catch(() => {});
         }
         await workStore.markResultDeliveryTerminal(run.runId, failureDelivery).catch(() => {});
@@ -2094,6 +2102,18 @@ export function makeConsoleServer({
     },
     log: (...values) => onError?.(new Error(values.map(String).join(' '))),
   });
+  async function mirrorConsoleInputToBoundMessenger(session, text, attachmentIds = []) {
+    if (session?.origin?.channel !== 'telegram') return null;
+    try {
+      return await messenger.sendToSession({
+        sessionId: session.id,
+        text: `내 요청 · 콘솔에서\n${String(text ?? '').trim()}`,
+        artifactIds: [...new Set((attachmentIds ?? []).map(String))],
+      });
+    } catch (error) {
+      onError?.(error); return null;
+    }
+  }
   async function recoverResultPublications() {
     const recovered = [];
     for (let result of (await workStore.read()).results.filter((item) => item.state !== 'delivery_terminal')) {
@@ -3231,6 +3251,9 @@ export function makeConsoleServer({
             await sessions.append(input.sessionId, { role: 'user', text: String(input.text), admitted: true,
               source,
               ...(admittedAttachments.length ? { attachments: admittedAttachments.map(attachmentSurface) } : {}) });
+            await mirrorConsoleInputToBoundMessenger(
+              session, input.text, admittedAttachmentIds,
+            );
             json(res, 202, { admitted: true, inputId: admitted.inputId, state: 'pending_model_judgment' }); return;
           } catch (error) {
             await conversations.abortMessage({ sessionId: input.sessionId, messageId,
@@ -3263,6 +3286,10 @@ export function makeConsoleServer({
         }
         try {
           emit('trace_status', { text: '요청을 시작했어요' });
+          const pendingSession = await sessions.load(pending.sessionId);
+          await mirrorConsoleInputToBoundMessenger(
+            pendingSession, pending.text, pending.attachmentIds,
+          );
           const completed = await executeTurn(pending.sessionId, pending.text, emit, {
             measurementId: pending.measurementId, attachmentIds: pending.attachmentIds,
           });
@@ -3317,8 +3344,13 @@ export function makeConsoleServer({
           });
           json(res, 200, completed.surfaceResult); return;
         }
+        const directAttachmentIds = Array.isArray(input.attachmentIds)
+          ? input.attachmentIds.map(String) : [];
+        await mirrorConsoleInputToBoundMessenger(
+          await sessions.load(input.sessionId), input.text, directAttachmentIds,
+        );
         const completed = await executeTurn(input.sessionId, input.text, () => {}, {
-          attachmentIds: Array.isArray(input.attachmentIds) ? input.attachmentIds.map(String) : [],
+          attachmentIds: directAttachmentIds,
         });
         json(res, 200, completed.surfaceResult ?? { kind: completed.kind }); return;
       }
