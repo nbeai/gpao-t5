@@ -121,7 +121,59 @@
     "qualificationMeaning": "Current credentials have no dedicated image provider and the public structured-search sample returned no image fields. T5 returned one typed shortfall instead of fabricating previews or opening another route.",
     "actualThreePreviewPublicCoverage": false
   },
+  "auditRepair": {
+    "sourceCommit": "8cf778fe",
+    "decoder": {
+      "engine": "sharp",
+      "productionDependency": "0.35.3",
+      "limitInputPixels": 40000000,
+      "failOn": "warning",
+      "realPixelDecode": true
+    },
+    "transport": {
+      "contentLengthPrecheck": true,
+      "incrementalBodyLimitBytes": 10485760,
+      "readerCancelledOnOverflow": true,
+      "arrayBufferWholeAllocation": false
+    },
+    "laneBoundary": {
+      "deactivatedAfterVisualResult": ["visual_reference"],
+      "factualWebLanesPreserved": ["web_search", "web_read", "web_research", "browser"]
+    },
+    "counterTests": {
+      "headerOnlyInvalidPngJpegGifWebp": "blocked_before_attachment",
+      "noContentLengthElevenMegabytes": "reader_cancelled_at_limit",
+      "noProviderMixedFactualRequest": "web_read_remains_visible",
+      "focused": "33/33"
+    },
+    "actualProviderAbsence": {
+      "terra": {
+        "runId": "2d2dc8d9-6748-4266-ba64-19a951ff7924",
+        "previewCount": 0,
+        "failureCount": 1,
+        "failureCode": "provider_image_fields_absent",
+        "visibleBrowserCalls": 0,
+        "passed": true
+      },
+      "gpt55": {
+        "runId": "8fde291c-1bc1-4449-bb49-50a18e609cf5",
+        "previewCount": 0,
+        "failureCount": 1,
+        "failureCode": "provider_image_fields_absent",
+        "visibleBrowserCalls": 0,
+        "factualWebLaneUsedAfterVisualShortfall": true,
+        "previewPromotionFromFactualWeb": 0,
+        "honestShortfallPreserved": true
+      }
+    }
+  },
   "regression": {
+    "fullCurrent": {
+      "passed": 827,
+      "failed": 2,
+      "qh4Failures": 0,
+      "separatedFailures": ["existing console UI assertion", "QH-2 multipage DOCX red"]
+    },
     "coreExcludingSeparatedUiCase": {
       "passed": 803,
       "failed": 0
