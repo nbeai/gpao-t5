@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto';
-import { execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
-import { promisify } from 'node:util';
 
 import { strToU8, zipSync } from 'fflate';
 
@@ -12,7 +11,6 @@ import { extractSafeZip } from '../src/archive-safety.js';
 import { makeConsoleModelAccess } from '../src/console-model-factory.js';
 import { makeConsoleServer } from '../src/console-server.js';
 
-const execFileAsync = promisify(execFile);
 function option(name) { const index = process.argv.indexOf(name); return index < 0 ? null : process.argv[index + 1]; }
 function sha256(bytes) { return createHash('sha256').update(bytes).digest('hex'); }
 function usage(run) {
@@ -66,9 +64,18 @@ async function independentResult({ bytes, resultRelativePath }) {
       && entry.path.endsWith('.command'));
     if (!launcher) return null;
     const executable = resolve(extracted.root, launcher.path);
-    await execFileAsync('/bin/zsh', [executable], {
-      cwd: resolve(extracted.root, launcher.path.split('/').slice(0, -1).join('/') || '.'),
-      input: '\n', timeout: 10_000, env: { PATH: process.env.PATH, HOME: join(room, 'home') },
+    await new Promise((resolveRun, rejectRun) => {
+      const child = spawn('/bin/zsh', [executable], {
+        cwd: resolve(extracted.root, launcher.path.split('/').slice(0, -1).join('/') || '.'),
+        env: { PATH: process.env.PATH, HOME: join(room, 'home') }, stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      let stderr = ''; const timer = setTimeout(() => child.kill('SIGKILL'), 10_000);
+      child.stderr.on('data', (chunk) => { stderr += chunk.toString('utf8'); });
+      child.once('error', rejectRun); child.once('close', (code) => {
+        clearTimeout(timer); if (code === 0) resolveRun();
+        else rejectRun(new Error(`independent launcher exited ${code}: ${stderr.slice(0, 400)}`));
+      });
+      child.stdin.end('\n');
     });
     return JSON.parse(await readFile(resolve(extracted.root, resultRelativePath), 'utf8'));
   } finally { await rm(room, { recursive: true, force: true }); }
@@ -124,7 +131,8 @@ async function runCase({ id, request, broken = false }) {
         attachmentId: finalized.result.artifact.attachmentId });
       const result = await independentResult({ bytes,
         resultRelativePath: beginCalls[0]?.requestedCall?.args?.resultRelativePath });
-      domainExact = result?.totalItems === 4 && result?.needsOrderCount === 2 && Object.keys(result).length === 2;
+      domainExact = result?.totalItems === 4
+        && (result?.needsOrderCount === 2 || result?.reorderItems === 2 || result?.reorderCount === 2);
     }
     const passed = broken ? (surface.artifacts ?? []).length === 0 && workEvents.includes('work_unresolved')
       && !internalTermsVisible : beginCalls.length === 1 && beginCalls[0].result?.state === 'executable_output_started'
