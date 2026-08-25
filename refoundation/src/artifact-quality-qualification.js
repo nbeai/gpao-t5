@@ -1,13 +1,21 @@
 const SCHEMA = 't5.artifact-purpose-contract.v1';
 const RECEIPT_SCHEMA = 't5.artifact-quality-receipt.v1';
+const OBSERVATION_SCHEMA = 't5.artifact-quality-observation.v1';
 const LANES = Object.freeze(['semantic', 'domain', 'structural', 'screen', 'print']);
 const DELIVERY_MEDIA = new Set(['screen', 'print', 'both']);
 const REQUIREMENT_KINDS = Object.freeze({
   semantic: new Set(['semantic_reconciliation']),
   domain: new Set(['domain_traceability']),
-  structural: new Set(['structural_scan']),
-  screen: new Set(['render_coverage', 'visual_integrity']),
-  print: new Set(['render_coverage', 'visual_integrity', 'openxml_page_setup']),
+  structural: new Set(['structural_scan', 'artifact_forms']),
+  screen: new Set(['render_coverage', 'visual_integrity', 'visual_hierarchy']),
+  print: new Set(['render_coverage', 'visual_integrity', 'visual_hierarchy', 'openxml_page_setup']),
+});
+const PRODUCER_KINDS = new Set(['semantic_verifier', 'domain_verifier', 'structural_verifier', 'render_verifier']);
+const PRODUCER_REQUIREMENT_KINDS = Object.freeze({
+  semantic_verifier: new Set(['semantic_reconciliation']),
+  domain_verifier: new Set(['domain_traceability']),
+  structural_verifier: new Set(['structural_scan', 'artifact_forms', 'openxml_page_setup']),
+  render_verifier: new Set(['render_coverage', 'visual_integrity', 'visual_hierarchy']),
 });
 
 function fail(message) { throw new TypeError(message); }
@@ -20,9 +28,22 @@ function text(value, label) {
   if (!normalized) fail(`${label} must be a non-empty string`);
   return normalized;
 }
+function strictText(value, label) {
+  if (typeof value !== 'string' || !value.trim()) fail(`${label} must be a non-empty string`);
+  return value.trim();
+}
 function stringList(value, label, { allowEmpty = false } = {}) {
   if (!Array.isArray(value) || (!allowEmpty && value.length === 0)) fail(`${label} must be ${allowEmpty ? 'an' : 'a non-empty'} array`);
   const result = value.map((item, index) => text(item, `${label}[${index}]`));
+  if (new Set(result).size !== result.length) fail(`${label} must not contain duplicates`);
+  return result;
+}
+function strictStringList(value, label, { allowEmpty = false } = {}) {
+  if (!Array.isArray(value) || (!allowEmpty && value.length === 0)) fail(`${label} must be ${allowEmpty ? 'an' : 'a non-empty'} array`);
+  const result = value.map((item, index) => {
+    if (typeof item !== 'string' || !item.trim()) fail(`${label}[${index}] must be a non-empty string`);
+    return item.trim();
+  });
   if (new Set(result).size !== result.length) fail(`${label} must not contain duplicates`);
   return result;
 }
@@ -80,6 +101,9 @@ function normalizeExpected(kind, expected, requirementId, lane) {
     }
     return result;
   }
+  if (kind === 'artifact_forms') {
+    return { formIds: stringList(expected.formIds, `${label}.formIds`) };
+  }
   if (kind === 'render_coverage') {
     const surface = text(expected.surface, `${label}.surface`);
     if (surface !== lane) fail(`${label}.surface must match ${lane}`);
@@ -91,6 +115,15 @@ function normalizeExpected(kind, expected, requirementId, lane) {
     return {
       surface, unitIds: stringList(expected.unitIds, `${label}.unitIds`),
       disallowedDefects: stringList(expected.disallowedDefects, `${label}.disallowedDefects`),
+    };
+  }
+  if (kind === 'visual_hierarchy') {
+    const surface = text(expected.surface, `${label}.surface`);
+    if (surface !== lane) fail(`${label}.surface must match ${lane}`);
+    return {
+      surface,
+      unitIds: stringList(expected.unitIds, `${label}.unitIds`),
+      goalIds: stringList(expected.goalIds, `${label}.goalIds`),
     };
   }
   if (kind === 'openxml_page_setup') {
@@ -154,6 +187,8 @@ export function createArtifactPurposeContract(input = {}) {
     version: text(domainProfileInput.version, 'domainProfile.version'),
     invariantRefs: stringList(domainProfileInput.invariantRefs, 'domainProfile.invariantRefs'),
   };
+  const requiredArtifactForms = stringList(input.requiredArtifactForms, 'requiredArtifactForms');
+  const visualHierarchyGoals = stringList(input.visualHierarchyGoals, 'visualHierarchyGoals');
   const rawLanes = object(input.laneRequirements, 'laneRequirements');
   const laneRequirements = {};
   for (const lane of LANES) {
@@ -179,10 +214,17 @@ export function createArtifactPurposeContract(input = {}) {
     }
   }
   for (const requirement of laneRequirements.structural) {
-    if (requirement.expected.reopenedArtifactSha256 !== artifact.sha256) fail(`${requirement.requirementId} must reopen the contracted artifact`);
+    if (requirement.kind === 'structural_scan' && requirement.expected.reopenedArtifactSha256 !== artifact.sha256) {
+      fail(`${requirement.requirementId} must reopen the contracted artifact`);
+    }
   }
   for (const lane of ['semantic', 'domain', 'structural']) {
     if (laneRequirements[lane].length === 0) fail(`${lane} lane must have at least one requirement`);
+  }
+  requireKinds(laneRequirements.structural, 'structural', ['artifact_forms']);
+  const formRequirements = laneRequirements.structural.filter((item) => item.kind === 'artifact_forms');
+  if (formRequirements.length !== 1 || !exactSet(formRequirements[0].expected.formIds, requiredArtifactForms)) {
+    fail('structural artifact_forms must exactly bind requiredArtifactForms');
   }
   if (['screen', 'both'].includes(deliveryMedium)) requireKinds(laneRequirements.screen, 'screen', ['render_coverage', 'visual_integrity']);
   else if (laneRequirements.screen.length > 0) fail('screen requirements must be empty when deliveryMedium is print');
@@ -192,9 +234,15 @@ export function createArtifactPurposeContract(input = {}) {
   } else if (laneRequirements.print.length > 0) fail('print requirements must be empty when deliveryMedium is screen');
   for (const lane of ['screen', 'print']) {
     if (!laneRequired({ deliveryMedium }, lane)) continue;
+    requireKinds(laneRequirements[lane], lane, ['visual_hierarchy']);
     const renderedUnits = [...new Set(laneRequirements[lane].filter((item) => item.kind === 'render_coverage').flatMap((item) => item.expected.unitIds))];
     const visuallyObservedUnits = [...new Set(laneRequirements[lane].filter((item) => item.kind === 'visual_integrity').flatMap((item) => item.expected.unitIds))];
     if (!exactSet(renderedUnits, visuallyObservedUnits)) fail(`${lane} render and visual coverage must name the same units`);
+    const hierarchyRequirements = laneRequirements[lane].filter((item) => item.kind === 'visual_hierarchy');
+    const hierarchyUnits = [...new Set(hierarchyRequirements.flatMap((item) => item.expected.unitIds))];
+    const hierarchyGoals = [...new Set(hierarchyRequirements.flatMap((item) => item.expected.goalIds))];
+    if (!exactSet(renderedUnits, hierarchyUnits)) fail(`${lane} render and hierarchy coverage must name the same units`);
+    if (!exactSet(hierarchyGoals, visualHierarchyGoals)) fail(`${lane} visual_hierarchy must exactly bind visualHierarchyGoals`);
   }
 
   return {
@@ -204,21 +252,133 @@ export function createArtifactPurposeContract(input = {}) {
     audience: text(input.audience, 'audience'), domain: text(input.domain, 'domain'),
     usePurpose: text(input.usePurpose, 'usePurpose'), deliveryMedium,
     sourceFacts, calculations,
-    requiredArtifactForms: stringList(input.requiredArtifactForms, 'requiredArtifactForms'),
-    visualHierarchyGoals: stringList(input.visualHierarchyGoals, 'visualHierarchyGoals'),
+    requiredArtifactForms,
+    visualHierarchyGoals,
     domainProfile, laneRequirements,
   };
 }
 
-function evaluationFor(requirement, observation, contract) {
+function trustedProducerKey(producer) { return `${producer.kind}\u0000${producer.identity}`; }
+
+function normalizeTrustedProducers(value) {
+  if (!Array.isArray(value)) fail('trustedProducers must be an array');
+  return new Set(value.map((producer, index) => {
+    object(producer, `trustedProducers[${index}]`);
+    const kind = text(producer.kind, `trustedProducers[${index}].kind`);
+    if (!PRODUCER_KINDS.has(kind)) fail(`trustedProducers[${index}].kind is not trusted`);
+    return trustedProducerKey({ kind, identity: text(producer.identity, `trustedProducers[${index}].identity`) });
+  }));
+}
+
+function normalizeObservationFacts(requirement, facts) {
+  const label = `observation ${requirement.requirementId}.facts`;
+  object(facts, label);
+  if (requirement.kind === 'semantic_reconciliation') return {
+    satisfiedFactIds: strictStringList(facts.satisfiedFactIds, `${label}.satisfiedFactIds`, { allowEmpty: true }),
+    unchangedSourceFactIds: strictStringList(facts.unchangedSourceFactIds, `${label}.unchangedSourceFactIds`, { allowEmpty: true }),
+    preservedUnresolvedFactIds: strictStringList(facts.preservedUnresolvedFactIds, `${label}.preservedUnresolvedFactIds`, { allowEmpty: true }),
+  };
+  if (requirement.kind === 'domain_traceability') {
+    if (!Array.isArray(facts.traces)) fail(`${label}.traces must be an array`);
+    const traces = facts.traces.map((trace, index) => {
+      object(trace, `${label}.traces[${index}]`);
+      if (typeof trace.originalValuePresent !== 'boolean' || typeof trace.reversible !== 'boolean') {
+        fail(`${label}.traces[${index}] flags must be boolean`);
+      }
+      return {
+        sourceFactId: strictText(trace.sourceFactId, `${label}.traces[${index}].sourceFactId`),
+        sourceRef: strictText(trace.sourceRef, `${label}.traces[${index}].sourceRef`),
+        originalValuePresent: trace.originalValuePresent,
+        reversible: trace.reversible,
+      };
+    });
+    return { traces, calculationIds: strictStringList(facts.calculationIds, `${label}.calculationIds`, { allowEmpty: true }) };
+  }
+  if (requirement.kind === 'structural_scan') {
+    if (!validSha256(facts.reopenedArtifactSha256)) fail(`${label}.reopenedArtifactSha256 must be SHA-256`);
+    if (![facts.formulaErrors, facts.schemaErrors].every((value) => Number.isInteger(value) && value >= 0)) {
+      fail(`${label} error counts must be non-negative integers`);
+    }
+    return { reopenedArtifactSha256: facts.reopenedArtifactSha256, formulaErrors: facts.formulaErrors, schemaErrors: facts.schemaErrors };
+  }
+  if (requirement.kind === 'artifact_forms') {
+    return { observedFormIds: strictStringList(facts.observedFormIds, `${label}.observedFormIds`) };
+  }
+  if (requirement.kind === 'render_coverage') return {
+    surface: strictText(facts.surface, `${label}.surface`),
+    observedUnitIds: strictStringList(facts.observedUnitIds, `${label}.observedUnitIds`),
+  };
+  if (requirement.kind === 'visual_integrity') {
+    if (!Array.isArray(facts.defects)) fail(`${label}.defects must be an array`);
+    const observedUnitIds = strictStringList(facts.observedUnitIds, `${label}.observedUnitIds`);
+    const defects = facts.defects.map((defect, index) => {
+      object(defect, `${label}.defects[${index}]`);
+      const normalized = {
+        unitId: strictText(defect.unitId, `${label}.defects[${index}].unitId`),
+        type: strictText(defect.type, `${label}.defects[${index}].type`),
+      };
+      if (!observedUnitIds.includes(normalized.unitId)) fail(`${label}.defects[${index}].unitId was not observed`);
+      return normalized;
+    });
+    return { surface: strictText(facts.surface, `${label}.surface`), observedUnitIds, defects };
+  }
+  if (requirement.kind === 'visual_hierarchy') return {
+    surface: strictText(facts.surface, `${label}.surface`),
+    observedUnitIds: strictStringList(facts.observedUnitIds, `${label}.observedUnitIds`),
+    achievedGoalIds: strictStringList(facts.achievedGoalIds, `${label}.achievedGoalIds`, { allowEmpty: true }),
+  };
+  if (requirement.kind === 'openxml_page_setup') {
+    if (!Array.isArray(facts.sheets) || facts.sheets.length === 0) fail(`${label}.sheets must be a non-empty array`);
+    return { sheets: facts.sheets.map((sheet, index) => {
+      const sheetLabel = `${label}.sheets[${index}]`;
+      object(sheet, sheetLabel);
+      return normalizePageSetupSheet({
+        ...sheet,
+        sheetId: strictText(sheet.sheetId, `${sheetLabel}.sheetId`),
+        paperSize: strictText(sheet.paperSize, `${sheetLabel}.paperSize`),
+        orientation: strictText(sheet.orientation, `${sheetLabel}.orientation`),
+        printArea: strictText(sheet.printArea, `${sheetLabel}.printArea`),
+      }, sheetLabel);
+    }) };
+  }
+  fail(`${label} has unsupported requirement kind`);
+}
+
+function normalizeObservation(requirement, observation, contract, trustedProducers) {
+  object(observation, `observation ${requirement.requirementId}`);
+  if (observation.schema !== OBSERVATION_SCHEMA) fail('observation schema mismatch');
+  if (observation.contractId !== contract.contractId) fail('observation contract identity mismatch');
+  if (observation.artifactSha256 !== contract.artifact.sha256) fail('observation artifact identity mismatch');
+  const producer = object(observation.producer, 'observation producer');
+  const normalizedProducer = {
+    kind: strictText(producer.kind, 'observation producer.kind'),
+    identity: strictText(producer.identity, 'observation producer.identity'),
+  };
+  if (!PRODUCER_REQUIREMENT_KINDS[normalizedProducer.kind]?.has(requirement.kind)) fail('observation producer kind mismatch');
+  if (!trustedProducers.has(trustedProducerKey(normalizedProducer))) fail('observation producer is not trusted');
+  const state = strictText(observation.state, 'observation state');
+  if (!['observed', 'failed', 'unknown'].includes(state)) fail('observation state is invalid');
+  return {
+    ...observation,
+    observationId: strictText(observation.observationId, 'observationId'),
+    state,
+    facts: state === 'observed' ? normalizeObservationFacts(requirement, observation.facts) : null,
+  };
+}
+
+function evaluationFor(requirement, rawObservation, contract, trustedProducers) {
+  let observation;
+  try {
+    observation = rawObservation == null ? null : normalizeObservation(requirement, rawObservation, contract, trustedProducers);
+  } catch {
+    return { state: 'failed', reason: 'malformed_observation' };
+  }
   if (!observation) return { state: 'unmeasured', reason: 'observation_missing' };
   if (observation.state === 'unknown') return { state: 'unmeasured', reason: 'observation_unknown' };
   if (observation.state === 'failed') return { state: 'failed', reason: 'observer_failed' };
   if (observation.state !== 'observed') return { state: 'failed', reason: 'invalid_observation_state' };
   if (observation.kind !== requirement.kind) return { state: 'failed', reason: 'observation_kind_mismatch' };
-  if (observation.artifactSha256 !== contract.artifact.sha256) return { state: 'failed', reason: 'artifact_identity_mismatch' };
-  if (!String(observation.observerRef ?? '').trim()) return { state: 'failed', reason: 'observer_reference_missing' };
-  const facts = observation.facts ?? {};
+  const facts = observation.facts;
   const expected = requirement.expected;
 
   if (requirement.kind === 'semantic_reconciliation') {
@@ -246,15 +406,23 @@ function evaluationFor(requirement, observation, contract) {
       && Number.isInteger(facts.schemaErrors) && facts.schemaErrors <= expected.maximumSchemaErrors;
     return { state: passed ? 'qualified' : 'failed', reason: passed ? null : 'structural_scan_failed' };
   }
+  if (requirement.kind === 'artifact_forms') {
+    const passed = exactSet(facts.observedFormIds, expected.formIds);
+    return { state: passed ? 'qualified' : 'failed', reason: passed ? null : 'artifact_forms_incomplete' };
+  }
   if (requirement.kind === 'render_coverage') {
     const passed = facts.surface === expected.surface && exactSet(facts.observedUnitIds, expected.unitIds);
     return { state: passed ? 'qualified' : 'failed', reason: passed ? null : 'render_coverage_incomplete' };
   }
   if (requirement.kind === 'visual_integrity') {
-    const defects = Array.isArray(facts.defects) ? facts.defects : null;
     const passed = facts.surface === expected.surface && exactSet(facts.observedUnitIds, expected.unitIds)
-      && defects != null && !defects.some((defect) => expected.disallowedDefects.includes(defect.type));
+      && !facts.defects.some((defect) => expected.disallowedDefects.includes(defect.type));
     return { state: passed ? 'qualified' : 'failed', reason: passed ? null : 'visual_integrity_failed' };
+  }
+  if (requirement.kind === 'visual_hierarchy') {
+    const passed = facts.surface === expected.surface && exactSet(facts.observedUnitIds, expected.unitIds)
+      && exactSet(facts.achievedGoalIds, expected.goalIds);
+    return { state: passed ? 'qualified' : 'failed', reason: passed ? null : 'visual_hierarchy_incomplete' };
   }
   if (requirement.kind === 'openxml_page_setup') {
     const actualSheets = Array.isArray(facts.sheets) ? facts.sheets : [];
@@ -273,9 +441,10 @@ function laneRequired(contract, lane) {
   return true;
 }
 
-export function qualifyArtifactQuality({ contract: rawContract, observations = [] } = {}) {
+export function qualifyArtifactQuality({ contract: rawContract, observations = [], trustedProducers = [] } = {}) {
   const contract = createArtifactPurposeContract(rawContract);
   if (!Array.isArray(observations)) fail('observations must be an array');
+  const trustedProducerKeys = normalizeTrustedProducers(trustedProducers);
   const byRequirement = new Map();
   for (const observation of observations) {
     const requirementId = String(observation?.requirementId ?? '');
@@ -293,7 +462,7 @@ export function qualifyArtifactQuality({ contract: rawContract, observations = [
       const candidates = byRequirement.get(requirement.requirementId) ?? [];
       const evaluation = candidates.length > 1
         ? { state: 'failed', reason: 'duplicate_observations' }
-        : evaluationFor(requirement, candidates[0], contract);
+        : evaluationFor(requirement, candidates[0], contract, trustedProducerKeys);
       return { requirementId: requirement.requirementId, kind: requirement.kind, status: evaluation.state, reason: evaluation.reason, observationId: candidates[0]?.observationId ?? null };
     });
     const failedRequirementIds = requirements.filter((item) => item.status === 'failed').map((item) => item.requirementId);
