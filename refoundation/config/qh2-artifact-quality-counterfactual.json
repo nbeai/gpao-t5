@@ -1,0 +1,23 @@
+{
+  "schema": "t5.qh2-artifact-quality-counterfactual.v1",
+  "fixtureId": "settlement-correct-values-incomplete-quality",
+  "artifactSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "knownFailure": {
+    "removeObservationIds": ["domain-1"],
+    "appendDefect": {
+      "observationId": "print-visual",
+      "unitId": "상세:p1",
+      "type": "horizontal_split"
+    }
+  },
+  "expected": {
+    "qualified": false,
+    "laneStatuses": {
+      "semantic": "qualified",
+      "domain": "unmeasured",
+      "structural": "qualified",
+      "screen": "qualified",
+      "print": "failed"
+    }
+  }
+}

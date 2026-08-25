@@ -1,0 +1,41 @@
+{
+  "schema": "t5.qh2-artifact-quality-core-evidence.v1",
+  "gate": "QH-2 Artifact Quality & Presentation Core",
+  "sourceHead": "bae1126b",
+  "scope": {
+    "implemented": [
+      "bounded ArtifactPurposeContract",
+      "five independent quality lanes",
+      "typed render coverage and OpenXML page setup facts",
+      "QualityReceipt without aggregate score"
+    ],
+    "notImplemented": [
+      "renderer",
+      "console or attachment wiring",
+      "document generator",
+      "installer qualification",
+      "package build"
+    ]
+  },
+  "counterfactualFixture": "settlement-correct-values-incomplete-quality",
+  "counterfactualResult": {
+    "semantic": "qualified",
+    "domain": "unmeasured",
+    "structural": "qualified",
+    "screen": "qualified",
+    "print": "failed",
+    "overallQualified": false
+  },
+  "checks": {
+    "targeted": { "passed": 5, "failed": 0 },
+    "refoundationDoctor": "passed",
+    "legacyImportBoundary": "passed",
+    "refoundationTests": {
+      "passed": 758,
+      "failed": 1,
+      "total": 759,
+      "existingFailure": "environment.test.js expects the superseded S2-B Gate text while T5-SECOND-COMPLETION.md contains the sealed QUALITY HARDENING Gate"
+    }
+  },
+  "gateImpact": "core contract and counterfactual qualification ready; runtime render producers and product wiring remain unmeasured"
+}
