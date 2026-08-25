@@ -258,16 +258,26 @@ export function createArtifactPurposeContract(input = {}) {
   };
 }
 
-function trustedProducerKey(producer) { return `${producer.kind}\u0000${producer.identity}`; }
+function producerKindForRequirement(requirementKind) {
+  return [...PRODUCER_KINDS].find((kind) => PRODUCER_REQUIREMENT_KINDS[kind].has(requirementKind)) ?? null;
+}
 
-function normalizeTrustedProducers(value) {
-  if (!Array.isArray(value)) fail('trustedProducers must be an array');
-  return new Set(value.map((producer, index) => {
-    object(producer, `trustedProducers[${index}]`);
-    const kind = text(producer.kind, `trustedProducers[${index}].kind`);
-    if (!PRODUCER_KINDS.has(kind)) fail(`trustedProducers[${index}].kind is not trusted`);
-    return trustedProducerKey({ kind, identity: text(producer.identity, `trustedProducers[${index}].identity`) });
-  }));
+function normalizeObservationProducers(value) {
+  if (!Array.isArray(value)) fail('observationProducers must be an array');
+  const registry = new Map();
+  value.forEach((producer, index) => {
+    object(producer, `observationProducers[${index}]`);
+    const kind = text(producer.kind, `observationProducers[${index}].kind`);
+    if (!PRODUCER_KINDS.has(kind)) fail(`observationProducers[${index}].kind is not trusted`);
+    if (registry.has(kind)) fail(`observationProducers contains duplicate ${kind}`);
+    if (typeof producer.observe !== 'function') fail(`observationProducers[${index}].observe must be a function`);
+    registry.set(kind, Object.freeze({
+      kind,
+      identity: text(producer.identity, `observationProducers[${index}].identity`),
+      observe: producer.observe,
+    }));
+  });
+  return registry;
 }
 
 function normalizeObservationFacts(requirement, facts) {
@@ -344,40 +354,53 @@ function normalizeObservationFacts(requirement, facts) {
   fail(`${label} has unsupported requirement kind`);
 }
 
-function normalizeObservation(requirement, observation, contract, trustedProducers) {
+function normalizeObservation(requirement, observation, contract, producer) {
   object(observation, `observation ${requirement.requirementId}`);
   if (observation.schema !== OBSERVATION_SCHEMA) fail('observation schema mismatch');
   if (observation.contractId !== contract.contractId) fail('observation contract identity mismatch');
   if (observation.artifactSha256 !== contract.artifact.sha256) fail('observation artifact identity mismatch');
-  const producer = object(observation.producer, 'observation producer');
-  const normalizedProducer = {
-    kind: strictText(producer.kind, 'observation producer.kind'),
-    identity: strictText(producer.identity, 'observation producer.identity'),
-  };
-  if (!PRODUCER_REQUIREMENT_KINDS[normalizedProducer.kind]?.has(requirement.kind)) fail('observation producer kind mismatch');
-  if (!trustedProducers.has(trustedProducerKey(normalizedProducer))) fail('observation producer is not trusted');
+  if (Object.hasOwn(observation, 'producer')) fail('observation producer provenance is runtime-owned');
+  if (!PRODUCER_REQUIREMENT_KINDS[producer.kind]?.has(requirement.kind)) fail('observation producer kind mismatch');
   const state = strictText(observation.state, 'observation state');
   if (!['observed', 'failed', 'unknown'].includes(state)) fail('observation state is invalid');
   return {
     ...observation,
     observationId: strictText(observation.observationId, 'observationId'),
+    producer: { kind: producer.kind, identity: producer.identity, trusted: true },
     state,
     facts: state === 'observed' ? normalizeObservationFacts(requirement, observation.facts) : null,
   };
 }
 
-function evaluationFor(requirement, rawObservation, contract, trustedProducers) {
+async function evaluationFor(requirement, contract, producerRegistry) {
+  const producerKind = producerKindForRequirement(requirement.kind);
+  const producer = producerRegistry.get(producerKind);
+  if (!producer) return { state: 'unmeasured', reason: 'producer_unavailable', observationId: null };
+  let rawObservation;
+  try {
+    rawObservation = await producer.observe(Object.freeze({
+      contract: Object.freeze(structuredClone(contract)),
+      artifact: Object.freeze({ ...contract.artifact }),
+      requirement: Object.freeze(structuredClone(requirement)),
+      producer: Object.freeze({ kind: producer.kind, identity: producer.identity }),
+    }));
+  } catch {
+    return { state: 'failed', reason: 'observer_failed', observationId: null };
+  }
+  if (rawObservation == null) {
+    return { state: 'unmeasured', reason: 'observation_missing', observationId: null };
+  }
   let observation;
   try {
-    observation = rawObservation == null ? null : normalizeObservation(requirement, rawObservation, contract, trustedProducers);
+    observation = normalizeObservation(requirement, rawObservation, contract, producer);
   } catch {
-    return { state: 'failed', reason: 'malformed_observation' };
+    return { state: 'failed', reason: 'malformed_observation', observationId: rawObservation?.observationId ?? null };
   }
-  if (!observation) return { state: 'unmeasured', reason: 'observation_missing' };
-  if (observation.state === 'unknown') return { state: 'unmeasured', reason: 'observation_unknown' };
-  if (observation.state === 'failed') return { state: 'failed', reason: 'observer_failed' };
-  if (observation.state !== 'observed') return { state: 'failed', reason: 'invalid_observation_state' };
-  if (observation.kind !== requirement.kind) return { state: 'failed', reason: 'observation_kind_mismatch' };
+  const identified = (result) => ({ ...result, observationId: observation.observationId });
+  if (observation.state === 'unknown') return identified({ state: 'unmeasured', reason: 'observation_unknown' });
+  if (observation.state === 'failed') return identified({ state: 'failed', reason: 'observer_failed' });
+  if (observation.state !== 'observed') return identified({ state: 'failed', reason: 'invalid_observation_state' });
+  if (observation.kind !== requirement.kind) return identified({ state: 'failed', reason: 'observation_kind_mismatch' });
   const facts = observation.facts;
   const expected = requirement.expected;
 
@@ -385,7 +408,7 @@ function evaluationFor(requirement, rawObservation, contract, trustedProducers) 
     const passed = includesAll(facts.satisfiedFactIds, expected.satisfiedFactIds)
       && includesAll(facts.unchangedSourceFactIds, expected.unchangedSourceFactIds)
       && includesAll(facts.preservedUnresolvedFactIds, expected.preservedUnresolvedFactIds);
-    return { state: passed ? 'qualified' : 'failed', reason: passed ? null : 'semantic_reconciliation_incomplete' };
+    return identified({ state: passed ? 'qualified' : 'failed', reason: passed ? null : 'semantic_reconciliation_incomplete' });
   }
   if (requirement.kind === 'domain_traceability') {
     const traces = Array.isArray(facts.traces) ? facts.traces : [];
@@ -398,31 +421,31 @@ function evaluationFor(requirement, rawObservation, contract, trustedProducers) 
       (trace) => trace.sourceFactId === factId && trace.reversible === true,
     ));
     const passed = tracePassed && reversiblePassed && includesAll(facts.calculationIds, expected.calculationIds ?? []);
-    return { state: passed ? 'qualified' : 'failed', reason: passed ? null : 'domain_traceability_incomplete' };
+    return identified({ state: passed ? 'qualified' : 'failed', reason: passed ? null : 'domain_traceability_incomplete' });
   }
   if (requirement.kind === 'structural_scan') {
     const passed = facts.reopenedArtifactSha256 === expected.reopenedArtifactSha256
       && Number.isInteger(facts.formulaErrors) && facts.formulaErrors <= expected.maximumFormulaErrors
       && Number.isInteger(facts.schemaErrors) && facts.schemaErrors <= expected.maximumSchemaErrors;
-    return { state: passed ? 'qualified' : 'failed', reason: passed ? null : 'structural_scan_failed' };
+    return identified({ state: passed ? 'qualified' : 'failed', reason: passed ? null : 'structural_scan_failed' });
   }
   if (requirement.kind === 'artifact_forms') {
     const passed = exactSet(facts.observedFormIds, expected.formIds);
-    return { state: passed ? 'qualified' : 'failed', reason: passed ? null : 'artifact_forms_incomplete' };
+    return identified({ state: passed ? 'qualified' : 'failed', reason: passed ? null : 'artifact_forms_incomplete' });
   }
   if (requirement.kind === 'render_coverage') {
     const passed = facts.surface === expected.surface && exactSet(facts.observedUnitIds, expected.unitIds);
-    return { state: passed ? 'qualified' : 'failed', reason: passed ? null : 'render_coverage_incomplete' };
+    return identified({ state: passed ? 'qualified' : 'failed', reason: passed ? null : 'render_coverage_incomplete' });
   }
   if (requirement.kind === 'visual_integrity') {
     const passed = facts.surface === expected.surface && exactSet(facts.observedUnitIds, expected.unitIds)
       && !facts.defects.some((defect) => expected.disallowedDefects.includes(defect.type));
-    return { state: passed ? 'qualified' : 'failed', reason: passed ? null : 'visual_integrity_failed' };
+    return identified({ state: passed ? 'qualified' : 'failed', reason: passed ? null : 'visual_integrity_failed' });
   }
   if (requirement.kind === 'visual_hierarchy') {
     const passed = facts.surface === expected.surface && exactSet(facts.observedUnitIds, expected.unitIds)
       && exactSet(facts.achievedGoalIds, expected.goalIds);
-    return { state: passed ? 'qualified' : 'failed', reason: passed ? null : 'visual_hierarchy_incomplete' };
+    return identified({ state: passed ? 'qualified' : 'failed', reason: passed ? null : 'visual_hierarchy_incomplete' });
   }
   if (requirement.kind === 'openxml_page_setup') {
     const actualSheets = Array.isArray(facts.sheets) ? facts.sheets : [];
@@ -430,9 +453,9 @@ function evaluationFor(requirement, rawObservation, contract, trustedProducers) 
       const actual = actualSheets.find((sheet) => sheet.sheetId === expectedSheet.sheetId);
       return actual && Object.entries(expectedSheet).every(([key, value]) => actual[key] === value);
     });
-    return { state: passed ? 'qualified' : 'failed', reason: passed ? null : 'openxml_page_setup_mismatch' };
+    return identified({ state: passed ? 'qualified' : 'failed', reason: passed ? null : 'openxml_page_setup_mismatch' });
   }
-  return { state: 'failed', reason: 'unsupported_requirement_kind' };
+  return identified({ state: 'failed', reason: 'unsupported_requirement_kind' });
 }
 
 function laneRequired(contract, lane) {
@@ -441,15 +464,15 @@ function laneRequired(contract, lane) {
   return true;
 }
 
-function qualifyArtifactQuality({ contract: rawContract, observations = [] } = {}, trustedProducerKeys) {
-  const contract = createArtifactPurposeContract(rawContract);
-  if (!Array.isArray(observations)) fail('observations must be an array');
-  const byRequirement = new Map();
-  for (const observation of observations) {
-    const requirementId = String(observation?.requirementId ?? '');
-    const list = byRequirement.get(requirementId) ?? [];
-    list.push(observation); byRequirement.set(requirementId, list);
+async function qualifyArtifactQuality(input = {}, producerRegistry) {
+  object(input, 'artifact quality qualification input');
+  if (Object.hasOwn(input, 'observations')
+    || Object.hasOwn(input, 'trustedProducers')
+    || Object.hasOwn(input, 'observationProducers')) {
+    fail('quality observations and producer trust are runtime-owned');
   }
+  const { contract: rawContract } = input;
+  const contract = createArtifactPurposeContract(rawContract);
   const lanes = {};
   for (const lane of LANES) {
     const required = laneRequired(contract, lane);
@@ -457,13 +480,17 @@ function qualifyArtifactQuality({ contract: rawContract, observations = [] } = {
       lanes[lane] = { required: false, status: 'not_applicable', requirements: [], missingRequirementIds: [], failedRequirementIds: [] };
       continue;
     }
-    const requirements = contract.laneRequirements[lane].map((requirement) => {
-      const candidates = byRequirement.get(requirement.requirementId) ?? [];
-      const evaluation = candidates.length > 1
-        ? { state: 'failed', reason: 'duplicate_observations' }
-        : evaluationFor(requirement, candidates[0], contract, trustedProducerKeys);
-      return { requirementId: requirement.requirementId, kind: requirement.kind, status: evaluation.state, reason: evaluation.reason, observationId: candidates[0]?.observationId ?? null };
-    });
+    const requirements = [];
+    for (const requirement of contract.laneRequirements[lane]) {
+      const evaluation = await evaluationFor(requirement, contract, producerRegistry);
+      requirements.push({
+        requirementId: requirement.requirementId,
+        kind: requirement.kind,
+        status: evaluation.state,
+        reason: evaluation.reason,
+        observationId: evaluation.observationId,
+      });
+    }
     const failedRequirementIds = requirements.filter((item) => item.status === 'failed').map((item) => item.requirementId);
     const missingRequirementIds = requirements.filter((item) => item.status === 'unmeasured').map((item) => item.requirementId);
     const status = failedRequirementIds.length > 0 ? 'failed' : missingRequirementIds.length > 0 ? 'unmeasured' : 'qualified';
@@ -475,7 +502,11 @@ function qualifyArtifactQuality({ contract: rawContract, observations = [] } = {
   };
 }
 
-export function makeArtifactQualityQualifier({ trustedProducers = [] } = {}) {
-  const trustedProducerKeys = normalizeTrustedProducers(trustedProducers);
-  return (input = {}) => qualifyArtifactQuality(input, trustedProducerKeys);
+export function makeArtifactQualityQualifier(options = {}) {
+  object(options, 'artifact quality qualifier options');
+  if (Object.hasOwn(options, 'trustedProducers')) {
+    fail('trusted producer identity strings cannot establish observation provenance');
+  }
+  const producerRegistry = normalizeObservationProducers(options.observationProducers ?? []);
+  return (input = {}) => qualifyArtifactQuality(input, producerRegistry);
 }
