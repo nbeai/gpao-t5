@@ -1,6 +1,6 @@
 {
   "schema": "t5.qh1-executable-artifact-core-evidence.v1",
-  "recordedAt": "2026-08-25T14:41:51+09:00",
+  "recordedAt": "2026-08-25T14:51:14+09:00",
   "gate": "QH-1_EXECUTABLE_ARTIFACT_QUALIFICATION_CORE",
   "scope": {
     "implemented": [
@@ -8,6 +8,9 @@
       "exact_zip_identity_and_safe_extraction",
       "guide_target_and_expected_file_observation",
       "archive_permission_observation",
+      "runtime_owned_host_platform_identity",
+      "typed_expected_observable_requirement",
+      "artifact_root_cwd_observation",
       "exact_current_platform_entrypoint_execution",
       "exit_stdout_stderr_timeout_and_process_residual_observation",
       "platform_claim_separation"
@@ -26,21 +29,24 @@
     "guideTargetMissing": "detected_before_execution",
     "codexMacLauncher": "actually_executed_with_expected_output",
     "unexecutedPlatformClaim": "not_promoted_to_actually_executed",
+    "callerPlatformOverride": "rejected_before_execution",
+    "noOpExitZeroWithoutObservable": "rejected_before_execution",
+    "artifactRootCwd": "explicitly_observed_and_actually_executed",
     "residualProcess": "detected_separately_from_exit_zero",
     "timeout": "bounded_and_unqualified"
   },
   "verification": {
     "targeted": {
       "command": "node --check refoundation/src/executable-artifact-qualification.js && node --test refoundation/test/executable-artifact-qualification.test.js refoundation/test/archive-safety.test.js",
-      "tests": 12,
-      "passed": 12,
+      "tests": 15,
+      "passed": 15,
       "failed": 0
     },
     "refoundationCheck": {
       "command": "npm run refoundation:check",
       "sandboxRun": "failed_existing_tests_due_to_loopback_and_nested_sandbox_eperm",
       "unrestrictedRunAfterGateAlignment": {
-        "passed": 762,
+        "passed": 765,
         "failed": 0
       }
     }

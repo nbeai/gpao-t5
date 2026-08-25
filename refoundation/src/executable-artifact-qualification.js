@@ -45,6 +45,11 @@ function artifactPath(value, label) {
   return path;
 }
 
+function artifactDirectory(value, label) {
+  if (value === '.') return '.';
+  return artifactPath(value, label);
+}
+
 function boundedArray(value, label, maximum) {
   if (!Array.isArray(value)) throw new TypeError(`${label} must be an array`);
   if (value.length > maximum) throw new TypeError(`${label} must contain at most ${maximum} items`);
@@ -126,7 +131,7 @@ export function validateDeliverableContract(contract) {
       ),
       interpreterArgs,
       path: artifactPath(entrypoint?.path, `advertisedEntrypoints[${index}].path`),
-      cwd: artifactPath(entrypoint?.cwd, `advertisedEntrypoints[${index}].cwd`),
+      cwd: artifactDirectory(entrypoint?.cwd, `advertisedEntrypoints[${index}].cwd`),
       requiresExecutablePermission: entrypoint.requiresExecutablePermission ?? false,
       timeoutMs,
       expectedExitCode,
@@ -138,6 +143,14 @@ export function validateDeliverableContract(contract) {
       ),
     };
   });
+  for (const [index, entrypoint] of advertisedEntrypoints.entries()) {
+    if (entrypoint.expectedStdoutIncludes.length === 0
+      && entrypoint.expectedStderrIncludes.length === 0) {
+      throw new TypeError(
+        `advertisedEntrypoints[${index}] requires a typed expected stdout or stderr observable`,
+      );
+    }
+  }
   unique(advertisedEntrypoints.map((entrypoint) => entrypoint.id), 'advertisedEntrypoints.id');
 
   const platforms = boundedArray(contract.platforms, 'platforms', MAX_PLATFORM_CLAIMS)
@@ -366,12 +379,16 @@ function sha256(bytes) {
 export async function qualifyExecutableArtifact({
   archiveBytes: input,
   contract,
-  platform = process.platform,
+  platform: callerPlatform,
   spawnProcess = spawn,
   outputLimit = DEFAULT_OUTPUT_BYTES,
   temporaryRoot = null,
   archiveLimits,
 } = {}) {
+  if (callerPlatform != null) {
+    throw new TypeError('current platform is runtime-owned and cannot be overridden by the caller');
+  }
+  const platform = process.platform;
   contract = validateDeliverableContract(contract);
   if (!PLATFORMS.has(platform)) throw new TypeError(`unsupported current platform: ${platform}`);
   if (!Number.isInteger(outputLimit) || outputLimit < 1_024 || outputLimit > 1024 * 1024) {
@@ -467,7 +484,8 @@ export async function qualifyExecutableArtifact({
       const archiveUnixMode = archiveEntryByPath.get(entrypoint.path)?.unixMode ?? null;
       const executablePermissionSatisfied = !entrypoint.requiresExecutablePermission
         || (archiveUnixMode != null && (archiveUnixMode & 0o111) !== 0);
-      const cwdPresent = manifest.entries.some((entry) => (
+      const cwdIsArtifactRoot = entrypoint.cwd === '.';
+      const cwdPresent = cwdIsArtifactRoot || manifest.entries.some((entry) => (
         entry.path === `${entrypoint.cwd}/` || entry.path.startsWith(`${entrypoint.cwd}/`)
       ));
       let extractedMode = null;
@@ -502,7 +520,7 @@ export async function qualifyExecutableArtifact({
         id: entrypoint.id, platform: entrypoint.platform,
         interpreter: entrypoint.interpreter, interpreterArgs: entrypoint.interpreterArgs,
         path: entrypoint.path, cwd: entrypoint.cwd,
-        pathPresent, cwdPresent, archiveUnixMode, extractedMode,
+        pathPresent, cwdPresent, cwdIsArtifactRoot, archiveUnixMode, extractedMode,
         requiresExecutablePermission: entrypoint.requiresExecutablePermission,
         executablePermissionSatisfied,
         expected: {

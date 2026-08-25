@@ -77,7 +77,6 @@ test('내부 앱 직접 실행 성공은 깨진 T5 advertised wrapper의 성공 
   const receipt = await qualifyExecutableArtifact({
     archiveBytes: bytes,
     contract: contractFor(fixture, bytes),
-    platform: 'darwin',
   });
   assert.equal(receipt.state, 'unqualified');
   assert.equal(receipt.entrypoints[0].execution.attempted, true);
@@ -92,7 +91,6 @@ test('안내서가 가리킨 launcher가 ZIP에 없으면 내부 프로그램이
   const receipt = await qualifyExecutableArtifact({
     archiveBytes: bytes,
     contract: contractFor(fixture, bytes),
-    platform: 'darwin',
   });
   assert.equal(receipt.state, 'unqualified');
   assert.equal(receipt.guideReferences[0].guidePresent, true);
@@ -107,7 +105,6 @@ test('정상 Codex Mac launcher는 exact interpreter·path·cwd와 사용자 입
   const receipt = await qualifyExecutableArtifact({
     archiveBytes: bytes,
     contract: contractFor(fixture, bytes),
-    platform: 'darwin',
   });
   assert.equal(receipt.state, 'qualified');
   assert.equal(receipt.entrypoints[0].qualification, 'actually_executed');
@@ -124,17 +121,17 @@ test('정상 Codex Mac launcher는 exact interpreter·path·cwd와 사용자 입
 test('현재 OS에서 실행하지 않은 플랫폼은 verified로 승격하지 않는다', async () => {
   const fixture = FIXTURES.cases.find((item) => item.id === 'codex-mac-launcher');
   const bytes = zipFixture(fixture);
+  const otherPlatform = process.platform === 'win32' ? 'darwin' : 'win32';
   const windowsEntrypoint = {
-    ...fixture.entrypoint, id: 'windows-launcher', platform: 'win32',
+    ...fixture.entrypoint, id: 'other-platform-launcher', platform: otherPlatform,
     interpreter: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
   };
   const receipt = await qualifyExecutableArtifact({
     archiveBytes: bytes,
-    platform: 'darwin',
     contract: contractFor(fixture, bytes, {
       advertisedEntrypoints: [windowsEntrypoint],
       platforms: [{
-        platform: 'win32', advertisedSupport: true, claimedQualification: 'actually_executed',
+        platform: otherPlatform, advertisedSupport: true, claimedQualification: 'actually_executed',
       }],
     }),
   });
@@ -143,6 +140,70 @@ test('현재 OS에서 실행하지 않은 플랫폼은 verified로 승격하지 
   assert.equal(receipt.entrypoints[0].execution.reason, 'platform_not_current');
   assert.equal(receipt.platforms[0].claimAccurate, false);
   assert.equal(receipt.state, 'unqualified');
+});
+
+test('caller platform override는 실제 host 실행 claim을 만들기 전에 거부된다', async () => {
+  const fixture = FIXTURES.cases.find((item) => item.id === 'codex-mac-launcher');
+  const bytes = zipFixture(fixture);
+  let spawned = false;
+  await assert.rejects(() => qualifyExecutableArtifact({
+    archiveBytes: bytes,
+    contract: contractFor(fixture, bytes),
+    platform: process.platform,
+    spawnProcess() { spawned = true; },
+  }), /runtime-owned/u);
+  assert.equal(spawned, false);
+});
+
+test('exit 0뿐인 no-op launcher는 typed expected observable 없이 자격 계약이 될 수 없다', async () => {
+  const fixture = {
+    id: 'no-op-launcher',
+    files: {
+      'README.txt': 'run launcher.command',
+      'launcher.command': '#!/bin/zsh\nexit 0\n',
+    },
+    expectedFiles: ['README.txt', 'launcher.command'],
+    guideReferences: [{ guidePath: 'README.txt', targetPath: 'launcher.command' }],
+    entrypoint: {
+      id: 'mac-launcher', platform: 'darwin', interpreter: '/bin/zsh',
+      path: 'launcher.command', cwd: '.', requiresExecutablePermission: true,
+      expectedExitCode: 0, expectedStdoutIncludes: [], expectedStderrIncludes: [],
+    },
+  };
+  const bytes = zipFixture(fixture);
+  let spawned = false;
+  await assert.rejects(() => qualifyExecutableArtifact({
+    archiveBytes: bytes,
+    contract: contractFor(fixture, bytes),
+    spawnProcess() { spawned = true; },
+  }), /typed expected stdout or stderr observable/u);
+  assert.equal(spawned, false);
+});
+
+test('artifact root cwd는 점 경로로 명시 관측되고 실제 launcher 실행에 사용된다', async () => {
+  const fixture = {
+    id: 'artifact-root-cwd',
+    files: {
+      'README.txt': 'run launcher.command',
+      'launcher.command': '#!/bin/zsh\nprintf ROOT-CWD-OK\n',
+    },
+    expectedFiles: ['README.txt', 'launcher.command'],
+    guideReferences: [{ guidePath: 'README.txt', targetPath: 'launcher.command' }],
+    entrypoint: {
+      id: 'mac-launcher', platform: 'darwin', interpreter: '/bin/zsh',
+      path: 'launcher.command', cwd: '.', requiresExecutablePermission: true,
+      expectedExitCode: 0, expectedStdoutIncludes: ['ROOT-CWD-OK'],
+    },
+  };
+  const bytes = zipFixture(fixture);
+  const receipt = await qualifyExecutableArtifact({
+    archiveBytes: bytes, contract: contractFor(fixture, bytes),
+  });
+  assert.equal(receipt.state, 'qualified');
+  assert.equal(receipt.entrypoints[0].cwd, '.');
+  assert.equal(receipt.entrypoints[0].cwdIsArtifactRoot, true);
+  assert.equal(receipt.entrypoints[0].cwdPresent, true);
+  assert.equal(receipt.entrypoints[0].qualification, 'actually_executed');
 });
 
 test('launcher exit 0과 별개로 남은 process group을 관측하고 정리한다', async () => {
@@ -163,7 +224,7 @@ test('launcher exit 0과 별개로 남은 process group을 관측하고 정리�
   };
   const bytes = zipFixture(fixture);
   const receipt = await qualifyExecutableArtifact({
-    archiveBytes: bytes, contract: contractFor(fixture, bytes), platform: 'darwin',
+    archiveBytes: bytes, contract: contractFor(fixture, bytes),
   });
   assert.equal(receipt.entrypoints[0].execution.exitCode, 0);
   assert.equal(receipt.entrypoints[0].execution.processResidual, true);
@@ -184,13 +245,13 @@ test('끝나지 않는 launcher는 계약 timeout 뒤 unqualified로 닫힌다',
     entrypoint: {
       id: 'mac-launcher', platform: 'darwin', interpreter: '/bin/zsh',
       path: 'package/launcher.command', cwd: 'package', requiresExecutablePermission: true,
-      timeoutMs: 150, expectedExitCode: 0, expectedStdoutIncludes: [],
+      timeoutMs: 150, expectedExitCode: 0, expectedStdoutIncludes: ['never-produced'],
     },
   };
   const bytes = zipFixture(fixture);
   const startedAt = Date.now();
   const receipt = await qualifyExecutableArtifact({
-    archiveBytes: bytes, contract: contractFor(fixture, bytes), platform: 'darwin',
+    archiveBytes: bytes, contract: contractFor(fixture, bytes),
   });
   assert.equal(receipt.entrypoints[0].execution.reason, 'timed_out');
   assert.equal(receipt.entrypoints[0].qualification, 'failed');
@@ -206,7 +267,6 @@ test('exact ZIP hash 불일치는 해제나 launcher 실행 전에 멈춘다', a
     contract: contractFor(fixture, bytes, {
       artifact: { id: fixture.id, sha256: '0'.repeat(64) },
     }),
-    platform: 'darwin',
   });
   assert.equal(receipt.state, 'unqualified');
   assert.equal(receipt.archive.identityMatched, false);
