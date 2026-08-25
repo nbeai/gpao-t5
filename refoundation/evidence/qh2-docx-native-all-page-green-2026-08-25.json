@@ -1,0 +1,113 @@
+{
+  "schema": "t5.qh2-docx-native-all-page-green.v1",
+  "recordedDate": "2026-08-25",
+  "actualUserData": false,
+  "productScope": "QH-2 DOCX macOS native all-page producer",
+  "userCapability": "a three-page Korean DOCX can be rendered and accounted page-by-page without promoting the one-page Quick Look thumbnail",
+  "nativeHelper": {
+    "source": "refoundation/native/docx-page-renderer.swift",
+    "buildHook": "refoundation/scripts/build-macos-installer.mjs",
+    "architectures": ["x86_64", "arm64"],
+    "minimumTarget": "macOS 13.0",
+    "universalBytes": 211200,
+    "universalSha256": "660c2e10f933b22f376886477e30cde7c3764b82652af4bfe30ca445f853dab4",
+    "installTimeCompilerDependency": false,
+    "runtimeFrameworks": ["AppKit", "WebKit", "Vision"],
+    "visibleWindow": false,
+    "javascript": false,
+    "network": false,
+    "websiteDataStore": "nonPersistent",
+    "expectedMarkerPassedToOCR": false,
+    "maximumOCRCharacters": 8192
+  },
+  "safePreviewBoundary": {
+    "quickLookMode": "preview HTML, not thumbnail",
+    "rawHtmlLoaded": false,
+    "accepted": "one bounded regular qlpreview with regular Preview.html and PreviewProperties.plist",
+    "rejected": [
+      "script", "iframe", "object", "embed", "meta refresh",
+      "external src or href", "CSS url", "CSS import", "root escape", "symlink",
+      "oversized HTML or resources", "more than 200 pages", "ambiguous output"
+    ],
+    "pageBoundary": "exact form-feed-only paragraph",
+    "sharedCssCopiedToEverySealedPage": true,
+    "maximumPreviewHtmlBytes": 2097152,
+    "maximumPreviewResourceBytes": 33554432,
+    "maximumPagePngBytes": 20971520
+  },
+  "actualThreePageReceipt": {
+    "state": "rendered",
+    "engine": "macos-quicklook-webkit",
+    "pageCount": 3,
+    "observedPageIds": ["document:page1", "document:page2", "document:page3"],
+    "pages": [
+      {
+        "pageId": "document:page1",
+        "bytes": 47660,
+        "sha256": "15f28e36167b016d10aae136f86b7641190ea7afb2fff41e725dfc90897a86d1",
+        "width": 1224,
+        "height": 1584,
+        "nonWhitePixels": 7462,
+        "glyphMarkerSha256": "17461dc2e07c3ce7db7b469468b4c915c668b2104ac37400fc3b36ecfc3732e5",
+        "glyphMarkerLength": 13,
+        "glyphMarkerPresent": true
+      },
+      {
+        "pageId": "document:page2",
+        "bytes": 47072,
+        "sha256": "59ea5ff795f5432d18f62c10fef749a12685465d2480f5bf7ff926a0662eb10a",
+        "width": 1224,
+        "height": 1584,
+        "nonWhitePixels": 7875,
+        "glyphMarkerSha256": "147648a3e9f857eefed663f86e208406d2eb39bb97d1238bb02946140f8769bb",
+        "glyphMarkerLength": 13,
+        "glyphMarkerPresent": true
+      },
+      {
+        "pageId": "document:page3",
+        "bytes": 49123,
+        "sha256": "81fe8671c36c01e14e2666b0fa8631bd436fd3997e0e3a15e050ae8a3d211506",
+        "width": 1224,
+        "height": 1584,
+        "nonWhitePixels": 7583,
+        "glyphMarkerSha256": "de726046395f515d62da74eeac2f26005fbb95ef6d5ebbec3d8e3998be5d0b84",
+        "glyphMarkerLength": 13,
+        "glyphMarkerPresent": true
+      }
+    ],
+    "fullOCRTextInReceipt": false,
+    "base64InLedger": false
+  },
+  "outputQualification": {
+    "actualUnits": ["document:page1", "document:page2", "document:page3"],
+    "renderCoverage": "all exact observed page IDs",
+    "glyphLoss": "failed when any deterministic page-text marker is absent from independent OCR pixels",
+    "clippingAndOverlap": "unknown unless another verifier observes them",
+    "helperAbsentOrNonMac": "unmeasured",
+    "quickLookThumbnail": "preview-only fallback and never all-page proof"
+  },
+  "checks": {
+    "focused": { "passed": 40, "failed": 0 },
+    "doctor": "passed",
+    "boundary": "passed",
+    "full": {
+      "completed": false,
+      "passedBeforeStop": 531,
+      "productFailureBeforeStop": "console-ui-state assertion outside QH-2",
+      "environmentHang": "messenger-session-origin remained pending for more than two minutes",
+      "cancelledAfterOperatorStop": 72,
+      "qh2DocxTests": "passed before the hang"
+    }
+  },
+  "counterTests": [
+    "blank pixels do not satisfy a nonempty marker",
+    "different page markers with identical PNG hashes are rejected",
+    "missing OCR marker becomes glyph_loss",
+    "helper absent and non-mac remain unmeasured",
+    "active HTML and external URL fail before helper execution",
+    "oversize HTML and page cap fail bounded",
+    "first-page thumbnail remains unchanged for existing inspect UI"
+  ],
+  "notChanged": ["QH-1", "QH-3", "QH-4", "Connecting", "console UI", "attachment UI"],
+  "remaining": "package signing/notarization and a real installed-package smoke test remain Release evidence, not this producer-core qualification"
+}

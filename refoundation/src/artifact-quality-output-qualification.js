@@ -7,6 +7,7 @@ import { unzipSync } from 'fflate';
 import { makeArtifactQualityQualifier } from './artifact-quality-qualification.js';
 import { renderAttachmentPreview } from './artifact-preview.js';
 import { inspectBusinessDocument } from './document-data-inspector.js';
+import { renderDocxAllPages } from './docx-visual-renderer.js';
 import {
   detectQualifiedDocumentFormat, inspectQualifiedDocument,
 } from './qualified-document-parser.js';
@@ -76,7 +77,9 @@ function actualUnits(evidence, surface) {
     { length: evidence.document?.pdf?.pageCount ?? 0 },
     (_, index) => `page:${index + 1}`,
   );
-  if (evidence.kind === 'docx' && evidence.preview?.state === 'ready') return ['document:page1'];
+  if (evidence.kind === 'docx' && evidence.docxRender?.state === 'rendered') {
+    return evidence.docxRender.observedPageIds ?? [];
+  }
   return [];
 }
 
@@ -223,11 +226,24 @@ function producerObservation({ producer, context, evidence }) {
   if (producer.kind === 'render_verifier') {
     const surface = requirement.expected.surface;
     const units = actualUnits(evidence, surface);
-    if (requirement.kind === 'render_coverage' && surface === 'screen') return { ...base, facts: {
-      surface, observedUnitIds: evidence.preview?.state === 'ready' ? units : [],
-    } };
+    const renderReady = evidence.kind === 'docx'
+      ? evidence.docxRender?.state === 'rendered' : evidence.preview?.state === 'ready';
+    if (requirement.kind === 'render_coverage' && surface === 'screen') {
+      if (evidence.kind === 'docx' && !renderReady) return unknownObservation(base);
+      return { ...base, facts: { surface, observedUnitIds: renderReady ? units : [] } };
+    }
     if (requirement.kind === 'render_coverage') return unknownObservation(base);
     if (requirement.kind === 'visual_integrity') {
+      if (evidence.kind === 'docx') {
+        if (!renderReady) return unknownObservation(base);
+        const defects = evidence.docxRender.pages.filter((page) => !page.glyphMarkerPresent)
+          .map((page) => ({ unitId: page.pageId, type: 'glyph_loss' }));
+        if (defects.length > 0) return { ...base, facts: { surface, observedUnitIds: units, defects } };
+        if ((requirement.expected.disallowedDefects ?? []).some((type) => type !== 'glyph_loss')) {
+          return unknownObservation(base);
+        }
+        return { ...base, facts: { surface, observedUnitIds: units, defects: [] } };
+      }
       const defects = surface === 'print' && evidence.kind === 'xlsx'
         ? evidence.pageSetups.filter((sheet) => sheet.fitToWidth !== 1)
           .map((sheet) => ({ unitId: `${sheet.sheetId}:p1`, type: 'horizontal_split' })) : [];
@@ -244,7 +260,7 @@ function producerObservation({ producer, context, evidence }) {
   return unknownObservation(base);
 }
 
-async function collectEvidence(filePath, bytes, extension) {
+async function collectEvidence(filePath, bytes, extension, renderDocxPages) {
   let document = null; let documentState = 'unmeasured'; let kind = extension.slice(1);
   try {
     if (extension === '.xlsx' || extension === '.pdf') {
@@ -273,15 +289,20 @@ async function collectEvidence(filePath, bytes, extension) {
     });
     preview = { state: 'ready', ...rendered };
   } catch { preview = null; }
+  let docxRender = null;
+  if (extension === '.docx') {
+    try { docxRender = await renderDocxPages(filePath); }
+    catch { docxRender = { state: 'capability_boundary', reason: 'docx_all_page_render_failed' }; }
+  }
   const corpus = flattenStrings({ document, preview }).join('\n');
   return {
-    kind, document, documentState, preview, corpus,
+    kind, document, documentState, preview, docxRender, corpus,
     pageSetups: extension === '.xlsx' ? workbookPageSetups(bytes) : [],
     sha256: sha256(bytes),
   };
 }
 
-export function makeArtifactQualityOutputQualifier() {
+export function makeArtifactQualityOutputQualifier({ renderDocxPages = renderDocxAllPages } = {}) {
   return async function qualifyArtifactQualityOutput({ filePath, workspace } = {}) {
     const source = resolve(String(filePath ?? ''));
     const extension = extname(source).toLowerCase();
@@ -309,7 +330,7 @@ export function makeArtifactQualityOutputQualifier() {
       reason: 'artifact_purpose_kind_mismatch', verificationMissing: true,
     };
     const bytes = await readFile(path);
-    const evidence = await collectEvidence(path, bytes, extension);
+    const evidence = await collectEvidence(path, bytes, extension, renderDocxPages);
     const qualifier = makeArtifactQualityQualifier({
       observationProducers: PRODUCERS.map((producer) => ({
         ...producer,

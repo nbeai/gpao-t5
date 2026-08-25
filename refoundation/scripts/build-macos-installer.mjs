@@ -100,6 +100,20 @@ async function copyRuntimeApp(target) {
   run('npm', ['ci', '--omit=dev'], { cwd: refoundation, stdio: 'inherit' });
 }
 
+async function buildDocxPageRenderer(work, runtimeBin) {
+  const source = join(repo, 'refoundation', 'native', 'docx-page-renderer.swift');
+  const arm = join(work, 'docx-page-renderer-arm64');
+  const x64 = join(work, 'docx-page-renderer-x64');
+  const frameworks = ['-framework', 'AppKit', '-framework', 'WebKit', '-framework', 'Vision'];
+  run('xcrun', ['swiftc', '-O', '-target', 'arm64-apple-macos13.0', ...frameworks, source, '-o', arm]);
+  run('xcrun', ['swiftc', '-O', '-target', 'x86_64-apple-macos13.0', ...frameworks, source, '-o', x64]);
+  const destination = join(runtimeBin, 't5-docx-page-renderer');
+  run('lipo', ['-create', arm, x64, '-output', destination]);
+  await chmod(destination, 0o755);
+  const architectures = run('lipo', ['-archs', destination]).trim().split(/\s+/u).sort();
+  if (architectures.join(',') !== 'arm64,x86_64') throw new Error('DOCX page renderer is not universal');
+}
+
 async function signMachO(app, identity, keychain, entitlements, nodePaths) {
   const keychainArgs = keychain ? ['--keychain', keychain] : [];
   const sign = (path, extra = []) => run('codesign', [
@@ -133,6 +147,7 @@ async function main() {
     await mkdir(join(contents, 'MacOS'), { recursive: true });
     await mkdir(runtimeBin, { recursive: true });
     await copyRuntimeApp(join(resources, 'app'));
+    await buildDocxPageRenderer(work, runtimeBin);
 
     const armNode = join(runtimeBin, 'node-arm64');
     const x64Node = join(runtimeBin, 'node-x64');

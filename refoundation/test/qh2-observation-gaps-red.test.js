@@ -1,17 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { strToU8, unzipSync, zipSync } from 'fflate';
+import { strToU8, zipSync } from 'fflate';
 
 import {
   ARTIFACT_QUALITY_OUTPUT_CONTRACT, makeArtifactQualityOutputQualifier,
 } from '../src/artifact-quality-output-qualification.js';
 import { inspectBusinessDocument } from '../src/document-data-inspector.js';
-import { renderDocxFirstPage } from '../src/docx-visual-renderer.js';
 
 function sha256(bytes) { return createHash('sha256').update(bytes).digest('hex'); }
 function xml(value) { return strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>${value}`); }
@@ -92,11 +91,36 @@ function koreanThreePageDocx() {
   return Buffer.from(zipSync({
     '[Content_Types].xml': xml('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'),
     '_rels/.rels': xml('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'),
-    'word/document.xml': xml(`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraph('첫째 쪽 한글 기준 글리프 가나다')}${pageBreak}${paragraph('둘째 쪽 한글 기준 글리프 라마바')}${pageBreak}${paragraph('셋째 쪽 한글 기준 글리프 사아자')}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>`),
+    'word/document.xml': xml(`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraph('docx-fact fixture#docx 한글 다페이지 검증 첫째 쪽 한글 기준 글리프 가나다')}${pageBreak}${paragraph('둘째 쪽 한글 기준 글리프 라마바')}${pageBreak}${paragraph('셋째 쪽 한글 기준 글리프 사아자')}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>`),
   }, { mtime: new Date('2020-01-01T00:00:00.000Z') }));
 }
 
-const png = Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.alloc(32)]);
+function docxPurpose(bytes) {
+  const digest = sha256(bytes); const pages = ['document:page1', 'document:page2', 'document:page3'];
+  return {
+    contractId: 'korean-three-page-docx-v1',
+    artifact: { artifactId: 'three-pages.docx', kind: 'docx', sha256: digest },
+    audience: '문서 사용자', domain: 'document', usePurpose: '한글 세 페이지를 빠짐없이 읽는다',
+    deliveryMedium: 'screen',
+    sourceFacts: [{ factId: 'docx-fact', sourceRef: 'fixture#docx', resolution: 'resolved', preserveOriginal: true }],
+    calculations: [], requiredArtifactForms: ['document'], visualHierarchyGoals: ['한글 다페이지 검증'],
+    domainProfile: { profileId: 'document-pages', version: '1', invariantRefs: ['all-pages'] },
+    laneRequirements: {
+      semantic: [{ requirementId: 'semantic', kind: 'semantic_reconciliation', expected: { satisfiedFactIds: ['docx-fact'], unchangedSourceFactIds: ['docx-fact'], preservedUnresolvedFactIds: [] } }],
+      domain: [{ requirementId: 'domain', kind: 'domain_traceability', invariantRefs: ['all-pages'], expected: { sourceFactIds: ['docx-fact'], reversibleSourceFactIds: ['docx-fact'], calculationIds: [] } }],
+      structural: [
+        { requirementId: 'reopen', kind: 'structural_scan', expected: { reopenedArtifactSha256: digest, maximumFormulaErrors: 0, maximumSchemaErrors: 0 } },
+        { requirementId: 'forms', kind: 'artifact_forms', expected: { formIds: ['document'] } },
+      ],
+      screen: [
+        { requirementId: 'screen-render', kind: 'render_coverage', expected: { surface: 'screen', unitIds: pages } },
+        { requirementId: 'screen-integrity', kind: 'visual_integrity', expected: { surface: 'screen', unitIds: pages, disallowedDefects: ['glyph_loss'] } },
+        { requirementId: 'screen-hierarchy', kind: 'visual_hierarchy', expected: { surface: 'screen', unitIds: pages, goalIds: ['한글 다페이지 검증'] } },
+      ],
+      print: [],
+    },
+  };
+}
 
 test('source-backed 계산 목적은 formulaErrors=0만으로 hardcoded target을 구조 qualified하지 않는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-qh2-hardcoded-red-'));
@@ -174,24 +198,54 @@ test('formula cache가 error이면 global 허용치와 별개로 target 계산 �
 
 test('한글 다페이지 DOCX visual receipt는 모든 page와 required glyph coverage를 증명한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-qh2-docx-red-'));
-  const filePath = join(room, 'korean-three-pages.docx'); await writeFile(filePath, koreanThreePageDocx());
-  const archive = unzipSync(await readFile(filePath));
-  const documentXml = Buffer.from(archive['word/document.xml']).toString('utf8');
-  assert.equal((documentXml.match(/w:type="page"/gu) ?? []).length + 1, 3);
-  for (const marker of ['가나다', '라마바', '사아자']) assert.match(documentXml, new RegExp(marker, 'u'));
+  const filePath = join(room, 'korean-three-pages.docx'); const bytes = koreanThreePageDocx();
+  await writeFile(filePath, bytes);
+  await writeFile(`${filePath}${ARTIFACT_QUALITY_OUTPUT_CONTRACT.suffix}`, JSON.stringify(docxPurpose(bytes)));
   try {
-    const rendered = await renderDocxFirstPage(filePath, {
-      platform: 'darwin', temporaryRoot: room,
-      runCommand: async (_command, args) => {
-        const output = args[args.indexOf('-o') + 1];
-        await writeFile(join(output, 'korean-three-pages.docx.png'), png);
-      },
-    });
-    assert.deepEqual(rendered.observedPageIds, ['document:page1', 'document:page2', 'document:page3']);
-    assert.deepEqual(rendered.requiredGlyphCoverage, [
-      { pageId: 'document:page1', marker: '가나다', present: true },
-      { pageId: 'document:page2', marker: '라마바', present: true },
-      { pageId: 'document:page3', marker: '사아자', present: true },
-    ]);
+    const pages = [1, 2, 3].map((page) => ({
+      page, pageId: `document:page${page}`, sha256: String(page).repeat(64), bytes: 100,
+      width: 1224, height: 1584, nonWhitePixels: 100, glyphMarkerSha256: String(page).repeat(64),
+      glyphMarkerLength: 12, glyphMarkerPresent: true,
+    }));
+    const result = await makeArtifactQualityOutputQualifier({
+      renderDocxPages: async () => ({
+        state: 'rendered', engine: 'macos-quicklook-webkit', pageCount: 3,
+        observedPageIds: pages.map((page) => page.pageId), pages,
+      }),
+    })({ filePath, workspace: room });
+    const requirements = new Map(result.receipt.lanes.screen.requirements.map((item) => [item.requirementId, item]));
+    assert.equal(requirements.get('screen-render').status, 'qualified');
+    assert.equal(requirements.get('screen-integrity').status, 'qualified');
+    assert.deepEqual(result.receipt.lanes.screen.failedRequirementIds, []);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('DOCX marker 누락은 glyph_loss이고 helper 부재는 실패를 꾸미지 않은 unmeasured다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-qh2-docx-boundary-'));
+  const filePath = join(room, 'korean-three-pages.docx'); const bytes = koreanThreePageDocx();
+  await writeFile(filePath, bytes);
+  await writeFile(`${filePath}${ARTIFACT_QUALITY_OUTPUT_CONTRACT.suffix}`, JSON.stringify(docxPurpose(bytes)));
+  const pages = [1, 2, 3].map((page) => ({
+    page, pageId: `document:page${page}`, sha256: String(page).repeat(64), bytes: 100,
+    width: 1224, height: 1584, nonWhitePixels: 100, glyphMarkerSha256: String(page).repeat(64),
+    glyphMarkerLength: 12, glyphMarkerPresent: page !== 2,
+  }));
+  try {
+    const missing = await makeArtifactQualityOutputQualifier({
+      renderDocxPages: async () => ({
+        state: 'rendered', engine: 'macos-quicklook-webkit', pageCount: 3,
+        observedPageIds: pages.map((page) => page.pageId), pages,
+      }),
+    })({ filePath, workspace: room });
+    const missingRequirements = new Map(missing.receipt.lanes.screen.requirements.map((item) => [item.requirementId, item]));
+    assert.equal(missingRequirements.get('screen-render').status, 'qualified');
+    assert.equal(missingRequirements.get('screen-integrity').status, 'failed');
+
+    const absent = await makeArtifactQualityOutputQualifier({
+      renderDocxPages: async () => ({ state: 'capability_boundary', reason: 'docx_all_page_helper_unavailable' }),
+    })({ filePath, workspace: room });
+    const absentRequirements = new Map(absent.receipt.lanes.screen.requirements.map((item) => [item.requirementId, item]));
+    assert.equal(absentRequirements.get('screen-render').status, 'unmeasured');
+    assert.equal(absentRequirements.get('screen-integrity').status, 'unmeasured');
   } finally { await rm(room, { recursive: true, force: true }); }
 });
