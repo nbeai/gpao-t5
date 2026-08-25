@@ -1,0 +1,28 @@
+{
+  "schema": "t5.korea-connection-cp2-evidence.v1",
+  "recordedAt": "2026-08-25",
+  "sourceCommit": "ed3eb64a",
+  "branch": "codex/t5-connection-protocol",
+  "status": "isolated_complete_integration_pending_qh",
+  "contracts": [
+    "401 refresh and reconnect permit one exact retry",
+    "second 401 becomes needs_reauth with no further retry",
+    "403 insufficient_scope unions current and required scopes without refresh",
+    "unrelated 403 remains forbidden",
+    "mutation response loss after dispatch becomes unknown_external_effect",
+    "refresh or reconnect failure becomes degraded without replay"
+  ],
+  "verification": {
+    "cp2Tests": "6_pass_0_fail",
+    "cp1AndCp2Combined": "14_pass_0_fail",
+    "boundary": "legacy_import_0",
+    "qhFilesChanged": 0,
+    "productEntrypointImports": 0
+  },
+  "nextAfterQh": [
+    "wire the policy above Remote MCP HTTP transport",
+    "bind refresh to ConnectionStateStore lease and credential generation",
+    "record needs_additional_permission in Connection Truth",
+    "resume exact Work after interactive step-up completes"
+  ]
+}
