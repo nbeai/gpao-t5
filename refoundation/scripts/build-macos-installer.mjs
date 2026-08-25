@@ -98,6 +98,14 @@ async function copyRuntimeApp(target) {
     join(target, 'docs', '00-product', 'GPAO-T5-FOUNDER-MANIFESTO-ko.md'),
   );
   run('npm', ['ci', '--omit=dev'], { cwd: refoundation, stdio: 'inherit' });
+  // T5 uses kordoc's deterministic document parsers, not its optional local AI/OCR
+  // stack. Keep the separately pinned sharp decoder required by QH-4, but do not
+  // ship unused transformers/onnx binaries or their vulnerable ZIP dependency.
+  for (const relativePath of [
+    '@huggingface/transformers', 'onnxruntime-node', 'onnxruntime-common', 'adm-zip',
+  ]) {
+    await rm(join(refoundation, 'node_modules', relativePath), { recursive: true, force: true });
+  }
 }
 
 async function buildDocxPageRenderer(work, runtimeBin) {

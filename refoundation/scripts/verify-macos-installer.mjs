@@ -84,6 +84,17 @@ try {
   const version = run(node, ['-p', 'process.version+" "+process.arch'], { env: environment }).trim();
   if (!version.includes('v24.14.0')) throw new Error(`unexpected packaged Node: ${version}`);
   run(node, [join(refoundation, 'bin', 't5-document.mjs'), 'help'], { env: environment });
+  run(node, ['-e', 'import("sharp").then(async({default:s})=>{await s(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64")).metadata()})'], {
+    cwd: refoundation, env: environment,
+  });
+  for (const forbiddenDependency of [
+    '@huggingface/transformers', 'onnxruntime-node', 'onnxruntime-common', 'adm-zip',
+  ]) {
+    try {
+      await stat(join(refoundation, 'node_modules', forbiddenDependency));
+      throw new Error(`unused document AI dependency is packaged: ${forbiddenDependency}`);
+    } catch (error) { if (error?.code !== 'ENOENT') throw error; }
+  }
 
   const home = join(room, 'home');
   const state = join(room, 'state');
