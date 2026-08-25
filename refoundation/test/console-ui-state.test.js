@@ -30,7 +30,7 @@ test('사용자가 대화나 다른 사이드바 화면으로 이동하면 세�
   assert.match(html, /function clearSessionSelection\(\)[\s\S]*selected\.clear\(\)[\s\S]*querySelectorAll\('\.chk'\)/u);
   assert.match(html, /getElementById\('main'\)\.addEventListener\('pointerdown',[\s\S]*clearSessionSelection/u);
   assert.match(html, /function toggleSearch\(force\)[\s\S]*if \(open\) clearSessionSelection\(\)/u);
-  assert.match(html, /async function openSettings\(section = 'model'\) \{\s*clearSessionSelection\(\)/u);
+  assert.match(html, /async function openSettings\(section = 'model'(?:, \{ updateHistory = true \} = \{\})?\) \{\s*clearSessionSelection\(\)/u);
   assert.match(html, /closest\('button\[data-view\]'\)/u);
   assert.match(html, /id="listtabs"[\s\S]*clearSessionSelection\(\);\s*listView = b\.dataset\.view/u);
   assert.match(html, /async function newSession\(\) \{\s*clearSessionSelection\(\)/u);
