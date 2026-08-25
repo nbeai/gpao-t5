@@ -1,0 +1,107 @@
+{
+  "schema": "t5.s2-qh1-managed-operation-live.v1",
+  "recordedAt": "2026-08-25T09:45:43.488Z",
+  "sourceCommit": "ff4c5b0af3171a0db80a32e66f8aee47c5f6ced4",
+  "environment": "synthetic_isolated_home_data_workspace",
+  "models": {
+    "terra": {
+      "modelId": "api_key:openai:gpt-5.6-terra",
+      "passed": false,
+      "passedJourneys": 0,
+      "totalJourneys": 3
+    },
+    "gpt55": {
+      "executed": false,
+      "reason": "terra_managed_operation_qualification_did_not_pass"
+    }
+  },
+  "journeys": [
+    {
+      "id": "natural-direct-request",
+      "passed": false,
+      "wallMs": 35120,
+      "modelCalls": 7,
+      "toolCalls": 6,
+      "providerTokens": 108911,
+      "observed": {
+        "beginCalls": 1,
+        "finalizeCalls": 1,
+        "registerCalls": 0,
+        "finalizeRegistered": true,
+        "artifactSurfaceCount": 1,
+        "workOutcome": "unresolved",
+        "priorTerminalFailure": true,
+        "internalTermsVisible": false,
+        "browserCalls": 0,
+        "approvals": 0
+      },
+      "failure": "artifact_qualified_but_unrelated_failed_terminal_receipt_kept_work_unresolved"
+    },
+    {
+      "id": "natural-colleague-handoff",
+      "passed": false,
+      "wallMs": 87667,
+      "modelCalls": 19,
+      "toolCalls": 18,
+      "providerTokens": 584999,
+      "observed": {
+        "beginCalls": 1,
+        "finalizeCalls": 3,
+        "registerCalls": 0,
+        "finalizeRegistered": true,
+        "artifactSurfaceCount": 0,
+        "workOutcome": "unresolved",
+        "effectDeclarationMismatch": 1,
+        "approvalRequired": 1,
+        "internalTermsVisible": false,
+        "browserCalls": 0,
+        "approvals": 1
+      },
+      "failure": "model_did_not_follow_one_finalize_path_and_existing_approval_blocker_remained"
+    },
+    {
+      "id": "broken-status-launcher",
+      "passed": false,
+      "wallMs": 25183,
+      "modelCalls": 8,
+      "toolCalls": 7,
+      "providerTokens": 89053,
+      "observed": {
+        "beginCalls": 0,
+        "finalizeCalls": 0,
+        "artifactSurfaceCount": 0,
+        "workOutcome": "unresolved",
+        "internalTermsVisible": true,
+        "browserCalls": 0,
+        "approvals": 0
+      },
+      "failure": "safe_stop_succeeded_but_user_answer_matched_internal_term_guard"
+    }
+  ],
+  "deterministic": {
+    "focusedPassed": 33,
+    "focusedFailed": 0,
+    "combinedQhPassed": 61,
+    "combinedQhFailed": 0,
+    "fullCheck": {
+      "productRelatedFailures": 0,
+      "existingUiAssertionFailure": 1,
+      "qh3TemporaryCleanupRace": 1,
+      "qh3IsolatedRerun": "2/2"
+    }
+  },
+  "safety": {
+    "externalAccountWrites": 0,
+    "messengerWrites": 0,
+    "visibleBrowserCalls": 0,
+    "approvals": 1,
+    "promptExamplesAdded": 0,
+    "runtimeLanguageRulesAdded": 0
+  },
+  "gateImpact": {
+    "qh1Deterministic": "PASS",
+    "qh1ActualModel": "FAIL",
+    "gpt55Expansion": "NOT_OPENED",
+    "release": "BLOCKED"
+  }
+}
