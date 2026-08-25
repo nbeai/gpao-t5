@@ -363,13 +363,25 @@ function normalizeObservationFacts(requirement, facts) {
         cachedValueErrorFree: item.cachedValueErrorFree,
       };
     });
+    let recalculation = null;
+    if (facts.recalculation != null) {
+      object(facts.recalculation, `${label}.recalculation`);
+      const state = strictText(facts.recalculation.state, `${label}.recalculation.state`);
+      if (!['qualified', 'unmeasured', 'failed'].includes(state)) fail(`${label}.recalculation.state is invalid`);
+      recalculation = {
+        state, reason: strictText(facts.recalculation.reason, `${label}.recalculation.reason`),
+        artifactSha256: facts.recalculation.artifactSha256 == null
+          ? null : strictText(facts.recalculation.artifactSha256, `${label}.recalculation.artifactSha256`),
+        exactTargetValuesReconciled: facts.recalculation.exactTargetValuesReconciled ?? null,
+      };
+      if (state === 'qualified' && (!validSha256(recalculation.artifactSha256)
+        || typeof recalculation.exactTargetValuesReconciled !== 'boolean')) {
+        fail(`${label}.recalculation qualified facts are incomplete`);
+      }
+    }
     return {
       reopenedArtifactSha256: facts.reopenedArtifactSha256, formulaErrors: facts.formulaErrors,
-      schemaErrors: facts.schemaErrors, calculations,
-      recalculation: facts.recalculation == null ? null : {
-        state: strictText(facts.recalculation.state, `${label}.recalculation.state`),
-        reason: strictText(facts.recalculation.reason, `${label}.recalculation.reason`),
-      },
+      schemaErrors: facts.schemaErrors, calculations, recalculation,
     };
   }
   if (requirement.kind === 'artifact_forms') {
@@ -485,17 +497,28 @@ async function evaluationFor(requirement, contract, producerRegistry) {
     return identified({ state: passed ? 'qualified' : 'failed', reason: passed ? null : 'domain_traceability_incomplete' });
   }
   if (requirement.kind === 'structural_scan') {
-    const calculationPassed = contract.calculations.filter((item) => item.outputTarget != null).every((calculation) => {
+    const mappedCalculations = contract.calculations.filter((item) => item.outputTarget != null);
+    const calculationPassed = mappedCalculations.every((calculation) => {
       const observed = facts.calculations.find((item) => item.calculationId === calculation.calculationId);
       return observed?.formulaPresent === true && observed.precedentsComplete === true
         && observed.requiredSourcesCovered === true && observed.cachedValuePresent === true
         && observed.cachedValueErrorFree === true;
     });
-    const passed = facts.reopenedArtifactSha256 === expected.reopenedArtifactSha256
+    const staticPassed = facts.reopenedArtifactSha256 === expected.reopenedArtifactSha256
       && Number.isInteger(facts.formulaErrors) && facts.formulaErrors <= expected.maximumFormulaErrors
       && Number.isInteger(facts.schemaErrors) && facts.schemaErrors <= expected.maximumSchemaErrors
       && calculationPassed;
-    return identified({ state: passed ? 'qualified' : 'failed', reason: passed ? null : 'structural_scan_failed' });
+    if (!staticPassed) return identified({ state: 'failed', reason: 'structural_scan_failed' });
+    if (mappedCalculations.length > 0 && facts.recalculation?.state !== 'qualified') {
+      return identified(facts.recalculation?.state === 'failed'
+        ? { state: 'failed', reason: 'calculation_recalculation_failed' }
+        : { state: 'unmeasured', reason: 'calculation_recalculation_unmeasured' });
+    }
+    if (mappedCalculations.length > 0 && (facts.recalculation.artifactSha256 !== contract.artifact.sha256
+      || facts.recalculation.exactTargetValuesReconciled !== true)) {
+      return identified({ state: 'failed', reason: 'calculation_recalculation_mismatch' });
+    }
+    return identified({ state: 'qualified', reason: null });
   }
   if (requirement.kind === 'artifact_forms') {
     const passed = exactSet(facts.observedFormIds, expected.formIds);

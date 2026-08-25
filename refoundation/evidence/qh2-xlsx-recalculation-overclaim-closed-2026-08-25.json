@@ -1,0 +1,24 @@
+{
+  "schema": "t5.qh2-xlsx-recalculation-overclaim-closed.v1",
+  "recordedDate": "2026-08-25",
+  "scope": "formula recalculation overclaim removal only",
+  "contract": {
+    "formulaPrecedentCacheFacts": "preserved",
+    "withoutRuntimeEngineReceipt": "structural_scan requirement is unmeasured",
+    "runtimeEngineReceipt": "factory-owned producer only; sidecar and call input cannot supply it",
+    "qualified": "exact artifact, target identity, formula text, and target value reconcile",
+    "wrongNormalNumberCache": "failed even when formulaErrors is zero"
+  },
+  "cases": [
+    { "case": "correct formula, precedent, and cache without engine", "status": "unmeasured" },
+    { "case": "runtime producer exact formula and value reconcile", "status": "qualified" },
+    { "case": "normal numeric cache differs from engine value", "status": "failed" },
+    { "case": "sidecar self-declares qualified recalculation", "status": "unmeasured" }
+  ],
+  "checks": {
+    "focused": { "passed": 32, "failed": 0 },
+    "full": "not rerun after owner stop instruction"
+  },
+  "engineImplemented": false,
+  "next": "none in this task"
+}

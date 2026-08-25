@@ -4,7 +4,9 @@ import { extname, relative, resolve, sep } from 'node:path';
 
 import { unzipSync } from 'fflate';
 
-import { makeArtifactQualityQualifier } from './artifact-quality-qualification.js';
+import {
+  createArtifactPurposeContract, makeArtifactQualityQualifier,
+} from './artifact-quality-qualification.js';
 import { renderAttachmentPreview } from './artifact-preview.js';
 import { inspectBusinessDocument } from './document-data-inspector.js';
 import { renderDocxAllPages } from './docx-visual-renderer.js';
@@ -167,6 +169,58 @@ function workbookCalculationObservations(contract, evidence) {
   });
 }
 
+function workbookTarget(evidence, target) {
+  const sheet = evidence.document?.workbook?.sheets?.find((item) => item.name === target.sheetId);
+  return sheet?.cells?.find((cell) => cell.address === target.cell) ?? null;
+}
+
+function runtimeRecalculationProducer(value) {
+  if (value == null) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || typeof value.identity !== 'string' || !value.identity.trim()
+    || typeof value.observe !== 'function') {
+    throw new TypeError('workbookRecalculationProducer must be a runtime producer');
+  }
+  return Object.freeze({ identity: value.identity.trim(), observe: value.observe });
+}
+
+async function observeWorkbookRecalculation(producer, contract, evidence) {
+  const calculations = contract.calculations.filter((item) => item.outputTarget != null);
+  if (calculations.length === 0) return null;
+  if (!producer) return { state: 'unmeasured', reason: 'qualified_engine_receipt_absent' };
+  let raw;
+  try {
+    raw = await producer.observe(Object.freeze({
+      artifact: Object.freeze({ ...contract.artifact }),
+      targets: Object.freeze(calculations.map((item) => Object.freeze({
+        calculationId: item.calculationId, sheetId: item.outputTarget.sheetId, cell: item.outputTarget.cell,
+      }))),
+    }));
+  } catch { return { state: 'failed', reason: 'runtime_engine_failed' }; }
+  if (!raw || typeof raw !== 'object' || raw.schema !== 't5.xlsx-recalculation-observation.v1'
+    || raw.artifactSha256 !== contract.artifact.sha256 || raw.producerIdentity !== producer.identity) {
+    return { state: 'failed', reason: 'runtime_engine_receipt_malformed' };
+  }
+  if (raw.state === 'failed') return { state: 'failed', reason: 'runtime_engine_failed' };
+  if (raw.state !== 'qualified' || !Array.isArray(raw.targets) || raw.targets.length !== calculations.length) {
+    return { state: 'failed', reason: 'runtime_engine_receipt_malformed' };
+  }
+  const identities = raw.targets.map((item) => `${item?.calculationId}\u0000${item?.sheetId}\u0000${item?.cell}`);
+  if (new Set(identities).size !== identities.length) {
+    return { state: 'failed', reason: 'runtime_engine_receipt_malformed' };
+  }
+  const reconciled = calculations.every((calculation) => {
+    const observed = raw.targets.find((item) => item?.calculationId === calculation.calculationId
+      && item?.sheetId === calculation.outputTarget.sheetId && item?.cell === calculation.outputTarget.cell);
+    const current = workbookTarget(evidence, calculation.outputTarget);
+    return observed && current && observed.formula === current.formula && Object.is(observed.value, current.result);
+  });
+  return {
+    state: 'qualified', reason: 'runtime_engine_observed', artifactSha256: contract.artifact.sha256,
+    exactTargetValuesReconciled: reconciled,
+  };
+}
+
 function producerObservation({ producer, context, evidence }) {
   const { contract, requirement } = context;
   const base = observationBase(contract, requirement, producer.kind);
@@ -212,7 +266,7 @@ function producerObservation({ producer, context, evidence }) {
         formulaErrors: evidence.document?.workbook?.totals?.formulaErrors ?? 0,
         schemaErrors: evidence.documentState === 'observed' ? 0 : 1,
         calculations: evidence.kind === 'xlsx' ? workbookCalculationObservations(contract, evidence) : [],
-        recalculation: evidence.document?.workbook?.recalculation
+        recalculation: evidence.recalculation
           ?? { state: 'unmeasured', reason: 'qualified_engine_receipt_absent' },
       } };
     }
@@ -260,7 +314,7 @@ function producerObservation({ producer, context, evidence }) {
   return unknownObservation(base);
 }
 
-async function collectEvidence(filePath, bytes, extension, renderDocxPages) {
+async function collectEvidence(filePath, bytes, extension, renderDocxPages, contract, recalculationProducer) {
   let document = null; let documentState = 'unmeasured'; let kind = extension.slice(1);
   try {
     if (extension === '.xlsx' || extension === '.pdf') {
@@ -294,15 +348,23 @@ async function collectEvidence(filePath, bytes, extension, renderDocxPages) {
     try { docxRender = await renderDocxPages(filePath); }
     catch { docxRender = { state: 'capability_boundary', reason: 'docx_all_page_render_failed' }; }
   }
-  const corpus = flattenStrings({ document, preview }).join('\n');
-  return {
-    kind, document, documentState, preview, docxRender, corpus,
+  const evidence = {
+    kind, document, documentState, preview, docxRender,
     pageSetups: extension === '.xlsx' ? workbookPageSetups(bytes) : [],
     sha256: sha256(bytes),
   };
+  const recalculation = extension === '.xlsx'
+    ? await observeWorkbookRecalculation(recalculationProducer, contract, evidence) : null;
+  const corpus = flattenStrings({ document, preview }).join('\n');
+  return {
+    ...evidence, recalculation, corpus,
+  };
 }
 
-export function makeArtifactQualityOutputQualifier({ renderDocxPages = renderDocxAllPages } = {}) {
+export function makeArtifactQualityOutputQualifier({
+  renderDocxPages = renderDocxAllPages, workbookRecalculationProducer = null,
+} = {}) {
+  const recalculationProducer = runtimeRecalculationProducer(workbookRecalculationProducer);
   return async function qualifyArtifactQualityOutput({ filePath, workspace } = {}) {
     const source = resolve(String(filePath ?? ''));
     const extension = extname(source).toLowerCase();
@@ -329,8 +391,18 @@ export function makeArtifactQualityOutputQualifier({ renderDocxPages = renderDoc
       applicable: true, qualified: false, state: 'artifact_quality_unqualified',
       reason: 'artifact_purpose_kind_mismatch', verificationMissing: true,
     };
+    let contract;
+    try { contract = createArtifactPurposeContract(sidecar.contract); }
+    catch {
+      return {
+        applicable: true, qualified: false, state: 'artifact_quality_unqualified',
+        reason: 'artifact_purpose_contract_invalid', verificationMissing: true,
+      };
+    }
     const bytes = await readFile(path);
-    const evidence = await collectEvidence(path, bytes, extension, renderDocxPages);
+    const evidence = await collectEvidence(
+      path, bytes, extension, renderDocxPages, contract, recalculationProducer,
+    );
     const qualifier = makeArtifactQualityQualifier({
       observationProducers: PRODUCERS.map((producer) => ({
         ...producer,
@@ -338,7 +410,7 @@ export function makeArtifactQualityOutputQualifier({ renderDocxPages = renderDoc
       })),
     });
     try {
-      const receipt = await qualifier({ contract: sidecar.contract });
+      const receipt = await qualifier({ contract });
       return {
         applicable: true,
         qualified: receipt.qualified,

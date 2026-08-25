@@ -113,7 +113,7 @@ test('누락 고객 trace와 fitToWidth=2는 실제 재개방·OpenXML 관측으
     assert.equal(result.qualified, false);
     assert.equal(result.receipt.lanes.semantic.status, 'failed');
     assert.equal(result.receipt.lanes.domain.status, 'failed');
-    assert.equal(result.receipt.lanes.structural.status, 'qualified');
+    assert.equal(result.receipt.lanes.structural.status, 'unmeasured');
     assert.equal(result.receipt.lanes.print.status, 'failed');
     assert.ok(result.receipt.lanes.print.failedRequirementIds.includes('print-setup'));
     assert.ok(result.receipt.lanes.print.failedRequirementIds.includes('print-integrity'));
@@ -126,7 +126,7 @@ test('구조와 page setup이 정상이어도 독립 Semantic·Domain·Visual ve
     const result = await makeArtifactQualityOutputQualifier()({ filePath: app.filePath, workspace: app.workspace });
     assert.equal(result.applicable, true);
     assert.equal(result.qualified, false);
-    assert.equal(result.receipt.lanes.structural.status, 'qualified');
+    assert.equal(result.receipt.lanes.structural.status, 'unmeasured');
     assert.equal(result.receipt.lanes.semantic.status, 'unmeasured');
     assert.equal(result.receipt.lanes.domain.status, 'unmeasured');
     assert.equal(result.receipt.lanes.screen.status, 'unmeasured');

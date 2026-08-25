@@ -140,19 +140,34 @@ test('source-backed 계산 목적은 formulaErrors=0만으로 hardcoded target�
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 
-async function qualifyCalculationFixture({ formula, cachedResult = 68300, maximumFormulaErrors = 0 }) {
+async function qualifyCalculationFixture({
+  formula, cachedResult = 68300, maximumFormulaErrors = 0,
+  engineValue = undefined, engineFormula = formula, callerReceipt = false,
+}) {
   const room = await mkdtemp(join(tmpdir(), 't5-qh2-lineage-'));
   const workspace = join(room, 'workspace'); await mkdir(workspace);
   const filePath = join(workspace, 'formula.xlsx');
   const bytes = hardcodedCalculationWorkbook({ formula, cachedResult });
   await writeFile(filePath, bytes);
-  await writeFile(`${filePath}${ARTIFACT_QUALITY_OUTPUT_CONTRACT.suffix}`, JSON.stringify(
-    calculationPurpose(bytes, { mapped: true, maximumFormulaErrors }),
-  ));
+  const purpose = calculationPurpose(bytes, { mapped: true, maximumFormulaErrors });
+  if (callerReceipt) purpose.recalculation = {
+    state: 'qualified', artifactSha256: sha256(bytes), exactTargetValuesReconciled: true,
+  };
+  await writeFile(`${filePath}${ARTIFACT_QUALITY_OUTPUT_CONTRACT.suffix}`, JSON.stringify(purpose));
+  const workbookRecalculationProducer = engineValue === undefined ? null : {
+    identity: 'test-runtime-engine',
+    async observe({ artifact, targets }) {
+      return {
+        schema: 't5.xlsx-recalculation-observation.v1', state: 'qualified',
+        artifactSha256: artifact.sha256, producerIdentity: 'test-runtime-engine',
+        targets: targets.map((target) => ({ ...target, formula: engineFormula, value: engineValue })),
+      };
+    },
+  };
   return {
     room,
     observed: await inspectBusinessDocument({ file: filePath }),
-    result: await makeArtifactQualityOutputQualifier()({ filePath, workspace }),
+    result: await makeArtifactQualityOutputQualifier({ workbookRecalculationProducer })({ filePath, workspace }),
   };
 }
 
@@ -164,8 +179,31 @@ test('exact target formula와 bounded source precedents와 cached result를 각�
     assert.deepEqual(target.precedentRanges, [{ sheetId: '정산', from: 'B1', to: 'B2' }]);
     assert.equal(target.formulaResultMissing, false);
     assert.equal(app.observed.workbook.recalculation.state, 'unmeasured');
-    assert.equal(app.result.receipt.lanes.structural.status, 'qualified');
+    assert.equal(app.result.receipt.lanes.structural.status, 'unmeasured');
   } finally { await rm(app.room, { recursive: true, force: true }); }
+});
+
+test('runtime producer의 exact formula target value가 cache와 reconcile될 때만 구조 자격한다', async () => {
+  const app = await qualifyCalculationFixture({ formula: 'SUM(B1:B2)', engineValue: 68300 });
+  try { assert.equal(app.result.receipt.lanes.structural.status, 'qualified'); }
+  finally { await rm(app.room, { recursive: true, force: true }); }
+});
+
+test('정상 숫자 cache도 engine target value와 다르면 구조 자격하지 않는다', async () => {
+  const app = await qualifyCalculationFixture({
+    formula: 'SUM(B1:B2)', cachedResult: 99999, engineValue: 68300,
+  });
+  try {
+    assert.equal(app.observed.workbook.totals.formulaErrors, 0);
+    assert.equal(app.result.receipt.lanes.structural.status, 'failed');
+    assert.deepEqual(app.result.receipt.lanes.structural.failedRequirementIds, ['reopen']);
+  } finally { await rm(app.room, { recursive: true, force: true }); }
+});
+
+test('sidecar caller가 qualified recalculation을 자칭해도 runtime producer를 대신하지 못한다', async () => {
+  const app = await qualifyCalculationFixture({ formula: 'SUM(B1:B2)', callerReceipt: true });
+  try { assert.equal(app.result.receipt.lanes.structural.status, 'unmeasured'); }
+  finally { await rm(app.room, { recursive: true, force: true }); }
 });
 
 test('exact target mapping이 있어도 hardcoded target은 formula presence를 통과하지 못한다', async () => {
