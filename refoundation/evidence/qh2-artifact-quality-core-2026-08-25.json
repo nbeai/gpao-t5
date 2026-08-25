@@ -33,8 +33,11 @@
     "refoundationDoctor": "passed",
     "legacyImportBoundary": "passed",
     "refoundationTests": {
-      "status": "pending_shared_integration_check",
-      "lastCleanPassedBeforeProvenanceRepair": 768,
+      "status": "qh2_passed_with_existing_ui_baseline_mismatch",
+      "passed": 785,
+      "failed": 1,
+      "total": 786,
+      "knownUnrelatedFailure": "console-ui-state: openSettings selection-reset source assertion",
       "gateAlignmentCommit": "c95cdbfa",
       "auditRepairCommits": ["5b3194d0", "261a90b4", "11a6db36"]
     }
