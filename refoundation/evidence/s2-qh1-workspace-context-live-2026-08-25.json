@@ -1,0 +1,55 @@
+{
+  "schema": "t5.s2-qh1-workspace-context-live.v1",
+  "recordedAt": "2026-08-25T10:07:00.534Z",
+  "productSourceCommit": "87057a12",
+  "modelId": "api_key:openai:gpt-5.6-terra",
+  "environment": "synthetic_isolated_home_data_workspace",
+  "journey": {
+    "id": "natural-direct-request",
+    "passed": false,
+    "wallMs": 75832,
+    "modelCalls": 15,
+    "toolCalls": 14,
+    "providerTokens": 392801,
+    "observed": {
+      "beginCalls": 1,
+      "finalizeCalls": 1,
+      "finalizeRegistered": true,
+      "artifactSurfaceCount": 0,
+      "workOutcome": "unresolved",
+      "terminalCalls": 11,
+      "terminalDefaultWorkspaceCalls": 11,
+      "explicitRepositoryCwdCalls": 0,
+      "relativePathEnoent": 0,
+      "approvalRequired": 1,
+      "internalWorkspaceTermsVisible": false,
+      "browserCalls": 0
+    },
+    "failure": "workspace_identity_was_correct_but_model_terminal_recovery_and_approval_kept_work_unresolved"
+  },
+  "comparisonToPriorFailure": {
+    "priorWrongRepositoryOrOutsideWorkspacePathsObserved": true,
+    "currentWrongRepositoryOrOutsideWorkspacePathsObserved": false,
+    "priorRelativeEnoentObserved": true,
+    "currentRelativeEnoentObserved": false,
+    "workspaceObservationImprovedPathGrounding": true,
+    "overallUserJourneyQualified": false
+  },
+  "deterministic": {
+    "workspaceAndOperationFocusedPassed": 24,
+    "workspaceAndOperationFocusedFailed": 0
+  },
+  "safety": {
+    "externalAccountWrites": 0,
+    "messengerWrites": 0,
+    "visibleBrowserCalls": 0,
+    "promptExamplesAdded": 0,
+    "runtimeLanguageRulesAdded": 0
+  },
+  "gateImpact": {
+    "workspaceProjection": "PASS",
+    "qh1ActualModel": "FAIL",
+    "gpt55Expansion": "NOT_OPENED",
+    "release": "BLOCKED"
+  }
+}
