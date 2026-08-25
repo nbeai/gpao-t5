@@ -1,0 +1,105 @@
+{
+  "schema": "t5.qh2-observation-gaps-red.v1",
+  "recordedDate": "2026-08-25",
+  "actualUserData": false,
+  "productCodeChanged": false,
+  "contract": [
+    "source-backed calculation is not proved by a displayed number or formulaErrors=0",
+    "formula presence, target-cell lineage, and post-engine cached result are separate runtime observations",
+    "a DOCX visual receipt covers every rendered page rather than one preview thumbnail",
+    "required Korean glyph markers are checked per page after rendering",
+    "Quick Look remains a page-one preview and cannot become a document verifier",
+    "renderer identity, version, font environment, page image digest, and glyph coverage are content-free receipts",
+    "templates, presets, generation workflow, and other QH axes are outside this change"
+  ],
+  "xlsxRed": {
+    "fixture": "refoundation/test/qh2-observation-gaps-red.test.js#hardcodedCalculationWorkbook",
+    "sourceCells": ["정산!B1=40000", "정산!B2=28300"],
+    "targetCell": "정산!B3=68300",
+    "targetFormulaElementPresent": false,
+    "formulaCells": 0,
+    "formulaErrors": 0,
+    "currentStructuralLane": "qualified",
+    "redExpectation": "source-backed calculation remains unqualified until target formula, precedents, and recalculated cache are observed",
+    "standard": {
+      "source": "https://learn.microsoft.com/en-us/office/open-xml/spreadsheet/working-with-formulas",
+      "formulaElement": "worksheet cell f element",
+      "cachedResultElement": "worksheet cell v element",
+      "fullRecalcSignal": "workbook calcPr fullCalcOnLoad/forceFullCalc is only a request; producer must prove a qualified engine rewrote and reopened the result"
+    },
+    "comparators": {
+      "codexSpreadsheets": [
+        "derived values must be formulas",
+        "inspect formulas separately from values",
+        "workbook.trace(target) supplies bounded dependency lineage"
+      ],
+      "hermesXlsx": [
+        "formulas and data_only cached values require two loads",
+        "LibreOffice calculateAll/store rewrites the workbook",
+        "green recalc proves evaluation only, not correct references"
+      ],
+      "t5Current": [
+        "@office-kit/xlsx exposes FormulaValue.formula and cachedValue",
+        "document observer counts formulas/errors/missing caches",
+        "quality structural receipt projects only sha256, formulaErrors, schemaErrors"
+      ]
+    }
+  },
+  "docxRed": {
+    "fixture": "synthetic 3-page DOCX with explicit page breaks and Korean markers 가나다/라마바/사아자",
+    "currentQuickLookContract": {
+      "source": "refoundation/src/docx-visual-renderer.js",
+      "returnedPage": 1,
+      "returnedObservedPageIds": null,
+      "returnedRequiredGlyphCoverage": null
+    },
+    "bundledLibreOfficeActual": {
+      "engine": "LibreOfficeDev 26.8.0.0.alpha0 2c87e51eeaa2b413ff4ae097b2705eea1995d8e5",
+      "pdfPages": 3,
+      "pngPages": 3,
+      "pageSha256": [
+        "00746d84fe8e919521394d01d9c5b4928f521784fd6c8831f79049edf90e3753",
+        "00746d84fe8e919521394d01d9c5b4928f521784fd6c8831f79049edf90e3753",
+        "00746d84fe8e919521394d01d9c5b4928f521784fd6c8831f79049edf90e3753"
+      ],
+      "visualObservation": "all three PNGs are blank white pages; required Korean markers are absent",
+      "fontconfigObservation": "renderer emitted no cachedir configuration and the environment supplied no observable Korean font family",
+      "receiptGap": "page files existing would pass an existence-only render step, while glyph loss is not represented by a typed fact"
+    },
+    "comparators": {
+      "codexDocuments": "render_docx.py emits page-N PNGs and requires inspection of every page at 100 percent for missing glyphs",
+      "hermesDocx": "LibreOffice PDF plus pdftoppm and inspect each page",
+      "t5Current": "Quick Look requires exactly one PNG and quality actualUnits hardcodes document:page1"
+    }
+  },
+  "deterministicRed": {
+    "command": "node --test refoundation/test/qh2-observation-gaps-red.test.js",
+    "tests": 2,
+    "passed": 0,
+    "failed": 2,
+    "failures": [
+      "hardcoded target is structurally qualified because only formulaErrors=0 is observed",
+      "DOCX renderer returns no all-page or per-page glyph coverage receipt"
+    ]
+  },
+  "nextMinimalProducers": {
+    "xlsx": {
+      "identity": "t5.xlsx-calculation-observer.v1",
+      "observations": [
+        "formula_presence: exact target cell has a formula element",
+        "target_cell_lineage: bounded parsed precedents resolve to required source fact cells",
+        "cached_recalculation: isolated qualified engine recalculates, saves, reopens, and reports exact target cached result"
+      ],
+      "environment": "isolated LibreOffice profile with engine/version receipt; compare pre/post artifact digests and never infer recalc from calcPr alone"
+    },
+    "docx": {
+      "identity": "t5.docx-render-coverage-observer.v1",
+      "observations": [
+        "actual page count and one image digest/dimensions per page",
+        "required marker/glyph presence per exact page",
+        "renderer/version and font-manifest digest"
+      ],
+      "environment": "qualified Korean font bundle plus isolated LibreOffice-to-PDF-to-PNG rendering; Quick Look remains preview-only"
+    }
+  }
+}
