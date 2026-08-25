@@ -1,6 +1,15 @@
+import { createHash, randomBytes } from 'node:crypto';
+
 const DISPOSITIONS = new Set(['answered', 'unresolved', 'deferred', 'superseded']);
 
-export function makeInputSettlementScope({ store, runId, excludedInputIds = [] } = {}) {
+function productionHandle({ runId }) {
+  const token = createHash('sha256').update(String(runId)).update('\0')
+    .update(randomBytes(32)).digest('hex').slice(0, 32);
+  return `busy_${token}`;
+}
+
+export function makeInputSettlementScope({ store, runId, excludedInputIds = [],
+  makeHandle = productionHandle } = {}) {
   if (!store || !runId) throw new TypeError('input settlement scope identity is required');
   const byHandle = new Map();
   const byInputId = new Map();
@@ -13,7 +22,11 @@ export function makeInputSettlementScope({ store, runId, excludedInputIds = [] }
     if (existing) return existing.handle;
     if (sequence >= 32) throw new Error('busy input settlement scope exceeded');
     sequence += 1;
-    const record = { handle: `busy_${sequence}`, inputId: String(input.inputId) };
+    const handle = String(makeHandle({ runId, sequence }));
+    if (!/^busy_[A-Za-z0-9_-]{8,80}$/u.test(handle) || byHandle.has(handle)) {
+      throw new Error('invalid or duplicate busy input settlement handle');
+    }
+    const record = { handle, inputId: String(input.inputId) };
     byHandle.set(record.handle, record); byInputId.set(record.inputId, record);
     return record.handle;
   }

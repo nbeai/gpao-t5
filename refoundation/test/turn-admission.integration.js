@@ -15,7 +15,8 @@ function settlementAware(respond) {
     if (pendingFinal) { const response = pendingFinal; pendingFinal = null; return response; }
     const response = await respond(input);
     const handles = [...new Set(input.messages.flatMap((message) => (
-      [...String(message.content ?? '').matchAll(/inputHandle=(busy_\d+)/gu)].map((match) => match[1])
+      [...String(message.content ?? '').matchAll(/inputHandle=(busy_[A-Za-z0-9_-]{8,80})/gu)]
+        .map((match) => match[1])
     )))];
     const completionAvailable = input.tools.some((tool) => tool.name === 'work_completion');
     if (handles.length && completionAvailable && response.toolCalls.length === 0

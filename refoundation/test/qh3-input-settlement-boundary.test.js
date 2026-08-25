@@ -161,7 +161,7 @@ test('projected busy input settlement을 모델이 생략하면 digest나 execut
     turn += 1;
     if (turn === 1) { entered(); await gate; return { text: 'STALE-BASE', toolCalls: [] }; }
     assert.match(input.messages.find((message) => String(message.content)
-      .includes('T5 NEWLY ADMITTED USER MESSAGE'))?.content ?? '', /inputHandle=busy_1/u);
+      .includes('T5 NEWLY ADMITTED USER MESSAGE'))?.content ?? '', /inputHandle=busy_[a-f0-9]{32}/u);
     return { text: 'SETTLEMENT-OMITTED-RESULT', toolCalls: [] };
   } }) });
   const base = await listen(server);
