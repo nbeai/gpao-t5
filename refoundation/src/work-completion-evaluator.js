@@ -31,6 +31,7 @@ function blockerForReceipt(receipt, index, receipts) {
 
 export function evaluateWorkCompletion({ proposedOutcome, receipts = [], facts = {} } = {}) {
   const blockers = receipts.map((receipt, index) => blockerForReceipt(receipt, index, receipts)).filter(Boolean);
+  for (const blocker of facts.inputSettlementBlockers ?? []) blockers.push(blocker);
   if (facts.staleRevision) blockers.push('stale_revision');
   if (facts.claimMismatch) blockers.push('execution_claim_mismatch');
   if (facts.approvalPending) blockers.push('approval_pending');

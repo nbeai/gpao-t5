@@ -320,9 +320,10 @@ export async function runAgent({
     for (const [admissionIndex, input] of admittedWorkInputs.entries()) {
       if (projectedWorkInputIds.has(input.inputId)) continue;
       projectedWorkInputIds.add(input.inputId);
-      transcript.push({ role: 'user', workInputId: input.inputId, content: [
+      transcript.push({ role: 'user', workInputHandle: input.settlementHandle, content: [
         '[T5 NEWLY ADMITTED USER MESSAGE — classify against the current user purpose before acting]',
         `admissionIndex=${admissionIndex + 1}`,
+        `inputHandle=${input.settlementHandle}`,
         `currentWork=${JSON.stringify(input.currentWork ?? null)}`,
         `envelope=${JSON.stringify({ attachmentIds: input.attachmentIds ?? [], source: input.source ?? {} })}`,
         String(input.text ?? ''),
@@ -431,7 +432,10 @@ export async function runAgent({
         await model.supersedeLastResponse?.();
         const boundaryIds = new Set(boundaryAfterModelCall.map((input) => input.inputId));
         for (let index = transcript.length - 1; index >= 0; index -= 1) {
-          if (boundaryIds.has(transcript[index]?.workInputId)) transcript.splice(index, 1);
+          const input = boundaryAfterModelCall.find((candidate) => (
+            candidate.settlementHandle === transcript[index]?.workInputHandle
+          ));
+          if (input && boundaryIds.has(input.inputId)) transcript.splice(index, 1);
         }
         for (const input of boundaryAfterModelCall) projectedWorkInputIds.delete(input.inputId);
         lastTurnToolCalls = 0;

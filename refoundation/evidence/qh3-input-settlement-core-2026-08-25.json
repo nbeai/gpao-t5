@@ -1,0 +1,55 @@
+{
+  "schema": "t5.qh3-input-settlement-core.v1",
+  "sourceRed": "dc6f130c",
+  "gate": "QH-3 Temporal Input & Publication Isolation — input settlement core",
+  "implemented": [
+    "run-local bounded opaque busy input handles",
+    "work_completion per-input answered, unresolved, deferred, or superseded disposition",
+    "runtime-owned handle to exact input, Work, and revision binding",
+    "missing, duplicate, foreign handle, and Work/revision mismatch blockers",
+    "one durable settlement disposition per executing busy input",
+    "answered-only result pointer and digest qualification",
+    "unresolved, deferred, superseded, and unaddressed execution release",
+    "result surface binding to exact current Work claim revision",
+    "initial scheduled request exclusion from the busy mailbox contract"
+  ],
+  "blocked": {
+    "unaddressed": "admitted_input_unaddressed",
+    "identityMismatch": "admitted_input_identity_mismatch",
+    "effectOnAchieved": "verified outcome becomes unresolved"
+  },
+  "checks": {
+    "focused": {
+      "command": "node --test input settlement, red boundary, B admission/publication/restart/cancel/process suites",
+      "passed": 64,
+      "failed": 0
+    },
+    "coreFull": {
+      "command": "npm run refoundation:check",
+      "passed": 796,
+      "failed": 1,
+      "total": 797,
+      "knownUnrelatedFailure": "console-ui-state openSettings selection reset assertion"
+    },
+    "productIntegration": {
+      "command": "npm run refoundation:integration",
+      "passed": 140,
+      "failed": 0
+    },
+    "legacyImport": 0
+  },
+  "counterfactuals": {
+    "unaddressedDeferred": "not executed and no current result digest",
+    "foreignWorkRevision": "not executed and no current result digest",
+    "validAnswered": "surface persisted receipt may commit executed",
+    "unresolvedDeferredSuperseded": "released to retryable or rescheduled state without executed promotion"
+  },
+  "notChanged": [
+    "meaning classifier",
+    "prompt examples or few-shot",
+    "keyword or regex routing",
+    "QH-1 or QH-2",
+    "Connecting or UI",
+    "QH-4"
+  ]
+}

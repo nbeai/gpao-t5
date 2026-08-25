@@ -36,6 +36,7 @@ import { WorkStore } from './work-store.js';
 import { makeWorkTransitionTool } from './work-transition-tool.js';
 import { makeWorkCompletionTool } from './work-completion-tool.js';
 import { evaluateWorkCompletion } from './work-completion-evaluator.js';
+import { makeInputSettlementScope } from './input-settlement-scope.js';
 import { memoryCandidateProjection, selectMemoryPortfolio, workingMemoryProjection } from './memory-portfolio.js';
 import { projectHistoricalConversationEntries } from './conversation-projection.js';
 import { makeConversationRecallTool } from './conversation-recall-tool.js';
@@ -754,6 +755,8 @@ export function makeConsoleServer({
       ...(currentModelConnection ? { modelConnection: currentModelConnection } : {}),
       ...(modelTransition ? { modelTransition } : {}),
     } });
+    const inputSettlementScope = makeInputSettlementScope({ store: workStore, runId: run.runId,
+      excludedInputIds: options.admittedInput ? [options.admittedInput.inputId] : [] });
     let resourceDiagnosticSequence = 0;
     const resourceRun = await resourceController.startRun({
       sessionId, runId: run.runId, trigger: options.trigger ?? 'user',
@@ -1042,7 +1045,8 @@ export function makeConsoleServer({
       const capabilitySnapshot = await capabilityCatalogPromise;
       const offeredTools = [...terminal.tools];
       if (!options.observationOnly && options.trigger !== 'automation') {
-        offeredTools.unshift(makeWorkCompletionTool({ store: workStore, runId: run.runId }));
+        offeredTools.unshift(makeWorkCompletionTool({ store: workStore, runId: run.runId,
+          inputSettlementScope }));
       }
       offeredTools.unshift(makeWorkTransitionTool({
         store: workStore, sessionId, runId: run.runId,
@@ -1351,7 +1355,8 @@ export function makeConsoleServer({
             const records = await Promise.all((input.attachmentIds ?? []).map((attachmentId) => (
               attachments.get({ sessionId, attachmentId })
             )));
-            return { inputId: input.inputId, text: entry?.message.content ?? '',
+            return { inputId: input.inputId,
+              settlementHandle: inputSettlementScope.register(input), text: entry?.message.content ?? '',
               attachmentIds: input.attachmentIds ?? [], source: input.source ?? {},
               currentWork: currentWork ? { status: currentWork.status, revision: currentWork.revision,
                 objective: String(objective ?? '').slice(0, 2_000),
@@ -1573,9 +1578,9 @@ export function makeConsoleServer({
       });
       if (recovery) surfaceResult.recovery = { ...recovery, recoveryId: run.runId };
       const settledWork = await workStore.workForRun(run.runId); let objectiveOutcome = 'unresolved';
+      let proposal = await workStore.proposalForRun(run.runId);
       if (settledWork && settledWork.revision === settledWork.claimedRevision
         && settledWork.status === 'active') {
-        let proposal = await workStore.proposalForRun(run.runId);
         if (!proposal && options.trigger === 'automation') {
           const automationAssessment = assessAutomationOutcome({
             receipts: result.receipts, requirements: options.automationRequirements ?? {},
@@ -1588,7 +1593,10 @@ export function makeConsoleServer({
         const evaluation = evaluateWorkCompletion({
           proposedOutcome: proposal?.proposedOutcome ?? 'unresolved', receipts: result.receipts,
           facts: { approvalPending: Boolean(approvalReceipt),
-            handoffPending: Boolean(browserHandoff || connectionHandoff) },
+            handoffPending: Boolean(browserHandoff || connectionHandoff),
+            inputSettlementBlockers: (proposal?.blockers ?? []).filter((blocker) => (
+              blocker.startsWith('admitted_input_')
+            )) },
         });
         if (proposal) await workStore.verifyCompletion({ workId: settledWork.workId,
           revision: settledWork.revision, runId: run.runId,
@@ -1603,8 +1611,38 @@ export function makeConsoleServer({
             outcome: unresolved ? 'unresolved' : 'achieved',
             blockerDigest: evaluation.blockerDigest, blockers: evaluation.blockers } });
       }
+      const resultWorkId = settledWork?.workId ?? null;
+      const resultRevision = settledWork?.claimedRevision ?? null;
+      const explicitSettlements = proposal ? proposal.inputSettlements ?? []
+        : await inputSettlementScope.implicitAnswered({ workId: resultWorkId, revision: resultRevision });
+      if (options.admittedInput) {
+        const admitted = (await workStore.executingInputsForRun(run.runId))
+          .find((input) => input.inputId === options.admittedInput.inputId);
+        if (admitted && admitted.workId === resultWorkId && admitted.revision === resultRevision) {
+          explicitSettlements.push({ inputId: admitted.inputId, workId: admitted.workId,
+            revision: admitted.revision, disposition: 'answered' });
+        }
+      }
+      const answeredInputIds = new Set();
+      for (const input of await workStore.executingInputsForRun(run.runId)) {
+        const matches = explicitSettlements.filter((settlement) => settlement.inputId === input.inputId);
+        const exact = matches.length === 1 && matches[0].workId === resultWorkId
+          && matches[0].revision === resultRevision;
+        const disposition = exact ? matches[0].disposition : 'unresolved';
+        const settlementReason = exact ? `model_${disposition}` : matches.length
+          ? 'admitted_input_identity_mismatch' : 'admitted_input_unaddressed';
+        await workStore.recordInputSettlementDisposition({ inputId: input.inputId, runId: run.runId,
+          workId: resultWorkId, revision: resultRevision, disposition, reason: settlementReason });
+        if (exact && matches[0].disposition === 'answered') {
+          answeredInputIds.add(input.inputId); continue;
+        }
+        await workStore.releaseInputExecution({ inputId: input.inputId, runId: run.runId,
+          disposition, reason: settlementReason,
+          baseRevision: resultRevision });
+      }
       const resultDigest = createHash('sha256').update(JSON.stringify(surfaceResult)).digest('hex');
       for (const input of await workStore.executingInputsForRun(run.runId)) {
+        if (!answeredInputIds.has(input.inputId)) continue;
         await workStore.prepareInputCompletion({ inputId: input.inputId, runId: run.runId,
           resultPointer: `work-result:${run.runId}`, resultDigest });
       }

@@ -61,6 +61,8 @@ export class WorkStore {
         const input = inputs.get(event.inputId); if (input) Object.assign(input, {
           state: 'executing', disposition: 'current_work', workId: event.workId,
           revision: event.revision, executionRunId: event.runId,
+          settlementDisposition: null, settlementWorkId: null, settlementRevision: null,
+          settlementReason: null,
         });
         const work = works.get(event.workId); if (work) { work.revision = event.revision; work.status = 'active'; }
       }
@@ -83,6 +85,8 @@ export class WorkStore {
         const input = inputs.get(event.inputId); if (input) Object.assign(input, {
           state: 'executing', disposition: 'cancelled_work', workId: event.workId,
           revision: event.revision, executionRunId: event.runId,
+          settlementDisposition: null, settlementWorkId: null, settlementRevision: null,
+          settlementReason: null,
         });
         const work = works.get(event.workId); if (work) { work.revision = event.revision; work.status = 'cancelled'; }
       }
@@ -113,7 +117,9 @@ export class WorkStore {
       }
       if (event.type === 'input_execution_claimed') {
         const input = inputs.get(event.inputId); if (input) Object.assign(input,
-          { state: 'executing', executionRunId: event.runId });
+          { state: 'executing', executionRunId: event.runId,
+            settlementDisposition: null, settlementWorkId: null, settlementRevision: null,
+            settlementReason: null });
       }
       if (event.type === 'input_executed') {
         const input = inputs.get(event.inputId); if (input) Object.assign(input, {
@@ -124,6 +130,24 @@ export class WorkStore {
         const input = inputs.get(event.inputId); if (input) Object.assign(input, {
           state: 'completed_pending_surface', completionRunId: event.runId,
           resultPointer: event.resultPointer, resultDigest: event.resultDigest,
+        });
+      }
+      if (event.type === 'input_settlement_dispositioned') {
+        const input = inputs.get(event.inputId); if (input) Object.assign(input, {
+          settlementDisposition: event.disposition,
+          settlementWorkId: event.workId,
+          settlementRevision: event.revision,
+          settlementReason: event.reason,
+        });
+      }
+      if (event.type === 'input_execution_released') {
+        const input = inputs.get(event.inputId); if (input) Object.assign(input, {
+          state: event.nextState,
+          schedule: Object.hasOwn(event, 'schedule') ? event.schedule : input.schedule,
+          baseRevision: event.baseRevision ?? input.baseRevision,
+          deferredByRunId: Object.hasOwn(event, 'deferredByRunId')
+            ? event.deferredByRunId : input.deferredByRunId,
+          executionRunId: null,
         });
       }
       if (event.type === 'work_settled') {
@@ -143,6 +167,7 @@ export class WorkStore {
         runId: event.runId, workId: event.workId, revision: event.revision,
         proposedOutcome: event.proposedOutcome, verifiedOutcome: event.verifiedOutcome,
         blockerDigest: event.blockerDigest ?? null, blockers: event.blockers ?? [],
+        inputSettlements: clone(event.inputSettlements ?? []),
       });
       if (event.type === 'completion_verified') {
         const proposal = proposals.get(event.runId); if (proposal) Object.assign(proposal,
@@ -351,7 +376,7 @@ export class WorkStore {
     return { ...input, state: 'classified', revision };
   }
   async proposeCompletion({ workId, revision, runId, proposedOutcome = 'unresolved',
-    verifiedOutcome = 'unresolved', blockerDigest = null, blockers = [] }) {
+    verifiedOutcome = 'unresolved', blockerDigest = null, blockers = [], inputSettlements = [] }) {
     const state = await this.read(); const work = state.works.find((item) => item.workId === workId);
     if (!work || work.revision !== revision) throw new Error('stale work revision');
     const claim = state.claims.find((item) => item.runId === runId);
@@ -359,7 +384,7 @@ export class WorkStore {
       throw new Error('work execution claim mismatch');
     }
     return this.append('completion_proposed', { workId, revision, runId, proposedOutcome, verifiedOutcome,
-      blockerDigest, blockers });
+      blockerDigest, blockers, inputSettlements });
   }
   async verifyCompletion({ workId, revision, runId, verifiedOutcome, blockerDigest, blockers = [] }) {
     const state = await this.read(); const proposal = state.proposals.find((item) => item.runId === runId);
@@ -454,6 +479,38 @@ export class WorkStore {
     const state = await this.read(); return state.inputs.filter((input) => (
       input.state === 'executing' && input.executionRunId === runId
     ));
+  }
+  async releaseInputExecution({ inputId, runId, disposition = 'unresolved', reason = disposition,
+    baseRevision = null } = {}) {
+    const state = await this.read(); const input = state.inputs.find((item) => item.inputId === inputId);
+    if (!input || input.state !== 'executing' || input.executionRunId !== runId) {
+      throw new Error('work input execution claim mismatch');
+    }
+    if (input.settlementDisposition !== disposition) {
+      throw new Error('work input settlement disposition is required before release');
+    }
+    const nextState = disposition === 'deferred' ? 'scheduled'
+      : disposition === 'superseded' ? 'admitted' : 'classified';
+    const schedule = disposition === 'deferred' ? 'after_current_delivery'
+      : disposition === 'superseded' ? null : 'settlement_retry';
+    await this.append('input_execution_released', { inputId, runId, reason,
+      nextState, schedule, deferredByRunId: disposition === 'deferred' ? runId : null,
+      baseRevision: baseRevision ?? input.revision ?? input.baseRevision ?? null });
+    return { inputId, state: nextState, schedule, disposition };
+  }
+  async recordInputSettlementDisposition({ inputId, runId, workId, revision, disposition,
+    reason = disposition } = {}) {
+    if (!['answered', 'unresolved', 'deferred', 'superseded'].includes(disposition)) {
+      throw new TypeError('invalid input settlement disposition');
+    }
+    const state = await this.read(); const input = state.inputs.find((item) => item.inputId === inputId);
+    if (!input || input.state !== 'executing' || input.executionRunId !== runId) {
+      throw new Error('work input execution claim mismatch');
+    }
+    if (input.settlementDisposition) throw new Error('work input settlement disposition already recorded');
+    await this.append('input_settlement_dispositioned', { inputId, runId, workId, revision,
+      disposition, reason });
+    return { inputId, runId, workId, revision, disposition };
   }
   async pendingSurfaceInputsForRun(runId) {
     return (await this.read()).inputs.filter((input) => input.state === 'completed_pending_surface'
