@@ -1,0 +1,113 @@
+{
+  "schema": "t5.s2-qh12-live-model-qualification.v1",
+  "recordedAt": "2026-08-25T07:43:24.154Z",
+  "sourceCommit": "3eb09848d8d345477ede61316c2e13786515cf51",
+  "environment": "synthetic_isolated_home_data_workspace",
+  "models": {
+    "terra": {
+      "modelId": "api_key:openai:gpt-5.6-terra",
+      "passed": false,
+      "passedJourneys": 1,
+      "totalJourneys": 3,
+      "wallMs": 167045,
+      "modelCalls": 21,
+      "toolCalls": 18,
+      "usage": {
+        "inputTokens": 392028,
+        "outputTokens": 7433,
+        "totalTokens": 399461
+      }
+    },
+    "gpt55": {
+      "executed": false,
+      "reason": "terra_structural_qualification_did_not_pass"
+    }
+  },
+  "journeys": [
+    {
+      "id": "qh1-natural-executable",
+      "passed": false,
+      "wallMs": 121769,
+      "modelCalls": 11,
+      "toolCalls": 10,
+      "usage": {
+        "inputTokens": 259259,
+        "outputTokens": 5227,
+        "totalTokens": 264486
+      },
+      "observed": {
+        "registrationAttempts": 3,
+        "unqualifiedReason": "deliverable_contract_invalid",
+        "antiThrashStoppedRepeatedAttempt": true,
+        "artifactSurfaceCount": 0,
+        "workOutcome": "unresolved",
+        "browserCalls": 0,
+        "approvals": 0,
+        "internalTermsVisible": false
+      },
+      "failure": "model_did_not_produce_qualifiable_executable_contract"
+    },
+    {
+      "id": "qh1-broken-launcher",
+      "passed": false,
+      "wallMs": 31383,
+      "modelCalls": 6,
+      "toolCalls": 5,
+      "usage": {
+        "inputTokens": 93836,
+        "outputTokens": 1562,
+        "totalTokens": 95398
+      },
+      "observed": {
+        "runtimeQualificationState": "executable_artifact_unqualified",
+        "runtimeQualificationReason": "executable_qualification_failed",
+        "artifactSurfaceCount": 0,
+        "workOutcome": "unresolved",
+        "browserCalls": 0,
+        "approvals": 0,
+        "internalTermsVisible": true
+      },
+      "failure": "runtime_blocked_false_success_but_user_answer_matched_internal_qualification_term_guard"
+    },
+    {
+      "id": "qh2-deficient-xlsx",
+      "passed": true,
+      "wallMs": 13893,
+      "modelCalls": 4,
+      "toolCalls": 3,
+      "usage": {
+        "inputTokens": 38933,
+        "outputTokens": 644,
+        "totalTokens": 39577
+      },
+      "observed": {
+        "runtimeQualificationState": "artifact_quality_unqualified",
+        "runtimeQualificationReason": "artifact_quality_qualification_failed",
+        "printSetupFailureObserved": true,
+        "sourceTraceFailureObserved": true,
+        "artifactSurfaceCount": 0,
+        "workOutcome": "unresolved",
+        "browserCalls": 0,
+        "approvals": 0,
+        "internalTermsVisible": false
+      }
+    }
+  ],
+  "safety": {
+    "externalAccountWrites": 0,
+    "visibleBrowserCalls": 0,
+    "approvals": 0,
+    "messengerWrites": 0
+  },
+  "deterministicRegression": {
+    "command": "node --test --test-concurrency=1 refoundation/test/executable-artifact-qualification.test.js refoundation/test/executable-output-console.integration.js refoundation/test/artifact-quality-qualification.test.js refoundation/test/artifact-quality-output-qualification.test.js refoundation/test/attachment-hand.test.js",
+    "passed": 46,
+    "failed": 0
+  },
+  "gateImpact": {
+    "qh1": "PRODUCT_WIRING_DETERMINISTIC_PASS_LIVE_MODEL_FAIL",
+    "qh2": "DEFECT_BLOCKING_LIVE_MODEL_PASS",
+    "qh12Overall": "NOT_QUALIFIED",
+    "gpt55Expansion": "LOCKED_BY_TERRA_STOP_LINE"
+  }
+}
