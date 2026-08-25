@@ -1,0 +1,62 @@
+{
+  "schema": "t5.korea-business-connection-protocol-evidence.v1",
+  "recordedAt": "2026-08-25",
+  "sourceCommit": "e65d7e8c",
+  "gate": "K1-A Connection Protocol",
+  "status": "complete_with_preexisting_source_test_observation",
+  "userCapability": [
+    "공식 Remote MCP가 DCR을 제공하지 않아도 T5에 사전등록된 OAuth client로 연결할 수 있다.",
+    "최초 연결은 서비스가 광고한 모든 권한이 아니라 connector가 요구한 최소 scope만 요청한다.",
+    "필수 scope 또는 관측된 account identity가 없으면 도구 목록이 있어도 연결 완료로 올리지 않는다.",
+    "사업자 API key와 key pair는 전용 설정 endpoint에서만 받고 공식 probe로 계정과 capability를 확인한 뒤 ready가 된다.",
+    "공급자가 credential을 오류에 반사해도 Connection Truth와 사용자 응답에는 비밀이 남지 않는다."
+  ],
+  "protocolBoundaries": {
+    "oauthClientModes": ["dynamic_registration", "pre_registered"],
+    "credentialModes": ["api_key", "key_pair"],
+    "readyRequires": ["credential_verified", "required_scope_granted", "required_account_observed", "capability_probe"],
+    "secretSurfaces": ["platform_secret_store", "credential_verifier"],
+    "forbiddenSecretSurfaces": ["model_context", "conversation", "connection_truth", "http_response", "provider_error"]
+  },
+  "verification": [
+    {
+      "command": "node --test focused connection protocol suites",
+      "result": "pass",
+      "evidence": [
+        "DCR positive control",
+        "pre-registered OAuth without registration_endpoint",
+        "minimum scope",
+        "missing account rejection",
+        "partial scope rejection",
+        "refresh single-flight and rotating token",
+        "invalid_grant reauthentication",
+        "API key and key-pair verification",
+        "credential provider error redaction",
+        "credential HTTP endpoint and Connection Truth"
+      ]
+    },
+    {
+      "command": "npm run refoundation:integration",
+      "result": "136_pass_0_fail",
+      "visibleBrowserLive": false
+    },
+    {
+      "command": "npm run refoundation:check",
+      "result": "doctor_and_boundary_pass_core_one_preexisting_source_expectation_fail",
+      "observation": {
+        "test": "refoundation/test/environment.test.js",
+        "reason": "과거 Gate 기대 문자열이 현재 T5-SECOND-COMPLETION.md의 QUALITY HARDENING 상태와 다름",
+        "connectionFailures": 0,
+        "changedFilesInvolved": 0
+      }
+    }
+  ],
+  "nonGoalsPreserved": [
+    "individual_service_connector_implementation",
+    "full_settings_page",
+    "visible_browser",
+    "google_naver_microsoft_product_tools",
+    "user_owned_unrelated_worktree_changes"
+  ],
+  "next": "K1-B Full Settings Experience가 이 Connection Truth와 credentialRequest를 소비해 패널이 아닌 정식 설정 페이지를 만든다."
+}
