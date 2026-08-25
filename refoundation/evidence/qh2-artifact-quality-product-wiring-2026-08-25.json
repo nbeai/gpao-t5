@@ -1,0 +1,53 @@
+{
+  "schema": "t5.qh2-artifact-quality-product-wiring-evidence.v1",
+  "sourceHead": "d6ee1156",
+  "gate": "QH-2 Artifact Quality & Presentation Product Wiring",
+  "userBoundary": {
+    "appliesOnlyWhen": "an adjacent .t5-artifact-purpose.json contract exists for PDF, DOCX, or XLSX register_output",
+    "ordinaryOutputsUnchanged": true,
+    "registrationRequiresAllRequiredLanesQualified": true
+  },
+  "runtimeObservations": {
+    "measured": [
+      "exact reopened artifact SHA-256",
+      "XLSX formula and schema errors",
+      "actual document forms",
+      "screen preview render coverage",
+      "XLSX OpenXML page setup",
+      "observable missing source trace",
+      "observable fitToWidth horizontal split"
+    ],
+    "leftUnmeasuredWithoutIndependentProducer": [
+      "positive semantic correctness",
+      "positive domain correctness and reversibility",
+      "absence of all visual defects",
+      "positive visual hierarchy",
+      "print render coverage"
+    ]
+  },
+  "counterfactual": {
+    "missingCustomerTrace": "failed_before_artifact_registration",
+    "fitToWidthTwo": "failed_before_artifact_registration",
+    "wellFormedWithoutIndependentSemanticDomainVisualEvidence": "unmeasured_and_not_registered"
+  },
+  "checks": {
+    "focused": { "passed": 31, "failed": 0 },
+    "full": {
+      "passed": 789,
+      "failed": 1,
+      "total": 790,
+      "knownUnrelatedFailure": "console-ui-state: openSettings selection-reset source assertion"
+    },
+    "legacyImport": 0,
+    "visibleBrowser": 0
+  },
+  "notImplemented": [
+    "new document templates or generators",
+    "model-authored quality observations",
+    "generic semantic or domain inference",
+    "Console UI changes",
+    "Connecting changes",
+    "B or QH-3 changes"
+  ],
+  "gateImpact": "QH-2 purpose contracts now gate product register_output, but positive semantic, domain, and full visual qualification remain blocked until independent runtime producers exist"
+}
