@@ -1,9 +1,9 @@
 # T5 Second Completion — Current Development Source
 
-상태: `SECOND_COMPLETION_CLOSED_WITH_KNOWN_LIMITATION`
-현재 Gate: `S2-A/C/D/E/F COMPLETE · S2-B OWNER-ACCEPTED KNOWN LIMITATION · S2-G EXCLUDED`
-기준 source: `44c3e805`
-배포 상태: `2차 완성 소스 고정 · package·서명·공증은 별도 Release 작업`
+상태: `SECOND_COMPLETION_CLOSED_WITH_QUALITY_RELEASE_BLOCKERS`
+현재 Gate: `QUALITY HARDENING REFERENCE SEALED · QH-1 READY · IMPLEMENTATION NOT STARTED`
+기준 source: `269cbfc8`
+배포 상태: `package 잠금 · executable artifact와 document quality blocker 수정 전 서명·공증 금지`
 
 이 문서는 T5 2차 완성의 유일한 현재 작업 계획이다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은
 `AGENTS.md`, 1차 완성의 역사·실패 원본·과거 Gate는 `T5-REFOUNDATION.md`가 담당한다.

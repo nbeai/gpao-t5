@@ -1,0 +1,50 @@
+{
+  "schema": "t5.s2-quality-hardening-reference-seal.v1",
+  "recordedDate": "2026-08-25",
+  "implementationStarted": false,
+  "incidentFamilies": [
+    "executable_artifact_qualification",
+    "artifact_domain_visual_print_quality",
+    "temporal_input_publication_isolation",
+    "typed_visual_evidence_supply"
+  ],
+  "sources": {
+    "openclaw": [
+      "https://github.com/openclaw/openclaw/blob/main/docs/concepts/queue.md",
+      "https://github.com/openclaw/openclaw/blob/main/packages/agent-core/src/agent.ts"
+    ],
+    "codex": [
+      "https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md",
+      "https://github.com/openai/codex/blob/main/codex-rs/codex-api/src/search.rs",
+      "installed documents and spreadsheets skill contracts"
+    ],
+    "hermes": [
+      "installed acp_adapter/server.py and gateway/session.py",
+      "installed docx and xlsx skill contracts",
+      "installed Windows installer regression tests"
+    ],
+    "standards": [
+      "https://developer.apple.com/documentation/xcode/packaging-mac-software-for-distribution",
+      "https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution",
+      "https://zsh.sourceforge.io/Doc/zsh_a4.pdf",
+      "https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.spreadsheet.pagesetup",
+      "https://developers.google.com/custom-search/v1/reference/rest/v1/cse/list",
+      "https://developers.google.com/custom-search/v1/reference/rest/v1/Search"
+    ]
+  },
+  "adopt": [
+    "exact distributed artifact and advertised entrypoint execution",
+    "semantic/domain/structure/screen/print evidence separation",
+    "active steering and post-delivery queue projection isolation",
+    "dedicated typed image candidate provider interface"
+  ],
+  "reject": [
+    "keyword or few-shot patches for after_delivery",
+    "direct inner program execution as launcher proof",
+    "web page OG image as primary image search architecture",
+    "one quality score replacing domain and render evidence",
+    "visible browser fallback for ordinary image discovery",
+    "claims that an unexecuted platform is verified"
+  ],
+  "nextGate": "QH-1 executable artifact qualification"
+}
