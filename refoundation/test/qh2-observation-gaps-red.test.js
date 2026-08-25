@@ -20,7 +20,10 @@ function inlineCell(address, value) {
 }
 function numberCell(address, value) { return `<c r="${address}"><v>${value}</v></c>`; }
 
-function hardcodedCalculationWorkbook() {
+function hardcodedCalculationWorkbook({ formula = null, cachedResult = 68300 } = {}) {
+  const target = formula == null
+    ? numberCell('B3', cachedResult)
+    : `<c r="B3"${typeof cachedResult === 'string' && cachedResult.startsWith('#') ? ' t="e"' : ''}><f>${formula}</f><v>${cachedResult}</v></c>`;
   return Buffer.from(zipSync({
     '[Content_Types].xml': xml('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'),
     '_rels/.rels': xml('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'),
@@ -30,7 +33,7 @@ function hardcodedCalculationWorkbook() {
     'xl/worksheets/sheet1.xml': xml(`<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetData>
       <row r="1">${inlineCell('A1', 'source-a')}${numberCell('B1', 40000)}</row>
       <row r="2">${inlineCell('A2', 'source-b')}${numberCell('B2', 28300)}</row>
-      <row r="3">${inlineCell('A3', 'grand-total')}${numberCell('B3', 68300)}</row>
+      <row r="3">${inlineCell('A3', 'grand-total')}${target}</row>
       <row r="4">${inlineCell('A4', 'source-a.xlsx#B2')}</row>
       <row r="5">${inlineCell('A5', 'source-b.xlsx#B2')}</row>
       <row r="6">${inlineCell('A6', '원본 근거 두 건의 합계를 계산한다')}</row>
@@ -38,7 +41,7 @@ function hardcodedCalculationWorkbook() {
   }, { mtime: new Date('2020-01-01T00:00:00.000Z') }));
 }
 
-function calculationPurpose(bytes) {
+function calculationPurpose(bytes, { mapped = false, maximumFormulaErrors = 0 } = {}) {
   const digest = sha256(bytes);
   return {
     contractId: 'hardcoded-calculation-red-v1',
@@ -49,14 +52,23 @@ function calculationPurpose(bytes) {
       { factId: 'source-a', sourceRef: 'source-a.xlsx#B2', resolution: 'resolved', preserveOriginal: true },
       { factId: 'source-b', sourceRef: 'source-b.xlsx#B2', resolution: 'resolved', preserveOriginal: true },
     ],
-    calculations: [{ calculationId: 'grand-total', sourceFactIds: ['source-a', 'source-b'] }],
+    calculations: [{
+      calculationId: 'grand-total', sourceFactIds: ['source-a', 'source-b'],
+      ...(mapped ? {
+        outputTarget: { sheetId: '정산', cell: 'B3' },
+        sourceCellRefs: [
+          { sourceFactId: 'source-a', sheetId: '정산', cell: 'B1' },
+          { sourceFactId: 'source-b', sheetId: '정산', cell: 'B2' },
+        ],
+      } : {}),
+    }],
     requiredArtifactForms: ['정산'], visualHierarchyGoals: ['원본 근거 두 건의 합계를 계산한다'],
     domainProfile: { profileId: 'settlement', version: '1', invariantRefs: ['source-backed-calculation'] },
     laneRequirements: {
       semantic: [{ requirementId: 'semantic', kind: 'semantic_reconciliation', expected: { satisfiedFactIds: ['source-a', 'source-b'], unchangedSourceFactIds: ['source-a', 'source-b'], preservedUnresolvedFactIds: [] } }],
       domain: [{ requirementId: 'lineage', kind: 'domain_traceability', invariantRefs: ['source-backed-calculation'], expected: { sourceFactIds: ['source-a', 'source-b'], reversibleSourceFactIds: ['source-a', 'source-b'], calculationIds: ['grand-total'] } }],
       structural: [
-        { requirementId: 'reopen', kind: 'structural_scan', expected: { reopenedArtifactSha256: digest, maximumFormulaErrors: 0, maximumSchemaErrors: 0 } },
+        { requirementId: 'reopen', kind: 'structural_scan', expected: { reopenedArtifactSha256: digest, maximumFormulaErrors, maximumSchemaErrors: 0 } },
         { requirementId: 'forms', kind: 'artifact_forms', expected: { formIds: ['정산'] } },
       ],
       screen: [
@@ -100,7 +112,64 @@ test('source-backed 계산 목적은 formulaErrors=0만으로 hardcoded target�
     const result = await makeArtifactQualityOutputQualifier()({ filePath, workspace });
     assert.notEqual(result.receipt.lanes.structural.status, 'qualified',
       'formula presence, target-cell lineage, and engine recalc are unobserved');
+    assert.equal(result.receipt.lanes.structural.status, 'unmeasured');
   } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+async function qualifyCalculationFixture({ formula, cachedResult = 68300, maximumFormulaErrors = 0 }) {
+  const room = await mkdtemp(join(tmpdir(), 't5-qh2-lineage-'));
+  const workspace = join(room, 'workspace'); await mkdir(workspace);
+  const filePath = join(workspace, 'formula.xlsx');
+  const bytes = hardcodedCalculationWorkbook({ formula, cachedResult });
+  await writeFile(filePath, bytes);
+  await writeFile(`${filePath}${ARTIFACT_QUALITY_OUTPUT_CONTRACT.suffix}`, JSON.stringify(
+    calculationPurpose(bytes, { mapped: true, maximumFormulaErrors }),
+  ));
+  return {
+    room,
+    observed: await inspectBusinessDocument({ file: filePath }),
+    result: await makeArtifactQualityOutputQualifier()({ filePath, workspace }),
+  };
+}
+
+test('exact target formula와 bounded source precedents와 cached result를 각각 관측한다', async () => {
+  const app = await qualifyCalculationFixture({ formula: 'SUM(B1:B2)' });
+  try {
+    const target = app.observed.workbook.sheets[0].cells.find((cell) => cell.address === 'B3');
+    assert.equal(target.formula, 'SUM(B1:B2)');
+    assert.deepEqual(target.precedentRanges, [{ sheetId: '정산', from: 'B1', to: 'B2' }]);
+    assert.equal(target.formulaResultMissing, false);
+    assert.equal(app.observed.workbook.recalculation.state, 'unmeasured');
+    assert.equal(app.result.receipt.lanes.structural.status, 'qualified');
+  } finally { await rm(app.room, { recursive: true, force: true }); }
+});
+
+test('exact target mapping이 있어도 hardcoded target은 formula presence를 통과하지 못한다', async () => {
+  const app = await qualifyCalculationFixture({ formula: null });
+  try {
+    assert.equal(app.observed.workbook.totals.formulas, 0);
+    assert.equal(app.observed.workbook.totals.formulaErrors, 0);
+    assert.equal(app.result.receipt.lanes.structural.status, 'failed');
+  } finally { await rm(app.room, { recursive: true, force: true }); }
+});
+
+test('target formula의 range가 required source cell을 덮지 않으면 구조 자격을 막는다', async () => {
+  const app = await qualifyCalculationFixture({ formula: 'SUM(B1:B1)' });
+  try {
+    assert.equal(app.result.receipt.lanes.structural.status, 'failed');
+    assert.deepEqual(app.result.receipt.lanes.structural.failedRequirementIds, ['reopen']);
+  } finally { await rm(app.room, { recursive: true, force: true }); }
+});
+
+test('formula cache가 error이면 global 허용치와 별개로 target 계산 자격을 막는다', async () => {
+  const app = await qualifyCalculationFixture({
+    formula: 'SUM(B1:B2)', cachedResult: '#VALUE!', maximumFormulaErrors: 1,
+  });
+  try {
+    assert.equal(app.observed.workbook.totals.formulaErrors, 1);
+    assert.equal(app.result.receipt.lanes.structural.status, 'failed');
+    assert.deepEqual(app.result.receipt.lanes.structural.failedRequirementIds, ['reopen']);
+  } finally { await rm(app.room, { recursive: true, force: true }); }
 });
 
 test('한글 다페이지 DOCX visual receipt는 모든 page와 required glyph coverage를 증명한다', async () => {

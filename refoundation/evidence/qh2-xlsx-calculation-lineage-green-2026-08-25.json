@@ -1,0 +1,49 @@
+{
+  "schema": "t5.qh2-xlsx-calculation-lineage-green.v1",
+  "recordedDate": "2026-08-25",
+  "productScope": "QH-2 XLSX formula and lineage only",
+  "productCodeFiles": [
+    "refoundation/src/artifact-quality-qualification.js",
+    "refoundation/src/artifact-quality-output-qualification.js",
+    "refoundation/src/document-data-inspector.js"
+  ],
+  "contract": {
+    "mapping": "each source-backed calculation may bind one exact outputTarget(sheetId,cell) and 1..64 exact sourceCellRefs",
+    "missingMapping": "runtime structural observation is unknown and the lane remains unmeasured",
+    "formulaPresence": "the exact output target must be a formula cell, not a displayed hardcoded value",
+    "lineage": "bounded same-workbook A1 precedent ranges must cover every contracted source cell",
+    "cachedResult": "the target cache must exist and be error-free independently of the workbook-wide formula error maximum",
+    "recalculation": "qualified engine receipt is absent and remains explicitly unmeasured"
+  },
+  "observedCases": [
+    { "case": "missing exact mapping with hardcoded total", "expected": "unmeasured", "actual": "unmeasured" },
+    { "case": "mapped hardcoded target", "expected": "failed", "actual": "failed" },
+    { "case": "mapped SUM(B1:B2) with cached 68300", "expected": "qualified", "actual": "qualified" },
+    { "case": "mapped SUM(B1:B1) missing required B2", "expected": "failed", "actual": "failed" },
+    { "case": "mapped formula with #VALUE! cache and global maximumFormulaErrors=1", "expected": "failed", "actual": "failed" }
+  ],
+  "checks": {
+    "focusedXlsxCases": { "passed": 5, "failed": 0 },
+    "artifactAndDocumentControls": { "passed": 22, "failed": 0 },
+    "doctor": "passed",
+    "boundary": "passed",
+    "fullExcludingDocxRed": {
+      "status": "failed_unrelated_dirty_ui",
+      "observedFailure": "console-ui-state expected openSettings clearSessionSelection while concurrent QH1 UI work was present",
+      "xlsxCases": "passed",
+      "docxIntentionalRedSkipped": true
+    }
+  },
+  "comparatorsPreserved": {
+    "codex": "formula value and dependency trace are distinct observations",
+    "hermes": "formula evaluation/cache inspection is distinct from correctness of references",
+    "openxml": "formula f and cached value v are separate cell facts"
+  },
+  "notImplemented": [
+    "formula evaluation engine",
+    "qualified LibreOffice recalculation receipt",
+    "DOCX all-page or glyph renderer",
+    "domain-label inference from formulas"
+  ],
+  "next": "open a separate qualified-engine producer only if recalculation becomes a required QH-2 fact; do not infer it from calcPr or cached values"
+}

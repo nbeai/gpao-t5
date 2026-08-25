@@ -31,7 +31,9 @@ const MAX_WORKBOOK_ROWS = 100_000;
 const MAX_WORKBOOK_CELLS = 1_000_000;
 const MAX_CELL_TEXT = 32_767;
 const MAX_FORMULA_TEXT = 8_192;
+const MAX_FORMULA_PRECEDENT_RANGES = 256;
 const FORMULA_ERRORS = /^#(?:NULL!|DIV\/0!|VALUE!|REF!|NAME\?|NUM!|N\/A)$/i;
+const FORMULA_A1_REFERENCE = /(?:(?:'((?:[^']|'')+)'|([A-Za-z_][A-Za-z0-9_.]*))!)?(\$?[A-Z]{1,3}\$?[1-9][0-9]{0,6})(?::(\$?[A-Z]{1,3}\$?[1-9][0-9]{0,6}))?/giu;
 
 function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
@@ -96,6 +98,55 @@ function cellAddress(cell) {
   return `${columnLetter(cell.col)}${cell.row}`;
 }
 
+function a1Parts(value) {
+  const match = String(value ?? '').replaceAll('$', '').toUpperCase().match(/^([A-Z]{1,3})([1-9][0-9]{0,6})$/u);
+  if (!match) return null;
+  let column = 0;
+  for (const character of match[1]) column = column * 26 + character.charCodeAt(0) - 64;
+  const row = Number(match[2]);
+  if (column < 1 || column > 16_384 || row < 1 || row > 1_048_576) return null;
+  return { address: `${match[1]}${row}`, column, row };
+}
+
+function maskFormulaStringLiterals(formula) {
+  const characters = [...String(formula ?? '')];
+  let quoted = false;
+  for (let index = 0; index < characters.length; index += 1) {
+    if (characters[index] !== '"') {
+      if (quoted) characters[index] = ' ';
+      continue;
+    }
+    if (quoted && characters[index + 1] === '"') {
+      characters[index] = ' '; characters[index + 1] = ' '; index += 1;
+      continue;
+    }
+    quoted = !quoted; characters[index] = ' ';
+  }
+  return characters.join('');
+}
+
+function formulaPrecedents(formula, currentSheetId) {
+  const formulaCode = maskFormulaStringLiterals(formula);
+  const ranges = [];
+  let truncated = false;
+  for (const match of formulaCode.matchAll(FORMULA_A1_REFERENCE)) {
+    const preceding = match.index > 0 ? formulaCode[match.index - 1] : '';
+    if (/[A-Za-z0-9_.]/u.test(preceding)) continue;
+    const from = a1Parts(match[3]); const to = a1Parts(match[4] ?? match[3]);
+    if (!from || !to) continue;
+    if (ranges.length >= MAX_FORMULA_PRECEDENT_RANGES) { truncated = true; break; }
+    ranges.push({
+      sheetId: (match[1] ?? match[2] ?? currentSheetId).replaceAll("''", "'"),
+      from: from.address, to: to.address,
+    });
+  }
+  return {
+    ranges,
+    truncated,
+    sameWorkbookOnly: !formulaCode.includes('['),
+  };
+}
+
 function rangeAddress(range) {
   const from = `${columnLetter(range.minCol)}${range.minRow}`;
   const to = `${columnLetter(range.maxCol)}${range.maxRow}`;
@@ -116,11 +167,15 @@ function observeCell(workbook, worksheet, cell) {
   };
   if (mergedRange) observed.mergeMaster = `${columnLetter(mergedRange.minCol)}${mergedRange.minRow}`;
   if (formula) {
+    const precedents = formulaPrecedents(formula.formula, worksheet.title);
     observed.formula = formula.formula;
     observed.result = scalar(formula.cachedValue);
     observed.formulaResultMissing = formula.cachedValue === undefined;
     observed.formulaError = typeof formula.cachedValue === 'string' && FORMULA_ERRORS.test(formula.cachedValue)
       ? formula.cachedValue : null;
+    observed.precedentRanges = precedents.ranges;
+    observed.precedentRangesTruncated = precedents.truncated;
+    observed.sameWorkbookPrecedentsOnly = precedents.sameWorkbookOnly;
   } else {
     observed.value = scalar(cell.value);
   }
@@ -300,6 +355,7 @@ export async function inspectBusinessDocument({
         sheetCount: workbook.sheetCount,
         sheets: workbook.sheets,
         totals: workbook.totals,
+        recalculation: { state: 'unmeasured', reason: 'qualified_engine_receipt_absent' },
       },
       projection: workbook.projection,
     };

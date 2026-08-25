@@ -130,6 +130,40 @@ function artifactForms(evidence) {
   return [];
 }
 
+function a1Coordinates(value) {
+  const match = String(value ?? '').match(/^([A-Z]{1,3})([1-9][0-9]{0,6})$/u);
+  if (!match) return null;
+  let column = 0;
+  for (const character of match[1]) column = column * 26 + character.charCodeAt(0) - 64;
+  return { column, row: Number(match[2]) };
+}
+
+function rangeContains(range, cell) {
+  const target = a1Coordinates(cell); const from = a1Coordinates(range.from); const to = a1Coordinates(range.to);
+  if (!target || !from || !to) return false;
+  return target.column >= Math.min(from.column, to.column) && target.column <= Math.max(from.column, to.column)
+    && target.row >= Math.min(from.row, to.row) && target.row <= Math.max(from.row, to.row);
+}
+
+function workbookCalculationObservations(contract, evidence) {
+  const sheets = evidence.document?.workbook?.sheets ?? [];
+  return contract.calculations.map((calculation) => {
+    const targetSheet = sheets.find((sheet) => sheet.name === calculation.outputTarget?.sheetId);
+    const target = targetSheet?.cells?.find((cell) => cell.address === calculation.outputTarget?.cell);
+    const ranges = target?.precedentRanges ?? [];
+    return {
+      calculationId: calculation.calculationId,
+      formulaPresent: typeof target?.formula === 'string' && target.formula.length > 0,
+      precedentsComplete: target?.precedentRangesTruncated === false && target?.sameWorkbookPrecedentsOnly === true,
+      requiredSourcesCovered: calculation.sourceCellRefs.every((source) => ranges.some(
+        (range) => range.sheetId === source.sheetId && rangeContains(range, source.cell),
+      )),
+      cachedValuePresent: target?.formulaResultMissing === false,
+      cachedValueErrorFree: target?.formulaError == null && target?.formulaResultMissing === false,
+    };
+  });
+}
+
 function producerObservation({ producer, context, evidence }) {
   const { contract, requirement } = context;
   const base = observationBase(contract, requirement, producer.kind);
@@ -166,11 +200,19 @@ function producerObservation({ producer, context, evidence }) {
     } };
   }
   if (producer.kind === 'structural_verifier') {
-    if (requirement.kind === 'structural_scan') return { ...base, facts: {
-      reopenedArtifactSha256: evidence.sha256,
-      formulaErrors: evidence.document?.workbook?.totals?.formulaErrors ?? 0,
-      schemaErrors: evidence.documentState === 'observed' ? 0 : 1,
-    } };
+    if (requirement.kind === 'structural_scan') {
+      if (evidence.kind === 'xlsx' && contract.calculations.some((item) => item.outputTarget == null)) {
+        return unknownObservation(base);
+      }
+      return { ...base, facts: {
+        reopenedArtifactSha256: evidence.sha256,
+        formulaErrors: evidence.document?.workbook?.totals?.formulaErrors ?? 0,
+        schemaErrors: evidence.documentState === 'observed' ? 0 : 1,
+        calculations: evidence.kind === 'xlsx' ? workbookCalculationObservations(contract, evidence) : [],
+        recalculation: evidence.document?.workbook?.recalculation
+          ?? { state: 'unmeasured', reason: 'qualified_engine_receipt_absent' },
+      } };
+    }
     if (requirement.kind === 'artifact_forms') return { ...base, facts: {
       observedFormIds: artifactForms(evidence),
     } };

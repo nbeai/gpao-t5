@@ -52,6 +52,13 @@ function exactSet(left = [], right = []) {
 }
 function includesAll(actual = [], expected = []) { return expected.every((value) => actual.includes(value)); }
 function validSha256(value) { return /^[a-f0-9]{64}$/u.test(String(value ?? '')); }
+function validCellAddress(value) {
+  const match = String(value ?? '').match(/^\$?([A-Z]{1,3})\$?([1-9][0-9]{0,6})$/u);
+  if (!match) return false;
+  let column = 0;
+  for (const character of match[1]) column = column * 26 + character.charCodeAt(0) - 64;
+  return column <= 16_384 && Number(match[2]) <= 1_048_576;
+}
 
 function normalizePageSetupSheet(sheet, label) {
   object(sheet, label);
@@ -177,7 +184,40 @@ export function createArtifactPurposeContract(input = {}) {
     object(calculation, `calculations[${index}]`);
     const sourceIds = stringList(calculation.sourceFactIds, `calculations[${index}].sourceFactIds`);
     if (sourceIds.some((factId) => !sourceFactIds.has(factId))) fail(`calculations[${index}] references an unknown source fact`);
-    return { calculationId: text(calculation.calculationId, `calculations[${index}].calculationId`), sourceFactIds: sourceIds };
+    const calculationId = text(calculation.calculationId, `calculations[${index}].calculationId`);
+    const hasOutputTarget = calculation.outputTarget != null;
+    const hasSourceCellRefs = Array.isArray(calculation.sourceCellRefs) && calculation.sourceCellRefs.length > 0;
+    if (hasOutputTarget !== hasSourceCellRefs) {
+      fail(`calculations[${index}] outputTarget and sourceCellRefs must be supplied together`);
+    }
+    if (!hasOutputTarget) return { calculationId, sourceFactIds: sourceIds, outputTarget: null, sourceCellRefs: [] };
+    const output = object(calculation.outputTarget, `calculations[${index}].outputTarget`);
+    const outputTarget = {
+      sheetId: text(output.sheetId, `calculations[${index}].outputTarget.sheetId`),
+      cell: text(output.cell, `calculations[${index}].outputTarget.cell`).replaceAll('$', '').toUpperCase(),
+    };
+    if (!validCellAddress(outputTarget.cell)) fail(`calculations[${index}].outputTarget.cell must be an A1 cell`);
+    if (!Array.isArray(calculation.sourceCellRefs) || calculation.sourceCellRefs.length === 0
+      || calculation.sourceCellRefs.length > 64) {
+      fail(`calculations[${index}].sourceCellRefs must contain 1 to 64 refs`);
+    }
+    const sourceCellRefs = calculation.sourceCellRefs.map((reference, refIndex) => {
+      object(reference, `calculations[${index}].sourceCellRefs[${refIndex}]`);
+      const normalized = {
+        sourceFactId: text(reference.sourceFactId, `calculations[${index}].sourceCellRefs[${refIndex}].sourceFactId`),
+        sheetId: text(reference.sheetId, `calculations[${index}].sourceCellRefs[${refIndex}].sheetId`),
+        cell: text(reference.cell, `calculations[${index}].sourceCellRefs[${refIndex}].cell`).replaceAll('$', '').toUpperCase(),
+      };
+      if (!validCellAddress(normalized.cell)) fail(`calculations[${index}].sourceCellRefs[${refIndex}].cell must be an A1 cell`);
+      if (!sourceIds.includes(normalized.sourceFactId)) fail(`calculations[${index}].sourceCellRefs references a fact outside sourceFactIds`);
+      return normalized;
+    });
+    if (!exactSet(sourceCellRefs.map((item) => item.sourceFactId), sourceIds)) {
+      fail(`calculations[${index}].sourceCellRefs must exactly bind sourceFactIds`);
+    }
+    const identities = sourceCellRefs.map((item) => `${item.sourceFactId}\u0000${item.sheetId}\u0000${item.cell}`);
+    if (new Set(identities).size !== identities.length) fail(`calculations[${index}].sourceCellRefs must not contain duplicates`);
+    return { calculationId, sourceFactIds: sourceIds, outputTarget, sourceCellRefs };
   });
   if (new Set(calculations.map((item) => item.calculationId)).size !== calculations.length) fail('calculations calculationId must be unique');
 
@@ -309,7 +349,28 @@ function normalizeObservationFacts(requirement, facts) {
     if (![facts.formulaErrors, facts.schemaErrors].every((value) => Number.isInteger(value) && value >= 0)) {
       fail(`${label} error counts must be non-negative integers`);
     }
-    return { reopenedArtifactSha256: facts.reopenedArtifactSha256, formulaErrors: facts.formulaErrors, schemaErrors: facts.schemaErrors };
+    const calculations = facts.calculations == null ? [] : facts.calculations.map((item, index) => {
+      object(item, `${label}.calculations[${index}]`);
+      for (const flag of ['formulaPresent', 'precedentsComplete', 'requiredSourcesCovered', 'cachedValuePresent', 'cachedValueErrorFree']) {
+        if (typeof item[flag] !== 'boolean') fail(`${label}.calculations[${index}].${flag} must be boolean`);
+      }
+      return {
+        calculationId: strictText(item.calculationId, `${label}.calculations[${index}].calculationId`),
+        formulaPresent: item.formulaPresent,
+        precedentsComplete: item.precedentsComplete,
+        requiredSourcesCovered: item.requiredSourcesCovered,
+        cachedValuePresent: item.cachedValuePresent,
+        cachedValueErrorFree: item.cachedValueErrorFree,
+      };
+    });
+    return {
+      reopenedArtifactSha256: facts.reopenedArtifactSha256, formulaErrors: facts.formulaErrors,
+      schemaErrors: facts.schemaErrors, calculations,
+      recalculation: facts.recalculation == null ? null : {
+        state: strictText(facts.recalculation.state, `${label}.recalculation.state`),
+        reason: strictText(facts.recalculation.reason, `${label}.recalculation.reason`),
+      },
+    };
   }
   if (requirement.kind === 'artifact_forms') {
     return { observedFormIds: strictStringList(facts.observedFormIds, `${label}.observedFormIds`) };
@@ -424,9 +485,16 @@ async function evaluationFor(requirement, contract, producerRegistry) {
     return identified({ state: passed ? 'qualified' : 'failed', reason: passed ? null : 'domain_traceability_incomplete' });
   }
   if (requirement.kind === 'structural_scan') {
+    const calculationPassed = contract.calculations.filter((item) => item.outputTarget != null).every((calculation) => {
+      const observed = facts.calculations.find((item) => item.calculationId === calculation.calculationId);
+      return observed?.formulaPresent === true && observed.precedentsComplete === true
+        && observed.requiredSourcesCovered === true && observed.cachedValuePresent === true
+        && observed.cachedValueErrorFree === true;
+    });
     const passed = facts.reopenedArtifactSha256 === expected.reopenedArtifactSha256
       && Number.isInteger(facts.formulaErrors) && facts.formulaErrors <= expected.maximumFormulaErrors
-      && Number.isInteger(facts.schemaErrors) && facts.schemaErrors <= expected.maximumSchemaErrors;
+      && Number.isInteger(facts.schemaErrors) && facts.schemaErrors <= expected.maximumSchemaErrors
+      && calculationPassed;
     return identified({ state: passed ? 'qualified' : 'failed', reason: passed ? null : 'structural_scan_failed' });
   }
   if (requirement.kind === 'artifact_forms') {

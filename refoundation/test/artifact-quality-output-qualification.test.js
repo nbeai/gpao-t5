@@ -18,6 +18,8 @@ function xml(value) { return strToU8(`<?xml version="1.0" encoding="UTF-8" stand
 function cell(address, value) {
   return `<c r="${address}" t="inlineStr"><is><t>${value}</t></is></c>`;
 }
+function numberCell(address, value) { return `<c r="${address}"><v>${value}</v></c>`; }
+function formulaCell(address, formula, result) { return `<c r="${address}"><f>${formula}</f><v>${result}</v></c>`; }
 
 function settlementWorkbook({ missingTrace = false, horizontalSplit = false } = {}) {
   const goal = '총액과 미확인 금액을 첫 화면에서 구분한다';
@@ -27,7 +29,7 @@ function settlementWorkbook({ missingTrace = false, horizontalSplit = false } = 
     'grand-total', '550000',
   ];
   const detailRows = detailValues.map((value, index) => (
-    `<row r="${index + 1}">${cell(`A${index + 1}`, value)}</row>`
+    `<row r="${index + 1}">${cell(`A${index + 1}`, value)}${index === 0 ? numberCell('B1', 250000) : index === 2 ? numberCell('B3', 300000) : index === 4 ? formulaCell('B5', 'SUM(B1,B3)', 550000) : ''}</row>`
   )).join('');
   return Buffer.from(zipSync({
     '[Content_Types].xml': xml('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'),
@@ -50,7 +52,14 @@ function contract(bytes) {
       { factId: 'row-1-customer', sourceRef: 'source-a.xlsx#row=2', resolution: 'resolved', preserveOriginal: true },
       { factId: 'row-5-customer', sourceRef: 'source-c.xlsx#row=3', resolution: 'unresolved', preserveOriginal: true },
     ],
-    calculations: [{ calculationId: 'grand-total', sourceFactIds: ['row-1-customer', 'row-5-customer'] }],
+    calculations: [{
+      calculationId: 'grand-total', sourceFactIds: ['row-1-customer', 'row-5-customer'],
+      outputTarget: { sheetId: '상세', cell: 'B5' },
+      sourceCellRefs: [
+        { sourceFactId: 'row-1-customer', sheetId: '상세', cell: 'B1' },
+        { sourceFactId: 'row-5-customer', sheetId: '상세', cell: 'B3' },
+      ],
+    }],
     requiredArtifactForms: ['요약', '상세'],
     visualHierarchyGoals: ['총액과 미확인 금액을 첫 화면에서 구분한다'],
     domainProfile: { profileId: 'settlement-audit', version: '1', invariantRefs: ['source-trace'] },
