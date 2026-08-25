@@ -36,17 +36,26 @@ function effectState(args) {
 
 export function makeGoogleDriveTool({
   api, attachments, sessionId, authorizeEffect, authorizeUploadPath = () => false,
+  allowedActions = ACTIONS,
 } = {}) {
   if (!api || typeof api.search !== 'function') throw new TypeError('Google Drive API is required');
   if (!attachments || typeof attachments.receive !== 'function') throw new TypeError('attachment store is required');
   if (!sessionId) throw new TypeError('Google Drive tool session is required');
+  if (!Array.isArray(allowedActions) || !allowedActions.length
+    || allowedActions.some((action) => !ACTIONS.includes(action))) {
+    throw new TypeError('Google Drive allowed actions are invalid');
+  }
+  const activeActions = [...new Set(allowedActions)];
+  const readOnly = activeActions.every((action) => ['search', 'metadata', 'download'].includes(action));
   const tool = {
     name: 'google_drive',
-    description: 'Use the verified official Google Drive connection to search file metadata, inspect one file, download or export one file as a T5 result attachment, create a folder, rename one editable file, upload one exact user-authorized local file, or replace one editable non-Google-native blob file. Google Docs, Sheets, Slides, Forms, and other native document content require their specialized Workspace APIs and must not be replaced here. Search results can be incomplete; preserve that fact. Never accept OAuth tokens or secrets in arguments.',
+    description: readOnly
+      ? 'Use the verified official Google Drive connection to search file metadata, inspect one file, or download/export one file as a T5 result attachment. This connection is read-only. Search results can be incomplete; preserve that fact. Never accept OAuth tokens or secrets in arguments.'
+      : 'Use the verified official Google Drive connection to search file metadata, inspect one file, download or export one file as a T5 result attachment, create a folder, rename one editable file, upload one exact user-authorized local file, or replace one editable non-Google-native blob file. Google Docs, Sheets, Slides, Forms, and other native document content require their specialized Workspace APIs and must not be replaced here. Search results can be incomplete; preserve that fact. Never accept OAuth tokens or secrets in arguments.',
     parameters: {
       type: 'object', additionalProperties: false,
       properties: {
-        action: { type: 'string', enum: ACTIONS },
+        action: { type: 'string', enum: activeActions },
         query: { type: ['string', 'null'], maxLength: 500 },
         fileId: { type: ['string', 'null'], maxLength: 200 },
         pageSize: { type: ['integer', 'null'], minimum: 1, maximum: 100 },
@@ -64,7 +73,7 @@ export function makeGoogleDriveTool({
       ],
     },
     async preflight(args = {}, context = {}) {
-      if (!ACTIONS.includes(args.action)) throw new TypeError(`unsupported Google Drive action: ${args.action}`);
+      if (!activeActions.includes(args.action)) throw new TypeError(`unsupported Google Drive action: ${args.action}`);
       if (!EFFECT_ACTIONS.has(args.action)) return { allowed: true };
       const state = effectState(args);
       if (state) return { allowed: false, outcome: 'not_executed', result: { state } };

@@ -35,6 +35,7 @@ import { makeRemoteMcpConnection } from '../src/remote-mcp-connection.js';
 import { makeChannelTalkConnection } from '../src/channel-talk-connection.js';
 import { makeSlackMcpConnection } from '../src/slack-mcp-connection.js';
 import { makeGoogleWorkspaceDriveMcpConnection } from '../src/google-workspace-mcp-connection.js';
+import { makeGoogleWorkspaceApiConnection } from '../src/google-workspace-api-connection.js';
 import { ConnectionStateStore } from '../src/connection-state-store.js';
 import { ConnectionCredentialCoordinator } from '../src/connection-credential-coordinator.js';
 
@@ -109,6 +110,10 @@ const connectionStateStore = new ConnectionStateStore(join(stateDir, 'connection
 const connectionCredentialCoordinator = new ConnectionCredentialCoordinator({
   stateStore: connectionStateStore, secretStore: platformSecretStore, makeId: randomUUID,
 });
+const googleWorkspaceApiConnection = googleOAuthClientId
+  ? makeGoogleWorkspaceApiConnection({ secretStore: platformSecretStore,
+    stateStore: connectionStateStore, credentialCoordinator: connectionCredentialCoordinator,
+    clientId: googleOAuthClientId }) : null;
 const googleWorkspaceClientId = String(process.env.T5_GOOGLE_WORKSPACE_OAUTH_CLIENT_ID ?? '').trim();
 const googleWorkspaceClientSecret = String(process.env.T5_GOOGLE_WORKSPACE_OAUTH_CLIENT_SECRET ?? '').trim();
 const googleWorkspaceCallbackPort = Number(process.env.T5_GOOGLE_WORKSPACE_OAUTH_CALLBACK_PORT ?? 4186);
@@ -157,7 +162,8 @@ const slackConnection = slackClientId && slackPublicSearchPolicy ? makeSlackMcpC
   stateStore: connectionStateStore, credentialCoordinator: connectionCredentialCoordinator,
   clientId: slackClientId, clientSecret: slackClientSecret, callbackPort: slackCallbackPort,
   publicSearchPolicy: slackPublicSearchPolicy }) : null;
-const workspaceConnectionServices = [googleWorkspaceRemoteConnection ?? googleDriveService,
+const workspaceConnectionServices = [googleWorkspaceRemoteConnection
+  ?? googleWorkspaceApiConnection ?? googleDriveService,
   notionConnection, linearConnection, channelTalkConnection];
 if (slackConnection) workspaceConnectionServices.push(slackConnection);
 const localConsoleToken = randomBytes(32).toString('base64url');

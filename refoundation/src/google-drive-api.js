@@ -59,15 +59,27 @@ function withExtension(name, extension) {
   return name.toLocaleLowerCase().endsWith(extension.toLocaleLowerCase()) ? name : `${name}${extension}`;
 }
 
-export function makeGoogleDriveApi({ credential, fetchImpl = globalThis.fetch } = {}) {
+export function makeGoogleDriveApi({
+  credential, fetchImpl = globalThis.fetch, onUnauthorized = null, onAuthRejected = null,
+} = {}) {
   if (typeof credential !== 'function') throw new TypeError('Google Drive credential source is required');
 
   async function request(url, options = {}, { json = true } = {}) {
-    const current = await credential();
-    const response = await fetchImpl(url, {
+    let current = await credential();
+    const send = (value) => fetchImpl(url, {
       ...options,
-      headers: { ...(options.headers ?? {}), authorization: `Bearer ${current.accessToken}` },
+      headers: { ...(options.headers ?? {}), authorization: `Bearer ${value.accessToken}` },
     });
+    let response = await send(current);
+    if (response.status === 401 && typeof onUnauthorized === 'function'
+      && Number.isInteger(current.generation)) {
+      await response.body?.cancel().catch(() => {});
+      current = await onUnauthorized({ failedGeneration: current.generation });
+      response = await send(current);
+      if (response.status === 401 && typeof onAuthRejected === 'function') {
+        await onAuthRejected({ failedGeneration: current.generation });
+      }
+    }
     if (!response.ok) {
       throw Object.assign(new Error(`Google Drive 요청을 완료하지 못했어요 (${response.status}).`), {
         status: response.status, reason: response.status === 401 ? 'credential_rejected'

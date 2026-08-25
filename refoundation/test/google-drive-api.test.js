@@ -150,3 +150,23 @@ test('Drive API 오류는 access token과 provider 원문을 사용자 오류에
     return true;
   });
 });
+
+test('Drive 읽기의 401은 실제 사용 generation을 갱신해 exact 한 번만 재시도한다', async () => {
+  const authorizations = []; const refreshed = [];
+  const api = makeGoogleDriveApi({
+    credential: async () => ({ accessToken: 'OLD', generation: 7 }),
+    onUnauthorized: async ({ failedGeneration }) => {
+      refreshed.push(failedGeneration); return { accessToken: 'NEW', generation: 8 };
+    },
+    fetchImpl: async (_url, options) => {
+      authorizations.push(options.headers.authorization);
+      if (authorizations.length === 1) return new Response('', { status: 401 });
+      return new Response(JSON.stringify({ files: [], incompleteSearch: false }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    },
+  });
+  await api.search({ query: '계약서', pageSize: 10, pageToken: null });
+  assert.deepEqual(refreshed, [7]);
+  assert.deepEqual(authorizations, ['Bearer OLD', 'Bearer NEW']);
+});
