@@ -23,6 +23,9 @@
       "installed docx and xlsx skill contracts",
       "installed Windows installer regression tests"
     ],
+    "claude": [
+      "https://platform.claude.com/docs/en/managed-agents/events-and-streaming"
+    ],
     "standards": [
       "https://developer.apple.com/documentation/xcode/packaging-mac-software-for-distribution",
       "https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution",

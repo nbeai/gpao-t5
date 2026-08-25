@@ -64,6 +64,9 @@
   publish한다.
   - 설치 source: `~/.hermes/hermes-agent/acp_adapter/server.py`
   - 설치 source: `~/.hermes/hermes-agent/gateway/session.py`
+- Claude Managed Agents는 `user.interrupt`와 그 뒤의 `user.message`를 별도 event로 다루고, streamed preview가
+  authoritative response가 아니며 최종 buffered `agent.message`가 정본이라고 명시한다.
+  - https://platform.claude.com/docs/en/managed-agents/events-and-streaming
 
 채택: 사용자 문장 의미와 실행 시각을 한 label로 합치지 않고 `active projection lane`과 `post-delivery lane`을
 물리적으로 분리한다.
@@ -268,4 +271,3 @@ AND false completion 0
 AND 가시 Browser 0
 AND 사용자 질문·승인 증가 0
 ```
-
