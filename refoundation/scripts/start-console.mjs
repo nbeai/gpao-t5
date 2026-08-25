@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -44,6 +44,15 @@ function option(name) {
   return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
+function memorySecretStore() {
+  const values = new Map();
+  return {
+    async get(name) { return structuredClone(values.get(String(name)) ?? null); },
+    async set(name, value) { values.set(String(name), structuredClone(value)); },
+    async clear(name) { values.delete(String(name)); },
+  };
+}
+
 async function bundledGoogleOAuthConfig() {
   try {
     const config = JSON.parse(await readFile(new URL('../config/google-oauth.json', import.meta.url), 'utf8'));
@@ -61,6 +70,10 @@ async function bundledGoogleOAuthConfig() {
 const port = Number(option('--port') ?? process.env.T5_REFOUNDATION_CONSOLE_PORT ?? 4174);
 const stateDir = resolve(process.env.T5_REFOUNDATION_CONSOLE_STATE
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'refoundation-console'));
+const googleQualificationMode = process.env.T5_REFOUNDATION_GOOGLE_QUALIFICATION === '1';
+const connectionOwnerId = googleQualificationMode
+  ? `google-qualification-${createHash('sha256').update(stateDir).digest('hex').slice(0, 20)}`
+  : 'local-owner';
 const workspace = resolveConsoleWorkspace(process.env, homedir());
 const computerEnvironment = discoverComputerEnvironment({ userHome: homedir() });
 const connectionFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
@@ -113,7 +126,7 @@ const connectionCredentialCoordinator = new ConnectionCredentialCoordinator({
 const googleWorkspaceApiConnection = googleOAuthClientId
   ? makeGoogleWorkspaceApiConnection({ secretStore: platformSecretStore,
     stateStore: connectionStateStore, credentialCoordinator: connectionCredentialCoordinator,
-    clientId: googleOAuthClientId }) : null;
+    clientId: googleOAuthClientId, t5UserId: connectionOwnerId }) : null;
 const googleWorkspaceClientId = String(process.env.T5_GOOGLE_WORKSPACE_OAUTH_CLIENT_ID ?? '').trim();
 const googleWorkspaceClientSecret = String(process.env.T5_GOOGLE_WORKSPACE_OAUTH_CLIENT_SECRET ?? '').trim();
 const googleWorkspaceCallbackPort = Number(process.env.T5_GOOGLE_WORKSPACE_OAUTH_CALLBACK_PORT ?? 4186);
@@ -127,11 +140,15 @@ const googleWorkspaceRemoteConnection = googleWorkspaceClientId
     stateStore: connectionStateStore, credentialCoordinator: connectionCredentialCoordinator,
     clientId: googleWorkspaceClientId, clientSecret: googleWorkspaceClientSecret,
     callbackPort: googleWorkspaceCallbackPort }) : null;
-const messengerCredentialStore = new MessengerPlatformCredentialStore(platformSecretStore);
-await migrateMessengerCredentials({
-  source: new MessengerCredentialStore(join(stateDir, 'messenger')),
-  target: messengerCredentialStore,
-});
+const messengerCredentialStore = new MessengerPlatformCredentialStore(
+  googleQualificationMode ? memorySecretStore() : platformSecretStore,
+);
+if (!googleQualificationMode) {
+  await migrateMessengerCredentials({
+    source: new MessengerCredentialStore(join(stateDir, 'messenger')),
+    target: messengerCredentialStore,
+  });
+}
 const notionConnection = makeNotionMcpConnection({
   secretStore: platformSecretStore,
   browserAvailable: false,
@@ -162,10 +179,12 @@ const slackConnection = slackClientId && slackPublicSearchPolicy ? makeSlackMcpC
   stateStore: connectionStateStore, credentialCoordinator: connectionCredentialCoordinator,
   clientId: slackClientId, clientSecret: slackClientSecret, callbackPort: slackCallbackPort,
   publicSearchPolicy: slackPublicSearchPolicy }) : null;
-const workspaceConnectionServices = [googleWorkspaceRemoteConnection
-  ?? googleWorkspaceApiConnection ?? googleDriveService,
-  notionConnection, linearConnection, channelTalkConnection];
-if (slackConnection) workspaceConnectionServices.push(slackConnection);
+const googleConnectionService = googleWorkspaceRemoteConnection
+  ?? googleWorkspaceApiConnection ?? googleDriveService;
+const workspaceConnectionServices = googleQualificationMode
+  ? [googleConnectionService]
+  : [googleConnectionService, notionConnection, linearConnection, channelTalkConnection];
+if (!googleQualificationMode && slackConnection) workspaceConnectionServices.push(slackConnection);
 const localConsoleToken = randomBytes(32).toString('base64url');
 const server = makeConsoleServer({
   stateDir,
