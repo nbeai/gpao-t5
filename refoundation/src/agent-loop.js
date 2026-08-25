@@ -297,6 +297,7 @@ export async function runAgent({
   let lastResourceSituationKey = null;
   let completionReminderSent = false;
   let finalAnswerReminderSent = false;
+  let isolateOldWorkSurface = false;
   let lastTurnToolCalls = 0;
   const projectedWorkInputIds = new Set();
   const completionSatisfied = () => Boolean(requiredCompletionTool && receipts.some((receipt) => (
@@ -317,6 +318,7 @@ export async function runAgent({
       else activeTools.delete('work_control');
       definitions = [...activeTools].map((name) => toolDefinition(registry.get(name)));
     }
+    if (isolateOldWorkSurface) definitions = [];
     for (const [admissionIndex, input] of admittedWorkInputs.entries()) {
       if (projectedWorkInputIds.has(input.inputId)) continue;
       projectedWorkInputIds.add(input.inputId);
@@ -325,6 +327,7 @@ export async function runAgent({
         `admissionIndex=${admissionIndex + 1}`,
         `inputHandle=${input.settlementHandle}`,
         `currentWork=${JSON.stringify(input.currentWork ?? null)}`,
+        `pausedWorkCandidates=${JSON.stringify(input.pausedWorkCandidates ?? [])}`,
         `envelope=${JSON.stringify({ attachmentIds: input.attachmentIds ?? [], source: input.source ?? {} })}`,
         String(input.text ?? ''),
       ].join('\n'), ...(input.modelAttachments?.length
@@ -648,6 +651,17 @@ export async function runAgent({
         receipt, message: currentToolMessage,
       });
       transcript.push(currentToolMessage);
+      if (requested.name === 'work_control' && receipt.outcome === 'succeeded'
+        && ['deferred_after_delivery', 'forked_to_independent_work', 'paused_work_resumed']
+          .includes(receipt.result?.state)) {
+        for (let index = transcript.length - 1; index >= 0; index -= 1) {
+          const message = transcript[index];
+          if (message?.workInputHandle
+            || (message?.role === 'assistant' && message.toolCalls?.some((item) => item.name === 'work_control'))
+            || (message?.role === 'tool' && message.toolCallId === requested.id)) transcript.splice(index, 1);
+        }
+        isolateOldWorkSurface = true;
+      }
       compactSupersededBrowserMessages(transcript, receipt);
       if (visualAttachments.length) transcript.push(visualObservationMessage(receipt, visualAttachments));
       const acceptedActivations = [];
@@ -693,6 +707,7 @@ export async function runAgent({
         });
       }
       definitions = [...activeTools].map((name) => toolDefinition(registry.get(name)));
+      if (isolateOldWorkSurface) definitions = [];
       if (completionSatisfied()) definitions = [];
       else if (completionReminderSent && requiredCompletionTool) {
         definitions = definitions.filter((definition) => definition.name === requiredCompletionTool);

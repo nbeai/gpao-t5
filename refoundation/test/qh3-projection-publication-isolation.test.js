@@ -29,7 +29,7 @@ test('QH-3 projection red: independent busy input과 control output은 old Work 
     turn += 1;
     if (turn === 1) { entered(); await gate; return { text: 'BASE_RESULT_731', toolCalls: [] }; }
     if (turn === 2) return { text: '', toolCalls: [{ id: 'independent', name: 'work_control', args: {
-      action: 'start_independent_work', currentWorkDisposition: 'pause', targetWorkId: null,
+      action: 'start_independent_work', currentWorkDisposition: 'pause', targetWorkHandle: null,
     } }] };
     if (turn === 3) {
       const busyLeaked = input.messages.some((message) => String(message.content ?? '').includes(busyText));

@@ -126,7 +126,7 @@ test('현재 결과 선 delivery가 명시된 extension만 exact 새 Run으로 �
     if (turn === 2) {
       const admitted = input.messages.find((message) => /T5 NEWLY ADMITTED USER MESSAGE/u.test(message.content));
       return { text: '', toolCalls: [{ id: 'defer', name: 'work_control', args: {
-        action: 'defer_after_delivery', currentWorkDisposition: null, targetWorkId: null,
+        action: 'defer_after_delivery', currentWorkDisposition: null, targetWorkHandle: null,
       } }] };
     }
     if (turn === 3) { classified(); await deliveryGate;
@@ -209,7 +209,7 @@ test('independent 전환은 현재 Run을 completion 없이 닫고 새 Work를 �
     turn += 1;
     if (turn === 1) { entered(); await gate; return { text: '기존 작업 중간 상태', toolCalls: [] }; }
     if (turn === 2) return { text: '', toolCalls: [{ id: 'independent', name: 'work_control', args: {
-      action: 'start_independent_work', currentWorkDisposition: 'pause', targetWorkId: null,
+      action: 'start_independent_work', currentWorkDisposition: 'pause', targetWorkHandle: null,
     } }] };
     if (turn === 3) {
       assert.equal(input.tools.some((tool) => tool.name === 'work_completion'), false);
@@ -257,7 +257,7 @@ test('cancel은 process와 Work를 끝내고 proposal 없는 busy input을 execu
     turn += 1;
     if (turn === 1) { entered(); await gate; return { text: '진행 중', toolCalls: [] }; }
     if (turn === 2) return { text: '', toolCalls: [{ id: 'cancel', name: 'work_control', args: {
-      action: 'cancel_current_work', currentWorkDisposition: null, targetWorkId: null,
+      action: 'cancel_current_work', currentWorkDisposition: null, targetWorkHandle: null,
     } }] };
     assert.equal(input.tools.some((tool) => tool.name === 'work_completion'), false);
     return { text: '요청대로 중단했습니다.', toolCalls: [] };
@@ -479,15 +479,23 @@ test('resume_paused_work는 exact Work를 R+1로 재개하고 별도 Run exact-o
   const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => ({ async respond(input) {
     turn += 1;
     if (turn === 1) { entered(); await gate; return { text: 'CURRENT-STALE', toolCalls: [] }; }
-    if (turn === 2) return { text: '', toolCalls: [{ id: 'resume', name: 'work_control', args: {
-      action: 'resume_paused_work', currentWorkDisposition: 'pause', targetWorkId: paused.workId,
-    } }] };
+    if (turn === 2) {
+      const content = input.messages.find((message) => String(message.content ?? '')
+        .includes('T5 NEWLY ADMITTED USER MESSAGE'))?.content ?? '';
+      const handle = /"handle":"(paused_[A-Za-z0-9_-]{8,80})"/u.exec(content)?.[1];
+      return { text: '', toolCalls: [{ id: 'resume', name: 'work_control', args: {
+        action: 'resume_paused_work', currentWorkDisposition: 'pause', targetWorkHandle: handle,
+      } }] };
+    }
     if (turn === 3) {
       assert.equal(input.tools.some((tool) => tool.name === 'work_completion'), false);
       return { text: '이전 작업을 다시 이어갑니다.', toolCalls: [] };
     }
     return { text: '재개 작업 결과 RESUMED-884', toolCalls: [] };
   } }) });
+  await server.conversationLedger.ensure({ sessionId: session.id, legacyMessages: [] });
+  await server.conversationLedger.appendMessage({ sessionId: session.id, messageId: 'paused-source',
+    runId: 'paused-visible-run', message: { role: 'user', content: '이전 보고서 작업을 이어서 완성해' } });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
@@ -575,7 +583,7 @@ test('현재 Telegram delivery가 failed이면 after-delivery input을 다음 Ru
       turn += 1;
       if (turn === 1) { entered(); await gate; return { text: 'STALE', toolCalls: [] }; }
       if (turn === 2) return { text: '', toolCalls: [{ id: 'defer', name: 'work_control', args: {
-        action: 'defer_after_delivery', currentWorkDisposition: null, targetWorkId: null,
+        action: 'defer_after_delivery', currentWorkDisposition: null, targetWorkHandle: null,
       } }] };
       if (turn === 3) return { text: '먼저 요청한 결과입니다.', toolCalls: [] };
       followupRuns += 1; return { text: '후속 작업이 조기 실행됐습니다.', toolCalls: [] };

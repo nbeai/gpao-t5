@@ -1,0 +1,46 @@
+{
+  "schema": "t5.qh3-projection-publication-isolation-core.v1",
+  "redCommit": "13064d91",
+  "gate": "QH-3 Projection and Publication Isolation",
+  "sevenLineContract": {
+    "productPromise": "later or transferred input appears first only on its own authoritative surface",
+    "currentGate": "projection and publication isolation after settlement PASS",
+    "userCompletion": "old Work publishes its base result while new, deferred, or resumed input starts in its own Run",
+    "existingEvidence": "settlement 67/67 and exact input, Work, revision, result digest boundaries",
+    "largestGap": "busy input remained in old transcript after ownership control and paused targets had no model-safe identity",
+    "change": "physical old/base transcript isolation and runtime-owned paused Work candidate handles",
+    "nonGoals": ["classifier", "model wording", "few-shot", "keyword or regex", "QH-1", "QH-2", "QH-4", "UI"]
+  },
+  "implemented": [
+    "withdraw projected busy user message and control assistant/tool pair from old provider transcript after defer, independent, or resume succeeds",
+    "preserve canonical Conversation and Run events",
+    "force old surface generation from base transcript with zero tools",
+    "supply transferred input as the current request only in its new or resumed Run",
+    "project at most eight paused Works only when they have a visible Conversation objective",
+    "use run-bound unique opaque paused handles without raw Work identity",
+    "resolve handle to exact paused Work and revision at runtime",
+    "reject unknown and stale handles"
+  ],
+  "checks": {
+    "focused": { "passed": 72, "failed": 0 },
+    "full": {
+      "passed": 809,
+      "failed": 1,
+      "total": 810,
+      "knownUnrelatedFailure": "console-ui-state openSettings selection reset assertion"
+    },
+    "legacyImport": 0
+  },
+  "counterfactuals": {
+    "oldSurfaceLeak": "green; old surface contains base marker and excludes new-purpose marker",
+    "canonicalEvidence": "busy input and work_control assistant output remain preserved",
+    "pausedCandidate": "green; visible objective and opaque handle projected without workId",
+    "staleOrForeignHandle": "rejected"
+  },
+  "settlementGate": "PASS and unchanged",
+  "productCodeFamiliesChanged": [
+    "AgentLoop provider transcript projection",
+    "console busy input projection",
+    "work_control target boundary"
+  ]
+}
