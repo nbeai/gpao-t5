@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 import {
   createArtifactPurposeContract,
-  qualifyArtifactQuality,
+  makeArtifactQualityQualifier,
 } from '../src/artifact-quality-qualification.js';
 
 const COUNTERFACTUAL = JSON.parse(await readFile(
@@ -18,6 +18,7 @@ const TRUSTED_PRODUCERS = [
   { kind: 'structural_verifier', identity: 'qh2-structural-runtime' },
   { kind: 'render_verifier', identity: 'qh2-render-runtime' },
 ];
+const runtimeQualifier = makeArtifactQualityQualifier({ trustedProducers: TRUSTED_PRODUCERS });
 
 function reconciliationContract() {
   return createArtifactPurposeContract({
@@ -124,7 +125,7 @@ function passingObservations() {
 }
 
 function qualify(input = {}) {
-  return qualifyArtifactQuality({ contract: reconciliationContract(), trustedProducers: TRUSTED_PRODUCERS, ...input });
+  return runtimeQualifier({ contract: reconciliationContract(), ...input });
 }
 
 test('QualityReceipt는 Semantic·Domain·Structural·Screen·Print를 독립 논리곱으로 자격한다', () => {
@@ -171,7 +172,7 @@ test('screen-only 결과도 다섯 lane을 보존하되 Print를 qualified로 �
   const contract = createArtifactPurposeContract(input);
   const observations = passingObservations().filter((item) => !item.requirementId.startsWith('print-'))
     .map((item) => ({ ...item, contractId: contract.contractId }));
-  const receipt = qualifyArtifactQuality({ contract, observations, trustedProducers: TRUSTED_PRODUCERS });
+  const receipt = runtimeQualifier({ contract, observations });
   assert.equal(receipt.qualified, true);
   assert.equal(receipt.lanes.print.status, 'not_applicable');
   assert.equal(receipt.lanes.print.required, false);
@@ -195,7 +196,10 @@ test('임의 facts와 self-declared producer는 lane을 통과하지 못한다',
   semantic.facts = { arbitrary: ['row-1-customer', 'row-5-customer'] };
   const untrusted = observations.find((item) => item.requirementId === 'screen-all-sheets');
   untrusted.producer = { kind: 'render_verifier', identity: 'self-declared-fixture' };
-  const receipt = qualify({ observations });
+  const receipt = qualify({
+    observations,
+    trustedProducers: [{ kind: 'render_verifier', identity: 'self-declared-fixture' }],
+  });
   assert.equal(receipt.lanes.semantic.status, 'failed');
   assert.equal(receipt.lanes.screen.status, 'failed');
   assert.equal(receipt.lanes.semantic.requirements[0].reason, 'malformed_observation');

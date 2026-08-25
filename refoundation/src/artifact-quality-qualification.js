@@ -441,10 +441,9 @@ function laneRequired(contract, lane) {
   return true;
 }
 
-export function qualifyArtifactQuality({ contract: rawContract, observations = [], trustedProducers = [] } = {}) {
+function qualifyArtifactQuality({ contract: rawContract, observations = [] } = {}, trustedProducerKeys) {
   const contract = createArtifactPurposeContract(rawContract);
   if (!Array.isArray(observations)) fail('observations must be an array');
-  const trustedProducerKeys = normalizeTrustedProducers(trustedProducers);
   const byRequirement = new Map();
   for (const observation of observations) {
     const requirementId = String(observation?.requirementId ?? '');
@@ -474,4 +473,9 @@ export function qualifyArtifactQuality({ contract: rawContract, observations = [
     schema: RECEIPT_SCHEMA, contractId: contract.contractId, artifact: structuredClone(contract.artifact),
     qualified: LANES.every((lane) => !lanes[lane].required || lanes[lane].status === 'qualified'), lanes,
   };
+}
+
+export function makeArtifactQualityQualifier({ trustedProducers = [] } = {}) {
+  const trustedProducerKeys = normalizeTrustedProducers(trustedProducers);
+  return (input = {}) => qualifyArtifactQuality(input, trustedProducerKeys);
 }
