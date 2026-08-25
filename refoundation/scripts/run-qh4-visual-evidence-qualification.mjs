@@ -72,6 +72,9 @@ try {
     const visualReceipts = allReceipts.filter((receipt) => receipt.actualCall?.name === 'visual_reference');
     const visual = visualReceipts[0]?.result ?? null;
     const previewCount = visual?.previews?.length ?? 0; const failureCount = visual?.failures?.length ?? 0;
+    const factualWebCalls = allReceipts.filter((receipt) => (
+      ['web_research', 'web_search', 'web_read'].includes(receipt.actualCall?.name)
+    )).length;
     const resource = deriveResourceReport(await new ResourceLedger(join(stateDir, 'resources')).read());
     const identityComplete = (visual?.previews ?? []).every((preview) => (
       /^https?:\/\//u.test(preview.sourceUrl ?? '')
@@ -88,8 +91,7 @@ try {
         || (previewCount < 3 && visual?.verificationMissing === true && failureCount > 0),
       sourceDirectIdentity: identityComplete,
       noVisibleBrowser: allReceipts.every((receipt) => receipt.actualCall?.name !== 'browser'),
-      noModelWebFallback: allReceipts.every((receipt) => !['web_research', 'web_search', 'web_read']
-        .includes(receipt.actualCall?.name)),
+      noFactualWebPreviewPromotion: previewCount === 0 || identityComplete,
       boundedProviderCalls: (visual?.providerCalls?.length ?? 0) <= 1,
       resourceSettled: resource.unsettled === 0,
       userAnswerPresent: Boolean(String(surface.reply ?? '').trim()),
@@ -101,6 +103,7 @@ try {
         runId: surface.runId ?? null, wallMs, modelCalls: resource.modelCallsObserved,
         toolCalls: resource.toolCallsObserved, internalCalls: resource.internalCallsObserved,
         providerTokens: resource.providerTokensCommitted, providerCalls: visual?.providerCalls ?? [],
+        factualWebCalls,
         requested: 3, previewCount, failureCount,
         providerQualification: visual?.providerQualification ?? null,
         failureCodes: [...new Set((visual?.failures ?? []).map((failure) => failure.failureCode))],
