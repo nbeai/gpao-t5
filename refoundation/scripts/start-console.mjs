@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { chmod, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -16,14 +16,6 @@ import { naverReadableUrlResolver } from '../src/naver-readable-url.js';
 import { makeConsoleServer } from '../src/console-server.js';
 import { resolveConsoleWorkspace } from '../src/console-config.js';
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
-import {
-  googleSyncAvailable, workspaceConnectionBaselineInspectors,
-} from '../src/workspace-connection-baseline.js';
-import { WorkspaceCredentialStore } from '../src/workspace-credential-store.js';
-import { makeGoogleDriveConnection } from '../src/google-drive-connection.js';
-import { makeGoogleDriveDesktop } from '../src/google-drive-desktop.js';
-import { makeGoogleDriveApi } from '../src/google-drive-api.js';
-import { makeGoogleDriveTool } from '../src/google-drive-tool.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 import {
   MessengerPlatformCredentialStore, migrateMessengerCredentials,
@@ -34,8 +26,6 @@ import { makeNotionCliInspector } from '../src/notion-cli-inspector.js';
 import { makeRemoteMcpConnection } from '../src/remote-mcp-connection.js';
 import { makeChannelTalkConnection } from '../src/channel-talk-connection.js';
 import { makeSlackMcpConnection } from '../src/slack-mcp-connection.js';
-import { makeGoogleWorkspaceDriveMcpConnection } from '../src/google-workspace-mcp-connection.js';
-import { makeGoogleWorkspaceApiConnection } from '../src/google-workspace-api-connection.js';
 import { ConnectionStateStore } from '../src/connection-state-store.js';
 import { ConnectionCredentialCoordinator } from '../src/connection-credential-coordinator.js';
 
@@ -44,36 +34,9 @@ function option(name) {
   return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
-function memorySecretStore() {
-  const values = new Map();
-  return {
-    async get(name) { return structuredClone(values.get(String(name)) ?? null); },
-    async set(name, value) { values.set(String(name), structuredClone(value)); },
-    async clear(name) { values.delete(String(name)); },
-  };
-}
-
-async function bundledGoogleOAuthConfig() {
-  try {
-    const config = JSON.parse(await readFile(new URL('../config/google-oauth.json', import.meta.url), 'utf8'));
-    if (config?.schema !== 't5.google-oauth-client.v1'
-      || !/^[A-Za-z0-9._-]+\.apps\.googleusercontent\.com$/u.test(config.clientId ?? '')) {
-      throw new Error('bundled Google OAuth client config is invalid');
-    }
-    return config;
-  } catch (error) {
-    if (error?.code === 'ENOENT') return null;
-    throw error;
-  }
-}
-
 const port = Number(option('--port') ?? process.env.T5_REFOUNDATION_CONSOLE_PORT ?? 4174);
 const stateDir = resolve(process.env.T5_REFOUNDATION_CONSOLE_STATE
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'refoundation-console'));
-const googleQualificationMode = process.env.T5_REFOUNDATION_GOOGLE_QUALIFICATION === '1';
-const connectionOwnerId = googleQualificationMode
-  ? `google-qualification-${createHash('sha256').update(stateDir).digest('hex').slice(0, 20)}`
-  : 'local-owner';
 const workspace = resolveConsoleWorkspace(process.env, homedir());
 const computerEnvironment = discoverComputerEnvironment({ userHome: homedir() });
 const connectionFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
@@ -91,64 +54,16 @@ const webSearchProviders = [
   makeDuckDuckGoSearchProvider(),
   makeBingSearchProvider(),
 ];
-const workspaceCredentialStore = new WorkspaceCredentialStore(join(stateDir, 'connections'));
-const bundledGoogleOAuth = await bundledGoogleOAuthConfig();
-const googleOAuthClientId = process.env.T5_GOOGLE_OAUTH_CLIENT_ID
-  ?? (bundledGoogleOAuth?.officialApiEnabled ? bundledGoogleOAuth.clientId : null);
-const googleDriveDesktop = makeGoogleDriveDesktop({
-  userHome: computerEnvironment.userHome, platform: computerEnvironment.platform,
-});
-const googleDriveConnection = makeGoogleDriveConnection({
-  store: workspaceCredentialStore,
-  clientId: googleOAuthClientId,
-  browserAvailable: false,
-  desktopRoute: googleDriveDesktop,
-  localSyncAvailable: () => googleSyncAvailable(
-    computerEnvironment.userHome, computerEnvironment.platform,
-  ),
-});
-const googleDriveApi = makeGoogleDriveApi({ credential: () => googleDriveConnection.credential() });
-const googleDriveService = {
-  ...googleDriveConnection,
-  toolName: 'google_drive',
-  async makeTool({ attachments, sessionId, authorizeEffect, authorizeUploadPath }) {
-    if ((await googleDriveConnection.inspect()).state !== 'connected') return null;
-    return makeGoogleDriveTool({
-      api: googleDriveApi, attachments, sessionId, authorizeEffect, authorizeUploadPath,
-    });
-  },
-};
 const platformSecretStore = makePlatformSecretStore({ platform: computerEnvironment.platform });
 const connectionStateStore = new ConnectionStateStore(join(stateDir, 'connections', 'connection-state.sqlite'));
 const connectionCredentialCoordinator = new ConnectionCredentialCoordinator({
   stateStore: connectionStateStore, secretStore: platformSecretStore, makeId: randomUUID,
 });
-const googleWorkspaceApiConnection = googleOAuthClientId
-  ? makeGoogleWorkspaceApiConnection({ secretStore: platformSecretStore,
-    stateStore: connectionStateStore, credentialCoordinator: connectionCredentialCoordinator,
-    clientId: googleOAuthClientId, t5UserId: connectionOwnerId }) : null;
-const googleWorkspaceClientId = String(process.env.T5_GOOGLE_WORKSPACE_OAUTH_CLIENT_ID ?? '').trim();
-const googleWorkspaceClientSecret = String(process.env.T5_GOOGLE_WORKSPACE_OAUTH_CLIENT_SECRET ?? '').trim();
-const googleWorkspaceCallbackPort = Number(process.env.T5_GOOGLE_WORKSPACE_OAUTH_CALLBACK_PORT ?? 4186);
-if ((!googleWorkspaceClientId && googleWorkspaceClientSecret) || (googleWorkspaceClientId && !googleWorkspaceClientSecret)
-  || !Number.isInteger(googleWorkspaceCallbackPort) || googleWorkspaceCallbackPort < 1024
-  || googleWorkspaceCallbackPort > 65_535) {
-  throw new Error('T5 Google Workspace OAuth application configuration is incomplete');
-}
-const googleWorkspaceRemoteConnection = googleWorkspaceClientId
-  ? makeGoogleWorkspaceDriveMcpConnection({ secretStore: platformSecretStore,
-    stateStore: connectionStateStore, credentialCoordinator: connectionCredentialCoordinator,
-    clientId: googleWorkspaceClientId, clientSecret: googleWorkspaceClientSecret,
-    callbackPort: googleWorkspaceCallbackPort }) : null;
-const messengerCredentialStore = new MessengerPlatformCredentialStore(
-  googleQualificationMode ? memorySecretStore() : platformSecretStore,
-);
-if (!googleQualificationMode) {
-  await migrateMessengerCredentials({
-    source: new MessengerCredentialStore(join(stateDir, 'messenger')),
-    target: messengerCredentialStore,
-  });
-}
+const messengerCredentialStore = new MessengerPlatformCredentialStore(platformSecretStore);
+await migrateMessengerCredentials({
+  source: new MessengerCredentialStore(join(stateDir, 'messenger')),
+  target: messengerCredentialStore,
+});
 const notionConnection = makeNotionMcpConnection({
   secretStore: platformSecretStore,
   browserAvailable: false,
@@ -179,12 +94,8 @@ const slackConnection = slackClientId && slackPublicSearchPolicy ? makeSlackMcpC
   stateStore: connectionStateStore, credentialCoordinator: connectionCredentialCoordinator,
   clientId: slackClientId, clientSecret: slackClientSecret, callbackPort: slackCallbackPort,
   publicSearchPolicy: slackPublicSearchPolicy }) : null;
-const googleConnectionService = googleWorkspaceRemoteConnection
-  ?? googleWorkspaceApiConnection ?? googleDriveService;
-const workspaceConnectionServices = googleQualificationMode
-  ? [googleConnectionService]
-  : [googleConnectionService, notionConnection, linearConnection, channelTalkConnection];
-if (!googleQualificationMode && slackConnection) workspaceConnectionServices.push(slackConnection);
+const workspaceConnectionServices = [notionConnection, linearConnection, channelTalkConnection];
+if (slackConnection) workspaceConnectionServices.push(slackConnection);
 const localConsoleToken = randomBytes(32).toString('base64url');
 const server = makeConsoleServer({
   stateDir,
@@ -196,13 +107,7 @@ const server = makeConsoleServer({
   webSearchProviders,
   webReadOptions: { urlResolvers: [naverReadableUrlResolver] },
   videoTextFetchImpl: globalThis.fetch,
-  workspaceConnectionInspectors: workspaceConnectionBaselineInspectors({
-    userHome: computerEnvironment.userHome,
-    platform: computerEnvironment.platform,
-    browserAvailable: false,
-    includeGoogle: false,
-    includeNotion: false,
-  }),
+  workspaceConnectionInspectors: [],
   workspaceConnectionServices,
   messengerCredentialStore,
   localConsoleToken,

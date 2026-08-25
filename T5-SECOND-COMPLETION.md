@@ -12,7 +12,7 @@
 
 | 영역 | 현재 판정 | 남은 정확한 경계 |
 |---|---|---|
-| CP 연결 프로토콜 | COMPLETE | durable generation fencing·인증 회복·readiness·공식 Remote MCP와 Channel Talk·Slack·Google Workspace 제품 경계를 통합했다. 실제 생산 계정 쓰기는 이번 봉인에서 수행하지 않았다. |
+| CP 연결 프로토콜 | COMPLETE | durable generation fencing·인증 회복·readiness·공식 Remote MCP와 Channel Talk·Slack 제품 경계를 통합했다. Google 전용 연결 구현은 오너 결정으로 제거했고 카탈로그 후보만 남겼다. 실제 생산 계정 쓰기는 이번 봉인에서 수행하지 않았다. |
 | QH-1 실행 결과물 | COMPLETE | Terra·gpt-5.5 각 3/3. managed begin/finalize, 실제 launcher·새 파일 효과, exact operation recovery가 성립했다. |
 | QH-2 문서·표 품질 | CORE COMPLETE | 하드코딩·수식 lineage·cache 과장을 막고 한글 DOCX 전 페이지 native 관측을 세웠다. 독립 재계산 engine receipt가 없는 XLSX는 `unmeasured`다. |
 | QH-3 시간·입력 격리 | CORE COMPLETE · OBSERVATION | 입력 settlement·sideband lane·old/new surface 격리는 결정적으로 통과했다. 실제 Terra 대표 matrix는 13/15이며 남은 두 건은 최종 출력 누락·내부 용어 노출이다. |

@@ -36,5 +36,5 @@
     }
   ],
   "knownObservation": "전체 refoundation core에는 이번 변경과 무관한 T5-SECOND-COMPLETION Gate 기대 문자열 한 건이 현재 정본과 불일치한다.",
-  "next": "인간 시각 종단을 통과한 뒤 Google Workspace를 첫 preregistered OAuth Connector로 연다."
+  "next": "Google Workspace는 오너 결정에 따라 카탈로그 후보만 유지하고 전용 Connector 구현을 열지 않는다."
 }

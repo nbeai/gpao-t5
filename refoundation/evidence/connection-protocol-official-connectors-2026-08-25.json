@@ -22,12 +22,6 @@
     "credentialPrepareRecoveredAfterRestart": true
   },
   "connectorState": {
-    "googleWorkspaceDrive": {
-      "codeContract": "pass",
-      "mode": "read_only",
-      "stability": "developer_preview",
-      "liveQualification": "pending_external_oauth_app_and_preview_access"
-    },
     "slack": {
       "codeContract": "pass",
       "mode": "public_search_read_only",
@@ -38,6 +32,7 @@
   "observations": [
     "refoundation:check has one unrelated console UI baseline mismatch in this isolated pre-QH branch",
     "node:sqlite emits an ExperimentalWarning on the current Node 24 runtime",
+    "Google-specific connector implementation and qualification evidence were removed by owner decision",
     "no real user credential, provider write, package install, or visible browser was used"
   ]
 }
