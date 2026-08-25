@@ -157,14 +157,16 @@
         "passed": true
       },
       "gpt55": {
-        "runId": "8fde291c-1bc1-4449-bb49-50a18e609cf5",
+        "runId": "25c20390-f6de-4525-95f5-db427be752f2",
         "previewCount": 0,
         "failureCount": 1,
         "failureCode": "provider_image_fields_absent",
         "visibleBrowserCalls": 0,
         "factualWebLaneUsedAfterVisualShortfall": true,
+        "factualWebCalls": 1,
         "previewPromotionFromFactualWeb": 0,
-        "honestShortfallPreserved": true
+        "honestShortfallPreserved": true,
+        "passed": true
       }
     }
   },
