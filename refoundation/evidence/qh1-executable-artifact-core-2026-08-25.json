@@ -39,10 +39,9 @@
     "refoundationCheck": {
       "command": "npm run refoundation:check",
       "sandboxRun": "failed_existing_tests_due_to_loopback_and_nested_sandbox_eperm",
-      "unrestrictedRun": "qh1_and_existing_runtime_tests_passed_except_one_stale_plan_assertion",
-      "knownUnrelatedFailure": {
-        "test": "refoundation/test/environment.test.js",
-        "reason": "expects the retired S2-B Gate string while T5-SECOND-COMPLETION.md is already QH-1 READY"
+      "unrestrictedRunAfterGateAlignment": {
+        "passed": 762,
+        "failed": 0
       }
     }
   },
