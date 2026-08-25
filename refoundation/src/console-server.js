@@ -33,10 +33,11 @@ import { CapabilityLifecycleLedger, makeCapabilityLifecycleTool } from './capabi
 import { loadSkillPolicyCatalog } from './skill-policy-catalog.js';
 import { ConversationLedger } from './conversation-ledger.js';
 import { WorkStore } from './work-store.js';
-import { makeWorkTransitionTool } from './work-transition-tool.js';
 import { makeWorkCompletionTool } from './work-completion-tool.js';
 import { evaluateWorkCompletion } from './work-completion-evaluator.js';
 import { makeInputSettlementScope } from './input-settlement-scope.js';
+import { makePausedWorkScope } from './paused-work-scope.js';
+import { decideTransition } from './transition-decision.js';
 import { memoryCandidateProjection, selectMemoryPortfolio, workingMemoryProjection } from './memory-portfolio.js';
 import { projectHistoricalConversationEntries } from './conversation-projection.js';
 import { makeConversationRecallTool } from './conversation-recall-tool.js';
@@ -766,7 +767,9 @@ export function makeConsoleServer({
     } });
     const inputSettlementScope = makeInputSettlementScope({ store: workStore, runId: run.runId,
       excludedInputIds: options.admittedInput ? [options.admittedInput.inputId] : [] });
+    const pausedWorkScope = makePausedWorkScope({ store: workStore, runId: run.runId });
     let resourceDiagnosticSequence = 0;
+    let transitionDecisionSequence = 0;
     const resourceRun = await resourceController.startRun({
       sessionId, runId: run.runId, trigger: options.trigger ?? 'user',
       occurrence: options.automationOccurrence ?? null,
@@ -1057,10 +1060,6 @@ export function makeConsoleServer({
         offeredTools.unshift(makeWorkCompletionTool({ store: workStore, runId: run.runId,
           inputSettlementScope }));
       }
-      offeredTools.unshift(makeWorkTransitionTool({
-        store: workStore, sessionId, runId: run.runId,
-        stopProcesses: () => processes.stopOwner(sessionId, 'model_classified_cancel'),
-      }));
       let visualObservationCount = 0;
       offeredTools.unshift(makeAttachmentTool({
         store: attachments, sessionId, workspace, runId: run.runId,
@@ -1350,6 +1349,63 @@ export function makeConsoleServer({
         resourceSituationMode,
         activeOptimizationMode,
         takeAdmittedWorkInputs: async () => {
+          const undecided = await workStore.undecidedInputs(sessionId);
+          for (const input of undecided) {
+            transitionDecisionSequence += 1; const transitionTurn = -2000 - transitionDecisionSequence;
+            const conversation = await conversations.read(sessionId);
+            const claimed = await workStore.workForRun(run.runId);
+            if (!claimed) continue;
+            const objective = conversation.entries.find((entry) => (
+              entry.messageId === claimed.sourceMessageId
+            ))?.message?.content ?? '';
+            const entry = conversation.entries.find((candidate) => candidate.messageId === input.messageId);
+            const pausedCandidates = await pausedWorkScope.candidates({ sessionId, conversation });
+            await run.append({ type: 'transition_decision_started', stepId: `transition-${input.inputId}`,
+              payload: { inputId: input.inputId, pausedCandidateCount: pausedCandidates.length } });
+            await run.append({ type: 'model_started', stepId: `transition-model-${transitionDecisionSequence}`,
+              payload: { turn: transitionTurn, purpose: 'transition_decision' } });
+            const decisionModel = await modelFactory({ sessionId, workspace, computer: computerFacts,
+              purpose: 'transition_decision' });
+            let decision; let target = null; let reason = null;
+            try {
+              decision = await decideTransition({ model: decisionModel,
+                currentWork: { objective, status: claimed.status },
+                input: { text: entry?.message?.content ?? '', attachmentCount: input.attachmentIds?.length ?? 0,
+                  sourceKind: input.source?.channel ?? input.origin ?? 'conversation' },
+                pausedCandidates, signal: controller.signal,
+                resourceObserver: resourceRun.modelObserver({
+                  logicalCallId: `transition_decision:${transitionDecisionSequence}`,
+                  purpose: 'transition_decision',
+                }),
+                onContextReceipt: async (contextReceipt) => run.append({ type: 'model_context_built',
+                  stepId: `transition-model-${transitionDecisionSequence}`,
+                  payload: { turn: transitionTurn, purpose: 'transition_decision', contextReceipt } }) });
+            } catch {
+              decision = { choice: 'ambiguous', targetHandle: null,
+                currentWorkDisposition: null, usage: null, responseId: null };
+              reason = 'transition_decision_invalid';
+            }
+            if (decision.choice === 'resume_paused') {
+              try { target = await pausedWorkScope.resolve(decision.targetHandle); }
+              catch { decision = { ...decision, choice: 'ambiguous', targetHandle: null }; reason = 'paused_target_unavailable'; }
+            }
+            await workStore.commitTransitionDecision({ inputId: input.inputId, sessionId,
+              runId: run.runId, currentWorkId: claimed.workId, choice: decision.choice, target,
+              targetHandle: decision.targetHandle, currentWorkDisposition: decision.currentWorkDisposition });
+            await run.append({ type: 'transition_decision_completed', stepId: `transition-${input.inputId}`,
+              payload: { inputId: input.inputId, choice: decision.choice,
+                targetSelected: decision.targetHandle != null, reason, usage: decision.usage ?? null } });
+            await run.append({ type: 'model_completed', stepId: `transition-model-${transitionDecisionSequence}`,
+              payload: { turn: transitionTurn, purpose: 'transition_decision', response: {
+                text: '', toolCalls: [{ name: 'transition_decision', args: {
+                  choice: decision.choice, targetSelected: decision.targetHandle != null } }],
+                usage: decision.usage ?? null, responseId: decision.responseId ?? null,
+              } } });
+            if (decision.choice === 'cancel') {
+              await processes.stopOwner(sessionId, 'model_classified_cancel');
+              controller.abort('transition_cancel');
+            }
+          }
           let pending = await workStore.pendingInputs(sessionId);
           if (!pending.length) return [];
           const conversation = await conversations.read(sessionId);

@@ -426,6 +426,7 @@ export async function runAgent({
     }
     if (typeof takeAdmittedWorkInputs === 'function') {
       const boundaryAfterModelCall = await takeAdmittedWorkInputs();
+      if (signal?.aborted) return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
       const startedWith = new Set(admittedWorkInputs.map((input) => input.inputId));
       const arrivedDuringModelCall = boundaryAfterModelCall.filter((input) => !startedWith.has(input.inputId));
       if (arrivedDuringModelCall.length) {

@@ -1,0 +1,36 @@
+{
+  "schema": "t5.qh3-transition-sideband-core.v1",
+  "reverts": "39817e93 via a06ec5df",
+  "redCommit": "13064d91",
+  "gate": "QH-3 Projection and Publication Isolation",
+  "architecture": [
+    "durable admission remains outside the main provider transcript until a sideband transition decision commits",
+    "forced strict transition_decision is the sideband model's only tool",
+    "transition response text is discarded and no assistant Conversation or surface is created",
+    "steer_current alone enters the active AgentLoop at its next safe model boundary",
+    "followup, new Work, and resume never enter the old AgentLoop and first appear as their own Run current request",
+    "cancel terminates the old Run and stops owned processes",
+    "ambiguous remains unresolved and is not applied to current Work",
+    "paused candidates are bounded visible-source summaries with runtime-owned opaque handles"
+  ],
+  "providerInput": {
+    "currentWorkFields": ["objective", "status"],
+    "admittedInputFields": ["text", "attachmentCount", "sourceKind"],
+    "pausedCandidateFields": ["handle", "title", "lastActivity", "sourceKind"],
+    "rawWorkIdOrRevision": false,
+    "fewShotKeywordRegexRouting": false
+  },
+  "checks": {
+    "focused": { "passed": 73, "failed": 0 },
+    "full": {
+      "passed": 813,
+      "failed": 1,
+      "total": 814,
+      "knownUnrelatedFailure": "console-ui-state openSettings selection reset assertion"
+    },
+    "legacyImport": 0
+  },
+  "settlementGate": "PASS and unchanged",
+  "postHocTranscriptRemoval": false,
+  "productAreasNotChanged": ["QH-1", "QH-2", "QH-4", "Connecting", "UI"]
+}

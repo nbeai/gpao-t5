@@ -48,6 +48,40 @@ export class WorkStore {
           messageId: event.messageId, origin: event.origin, attachmentIds: event.attachmentIds ?? [],
           source: event.source ?? {}, state: 'admitted' });
       }
+      if (event.type === 'input_transition_committed') {
+        const input = inputs.get(event.inputId); const current = works.get(event.currentWorkId);
+        if (input) Object.assign(input, { transitionChoice: event.choice,
+          transitionRunId: event.runId, transitionTargetHandle: event.targetHandle ?? null });
+        if (event.choice === 'steer_current' && input) input.state = 'admitted';
+        if (event.choice === 'followup_after_delivery' && input) Object.assign(input, {
+          state: 'scheduled', disposition: 'deferred_after_delivery', schedule: 'after_current_delivery',
+          workId: event.currentWorkId, baseRevision: event.currentRevision, revision: null,
+          deferredByRunId: event.runId,
+        });
+        if (event.choice === 'new_work') {
+          if (current) current.status = event.currentWorkDisposition === 'cancel' ? 'cancelled' : 'paused';
+          works.set(event.targetWorkId, { workId: event.targetWorkId, sessionId: event.sessionId,
+            revision: 1, status: 'active', sourceMessageId: input?.messageId ?? null });
+          if (input) Object.assign(input, { state: 'classified', disposition: 'independent_work',
+            schedule: 'independent_work', workId: event.targetWorkId, revision: 1 });
+        }
+        if (event.choice === 'resume_paused') {
+          if (current) current.status = event.currentWorkDisposition === 'cancel' ? 'cancelled' : 'paused';
+          const target = works.get(event.targetWorkId);
+          if (target) { target.status = 'active'; target.revision = event.targetRevision; }
+          if (input) Object.assign(input, { state: 'classified', disposition: 'resumed_work',
+            schedule: 'independent_work', workId: event.targetWorkId, revision: event.targetRevision });
+        }
+        if (event.choice === 'cancel') {
+          if (current) current.status = 'cancelled';
+          if (input) Object.assign(input, { state: 'cancelled', disposition: 'cancelled_work',
+            schedule: null, workId: event.currentWorkId, revision: event.currentRevision });
+        }
+        if (event.choice === 'ambiguous' && input) Object.assign(input, {
+          state: 'ambiguous', disposition: 'ambiguous', schedule: null,
+          workId: event.currentWorkId, revision: event.currentRevision,
+        });
+      }
       if (event.type === 'input_admission_aborted') {
         const input = inputs.get(event.inputId); if (input) input.state = 'aborted';
       }
@@ -211,7 +245,8 @@ export class WorkStore {
   }
   async pendingInputs(sessionId) {
     const state = await this.read(); return state.inputs.filter((input) => (
-      input.sessionId === sessionId && ['admitted', 'presented'].includes(input.state)
+      input.sessionId === sessionId && (input.state === 'presented'
+        || (input.state === 'admitted' && input.transitionChoice === 'steer_current'))
     ));
   }
   async presentInputs({ sessionId, workId, revision, runId }) {
@@ -339,6 +374,32 @@ export class WorkStore {
       input.sessionId === sessionId && ((input.state === 'scheduled' && input.schedule === 'after_current_delivery')
         || (input.state === 'classified' && input.schedule === 'independent_work'))
     ));
+  }
+  async undecidedInputs(sessionId) {
+    return (await this.read()).inputs.filter((input) => input.sessionId === sessionId
+      && input.state === 'admitted' && !input.transitionChoice);
+  }
+  async commitTransitionDecision({ inputId, sessionId, runId, currentWorkId, choice,
+    target = null, targetHandle = null, currentWorkDisposition = null } = {}) {
+    const state = await this.read(); const input = state.inputs.find((item) => item.inputId === inputId);
+    const current = state.works.find((item) => item.workId === currentWorkId);
+    if (!input || input.sessionId !== sessionId || input.state !== 'admitted' || input.transitionChoice) {
+      throw new Error('transition input is not undecided');
+    }
+    if (!current || current.status !== 'active') throw new Error('transition current work is unavailable');
+    let targetWorkId = null; let targetRevision = null;
+    if (choice === 'new_work') targetWorkId = this.makeId();
+    if (choice === 'resume_paused') {
+      const paused = state.works.find((item) => item.workId === target?.workId);
+      if (!paused || paused.status !== 'paused' || paused.revision !== target?.revision) {
+        throw new Error('transition paused target is unavailable');
+      }
+      targetWorkId = paused.workId; targetRevision = paused.revision + 1;
+    }
+    await this.append('input_transition_committed', { inputId, sessionId, runId,
+      currentWorkId, currentRevision: current.revision, choice, targetHandle,
+      targetWorkId, targetRevision, currentWorkDisposition });
+    return (await this.read()).inputs.find((item) => item.inputId === inputId);
   }
   async prepareInputAdmission({ sessionId, messageId, origin = 'console', attachmentIds = [], source = {} }) {
     const inputId = this.makeId(); await this.append('input_admission_prepared', {

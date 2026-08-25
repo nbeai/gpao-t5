@@ -24,20 +24,18 @@ test('QH-3 projection red: independent busy input과 control output은 old Work 
   await mkdir(workspace, { recursive: true });
   let entered; const started = new Promise((resolve) => { entered = resolve; });
   let release; const gate = new Promise((resolve) => { release = resolve; }); let turn = 0;
+  const mainProviderSawBusy = [];
   const busyText = '앞 작업과 섞지 말고 다른 일로 새로 시작해. NEW_PURPOSE_731을 결과에 넣어.';
-  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => ({ async respond(input) {
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory: (context) => (
+    context.purpose === 'transition_decision' ? { async respond(input) {
+      assert.deepEqual(input.tools.map((tool) => tool.name), ['transition_decision']);
+      return { text: 'not published', toolCalls: [{ id: 'decision', name: 'transition_decision', args: {
+        choice: 'new_work', targetHandle: null, currentWorkDisposition: 'pause',
+      } }] };
+    } } : { async respond(input) {
     turn += 1;
+    mainProviderSawBusy.push(input.messages.some((message) => String(message.content ?? '').includes(busyText)));
     if (turn === 1) { entered(); await gate; return { text: 'BASE_RESULT_731', toolCalls: [] }; }
-    if (turn === 2) return { text: '', toolCalls: [{ id: 'independent', name: 'work_control', args: {
-      action: 'start_independent_work', currentWorkDisposition: 'pause', targetWorkId: null,
-    } }] };
-    if (turn === 3) {
-      const busyLeaked = input.messages.some((message) => String(message.content ?? '').includes(busyText));
-      const controlOutputLeaked = input.messages.some((message) => message.role === 'assistant'
-        && message.toolCalls?.some((call) => call.name === 'work_control'));
-      return { text: busyLeaked || controlOutputLeaked
-        ? 'OLD_SURFACE_LEAK NEW_PURPOSE_731' : 'BASE_RESULT_731', toolCalls: [] };
-    }
     return { text: 'NEW_WORK_RESULT NEW_PURPOSE_731', toolCalls: [] };
   } }) });
   const base = await listen(server);
@@ -65,10 +63,15 @@ test('QH-3 projection red: independent busy input과 control output은 old Work 
     assert.match(surfaces[0], /BASE_RESULT_731/u);
     assert.doesNotMatch(surfaces[0], /NEW_PURPOSE_731/u);
     assert.match(surfaces[1], /NEW_PURPOSE_731/u);
+    assert.deepEqual(mainProviderSawBusy, [false, true]);
     const canonical = await server.conversationLedger.read(session.id);
     assert.equal(canonical.entries.some((entry) => entry.message?.content === busyText), true);
     assert.equal(canonical.entries.some((entry) => entry.message?.toolCalls
-      ?.some((call) => call.name === 'work_control')), true);
+      ?.some((call) => call.name === 'transition_decision')), false);
+    const runs = await server.runLedger.list({ sessionId: session.id });
+    assert.equal(runs.some((candidate) => candidate.events.some((event) => (
+      event.type === 'transition_decision_completed' && event.payload.choice === 'new_work'
+    ))), true);
   } finally { release?.(); await close(server, room); }
 });
 
@@ -79,14 +82,18 @@ test('QH-3 projection red: visible paused Work는 raw ID 없는 bounded opaque c
   let entered; const started = new Promise((resolve) => { entered = resolve; });
   let release; const gate = new Promise((resolve) => { release = resolve; }); let turn = 0;
   let projected = false;
-  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => ({ async respond(input) {
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory: (context) => (
+    context.purpose === 'transition_decision' ? { async respond(input) {
+      const payload = JSON.parse(input.messages[0].content);
+      const candidate = payload.pausedCandidates.find((item) => item.title.includes('PAUSED_VISIBLE_OBJECTIVE'));
+      projected = Boolean(candidate) && !/workId|revision/u.test(input.messages[0].content);
+      return { text: 'not published', toolCalls: [{ id: 'resume-decision', name: 'transition_decision', args: {
+        choice: candidate ? 'resume_paused' : 'ambiguous', targetHandle: candidate?.handle ?? null,
+        currentWorkDisposition: 'pause',
+      } }] };
+    } } : { async respond(input) {
     turn += 1;
     if (turn === 1) { entered(); await gate; return { text: 'CURRENT_BASE', toolCalls: [] }; }
-    const admitted = input.messages.find((message) => String(message.content ?? '')
-      .includes('T5 NEWLY ADMITTED USER MESSAGE'));
-    projected = /pausedWorkCandidates=.*PAUSED_VISIBLE_OBJECTIVE/u.test(admitted?.content ?? '')
-      && /"handle":"paused_[A-Za-z0-9_-]{8,80}"/u.test(admitted?.content ?? '')
-      && !/workId/u.test(admitted?.content ?? '');
     return { text: 'resume candidate checked', toolCalls: [] };
   } }) });
   const base = await listen(server);

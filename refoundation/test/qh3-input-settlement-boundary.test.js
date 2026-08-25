@@ -26,9 +26,11 @@ async function runFixture({ prefix, arrangeExecutingInput }) {
   await mkdir(workspace, { recursive: true });
   let server;
   let arranged;
+  const runtimeErrors = [];
   server = makeConsoleServer({
     stateDir,
     workspace,
+    onError: (error) => runtimeErrors.push(error?.message ?? String(error)),
     modelFactory: () => ({
       async respond() {
         if (!arranged) {
@@ -52,7 +54,7 @@ async function runFixture({ prefix, arrangeExecutingInput }) {
       body: JSON.stringify({ sessionId: session.id, text: '기준 결과만 만들어줘' }),
     }).then((response) => response.json());
     const wire = await fetch(`${base}/turn/stream?streamId=${started.streamId}`).then((response) => response.text());
-    assert.match(wire, /BASE-REVISION-ONLY-RESULT/u);
+    assert.match(wire, /BASE-REVISION-ONLY-RESULT/u, runtimeErrors.join(' | '));
     return { state: await server.workStore.read(), arranged };
   } finally {
     await close(server, room);
@@ -70,17 +72,9 @@ test('QH-3 red: surface가 다루지 않은 deferred input은 executed로 승격
         messageId: 'fixture:deferred-user-message',
         source: { fixture: 'unaddressed_deferred' },
       });
-      await workStore.presentInputs({
-        sessionId: baseWork.sessionId,
-        workId: baseWork.workId,
-        revision: baseWork.revision,
-        runId: priorRunId,
-      });
-      await workStore.deferPresentedAfterDelivery({
-        inputId: admitted.inputId,
-        workId: baseWork.workId,
-        runId: priorRunId,
-      });
+      await workStore.commitTransitionDecision({ inputId: admitted.inputId,
+        sessionId: baseWork.sessionId, runId: priorRunId, currentWorkId: baseWork.workId,
+        choice: 'followup_after_delivery' });
       await workStore.recordResultReady({
         runId: priorRunId,
         sessionId: baseWork.sessionId,
@@ -120,21 +114,12 @@ test('QH-3 red: foreign Work/revision input은 current result에 결속하지 �
         messageId: 'fixture:independent-user-message',
         source: { fixture: 'foreign_work' },
       });
-      await workStore.presentInputs({
-        sessionId: currentWork.sessionId,
-        workId: currentWork.workId,
-        revision: currentWork.revision,
-        runId,
-      });
-      const forked = await workStore.forkPresentedToNewWork({
-        inputId: admitted.inputId,
-        currentWorkId: currentWork.workId,
-        runId,
-        currentWorkDisposition: 'pause',
-      });
+      const forkedInput = await workStore.commitTransitionDecision({ inputId: admitted.inputId,
+        sessionId: currentWork.sessionId, runId, currentWorkId: currentWork.workId,
+        choice: 'new_work', currentWorkDisposition: 'pause' });
       await workStore.claimInputExecution({ inputId: admitted.inputId, runId });
       return { inputId: admitted.inputId, currentWorkId: currentWork.workId,
-        foreignWorkId: forked.workId, resultRunId: runId };
+        foreignWorkId: forkedInput.workId, resultRunId: runId };
     },
   });
   const input = state.inputs.find((candidate) => candidate.inputId === arranged.inputId);
@@ -157,7 +142,12 @@ test('projected busy input settlement을 모델이 생략하면 digest나 execut
   await mkdir(workspace, { recursive: true });
   let entered; const started = new Promise((resolve) => { entered = resolve; });
   let release; const gate = new Promise((resolve) => { release = resolve; }); let turn = 0;
-  const server = makeConsoleServer({ stateDir, workspace, modelFactory: () => ({ async respond(input) {
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory: (context) => (
+    context.purpose === 'transition_decision' ? { async respond() {
+      return { text: '', toolCalls: [{ id: 'steer-decision', name: 'transition_decision', args: {
+        choice: 'steer_current', targetHandle: null, currentWorkDisposition: null,
+      } }] };
+    } } : { async respond(input) {
     turn += 1;
     if (turn === 1) { entered(); await gate; return { text: 'STALE-BASE', toolCalls: [] }; }
     assert.match(input.messages.find((message) => String(message.content)
