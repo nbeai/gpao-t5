@@ -1,0 +1,36 @@
+{
+  "schema": "t5.korea-connection-cp3-evidence.v1",
+  "recordedAt": "2026-08-25",
+  "sourceCommit": "5f70d945",
+  "branch": "codex/t5-connection-protocol",
+  "status": "isolated_complete_integration_pending_qh",
+  "readyEquation": [
+    "credential generation is verified",
+    "expected account and tenant identity match",
+    "required scopes are granted",
+    "protected capability probe succeeds",
+    "runtime health is available"
+  ],
+  "capabilityRule": "Expose only the intersection of trusted catalog capabilities and live verified capabilities.",
+  "counterTests": [
+    "public tools/list without protected probe is not ready",
+    "different provider account or tenant opens zero capabilities",
+    "missing required scope becomes needs_additional_permission",
+    "catalog-only and live-only capabilities are not exposed",
+    "runtime unavailable after probe becomes degraded",
+    "revoked and needs_reauth remain terminal auth states"
+  ],
+  "verification": {
+    "cp3Tests": "7_pass_0_fail",
+    "cp1ThroughCp3Combined": "21_pass_0_fail",
+    "boundary": "legacy_import_0",
+    "qhFilesChanged": 0,
+    "existingConnectionFilesChanged": 0
+  },
+  "nextAfterQh": [
+    "replace tool-name-regex readiness in remote-mcp-connection",
+    "feed official catalog capability declarations",
+    "feed provider-specific identity and protected probes",
+    "project the resulting state through Connection Truth"
+  ]
+}
