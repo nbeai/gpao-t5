@@ -1,0 +1,142 @@
+{
+  "schema": "t5.qh2-docx-macos-native-render-feasibility.v1",
+  "recordedDate": "2026-08-25",
+  "actualUserData": false,
+  "productCodeChanged": false,
+  "fixture": {
+    "kind": "synthetic_docx",
+    "pages": 3,
+    "sha256": "84dd7392eb44f3d587b6fcf56a28d849ef6d668fd3a0087fe138b1301d23950b",
+    "markers": [
+      "첫째 쪽 한글 기준 글리프 가나다",
+      "둘째 쪽 한글 기준 글리프 라마바",
+      "셋째 쪽 한글 기준 글리프 사아자"
+    ]
+  },
+  "quickLookPreview": {
+    "command": "qlmanage -p -o",
+    "type": "public.html",
+    "generator": "/System/Library/QuickLook/Office.qlgenerator",
+    "htmlBytes": 1252,
+    "htmlSha256": "5f745fa1fe65069e5da4625dc24e2c3dd9dc09f36a6eb3f5d2ae5969c2bde0c0",
+    "explicitPageContainers": 0,
+    "exactFormFeedParagraphs": 2,
+    "derivedPageCount": 3,
+    "allMarkersPresentInHtml": true,
+    "previewProperties": {
+      "CanHavePages": true,
+      "AllowNetworkAccess": false,
+      "AllowJavascript": true,
+      "Width": 637,
+      "Height": 792
+    },
+    "wallSecondsWarm": 0.07,
+    "finding": "text and page boundaries survive, but pages are one document div separated by form-feed paragraphs rather than page containers"
+  },
+  "localPageSplit": {
+    "parser": "lxml HTML DOM over system-generated local preview",
+    "pageHtmlBytes": [1016, 1016, 1016],
+    "sharedContainerCssCopiedToEveryPage": true,
+    "scriptsRemoved": true,
+    "externalNetworkAllowed": false,
+    "requiredBoundary": "exact form-feed-only paragraph child",
+    "note": "the first preview page owns nested shared style nodes; dropping them makes later pages render at the wrong size"
+  },
+  "nativeOffscreenRenderer": {
+    "implementation": "temporary Swift WKWebView.takeSnapshot helper",
+    "visibleWindow": false,
+    "activationPolicy": "prohibited",
+    "javascript": false,
+    "websiteDataStore": "nonPersistent",
+    "navigation": "file URL only",
+    "network": false,
+    "pageViewportPoints": [612, 792],
+    "pagePixels": [1224, 1584],
+    "wallSecondsThreePagesWarm": 0.59,
+    "runtimeDependencies": ["AppKit", "WebKit", "Foundation", "system Swift runtime"],
+    "universalHelper": {
+      "architectures": ["x86_64", "arm64"],
+      "bytes": 154448,
+      "sha256": "b66c30482c883cfde621290eeec1a79964ced609036e7f0a36b7c05642b32a2c",
+      "minimumBuildTarget": "macOS 13.0",
+      "compilerNeededAtInstall": false
+    }
+  },
+  "pagePixels": [
+    {
+      "page": 1,
+      "sha256": "15f28e36167b016d10aae136f86b7641190ea7afb2fff41e725dfc90897a86d1",
+      "bytes": 47660,
+      "nonWhitePixels": 7516,
+      "grayscaleStdDev": 13.166,
+      "contentBounds": [181, 148, 735, 188],
+      "visionText": "첫째 쪽 한글 기준 글리프 가나다"
+    },
+    {
+      "page": 2,
+      "sha256": "59ea5ff795f5432d18f62c10fef749a12685465d2480f5bf7ff926a0662eb10a",
+      "bytes": 47072,
+      "nonWhitePixels": 7928,
+      "grayscaleStdDev": 13.576,
+      "contentBounds": [181, 148, 735, 188],
+      "visionText": "둘째 쪽 한글 기준 글리프 라마바"
+    },
+    {
+      "page": 3,
+      "sha256": "81fe8671c36c01e14e2666b0fa8631bd436fd3997e0e3a15e050ae8a3d211506",
+      "bytes": 49123,
+      "nonWhitePixels": 7650,
+      "grayscaleStdDev": 13.292,
+      "contentBounds": [181, 148, 735, 188],
+      "visionText": "셋째 쪽 한글 기준 글리프 사아자"
+    }
+  ],
+  "pixelDifferences": [
+    { "pages": [1, 2], "differentPixels": 2079 },
+    { "pages": [1, 3], "differentPixels": 1893 },
+    { "pages": [2, 3], "differentPixels": 2152 }
+  ],
+  "libreOfficeControl": {
+    "engine": "LibreOfficeDev 26.8.0.0.alpha0",
+    "pages": 3,
+    "wallSecondsWarm": 1.27,
+    "pageSha256": [
+      "00746d84fe8e919521394d01d9c5b4928f521784fd6c8831f79049edf90e3753",
+      "00746d84fe8e919521394d01d9c5b4928f521784fd6c8831f79049edf90e3753",
+      "00746d84fe8e919521394d01d9c5b4928f521784fd6c8831f79049edf90e3753"
+    ],
+    "visualResult": "three identical blank white pages",
+    "environmentFinding": "bundled headless profile emitted fontconfig cachedir warnings and did not supply observable Korean fonts"
+  },
+  "currentT5Boundary": {
+    "renderer": "renderDocxFirstPage uses qlmanage -t and returns one page PNG",
+    "attachmentVisualInput": "inspectAuthorizedImageFile accepts one rendered bytes value and creates one input_image",
+    "agentLoop": "modelAttachments is already an array but DOCX producer supplies only one item",
+    "qualityUnits": "DOCX output qualification currently hardcodes document:page1",
+    "conclusion": "native producer is feasible; downstream all-page receipt and bounded multi-image projection still require a separate product change"
+  },
+  "minimalProductAdapter": [
+    "run qlmanage preview in a private bounded directory and accept exactly one regular qlpreview package",
+    "validate PreviewProperties and bounded UTF-8 HTML; reject symlinks, external URLs, scripts, oversized resources, and ambiguous output",
+    "split only exact form-feed page-boundary nodes while copying shared style nodes to every local page",
+    "invoke a packaged signed universal WKWebView helper with JavaScript and network disabled and read access limited to the sealed preview root",
+    "atomically return ordered page receipts with pageId, PNG sha256, dimensions, byte count, and nonblank pixel facts",
+    "supply ordered bounded page images to the existing modelAttachments array and keep raw preview HTML out of model context",
+    "bind output-quality render coverage to exact observed page IDs; use a separate typed glyph/visual observer rather than treating file existence or distinct hashes as semantic proof"
+  ],
+  "counterTests": [
+    "three form-feed pages produce exactly three ordered nonblank distinct fixture images with exact marker recovery",
+    "single page without a form feed stays one page",
+    "form-feed text outside the exact boundary node does not split a page",
+    "shared nested CSS is present in every derived page",
+    "script, network URL, root escape, symlink, oversized HTML/resource, ambiguous qlpreview, and helper crash fail closed",
+    "page count mismatch or partial page output never promotes a receipt",
+    "Quick Look thumbnail output cannot satisfy all-page coverage",
+    "LibreOffice blank identical pages fail the fixture even though three PNG files exist"
+  ],
+  "verdict": {
+    "feasible": true,
+    "productQualified": false,
+    "reason": "the native path preserves and renders all three Korean pages, but safe preview-package validation, packaged helper integration, all-page receipts, and downstream projection tests do not exist yet"
+  }
+}
