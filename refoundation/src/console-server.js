@@ -165,6 +165,12 @@ function json(res, status, value) {
   res.end(JSON.stringify(value));
 }
 
+function privateJson(res, status, value) {
+  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8',
+    'cache-control': 'no-store', pragma: 'no-cache' });
+  res.end(JSON.stringify(value));
+}
+
 function httpErrorStatus(error) {
   const status = Number(error?.status);
   return Number.isInteger(status) && status >= 400 && status <= 599 ? status : 500;
@@ -3684,25 +3690,31 @@ export function makeConsoleServer({
       }
       if (req.method === 'GET' && url.pathname === '/reflection/review/state') {
         if (!reflectionReviewCoordinator) {
-          json(res, 200, { schema: 't5.reflection-review-surface.v1', available: false,
+          privateJson(res, 200, { schema: 't5.reflection-review-surface.v1', available: false,
             appliedCount: 0, items: [], sideEffects: { writes: 0 } }); return;
         }
-        json(res, 200, { available: true, ...await reflectionReviewCoordinator.list() }); return;
+        privateJson(res, 200, { available: true, ...await reflectionReviewCoordinator.list() }); return;
       }
       if (req.method === 'POST' && url.pathname === '/reflection/review/detail') {
         if (!reflectionReviewCoordinator) throw Object.assign(
           new Error('검토할 배운 점 기능을 아직 사용할 수 없어요.'), { status: 409 });
-        json(res, 200, await reflectionReviewCoordinator.detail(await body(req))); return;
+        privateJson(res, 200, await reflectionReviewCoordinator.detail(await body(req))); return;
       }
       if (req.method === 'POST' && url.pathname === '/reflection/review/source') {
         if (!reflectionReviewCoordinator) throw Object.assign(
           new Error('검토할 배운 점 기능을 아직 사용할 수 없어요.'), { status: 409 });
-        json(res, 200, await reflectionReviewCoordinator.source(await body(req))); return;
+        privateJson(res, 200, await reflectionReviewCoordinator.source(await body(req))); return;
       }
       if (req.method === 'POST' && url.pathname === '/reflection/review/action') {
         if (!reflectionReviewCoordinator) throw Object.assign(
           new Error('검토할 배운 점 기능을 아직 사용할 수 없어요.'), { status: 409 });
         const input = await body(req); const decision = String(input.decision ?? '');
+        const actionFields = ['requestId', 'reviewHandle', 'revisionHandle', 'decision'];
+        if (!input || typeof input !== 'object' || Array.isArray(input)
+          || Object.keys(input).length !== actionFields.length
+          || actionFields.some((field) => !(field in input))) {
+          throw Object.assign(new Error('검토 요청 형식이 올바르지 않아요.'), { status: 400 });
+        }
         const actionInput = decision === 'later'
           ? { reviewHandle: input.reviewHandle, revisionHandle: input.revisionHandle }
           : { requestId: input.requestId, reviewHandle: input.reviewHandle,
@@ -3710,9 +3722,9 @@ export function makeConsoleServer({
         const action = decision === 'retain' ? 'retain' : decision === 'reject' ? 'reject'
           : decision === 'later' ? 'later' : null;
         if (!action) throw Object.assign(new Error('검토 동작을 이해하지 못했어요.'), { status: 400 });
-        try { json(res, 200, await reflectionReviewCoordinator[action](actionInput)); }
+        try { privateJson(res, 200, await reflectionReviewCoordinator[action](actionInput)); }
         catch (problem) {
-          if (/reflection_review_|reflection_source_window|current_evidence/u.test(problem?.code ?? '')) {
+          if (/reflection_review_|reflection_source_|current_evidence/u.test(problem?.code ?? '')) {
             problem.status = problem.code?.includes('not_found') ? 404 : 409;
           }
           throw problem;
@@ -3913,7 +3925,12 @@ export function makeConsoleServer({
       json(res, 404, { error: '이 재창립 단계에서는 아직 제공하지 않아요.' });
     } catch (error) {
       onError?.(error);
-      json(res, httpErrorStatus(error), { error: error?.message ?? '처리 중 문제가 있었어요.' });
+      if (url.pathname.startsWith('/reflection/review/')
+        && /reflection_review_|reflection_source_|current_evidence/u.test(error?.code ?? '')) {
+        error.status = error.code?.includes('not_found') ? 404 : 409;
+      }
+      const responder = url.pathname.startsWith('/reflection/review/') ? privateJson : json;
+      responder(res, httpErrorStatus(error), { error: error?.message ?? '처리 중 문제가 있었어요.' });
     }
   });
   server.managedProcesses = processes;

@@ -108,7 +108,7 @@ function availabilityFor(reference, receipt) {
   const item = receipt?.reopenAccountingRecords?.find((record) => record.recordId === reference.recordId);
   if (!item) return { code: 'unknown', label: '현재 확인 상태를 알 수 없음' };
   if (item.availability === 'available' && item.digestMatched === true) {
-    return { code: 'available', label: '확인 가능' };
+    return { code: 'available', label: '제안 생성 때 확인됨' };
   }
   if (item.availability === 'changed' || item.digestMatched === false) {
     return { code: 'changed', label: '원본이 바뀜' };

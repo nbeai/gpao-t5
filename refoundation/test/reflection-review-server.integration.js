@@ -15,7 +15,8 @@ async function listen(server) {
 async function post(base, path, value) {
   const response = await fetch(`${base}${path}`, { method: 'POST',
     headers: { 'content-type': 'application/json' }, body: JSON.stringify(value) });
-  return { status: response.status, body: await response.json() };
+  return { status: response.status, cacheControl: response.headers.get('cache-control'),
+    body: await response.json() };
 }
 
 test('Reflection 검토 API는 설정에서만 sanitized 상태와 retain·reject·later를 연결한다', async () => {
@@ -33,7 +34,10 @@ test('Reflection 검토 API는 설정에서만 sanitized 상태와 retain·rejec
     async detail(input) { calls.push(['detail', input]); return { item: { ...item,
       notices: ['아직 어떤 작업에도 적용되지 않았어요.'], support: [], counterexamples: [],
       uncertainties: ['추가 검증 필요'], currentCorrections: [] }, sideEffects: { writes: 0 } }; },
-    async source(input) { calls.push(['source', input]); return { source: {
+    async source(input) { calls.push(['source', input]);
+      if (input.sourceHandle !== 'source_safe') throw Object.assign(new Error('not found'), {
+        code: 'reflection_source_not_found' });
+      return { source: {
       state: 'available', stateLabel: '현재 원본을 확인했어요.', content: '안전한 출처 내용',
     }, sideEffects: { writes: 0 } }; },
     async retain(input) { calls.push(['retain', input]); return { decision: 'kept_for_review',
@@ -52,18 +56,29 @@ test('Reflection 검토 API는 설정에서만 sanitized 상태와 retain·rejec
   try {
     await fetch(`${base}/memory/state`); await fetch(`${base}/overview`);
     assert.deepEqual(calls, []);
-    const state = await fetch(`${base}/reflection/review/state`).then((response) => response.json());
+    const stateResponse = await fetch(`${base}/reflection/review/state`);
+    assert.equal(stateResponse.headers.get('cache-control'), 'no-store');
+    const state = await stateResponse.json();
     assert.equal(state.items[0].applied, false); assert.deepEqual(calls, [['list']]);
     const detail = await post(base, '/reflection/review/detail', { reviewHandle: 'review_safe' });
-    assert.equal(detail.status, 200); assert.equal(detail.body.item.applied, false);
+    assert.equal(detail.status, 200); assert.equal(detail.cacheControl, 'no-store');
+    assert.equal(detail.body.item.applied, false);
     const source = await post(base, '/reflection/review/source', {
       reviewHandle: 'review_safe', sourceHandle: 'source_safe' });
+    assert.equal(source.cacheControl, 'no-store');
     assert.equal(source.body.source.content, '안전한 출처 내용');
     for (const decision of ['retain', 'reject', 'later']) {
       const action = await post(base, '/reflection/review/action', { requestId: `request-${decision}`,
         reviewHandle: 'review_safe', revisionHandle: 'revision_safe', decision });
       assert.equal(action.status, 200); assert.equal(action.body.item.applied, false);
     }
+    const unknown = await post(base, '/reflection/review/action', { requestId: 'request-forged',
+      reviewHandle: 'review_safe', revisionHandle: 'revision_safe', decision: 'retain',
+      reflectionId: 'forged' });
+    assert.equal(unknown.status, 400);
+    const foreign = await post(base, '/reflection/review/source', {
+      reviewHandle: 'review_safe', sourceHandle: 'source_foreign' });
+    assert.equal(foreign.status, 404); assert.equal(foreign.cacheControl, 'no-store');
     const serialized = JSON.stringify({ state, detail: detail.body, source: source.body });
     assert.doesNotMatch(serialized, /reflectionId|recordId|sourceFence|candidateDigest|materializationDigest/u);
   } finally {

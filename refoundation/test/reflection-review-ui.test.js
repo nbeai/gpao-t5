@@ -12,6 +12,7 @@ test('배운 점 검토는 기억 설정에서만 lazy load하고 기억 패널 
   assert.ok(start > 0 && end > start);
   assert.equal((html.match(/fetch\('\/reflection\/review\/state'/gu) ?? []).length, 1);
   assert.match(review, /try \{[\s\S]*fetch\('\/reflection\/review\/state'\)[\s\S]*\} catch \{/u);
+  assert.match(review, /state\.available === false[\s\S]*아직 연결되지 않아 현재 상태를 확인할 수 없어요/u);
   const memory = html.slice(html.indexOf('async memory()'), html.indexOf('async looks()'));
   assert.match(memory, /await renderReflectionReview\(setBody\)/u);
   assert.match(review, /기억과 기록은 그대로 확인할 수 있어요/u);

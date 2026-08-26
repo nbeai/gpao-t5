@@ -2194,6 +2194,10 @@ async function renderReflectionReview(target) {
     const response = await fetch('/reflection/review/state');
     const state = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error('review state unavailable');
+    if (state.available === false) {
+      list.appendChild(mk('div', 'tb-empty', '배운 점 검토가 아직 연결되지 않아 현재 상태를 확인할 수 없어요.'));
+      return;
+    }
     if (!(state.items ?? []).length) {
       list.appendChild(mk('div', 'tb-empty', '지금 검토할 배운 점이 없어요.')); return;
     }
