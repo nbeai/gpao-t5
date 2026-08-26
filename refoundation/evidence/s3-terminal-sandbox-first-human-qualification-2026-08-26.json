@@ -1,0 +1,58 @@
+{
+  "schema": "t5.s3.terminal-sandbox-first-human-qualification.v1",
+  "verdict": "PASS_WITH_OBSERVATION",
+  "userGoal": "calculate the exact BLUE count and AMOUNT total from 1600 local records without listing every filename",
+  "oracle": {"count":800,"amount":7194},
+  "results": {
+    "gpt-5.6-terra": {
+      "correct": true,
+      "complete": true,
+      "wallMs": 17708,
+      "modelCalls": 8,
+      "providerTokens": 85746,
+      "execCalls": 6,
+      "execWallMs": 1087,
+      "effectNullCalls": 6,
+      "macosObservationProbeCalls": 6,
+      "changedEffects": 0
+    },
+    "gpt-5.5": {
+      "correct": true,
+      "complete": true,
+      "wallMs": 21213,
+      "modelCalls": 5,
+      "providerTokens": 59834,
+      "execCalls": 4,
+      "execWallMs": 402,
+      "effectNullCalls": 4,
+      "macosObservationProbeCalls": 4,
+      "changedEffects": 0
+    }
+  },
+  "runtimeQualification": {
+    "readOnlyExecRunsWithoutModelEffectForm": true,
+    "fileWriteProbeChangedNothing": true,
+    "failureMaskingWriteStillEscalates": true,
+    "protectedSecretContentObserved": false,
+    "externalNetworkDenied": true,
+    "loopbackAllowed": true,
+    "signalDenied": true,
+    "appleEventDenied": true,
+    "observeCannotBypassProbe": true,
+    "unqualifiedPlatformNullExecution": 0,
+    "exactProbeThenEffectSettlement": true
+  },
+  "performanceObservation": {
+    "speedImprovementProven": false,
+    "perceivedRegressionProven": false,
+    "reason": "both paired goals passed; total wall varied by model turns while measured local exec occupied 1087ms and 402ms respectively",
+    "instructionAndSchemaTaxReducedAfterPilot": true,
+    "cleanMedianClaimed": false
+  },
+  "notClaimed": [
+    "Windows or Linux sandbox-first",
+    "generic external-network CLI execution",
+    "clean multi-sample speed improvement",
+    "all operating-system effect classes"
+  ]
+}

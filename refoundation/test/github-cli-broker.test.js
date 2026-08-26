@@ -33,7 +33,7 @@ test('제품 broker는 설치된 gh fixture만 direct argv로 실행하고 미�
     assert.match(found, /\/bin\/gh$/u);
     const broker = makeTerminalCredentialBroker({ registrations: [makeGitHubCliRegistration(found)] });
     const tool = makeExecTool({ workspace: room, terminalCredentialBroker: broker });
-    assert.match(tool.description, /Registered credential-owning CLI: gh.*directly.*do not precheck.*command -v/iu);
+    assert.match(tool.description, /Registered direct read CLI: gh.*directly.*command -v/iu);
     const result = await tool.execute({ command: 'gh repo list --limit 10', cwd: null, effect });
     assert.match(result.stdout, /ARGS=repo\|list\|--limit/u);
     assert.match(result.stdout, /PROMPT=1 PAGER=cat/u);

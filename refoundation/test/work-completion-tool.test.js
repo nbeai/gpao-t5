@@ -68,6 +68,32 @@ test('실패한 읽기 route 뒤 다른 Hand의 성공 Evidence도 과거 실패
   assert.equal(unknown.verifiedOutcome, 'unresolved'); assert.ok(unknown.blockers.includes('effect_unknown'));
 });
 
+test('변경 0인 sandbox probe는 exact non-observe 재실행 성공 뒤에만 완료 blocker에서 내려간다', () => {
+  const probe = {
+    outcome: 'failed', requestedCall: { name: 'exec', args: {
+      command: 'printf x > result.txt', cwd: null, effect: null,
+    } }, actualCall: { name: 'exec', args: {
+      command: 'printf x > result.txt', cwd: null, effect: null,
+    } }, result: { state: 'effect_declaration_required', probeChangedNothing: true },
+  };
+  const applied = {
+    outcome: 'succeeded', requestedCall: { name: 'exec', args: {
+      command: 'printf x > result.txt', cwd: null,
+      effect: { kind: 'local_change', targets: ['result.txt'] },
+    } }, actualCall: { name: 'exec', args: {
+      command: 'printf x > result.txt', cwd: null,
+      effect: { kind: 'local_change', targets: ['result.txt'] },
+    } }, result: { state: 'completed', effectUnknown: false },
+  };
+  assert.equal(evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [probe] }).verifiedOutcome,
+    'unresolved');
+  assert.equal(evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [probe, {
+    ...applied, actualCall: { ...applied.actualCall, args: { ...applied.actualCall.args, command: 'other' } },
+  }] }).verifiedOutcome, 'unresolved');
+  assert.equal(evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [probe, applied] }).verifiedOutcome,
+    'achieved');
+});
+
 test('approval·handoff·delivery 미달은 proposal과 final이 공유하는 blocker digest로 unresolved가 된다', () => {
   const cases = [
     { receipts: [{ outcome: 'succeeded', result: { state: 'approval_required' } }], blocker: 'approval_pending' },

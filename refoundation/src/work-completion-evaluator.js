@@ -3,6 +3,19 @@ import { validExecutableOperationRecovery } from './executable-operation-attempt
 
 function recoveredFailure(receipts, index) {
   const failed = receipts[index];
+  if (failed?.result?.state === 'effect_declaration_required'
+    && failed?.result?.probeChangedNothing === true) {
+    const failedName = failed?.actualCall?.name ?? failed?.requestedCall?.name;
+    const failedArgs = failed?.actualCall?.args ?? failed?.requestedCall?.args ?? {};
+    return receipts.slice(index + 1).some((receipt) => {
+      const name = receipt?.actualCall?.name ?? receipt?.requestedCall?.name;
+      const args = receipt?.actualCall?.args ?? receipt?.requestedCall?.args ?? {};
+      return receipt?.outcome === 'succeeded' && name === failedName
+        && args.command === failedArgs.command && args.cwd === failedArgs.cwd
+        && args.effect?.kind && args.effect.kind !== 'observe'
+        && receipt?.result?.effectUnknown !== true;
+    });
+  }
   const effectKind = failed?.actualCall?.args?.effect?.kind ?? failed?.requestedCall?.args?.effect?.kind ?? null;
   if (effectKind && effectKind !== 'observe') return false;
   const finalEvidence = receipts.slice(index + 1).findLast((receipt) => (

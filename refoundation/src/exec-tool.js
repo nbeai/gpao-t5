@@ -135,7 +135,7 @@ function makeCommandTool(options = {}, { managed }) {
     : async () => ({ ok: false, parser: 'unavailable', commandFamily: runtime.family }));
   const registeredCli = managed ? [] : (terminalCredentialBroker?.capabilities ?? []);
   const registeredCliDescription = registeredCli.length
-    ? ` Registered credential-owning CLI: ${registeredCli.map((item) => item.executable).join(', ')}. Call a registered CLI directly for its allowed read actions; do not precheck it with command -v or wrap it in command, env, or another shell.`
+    ? ` Registered direct read CLI: ${registeredCli.map((item) => item.executable).join(', ')}; call it directly, without a command -v wrapper.`
     : '';
 
   const tool = {
@@ -151,7 +151,7 @@ function makeCommandTool(options = {}, { managed }) {
           type: ['string', 'null'],
           description: 'Accessible directory to run in, or null to use the default working directory.',
         },
-        effect: EFFECT_SCHEMA,
+        effect: managed ? EFFECT_SCHEMA : { ...EFFECT_SCHEMA, type: ['object', 'null'] },
       },
       required: ['command', 'cwd', 'effect'],
       additionalProperties: false,
@@ -188,6 +188,7 @@ function makeCommandTool(options = {}, { managed }) {
 
       const onAbort = () => { registry.stopOwner(ownerId, 'aborted').catch(() => {}); };
       context.signal?.addEventListener('abort', onAbort, { once: true });
+      let launch;
       try {
         const effectBefore = await observeDeclaredEffect(declaredEffect, cwd);
         const normalLaunch = {
@@ -199,11 +200,15 @@ function makeCommandTool(options = {}, { managed }) {
         if (brokered.matched && !brokered.allowed) {
           throw Object.assign(new Error(brokered.reason), { code: 'T5_REGISTERED_CLI_ACTION_REQUIRED' });
         }
-        const launch = brokered.allowed ? {
+        const observationProbe = !managed && declaredEffect.kind === 'observe' && !brokered.allowed
+          && typeof terminalPlatformAdapter?.prepareObservationProbe === 'function';
+        launch = brokered.allowed ? {
           ...normalLaunch, program: brokered.launch.program, args: brokered.launch.args,
           env: { ...normalLaunch.env, ...brokered.launch.env },
           confinement: { kind: 'registered_cli_broker', qualified: true },
-        } : terminalPlatformAdapter?.prepare ? await terminalPlatformAdapter.prepare(normalLaunch) : normalLaunch;
+        } : observationProbe
+          ? await terminalPlatformAdapter.prepareObservationProbe(normalLaunch)
+          : terminalPlatformAdapter?.prepare ? await terminalPlatformAdapter.prepare(normalLaunch) : normalLaunch;
         let result = await registry.start({
           program: launch.program,
           args: launch.args,
@@ -240,6 +245,15 @@ function makeCommandTool(options = {}, { managed }) {
             declaredEffect, effectBefore, effectAfter,
           ),
         };
+        const observationBoundary = launch.assess?.(result);
+        if (observationBoundary?.blocked) result = {
+          ...result,
+          originalExitCode: result.exitCode,
+          exitCode: 77,
+          state: observationBoundary.state,
+          reason: observationBoundary.reason,
+          probeChangedNothing: true,
+        };
         if (brokered.allowed) result = {
           ...redactBrokeredTerminalResult(result, brokered.launch.sensitiveValues),
           credentialBroker: brokered.receipt,
@@ -259,6 +273,7 @@ function makeCommandTool(options = {}, { managed }) {
         }
         return { ...result, commandExplanation };
       } finally {
+        await launch?.cleanup?.().catch(() => {});
         context.signal?.removeEventListener('abort', onAbort);
       }
     },
@@ -279,6 +294,14 @@ function makeCommandTool(options = {}, { managed }) {
             },
           };
         }
+      }
+      if (!managed && args?.effect == null) {
+        if (terminalPlatformAdapter?.observationProbeQualified !== true) return {
+          allowed: false, outcome: 'not_executed', result: {
+            state: 'effect_declaration_required', reason: 'observation_probe_unavailable',
+          },
+        };
+        return { allowed: true };
       }
       const normalizedArgs = { ...structuredClone(args), effect: normalizeTerminalEffect(args?.effect) };
       return effectPreflight({
