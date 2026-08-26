@@ -1,11 +1,13 @@
 # T5 S3-A Performance Truth — 연구 봉인 및 작업지시서
 
-상태: `S3-A MEASUREMENT ACTIVE · TERMINAL-FIRST BASELINE OPEN · OPTIMIZATION FORBIDDEN`
+상태: `S3-A PASS WITH OBSERVATION · MEASUREMENT CLOSED · OPTIMIZATION STILL FORBIDDEN`
 
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER`
 
 이 작업지시서는 `T5-THIRD-ACTIVATION-PREPARATION.md`의 S3-A를 실행하는 유일한 측정 계약이다. 현재 Gate,
-2차 완료 판정, Release blocker를 변경하지 않는다. 아직 측정 결과도 성능 개선도 아니다.
+2차 완료 판정, Release blocker를 변경하지 않는다. 측정 결과는
+`refoundation/evidence/s3-a-performance-truth-close-2026-08-27.json`에서 닫았으며 성능 개선이나 구조 변경을
+승인하지 않는다.
 
 ## 1. 사용자 목적과 판정 질문
 

@@ -1,0 +1,93 @@
+{
+  "schema": "t5.s3a.performance-truth-close.v1",
+  "recordedAt": "2026-08-27T08:20:00+09:00",
+  "status": "PASS_WITH_OBSERVATION",
+  "officialReleaseGateChanged": false,
+  "fullFactorialExecuted": false,
+  "coverageAreas": 10,
+  "sentinelJourneys": 7,
+  "method": "reuse existing evidence, rerun only S1 observer, S6 state/context, and S7 background causal sentinels",
+  "currentMeasurements": {
+    "S1": {
+      "productDigestCount": 1,
+      "O0MedianMicrosecondsPerJourney": 2.603664,
+      "O1DeltaMicrosecondsPerJourney": 0.316668,
+      "O2DeltaMicrosecondsPerJourney": 1.842004,
+      "postProductFlushMilliseconds": 1.77825,
+      "tracePayloadBytes": 9228,
+      "actualSidecarBytes": 9233,
+      "blockingWritesBeforeProductTerminal": 0,
+      "passed": true
+    },
+    "S6": {
+      "samples": 12,
+      "shortCold": { "stateReadReplayMs": 1.098167, "contextCompilationMs": 1.020166, "requestBytes": 28885 },
+      "shortWarm": { "stateReadReplayMs": 0.232083, "contextCompilationMs": 0.342208, "requestBytes": 28885 },
+      "longCold": { "stateReadReplayMs": 6.332666, "contextCompilationMs": 1.701458, "requestBytes": 49521 },
+      "longWarm": { "stateReadReplayMs": 4.559209, "contextCompilationMs": 0.786875, "requestBytes": 49521 },
+      "qualityPasses": "12/12",
+      "bodyDigestsPerCondition": 1,
+      "passed": true
+    },
+    "S7": {
+      "design": "AB_BA_x_O0_O2_small_quartet",
+      "pairs": 4,
+      "foregroundSemanticDigestAgreement": true,
+      "toolArgsOrderContextAndStoreOpsAgreement": true,
+      "backgroundYieldedBeforeForeground": true,
+      "stalePublicationCommits": 0,
+      "wallDeltaMs": [-0.327209, 0.006875, -0.008083, 0.010041],
+      "directionConsistent": false,
+      "passed": true
+    }
+  },
+  "phaseTruth": {
+    "startup": "unknown; subprocess wall is explicitly not used as a cold/warm phase claim",
+    "stateReadReplay": "directly measured in S6",
+    "contextCompilation": "directly measured in S6",
+    "providerQueueNetwork": "combined unknown; provider exposes no qualified split",
+    "modelGeneration": "combined unknown; provider exposes no qualified split",
+    "toolExecution": "direct deterministic O2 span in S7 plus aggregate product evidence",
+    "verification": "direct deterministic O2 span in S7 plus product receipts",
+    "surfacePublication": "direct deterministic O2 span in S7 plus UX publication receipts",
+    "backgroundInterference": "paired causal S7 delta measured; no consistent adverse direction"
+  },
+  "coverageDisposition": {
+    "S1": "current rerun",
+    "S2": "existing exact file-discovery quality and aggregate wall reused; no remaining phase question after S6",
+    "S3": "existing paired bulk/document evidence reused; UX artifact/effect failure families now qualified",
+    "S4": "existing Telegram/Notion evidence reused; UX Telegram admission/delivery current deterministic qualification reused",
+    "S5": "current UX correction/cancel/claim-release/product surface qualification reused",
+    "S6": "current rerun",
+    "S7": "current rerun"
+  },
+  "observerNoninterference": {
+    "providerRequestChanged": false,
+    "toolOrderOrArgsChanged": false,
+    "authorityEffectVerificationSurfaceChanged": false,
+    "instrumentationInModelContextOrUserSurface": false,
+    "clockWriterDropFailureChangedProduct": false
+  },
+  "stopDecision": {
+    "reason": "additional S2-S5 samples would fill rows but would not distinguish a remaining cause",
+    "notExpandedAxes": ["second live model phase split", "machine-cold page cache", "S2 file cold/warm", "S3 bulk rerun", "S4 network rerun", "S5 model matrix"],
+    "currentSourceRequestByteObservation": "S6 short and long requests are each 118 bytes above the historical shadow; this is a co-occurring source change, not a same-purpose causal regression claim"
+  },
+  "architectureDecision": {
+    "sqliteProductStore": "NOT_AUTHORIZED_BY_EVIDENCE",
+    "promptDecomposition": "NOT_AUTHORIZED_BY_EVIDENCE",
+    "actor": "NOT_AUTHORIZED_BY_EVIDENCE",
+    "outbox": "NOT_AUTHORIZED_BY_EVIDENCE",
+    "completionEnvelope": "NOT_AUTHORIZED_BY_EVIDENCE",
+    "reason": "local state/context totals are single-digit milliseconds while provider/model split remains unknown and background delta has no consistent adverse direction"
+  },
+  "productWrites": 0,
+  "externalWrites": 0,
+  "passed": true,
+  "notClaimed": [
+    "T5 is globally fast",
+    "provider queue and model generation are separately known",
+    "physical Windows performance qualification",
+    "any optimization or architecture migration is approved"
+  ]
+}
