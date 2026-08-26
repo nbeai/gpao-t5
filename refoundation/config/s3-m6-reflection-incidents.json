@@ -1,0 +1,164 @@
+{
+  "schema": "t5.s3m6.reflection-incidents.v1",
+  "status": "fixtures_locked_product_unchanged_gate_not_qualified",
+  "sourceCommit": "ad96364bb1cd62b8c236db258f2637759bf6dc19",
+  "basis": [
+    "refoundation/config/s3-memory-incidents.json#M0-01",
+    "refoundation/config/s3-memory-incidents.json#M0-06",
+    "refoundation/config/s3-memory-incidents.json#M0-09",
+    "refoundation/config/s3-memory-incidents.json#M0-10",
+    "refoundation/config/s3-memory-incidents.json#M0-11",
+    "refoundation/config/s3-memory-incidents.json#M0-12",
+    "refoundation/evidence/s3-m6-preflight-reuse-audit-2026-08-27.json"
+  ],
+  "purpose": "Freeze M6 Reflection failure families before a Reflection, Principle, scheduler, or internal procedural revision is implemented.",
+  "privacy": {
+    "realUserData": false,
+    "rawPersonalData": false,
+    "absolutePaths": false,
+    "realAccounts": false,
+    "rawSecrets": false,
+    "safeSyntheticCanariesOnly": true
+  },
+  "gateClaims": {
+    "m6GatePass": false,
+    "reflectionImplemented": false,
+    "principleQualified": false,
+    "managedCapabilityActivationAllowed": false
+  },
+  "incidents": [
+    {
+      "id": "M6-I01",
+      "family": "reflection_promoted_to_persona",
+      "userFailure": "A provisional pattern from repeated work becomes a durable claim about who the user is.",
+      "sourceSetup": { "episodes": ["episode-safe-a", "episode-safe-b"], "support": "two achieved observations", "counterexamples": [] },
+      "mutation": { "type": "promote", "target": "persona", "reviewed": false },
+      "oracle": { "candidateState": "inactive_reviewable", "personaWrites": 0, "durableFactWrites": 0 },
+      "nonGoals": ["infer user identity", "create a personality profile", "publish a Principle"]
+    },
+    {
+      "id": "M6-I02",
+      "family": "model_inference_only_source",
+      "userFailure": "A model-authored explanation is treated as independent evidence for a Reflection.",
+      "sourceSetup": { "episodes": [], "modelInference": "Synthetic hypothesis without an observed Episode", "recordRefs": [] },
+      "mutation": { "type": "propose", "support": "model_inferred_only" },
+      "oracle": { "candidateAccepted": false, "sourceDeficit": "observed_episode_required", "promotions": 0 },
+      "nonGoals": ["ban model reasoning", "convert inference into user Memory", "activate a method"]
+    },
+    {
+      "id": "M6-I03",
+      "family": "duplicate_episode_or_work_support",
+      "userFailure": "One success counted through duplicate Episode pointers appears to be repeated independent evidence.",
+      "sourceSetup": { "episodes": ["episode-safe-a", "episode-safe-a-copy"], "workHandles": ["work-safe-a", "work-safe-a"] },
+      "mutation": { "type": "deduplicate", "identityBasis": "exact_work_and_settlement" },
+      "oracle": { "distinctEligibleWorks": 1, "candidateAccepted": false, "duplicateEvidenceGain": 0 },
+      "nonGoals": ["delete canonical Episodes", "merge distinct Work", "infer duplication from prose"]
+    },
+    {
+      "id": "M6-I04",
+      "family": "missing_method_genealogy",
+      "userFailure": "A successful outcome is credited to a method that cannot be tied to the actions actually used.",
+      "sourceSetup": { "episode": "episode-safe-method", "methodRecordRefs": [], "outcome": "achieved" },
+      "mutation": { "type": "propose_method", "method": "synthetic bounded procedure" },
+      "oracle": { "candidateAccepted": false, "deficit": "exact_method_record_reference_required", "principleWrites": 0 },
+      "nonGoals": ["reconstruct commands from model prose", "store raw terminal output", "claim causal attribution"]
+    },
+    {
+      "id": "M6-I05",
+      "family": "missing_effect_genealogy",
+      "userFailure": "A method is called successful when no exact effect or verification receipt proves the result.",
+      "sourceSetup": { "episode": "episode-safe-effect", "methodRecordRefs": ["record-safe-method"], "effectReceipts": [] },
+      "mutation": { "type": "propose_improvement", "claimedOutcome": "achieved" },
+      "oracle": { "candidateAccepted": false, "deficit": "effect_and_verification_genealogy_required", "falseSuccesses": 0 },
+      "nonGoals": ["repeat an unknown effect", "trust assistant completion text", "manufacture a receipt"]
+    },
+    {
+      "id": "M6-I06",
+      "family": "source_unavailable",
+      "userFailure": "A reviewer presents a Reflection as inspectable after its supporting source becomes unavailable.",
+      "sourceSetup": { "recordRef": "record-safe-unavailable", "availability": "unavailable", "digestState": "not_checked" },
+      "mutation": { "type": "review", "requestedEvidence": "exact_source" },
+      "oracle": { "reviewState": "source_unavailable", "candidateQualified": false, "sourceAbsenceClaimed": false },
+      "nonGoals": ["treat unavailable as nonexistent", "replace the source with a summary", "publish a Principle"]
+    },
+    {
+      "id": "M6-I07",
+      "family": "source_changed_after_observation",
+      "userFailure": "A Reflection keeps its original support after the exact source content changes.",
+      "sourceSetup": { "recordRef": "record-safe-changed", "expectedDigest": "safe-digest-before", "observedDigest": "safe-digest-after" },
+      "mutation": { "type": "reopen_source", "revision": 2 },
+      "oracle": { "reviewState": "source_changed", "candidateQualified": false, "oldEvidenceUsed": 0 },
+      "nonGoals": ["accept identity without digest", "overwrite canonical source", "silently refresh support"]
+    },
+    {
+      "id": "M6-I08",
+      "family": "taint_laundering",
+      "userFailure": "Repeated external or model-inferred material is relabeled as trusted curated evidence.",
+      "sourceSetup": { "origins": ["external_untrusted", "model_inferred"], "confirmations": 3, "userConfirmed": false },
+      "mutation": { "type": "promote_trust", "requestedTrust": "curated" },
+      "oracle": { "originTaintPreserved": true, "curatedPromotions": 0, "candidateQualified": false },
+      "nonGoals": ["erase origin through repetition", "treat popularity as verification", "write user Memory"]
+    },
+    {
+      "id": "M6-I09",
+      "family": "counterexample_omitted",
+      "userFailure": "A reviewer hides an eligible failure that contradicts the proposed method.",
+      "sourceSetup": { "supportingEpisodes": ["episode-safe-support"], "counterexamples": ["episode-safe-counterexample"] },
+      "mutation": { "type": "build_review", "includedCounterexamples": [] },
+      "oracle": { "reviewComplete": false, "omittedCounterexamples": 1, "candidateQualified": false },
+      "nonGoals": ["require every historical Episode", "count unrelated failures", "publish an incomplete review"]
+    },
+    {
+      "id": "M6-I10",
+      "family": "counterexample_overlaps_support",
+      "userFailure": "The same Episode is counted as both support and holdout, producing a circular qualification.",
+      "sourceSetup": { "supportingEpisodes": ["episode-safe-overlap"], "counterexamples": ["episode-safe-overlap"] },
+      "mutation": { "type": "qualify", "holdoutPolicy": "must_be_disjoint" },
+      "oracle": { "sourceOverlap": 1, "candidateQualified": false, "independentHoldouts": 0 },
+      "nonGoals": ["duplicate an Episode to create a holdout", "change canonical Episode identity", "waive independence"]
+    },
+    {
+      "id": "M6-I11",
+      "family": "current_correction_omitted",
+      "userFailure": "A proposed method preserves old outcomes but ignores the user's current correction.",
+      "sourceSetup": { "historicalEpisodes": ["episode-safe-old"], "currentCorrectionRecordRef": "record-safe-correction", "correctionRevision": 2 },
+      "mutation": { "type": "compare", "candidateUsesCorrectionRevision": 1 },
+      "oracle": { "candidateQualified": false, "currentCorrectionWins": true, "staleProjectionCount": 0 },
+      "nonGoals": ["rewrite historical Episodes", "infer correction from similarity", "demote the current user statement"]
+    },
+    {
+      "id": "M6-I12",
+      "family": "foreground_correction_after_review_stale_fence",
+      "userFailure": "A background review publishes after a newer foreground correction and restores stale guidance.",
+      "sourceSetup": { "reviewGeneration": 4, "foregroundGeneration": 5, "currentCorrectionRecordRef": "record-safe-newer" },
+      "mutation": { "type": "publish_background_candidate", "expectedGeneration": 4 },
+      "oracle": { "publicationAccepted": false, "reason": "stale_generation", "foregroundStateChanged": false },
+      "nonGoals": ["block foreground completion", "retry stale publication blindly", "cancel the user's correction"]
+    },
+    {
+      "id": "M6-I13",
+      "family": "forgotten_source_reused",
+      "userFailure": "A Reflection continues to use an Episode or RecordRef whose underlying memory was forgotten.",
+      "sourceSetup": { "candidate": "reflection-safe-forget", "sourceRecordRef": "record-safe-forget", "forgetFence": 7 },
+      "mutation": { "type": "reopen_after_forget", "reviewGeneration": 6 },
+      "oracle": { "candidateQualified": false, "forgottenContentRead": 0, "derivedPublicationCount": 0 },
+      "nonGoals": ["reveal forgotten value", "remove unrelated sources", "claim external deletion"]
+    },
+    {
+      "id": "M6-I14",
+      "family": "managed_capability_side_effect",
+      "userFailure": "Reviewing an internal procedural candidate installs, edits, or activates an external managed capability.",
+      "sourceSetup": { "candidate": "reflection-safe-procedure", "managedCapabilities": ["capability-safe-existing"] },
+      "mutation": { "type": "review_or_retain", "requestedExternalAction": "activate_managed_capability" },
+      "oracle": { "externalWrites": 0, "managedCapabilityChanges": 0, "candidateState": "inactive_reviewable" },
+      "nonGoals": ["install a Skill", "change CLI or MCP state", "acquire a Plugin", "mutate an external account"]
+    }
+  ],
+  "notClaimed": [
+    "S3-M6 Gate PASS",
+    "Reflection product behavior exists",
+    "Principle qualification is complete",
+    "background interference is qualified",
+    "managed capability activation belongs to M6"
+  ]
+}
