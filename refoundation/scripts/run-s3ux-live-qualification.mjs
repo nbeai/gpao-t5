@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 import { loadReadOnlyConnectionCredential, makeInMemoryProviderObserver,
@@ -14,6 +15,13 @@ const OPENAI_ENDPOINT = 'https://api.openai.com/v1/responses';
 const CHATGPT_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses';
 const hash = (value) => createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex');
 const INSTRUCTIONS = 'Synthetic canonical UX projection만 읽고 ux_qualification_answer 도구를 정확히 한 번 호출한다. 도구 밖 prose를 쓰지 않고 보지 못한 사실은 unknown으로 보존한다.';
+const ARG_KEYS = ['artifactIdentity', 'executionStatus', 'message', 'queuedInputStatus',
+  'rollbackStatus', 'unknownPreserved'];
+export function safeOutput(value, canaries = []) {
+  const text = String(value ?? '');
+  return !canaries.some((item) => item && text.includes(item))
+    && !/(?:\/Users\/|\/private\/|\/Volumes\/|[A-Za-z]:\\|\\\\[^\s]+\\|\b[0-9a-f]{8}-[0-9a-f-]{27}\b|\b[0-9a-f]{64}\b|\b(?:sk-|xox[baprs]-|ghp_)[A-Za-z0-9_-]+)/iu.test(text);
+}
 const tool = { name: 'ux_qualification_answer', strict: true,
   description: 'Return only the user-facing claims supported by the supplied synthetic canonical UX projection.',
   parameters: { type: 'object', additionalProperties: false, properties: {
@@ -85,7 +93,8 @@ async function main() {
   const results = [];
   for (const journey of journeys) {
     const credential = credentials.get(journey.connection); const observations = [];
-    const canaries = [credential.secret.key, credential.secret.access, credential.secret.accountId]
+    const canaries = [credential.secret.key, credential.secret.access, credential.secret.accountId,
+      state.connections?.find((item) => item.id === journey.connection)?.secretRef]
       .filter((value) => typeof value === 'string' && value);
     const observer = makeInMemoryProviderObserver(); const endpoint = credential.kind === 'api_key' ? OPENAI_ENDPOINT : CHATGPT_ENDPOINT;
     try {
@@ -96,8 +105,11 @@ async function main() {
         tools: [tool], toolChoice: { requiredToolName: tool.name }, resourceObserver: observer });
       const calls = response.toolCalls ?? []; const args = calls.length === 1 && calls[0].name === tool.name ? calls[0].args : null;
       const outputText = JSON.stringify({ args, prose: response.text ?? '' });
-      const privacyPassed = !canaries.some((value) => outputText.includes(value));
-      const claimsPassed = Boolean(args) && Object.entries(journey.expected).every(([key, value]) => args[key] === value);
+      const privacyPassed = safeOutput(outputText, canaries);
+      const exactSchema = Boolean(args) && JSON.stringify(Object.keys(args).sort()) === JSON.stringify(ARG_KEYS)
+        && typeof args.message === 'string' && args.message.trim().length > 0 && args.message.length <= 600
+        && typeof args.unknownPreserved === 'boolean';
+      const claimsPassed = exactSchema && Object.entries(journey.expected).every(([key, value]) => args[key] === value);
       const usage = normalizeProviderUsage(response.usage); const attempt = observer.attempts;
       results.push({ journeyId: journey.id, model: credential.modelId, wallMs: Math.round(performance.now() - started),
         responseModel: response.responseModel ?? null, modelIdentityMatched: response.responseModel === credential.modelId,
@@ -130,5 +142,13 @@ async function main() {
   if (!result.machineQualificationPassed) process.exitCode = 1;
 }
 
-main().catch((error) => { process.stdout.write(`${JSON.stringify({ schema: 't5.s3ux.model-language-shadow.v1',
-  machineQualificationPassed: false, pass: false, failure: String(error?.message ?? 'runtime_boundary') })}\n`); process.exitCode = 1; });
+export function fixedFailure(error) {
+  const value = String(error?.message ?? '');
+  if (/human_control|prompt_dump/u.test(value)) return 'human_control_boundary';
+  if (/connection|credential|secret|OAuth/u.test(value)) return 'credential_boundary';
+  return 'qualification_runtime_boundary';
+}
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) main().catch((error) => {
+  process.stdout.write(`${JSON.stringify({ schema: 't5.s3ux.model-language-shadow.v1',
+    machineQualificationPassed: false, pass: false, failure: fixedFailure(error) })}\n`); process.exitCode = 1;
+});
