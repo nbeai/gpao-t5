@@ -1,10 +1,54 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { makeConsoleServer } from '../src/console-server.js';
+
+test('제품 콘솔은 safe login PATH와 configured HOME을 실제 모델 Terminal 호출에 배선한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-console-terminal-environment-'));
+  const stateDir = join(room, 'state'); const workspace = join(room, 'workspace');
+  const bin = join(room, 'user-bin'); const cli = join(bin, 'fixture-cli');
+  await Promise.all([mkdir(workspace, { recursive: true }), mkdir(bin, { recursive: true })]);
+  await writeFile(cli, '#!/bin/sh\nprintf SAFE-CONSOLE-CLI', { mode: 0o700 }); await chmod(cli, 0o700);
+  let turn = 0;
+  const modelFactory = () => ({ async respond(input) {
+    turn += 1;
+    if (turn === 1) return { text: '', toolCalls: [{ id: 'terminal-env', name: 'exec', args: {
+      command: 'printf "HOME=%s\\n" "$HOME"; command -v fixture-cli; fixture-cli', cwd: null,
+      effect: { kind: 'observe', summary: 'Terminal 환경 확인', targets: [], reversible: true,
+        backupAvailable: false, recipientNew: false, approvalToken: null },
+    } }] };
+    const receipt = JSON.parse(input.messages.at(-1).content);
+    assert.equal(receipt.actualCall.name, 'exec');
+    assert.ok(receipt.result.stdout.includes(`HOME=${workspace}`));
+    assert.match(receipt.result.stdout, /SAFE-CONSOLE-CLI/u);
+    assert.ok(receipt.result.stdout.includes(cli));
+    return { text: 'Terminal 환경 연결됨', toolCalls: [] };
+  } });
+  const server = makeConsoleServer({
+    stateDir, workspace, modelFactory,
+    modelStatus: () => ({ connected: true, provider: 'test', modelId: 'terminal-env-model' }),
+    terminalEnvironment: {
+      PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`,
+      HOME: workspace, USERPROFILE: workspace, ZDOTDIR: workspace,
+    },
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject); server.listen(0, '127.0.0.1', resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const reply = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: '내 Terminal 환경을 확인해줘' }) }).then((response) => response.json());
+    assert.equal(reply.reply, 'Terminal 환경 연결됨');
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});
 
 test('빈 스킬 root인 비교군은 skill 도구 없이 기존 터미널만 모델에 제공한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-console-no-skills-'));

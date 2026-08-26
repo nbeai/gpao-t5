@@ -18,6 +18,7 @@ import { naverReadableUrlResolver } from '../src/naver-readable-url.js';
 import { makeConsoleServer } from '../src/console-server.js';
 import { resolveConsoleWorkspace } from '../src/console-config.js';
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
+import { resolveTerminalShellEnvironment } from '../src/terminal-shell-environment.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 import {
   MessengerPlatformCredentialStore, migrateMessengerCredentials,
@@ -41,6 +42,9 @@ const stateDir = resolve(process.env.T5_REFOUNDATION_CONSOLE_STATE
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'refoundation-console'));
 const workspace = resolveConsoleWorkspace(process.env, homedir());
 const computerEnvironment = discoverComputerEnvironment({ userHome: homedir() });
+const terminalEnvironment = await resolveTerminalShellEnvironment({
+  computer: computerEnvironment, home: homedir(),
+});
 const connectionFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
 const portFile = process.env.T5_REFOUNDATION_PORT_FILE
@@ -111,6 +115,7 @@ const server = makeConsoleServer({
   modelStatus: () => access.status(),
   modelConnections,
   computerEnvironment,
+  terminalEnvironment,
   webSearchProviders,
   webReadOptions: { urlResolvers: [naverReadableUrlResolver] },
   videoTextFetchImpl: globalThis.fetch,

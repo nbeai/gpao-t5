@@ -1,6 +1,6 @@
 # T5 S3-A Performance Truth — 연구 봉인 및 작업지시서
 
-상태: `PRE-ACTIVATION WORK ORDER · MEASUREMENT NOT STARTED · OPTIMIZATION FORBIDDEN`
+상태: `S3-A MEASUREMENT ACTIVE · TERMINAL-FIRST BASELINE OPEN · OPTIMIZATION FORBIDDEN`
 
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER`
 
@@ -444,6 +444,21 @@ coverage·기존 evidence·최소 대표 여정 봉인
 → S3-A evidence index
 → 오너의 다음 한 작업 결정
 ```
+
+Terminal-first baseline은 S1·S2·S5를 대체하거나 표본 수를 늘리는 별도 행렬이 아니다. 격리 HOME의
+일반 파일과 비밀 fixture, 현재 effect schema, foreground output, background process cursor를 한 결정적
+여정으로 관측해 다음 질문만 답한다.
+
+```text
+사용 가능한 실제 환경 사실
+직접 읽을 수 있는 비밀 fixture 여부
+모델이 제출해야 하는 effect 필드·schema bytes
+생략 output의 exact recall 가능 여부
+같은 process의 delta·stdin·terminal 전이 보존 여부
+```
+
+이 baseline만으로 sandbox·credential broker·Terminal Session Driver를 구현하지 않는다. 실제 사용자
+목적 A/B에서 가장 큰 간극이 확인된 한 책임만 다음 후보로 제안한다.
 
 첫 구현 작업은 제품 구조 변경이 아니라 test-only shadow 계측과 그 반대시험이다. shadow 계측이 제품 입력이나
 행동을 바꾸면 전체 matrix를 실행하지 않고 먼저 측정 구조를 폐기하거나 재설계한다.

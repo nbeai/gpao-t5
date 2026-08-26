@@ -1,0 +1,36 @@
+{
+  "schema": "t5.s3t1a.login-shell-isolation-qualification.v1",
+  "recordedAt": "2026-08-26T08:19:51.775Z",
+  "sourceCommit": "df891bb7525fb90ed9adeb3c0dccf6090c3fb362",
+  "status": "login_shell_isolation_repaired_secret_confinement_still_open",
+  "before": {
+    "configuredHomeEscaped": true,
+    "privateFixtureReadable": true,
+    "cliCredentialFixtureReadable": true
+  },
+  "after": {
+    "commandUsesNonLoginShell": true,
+    "configuredHomePreserved": true,
+    "safeLoginPathPreserved": true,
+    "safeCliExecuted": true,
+    "parentCredentialEnvAbsent": true,
+    "captureSource": "login_shell_safe_path",
+    "exitCode": 0
+  },
+  "userOutcomeChanged": false,
+  "modelContextChanged": false,
+  "effectContractChanged": false,
+  "platformBoundary": {
+    "macos": "safe login PATH capture plus non-login command execution",
+    "windows": "existing NoProfile command runtime preserved",
+    "linux": "same POSIX interface; live qualification not performed"
+  },
+  "remaining": [
+    "generic terminal can still read secret files inside an allowed real HOME",
+    "credential broker is required before secret-root sandbox can be default",
+    "foreground omitted output still has no exact recall handle",
+    "effect declaration still requires seven fields"
+  ],
+  "nextCandidate": "secret_root_sandbox_and_broker_positive_control",
+  "pass": true
+}

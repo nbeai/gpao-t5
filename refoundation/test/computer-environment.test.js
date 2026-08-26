@@ -11,7 +11,7 @@ test('제품 의미와 분리된 환경 발견기가 POSIX 컴퓨터의 실제 �
   assert.equal(computer.userHome, '/home/person');
   assert.equal(computer.commandRuntime.family, 'posix');
   assert.equal(computer.commandRuntime.program, '/bin/zsh');
-  assert.deepEqual(computer.commandRuntime.argsFor('pwd'), ['-lc', 'pwd']);
+  assert.deepEqual(computer.commandRuntime.argsFor('pwd'), ['-c', 'pwd']);
 });
 
 test('Windows 컴퓨터에서는 같은 exec 손이 현재 명령 처리기를 사용한다', () => {

@@ -1,0 +1,134 @@
+{
+  "schema": "t5.s3a.terminal-baseline.v1",
+  "productChanged": false,
+  "fixture": {
+    "homeMatchesWorkingRoot": false,
+    "loginShellEscapedConfiguredHome": true,
+    "normalReadable": true,
+    "privateKeyReadable": true,
+    "cliCredentialReadable": true,
+    "environmentOutputDigest": "549b4c33ee21412c444ee218616cae51526208598b3b82a81da596cb419dc54b"
+  },
+  "toolSurface": {
+    "toolCount": 4,
+    "toolNames": [
+      "exec",
+      "process_start",
+      "pty_start",
+      "process_control"
+    ],
+    "schemaBytes": 3869,
+    "execRequiredTopLevel": [
+      "command",
+      "cwd",
+      "effect"
+    ],
+    "effectRequiredFields": [
+      "kind",
+      "summary",
+      "targets",
+      "reversible",
+      "backupAvailable",
+      "recipientNew",
+      "approvalToken"
+    ]
+  },
+  "foregroundOutput": {
+    "truncated": true,
+    "omittedChars": 3850,
+    "preservesHead": true,
+    "preservesTail": true,
+    "exactRecallHandlePresent": false
+  },
+  "processContinuity": {
+    "startedWithHandle": true,
+    "initialState": "running",
+    "terminalState": "completed",
+    "exitCode": 0,
+    "firstObserved": true,
+    "secondObserved": true,
+    "duplicateSecondCount": 1
+  },
+  "observer": {
+    "mode": "O2_full_shadow",
+    "spans": [
+      {
+        "schema": "t5.s3a.performance-span.v1",
+        "sequence": 1,
+        "phase": "tool_execution",
+        "status": "succeeded",
+        "monotonicStartNs": "517300314905416",
+        "monotonicEndNs": "517300347916458",
+        "durationNs": "33011042",
+        "attempt": 1,
+        "bytesIn": null,
+        "bytesOut": null,
+        "itemCount": 3
+      },
+      {
+        "schema": "t5.s3a.performance-span.v1",
+        "sequence": 2,
+        "phase": "tool_execution",
+        "status": "succeeded",
+        "monotonicStartNs": "517300347954291",
+        "monotonicEndNs": "517300387245416",
+        "durationNs": "39291125",
+        "attempt": 1,
+        "bytesIn": null,
+        "bytesOut": 4106,
+        "itemCount": null
+      },
+      {
+        "schema": "t5.s3a.performance-span.v1",
+        "sequence": 3,
+        "phase": "tool_execution",
+        "status": "succeeded",
+        "monotonicStartNs": "517300387264583",
+        "monotonicEndNs": "517300491434750",
+        "durationNs": "104170167",
+        "attempt": 1,
+        "bytesIn": null,
+        "bytesOut": null,
+        "itemCount": null
+      }
+    ],
+    "diagnostics": {
+      "clockFailures": 0,
+      "droppedSpans": 0,
+      "writerFailures": 0
+    }
+  },
+  "recordedAt": "2026-08-26T08:12:07.583Z",
+  "sourceCommit": "df891bb7525fb90ed9adeb3c0dccf6090c3fb362",
+  "status": "baseline_gap_observed_optimization_not_started",
+  "comparisonSources": [
+    {
+      "system": "Codex",
+      "commit": "a26f1806a4f4b8cfec2ea1be129963815a61e58c",
+      "adoptedPrinciple": "unified exec identity, serialized interaction per process, output omission metadata"
+    },
+    {
+      "system": "OpenClaw",
+      "commit": "0482cbf1c06cc82e2dffcc44c6dadfd9a701d5c7",
+      "adoptedPrinciple": "trusted shell snapshot separated from command execution, scoped process registry, unread output delta"
+    },
+    {
+      "system": "Hermes",
+      "commit": "4ba2608524fed4c94bb5b535fc26d7d483e333db",
+      "adoptedPrinciple": "terminal/process split, foreground/background redaction, process provenance"
+    },
+    {
+      "system": "OpenHands",
+      "commit": "f48eca6ab9149b3aa532e86842c85da43e370108",
+      "adoptedPrinciple": "action-observation identity and paged bash output"
+    }
+  ],
+  "nextCandidate": "login_shell_snapshot_and_secret_safe_environment_countertests",
+  "forbiddenConclusions": [
+    "real_home_unavailable",
+    "terminal_session_driver_approved",
+    "sandbox_first_approved",
+    "effect_schema_removal_approved",
+    "provider_native_shell_approved"
+  ]
+}

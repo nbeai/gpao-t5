@@ -1,20 +1,20 @@
 # T5 3차 고도화 — 활성화 전 준비 정본
 
-상태: `OWNER_REQUESTED_PRE_ACTIVATION_SOURCE · THIRD DEVELOPMENT NOT ACTIVATED`
+상태: `OWNER_ACTIVATED_S3A_TERMINAL_FIRST · OPTIMIZATION LOCKED`
 
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER`
 
 현재 공식 Release Gate와 2차 완성의 진행 정본은 계속 `T5-SECOND-COMPLETION.md`가 담당한다. 이 문서는
-그 상태를 변경하거나 3차 고도화를 시작하지 않는다. 오너가 별도로 활성화를 선언하기 전에 해야 할 준비와
-금지선을 고정하는 미래 개발선의 준비 정본이다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가
-우선한다.
+그 Release 상태는 변경하지 않는다. 오너는 2026-08-26 Terminal-first 고도화를 맡기며 S3-A 측정선을
+활성화했다. 이 문서는 측정·반대시험·판정의 범위와 최적화 전 금지선을 유지한다. 제품 정의는
+`T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가 우선한다.
 
 ## 1. 활성화 전 판정
 
 ```text
 2차 Release Gate: 변경 없음
-3차 개발선: 비활성
-현재 허용 작업: S3-A Performance Truth의 관측 설계·fixture·shadow 계측·측정·판정
+3차 개발선: S3-A Terminal-first 측정 활성
+현재 허용 작업: S3-A 측정·판정과 S3-T0가 직접 확인한 login-shell HOME isolation 결함의 좁은 보안 수리
 현재 금지 작업: 측정 결과를 전제한 구조 변경과 성능 최적화
 ```
 
@@ -90,6 +90,40 @@ S3-A는 최적화 Gate가 아니라 관측 Gate다. 코드 변경 전에 단순 
 
 상세 실행 계약과 합격식은
 `docs/03-verification/T5-S3-A-PERFORMANCE-TRUTH-WORK-ORDER-2026-08-26-ko.md`가 담당한다.
+
+### Terminal-first 중심 가설
+
+오너가 활성화한 중심 가설은 다음이다.
+
+> T5에 연결된 모델이 명령·출력·process·파일 변화를 하나의 연속된 Terminal 세계로 직접 관측하고
+> 복구할수록 나머지 컴퓨터 능력도 더 적은 사용자 개입과 왕복으로 발휘된다.
+
+이는 Terminal-only나 무제한 host access를 뜻하지 않는다. 현재 S3-A에서는 같은 사용자 목적에서
+환경 현실·비밀 confinement·effect 선언 비용·출력 recall·process continuity의 현재 사실만 측정한다.
+Codex의 unified exec, OpenClaw의 process registry, Hermes의 terminal/process, OpenHands의
+action/observation에서 실제로 막은 실패를 반대시험으로 옮기되 source를 복사하지 않는다. 제품 hot path
+변경은 이 관측과 오너의 다음 한 작업 선택 뒤에만 연다.
+
+### S3-T1A — Login shell isolation repair
+
+S3-T0 결정적 fixture에서 설정한 격리 HOME이 POSIX `-lc` 초기화 뒤 실제 사용자 HOME으로 바뀌고,
+일반 문서뿐 아니라 `.ssh`·CLI credential fixture도 `observe` 명령으로 읽히는 직접 결함을 확인했다.
+오너의 Terminal-first 개발 활성화에 따라 이 결함 하나만 S3-A 중 좁은 보안 수리로 연다.
+
+```text
+trusted login-shell capture → 비밀 없는 PATH 사실만 추출
+model command execution → non-login shell + exact configured HOME
+capture 실패 → 현재 safe process PATH로 degraded fallback
+```
+
+사용자 shell startup 원문·alias·function·비밀 env를 모델 Context나 trace에 넣지 않는다. Windows는 현재
+`-NoProfile` 경계를 유지하고, macOS 구현을 Core identity로 만들지 않는다. 이 수리는 SQLite·Prompt·Actor·
+Outbox·Completion·Terminal Session Driver·effect schema 축소를 열지 않는다.
+
+완료 문장:
+
+> 격리 실행은 실제 사용자 HOME·startup secret을 읽지 않고, 일반 제품 실행은 사용자의 안전한 CLI PATH를
+> 유지하며, 같은 명령·출력·effect·surface 계약을 보존한다.
 
 ## 5. S3-A 전 절대 금지선
 

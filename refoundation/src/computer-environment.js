@@ -23,7 +23,7 @@ function commandRuntime(platform, env) {
     };
   }
   const program = configured ?? env.SHELL ?? '/bin/sh';
-  return { family: 'posix', program, environmentKeys: [], argsFor: (command) => ['-lc', command] };
+  return { family: 'posix', program, environmentKeys: [], argsFor: (command) => ['-c', command] };
 }
 
 export function discoverComputerEnvironment({

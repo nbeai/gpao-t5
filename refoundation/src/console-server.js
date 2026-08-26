@@ -313,6 +313,7 @@ export function makeConsoleServer({
   connectionPollIntervalMs = 2_000,
   connectionPollTimeoutMs = 10 * 60_000,
   processYieldMs = 1000,
+  terminalEnvironment = null,
   documentCli = bundledDocumentCli,
   attachmentStore,
   resourceLedger: providedResourceLedger,
@@ -1083,7 +1084,10 @@ export function makeConsoleServer({
         capabilityAttribution: ({ commandExplanation }) => managedCliStore.attributeCommand(commandExplanation),
         env: {
           T5_DOCUMENT_CLI: documentCli,
-          PATH: managedCliStore.prependPath(sanitizeTerminalPath(process.env.PATH ?? process.env.Path ?? '')),
+          ...(terminalEnvironment ?? {}),
+          PATH: managedCliStore.prependPath(sanitizeTerminalPath(
+            terminalEnvironment?.PATH ?? process.env.PATH ?? process.env.Path ?? '',
+          )),
         },
       });
       const [bundledSkillSnapshot, managedSkillSnapshot, skillPackageSnapshot, managedSkillStore] = await Promise.all([
