@@ -770,7 +770,7 @@ test('background inbound가 stop signal 뒤 정리될 때까지 gateway stop은 
     authorizeInbound: async () => true,
     onInbound: async (_message, { signal }) => {
       inboundStarted = true;
-      await new Promise((resolve) => signal.addEventListener('abort', resolve, { once: true }));
+      if (!signal.aborted) await new Promise((resolve) => signal.addEventListener('abort', resolve, { once: true }));
       await new Promise((resolve) => setTimeout(resolve, 20));
       cleanupFinished = true; return null;
     },
