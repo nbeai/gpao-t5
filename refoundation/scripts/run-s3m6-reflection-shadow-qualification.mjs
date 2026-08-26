@@ -391,9 +391,13 @@ export async function main(argv = process.argv.slice(2), dependencies = {}) {
   const fixtures = reflectionQualificationFixtures(); const results = [];
   let credentialStoreWrites = 0; let oauthRefreshRequests = 0;
   try {
+    const credentials = new Map();
     for (const connection of connections) {
-      const credential = await loadReadOnlyConnectionCredential({ connection, secretStore,
-        now: dependencies.now ?? Date.now });
+      credentials.set(connection.id, await loadReadOnlyConnectionCredential({ connection, secretStore,
+        now: dependencies.now ?? Date.now }));
+    }
+    for (const connection of connections) {
+      const credential = credentials.get(connection.id);
       for (const fixture of fixtures) {
         const requestObservations = [];
         const endpoint = credential.kind === 'api_key' ? OPENAI_ENDPOINT : CHATGPT_ENDPOINT;
