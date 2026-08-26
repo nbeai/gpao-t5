@@ -24,14 +24,14 @@ export async function loadS3HumanBusinessScenarios() {
       if (sourceGrounded && !(item.sourceRefs ?? []).every((id) => sourceIds.has(id))) {
         throw new Error(`scenario ${item.id} has an unresolved sourceRef`);
       }
-      if (sourceGrounded) return item;
+      if (sourceGrounded) return { ...item, portfolioRole: 'observed_demand' };
       return {
         ...item,
-        sentinel: false,
-        qualificationStatus: 'fixture_followup_draft',
+        qualificationStatus: 'research_derived_hypothesis',
         expressionKind: item.expressionKind ?? 'synthetic_from_researched_workflow',
         sourceRefs: item.sourceRefs ?? [],
         requestStage: item.requestStage ?? 'operate_after_evidence_ready',
+        portfolioRole: item.sentinel === true ? 'structural_stress' : 'workflow_coverage',
       };
     }),
   };

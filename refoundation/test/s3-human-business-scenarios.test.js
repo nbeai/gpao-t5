@@ -27,14 +27,18 @@ test('정식 인간 시나리오는 출처가 있는 발견·연결·업무 목�
   assert.ok(catalog.scenarios.some((item) => item.testerInterventions?.length >= 3));
   const sourceIds = new Set(catalog.sourceRecords.map((item) => item.id));
   const canonical = catalog.scenarios.filter((item) => item.qualificationStatus === 'source_grounded');
-  const drafts = catalog.scenarios.filter((item) => item.qualificationStatus !== 'source_grounded');
+  const researchDerived = catalog.scenarios
+    .filter((item) => item.qualificationStatus === 'research_derived_hypothesis');
   assert.ok(canonical.length >= 10, canonical.length);
   assert.ok(canonical.some((item) => item.requestStage === 'connection_reality'));
   assert.ok(canonical.some((item) => item.requestStage === 'market_research_capability'));
   assert.ok(canonical.every((item) => item.sourceRefs.length > 0));
   assert.ok(canonical.every((item) => item.sourceRefs.every((id) => sourceIds.has(id))));
-  assert.ok(drafts.length > 0);
-  assert.ok(drafts.every((item) => item.sentinel === false));
+  assert.ok(researchDerived.length > 0);
+  assert.ok(researchDerived.some((item) => item.portfolioRole === 'workflow_coverage'));
+  assert.ok(researchDerived.some((item) => item.portfolioRole === 'structural_stress'));
+  assert.ok(canonical.every((item) => item.portfolioRole === 'observed_demand'));
+  assert.equal(catalog.portfolioPolicy.lanes.structural_stress.includes('partial evidence'), true);
 });
 
 test('시나리오 library는 실제 플랫폼 업무를 근거로 하지만 제품 Prompt와 개인정보 fixture가 아니다', async () => {
@@ -106,7 +110,7 @@ test('라이브 launcher는 실제 연결을 mock하지 않고 인간 통제·�
     new URL('refoundation/scripts/launch-s3-human-business-console.mjs', root), 'utf8',
   );
   assert.match(launcher, /--human-controlled is required/u);
-  assert.match(launcher, /--allow-research-draft/u);
+  assert.match(launcher, /--include-research-derived/u);
   assert.match(launcher, /workspaceConnectionInspectors: \[\], workspaceConnectionServices: \[\]/u);
   assert.match(launcher, /messenger-empty/u);
   assert.match(launcher, /browserAutomationLoaded: false/u);

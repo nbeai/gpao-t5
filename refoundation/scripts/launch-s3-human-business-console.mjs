@@ -33,6 +33,7 @@ function publicScenario(scenario) {
     domain: scenario.domain, environment: scenario.environment,
     sentinel: scenario.sentinel === true,
     qualificationStatus: scenario.qualificationStatus,
+    portfolioRole: scenario.portfolioRole,
     requestStage: scenario.requestStage,
     sourceRefs: scenario.sourceRefs,
   };
@@ -61,10 +62,11 @@ const connectionFile = resolve(option('--connection-file')
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
 const { catalog, scenario } = await findS3HumanBusinessScenario(scenarioId);
 if (scenario.qualificationStatus !== 'source_grounded'
+  && !process.argv.includes('--include-research-derived')
   && !process.argv.includes('--allow-research-draft')) {
   throw new Error(
-    `scenario ${scenario.id} is an unqualified research draft; `
-    + 'pass --allow-research-draft only for explicit fixture exploration',
+    `scenario ${scenario.id} is research-derived rather than observed-demand; `
+    + 'pass --include-research-derived to select it explicitly',
   );
 }
 const prompts = [scenario.primaryPrompt, ...(scenario.alternatePrompts ?? [])];

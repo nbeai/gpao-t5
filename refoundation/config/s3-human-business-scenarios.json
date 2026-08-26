@@ -1,6 +1,6 @@
 {
   "schema": "t5.s3.human-business-scenarios.v1",
-  "status": "initial_source_grounded_corpus_with_unqualified_fixture_followups",
+  "status": "mixed_evidence_human_scenario_portfolio",
   "purpose": "Judge whether T5 feels like a capable employee for Korean freelancers, one-person businesses, self-employed owners, and small-company operators by completing real business purposes rather than isolated features.",
   "researchBasis": [
     {
@@ -75,6 +75,16 @@
     "prohibitedPromotion": ["invented likely request", "vendor marketing copy presented as user speech", "unverified time-saving claim used as pass threshold"],
     "promotionPath": ["raw_observation", "deidentified", "purpose_and_reality_labeled", "fixture_reproduced", "blind_human_qualified", "release_sentinel"]
   },
+  "portfolioPolicy": {
+    "principle": "Evidence strength and test usefulness are separate facts. A research-derived scenario can remain a valuable workflow or structural stress test without being presented as observed user demand.",
+    "lanes": {
+      "observed_demand": "Real tester wording, public first-person owner requests and traceable usage evidence test whether T5 meets needs people have actually expressed.",
+      "workflow_coverage": "Research-derived and owner-reviewed business workflows test broad industry and task coverage even before exact user wording is collected.",
+      "structural_stress": "Capability gaps, partial evidence, correction, cancellation, long work and disconnected services test T5 invariants regardless of request-frequency evidence."
+    },
+    "selection": "Every human qualification wave samples all three lanes. Release claims identify the lane and never turn a workflow hypothesis into measured demand.",
+    "retention": "Do not delete a useful scenario merely because it began as a hypothesis; promote, revise or retire it only from observed evidence and product relevance."
+  },
   "testerIntakeContract": {
     "required": ["exactUserWording", "businessSituation", "availableAccountsConnectionsAndFiles", "expectedOutcome", "observedT5Behavior", "feltFriction", "usableResult", "manualRecovery", "wouldDelegateAgain"],
     "redaction": "Remove people, account, shop, order, path and credential identity before repository storage while preserving the request's meaning and sequence.",
@@ -115,8 +125,8 @@
     "selection": "Run small positive controls and current failure-family sentinels, then expand only when a difference or unknown can change a product decision.",
     "blindQualification": "A tester who did not author the product prompt rewrites the request while preserving the purpose; sentences used in product prompts are excluded.",
     "humanVerdictRequired": true,
-    "canonicalScenarioRequirement": "qualificationStatus=source_grounded and every sourceRef resolves to sourceRecords; synthetic workflow prompts remain fixture drafts until tester or public first-person evidence grounds the expression and expectation.",
-    "draftExecutionRequiresExplicitFlag": true
+    "canonicalScenarioRequirement": "qualificationStatus=source_grounded and every sourceRef resolves to sourceRecords for claims about observed user demand. Research-derived workflow and structural scenarios remain valid tests but cannot support that claim.",
+    "researchDerivedExecutionRequiresExplicitSelection": true
   },
   "humanAssessment": [
     "purposeAchieved",
@@ -248,7 +258,7 @@
       "acceptance":["distinguishes running effect delivery and purpose completion","does not promise perfect reliability","shows failure and unknown notification path","preserves partial result and exact resume point","avoids blind retry","defines owner-visible health and maintenance burden"]
     },
     {
-      "id":"KHB-E01","sentinel":false,"qualificationStatus":"fixture_followup_draft","expressionKind":"synthetic_from_researched_workflow","sourceRefs":[],"requestStage":"operate_after_evidence_ready","business":"online_seller","domain":"orders_inventory_settlement","environment":"ecommerce_exports_present","title":"스마트스토어와 쿠팡 주문을 합쳐 실제 판매와 재고 위험 계산",
+      "id":"KHB-E01","sentinel":true,"qualificationStatus":"research_derived_hypothesis","expressionKind":"synthetic_from_researched_workflow","sourceRefs":[],"requestStage":"operate_after_evidence_ready","business":"online_seller","domain":"orders_inventory_settlement","environment":"ecommerce_exports_present","title":"스마트스토어와 쿠팡 주문을 합쳐 실제 판매와 재고 위험 계산",
       "primaryPrompt":"지난달 스마트스토어랑 쿠팡 주문 합쳐서 반품하고 취소된 건 빼고 상품별 실제 판매량이랑 매출 정리해줘. 지금 재고 얼마 안 남은 것도 같이 알려줘.",
       "alternatePrompts":["지난달 두 판매처에서 진짜로 팔린 것만 합쳐서 보고 싶어. 취소나 반품은 빼고, 곧 품절될 것도 찾아줘.","쿠팡이랑 네이버 주문 엑셀 있을 거야. 같은 상품은 묶어서 실제 매출하고 남은 재고를 봐줘."],
       "purpose":"Produce a reconciled cross-channel paid-sales and inventory-risk result from exact exports without requiring connectors.",
