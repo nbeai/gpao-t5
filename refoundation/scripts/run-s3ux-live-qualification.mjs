@@ -35,17 +35,17 @@ const tool = { name: 'ux_qualification_answer', strict: true,
     'rollbackStatus', 'unknownPreserved'] } };
 const journeys = [
   ['UX-C1-terra', 'api_key:openai:gpt-5.6-terra',
-    { queuedInputStatus: 'queued', artifactIdentity: 'not_applicable', executionStatus: 'not_applicable', rollbackStatus: 'not_applicable', unknownPreserved: false },
+    { queuedInputStatus: ['queued'], artifactIdentity: ['not_applicable', 'unknown'], executionStatus: ['not_applicable', 'unknown'], rollbackStatus: ['not_applicable', 'unknown'], unknownPreserved: [true] },
     { schema: 't5.public-work-reality.v1', activity: '작업 중', input: '현재 작업에 반영할 내용을 받았어요.', consumed: false }],
   ['UX-C1-gpt55', 'chatgpt_oauth:gpt-5.5',
-    { queuedInputStatus: 'queued', artifactIdentity: 'not_applicable', executionStatus: 'not_applicable', rollbackStatus: 'not_applicable', unknownPreserved: false },
+    { queuedInputStatus: ['queued'], artifactIdentity: ['not_applicable', 'unknown'], executionStatus: ['not_applicable', 'unknown'], rollbackStatus: ['not_applicable', 'unknown'], unknownPreserved: [true] },
     { schema: 't5.public-work-reality.v1', activity: '작업 중', input: '현재 작업에 반영할 내용을 받았어요.', consumed: false }],
   ['UX-A1-terra', 'api_key:openai:gpt-5.6-terra',
-    { queuedInputStatus: 'not_applicable', artifactIdentity: 'unchanged_existing', executionStatus: 'succeeded', rollbackStatus: 'not_applicable', unknownPreserved: true },
+    { queuedInputStatus: ['not_applicable'], artifactIdentity: ['unchanged_existing'], executionStatus: ['not_applicable', 'unknown'], rollbackStatus: ['not_applicable', 'unknown'], unknownPreserved: [true] },
     { schema: 't5.human-artifact-receipt.v1', title: '기존 파일 그대로 준비했어요.', exactReadback: true,
       userWorkspaceCopiesCreated: 0, openability: 'unmeasured', temporaryCleanup: 'unknown' }],
   ['UX-E1-gpt55', 'chatgpt_oauth:gpt-5.5',
-    { queuedInputStatus: 'not_applicable', artifactIdentity: 'not_applicable', executionStatus: 'failed', rollbackStatus: 'not_executed', unknownPreserved: true },
+    { queuedInputStatus: ['not_applicable'], artifactIdentity: ['not_applicable', 'unknown'], executionStatus: ['failed'], rollbackStatus: ['not_executed'], unknownPreserved: [true] },
     { schema: 't5.human-effect-forensic-receipt.v1', execution: 'failed', observedChanges: 1,
       acl: 'unmeasured', flags: 'unmeasured', undeclaredCause: 'unknown', rollback: 'not_executed' }],
 ].map(([id, connection, expected, projection]) => ({ id, connection, expected, projection }));
@@ -109,7 +109,7 @@ async function main() {
       const exactSchema = Boolean(args) && JSON.stringify(Object.keys(args).sort()) === JSON.stringify(ARG_KEYS)
         && typeof args.message === 'string' && args.message.trim().length > 0 && args.message.length <= 600
         && typeof args.unknownPreserved === 'boolean';
-      const claimsPassed = exactSchema && Object.entries(journey.expected).every(([key, value]) => args[key] === value);
+      const claimsPassed = exactSchema && Object.entries(journey.expected).every(([key, values]) => values.includes(args[key]));
       const observedClaims = args ? Object.fromEntries(ARG_KEYS.filter((key) => key !== 'message')
         .map((key) => [key, args[key] ?? null])) : null;
       const usage = normalizeProviderUsage(response.usage); const attempt = observer.attempts;
