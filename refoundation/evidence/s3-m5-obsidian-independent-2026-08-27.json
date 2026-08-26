@@ -1,0 +1,105 @@
+{
+  "schema": "t5.s3-m5-obsidian-independent-evidence.v1",
+  "stage": "S3-M5-5",
+  "status": "PASS_WITH_OBSERVATION",
+  "observedAt": "2026-08-26T16:07:09.000Z",
+  "sourceCommit": "48b6222d5fdda5fa3b800ee6d0b472f358d4d895",
+  "officialReleaseGateChanged": false,
+  "deterministic": {
+    "tests": 12,
+    "passed": 12,
+    "failed": 0,
+    "obsidianAbsentVsMetadataPresent": {
+      "indexHtmlExact": true,
+      "memoryMarkdownExact": true,
+      "manifestExact": true,
+      "generationIdExact": true
+    },
+    "requiresObsidian": false,
+    "pluginSyntaxEmitted": false,
+    "plainMarkdownReadable": true
+  },
+  "actualModels": {
+    "gpt-5.5": {
+      "connection": "chatgpt_oauth:gpt-5.5",
+      "secretReferenceOnly": true,
+      "isolatedState": true,
+      "externalWrites": 0,
+      "finalRun": {
+        "pass": true,
+        "journeys": 4,
+        "journeysPassed": 4,
+        "sourceReopened": true,
+        "exported": true,
+        "noPluginExact": true,
+        "providerCalls": 12,
+        "totalTokens": 95015,
+        "requestBytes": 498566,
+        "wallMs": 54584.663582
+      },
+      "priorRun": {
+        "productJourneysPassed": 4,
+        "reportedPass": false,
+        "reason": "qualification oracle required exact claim text and rejected a valid explanatory prefix",
+        "classification": "qualification_harness_defect",
+        "providerCalls": 16,
+        "totalTokens": 128388,
+        "requestBytes": 685808,
+        "wallMs": 61930.714083
+      }
+    },
+    "gpt-5.6-terra": {
+      "connection": "api_key:openai:gpt-5.6-terra",
+      "secretReferenceOnly": true,
+      "isolatedState": true,
+      "externalWrites": 0,
+      "finalRun": {
+        "pass": true,
+        "journeys": 4,
+        "journeysPassed": 4,
+        "sourceReopened": true,
+        "exported": true,
+        "noPluginExact": true,
+        "providerCalls": 16,
+        "totalTokens": 127977,
+        "requestBytes": 685867,
+        "wallMs": 34746.607291
+      },
+      "priorRun": {
+        "pass": false,
+        "failedJourney": "correct",
+        "readSourceSucceeded": true,
+        "memoryCorrectionCommitted": false,
+        "classification": "model_action_selection_variance",
+        "providerCalls": 14,
+        "totalTokens": 108407,
+        "requestBytes": 572133,
+        "wallMs": 35728.048751
+      },
+      "reliabilityObservation": "The identical fixed journey passed once and failed once at correction action selection. This is not hidden by the final pass."
+    }
+  },
+  "productNonInterference": {
+    "obsidianDetectionInProductHotPath": false,
+    "obsidianPluginCalls": 0,
+    "additionalModelCallsForLibraryGeneration": 0,
+    "externalWrites": 0,
+    "canonicalStoreChangedByObsidianMetadata": false
+  },
+  "sourceDigests": {
+    "refoundation/scripts/run-s3m5-live-model-qualification.mjs": "888991bb69f1c22f5c38795152550b78b4461694fc95ecec0229382880f180da",
+    "refoundation/test/living-library-obsidian-compat.test.js": "792d39c222c7bf238d61a10a3edc6fdd5fc4ee5b034ba2e041892e7db9c907e7",
+    "refoundation/src/living-library.js": "4e7a67bcf7d620fafc90202c1a8b39906066055759431a4e87508a36a023cee2",
+    "refoundation/src/user-note.js": "748f38aacb99ae54f1cc99a3ba09f13bee063e0570840032edc9c08dfef467fa"
+  },
+  "notClaimed": [
+    "Obsidian is installed",
+    "Obsidian plugin integration exists",
+    "Terra correction reliability is perfect",
+    "Windows GitHub runner passed M5-4",
+    "Windows Search VM passed",
+    "S3-M5 is complete",
+    "Life Continuity is active in the official Release Gate"
+  ],
+  "nextOneTask": "Obtain the M5-4 Windows GitHub runner result for a016c885 without promoting derived_file_projection to Windows Search VM PASS."
+}
