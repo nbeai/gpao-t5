@@ -271,6 +271,14 @@ test('fake provider 종단 runner는 두 모델×두 fixture 네 요청만 쓰�
     assert.equal(result.totals.totalTokens, 120); assert.equal(fetches, 4);
     assert.ok(result.results.every((item) => item.ledgerWrites === 0
       && item.materializationCalls === 0 && item.requestObservations[0].storeFalse === true));
+    const negativeOnly = await main(['--human-controlled', '--fixture', 'insufficient_shared_method'], {
+      connectionFile, fetchImpl, secretStore, now: () => 1_000_000, sourceCommit: 'a'.repeat(40),
+    });
+    assert.deepEqual(negativeOnly.selectedFixtures, ['insufficient_shared_method']);
+    assert.equal(negativeOnly.expectedProviderCalls, 2);
+    assert.equal(negativeOnly.machineQualificationPassed, true);
+    assert.equal(negativeOnly.humanMeaningReviewRequired, false);
+    assert.equal(negativeOnly.pass, true); assert.equal(fetches, 6);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 
