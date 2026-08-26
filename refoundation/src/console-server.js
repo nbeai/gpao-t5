@@ -1329,6 +1329,7 @@ export function makeConsoleServer({
       offeredTools.unshift(makeMemoryTool({
         ledger: memories,
         sourceReader: memorySourceReader,
+        readOnly: true,
         source: { origin: 'foreground', sessionId, runId: run.runId,
           messageId: `${run.runId}:user`, ...(activeWork
             ? { workId: activeWork.workId, revision: activeWork.revision } : {}) },

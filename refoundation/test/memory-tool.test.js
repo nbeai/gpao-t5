@@ -137,6 +137,20 @@ test('memory_claim 도구는 model meaning만 받고 runtime reality로 commit·
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 
+test('foreground memory는 read·list만 열고 legacy add·replace·remove 우회를 막는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-memory-read-only-'));
+  try {
+    const ledger = new MemoryLedger(room); await ledger.ensure();
+    const tool = makeMemoryTool({ ledger, readOnly: true });
+    assert.deepEqual(tool.parameters.properties.action.enum, ['read', 'list']);
+    for (const action of ['add', 'replace', 'remove']) {
+      await assert.rejects(tool.execute({ action, memoryId: null, kind: 'user', content: 'bypass' }),
+        /read-only/u);
+    }
+    assert.equal((await ledger.read()).events.length, 1);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
 test('memory 환경은 현재 상태와 과거 이력을 구분해 취소된 work 기억을 모델이 정리하게 한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-memory-current-state-'));
   try {

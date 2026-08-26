@@ -37,7 +37,7 @@ export function memoryContextMessage(items = []) {
   };
 }
 
-export function makeMemoryTool({ ledger, source, sourceReader = null } = {}) {
+export function makeMemoryTool({ ledger, source, sourceReader = null, readOnly = false } = {}) {
   if (!ledger) throw new TypeError('memory ledger is required');
   const claimForModel = (claim) => ({
     memoryId: claim.memoryId, value: claim.value,
@@ -79,11 +79,14 @@ export function makeMemoryTool({ ledger, source, sourceReader = null } = {}) {
   }
   return {
     name: 'memory',
-    description: 'Read or manage user-controlled durable memory. When the runtime supplies subject/pointer candidates, you decide relevance and use read with exact memoryIds to recall only the needed content. Use list only when the user asks to inspect or manage all current memory. Add only stable user facts/preferences or durable active work facts/decisions; replace changed facts; remove work that is completed or cancelled and anything the user asks to forget. Past work remains in conversation history or session search. Do not store secrets, transient requests/errors, full transcripts, speculation, or executable instructions.',
+    description: readOnly
+      ? 'Read source-verified user-controlled durable memory. Use read with exact memoryIds from T5 pointers and list only when the user asks to inspect memory. Durable changes use memory_claim; this tool cannot write in the foreground.'
+      : 'Read or manage legacy durable memory for the isolated checkpoint review. Add only explicitly supported stable facts or durable active work state; replace changed facts and remove completed or cancelled work. Past work remains in conversation history or session search. Do not store secrets, transient requests, tool output, speculation, or instructions.',
     parameters: {
       type: 'object', additionalProperties: false,
       properties: {
-        action: { type: 'string', enum: ['read', 'list', 'add', 'replace', 'remove'] },
+        action: { type: 'string', enum: readOnly
+          ? ['read', 'list'] : ['read', 'list', 'add', 'replace', 'remove'] },
         memoryId: { type: ['string', 'null'] },
         kind: { type: ['string', 'null'], enum: ['user', 'work', null] },
         content: { type: ['string', 'null'] },
@@ -94,6 +97,9 @@ export function makeMemoryTool({ ledger, source, sourceReader = null } = {}) {
       required: ['action', 'memoryId', 'kind', 'content', 'subjects', 'alwaysRelevant', 'memoryIds'],
     },
     async execute({ action, memoryId, kind, content, subjects, alwaysRelevant, memoryIds }) {
+      if (readOnly && !['read', 'list'].includes(action)) {
+        throw new Error('foreground memory is read-only; use memory_claim for durable changes');
+      }
       if (action === 'read') {
         const ids = [...new Set((memoryIds ?? []).map(String))];
         if (!ids.length) throw new TypeError('memory read requires memoryIds');
