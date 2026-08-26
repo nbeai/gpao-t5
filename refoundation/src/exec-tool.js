@@ -38,6 +38,8 @@ export const EFFECT_SCHEMA = {
       enum: ['not_applicable', 'backup_available', 'backup_unavailable', 'known_recipient', 'new_recipient'],
       description: 'Use backup_* only for destructive work and *_recipient only for external_send. Otherwise use not_applicable.',
     },
+    rollbackOfToolCallId: { type: ['string', 'null'], maxLength: 200,
+      description: 'Use only when this exact effect is intended to restore a prior tool effect.' },
   },
   required: ['kind', 'targets', 'confirmation'],
   additionalProperties: false,
@@ -71,6 +73,7 @@ export function normalizeTerminalEffect(effect) {
     backupAvailable: confirmation === 'backup_available',
     recipientNew: confirmation === 'new_recipient',
     approvalToken: source.approvalToken ?? null,
+    rollbackOfToolCallId: source.rollbackOfToolCallId == null ? null : String(source.rollbackOfToolCallId),
     confirmation,
   };
 }

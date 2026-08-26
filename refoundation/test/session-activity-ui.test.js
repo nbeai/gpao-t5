@@ -46,3 +46,14 @@ test('Artifact 인간 영수증은 기존 카드 안에서 접혀 있고 textCon
   assert.match(renderer, /details\.appendChild/u);
   assert.doesNotMatch(renderer, /innerHTML|attachmentId|runId|sha256|sourcePath/u);
 });
+
+test('Effect forensic은 바뀐 것·확인 범위·rollback·unknown을 접힌 사용자 언어로 그린다', async () => {
+  const html = await readFile(resolve(root, 'refoundation/ui/index.html'), 'utf8');
+  const start = html.indexOf('function renderHumanEffects');
+  const end = html.indexOf('function renderArtifacts', start);
+  const renderer = html.slice(start, end);
+  assert.match(renderer, /document\.createElement\('details'\)/u);
+  assert.match(renderer, /receipt\.rollback/u);
+  assert.match(renderer, /receipt\.unknowns/u);
+  assert.doesNotMatch(renderer, /innerHTML|path|command|runId|toolCallId|sha256/u);
+});

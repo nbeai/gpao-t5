@@ -17,6 +17,7 @@ const EFFECT_SCHEMA = {
     backupAvailable: { type: 'boolean' },
     recipientNew: { type: 'boolean' },
     approvalToken: { type: ['string', 'null'] },
+    rollbackOfToolCallId: { type: ['string', 'null'], maxLength: 200 },
   },
   required: ['kind', 'summary', 'targets', 'reversible', 'backupAvailable', 'recipientNew', 'approvalToken'],
   additionalProperties: false,

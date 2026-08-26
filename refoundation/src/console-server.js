@@ -39,6 +39,8 @@ import { WorkCancellationCoordinator } from './work-cancellation-coordinator.js'
 import { projectPublicWorkReality, projectWorkReality } from './work-reality-projection.js';
 import { makeArtifactPublicationProductAdapter,
   projectHumanArtifactReceipt } from './artifact-publication-projection.js';
+import { makeEffectForensicProductAdapter,
+  projectHumanEffectForensicReceipt, projectHumanEffectRollbackReceipt } from './effect-forensic-projection.js';
 import { makeWorkCompletionTool } from './work-completion-tool.js';
 import { evaluateWorkCompletion } from './work-completion-evaluator.js';
 import { makeInputSettlementScope } from './input-settlement-scope.js';
@@ -453,6 +455,7 @@ export function makeConsoleServer({
   const artifactPublications = makeArtifactPublicationProductAdapter({
     attachmentStore: attachments, runLedger, workStore,
   });
+  const effectForensics = makeEffectForensicProductAdapter({ runLedger });
   const livingLibraryRoot = join(stateDir, 'living-library');
   const userNotesRoot = join(stateDir, 'user-notes');
   const livingLibraryRegistry = new LivingLibraryRegistry({
@@ -630,12 +633,11 @@ export function makeConsoleServer({
   const workRealityPublished = new Map();
   const workRealityQueues = new Map();
   const pendingSurfaceMetrics = new Map();
-  async function transcriptWithHumanArtifactReceipts(session) {
+  async function transcriptWithHumanReceipts(session) {
     return Promise.all((session.transcript ?? []).map(async (entry) => {
-      if (entry?.role !== 'assistant' || !Array.isArray(entry.result?.artifacts)
-        || !entry.result.artifacts.length) return entry;
+      if (entry?.role !== 'assistant' || !entry.result) return entry;
       const runId = entry.runId ?? entry.result.runId ?? null;
-      const artifacts = await Promise.all(entry.result.artifacts.map(async (artifact) => {
+      const artifacts = await Promise.all((entry.result.artifacts ?? []).map(async (artifact) => {
         if (!runId) return artifact;
         try {
           const publication = await artifactPublications.materialize({ sessionId: session.id,
@@ -652,7 +654,44 @@ export function makeConsoleServer({
           } };
         }
       }));
-      return { ...entry, result: { ...entry.result, artifacts } };
+      let humanEffects = [];
+      if (runId) {
+        try {
+          const snapshot = await runLedger.read(runId);
+          const calls = snapshot.events.filter((event) => {
+            if (event.type !== 'tool_completed') return false;
+            const receipt = event.payload?.receipt; const effect = receipt?.requestedCall?.args?.effect
+              ?? receipt?.actualCall?.args?.effect;
+            return (effect && effect.kind !== 'observe')
+              || (receipt?.requestedCall?.name === 'terminal_session'
+                && receipt?.result?.effectObservation);
+          });
+          humanEffects = await Promise.all(calls.slice(0, 16).map(async (event) => {
+            try {
+              const value = await effectForensics.materialize({ sessionId: session.id, runId,
+                toolCallId: event.payload.receipt.toolCallId });
+              const base = projectHumanEffectForensicReceipt(value);
+              if (!event.payload.receipt.requestedCall?.args?.effect?.rollbackOfToolCallId) return base;
+              const rollback = await effectForensics.materializeRollback({ rollbackRunId: runId,
+                rollbackToolCallId: event.payload.receipt.toolCallId });
+              return { ...base, rollback: projectHumanEffectRollbackReceipt(rollback).summary };
+            } catch (error) {
+              onError?.(error); return { title: '변경 확인 상태를 다시 살펴봐야 해요.', confirmed: [],
+                rollback: '되돌리기는 실행하지 않았어요.',
+                unknowns: ['이 작업의 전후 상태를 정확히 결속하지 못했어요.'], detailsAvailable: true };
+            }
+          }));
+          if (calls.length > 16) humanEffects.push({ title: '추가 변경 기록이 있어요.', confirmed: [],
+            rollback: '되돌리기는 실행하지 않았어요.',
+            unknowns: [`${calls.length - 16}개 변경 기록은 이 화면에서 생략했어요.`], detailsAvailable: true });
+        } catch (error) {
+          onError?.(error); humanEffects = [{ title: '변경 확인 상태를 불러오지 못했어요.', confirmed: [],
+            rollback: '되돌리기는 실행하지 않았어요.',
+            unknowns: ['현재 변경 기록을 다시 확인해 주세요.'], detailsAvailable: true }];
+        }
+      }
+      return { ...entry, result: { ...entry.result, ...(artifacts.length ? { artifacts } : {}),
+        ...(humanEffects.length ? { humanEffects } : {}) } };
     }));
   }
   function serializeWorkReality(sessionId, operation) {
@@ -3650,7 +3689,7 @@ export function makeConsoleServer({
         json(res, 200, {
           id: session.id, title: session.title, origin: session.origin ?? null,
           continuationOf: session.continuationOf ?? null,
-          transcript: await transcriptWithHumanArtifactReceipts(session),
+          transcript: await transcriptWithHumanReceipts(session),
           activity: sessionActivities.get(session.id),
           workReality: (await currentWorkReality(session.id)).public,
           activePendingIds: (await authority.listActive(session.id)).map((item) => item.pendingId),

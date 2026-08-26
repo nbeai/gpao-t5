@@ -23,6 +23,12 @@ test('선언된 로컬 target만 존재·종류·크기·hash로 관측한다', 
     assert.equal(present.targets[0].type, 'file');
     assert.equal(present.targets[0].size, 5);
     assert.match(present.targets[0].sha256, /^[0-9a-f]{64}$/);
+    if (process.platform !== 'win32') {
+      assert.equal(typeof present.targets[0].mode, 'number');
+      assert.equal(typeof present.targets[0].owner.uid, 'number');
+      assert.equal(typeof present.targets[0].filesystemIdentity.ino, 'number');
+    }
+    assert.equal(present.targets[0].openability.readable, true);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

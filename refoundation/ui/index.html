@@ -389,6 +389,9 @@
     font-size:var(--fs-xs); }
   .artifact-receipt summary { cursor:pointer; color:var(--fg); }
   .artifact-receipt .meta { margin-top:var(--sp-1); }
+  .effect-receipt { width:min(760px,100%); margin-top:var(--sp-2); color:var(--muted);
+    font-size:var(--fs-xs); }
+  .effect-receipt summary { cursor:pointer; color:var(--fg); }
   .artifact-dialog { width:min(1180px,calc(100vw - 32px)); height:min(900px,calc(100vh - 32px));
     padding:0; border:1px solid var(--line-strong); border-radius:var(--r-lg); background:var(--surface);
     color:var(--fg); box-shadow:var(--sh-lg); }
@@ -881,6 +884,19 @@ function appendHumanArtifactReceipt(host, receipt) {
     receipt.delivery, receipt.recovery, ...(receipt.unknowns ?? [])].filter(Boolean);
   for (const line of [...new Set(lines)]) details.appendChild(el('meta', line));
   host.appendChild(details);
+}
+
+function renderHumanEffects(host, receipts = []) {
+  for (const receipt of receipts) {
+    if (!receipt?.detailsAvailable) continue;
+    const details = document.createElement('details'); details.className = 'effect-receipt';
+    const summary = document.createElement('summary'); summary.textContent = receipt.title;
+    details.appendChild(summary);
+    const lines = [receipt.confirmed?.length ? `확인한 범위: ${receipt.confirmed.join(', ')}` : null,
+      receipt.rollback, ...(receipt.unknowns ?? [])].filter(Boolean);
+    for (const line of [...new Set(lines)].slice(0, 12)) details.appendChild(el('meta', line));
+    host.appendChild(details);
+  }
 }
 
 function renderArtifacts(box, records = []) {
@@ -3557,6 +3573,7 @@ function renderResult(r, opts = {}) {
   renderConversationRecovery(box, r, opts);
   renderConnectionHandoff(box, r, opts);
   renderArtifacts(box, r.artifacts);
+  renderHumanEffects(box, r.humanEffects);
   renderRecord(box, r.ledger);
   // P5-B-1B: 비밀 입력창. **대화창으로 키를 받지 않는다** — 여기 넣은 값은 대화·원장·모델을
   // 거치지 않고 전용 통로로 저장소에 곧장 간다. 재접속 시엔 다시 띄우지 않는다(지난 요청이다).
