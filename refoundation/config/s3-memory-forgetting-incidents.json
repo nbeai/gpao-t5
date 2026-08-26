@@ -1,0 +1,24 @@
+{
+  "schema": "t5.s3m.forgetting-incidents.v1",
+  "status": "m3_locked_before_forgetting_product_change",
+  "sourceCommit": "ffdeed60fbab18f0c03fbd416e6bb11d3c01e59f",
+  "incidents": [
+    { "id": "M3-01", "family": "revision_changed_after_preview", "oracle": "execute count 0 and re-preview required" },
+    { "id": "M3-02", "family": "derived_index_delete_failed", "oracle": "memory may retract but receipt remains incomplete and hit is nonzero or unknown" },
+    { "id": "M3-03", "family": "library_view_delete_failed", "oracle": "published view cannot remain current" },
+    { "id": "M3-04", "family": "backup_availability_unknown", "oracle": "permanent purge cannot be claimed reversible" },
+    { "id": "M3-05", "family": "external_copy_unknown", "oracle": "local removal is not external deletion" },
+    { "id": "M3-06", "family": "crash_mid_cascade", "oracle": "restart resumes exact unsettled targets without repeating settled effects" },
+    { "id": "M3-07", "family": "selector_broader_than_target", "oracle": "unrelated target loss is zero" },
+    { "id": "M3-08", "family": "same_name_foreign_person", "oracle": "verified foreign identity is never selected by display name" },
+    { "id": "M3-09", "family": "background_reintroduces_deleted_memory", "oracle": "tombstone or fence rejects stale reviewer publication" }
+  ],
+  "absoluteInvariants": {
+    "unrelatedRecordLoss": 0,
+    "deletedExactRecallHit": 0,
+    "deletedContextProjection": 0,
+    "falseExternalDeletionClaim": 0,
+    "falseReversibleClaim": 0,
+    "successBooleanAllowed": false
+  }
+}
