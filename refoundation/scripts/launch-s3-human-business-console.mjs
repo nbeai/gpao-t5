@@ -164,10 +164,17 @@ await writeFile(join(control, 'human-assessment.json'), `${JSON.stringify({
   schema: 't5.s3.human-business-assessment.v1', scenarioId: scenario.id,
   modelId: initialModel.modelId,
   purposeAchieved: null, resultCorrect: null, resultComplete: null,
-  feltEasy: null, progressReassuring: null, correctionAndCancelWorked: null,
-  artifactActuallyUsable: null, uncertaintyHonest: null,
-  unnecessaryApprovalOrSetup: null, wouldDelegateAgain: null,
-  humanTimeSaved: null, notes: '',
+  feltEasy: null, feltLikeCapableCoworker: null,
+  progressReassuring: null, correctionAndCancelWorked: null,
+  artifactActuallyUsable: null, resultEasyToUse: null, uncertaintyHonest: null,
+  connectionRealityClear: null, failureOrLimitHandledUsefully: null,
+  unnecessaryApprovalOrSetup: null, neededTechnicalKnowledge: null,
+  wouldDelegateAgain: null, humanTimeSaved: 'unknown',
+  acceptanceChecks: scenario.acceptance.map((criterion) => ({
+    criterion, status: null, note: '',
+  })),
+  observedFailureFamilies: [],
+  notes: '',
 }, null, 2)}\n`, { mode: 0o600 });
 
 const server = makeConsoleServer({

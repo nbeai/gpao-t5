@@ -83,7 +83,36 @@
       "structural_stress": "Capability gaps, partial evidence, correction, cancellation, long work and disconnected services test T5 invariants regardless of request-frequency evidence."
     },
     "selection": "Every human qualification wave samples all three lanes. Release claims identify the lane and never turn a workflow hypothesis into measured demand.",
-    "retention": "Do not delete a useful scenario merely because it began as a hypothesis; promote, revise or retire it only from observed evidence and product relevance."
+    "retention": "Do not delete a useful scenario merely because it began as a hypothesis; promote, revise or retire it only from observed evidence and product relevance.",
+    "structuralStressScenarioIds": ["KHB-E02", "KHB-E03", "KHB-P05", "KHB-C05", "KHB-H01", "KHB-H02"]
+  },
+  "coverageStatus": {
+    "executableFixtureDomains": ["online retail", "restaurant", "reservation service", "freelancer and consulting", "manufacturing and wholesale", "owner office administration", "multi-channel customer work", "long-work continuity"],
+    "researchBacklog": ["education", "clinic and medical office", "fitness", "real estate", "lodging", "automotive service", "construction", "pet care", "gift and custom-order retail"],
+    "rule": "A vendor catalog entry identifies a research gap; it does not become an executable user scenario until a real workflow source or owner-reviewed purpose and a privacy-safe fixture exist."
+  },
+  "qualificationWaves": [
+    {
+      "id":"developer_fast_feedback",
+      "purpose":"Catch broad usefulness regressions before a change reaches human testers without running the full portfolio.",
+      "scenarioIds":["KHB-D01","KHB-D02","KHB-E01","KHB-E02","KHB-C01","KHB-H01"],
+      "modelPolicy":"Run one actual production model first. Expand only a failure, material variance or model-sensitive judgment to the second model.",
+      "close":"All six have complete human assessments; no false completion, forbidden external effect, internal-term exposure or core usefulness failure remains."
+    },
+    {
+      "id":"pre_tester_reality",
+      "purpose":"Qualify T5 across discovery, connection reality, public research, building, business evidence work, missing evidence and live correction before external testers spend time on it.",
+      "scenarioIds":["KHB-D01","KHB-D02","KHB-D03","KHB-D08","KHB-D10","KHB-D12","KHB-E01","KHB-R01","KHB-S01","KHB-P01","KHB-M01","KHB-A01","KHB-C01","KHB-E02","KHB-E03","KHB-H01"],
+      "modelPolicy":"Run one model across the wave; repeat on the second model only for model-sensitive failures, unknowns and a small positive-control sample.",
+      "close":"Every scenario is human-reviewed; observed-demand, workflow-coverage and structural-stress lanes are all represented; failed acceptance criteria are routed to product structure, capability, fixture or UX before tester release."
+    }
+  ],
+  "failureRouting": {
+    "product_structure":"The same failure family crosses businesses, tools or expressions; inspect the operating principle and state boundary rather than patching the sentence.",
+    "capability_or_connection":"The purpose is valid but current hands, account connection or provider authority are absent; route to capability reality and safe acquisition without false completion.",
+    "fixture_or_test_design":"Expected facts, privacy-safe evidence or acceptance criteria are insufficient to judge the purpose; repair the ruler before product code.",
+    "interaction_and_ux":"The work can complete but the human cannot understand progress, control it, recover or use the result comfortably.",
+    "model_variance":"The same runtime reality and purpose diverge materially by model; inspect actual model input and output before adding runtime rules."
   },
   "testerIntakeContract": {
     "required": ["exactUserWording", "businessSituation", "availableAccountsConnectionsAndFiles", "expectedOutcome", "observedT5Behavior", "feltFriction", "usableResult", "manualRecovery", "wouldDelegateAgain"],

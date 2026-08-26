@@ -17,6 +17,7 @@ export async function loadS3HumanBusinessScenarios() {
     throw new Error('invalid S3 human business scenario schema');
   }
   const sourceIds = new Set((value.sourceRecords ?? []).map((item) => item.id));
+  const structuralStressIds = new Set(value.portfolioPolicy?.structuralStressScenarioIds ?? []);
   return {
     ...value,
     scenarios: value.scenarios.map((item) => {
@@ -31,7 +32,8 @@ export async function loadS3HumanBusinessScenarios() {
         expressionKind: item.expressionKind ?? 'synthetic_from_researched_workflow',
         sourceRefs: item.sourceRefs ?? [],
         requestStage: item.requestStage ?? 'operate_after_evidence_ready',
-        portfolioRole: item.sentinel === true ? 'structural_stress' : 'workflow_coverage',
+        portfolioRole: structuralStressIds.has(item.id)
+          ? 'structural_stress' : 'workflow_coverage',
       };
     }),
   };
@@ -42,6 +44,74 @@ export async function findS3HumanBusinessScenario(id) {
   const scenario = catalog.scenarios.find((item) => item.id === String(id ?? ''));
   if (!scenario) throw new Error(`unknown S3 human business scenario: ${id}`);
   return { catalog, scenario };
+}
+
+export function auditS3HumanBusinessPortfolio(catalog) {
+  if (!catalog || !Array.isArray(catalog.scenarios)) throw new TypeError('catalog scenarios are required');
+  const ids = catalog.scenarios.map((item) => item.id);
+  const uniqueIds = new Set(ids);
+  if (uniqueIds.size !== ids.length) throw new Error('duplicate S3 human business scenario id');
+  const sourceIds = new Set((catalog.sourceRecords ?? []).map((item) => item.id));
+  const environmentIds = new Set((catalog.environmentProfiles ?? []).map((item) => item.id));
+  for (const scenario of catalog.scenarios) {
+    if (!environmentIds.has(scenario.environment)) {
+      throw new Error(`scenario ${scenario.id} has an unknown environment`);
+    }
+    if (scenario.qualificationStatus === 'source_grounded'
+      && !(scenario.sourceRefs ?? []).every((id) => sourceIds.has(id))) {
+      throw new Error(`scenario ${scenario.id} has an unresolved sourceRef`);
+    }
+  }
+  for (const wave of catalog.qualificationWaves ?? []) {
+    if (new Set(wave.scenarioIds).size !== wave.scenarioIds.length) {
+      throw new Error(`qualification wave ${wave.id} repeats a scenario`);
+    }
+    for (const id of wave.scenarioIds) {
+      if (!uniqueIds.has(id)) throw new Error(`qualification wave ${wave.id} has unknown scenario ${id}`);
+    }
+    const roles = new Set(wave.scenarioIds.map((id) => (
+      catalog.scenarios.find((item) => item.id === id)?.portfolioRole
+    )));
+    for (const required of ['observed_demand', 'workflow_coverage', 'structural_stress']) {
+      if (!roles.has(required)) throw new Error(`qualification wave ${wave.id} misses ${required}`);
+    }
+  }
+  const byRole = Object.fromEntries(['observed_demand', 'workflow_coverage', 'structural_stress']
+    .map((role) => [role, catalog.scenarios.filter((item) => item.portfolioRole === role).length]));
+  return {
+    scenarioCount: ids.length,
+    byRole,
+    sourceCount: sourceIds.size,
+    environmentCount: environmentIds.size,
+    waveCount: (catalog.qualificationWaves ?? []).length,
+    researchBacklog: [...(catalog.coverageStatus?.researchBacklog ?? [])],
+  };
+}
+
+export function planS3HumanBusinessWave(catalog, waveId) {
+  auditS3HumanBusinessPortfolio(catalog);
+  const wave = (catalog.qualificationWaves ?? []).find((item) => item.id === waveId);
+  if (!wave) throw new Error(`unknown S3 human business qualification wave: ${waveId}`);
+  return {
+    schema: 't5.s3.human-business-wave.v1',
+    id: wave.id,
+    purpose: wave.purpose,
+    modelPolicy: wave.modelPolicy,
+    close: wave.close,
+    scenarios: wave.scenarioIds.map((id) => {
+      const scenario = catalog.scenarios.find((item) => item.id === id);
+      return {
+        id: scenario.id,
+        title: scenario.title,
+        business: scenario.business,
+        domain: scenario.domain,
+        environment: scenario.environment,
+        qualificationStatus: scenario.qualificationStatus,
+        portfolioRole: scenario.portfolioRole,
+        variants: 1 + (scenario.alternatePrompts?.length ?? 0),
+      };
+    }),
+  };
 }
 
 async function ecommerceExports(workspace, { partial = false } = {}) {

@@ -90,9 +90,46 @@ const verifiedArtifacts = visibleResults.flatMap((result) => result?.artifacts ?
 const internalTerms = /pendingId|toolCallId|local_change|session_search|terminal_session|runId|approvalToken|RecordRef|pending_surface/u;
 const firstFeedback = surfaceMetrics.find((item) => item.event === 'first_feedback_visible')?.elapsedMs ?? null;
 const firstGrounded = surfaceMetrics.find((item) => item.event === 'first_grounded_content')?.elapsedMs ?? null;
-const requiredAssessment = manifest?.scenario?.id
-  ? Object.keys(assessment).filter((key) => !['schema', 'scenarioId', 'modelId', 'notes'].includes(key)) : [];
-const assessmentComplete = requiredAssessment.every((key) => assessment[key] !== null);
+const booleanFields = [
+  'purposeAchieved', 'resultCorrect', 'resultComplete', 'feltEasy',
+  'feltLikeCapableCoworker', 'resultEasyToUse', 'uncertaintyHonest',
+  'unnecessaryApprovalOrSetup', 'neededTechnicalKnowledge', 'wouldDelegateAgain',
+];
+const applicableFields = [
+  'progressReassuring', 'correctionAndCancelWorked', 'artifactActuallyUsable',
+  'connectionRealityClear', 'failureOrLimitHandledUsefully',
+];
+const booleanComplete = booleanFields.every((key) => typeof assessment[key] === 'boolean');
+const applicableComplete = applicableFields.every((key) => (
+  typeof assessment[key] === 'boolean' || assessment[key] === 'not_applicable'
+));
+const acceptanceChecks = Array.isArray(assessment.acceptanceChecks)
+  ? assessment.acceptanceChecks : [];
+const acceptanceComplete = acceptanceChecks.length === manifest.acceptance.length
+  && acceptanceChecks.every((item, index) => (
+    item?.criterion === manifest.acceptance[index]
+    && ['pass', 'fail'].includes(item?.status)
+  ));
+const assessmentComplete = booleanComplete && applicableComplete && acceptanceComplete;
+const forbiddenExternalEffect = manifest.boundaries?.realExternalWrites === false && externalWrites > 0;
+const failedAcceptance = acceptanceChecks.some((item) => item?.status === 'fail');
+const humanCoreFailure = assessmentComplete && (
+  assessment.purposeAchieved === false
+  || assessment.resultCorrect === false
+  || assessment.resultComplete === false
+  || assessment.feltEasy === false
+  || assessment.feltLikeCapableCoworker === false
+  || assessment.resultEasyToUse === false
+  || assessment.uncertaintyHonest === false
+  || assessment.unnecessaryApprovalOrSetup === true
+  || assessment.neededTechnicalKnowledge === true
+  || assessment.wouldDelegateAgain === false
+  || failedAcceptance
+);
+const machineCoreFailure = forbiddenExternalEffect
+  || visibleAnswers.some((answer) => internalTerms.test(answer));
+const verdict = !assessmentComplete ? 'pending_human_review'
+  : (humanCoreFailure || machineCoreFailure ? 'failed' : 'passed');
 
 const summary = {
   schema: 't5.s3.human-business-live-summary.v1',
@@ -118,13 +155,24 @@ const summary = {
     firstMeaningfulGroundedMs: firstGrounded,
     approvalRequests, connectorAttempts, externalWrites,
     verifiedArtifacts,
+    forbiddenExternalEffect,
     internalTermExposure: visibleAnswers.some((answer) => internalTerms.test(answer)),
     answerDigests: visibleAnswers.map((answer) => ({ sha256: digest(answer), chars: answer.length })),
     workspaceDiff,
   },
   humanAssessment: assessment,
   humanAssessmentComplete: assessmentComplete,
-  verdict: assessmentComplete ? 'human_review_recorded' : 'pending_human_review',
+  acceptanceComplete,
+  verdict,
+  failureRoutingInput: {
+    portfolioRole: manifest.scenario.portfolioRole,
+    humanCoreFailure,
+    machineCoreFailure,
+    failedCriteria: acceptanceChecks.filter((item) => item?.status === 'fail')
+      .map((item) => item.criterion),
+    observedFailureFamilies: Array.isArray(assessment.observedFailureFamilies)
+      ? assessment.observedFailureFamilies : [],
+  },
   nonClaims: [
     'Tool success alone is not purpose achievement.',
     'A disconnected connector scenario is not proof that the connector is implemented.',
