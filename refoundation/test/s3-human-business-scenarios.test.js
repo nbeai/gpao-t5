@@ -255,3 +255,16 @@ test('현장 관측 입구는 실제 표현을 보존하되 개인정보와 비�
     ...observation, sourceReference: 'owner@example.com',
   }), /email address/u);
 });
+
+test('3차 핵심 정본은 기술 완료 뒤 내부 두 wave와 외부 테스터 순서를 누락할 수 없다', async () => {
+  const [third, agents] = await Promise.all([
+    readFile(new URL('T5-THIRD-ACTIVATION-PREPARATION.md', root), 'utf8'),
+    readFile(new URL('AGENTS.md', root), 'utf8'),
+  ]);
+  assert.match(third,
+    /각 S3 기술 개발선의 exact 완료·회귀[\s\S]*developer_fast_feedback[\s\S]*pre_tester_reality[\s\S]*외부 인간 테스터/u);
+  assert.match(third, /S3-HQ developer_fast_feedback·pre_tester_reality 내부 인간 자격/u);
+  assert.match(third, /미실행·미평가 0/u);
+  assert.match(agents,
+    /모든 3차 기술 개발선이 닫힌 뒤[\s\S]*외부 테스터·설치본 평가나 3차 종합 완료를 주장하지 않는다/u);
+});

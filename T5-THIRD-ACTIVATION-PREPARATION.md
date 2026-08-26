@@ -42,12 +42,73 @@ scope·evidence·판정을 유지한다.
 | S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | 연구 승인 · 제품 구현 잠금 |
 | S3-CH | Local Computer History·과거 Work/파일/앱 provenance | CH-0은 S3-UX 소유 · CH-1→2→3 후속 순서 확정/현재 미착수 |
 | S3-PW | Windows installer·app shell·공통 제품 자격 | 대기 |
+| S3-HQ | 한국 사업자 Human Reality Qualification·외부 테스터 전 내부 인간 자격 | 실행 체계 완료 · 3차 기술 개발 완료 뒤 실행 대기 |
 
 개발선 표는 일정표가 아니다. S3-A 뒤 구조가 자동 개통되지 않으며, 오너가 연 한 제품 개발선만 hot path를
 변경한다. S3-M6는 내부 학습 Skill만, S3-CA는 외부 Skill·MCP·CLI·Plugin 획득만 소유한다. S3-UX는 기존
 Run·Tool·Effect·Artifact truth의 인간용 projection과 통제 표면을 소유하며 모델 의미 판단이나 새 원장을
 소유하지 않는다. S3-CH는 raw activity를 사용자 Memory·persona로 승격하지 않으며 CH-1→2→3의 선행조건과
 각 Gate 완료 문장을 지켜 순차 개발한다.
+
+### S3-HQ — 3차 완료와 외부 테스터 사이의 필수 Human Reality Gate
+
+S3-HQ는 제품 기능 개발선이 아니라, 각 기술 개발선이 실제 한국 사업자의 목적에서 한 몸으로 작동하는지
+외부 테스터의 시간을 쓰기 전에 확인하는 내부 제품 Gate다. 질문 목록이나 기능 smoke가 아니며 다음 세
+증거 lane을 함께 사용한다.
+
+```text
+실제 테스터·사업자 발화와 공개 이용 사례에 근거한 observed demand
++ 업종·업무를 골고루 다루는 research-derived workflow coverage
++ 미연결·부분 자료·교정·취소·장기 작업의 structural stress
+```
+
+증거 강도와 시험 가치는 분리한다. 조사에서 만든 시나리오도 coverage와 반대시험으로 보존하지만 실제 시장
+수요라고 주장하지 않는다. 반대로 실제 발화만 모아 현재 알려진 사례에 패치된 제품을 만들지도 않는다.
+
+실행 순서는 다음으로 고정한다.
+
+```text
+각 S3 기술 개발선의 exact 완료·회귀
+→ developer_fast_feedback 6개 내부 wave
+→ 실패를 제품 구조·Capability/Connection·Fixture/시험·UX·model variance로 판정
+→ core 실패를 해당 개발선에서 닫고 영향 wave 재실행
+→ pre_tester_reality 16개 내부 wave
+→ S3-HQ PASS
+→ 외부 인간 테스터와 설치본 평가
+```
+
+개발 중인 미완료 기능에 전체 wave를 반복해 시간·token을 쓰지 않는다. 현재 변경이 사용자 목적을 크게
+벗어나는지 확인할 필요가 있을 때만 관련 시나리오 1~2개를 선택적으로 사용한다. 전체 wave는 기술 개발 완료
+뒤의 종합 자격이며, 외부 테스터가 기본 결함을 찾아주는 디버거가 되게 하지 않는다.
+
+S3-HQ PASS는 다음 논리곱이다.
+
+```text
+wave의 모든 scenario 실제 실행
+AND scenario별 acceptance 전부 인간 pass/fail 기록
+AND 미실행·미평가 0
+AND false completion·금지된 외부 효과·내부 기술용어 노출 0
+AND 목적·정확성·완결성·사용 난이도·결과 사용성·불확실성 정직성 통과
+AND 사용자가 기술 지식을 배워야만 진행되는 경로 0
+AND 세 evidence lane 모두 통과
+```
+
+`PASS WITH OBSERVATION`은 위 core 조건의 실패를 외부 테스터에게 넘기는 수단이 아니다. 모델별 차이나 특정
+Capability 부재처럼 제품 범위 판단이 필요한 관측은 원인과 현재 대안을 보존하되, 사용자 목적의 거짓 완료·
+오답·사용 불가·통제 상실은 S3-HQ PASS로 승격하지 않는다.
+
+기계 정본과 실행 도구는 다음을 사용한다.
+
+- `refoundation/config/s3-human-business-scenarios.json`
+- `npm run refoundation:plan:business-human -- --wave developer_fast_feedback`
+- `npm run refoundation:qualify:business-human -- --scenario <id>`
+- `npm run refoundation:summarize:business-human -- --room <isolated-room>`
+- `npm run refoundation:summarize:business-human-wave -- --wave <id> --room <room> ...`
+- `refoundation/evidence/s3-human-business-qualification-system-2026-08-27.json`
+
+새 현장 사례는 원문 의미·사업 상황·당시 연결과 자료·기대 결과·실제 T5 행동·체감 마찰·사용 가능 결과·
+수동 복구·재위임 의사를 비식별로 보존한다. 사례 문장을 바로 제품 Prompt나 규칙으로 옮기지 않고, 여러
+업종에서 반복되면 본질·원리·구조 개선으로 환류한다.
 
 ## 2. 제품 약속과 3차 준비의 목적
 
@@ -631,6 +692,7 @@ AND S3-UX Work Visibility, Control & Outcome Reassurance including CH-0 T5 Work 
 AND S3-CH Local Computer History CH-0~3
 AND S3-CA Capability Reality & Safe Acquisition
 AND S3-PW가 필요한 Windows 공통 자격
+AND S3-HQ developer_fast_feedback·pre_tester_reality 내부 인간 자격
 AND macOS·Windows 실제 사용자·비교군 Release
 ```
 
