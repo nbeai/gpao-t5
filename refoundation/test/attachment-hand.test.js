@@ -35,6 +35,21 @@ test('요청한 기존 파일은 변환 없이 exact bytes로 output artifact가
   })).bytes, bytes);
 });
 
+test('승인된 기존 파일은 workspace 밖에서도 사용자 폴더 복사 없이 managed publication된다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-existing-file-outside-workspace-'));
+  const workspace = join(room, 'workspace'); await mkdir(workspace);
+  const source = join(room, 'Downloads-원본.txt'); await writeFile(source, 'ORIGINAL-OUTSIDE');
+  const store = new AttachmentStore(join(room, 'attachments'));
+  const tool = makeAttachmentTool({ store, sessionId: SESSION, workspace,
+    runId: '44444444-4444-4444-8444-444444444444', authorizeExistingFilePath: () => true });
+  const before = await import('node:fs/promises').then((fs) => fs.readdir(workspace));
+  const result = await tool.execute({ action: 'register_existing_file', filePath: source });
+  const after = await import('node:fs/promises').then((fs) => fs.readdir(workspace));
+  assert.equal(result.state, 'registered'); assert.deepEqual(after, before);
+  assert.deepEqual(result.publication, { managedCopy: true, userWorkspaceCopiesCreated: 0 });
+  assert.equal(result.artifact.originalName, 'Downloads-원본.txt');
+});
+
 function png(width = 4, height = 3) {
   const crc = (input) => {
     let value = 0xffffffff;

@@ -35,3 +35,14 @@ test('Work 현실 패널은 canonical version과 showPanel을 따르고 사용�
   assert.match(html, /trace\.hidden = true/u);
   assert.match(html, /멈춤\.hidden = true/u);
 });
+
+test('Artifact 인간 영수증은 기존 카드 안에서 접혀 있고 textContent만 사용한다', async () => {
+  const html = await readFile(resolve(root, 'refoundation/ui/index.html'), 'utf8');
+  const start = html.indexOf('function appendHumanArtifactReceipt');
+  const end = html.indexOf('function renderArtifacts', start);
+  const renderer = html.slice(start, end);
+  assert.match(renderer, /document\.createElement\('details'\)/u);
+  assert.match(renderer, /summary\.textContent/u);
+  assert.match(renderer, /details\.appendChild/u);
+  assert.doesNotMatch(renderer, /innerHTML|attachmentId|runId|sha256|sourcePath/u);
+});

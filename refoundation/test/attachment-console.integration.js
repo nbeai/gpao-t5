@@ -211,6 +211,10 @@ test('모델이 만든 workspace 결과는 attachment register 뒤 surface 다�
     assert.equal(await fetch(`${app.base}${reply.artifacts[0].downloadUrl}`).then((response) => response.text()), 'RESULT-8842');
     const restored = await fetch(`${app.base}/sessions/${session.id}`).then((response) => response.json());
     assert.equal(restored.transcript[1].result.artifacts[0].attachmentId, reply.artifacts[0].attachmentId);
+    const human = restored.transcript[1].result.artifacts[0].humanReceipt;
+    assert.match(human.title, /새 결과 파일/u);
+    assert.match(human.verification, /다시 확인/u);
+    assert.doesNotMatch(JSON.stringify(human), /attachmentId|runId|sha256|\/workspace|[a-f0-9]{64}/u);
   } finally { await app.close(); }
 });
 

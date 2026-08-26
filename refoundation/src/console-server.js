@@ -37,6 +37,8 @@ import { ConversationLedger } from './conversation-ledger.js';
 import { WorkStore } from './work-store.js';
 import { WorkCancellationCoordinator } from './work-cancellation-coordinator.js';
 import { projectPublicWorkReality, projectWorkReality } from './work-reality-projection.js';
+import { makeArtifactPublicationProductAdapter,
+  projectHumanArtifactReceipt } from './artifact-publication-projection.js';
 import { makeWorkCompletionTool } from './work-completion-tool.js';
 import { evaluateWorkCompletion } from './work-completion-evaluator.js';
 import { makeInputSettlementScope } from './input-settlement-scope.js';
@@ -448,6 +450,9 @@ export function makeConsoleServer({
   const learningAdvances = new Set();
   const authority = new AuthorityStore(join(stateDir, 'authority'));
   const attachments = attachmentStore ?? new AttachmentStore(join(stateDir, 'attachments'));
+  const artifactPublications = makeArtifactPublicationProductAdapter({
+    attachmentStore: attachments, runLedger, workStore,
+  });
   const livingLibraryRoot = join(stateDir, 'living-library');
   const userNotesRoot = join(stateDir, 'user-notes');
   const livingLibraryRegistry = new LivingLibraryRegistry({
@@ -625,6 +630,31 @@ export function makeConsoleServer({
   const workRealityPublished = new Map();
   const workRealityQueues = new Map();
   const pendingSurfaceMetrics = new Map();
+  async function transcriptWithHumanArtifactReceipts(session) {
+    return Promise.all((session.transcript ?? []).map(async (entry) => {
+      if (entry?.role !== 'assistant' || !Array.isArray(entry.result?.artifacts)
+        || !entry.result.artifacts.length) return entry;
+      const runId = entry.runId ?? entry.result.runId ?? null;
+      const artifacts = await Promise.all(entry.result.artifacts.map(async (artifact) => {
+        if (!runId) return artifact;
+        try {
+          const publication = await artifactPublications.materialize({ sessionId: session.id,
+            runId, attachmentId: artifact.attachmentId });
+          return { ...artifact, humanReceipt: projectHumanArtifactReceipt(publication) };
+        } catch (error) {
+          onError?.(error);
+          return { ...artifact, humanReceipt: {
+            title: '파일 확인 상태를 다시 살펴봐야 해요.', fileName: String(artifact.originalName ?? '').slice(0, 240),
+            typeLabel: '파일', confirmed: [], changed: [],
+            verification: '파일 검증 상태를 추가로 확인해야 해요.',
+            delivery: 'T5 화면에 결과가 남아 있어요.', recovery: null,
+            unknowns: ['파일의 출처와 재열기 상태를 확인하지 못했어요.'], detailsAvailable: true,
+          } };
+        }
+      }));
+      return { ...entry, result: { ...entry.result, artifacts } };
+    }));
+  }
   function serializeWorkReality(sessionId, operation) {
     const prior = workRealityQueues.get(sessionId) ?? Promise.resolve();
     const next = prior.then(operation, operation); workRealityQueues.set(sessionId, next.catch(() => {}));
@@ -3620,7 +3650,7 @@ export function makeConsoleServer({
         json(res, 200, {
           id: session.id, title: session.title, origin: session.origin ?? null,
           continuationOf: session.continuationOf ?? null,
-          transcript: session.transcript,
+          transcript: await transcriptWithHumanArtifactReceipts(session),
           activity: sessionActivities.get(session.id),
           workReality: (await currentWorkReality(session.id)).public,
           activePendingIds: (await authority.listActive(session.id)).map((item) => item.pendingId),

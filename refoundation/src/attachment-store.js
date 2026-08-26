@@ -479,6 +479,26 @@ export class AttachmentStore {
     });
   }
 
+  async registerExistingOutput({ sessionId, filePath, expectedSha256 = null } = {}) {
+    const owner = safeUuid(sessionId, 'session');
+    const source = await realpath(String(filePath ?? ''));
+    const before = await lstat(source);
+    if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1) {
+      throw new Error('existing output path must be a regular single-link file');
+    }
+    if (before.size > this.maxFileBytes) throw new Error('attachment file size limit exceeded');
+    const bytes = await readFile(source); const after = await lstat(source);
+    if (!after.isFile() || after.isSymbolicLink() || after.nlink !== 1
+      || before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size
+      || before.mtimeMs !== after.mtimeMs) throw new Error('existing output identity changed while reading');
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    if (expectedSha256 != null && expectedSha256 !== sha256) {
+      throw new Error('existing output identity changed after qualification');
+    }
+    return this.receive({ sessionId: owner, originalName: basename(source), bytes,
+      direction: 'output', sourcePath: source });
+  }
+
   async readContent({ sessionId, attachmentId } = {}) {
     const record = await this.get({ sessionId, attachmentId });
     return { record, bytes: await readFile(record.storedPath) };

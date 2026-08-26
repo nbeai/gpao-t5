@@ -346,21 +346,28 @@ export function makeAttachmentTool({
         const requested = isAbsolute(args.filePath) ? args.filePath : resolve(workspace, args.filePath);
         const sourcePath = await realpath(requested);
         const sourceFacts = await lstat(requested);
-        if (sourceFacts.isSymbolicLink() || !sourceFacts.isFile()) {
+        if (sourceFacts.isSymbolicLink() || !sourceFacts.isFile() || sourceFacts.nlink !== 1) {
           return { state: 'unavailable', reason: 'existing_file_not_regular' };
+        }
+        if (sourceFacts.size > store.maxFileBytes) {
+          return { state: 'unavailable', reason: 'attachment_file_size_limit_exceeded' };
         }
         if (typeof authorizeExistingFilePath !== 'function'
           || !await authorizeExistingFilePath(sourcePath)) {
           return { state: 'unavailable', reason: 'existing_file_not_authorized' };
         }
-        const artifact = await store.registerOutput({ sessionId, workspace, filePath: sourcePath });
+        const sourceBytes = await readFile(sourcePath);
+        const sourceIdentity = { name: sourcePath.split(/[\\/]/u).at(-1), bytes: sourceBytes.length,
+          sha256: createHash('sha256').update(sourceBytes).digest('hex') };
+        const artifact = await store.registerExistingOutput({ sessionId, filePath: sourcePath,
+          expectedSha256: sourceIdentity.sha256 });
         await store.link({
           sessionId, attachmentIds: [artifact.attachmentId],
           messageId: `${runId}:output:${artifact.attachmentId}`, runId,
         });
         return {
           state: 'registered', effect: 'existing_file_selected', artifact,
-          sourceIdentity: { bytes: artifact.bytes, sha256: artifact.sha256 },
+          sourceIdentity, publication: { managedCopy: true, userWorkspaceCopiesCreated: 0 },
         };
       }
       if (args.action === 'register_output') {

@@ -385,6 +385,10 @@
   .artifact-actions button, .artifact-actions a { border:1px solid var(--line-strong); border-radius:var(--r-sm);
     padding:var(--sp-2) var(--sp-3); background:var(--elevated); color:var(--fg); text-decoration:none;
     font:inherit; font-size:var(--fs-sm); cursor:pointer; }
+  .artifact-receipt { width:100%; padding:0 var(--sp-4) var(--sp-3); color:var(--muted);
+    font-size:var(--fs-xs); }
+  .artifact-receipt summary { cursor:pointer; color:var(--fg); }
+  .artifact-receipt .meta { margin-top:var(--sp-1); }
   .artifact-dialog { width:min(1180px,calc(100vw - 32px)); height:min(900px,calc(100vh - 32px));
     padding:0; border:1px solid var(--line-strong); border-radius:var(--r-lg); background:var(--surface);
     color:var(--fg); box-shadow:var(--sh-lg); }
@@ -868,6 +872,17 @@ window.addEventListener('message', (event) => {
   artifactLogs.set(data.artifactId, logs.slice(-50));
 });
 
+function appendHumanArtifactReceipt(host, receipt) {
+  if (!receipt?.detailsAvailable) return;
+  const details = document.createElement('details'); details.className = 'artifact-receipt';
+  const summary = document.createElement('summary'); summary.textContent = receipt.title;
+  details.appendChild(summary);
+  const lines = [...(receipt.confirmed ?? []), ...(receipt.changed ?? []), receipt.verification,
+    receipt.delivery, receipt.recovery, ...(receipt.unknowns ?? [])].filter(Boolean);
+  for (const line of [...new Set(lines)]) details.appendChild(el('meta', line));
+  host.appendChild(details);
+}
+
 function renderArtifacts(box, records = []) {
   if (!records.length) return;
   for (const record of records) {
@@ -917,7 +932,9 @@ function renderArtifacts(box, records = []) {
         const versions = document.createElement('button'); versions.type = 'button'; versions.textContent = '버전';
         versions.onclick = () => openArtifactDetail(record, 'versions'); actions.appendChild(versions);
       }
-      surface.appendChild(actions); box.appendChild(surface); continue;
+      surface.appendChild(actions);
+      appendHumanArtifactReceipt(surface, record.humanReceipt);
+      box.appendChild(surface); continue;
     }
     const row = el('attachment-row');
     const card = document.createElement('a'); card.className = 'artifact-card';
@@ -926,7 +943,9 @@ function renderArtifacts(box, records = []) {
     const info = document.createElement('div');
     info.appendChild(el(null, record.originalName));
     info.appendChild(el('meta', `${fileSize(record.bytes)} · 다운로드`));
-    card.appendChild(info); row.appendChild(card); box.appendChild(row);
+    card.appendChild(info); row.appendChild(card);
+    appendHumanArtifactReceipt(row, record.humanReceipt);
+    box.appendChild(row);
   }
 }
 
