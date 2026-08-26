@@ -66,6 +66,7 @@ test('provider schema는 일곱 의미 필드만 required인 closed strict schem
   const forbidden = ['reflectionId', 'createdBy', 'recordRefs', 'roles', 'forgetHeads',
     'sourceFence', 'taint', 'stateHistory', 'materializationReceipt', 'candidateDigest'];
   const serialized = JSON.stringify(tool.parameters);
+  assert.doesNotMatch(serialized, /uniqueItems/u);
   for (const field of forbidden) assert.doesNotMatch(serialized, new RegExp(field, 'u'));
 });
 
