@@ -1,15 +1,15 @@
 {
   "schema": "t5.s3m.m2-temporal-memory-evidence.v1",
-  "status": "PASS_WITH_LIVE_MODEL_OBSERVATION_REQUIRED",
-  "sourceCommit": "09c00bd7e5f51581e6f5a136c24b00699a2f3702",
+  "status": "COMPLETE",
+  "sourceCommit": "0eb27ac0d2a46794529172b036a619daebc42f3b",
   "recordedAt": "2026-08-26",
   "officialReleaseGate": "SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER",
   "officialReleaseGateChanged": false,
   "stage": {
     "deterministicProductQualified": true,
-    "liveModelQualified": false,
-    "completed": false,
-    "next": "S3-M2_LIVE_MODEL_QUALIFICATION",
+    "liveModelQualified": true,
+    "completed": true,
+    "next": "S3-M3_NOT_OPEN",
     "m3Opened": false,
     "newCanonicalStore": false,
     "sqliteAdded": false
@@ -82,12 +82,54 @@
       "providerUnavailableBecomesMemoryAbsence": false
     },
     "liveModels": {
-      "gpt-5.5": "NOT_EXECUTED_ACTUAL_ACCOUNT_APPROVAL_REQUIRED",
-      "gpt-5.6-terra": "NOT_EXECUTED_ACTUAL_ACCOUNT_APPROVAL_REQUIRED",
-      "reason": "AGENTS.md forbids automatic tests with real accounts or credentials. The execution approval reviewer rejected the first attempt because no explicit owner approval for actual account use and model cost was present.",
+      "ownerApproval": "Owner explicitly approved actual ChatGPT gpt-5.5 and OpenAI gpt-5.6-terra account use and model cost for five isolated journeys with no external writes.",
+      "gpt-5.5": {
+        "status": "PASS_5_OF_5",
+        "toolFailures": 0,
+        "sourceReopened": true,
+        "wallMs": 61083.812041,
+        "providerCalls": 17,
+        "totalTokens": 132177,
+        "requestBytes": 701221,
+        "finalAfterTimeContractFix": {
+          "status": "PASS_5_OF_5",
+          "toolFailures": 0,
+          "providerCalls": 17
+        }
+      },
+      "gpt-5.6-terra": {
+        "status": "PASS_5_OF_5",
+        "toolFailures": 0,
+        "sourceReopened": true,
+        "wallMs": 43799.017708,
+        "providerCalls": 16,
+        "totalTokens": 126425,
+        "requestBytes": 673936
+      },
+      "latestFinalRuns": {
+        "gpt-5.5": {
+          "wallMs": 61083.812041,
+          "providerCalls": 17,
+          "totalTokens": 132177,
+          "requestBytes": 701221
+        },
+        "gpt-5.6-terra": {
+          "wallMs": 43799.017708,
+          "providerCalls": 16,
+          "totalTokens": 126425,
+          "requestBytes": 673936
+        }
+      },
+      "earlierAttempts": [
+        "gpt-5.5 first run passed 4/5 because the abstention oracle incorrectly rejected an answer that mentioned known history",
+        "gpt-5.5 later run returned needs_valid_time and committed no claim, exposing missing retry guidance",
+        "gpt-5.6-terra first run produced correct-looking surfaces but only one active claim, exposing false completion",
+        "after runtime date/offset normalization and retry guidance, both final runs passed with zero tool failures"
+      ],
       "runnerRequires": "--human-controlled",
       "credentialsCopied": false,
-      "secretReferencesOnly": true
+      "secretReferencesOnly": true,
+      "externalWrites": 0
     }
   },
   "samePurposeAB": {
@@ -118,22 +160,18 @@
     "contextBytesNonRegression": true,
     "providerCallsNonRegression": true,
     "toolCallsNonRegression": true,
-    "wallInterpretation": "Candidate adds a measured 3.625 microseconds median local source-verification cost. Live provider wall and tokens remain unmeasured until explicit actual-account approval."
+      "wallInterpretation": "Candidate adds a measured 3.625 microseconds median local source-verification cost. Actual five-journey absolute resources are recorded separately; no live legacy baseline was executed, so the broad product context cost is not attributed to M2."
   },
   "verification": {
-    "focusedM2": "35 passed · 0 failed",
+    "focusedM2": "37 passed · 0 failed including time normalization and foreground legacy-write closure",
     "latestFullCheck": {
-      "total": 1015,
-      "passed": 1012,
-      "failed": 2,
+      "total": 1025,
+      "passed": 1023,
+      "failed": 1,
       "skipped": 1,
-      "failures": [
-        "pre-existing QH-3 temporary-directory ENOTEMPTY cleanup variation",
-        "stage-boundary static test still expected RecordRef projection to remain unwired"
-      ],
+      "failures": ["pre-existing QH-3 temporary-directory ENOTEMPTY cleanup variation"],
       "focusedCorrections": [
-        "QH-3 2 passed · 0 failed",
-        "RecordRef projection boundary 8 passed · 0 failed"
+        "QH-3 first focused rerun repeated ENOTEMPTY; second focused rerun 2 passed · 0 failed"
       ]
     },
     "productIntegration": {
@@ -149,38 +187,36 @@
   },
   "sourceDigests": {
     "refoundation/src/temporal-memory.js": "61f01a2d7ce06945a1e2d0528348972b07ca7a7f538120269e1e003f3c3afe8b",
-    "refoundation/src/memory-meaning-proposal.js": "97516b972738fa33e3bb8f8a8acba16f9a81ed29df3651eced02a624c596a142",
+    "refoundation/src/memory-meaning-proposal.js": "fd7a2bb31cfd91171c9a358a7c993018103388139f8ea80b55a3894f273bca26",
     "refoundation/src/memory-ledger.js": "2aa12afffca1d646833d1fabaa31b6eb01b4704072d2f7cda3c58c2699cb912d",
     "refoundation/src/memory-portfolio.js": "75139bdc9b431b4eb7f0a81aead175e5789a47f2cba12dce4c404cf0bccb2912",
-    "refoundation/src/memory-tool.js": "f339079d665f620e71e3df118f5bc663b184d41916c627b9790a6acaf42767a4",
-    "refoundation/src/console-server.js": "53186e788f1fc58a79118997de1705e7ed1dc218c9d1bbedde4ff1a6d1ce9ba5"
+    "refoundation/src/memory-tool.js": "abebdff1ac7460e37bd5b076a367fce46f2689f6edd96fd4d190c7ad816e69a9",
+    "refoundation/src/console-server.js": "d803321d26d55a60585fca053713990644350777ddf093660d6fd22ed14f634e"
   },
   "testDigests": {
     "refoundation/test/temporal-memory.test.js": "40c2ee79028d23eeed3bd4682d06d6dc7a4ee41ef62532decefc6ed5b76aef96",
-    "refoundation/test/memory-meaning-proposal.test.js": "3acfda34a713f4f80a2e22121cc4f2d0182a4b7bd7224fb43cf1a3972aaf397b",
+    "refoundation/test/memory-meaning-proposal.test.js": "3031c78b0aca36898b4bb72d6ccae11e32078da58e5b45e6f76aeaa0db667dcf",
     "refoundation/test/memory-claim-ledger.test.js": "26228630d582ebe1f4e4be2986720e8999d20d600846eb14c54e6ea91311aa85",
     "refoundation/test/memory-portfolio.test.js": "e395834cf83fce45d8a7c62398fb6559becfe267c923792ad3f071af010476e2",
-    "refoundation/test/memory-tool.test.js": "a5817716a3ccad1fdb4b0775cc3fd21a6c20481cf25ca3c159f521f9fa5d38c4",
+    "refoundation/test/memory-tool.test.js": "8fd59eab8b799ea1f36561d3dea839b89c2be89db3daba59d6f90f350d9353df",
     "refoundation/test/memory-temporal-current-state.integration.js": "d0c0846e41c63dd05e3d0ff7e34e9afd98e3e19529529b9aa2824c686bcf735a"
   },
   "runnerDigests": {
     "refoundation/scripts/run-s3m2-temporal-memory.mjs": "e0162e09ade13ce9c686f3fad5fb4c10aeb2eea8e5fbf7bbeacf24817c901b73",
-    "refoundation/scripts/run-s3m2-live-model-qualification.mjs": "46a3d9342cbf807a3890acfa7364379b30de14504799db85d57922d466bb6bc4"
+    "refoundation/scripts/run-s3m2-live-model-qualification.mjs": "78604686bb3cc7648dff308a36ef4801a3b6e8b0dedc8ad1c9ec6dfce62f3706"
   },
   "platform": {
     "macOSDeterministic": "PASS",
-    "macOSLiveModels": "NOT_EXECUTED",
+    "macOSLiveModels": "PASS_GPT_5_5_AND_GPT_5_6_TERRA",
     "WindowsRunner": "NOT_EXECUTED_M2",
     "WindowsVM": "NOT_EXECUTED_M2",
     "LinuxProduct": "NOT_A_TARGET"
   },
   "notClaimed": [
-    "M2 is complete",
-    "Terra or gpt-5.5 passed actual product journeys",
-    "live model wall or token non-regression",
+    "live legacy-vs-temporal provider wall or token non-regression",
     "Windows Memory qualification passed",
-    "M3 is open",
+    "M3 is already complete",
     "the official Release Gate changed"
   ],
-  "nextOneTask": "After explicit owner approval for actual ChatGPT/OpenAI account use and model cost, run the human-controlled S3-M2 five-journey qualification for chatgpt_oauth:gpt-5.5 and api_key:openai:gpt-5.6-terra. Do not open M3 until both results pass or the owner changes the Gate."
+  "nextOneTask": "Open S3-M3 forgetting incident fixtures and behavior-probe contract only after this COMPLETE evidence passes exact digest verification."
 }

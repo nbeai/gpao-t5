@@ -8,16 +8,19 @@ const root = new URL('../../', import.meta.url);
 const path = 'refoundation/evidence/s3-m2-temporal-memory-2026-08-26.json';
 const evidencePath = new URL(path, root);
 
-test('S3-M2 evidence는 deterministic product와 미실행 actual model Gate를 분리한다', async () => {
+test('S3-M2 evidence는 deterministic product와 actual two-model Gate를 모두 닫는다', async () => {
   const evidence = JSON.parse(await readFile(evidencePath, 'utf8'));
-  assert.equal(evidence.status, 'PASS_WITH_LIVE_MODEL_OBSERVATION_REQUIRED');
+  assert.equal(evidence.status, 'COMPLETE');
   assert.equal(evidence.stage.deterministicProductQualified, true);
-  assert.equal(evidence.stage.liveModelQualified, false);
-  assert.equal(evidence.stage.completed, false);
+  assert.equal(evidence.stage.liveModelQualified, true);
+  assert.equal(evidence.stage.completed, true);
   assert.equal(evidence.stage.m3Opened, false);
   assert.equal(evidence.officialReleaseGateChanged, false);
-  assert.match(evidence.productJourneys.liveModels['gpt-5.5'], /NOT_EXECUTED/u);
-  assert.match(evidence.productJourneys.liveModels['gpt-5.6-terra'], /NOT_EXECUTED/u);
+  assert.equal(evidence.productJourneys.liveModels['gpt-5.5'].status, 'PASS_5_OF_5');
+  assert.equal(evidence.productJourneys.liveModels['gpt-5.6-terra'].status, 'PASS_5_OF_5');
+  assert.equal(evidence.productJourneys.liveModels['gpt-5.5'].toolFailures, 0);
+  assert.equal(evidence.productJourneys.liveModels['gpt-5.6-terra'].toolFailures, 0);
+  assert.equal(evidence.productJourneys.liveModels.externalWrites, 0);
 });
 
 test('S3-M2 A/B는 동일 결과에서 Context·calls 무회귀와 local source cost를 함께 보존한다', async () => {
