@@ -1,14 +1,15 @@
 # T5 3차 고도화 — 활성화 전 준비 정본
 
-상태: `OWNER_ACTIVATED_S3A · S3_SCOPE_FROZEN · S3T_PASS_WITH_OBSERVATION · S3M_PASS_WITH_OBSERVATION · S3UX_ACTIVE_UX1 · S3CA_REGISTERED_IMPLEMENTATION_LOCKED · S3CH0_3_PLANNED_SEQUENCED · S3VD_CORE_PASS_WITH_OBSERVATION · OPTIMIZATION LOCKED`
+상태: `OWNER_ACTIVATED_S3A · S3_SCOPE_FROZEN · S3T_PASS_WITH_OBSERVATION · S3M_PASS_WITH_OBSERVATION · S3UX_PASS_WITH_OBSERVATION · S3CA_REGISTERED_IMPLEMENTATION_LOCKED · S3CH0_COMPLETE_CH1_3_LOCKED · S3VD_CORE_PASS_WITH_OBSERVATION · OPTIMIZATION LOCKED`
 
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER`
 
 현재 공식 Release Gate와 2차 완성의 진행 정본은 계속 `T5-SECOND-COMPLETION.md`가 담당한다. 이 문서는
 그 Release 상태는 변경하지 않는다. 오너는 2026-08-26 S3-A 측정선을 활성화하고 Terminal-first 고도화를
 `PASS WITH OBSERVATION`으로 닫았으며, Life Continuity는 commit `80dc0305`에서
-`PASS WITH OBSERVATION · default off`로 닫았다. 오너는 2026-08-27 S3-UX1을 다음 exact 제품 Gate로
-개통했다. 외부
+`PASS WITH OBSERVATION · default off`로 닫았다. 오너가 2026-08-27 개통한 S3-UX1→UX2→UX3→CH-0은
+commit `fbba29e7`과 evidence `s3-ux-live-qualification-2026-08-27.json`에서
+`PASS WITH OBSERVATION`으로 닫았다. 외부
 Capability의 개발자 명시 설치와 자연어 자기확장을 한 엔진으로 다루는 S3-CA는 연구·계획만 등록하고 제품
 구현은 S3-A 결과와 오너의 명시적 개통 전까지 잠근다. 2.0 설치본 실제 사용자가 확인한 장기 작업의 불안·
 교정·결과 전달·효과 사고 가족은 S3-UX 연구 입력과 기존 S3-A coverage에 비식별로 등록하되, 진행 중인 S3-M
@@ -26,8 +27,8 @@ collector를 얹지 않는다. 이 문서는 측정·반대시험·판정의 범
 
 ```text
 2차 Release Gate: 변경 없음
-3차 개발선: S3-A 측정 활성 · S3-T 완료 · S3-M 완료(default off) · S3-UX1 활성/CH-0 소유 · S3-CH1~3 후속 순서 확정 · S3-CA 연구 등록·구현 잠금 · S3-VD Core 완료 · S3-PW 대기
-현재 허용 작업: S3-A 측정·판정, S3-UX1→UX2→UX3→CH0의 exact 순차 구현·자격, 오너가 연 exact 한 Gate, S3-CA/S3-CH 후속 연구
+3차 개발선: S3-A 측정 활성 · S3-T 완료 · S3-M 완료(default off) · S3-UX/CH-0 완료 · S3-CH1~3 후속 잠금 · S3-CA 연구 등록·구현 잠금 · S3-VD Core 완료 · S3-PW 대기
+현재 허용 작업: S3-A 측정·판정, 완료된 S3-UX 관측 입력 정리, 오너가 연 exact 한 Gate, S3-CA/S3-CH 후속 연구
 현재 금지 작업: 측정 결과를 전제한 구조 변경·성능 최적화, S3-UX/CA/VD 제품 hot path 선구현, UX/CH-0 전 CH-1 collector 선행, screen/audio/content capture, 여러 큰 개발선 동시 개통, 새 3차 개발선·기능 범위 추가
 ```
 
@@ -45,9 +46,9 @@ scope·evidence·판정을 유지한다.
 | S3-A | 실제 사용자 목적의 phase·critical path·observer effect | 활성 · 미완료 |
 | S3-T | 모델과 Terminal의 환경·process·PTY·출력 recall·플랫폼 실행 | `PASS WITH OBSERVATION` · 완료 |
 | S3-M | Life Continuity·Memory Stewardship·내부 Reflection/Principle/Skill | `PASS WITH OBSERVATION` · default off · 완료 evidence `80dc0305` |
-| S3-UX | Work Reality·교정/취소/복구·인간용 Receipt·Artifact/Effect 안심 | UX1 활성 · UX2→UX3→CH0 순차 대기 |
+| S3-UX | Work Reality·교정/취소/복구·인간용 Receipt·Artifact/Effect 안심 | `PASS WITH OBSERVATION` · UX1→UX3·CH-0 완료 |
 | S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | 연구 승인 · 제품 구현 잠금 |
-| S3-CH | Local Computer History·과거 Work/파일/앱 provenance | CH-0은 S3-UX 소유 · CH-1→2→3 후속 순서 확정/현재 미착수 |
+| S3-CH | Local Computer History·과거 Work/파일/앱 provenance | CH-0 완료 · CH-1→2→3 후속 순서 확정/현재 잠금 |
 | S3-PW | Windows installer·app shell·공통 제품 자격 | 대기 |
 | S3-VD | Visual Deliverable Core·출력 표면 선택·렌더 관측·교정·브랜드 파라미터 | Core `PASS WITH OBSERVATION` · Windows/편집형 PPTX/브랜드 인간 패널은 PW·HQ 자격 대기 |
 | S3-WA | Whole-product Wiring Audit·3차 부품의 실제 제품 배선·단일 진실·복구 경계 | 3차 기술 개발 완료 뒤 읽기 전용 감사 대기 |

@@ -1,0 +1,105 @@
+{
+  "schema": "t5.s3ux.live-qualification.v1",
+  "recordedAt": "2026-08-27T06:31:16+09:00",
+  "sourceCommit": "ed333e65bbff864314e485a7af9b3791821f3ab4",
+  "implementationCommits": [
+    "57f56b3d",
+    "08854a93",
+    "ddcbc24a",
+    "a0912cf6",
+    "39944c45",
+    "fbba29e7"
+  ],
+  "runnerDigest": "4a9dac6fc0831802786d7cfe10c00cb6f7d1f344d642a45585eeb67b746af69d",
+  "status": "PASS_WITH_OBSERVATION",
+  "scope": "deterministic UX1-UX3-CH0 product qualification plus four nonfactorial model-language shadow lanes",
+  "productQualification": {
+    "deterministic": "PASS",
+    "modelLanguageShadowIsNotProductBehavior": true,
+    "normalTurnModelCallsAdded": 0,
+    "normalTurnContextBytesAdded": 0
+  },
+  "liveCalls": {
+    "waves": 2,
+    "providerAttempts": 8,
+    "firstWave": {
+      "providerAttempts": 4,
+      "modelIdentityUsageRequestPrivacy": "PASS_4_OF_4",
+      "messagesSemanticallyCorrect": "PASS_4_OF_4",
+      "machineVerdict": "FAILED_LOCAL_ORACLE_TOO_NARROW",
+      "failure": "irrelevant axes required not_applicable instead of allowing honest unknown"
+    },
+    "secondWave": {
+      "providerAttempts": 4,
+      "modelIdentityUsageRequestPrivacy": "PASS_4_OF_4",
+      "exactSchema": "PASS_4_OF_4",
+      "toolOutsideProse": 0,
+      "results": [
+        {
+          "journeyId": "UX-C1-terra",
+          "model": "gpt-5.6-terra",
+          "wallMs": 3278,
+          "usage": { "inputTokens": 257, "outputTokens": 147, "totalTokens": 404 },
+          "claims": { "queuedInputStatus": "queued", "artifactIdentity": "unknown", "executionStatus": "unknown", "rollbackStatus": "unknown", "unknownPreserved": true },
+          "message": "현재 작업에 반영할 내용을 받았으며, 아직 반영 대기 중입니다.",
+          "passedUnderCorrectedOracle": true
+        },
+        {
+          "journeyId": "UX-C1-gpt55",
+          "model": "gpt-5.5",
+          "wallMs": 2326,
+          "usage": { "inputTokens": 257, "outputTokens": 71, "totalTokens": 328 },
+          "claims": { "queuedInputStatus": "queued", "artifactIdentity": "not_applicable", "executionStatus": "not_applicable", "rollbackStatus": "not_applicable", "unknownPreserved": true },
+          "message": "현재 작업 중이며, 반영할 내용을 받았지만 아직 소비되지는 않았어요.",
+          "passedUnderCorrectedOracle": true
+        },
+        {
+          "journeyId": "UX-A1-terra",
+          "model": "gpt-5.6-terra",
+          "wallMs": 2633,
+          "usage": { "inputTokens": 271, "outputTokens": 159, "totalTokens": 430 },
+          "claims": { "queuedInputStatus": "not_applicable", "artifactIdentity": "unchanged_existing", "executionStatus": "not_applicable", "rollbackStatus": "not_applicable", "unknownPreserved": true },
+          "message": "기존 파일을 그대로 준비했어요. 사용자 작업 공간에 새 사본은 만들지 않았고, 파일을 열 수 있는지는 확인하지 않았어요. 임시 파일 정리 여부는 알 수 없어요.",
+          "passedUnderCorrectedOracle": true
+        },
+        {
+          "journeyId": "UX-E1-gpt55",
+          "model": "gpt-5.5",
+          "wallMs": 3010,
+          "usage": { "inputTokens": 272, "outputTokens": 97, "totalTokens": 369 },
+          "claims": { "queuedInputStatus": "not_applicable", "artifactIdentity": "unknown", "executionStatus": "failed", "rollbackStatus": "not_executed", "unknownPreserved": true },
+          "message": "실행은 실패했습니다. 관찰된 변경은 1건이며, 롤백은 실행되지 않았습니다. ACL과 플래그는 측정되지 않았고, 선언되지 않은 원인은 알 수 없습니다.",
+          "passedUnderCorrectedOracle": true
+        }
+      ]
+    },
+    "totalsBothWaves": {
+      "inputTokens": 2114,
+      "outputTokens": 870,
+      "totalTokens": 2984,
+      "wallMs": 25534,
+      "estimatedCostUsd": null,
+      "costTruth": "provider usage only; no price estimate"
+    }
+  },
+  "humanLanguageReviewPassed": true,
+  "humanReview": {
+    "queuedNotConsumedPreserved": true,
+    "existingFileNoCopyAndUnknownsPreserved": true,
+    "failedPartialEffectAndRollbackNotExecutedPreserved": true,
+    "internalIdsPathsSecretsExposed": 0
+  },
+  "writes": {
+    "externalBusinessWrites": 0,
+    "productStateWrites": 0,
+    "credentialStoreWrites": 0,
+    "evidenceWriteOnly": 1
+  },
+  "notClaimed": [
+    "physical Windows UI qualification",
+    "same-Work resume from CH0",
+    "provider retention zero",
+    "product behavior from synthetic model-language prompts"
+  ],
+  "passed": true
+}
