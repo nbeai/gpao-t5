@@ -37,7 +37,11 @@ test('설치본 장기 작업 실패는 새 표본 행렬 대신 기존 여정�
     'firstMeaningfulMilestoneMs', 'longestInvisibleIntervalMs', 'cancelAdmissionToStopMs',
     'cancelToClaimReleaseMs', 'sameWorkRecoveryAccepted', 'recoveryActionVisibleMs',
     'verifiedArtifactVisible', 'originalArtifactIdentityPreserved', 'unrequestedWorkspaceCopies',
-    'userSurfaceInternalStateLiterals', 'effectForensicCoverage',
+    'userSurfaceInternalStateLiterals', 'firstUsefulPreambleMs', 'meaningfulActivityChanges',
+    'falseProgressUpdates', 'correctionQueuedVisibleMs', 'correctionConsumedVisibleMs',
+    'unconsumedCorrectionPreserved', 'reconnectProjectionExact', 'returnRecapVisibleMs',
+    'progressAdditionalModelCalls', 'progressContextBytes', 'progressEventBytes',
+    'effectForensicCoverage',
   ]) assert.ok(value.requiredMetrics.includes(metric), metric);
   assert.match(workOrder, /actual-user incident routing/u);
   assert.match(workOrder, /새 대표 여정을\s*추가하지 않고/u);
@@ -55,9 +59,18 @@ test('S3-UX는 사례 문구가 아니라 취소 소유권·원본 publication·
   assert.equal(value.absoluteInvariants.cancelledWorkClaimStranding, 0);
   assert.equal(value.absoluteInvariants.unrequestedWorkspaceArtifactCopies, 0);
   assert.equal(value.absoluteInvariants.internalStateLiteralExposure, 0);
+  assert.equal(value.absoluteInvariants.lostOrFalseConsumedCorrection, 0);
+  assert.equal(value.absoluteInvariants.falseProgressClaims, 0);
+  assert.equal(value.absoluteInvariants.progressAdditionalModelCalls, 0);
+  assert.equal(value.absoluteInvariants.progressContextInjectionBytes, 0);
+  assert.equal(value.absoluteInvariants.staleReconnectProjection, 0);
   assert.match(preparation, /cancel admitted[\s\S]*exact Work revision execution claim release[\s\S]*다음 사용자 입력/u);
   assert.match(preparation, /그 기존 파일 자체[\s\S]*사용자\s*작업공간에 `cp`로 동일 복사본/u);
   assert.match(preparation, /`active`[\s\S]*한국어로\s*projection/u);
+  assert.match(preparation, /모델의 짧은 preamble\/commentary[\s\S]*런타임의 grounded milestone/u);
+  assert.match(preparation, /현재 작업에 반영 예정[\s\S]*이번 경계에서 소비되지 못해 다음 입력으로 보존/u);
+  assert.match(preparation, /canonical snapshot[\s\S]*한 줄로\s*요약/u);
+  assert.match(preparation, /progress·recap·receipt projection 때문에 추가 provider\/model call `0`/u);
 });
 
 test('S3-A 준비는 공식 Gate·제품 진실·observer 비개입을 유지한다', async () => {

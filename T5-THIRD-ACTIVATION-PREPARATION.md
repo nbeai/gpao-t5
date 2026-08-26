@@ -291,6 +291,24 @@ prompt few-shot으로 추가하지 않는다.
 기계 표현이 남았다. 이 문장·파일명·시간 수치는 제품 규칙이 아니라 아래 상태 전이와 projection 반대시험의
 출발 증거다.
 
+### 비교군에서 채택한 원리와 채택하지 않는 표면
+
+2026-08-27 OpenClaw `67a310b2`, Hermes `03537d69`, Codex `7625bd56`의 공개 source와 Claude Code의
+공식 hooks·interactive 계약을 다시 확인했다. 화면과 용어는 복제하지 않고 다음 검증된 원리만 채택한다.
+
+- **OpenClaw**: task 실행·terminal·delivery 상태 분리, 느린 작업에만 지연된 progress, reconnect 뒤 snapshot
+  재동기화, cancel 요청과 실제 terminal 분리, progress의 모델 Context 비주입.
+- **Hermes**: run lifecycle SSE, steer의 queued·consumed 분리, 너무 늦어 소비되지 않은 steer의 terminal 보존,
+  `stopping`을 non-terminal로 유지, reconnect event replay.
+- **Codex**: command begin/end correlation, 출력 delta, plan update, pending steer·rejected steer·queued follow-up의
+  사용자 가시성, elapsed와 interrupt의 지속 표면.
+- **Claude Code**: 작은 task list, compaction 뒤 task 지속, 자리를 비웠다 돌아왔을 때 한 줄 recap, 사용자 행동이
+  필요할 때만 notification.
+
+기본 사용자에게 raw command·tool log·reasoning 제목·Run ID·개발자 task board를 노출하지 않는다. utility model로
+상시 상태 문구를 만들거나 Hook·별도 classifier를 UX truth의 정본으로 쓰지 않는다. 비교군의 fixed timeout·task
+count·background permission 정책도 T5 제품 규칙으로 복제하지 않는다.
+
 ### 사용자 완료 문장
 
 > 시간이 오래 걸리는 작업에서도 사용자는 T5가 실제로 완료한 단계, 현재 진행 중인 일, 새로 확인한 결과,
@@ -307,6 +325,23 @@ prompt few-shot으로 추가하지 않는다.
 클라이언트가 계산하고 heartbeat를 원장에 누적하지 않는다. Session 이동·재시작 뒤 같은 Work 현실을 복원하며,
 자연어 교정·취소와 버튼 cancel은 같은 durable admission·process settlement·surface 결과로 이어진다.
 
+##### UX1-A — Reality Projection
+
+첫 사용자 표면은 두 출처를 섞지 않고 결합한다.
+
+```text
+모델의 짧은 preamble/commentary
+  = 현재 목적을 어떻게 이해했고 무엇부터 확인할지 자연스럽게 설명
+
+런타임의 grounded milestone
+  = 실제 Run·Tool·Process·Evidence·Artifact·Approval 사건이 바뀐 뒤에만 표시
+```
+
+모델 preamble은 별도 model call로 만들지 않고 현재 응답의 commentary phase를 사용한다. Runtime milestone은
+모델이 다시 읽는 Conversation·Context·ToolReceipt에 넣지 않는 content-free UI projection이다. 모델 문장이
+“확인했다”고 말해도 대응하는 실행 사실이 없으면 milestone으로 승격하지 않으며, 런타임은 목적·계획 문장을
+정규식이나 tool-name phrase table로 저작하지 않는다.
+
 진행 표면은 문구 순환기가 아니다. canonical 실행 사건을 다음 최소 사실로 투영한다.
 
 ```text
@@ -320,6 +355,38 @@ prompt few-shot으로 추가하지 않는다.
 파일명·명령·검색어·내부 ID를 그대로 보여주지 않더라도 `자료를 찾는 중 → 필요한 자료를 확인함 → 계산·검증
 중`처럼 현실이 바뀐 사실은 구분한다. 관측 가능한 새 사건이 있는데도 일반적인 “생각 중” 문구 하나로 전체
 구간을 덮으면 실패다. 새 사건이 없으면 같은 단계의 elapsed만 갱신하고 일을 더 한 것처럼 표현하지 않는다.
+
+모든 사건을 보여주지 않는다. 다음 중 하나가 실제로 변할 때만 현재 활동을 교체한다.
+
+```text
+의미 있는 단계 완료
+새 Evidence 확보
+실행 ↔ 검증 ↔ publication ↔ 외부/자식 대기 전환
+승인·로그인·비밀 입력·선택 등 사용자 행동 필요
+실패·degraded·unknown·복구 가능성 변화
+```
+
+짧은 작업은 진행 panel 없이 바로 결과로 끝날 수 있다. 같은 poll·heartbeat·동일 상태는 문구를 새로 만들지
+않고 elapsed만 갱신한다. 하나의 compact 현재 작업 표면만 기본으로 보이며, 과거 milestone·사용한 능력·파일·
+검증·Undo는 사용자가 펼칠 때만 보인다.
+
+##### UX1-B — Input·Control Continuity
+
+실행 중 사용자가 보낸 말은 transcript에 보이는 것만으로 충분하지 않다. canonical admission·claim·consumption
+사실에 따라 다음 중 현재 의미 하나를 사용자에게 보여준다.
+
+```text
+현재 작업에 반영 예정
+현재 작업에 반영됨
+현재 결과 전달 뒤 이어서 실행
+별도 작업으로 대기
+취소 요청 접수
+이번 경계에서 소비되지 못해 다음 입력으로 보존
+```
+
+`queued`를 `consumed`로 표시하지 않는다. 모델의 마지막 답 뒤 도착해 소비되지 않은 교정은 사라지거나 완료된
+것처럼 보이지 않고 다음 user turn으로 exact-once 보존한다. 사용자 원문·attachment envelope·sender/reply
+identity는 admission 정본에 한 번만 남고 progress surface가 복제 저장하지 않는다.
 
 취소의 사용자 terminal은 process signal 전송 시점이 아니다. 다음 전이가 전부 정산된 뒤에만 “멈췄어요”로
 닫는다.
@@ -336,6 +403,20 @@ cancel admitted
 
 취소 뒤 단순 상태 확인이 모델 호출 전 `already claimed`에 막히면 cancel 성공이 아니다. 기존 process를 다시
 실행하지 않고 마지막 durable output·progress·Receipt를 읽어 이어갈 수 있어야 한다.
+
+Session 전환·화면 reconnect·process 재시작 뒤 실시간 event 누락을 정답으로 간주하지 않는다. 현재 Work의
+canonical snapshot을 다시 투영하고, 사용자가 자리를 비웠다 돌아오면 다음 네 사실 중 존재하는 것만 한 줄로
+요약한다.
+
+```text
+마지막으로 완료한 의미 있는 단계
+현재 진행·대기·중단 상태
+사용자 행동 필요 여부
+보존된 결과·다음 가능한 행동
+```
+
+recap은 전체 transcript 요약이나 새 model call이 아니다. exact 현재 상태에서 만드는 bounded projection이며
+오래된 progress event가 새 snapshot을 덮지 못하도록 run/revision identity에 결속한다.
 
 #### S3-UX2 — Human Receipt & Artifact Hygiene
 
@@ -359,12 +440,48 @@ T5 managed temporary 영역에서 만들고 publication 후 정리하며, 사용
 projection한다. 감사에 필요한 exact state·identifier·시각은 접힌 개발자 상세나 출처 Receipt에서만 볼 수
 있으며, 번역이 원래 상태의 불확실성을 지우면 안 된다.
 
+Human Receipt는 내부 로그가 아니라 `확인한 것·만들거나 바꾼 것·실제로 검증한 것·복원 가능성·아직 모르는
+것`만 기본으로 보여준다. 사용한 앱·연결·파일은 일반 이름으로 표시하고 raw command·경로·hash·exact 시각은
+접힌 개발자 상세에서만 접근한다. 주의가 필요하지 않은 정상 작업은 최종 답과 결과 card 외 추가 panel을
+강제로 펼치지 않는다.
+
 #### S3-UX3 — Effect Forensics & Recovery
 
 대량 이동·권한·설정·package 작업은 실행 전후의 exact target identity와 가능한 mode·ACL·flags·ownership·
 content/entry count·사용자 openability를 분리 관측한다. 한 move log에 명령이 없다는 이유로 전체 사고 원인을
 배제하지 않고, 관측하지 않은 원인은 `unknown`으로 둔다. recovery는 이전 상태·실행 diff·reverse plan·실제
 rollback Receipt를 사용하며 광범위한 chmod·재이동을 원인 확인 없이 덧붙이지 않는다.
+
+### 속도·Context·표면 밀도 계약
+
+S3-UX는 기다림을 설명한다는 이유로 실제 작업을 더 느리게 만들 수 없다.
+
+- progress·recap·receipt projection 때문에 추가 provider/model call `0`
+- progress event의 모델 Context·Conversation 재주입 bytes `0`
+- raw tool output·명령·사용자 원문·비밀·실경로의 progress payload 포함 `0`
+- 동일 event의 중복 화면 publication `0`
+- 빠른 작업의 불필요한 spinner·panel·task list `0`
+- 실시간 stream 누락 뒤 canonical snapshot과 다른 사용자 상태 `0`
+
+event는 bounded·deduplicated·coalesced projection이며 장기 원장 전체를 매 tick 다시 읽지 않는다. utility model
+digest는 기본 경로에서 사용하지 않고, 주 모델 commentary가 없는 provider에서도 runtime milestone만으로
+안심·통제 계약이 성립해야 한다.
+
+### 최종 인간 자격의 최소 여정
+
+새 표본 행렬을 만들지 않고 기존 S3-A 대표 여정에 다음 경계를 흡수한다.
+
+1. 짧은 작업은 UX가 방해하지 않고 바로 끝난다.
+2. 긴 로컬 분석은 실제 milestone·elapsed·stop이 보이고 결과 품질을 유지한다.
+3. model/tool/process 각각의 경계에서 교정의 queued·consumed·미소비 상태가 정확하다.
+4. model/tool/process 각각의 경계에서 cancel 뒤 claim이 풀리고 같은 Work가 재개된다.
+5. 승인·로그인·비밀 입력·외부 기다림은 일반 실행과 구분되고 exact Work가 자동 재개된다.
+6. Session 이동·reconnect·process restart 뒤 current snapshot과 한 줄 recap이 일치한다.
+7. 기존 파일·새 결과·이미지는 실제 bytes로 열리고 source identity·이름·temporary 위생을 지킨다.
+8. provider 실패·unknown external effect·delivery 실패에서 보존 상태와 다음 route가 보인다.
+9. Console·Telegram은 같은 canonical Work truth를 각 채널 밀도에 맞게 투영한다.
+10. Terra·gpt-5.5에서 목적·정확성·wall·model/tool calls·Context·사용자 교정/승인 부담이 2.0 positive control보다
+    나빠지지 않는다.
 
 ### S3-A·Terminal·CA·PW 접합
 
@@ -377,6 +494,8 @@ rollback Receipt를 사용하며 광범위한 chmod·재이동을 원인 확인 
   실제 이미지/Artifact route를 같은 Work에 제공한다.
 - S3-PW는 macOS·Windows application icon·secret input·Finder/Explorer open·Activity/Receipt 표면의 동일 사용자
   계약을 최종 제품 자격에서 확인한다.
+- S3-M은 기억의 의미·교정·망각·출처를 소유하고, S3-UX는 그 truth의 인간 언어·recap·receipt만 소유한다.
+- 설정 catalogue·연결 준비·비밀 입력은 S3-CA/PW 책임이며 S3-UX가 가짜 버튼이나 두 번째 연결 상태를 만들지 않는다.
 
 S3-UX 구현은 진행 중인 S3-M exact qualification과 동시에 제품 hot path를 바꾸지 않는다. S3-M source·계획·
 시험은 이 개발선 등록에서 변경하지 않으며, 현재 exact M 작업의 commit/evidence가 닫힌 뒤 오너가 S3-UX의

@@ -86,6 +86,9 @@ S7 Automation·Learning background interference
 | 현재 목적·temporary 위생 | S3·S4 | 현재 목적 우선, managed temporary publication 0, final artifact naming·source Work |
 | provider/resource terminal | S1·S5·S6 | 보존 상태·사용 가능한 다음 route·사용자 surface, false completion 0 |
 | 인간용 상태 언어 | S1·S5·S7 | 내부 state literal·UUID·RecordRef·ISO 시각 기본 노출 0, 한국어 의미 projection과 exact developer detail 분리 |
+| 모델 preamble·runtime milestone | S1·S2·S3 | preamble은 현재 응답 commentary, milestone은 canonical event 뒤에만, 추가 model call·Context injection 0 |
+| 입력의 현재 위치 | S5 | queued·consumed·deferred·independent·cancel·unconsumed terminal 상태와 사용자 표면 exact 일치 |
+| reconnect·복귀 recap | S5·S6·S7 | event gap 뒤 canonical snapshot 재투영, stale update 0, 한 줄 current-state recap, 새 model call 0 |
 
 positive control은 실제 프로그램·테스트·API 분석의 결과 품질, 불명확 파일의 다중 route 탐색, 없는 사실의
 정직한 처리다. 계측·UX 후보가 이 세 행동을 줄이거나 모델 route를 미리 정하면 실패다. S3-A trace sidecar는
@@ -98,6 +101,20 @@ revision으로 이어져야 한다. 기존 파일 전달도 download link와 has
 요청하지 않았다면 원본 파일명·source identity가 유지되고 사용자 workspace의 새 복사본 수가 0이어야 한다.
 일시적인 model/provider wall 변동은 matched repeat 없이 회귀로 확정하지 않지만 model/tool call·request bytes가
 증가한 표본은 같은 목적의 다음 A/B를 여는 신호로 기록한다.
+
+progress는 tool 이름별 문구 개수를 성과로 삼지 않는다. 실제 상태 변화가 없으면 elapsed 외 새 진전 표시 0,
+실제 상태 변화가 있으면 generic “생각 중” 하나로 덮는 invisible interval 0을 목표로 한다. 모델의 commentary는
+목적과 첫 행동을 자연스럽게 설명하지만 실행 사실을 증명하지 않으며, runtime milestone은 사용자 문장을
+저작하거나 목적을 분류하지 않는다. 두 lane은 화면에서 이어져 보여도 provenance·저장·Context 경계를 분리한다.
+
+실행 중 입력은 접수 surface와 실제 consumption surface를 분리한다. `queued` acknowledgement를 반영 완료로
+간주하지 않으며, final assistant message 뒤 도착해 소비되지 못한 교정은 terminal state에 남겨 다음 user turn으로
+exact-once 공급한다. reconnect·Session 이동·process restart는 실시간 event history를 재생하는 것만으로 닫지 않고
+현재 Work snapshot으로 정합성을 회복한다.
+
+UX 후보 on/off A/B는 추가 provider/model calls, request/context bytes, event bytes·개수, UI CPU·memory, first
+feedback, first meaningful milestone, longest invisible interval, wall, 목적·정확성·완전성을 함께 기록한다. 진행을
+더 잘 보이게 했다는 이유로 실제 작업 wall·Context·사용자 교정 부담이 증가하면 완료가 아니다.
 
 같은 여정 안에서도 서로 다른 외부 effect나 oracle을 한 성공값으로 합치지 않는다. 기존 증거만으로 phase와
 현재 비용을 같은 기준에서 재계산할 수 있으면 새 모델 호출 없이 재사용한다. 모델별로 표현을 바꾸거나 실패 후

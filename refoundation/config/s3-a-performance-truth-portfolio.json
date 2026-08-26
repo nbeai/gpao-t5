@@ -52,6 +52,11 @@
     "cancelledWorkClaimStranding": 0,
     "unrequestedWorkspaceArtifactCopies": 0,
     "internalStateLiteralExposure": 0,
+    "lostOrFalseConsumedCorrection": 0,
+    "falseProgressClaims": 0,
+    "progressAdditionalModelCalls": 0,
+    "progressContextInjectionBytes": 0,
+    "staleReconnectProjection": 0,
     "accuracyCompletenessRecoveryRegression": 0,
     "instrumentationInModelContextOrUserSurface": 0
   },
@@ -72,7 +77,7 @@
       "id":"S1","title":"Simple positive control","covers":["C01"],
       "firstAxes":["model_if_provider_baseline_needed"],
       "fixture":"Natural correction followed by one exact three-file observation.",
-      "oracle":["latest correction wins","exact file count","internal terms absent","false completion zero"]
+      "oracle":["latest correction wins","exact file count","internal terms absent","false completion zero","fast work progress noise zero","progress adds zero model calls"]
     },
     {
       "id":"S2","title":"File discovery bottleneck","covers":["C02"],
@@ -96,13 +101,13 @@
       "id":"S5","title":"Busy correction cancel and follow-up","covers":["C07"],
       "firstAxes":["model","background_only_if_admission_contention_appears"],
       "fixture":"Long-running local process, durable busy input, cancel, and two expected surfaces.",
-      "oracle":["input loss zero","process stopped","execution claim released before cancel terminal","same Work next revision claimable","cancel not success","duplicate surface zero"]
+      "oracle":["input loss zero","queued and consumed distinct","unconsumed correction preserved","process stopped","execution claim released before cancel terminal","same Work next revision claimable","cancel not success","duplicate surface zero"]
     },
     {
       "id":"S6","title":"Long conversation and checkpoint","covers":["C09"],
       "firstAxes":["short_session_vs_long_session","cold_process_vs_warm_resident"],
       "fixture":"Existing 1,000-turn and repeated-checkpoint evidence, then matched recall only if required.",
-      "oracle":["current Work exact","latest correction wins","anchor recall exact","raw full reinflation zero"]
+      "oracle":["current Work exact","latest correction wins","anchor recall exact","raw full reinflation zero","reconnect snapshot exact","return recap exact","stale progress update zero"]
     },
     {
       "id":"S7","title":"Automation and Learning background interference","covers":["C08","C10"],
@@ -118,7 +123,11 @@
     "firstMeaningfulMilestoneMs", "longestInvisibleIntervalMs", "cancelAdmissionToStopMs",
     "cancelToClaimReleaseMs", "sameWorkRecoveryAccepted", "recoveryActionVisibleMs",
     "verifiedArtifactVisible", "originalArtifactIdentityPreserved", "unrequestedWorkspaceCopies",
-    "userSurfaceInternalStateLiterals", "effectForensicCoverage",
+    "userSurfaceInternalStateLiterals", "firstUsefulPreambleMs", "meaningfulActivityChanges",
+    "falseProgressUpdates", "correctionQueuedVisibleMs", "correctionConsumedVisibleMs",
+    "unconsumedCorrectionPreserved", "reconnectProjectionExact", "returnRecapVisibleMs",
+    "progressAdditionalModelCalls", "progressContextBytes", "progressEventBytes",
+    "effectForensicCoverage",
     "stateReadReplayMs", "contextCompilationMs", "fileIoMs", "backgroundInterferencePairedDelta"
   ]
 }
