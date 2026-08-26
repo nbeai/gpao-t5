@@ -23,4 +23,5 @@ test('Windows CI는 MSVC Job host·DPAPI·ConPTY 실제 시험을 모두 실행�
   assert.match(workflow, /vcvarsamd64_arm64\.bat/u);
   assert.match(workflow, /windows-dpapi-secret-store\.test\.js/u);
   assert.match(workflow, /terminal-windows\.integration\.js/u);
+  assert.match(workflow, /--test-timeout=20000/u);
 });

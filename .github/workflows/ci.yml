@@ -47,9 +47,15 @@ jobs:
           & "$env:SystemRoot\System32\cmd.exe" /d /s /c $compileArm64
           if ($LASTEXITCODE -ne 0 -or -not (Test-Path $arm64)) { throw "Windows ARM64 Job Object host build failed" }
           "T5_WINDOWS_JOB_HOST=$output" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      - name: Qualify native Windows Terminal boundaries
+      - name: Qualify Windows Job Object source and argv contract
         shell: pwsh
-        run: node --test refoundation/test/windows-process-boundary.test.js refoundation/test/windows-dpapi-secret-store.test.js refoundation/test/terminal-windows.integration.js
+        run: node --test --test-timeout=20000 refoundation/test/windows-process-boundary.test.js
+      - name: Qualify Windows CurrentUser DPAPI
+        shell: pwsh
+        run: node --test --test-timeout=20000 refoundation/test/windows-dpapi-secret-store.test.js
+      - name: Qualify Windows PowerShell Job Object and ConPTY journey
+        shell: pwsh
+        run: node --test --test-timeout=30000 refoundation/test/terminal-windows.integration.js
       - uses: actions/upload-artifact@v4
         with:
           name: t5-windows-terminal-hosts
