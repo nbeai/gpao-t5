@@ -83,7 +83,7 @@ test('설정과 Living Library는 같은 temporal state에서 출처·망각·�
     const built = await post(base, '/memory/library/rebuild', {});
     assert.equal(built.status, 200);
     assert.equal(built.body.canonical, false);
-    assert.match(built.body.viewUrl, /^\/memory\/library\/view\/[a-f0-9]{24}$/u);
+    assert.match(built.body.viewUrl, /^\/memory\/library\/view\/[a-f0-9]{24}\/$/u);
     const view = await fetch(`${base}${built.body.viewUrl}`);
     assert.equal(view.status, 200);
     assert.match(await view.text(), /산미 있는 커피/u);

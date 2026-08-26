@@ -60,6 +60,7 @@ import {
   makeSettingsMemoryRecordReference, projectMemorySurface, projectReopenedSource,
 } from './memory-surface.js';
 import { generateLivingLibrary } from './living-library.js';
+import { LivingLibraryRegistry } from './living-library-registry.js';
 import { makeMemoryControlTool } from './memory-control-tool.js';
 import {
   makeMemoryClaimTool, makeMemoryTool, memoryContextMessage, memoryFlushRequest,
@@ -436,12 +437,17 @@ export function makeConsoleServer({
   const attachments = attachmentStore ?? new AttachmentStore(join(stateDir, 'attachments'));
   const livingLibraryRoot = join(stateDir, 'living-library');
   const userNotesRoot = join(stateDir, 'user-notes');
+  const livingLibraryRegistry = new LivingLibraryRegistry({
+    outputRoot: livingLibraryRoot, memoryLedger: memories, userNotesRoot,
+  });
+  const livingLibraryForgetAdapter = livingLibraryRegistry.forgetAdapter();
   const settingsMemorySourceReader = makeRecordSourceReader({
     mode: 'O2_full_shadow', conversationLedger: conversations, runLedger,
     workStore, attachmentStore: attachments,
   });
   const settingsForgettingCoordinator = new ForgettingCoordinator({
     memoryLedger: memories,
+    derivedAdapters: { library_view: livingLibraryForgetAdapter },
     exactRecallProbe: async ({ plan }) => {
       const state = await memories.read();
       return plan.targets.filter((target) => target.kind === 'memory'
@@ -846,6 +852,7 @@ export function makeConsoleServer({
     });
     const forgettingCoordinator = new ForgettingCoordinator({
       memoryLedger: memories,
+      derivedAdapters: { library_view: livingLibraryForgetAdapter },
       exactRecallProbe: async ({ plan }) => {
         const state = await memories.read();
         return plan.targets.filter((target) => target.kind === 'memory'
@@ -3708,22 +3715,37 @@ export function makeConsoleServer({
       }
       if (req.method === 'POST' && url.pathname === '/memory/library/rebuild') {
         await memories.ensure(); const memory = await memories.read();
+        const purged = await livingLibraryRegistry.purgeStale();
+        if (purged.state !== 'executed') {
+          throw Object.assign(new Error('이전 기록 보기를 안전하게 정리하지 못해 새 보기를 만들지 않았어요.'),
+            { status: 409 });
+        }
         const generated = await generateLivingLibrary({ state: memory, outputRoot: livingLibraryRoot,
           userNotesRoot, generatedAt: new Date().toISOString() });
         json(res, 200, { ok: true, generationId: generated.manifest.generationId,
           canonical: generated.manifest.canonical, requiresObsidian: generated.manifest.requiresObsidian,
           activeClaims: generated.manifest.activeClaims, userNotes: generated.manifest.userNotes,
-          viewUrl: `/memory/library/view/${generated.manifest.generationId}` }); return;
+          viewUrl: `/memory/library/view/${generated.manifest.generationId}/`,
+          views: Object.fromEntries(['timeline', 'projects', 'decisions', 'research'].map((name) => (
+            [name, `/memory/library/view/${generated.manifest.generationId}/${name}.html`]
+          ))) }); return;
       }
       const livingLibraryView = req.method === 'GET' && url.pathname.match(
-        /^\/memory\/library\/view\/([a-f0-9]{24})$/u,
+        /^\/memory\/library\/view\/([a-f0-9]{24})\/(index\.html|memory\.md|timeline\.(?:html|md)|projects\.(?:html|md)|decisions\.(?:html|md)|research\.(?:html|md))?$/u,
       );
       if (livingLibraryView) {
-        const html = await readFile(join(livingLibraryRoot, `generation-${livingLibraryView[1]}`, 'index.html'), 'utf8');
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store',
+        const served = await livingLibraryRegistry.serve({ generationId: livingLibraryView[1],
+          file: livingLibraryView[2] || 'index.html' });
+        if (served.state !== 'ready') {
+          const statusCode = served.state === 'missing' ? 404 : served.state === 'stale' ? 410 : 409;
+          json(res, statusCode, { error: served.state === 'stale'
+            ? '이 기록 보기는 현재 기억보다 오래됐어요. 새 기록 보기를 만들어 주세요.'
+            : '이 기록 보기를 안전하게 열 수 없어요.' }); return;
+        }
+        res.writeHead(200, { 'content-type': served.contentType, 'cache-control': 'no-store',
           'content-security-policy': "default-src 'none'; base-uri 'none'; form-action 'none'",
           'x-content-type-options': 'nosniff' });
-        res.end(html); return;
+        res.end(served.content); return;
       }
       if (req.method === 'POST' && url.pathname === '/memory/rollback') {
         const input = await body(req);
@@ -3741,6 +3763,10 @@ export function makeConsoleServer({
         }
         const removed = await memories.remove({ memoryId: input.candidateId,
           source: { origin: 'settings', action: 'forget' } });
+        const purged = await livingLibraryRegistry.purgeStale();
+        if (purged.state !== 'executed') throw Object.assign(
+          new Error('기억은 지웠지만 이전 기록 보기를 안전하게 정리하지 못했어요.'), { status: 409 },
+        );
         json(res, 200, {
           ok: true, rolledBack: true, removed: { id: removed.memoryId, kind: removed.kind },
           receiptWritten: true,

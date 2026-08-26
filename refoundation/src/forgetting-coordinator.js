@@ -139,7 +139,9 @@ export class ForgettingCoordinator {
       else if (disposition === 'unknown') unknownTargets.push(handle);
       else retainedTargets.push({ id: handle, reason: reason ?? 'retained' });
     }
-    const searchKinds = new Set(['fts', 'embedding', 'relationship_index']);
+    const searchKinds = new Set([
+      'fts', 'embedding', 'relationship_index', 'library_view', 'spotlight', 'windows_search',
+    ]);
     const searchProbes = [];
     for (const target of plan.targets.filter((item) => searchKinds.has(item.kind))) {
       const adapter = this.derivedAdapters[target.kind];

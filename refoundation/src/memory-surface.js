@@ -15,31 +15,31 @@ function sourceHandle(reference) {
   };
 }
 
-function publicClaim(claim) {
+function publicClaim(claim, forgotten = false) {
   return {
     memoryId: claim.memoryId,
     kind: claim.kind,
-    subject: claim.subjectKey,
-    value: visibleValue(claim),
+    value: forgotten ? '내용을 지운 기억' : visibleValue(claim),
     status: claim.status,
     validFrom: claim.validFrom,
     validTo: claim.validTo,
     recordedAt: claim.recordedAt,
-    sensitivity: claim.sensitivity,
-    sources: claim.sources.map(sourceHandle),
+    sensitivity: forgotten ? null : claim.sensitivity,
+    sources: forgotten ? [] : claim.sources.map(sourceHandle),
   };
 }
 
 export function projectMemorySurface(state) {
   const temporalIds = new Set(state.claims.map((claim) => claim.memoryId));
+  const forgottenIds = new Set(state.tombstones.map((item) => item.memoryId));
   return {
     schema: 't5.memory-surface.v1',
-    current: state.claims.filter((claim) => claim.status === 'active').map(publicClaim),
-    history: state.claims.filter((claim) => claim.status !== 'active').map(publicClaim),
+    current: state.claims.filter((claim) => claim.status === 'active').map((claim) => publicClaim(claim)),
+    history: state.claims.filter((claim) => claim.status !== 'active')
+      .map((claim) => publicClaim(claim, forgottenIds.has(claim.memoryId))),
     forgotten: state.tombstones.map((tombstone) => ({
       memoryId: tombstone.memoryId,
       requestId: tombstone.requestId,
-      subject: tombstone.subjectKey,
       reversibleUntil: tombstone.reversibleUntil,
     })),
     legacy: state.items.filter((item) => !temporalIds.has(item.memoryId)).map((item) => ({

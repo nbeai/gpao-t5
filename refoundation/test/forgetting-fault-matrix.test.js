@@ -52,7 +52,8 @@ test('index·Library 실패와 external unknown은 memory retract 성공과 합�
       { id: 'fts:memory-1', reason: 'index_delete_failed' },
       { id: 'library_view:memory-1', reason: 'adapter_failed' },
     ]);
-    assert.equal(result.receipt.searchHitAfter, 1);
+    assert.equal(result.receipt.searchHitAfter, null,
+      'Library deletion without a probe keeps aggregate search absence unknown');
     assert.equal(result.receipt.behaviorProbeAfter, 'unknown');
   } finally { await rm(room, { recursive: true, force: true }); }
 });
