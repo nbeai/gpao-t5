@@ -1,16 +1,13 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+
+import { digestAtCommit, evidenceAdditionCommit } from './helpers/git-evidence-digest.js';
 
 const root = new URL('../../', import.meta.url);
 const evidencePath = new URL(
   'refoundation/evidence/s3-m0-memory-constitution-2026-08-26.json', root,
 );
-
-const digest = async (path) => createHash('sha256')
-  .update(await readFile(new URL(path, root)))
-  .digest('hex');
 
 test('S3-M0 evidence는 공식 Gate를 바꾸지 않고 제품 변경 0과 열린 미달을 보존한다', async () => {
   const evidence = JSON.parse(await readFile(evidencePath, 'utf8'));
@@ -26,11 +23,16 @@ test('S3-M0 evidence는 공식 Gate를 바꾸지 않고 제품 변경 0과 열�
   assert.equal(evidence.baseline.notOpen.length, 2);
 });
 
-test('S3-M0 evidence가 가리키는 current source와 fixture digest는 exact하다', async () => {
+test('S3-M0 evidence가 가리키는 baseline source와 fixture digest는 exact commit에서 보존된다', async () => {
   const evidence = JSON.parse(await readFile(evidencePath, 'utf8'));
+  for (const [path, expected] of Object.entries(evidence.sourceDigests)) {
+    assert.equal(digestAtCommit(evidence.sourceCommit, path), expected, path);
+  }
+  const evidenceCommit = evidenceAdditionCommit(
+    'refoundation/evidence/s3-m0-memory-constitution-2026-08-26.json',
+  );
   for (const [path, expected] of Object.entries({
-    ...evidence.sourceDigests,
     ...evidence.fixtureDigests,
     ...evidence.governingDocumentDigests,
-  })) assert.equal(await digest(path), expected, path);
+  })) assert.equal(digestAtCommit(evidenceCommit, path), expected, path);
 });

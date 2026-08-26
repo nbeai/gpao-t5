@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { appendFile, chmod, mkdir, open, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { validateRecordReference } from './record-reference.js';
+import { makeMemoryClaim } from './temporal-memory.js';
+
 const SCHEMA = 't5.memory-event.v1';
 const KINDS = new Set(['user', 'work']);
 
@@ -21,6 +24,28 @@ function normalizedKind(kind) {
   return value;
 }
 
+function claimFromEvent(event) {
+  if (!event.temporal) return null;
+  return makeMemoryClaim({
+    memoryId: event.memoryId,
+    kind: event.temporal.claimKind,
+    subjectKey: event.temporal.subjectKey,
+    value: event.content,
+    scope: event.temporal.scope,
+    sources: event.recordRefs,
+    recordedAt: event.recordedAt,
+    validFrom: event.temporal.validFrom,
+    validTo: event.temporal.validTo,
+    subjectRevision: event.subjectRevision,
+    sourceOrder: event.sourceOrder,
+    status: event.temporal.status,
+    supersedes: event.temporal.supersedes,
+    conflictsWith: event.temporal.conflictsWith,
+    sensitivity: event.temporal.sensitivity,
+    alwaysRelevant: event.alwaysRelevant === true,
+  });
+}
+
 function parseEvents(text) {
   const events = String(text ?? '').split('\n').filter(Boolean).map((line) => JSON.parse(line));
   if (!events.length || events[0].type !== 'memory_started') throw new Error('invalid memory ledger');
@@ -32,6 +57,13 @@ function parseEvents(text) {
     if (['memory_added', 'memory_replaced'].includes(event.type)) {
       normalizedKind(event.kind);
       normalizedContent(event.content);
+      claimFromEvent(event);
+    }
+    if (event.type === 'memory_removed' && event.recordRefs !== undefined) {
+      if (!Array.isArray(event.recordRefs) || !event.recordRefs.length) {
+        throw new Error('invalid memory retraction RecordRef');
+      }
+      event.recordRefs.forEach(validateRecordReference);
     }
   }
   return events;
@@ -41,11 +73,13 @@ function project(events) {
   const current = new Map();
   for (const event of events) {
     if (event.type === 'memory_added') {
+      for (const superseded of event.temporal?.supersedes ?? []) current.delete(superseded);
       current.set(event.memoryId, {
         memoryId: event.memoryId, kind: event.kind, content: event.content,
         subjects: clone(event.subjects ?? []), alwaysRelevant: event.alwaysRelevant === true,
         subjectRevision: Number(event.subjectRevision ?? 1), sourceOrder: Number(event.sourceOrder ?? event.sequence),
         source: clone(event.source ?? null), createdAt: event.recordedAt, updatedAt: event.recordedAt,
+        ...(event.temporal ? { temporal: clone(event.temporal), recordRefs: clone(event.recordRefs) } : {}),
       });
     } else if (event.type === 'memory_replaced') {
       const previous = current.get(event.memoryId);
@@ -57,6 +91,7 @@ function project(events) {
         subjectRevision: Number(event.subjectRevision ?? (previous.subjectRevision + 1)),
         sourceOrder: Number(event.sourceOrder ?? event.sequence),
         source: clone(event.source ?? null), updatedAt: event.recordedAt,
+        ...(event.temporal ? { temporal: clone(event.temporal), recordRefs: clone(event.recordRefs) } : {}),
       });
     } else if (event.type === 'memory_removed') {
       if (!current.has(event.memoryId)) throw new Error('memory removal target is missing');
@@ -188,6 +223,88 @@ export class MemoryLedger {
       const previous = current.items.find((item) => item.memoryId === id);
       if (!previous) throw new Error('memory not found');
       await this.append('memory_removed', { memoryId: id, source });
+      return clone(previous);
+    });
+  }
+
+  async commitClaim({ claim: input } = {}) {
+    const candidate = makeMemoryClaim(input);
+    return this.serialize(async () => {
+      const current = await this.read();
+      if (current.items.some((item) => item.memoryId === candidate.memoryId)) {
+        throw new Error('MemoryClaim memoryId already exists');
+      }
+      const sameSubject = current.items.filter((item) => (
+        (item.temporal?.subjectKey ?? primarySubject(item.subjects, item.memoryId)) === candidate.subjectKey
+      ));
+      const expectedRevision = Math.max(0, ...sameSubject.map((item) => Number(item.subjectRevision ?? 0))) + 1;
+      if (candidate.subjectRevision !== expectedRevision) {
+        throw new Error(`MemoryClaim subjectRevision must be ${expectedRevision}`);
+      }
+      const expectedOrder = current.events.length + 1;
+      if (candidate.sourceOrder !== expectedOrder) {
+        throw new Error(`MemoryClaim sourceOrder must be ${expectedOrder}`);
+      }
+      for (const targetId of candidate.supersedes) {
+        const target = current.items.find((item) => item.memoryId === targetId);
+        if (!target) throw new Error(`MemoryClaim supersedes target not found: ${targetId}`);
+        const targetSubject = target.temporal?.subjectKey ?? primarySubject(target.subjects, target.memoryId);
+        if (targetSubject !== candidate.subjectKey) throw new Error('MemoryClaim supersedes target subject mismatch');
+      }
+      const legacyKind = candidate.scope.workId || candidate.scope.projectId ? 'work' : 'user';
+      const nextItem = { kind: legacyKind, content: candidate.value };
+      this.validateCapacity([
+        ...current.items.filter((item) => !candidate.supersedes.includes(item.memoryId)), nextItem,
+      ]);
+      const firstSource = candidate.sources[0];
+      await this.append('memory_added', {
+        recordedAt: candidate.recordedAt,
+        memoryId: candidate.memoryId,
+        kind: legacyKind,
+        content: candidate.value,
+        source: {
+          recordId: firstSource.recordId,
+          sourceKind: firstSource.sourceKind,
+          sourceStore: firstSource.sourceStore,
+          sourceId: firstSource.sourceId,
+          sourceRevision: firstSource.sourceRevision,
+        },
+        subjects: [candidate.subjectKey],
+        alwaysRelevant: candidate.alwaysRelevant,
+        subjectRevision: candidate.subjectRevision,
+        sourceOrder: candidate.sourceOrder,
+        temporal: {
+          claimKind: candidate.kind,
+          subjectKey: candidate.subjectKey,
+          scope: clone(candidate.scope),
+          validFrom: candidate.validFrom,
+          validTo: candidate.validTo,
+          status: candidate.status,
+          supersedes: clone(candidate.supersedes),
+          conflictsWith: clone(candidate.conflictsWith),
+          sensitivity: candidate.sensitivity,
+        },
+        recordRefs: clone(candidate.sources),
+      });
+      return clone((await this.read()).items.find((item) => item.memoryId === candidate.memoryId));
+    });
+  }
+
+  async retractClaim({ memoryId, recordRefs } = {}) {
+    const id = String(memoryId ?? '');
+    if (!Array.isArray(recordRefs) || !recordRefs.length) {
+      throw new TypeError('MemoryClaim retraction requires RecordRef');
+    }
+    const references = recordRefs.map(validateRecordReference);
+    return this.serialize(async () => {
+      const current = await this.read();
+      const previous = current.items.find((item) => item.memoryId === id);
+      if (!previous) throw new Error('memory not found');
+      await this.append('memory_removed', {
+        memoryId: id,
+        source: { recordId: references[0].recordId },
+        recordRefs: references,
+      });
       return clone(previous);
     });
   }

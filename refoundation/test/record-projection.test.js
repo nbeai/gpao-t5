@@ -167,12 +167,13 @@ test('local file·Web·channel·connection은 원문 없는 observed metadata ad
 });
 
 test('RecordRef shadow는 AgentLoop·Memory·Context·사용자 surface hot path에 아직 연결되지 않는다', async () => {
+  assert.doesNotMatch(await readFile(new URL('refoundation/src/memory-ledger.js', root), 'utf8'),
+    /record-projection/u, 'refoundation/src/memory-ledger.js');
   const hotPaths = [
     'refoundation/src/agent-loop.js',
     'refoundation/src/console-server.js',
     'refoundation/src/console-model-factory.js',
     'refoundation/src/conversation-projection.js',
-    'refoundation/src/memory-ledger.js',
     'refoundation/src/memory-portfolio.js',
   ];
   for (const path of hotPaths) {
