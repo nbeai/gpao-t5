@@ -110,12 +110,15 @@ async function main() {
         && typeof args.message === 'string' && args.message.trim().length > 0 && args.message.length <= 600
         && typeof args.unknownPreserved === 'boolean';
       const claimsPassed = exactSchema && Object.entries(journey.expected).every(([key, value]) => args[key] === value);
+      const observedClaims = args ? Object.fromEntries(ARG_KEYS.filter((key) => key !== 'message')
+        .map((key) => [key, args[key] ?? null])) : null;
       const usage = normalizeProviderUsage(response.usage); const attempt = observer.attempts;
       results.push({ journeyId: journey.id, model: credential.modelId, wallMs: Math.round(performance.now() - started),
         responseModel: response.responseModel ?? null, modelIdentityMatched: response.responseModel === credential.modelId,
         providerAttempts: attempt.length, usage, costObservationPassed: usage.complete && attempt.length === 1
           && attempt[0].state === 'committed', requestBoundaryPassed: observations.length === 1,
-        outputPrivacyPassed: privacyPassed, claimsPassed, proseOutsideTool: Boolean(String(response.text ?? '').trim()),
+        outputPrivacyPassed: privacyPassed, exactSchema, observedClaims, claimsPassed,
+        proseOutsideTool: Boolean(String(response.text ?? '').trim()),
         messageForHumanReview: privacyPassed ? String(args?.message ?? '').slice(0, 600) : null,
         messageDigest: privacyPassed ? hash(String(args?.message ?? '')) : null,
         machinePassed: claimsPassed && privacyPassed && observations.length === 1 && usage.complete
