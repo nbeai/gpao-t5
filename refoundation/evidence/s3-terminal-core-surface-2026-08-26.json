@@ -1,6 +1,7 @@
 {
   "schema": "t5.s3.terminal-core-surface.v1",
   "status": "product_surface_effect_output_and_github_broker_integrated_human_provider_pass_with_observation",
+  "sourceCommit": "82d8df10d296c36f1b8365c5bb9f0b7a904aaca3",
   "userCompletionSlice": "short commands remain exec; managed process, TTY, delta observation, input, stop, and exact output recall share one continuous terminal_session surface",
   "comparison": {
     "beforeActiveTerminalTools": 4,

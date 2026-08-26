@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
+import { digestAtCommit } from './helpers/git-evidence-digest.js';
+
 const root = new URL('../../', import.meta.url);
 const evidenceUrl = new URL('refoundation/evidence/s3-terminal-core-surface-2026-08-26.json', root);
-const digest = async (path) => createHash('sha256').update(await readFile(new URL(path, root))).digest('hex');
 
 test('Terminal Core 증거는 표면·effect·output 부담 감소와 남은 자격을 분리한다', async () => {
   const evidence = JSON.parse(await readFile(evidenceUrl, 'utf8'));
@@ -23,7 +23,7 @@ test('Terminal Core 증거는 표면·effect·output 부담 감소와 남은 자
   assert.equal(evidence.verification.personalCredentialRun, false);
 });
 
-test('Terminal Core 증거가 가리키는 제품과 반대시험 digest는 현재 source와 일치한다', async () => {
+test('Terminal Core 증거가 가리키는 제품과 반대시험 digest는 exact source commit과 일치한다', async () => {
   const evidence = JSON.parse(await readFile(evidenceUrl, 'utf8'));
   const sources = {
     'terminal-session-tool.js': 'refoundation/src/terminal-session-tool.js',
@@ -42,6 +42,11 @@ test('Terminal Core 증거가 가리키는 제품과 반대시험 digest는 현�
     'github-cli-broker.test.js': 'refoundation/test/github-cli-broker.test.js',
     'terminal-platform-adapter.test.js': 'refoundation/test/terminal-platform-adapter.test.js',
   };
-  for (const [name, path] of Object.entries(sources)) assert.equal(await digest(path), evidence.sourceDigests[name], path);
-  for (const [name, path] of Object.entries(tests)) assert.equal(await digest(path), evidence.testDigests[name], path);
+  assert.equal(evidence.sourceCommit, '82d8df10d296c36f1b8365c5bb9f0b7a904aaca3');
+  for (const [name, path] of Object.entries(sources)) {
+    assert.equal(digestAtCommit(evidence.sourceCommit, path), evidence.sourceDigests[name], path);
+  }
+  for (const [name, path] of Object.entries(tests)) {
+    assert.equal(digestAtCommit(evidence.sourceCommit, path), evidence.testDigests[name], path);
+  }
 });

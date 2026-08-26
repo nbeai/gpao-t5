@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 
 import { runAgent } from '../src/agent-loop.js';
 import { AttachmentStore } from '../src/attachment-store.js';
@@ -141,14 +141,16 @@ const evidence = {
   observedAt: new Date().toISOString(), sourceCommit, runtimeDirty,
   runtimeDigest: runtimeDigest.digest('hex'),
   model: { provider: connection.provider, modelId: connection.modelId },
-  request, durationMs: Date.now() - startedAt, status: result.status,
+  requestPurpose: 'Create one Korean visual operations report from exact synthetic facts, render-inspect it, and register the verified HTML output.',
+  durationMs: Date.now() - startedAt, status: result.status,
   modelTurns: result.modelTurns, modelCalls: result.modelCalls.length,
   finalDesignState: finalVisualReceipt?.state ?? null,
   finalDesignUnmeasured: finalVisualReceipt?.unmeasured ?? [],
   toolCalls: result.receipts.map((receipt) => ({
     name: receipt.requestedCall?.name, action: receipt.requestedCall?.args?.action ?? null,
     outcome: receipt.outcome, designState: receipt.result?.observation?.designReceipt?.state ?? null,
-    filePath: receipt.requestedCall?.args?.filePath ?? null,
+    filePath: receipt.requestedCall?.args?.filePath
+      ? relative(workspace, resolve(receipt.requestedCall.args.filePath)) : null,
     reason: receipt.result?.reason ?? receipt.result?.error ?? null,
   })),
   checks, error,
