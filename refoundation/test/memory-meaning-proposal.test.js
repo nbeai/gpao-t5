@@ -135,12 +135,15 @@ test('model adapter가 바뀌어도 같은 meaning payload와 runtime reality는
   assert.deepEqual(second, first);
 });
 
-test('M2 meaning proposal은 model tool·AgentLoop·Context·사용자 surface에 연결되지 않는다', async () => {
+test('M2 meaning proposal은 전용 tool 경계에만 연결되고 AgentLoop·답 저작권을 바꾸지 않는다', async () => {
   assert.doesNotMatch(await readFile(new URL('refoundation/src/memory-ledger.js', root), 'utf8'),
     /memory-meaning-proposal/u, 'refoundation/src/memory-ledger.js');
+  assert.match(await readFile(new URL('refoundation/src/memory-tool.js', root), 'utf8'),
+    /memory-meaning-proposal/u);
+  assert.match(await readFile(new URL('refoundation/src/console-server.js', root), 'utf8'),
+    /makeMemoryClaimTool/u);
   for (const path of [
-    'refoundation/src/memory-tool.js',
-    'refoundation/src/agent-loop.js', 'refoundation/src/console-server.js',
+    'refoundation/src/agent-loop.js',
     'refoundation/src/conversation-projection.js', 'refoundation/src/memory-portfolio.js',
   ]) assert.doesNotMatch(await readFile(new URL(path, root), 'utf8'),
     /memory-meaning-proposal|temporal-memory/u, path);

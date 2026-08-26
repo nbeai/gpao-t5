@@ -166,12 +166,13 @@ test('local file·Web·channel·connection은 원문 없는 observed metadata ad
   }), /unknown field/u);
 });
 
-test('RecordRef shadow는 AgentLoop·Memory·Context·사용자 surface hot path에 아직 연결되지 않는다', async () => {
+test('RecordRef source projection은 memory source reader 경계에만 연결되고 AgentLoop·답을 바꾸지 않는다', async () => {
   assert.doesNotMatch(await readFile(new URL('refoundation/src/memory-ledger.js', root), 'utf8'),
     /record-projection/u, 'refoundation/src/memory-ledger.js');
+  assert.match(await readFile(new URL('refoundation/src/console-server.js', root), 'utf8'),
+    /record-projection/u, 'refoundation/src/console-server.js');
   const hotPaths = [
     'refoundation/src/agent-loop.js',
-    'refoundation/src/console-server.js',
     'refoundation/src/console-model-factory.js',
     'refoundation/src/conversation-projection.js',
     'refoundation/src/memory-portfolio.js',

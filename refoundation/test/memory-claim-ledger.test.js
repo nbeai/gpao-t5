@@ -56,6 +56,7 @@ test('MemoryClaim은 기존 memory event에 optional temporal·recordRefs로 한
     assert.equal(state.events[1].recordRefs[0].recordId, source().recordId);
     assert.equal(state.items[0].content, 'prefers filter coffee');
     assert.equal(state.items[0].temporal.validFrom, '2026-08-01T00:00:00.000Z');
+    assert.deepEqual(state.claims.map((item) => [item.memoryId, item.status]), [['memory-1', 'active']]);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 
@@ -88,6 +89,9 @@ test('correction은 새 claim과 supersedes를 한 event에 원자 append하고 
     assert.deepEqual(state.events[2].temporal.supersedes, ['memory-1']);
     assert.deepEqual(state.items.map((item) => item.memoryId), ['memory-2']);
     assert.equal(state.items[0].content, 'prefers light roast');
+    assert.deepEqual(state.claims.map((item) => [item.memoryId, item.status]), [
+      ['memory-1', 'superseded'], ['memory-2', 'active'],
+    ]);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 
@@ -116,6 +120,7 @@ test('retract는 기존 memory_removed event와 RecordRef를 쓰고 재시작 �
     assert.deepEqual((await ledger.read()).items, []);
     const restarted = new MemoryLedger(room); const state = await restarted.read();
     assert.deepEqual(state.items, []);
+    assert.deepEqual(state.claims.map((item) => [item.memoryId, item.status]), [['memory-1', 'retracted']]);
     assert.equal(state.events.at(-1).type, 'memory_removed');
     assert.equal(state.events.at(-1).recordRefs[0].sourceId, 'retract-source');
   } finally { await rm(room, { recursive: true, force: true }); }

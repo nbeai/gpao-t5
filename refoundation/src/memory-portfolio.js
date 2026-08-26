@@ -16,15 +16,54 @@ export function currentUserMemoryCandidates(items = []) {
 }
 
 export function selectMemoryPortfolio({ items = [], currentWork = null } = {}) {
-  const exactWork = items.filter((item) => item.kind === 'work' && currentWork
+  const legacy = items.filter((item) => !item.temporal);
+  const exactWork = legacy.filter((item) => item.kind === 'work' && currentWork
     && item.source?.workId === currentWork.workId
     && Number(item.source?.revision ?? 0) === Number(currentWork.revision));
-  const explicitUser = currentUserMemoryCandidates(items).filter((item) => item.alwaysRelevant === true);
+  const explicitUser = currentUserMemoryCandidates(legacy).filter((item) => item.alwaysRelevant === true);
   return [...explicitUser, ...exactWork];
 }
 
+function temporalState(claim, asOf) {
+  if (claim.status === 'disputed' || (claim.conflictsWith ?? []).length) return 'contested';
+  if (['superseded', 'retracted'].includes(claim.status)) return 'historical';
+  if (claim.validFrom == null || claim.validTo == null) return 'temporal_unknown';
+  if (asOf < claim.validFrom) return 'future';
+  if (asOf >= claim.validTo) return 'historical';
+  return 'current';
+}
+
+function temporalScopeVisible(claim, { currentWork, currentChannel }) {
+  if (claim.scope?.workId && claim.scope.workId !== currentWork?.workId) return false;
+  if (claim.sensitivity === 'private') {
+    const channels = [...new Set((claim.sources ?? []).map((source) => source.scope?.channel).filter(Boolean))];
+    if (channels.length && (!currentChannel || channels.some((channel) => channel !== currentChannel))) return false;
+  }
+  return true;
+}
+
+export function temporalMemoryCandidateProjection(claims = [], {
+  asOf = new Date().toISOString(), currentWork = null, currentChannel = null,
+} = {}) {
+  const pointers = claims.filter((claim) => temporalScopeVisible(claim, { currentWork, currentChannel }))
+    .slice(0, 100).map((claim) => ({
+      memoryId: claim.memoryId,
+      subjectHandle: claim.subjectKey,
+      temporalState: temporalState(claim, asOf),
+      validFrom: claim.validFrom,
+      validTo: claim.validTo,
+    }));
+  if (!pointers.length) return null;
+  return { role: 'assistant', content: [
+    '[T5 TEMPORAL MEMORY POINTERS — no content]',
+    'Choose exact memoryId only when needed. memory read reopens every source. States differ; the current user message wins conflicts.',
+    ...pointers.map((pointer) => JSON.stringify(pointer)),
+  ].join('\n') };
+}
+
 export function memoryCandidateProjection(items = []) {
-  const candidates = currentUserMemoryCandidates(items).filter((item) => item.alwaysRelevant !== true);
+  const candidates = currentUserMemoryCandidates(items.filter((item) => !item.temporal))
+    .filter((item) => item.alwaysRelevant !== true);
   if (!candidates.length) return null;
   return { role: 'assistant', content: [
     '[T5 USER MEMORY CANDIDATES — subjects and pointers only; not recalled content]',

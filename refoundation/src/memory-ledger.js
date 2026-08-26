@@ -101,6 +101,24 @@ function project(events) {
   return [...current.values()];
 }
 
+function projectClaims(events) {
+  const claims = new Map();
+  for (const event of events) {
+    if (event.type === 'memory_added' && event.temporal) {
+      const claim = claimFromEvent(event);
+      for (const targetId of claim.supersedes) {
+        const target = claims.get(targetId);
+        if (target) claims.set(targetId, { ...target, status: 'superseded' });
+      }
+      claims.set(claim.memoryId, claim);
+    } else if (event.type === 'memory_removed') {
+      const target = claims.get(event.memoryId);
+      if (target) claims.set(event.memoryId, { ...target, status: 'retracted' });
+    }
+  }
+  return [...claims.values()];
+}
+
 export class MemoryLedger {
   constructor(directory, { maxEntryBytes = 2_000, maxActiveBytes = 16_000, maxItems = 100 } = {}) {
     if (!directory) throw new TypeError('memory ledger directory is required');
@@ -137,7 +155,7 @@ export class MemoryLedger {
 
   async read() {
     const events = parseEvents(await readFile(this.path, 'utf8'));
-    return { events: clone(events), items: project(events) };
+    return { events: clone(events), items: project(events), claims: projectClaims(events) };
   }
 
   validateCapacity(items) {

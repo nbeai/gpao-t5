@@ -1,12 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { MemoryLedger } from '../src/memory-ledger.js';
+import { makeRecordReference } from '../src/record-reference.js';
+import { makeMemoryClaim } from '../src/temporal-memory.js';
 import {
-  makeMemoryTool, memoryContextMessage, MEMORY_FLUSH_SYSTEM_INSTRUCTIONS,
+  makeMemoryClaimTool, makeMemoryTool, memoryContextMessage, MEMORY_FLUSH_SYSTEM_INSTRUCTIONS,
 } from '../src/memory-tool.js';
 
 test('memory 도구 하나로 자연어 대화가 add·list·replace·remove 현재값을 다룬다', async () => {
@@ -40,6 +43,98 @@ test('memory 도구 하나로 자연어 대화가 add·list·replace·remove 현
   } finally {
     await rm(room, { recursive: true, force: true });
   }
+});
+
+test('temporal memory read는 모든 source를 reopen한 뒤에만 claim content를 반환한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-memory-source-read-'));
+  try {
+    const ledger = new MemoryLedger(room); await ledger.ensure();
+    const reference = makeRecordReference({
+      sourceKind: 'conversation_message', sourceStore: 'conversation-ledger', sourceId: 'message-1',
+      sourceRevision: 1, sha256: createHash('sha256').update('source').digest('hex'),
+      occurredAt: '2026-08-26T00:00:00.000Z', recordedAt: '2026-08-26T00:00:01.000Z',
+      scope: { sessionId: 'session-1', workId: null, subjectKeys: [], channel: 'console' },
+      trust: 'user_asserted', sensitivity: 'personal', coverage: 'full', availability: 'available',
+    });
+    await ledger.commitClaim({ claim: makeMemoryClaim({
+      memoryId: 'memory-claim', kind: 'preference', subjectKey: 'subject-coffee', value: 'light roast',
+      scope: { global: true, workId: null, projectId: null, personId: 'person:owner', organizationId: null },
+      sources: [reference], recordedAt: '2026-08-26T00:01:00.000Z',
+      validFrom: '2026-01-01T00:00:00.000Z', validTo: '2027-01-01T00:00:00.000Z',
+      subjectRevision: 1, sourceOrder: 2, status: 'active', supersedes: [], conflictsWith: [],
+      sensitivity: 'personal', alwaysRelevant: false,
+    }) });
+    const unavailable = makeMemoryTool({ ledger, sourceReader: {
+      reopen: async () => ({ state: 'changed', source: null,
+        accounting: { availability: 'changed', recordId: reference.recordId } }),
+    } });
+    const denied = await unavailable.execute({ action: 'read', memoryIds: ['memory-claim'] });
+    assert.equal(denied.state, 'source_unavailable');
+    assert.doesNotMatch(JSON.stringify(denied), /light roast/u);
+
+    const available = makeMemoryTool({ ledger, sourceReader: {
+      reopen: async () => ({ state: 'reopened', source: { exact: true },
+        accounting: { availability: 'available', recordId: reference.recordId } }),
+    } });
+    const recalled = await available.execute({ action: 'read', memoryIds: ['memory-claim'] });
+    assert.equal(recalled.state, 'read');
+    assert.equal(recalled.claims[0].value, 'light roast');
+    assert.equal(recalled.source.availability, 'available');
+    assert.deepEqual(recalled.source.recordIds, [reference.recordId]);
+    assert.equal('exact' in recalled.source, false);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('memory_claim 도구는 model meaning만 받고 runtime reality로 commit·correct·retract한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-memory-claim-tool-'));
+  try {
+    const ledger = new MemoryLedger(room); await ledger.ensure();
+    const reference = makeRecordReference({
+      sourceKind: 'conversation_message', sourceStore: 'conversation-ledger', sourceId: 'message-claim',
+      sourceRevision: 1, sha256: createHash('sha256').update('claim-source').digest('hex'),
+      occurredAt: '2026-08-26T00:00:00.000Z', recordedAt: '2026-08-26T00:00:01.000Z',
+      scope: { sessionId: 'session-1', workId: null, subjectKeys: [], channel: 'console' },
+      trust: 'user_asserted', sensitivity: 'personal', coverage: 'full', availability: 'available',
+    });
+    let phase = 0;
+    const tool = makeMemoryClaimTool({ ledger, runtimeReality: async (meaning) => {
+      phase += 1;
+      const state = await ledger.read(); const current = state.claims.find((item) => item.status === 'active');
+      return {
+        memoryId: `memory-${phase}`, sources: [reference],
+        recordedAt: `2026-08-26T00:0${phase}:00.000Z`,
+        currentSessionId: 'session-1', currentWorkId: null, currentChannel: 'console',
+        verifiedSubjects: current ? { [meaning.subjectHandle]: {
+          subjectKey: current.subjectKey, personId: current.scope.personId,
+        } } : {},
+        defaultSubjectKey: current?.subjectKey ?? 'subject-runtime-1',
+        subjectRevision: current ? current.subjectRevision + 1 : 1,
+        sourceOrder: state.events.length + 1,
+        targetMemoryId: current?.memoryId ?? null,
+        conflictingMemoryIds: [], normalPolicyQualified: false,
+        channelSensitivity: 'personal', alwaysRelevantQualified: false,
+      };
+    } });
+    assert.deepEqual(Object.keys(tool.parameters.properties).sort(), [
+      'action', 'kind', 'scopeMeaning', 'subjectHandle', 'validTimeMeaning', 'value',
+    ]);
+    const meaning = {
+      action: 'remember', kind: 'preference', value: 'filter coffee', subjectHandle: null,
+      validTimeMeaning: { from: '2026-01-01T00:00:00.000Z', to: '2027-01-01T00:00:00.000Z', certainty: 'explicit' },
+      scopeMeaning: 'global',
+    };
+    const remembered = await tool.execute(meaning);
+    assert.equal(remembered.state, 'committed');
+    assert.equal((await ledger.read()).claims[0].value, 'filter coffee');
+    const corrected = await tool.execute({ ...meaning, action: 'correct', value: 'light roast',
+      subjectHandle: 'subject-runtime-1' });
+    assert.equal(corrected.state, 'committed');
+    assert.deepEqual((await ledger.read()).claims.map((item) => item.status), ['superseded', 'active']);
+    const retracted = await tool.execute({ ...meaning, action: 'retract', value: 'remove coffee preference',
+      subjectHandle: 'subject-runtime-1' });
+    assert.equal(retracted.state, 'retracted');
+    assert.equal((await ledger.read()).claims.at(-1).status, 'retracted');
+  } finally { await rm(room, { recursive: true, force: true }); }
 });
 
 test('memory 환경은 현재 상태와 과거 이력을 구분해 취소된 work 기억을 모델이 정리하게 한다', async () => {

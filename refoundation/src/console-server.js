@@ -40,7 +40,10 @@ import { evaluateWorkCompletion } from './work-completion-evaluator.js';
 import { makeInputSettlementScope } from './input-settlement-scope.js';
 import { makePausedWorkScope } from './paused-work-scope.js';
 import { decideTransition } from './transition-decision.js';
-import { memoryCandidateProjection, selectMemoryPortfolio, workingMemoryProjection } from './memory-portfolio.js';
+import {
+  memoryCandidateProjection, selectMemoryPortfolio, temporalMemoryCandidateProjection,
+  workingMemoryProjection,
+} from './memory-portfolio.js';
 import { projectHistoricalConversationEntries } from './conversation-projection.js';
 import { makeConversationRecallTool } from './conversation-recall-tool.js';
 import {
@@ -50,8 +53,11 @@ import {
   summarizeConversationCheckpoint,
 } from './conversation-checkpoint.js';
 import { MemoryLedger } from './memory-ledger.js';
+import { makeRecordSourceReader } from './record-source-reader.js';
+import { projectConversationRecordReference } from './record-projection.js';
 import {
-  makeMemoryTool, memoryContextMessage, memoryFlushRequest, MEMORY_FLUSH_SYSTEM_INSTRUCTIONS,
+  makeMemoryClaimTool, makeMemoryTool, memoryContextMessage, memoryFlushRequest,
+  MEMORY_FLUSH_SYSTEM_INSTRUCTIONS,
 } from './memory-tool.js';
 import { makeSessionSearchTool } from './session-search-tool.js';
 import { makeWebSearchTool } from './web-search-tool.js';
@@ -784,6 +790,14 @@ export function makeConsoleServer({
       items: memorySnapshot.items, request: text, currentWork: preexistingWork,
     });
     const memoryCandidates = memoryCandidateProjection(memorySnapshot.items);
+    const temporalMemoryCandidates = temporalMemoryCandidateProjection(memorySnapshot.claims ?? [], {
+      asOf: new Date().toISOString(), currentWork: preexistingWork,
+      currentChannel: session.origin?.channel ?? 'console',
+    });
+    const memorySourceReader = makeRecordSourceReader({
+      mode: 'O2_full_shadow', conversationLedger: conversations, runLedger, workStore,
+      attachmentStore: attachments,
+    });
     let canonicalConversation = await conversations.read(sessionId);
     if (options.admittedInput) {
       canonicalConversation = {
@@ -1041,6 +1055,7 @@ export function makeConsoleServer({
       }
       const history = projection.messages;
       if (memoryCandidates) history.push(memoryCandidates);
+      if (temporalMemoryCandidates) history.push(temporalMemoryCandidates);
       if (!options.admittedInput) {
         await conversations.appendMessage({
           sessionId, messageId: `${run.runId}:user`, runId: run.runId,
@@ -1313,9 +1328,56 @@ export function makeConsoleServer({
       }
       offeredTools.unshift(makeMemoryTool({
         ledger: memories,
+        sourceReader: memorySourceReader,
         source: { origin: 'foreground', sessionId, runId: run.runId,
           messageId: `${run.runId}:user`, ...(activeWork
             ? { workId: activeWork.workId, revision: activeWork.revision } : {}) },
+      }));
+      offeredTools.unshift(makeMemoryClaimTool({
+        ledger: memories,
+        runtimeReality: async (meaning) => {
+          const [memoryState, conversationState] = await Promise.all([
+            memories.read(), conversations.read(sessionId),
+          ]);
+          const messageId = `${run.runId}:user`;
+          const sourceEvent = conversationState.events.find((event) => (
+            event.type === 'message' && event.messageId === messageId
+          ));
+          if (!sourceEvent) throw new Error('current memory source message is unavailable');
+          const channel = session.origin?.channel ?? 'console';
+          const observedAt = new Date().toISOString();
+          const sourceReference = projectConversationRecordReference({
+            event: sourceEvent, expectedSessionId: sessionId,
+            workId: activeWork?.workId ?? null, channel,
+            trust: 'user_asserted', sensitivity: 'personal', observedAt,
+          });
+          const handle = meaning?.subjectHandle == null ? null : String(meaning.subjectHandle);
+          const target = handle == null ? null : (memoryState.claims ?? []).filter((claim) => (
+            claim.subjectKey === handle && claim.status === 'active'
+          )).sort((left, right) => (
+            Number(right.subjectRevision) - Number(left.subjectRevision)
+            || Number(right.sourceOrder) - Number(left.sourceOrder)
+          )).at(0) ?? null;
+          const subjectKey = target?.subjectKey ?? `subject:${randomUUID()}`;
+          const sameSubject = (memoryState.claims ?? []).filter((claim) => claim.subjectKey === subjectKey);
+          return {
+            memoryId: randomUUID(), sources: [sourceReference], recordedAt: observedAt,
+            currentSessionId: sessionId, currentWorkId: activeWork?.workId ?? null,
+            currentChannel: channel,
+            verifiedSubjects: target ? { [handle]: {
+              subjectKey: target.subjectKey,
+              personId: target.scope.personId,
+              projectId: target.scope.projectId,
+              organizationId: target.scope.organizationId,
+            } } : {},
+            defaultSubjectKey: subjectKey,
+            subjectRevision: Math.max(0, ...sameSubject.map((claim) => Number(claim.subjectRevision))) + 1,
+            sourceOrder: memoryState.events.length + 1,
+            targetMemoryId: target?.memoryId ?? null,
+            conflictingMemoryIds: [], normalPolicyQualified: false,
+            channelSensitivity: 'personal', alwaysRelevantQualified: false,
+          };
+        },
       }));
       offeredTools.unshift(makeSessionSearchTool({
         ledger: conversations, sessions, workStore, runLedger, currentSessionId: sessionId,
@@ -1325,7 +1387,8 @@ export function makeConsoleServer({
         performConnection: (id, actionId) => performConnectionAction(id, actionId, { sessionId }),
       }));
       const coreToolNames = [
-        'connection', 'memory', 'skill', ...(options.trigger === 'automation' ? [] : ['work_completion']),
+        'connection', 'memory', 'memory_claim', 'skill',
+        ...(options.trigger === 'automation' ? [] : ['work_completion']),
         ...(pendingLearningTrials.length ? ['learning_trial'] : []),
         // Public-web search, exact URL reading, and bounded multi-source research are
         // foundational observation hands. The research schema stays visible because

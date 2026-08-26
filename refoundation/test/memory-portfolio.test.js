@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { memoryCandidateProjection, selectMemoryPortfolio, workingMemoryProjection,
-  episodePointers } from '../src/memory-portfolio.js';
+  episodePointers, temporalMemoryCandidateProjection } from '../src/memory-portfolio.js';
 
 test('자동 투영은 명시적 User Memory와 exact Work revision만 사용하고 의미 후보는 pointer로 남긴다', () => {
   const items = [
@@ -42,4 +42,49 @@ test('Working Memory와 Episode는 원문을 복제하지 않고 Work·Run·Mess
   assert.deepEqual(episodePointers(state), [{ workId: 'w', revision: 1, outcome: 'achieved',
     runId: 'r1', sessionId: null, sourceMessageId: 'm1', recordedAt: null }]);
   assert.doesNotMatch(JSON.stringify(episodePointers(state)), /content|text|receipt/u);
+});
+
+test('temporal Memory는 content 자동 주입 없이 current·historical·unknown pointer만 보인다', () => {
+  const base = {
+    kind: 'preference', subjectKey: 'subject-coffee', value: 'must not leak old coffee',
+    scope: { global: true, workId: null, projectId: null, personId: 'person:owner', organizationId: null },
+    sources: [{ scope: { channel: 'console' }, sensitivity: 'personal' }],
+    recordedAt: '2026-08-20T00:00:00.000Z', validFrom: '2026-01-01T00:00:00.000Z',
+    validTo: '2027-01-01T00:00:00.000Z', subjectRevision: 1, sourceOrder: 1,
+    status: 'active', supersedes: [], conflictsWith: [], sensitivity: 'personal', alwaysRelevant: true,
+  };
+  const claims = [
+    { ...base, memoryId: 'current' },
+    { ...base, memoryId: 'historical', subjectKey: 'subject-old',
+      validFrom: '2025-01-01T00:00:00.000Z', validTo: '2025-12-31T00:00:00.000Z' },
+    { ...base, memoryId: 'unknown', subjectKey: 'subject-unknown', validTo: null },
+  ];
+  const message = temporalMemoryCandidateProjection(claims, {
+    asOf: '2026-08-26T00:00:00.000Z', currentChannel: 'console', currentWork: null,
+  });
+  assert.match(message.content, /"memoryId":"current".*"temporalState":"current"/u);
+  assert.match(message.content, /"memoryId":"historical".*"temporalState":"historical"/u);
+  assert.match(message.content, /"memoryId":"unknown".*"temporalState":"temporal_unknown"/u);
+  assert.doesNotMatch(message.content, /must not leak old coffee/u);
+  assert.deepEqual(selectMemoryPortfolio({
+    items: [{ memoryId: 'current', kind: 'user', content: 'must not inject', alwaysRelevant: true,
+      temporal: { status: 'active' } }],
+  }), []);
+});
+
+test('private temporal source는 다른 channel candidate surface에 나타나지 않는다', () => {
+  const claims = [{
+    memoryId: 'private-memory', kind: 'fact', subjectKey: 'private-subject', value: 'private value',
+    scope: { global: true, workId: null, projectId: null, personId: 'person:owner', organizationId: null },
+    sources: [{ scope: { channel: 'telegram' }, sensitivity: 'private' }],
+    recordedAt: '2026-08-20T00:00:00.000Z', validFrom: '2026-01-01T00:00:00.000Z',
+    validTo: '2027-01-01T00:00:00.000Z', subjectRevision: 1, sourceOrder: 1,
+    status: 'active', supersedes: [], conflictsWith: [], sensitivity: 'private', alwaysRelevant: false,
+  }];
+  assert.equal(temporalMemoryCandidateProjection(claims, {
+    asOf: '2026-08-26T00:00:00.000Z', currentChannel: 'console', currentWork: null,
+  }), null);
+  assert.match(temporalMemoryCandidateProjection(claims, {
+    asOf: '2026-08-26T00:00:00.000Z', currentChannel: 'telegram', currentWork: null,
+  }).content, /private-memory/u);
 });
