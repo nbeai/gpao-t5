@@ -12,6 +12,18 @@ import { makeTerminalSessionTool } from './terminal-session-tool.js';
 
 const DEFAULT_YIELD_MS = 1000;
 const DEFAULT_OUTPUT_LIMIT = 64_000;
+const STORED_OUTPUT_PREVIEW_CHARS = 8_000;
+
+function compactStoredOutput(text) {
+  const value = String(text ?? '');
+  if (value.length <= STORED_OUTPUT_PREVIEW_CHARS) return value;
+  const half = STORED_OUTPUT_PREVIEW_CHARS / 2;
+  return `${value.slice(0, half)}\n…(${value.length - STORED_OUTPUT_PREVIEW_CHARS} stored characters omitted; use terminal_session read_output)…\n${value.slice(-half)}`;
+}
+
+function withStoredOutputPreview(result) {
+  return { ...result, stdout: compactStoredOutput(result.stdout), stderr: compactStoredOutput(result.stderr) };
+}
 
 export const EFFECT_SCHEMA = {
   type: 'object',
@@ -121,12 +133,16 @@ function makeCommandTool(options = {}, { managed }) {
   const explain = explainCommand ?? (runtime.family === 'posix'
     ? explainShellCommand
     : async () => ({ ok: false, parser: 'unavailable', commandFamily: runtime.family }));
+  const registeredCli = managed ? [] : (terminalCredentialBroker?.capabilities ?? []);
+  const registeredCliDescription = registeredCli.length
+    ? ` Registered credential-owning CLI: ${registeredCli.map((item) => item.executable).join(', ')}. Call a registered CLI directly for its allowed read actions; do not precheck it with command -v or wrap it in command, env, or another shell.`
+    : '';
 
   const tool = {
     name: managed ? 'process_start' : 'exec',
     description: managed
       ? 'Start a command that should continue as a managed process. Returns running processId when still active; use process_control afterward.'
-      : 'Run a foreground command to completion and return its complete observed stdout, stderr, and exit status in one result.',
+      : `Run a foreground command to completion and return its complete observed stdout, stderr, and exit status in one result.${registeredCliDescription}`,
     parameters: {
       type: 'object',
       properties: {
@@ -235,6 +251,7 @@ function makeCommandTool(options = {}, { managed }) {
               stdout: full.stdout.text, stderr: full.stderr.text });
             result.outputRecall = { handle: stored.handle, streams: stored.streams };
             result.activatedTools = [options.outputRecallToolName ?? 'terminal_output'];
+            result = withStoredOutputPreview(result);
           }
           registry.forget(result.processId, ownerId);
           const { processId: ignoredProcessId, cursor: ignoredCursor, ...foreground } = result;
@@ -369,9 +386,30 @@ export function makeTerminalHand(options = {}) {
   const control = makeProcessControlTool({ processRegistry, ownerId: options.ownerId });
   const output = options.terminalOutputStore && options.ownerId
     ? makeTerminalOutputTool({ store: options.terminalOutputStore, sessionId: options.ownerId }) : null;
+  const managedRecall = new Map();
+  const decorateManagedResult = async (result) => {
+    if (!result?.truncated || !['completed', 'failed', 'stopped'].includes(result.state)
+      || !options.terminalOutputStore || !options.ownerId || !options.originRunId) return result;
+    let stored = managedRecall.get(result.processId);
+    if (!stored) {
+      const full = processRegistry.fullOutput(result.processId, options.ownerId);
+      if (full.stdout.omittedChars > 0 || full.stderr.omittedChars > 0) return {
+        ...result, exactOutputRecallUnavailable: true,
+      };
+      stored = await options.terminalOutputStore.save({
+        sessionId: options.ownerId, runId: options.originRunId,
+        stdout: full.stdout.text, stderr: full.stderr.text,
+      });
+      managedRecall.set(result.processId, stored);
+    }
+    return withStoredOutputPreview({
+      ...result, outputRecall: { handle: stored.handle, streams: stored.streams },
+    });
+  };
   const session = makeTerminalSessionTool({
     start, ptyStart, control, output, effectSchema: EFFECT_SCHEMA,
     normalizeEffect: normalizeTerminalEffect,
+    decorateResult: decorateManagedResult,
   });
   session.searchTerms = [
     'long running background command managed process interactive terminal tty tui stdin prompt exact output',

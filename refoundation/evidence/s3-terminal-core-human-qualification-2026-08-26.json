@@ -1,0 +1,54 @@
+{
+  "schema": "t5.s3.terminal-core-human-qualification.v1",
+  "verdict": "PASS_WITH_OBSERVATION",
+  "models": ["gpt-5.6-terra", "gpt-5.5"],
+  "coreJourneys": {
+    "count": 4,
+    "pairedUserGoalPassesAfterRepair": "8/8",
+    "goals": [
+      "bulk exact aggregation without filename dump",
+      "managed server ready-health-stop",
+      "real TTY input and terminal result",
+      "one program execution and exact middle-output fact"
+    ]
+  },
+  "firstPass": {
+    "gpt-5.6-terra": [
+      {"case":"H01","passed":true,"wallMs":16352,"modelCalls":7,"providerTokens":76037},
+      {"case":"H02","passed":true,"wallMs":12491,"modelCalls":6,"providerTokens":72497},
+      {"case":"H03","passed":true,"wallMs":14388,"modelCalls":7,"providerTokens":68820},
+      {"case":"H04","passed":false,"wallMs":22292,"modelCalls":8,"providerTokens":475142,
+        "reason":"managed truncated output had no exact recall handle; two read_output calls failed"}
+    ],
+    "gpt-5.5": [
+      {"case":"H01","passed":true,"wallMs":20249,"modelCalls":5,"providerTokens":57983,"backgroundContaminated":true},
+      {"case":"H02","passed":true,"wallMs":17556,"modelCalls":3,"providerTokens":48604},
+      {"case":"H03","passed":true,"wallMs":26679,"modelCalls":7,"providerTokens":78088},
+      {"case":"H04","passed":true,"wallMs":17296,"modelCalls":3,"providerTokens":35995,"backgroundContaminated":true}
+    ]
+  },
+  "repair": {
+    "managedTerminalOutputRecall": "terminal managed completion now stores one Session/Run-owned exact handle",
+    "inlineStoredOutputPreviewChars": 8000,
+    "learningReviewInQualificationConsole": "off",
+    "countertest": "managed truncated output exact middle range read without command rerun"
+  },
+  "repairQualification": {
+    "gpt-5.6-terra": {"case":"H04","passed":true,"wallMs":21144,"modelCalls":6,"providerTokens":91048,
+      "programExecutions":1,"exactObservedOutputFile":true,"runtimeRecallHandleProduced":true,"learningReview":0},
+    "gpt-5.5": {"case":"H04","passed":true,"wallMs":13868,"modelCalls":3,"providerTokens":29128,
+      "programExecutions":1,"exactObservedOutputFile":true,"learningReview":0}
+  },
+  "observations": [
+    "Terra H04 provider tokens fell from 475142 to 91048 after the missing managed-output boundary was repaired",
+    "the live models may choose an exact temporary-file route instead of runtime range recall; the user goal permits that route",
+    "gpt-5.5 H01 first-pass wall is not a clean performance sample because an automatic learning review overlapped it",
+    "optional GitHub auth-status journey initially reported CLI absent because the model prechecked command -v while generic gh execution was intentionally hidden; direct registered-CLI guidance is machine-qualified but not live-retested"
+  ],
+  "notClaimed": [
+    "clean full-model performance median",
+    "GitHub account live qualification",
+    "Windows or Linux credential confinement",
+    "provider-native shell parity"
+  ]
+}

@@ -11,6 +11,7 @@ test('인간 자격 콘솔은 실제 T5 모델 연결을 복사하지 않고 외
   assert.match(source, /credentialReady: Boolean\(selectedCredential\.kind\)/u);
   assert.doesNotMatch(source, /copyFile|runAgent\(|\/turn['"`]/u);
   assert.match(source, /new MessengerCredentialStore\(join\(stateDir/u);
+  assert.match(source, /learningReviewMode: 'off'/u);
   assert.equal(source.includes('workspaceConnectionServices:'), false);
   assert.match(source, /if \(!initialModel\.connected\) throw/u);
 });

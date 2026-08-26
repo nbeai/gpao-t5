@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 import {
-  EFFECT_SCHEMA, makeExecTool, makeProcessControlTool, makeProcessStartTool, normalizeTerminalEffect,
+  EFFECT_SCHEMA, makeExecTool, makeProcessControlTool, makeProcessStartTool, makeTerminalHand,
+  normalizeTerminalEffect,
 } from '../src/exec-tool.js';
 import { ManagedProcessRegistry } from '../src/managed-process.js';
 import { makePtyStartTool } from '../src/pty-tool.js';
@@ -93,6 +94,32 @@ test('terminal_session은 잘린 foreground 출력을 재실행 없이 정확히
   }));
   assert.match(recalled.text, /-TAIL$/u);
 }));
+
+test('제품 terminal_session의 즉시 완료된 큰 managed 출력도 exact handle로 읽는다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-terminal-managed-recall-'));
+  try {
+    const outputStore = new TerminalOutputStore(join(root, 'outputs'));
+    const hand = makeTerminalHand({
+      workingDirectory: root, workspace: root, ownerId: 'session-managed',
+      originRunId: 'run-managed', outputLimit: 128, yieldMs: 1000,
+      terminalOutputStore: outputStore,
+    });
+    const session = hand.tools.find((tool) => tool.name === 'terminal_session');
+    const started = await session.execute(empty({
+      action: 'start',
+      command: `${JSON.stringify(process.execPath)} -e ${JSON.stringify("process.stdout.write('HEAD-' + 'x'.repeat(2000) + '-MANAGED-NEEDLE-' + 'y'.repeat(2000) + '-TAIL')")}`,
+      effect: structuredClone(effect),
+    }));
+    assert.equal(started.state, 'completed');
+    assert.equal(started.truncated, true);
+    assert.ok(started.outputRecall?.handle);
+    const recalled = await session.execute(empty({
+      action: 'read_output', handle: started.outputRecall.handle,
+      stream: 'stdout', offset: 1990, limit: 80,
+    }));
+    assert.match(recalled.text, /MANAGED-NEEDLE/u);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
 
 test('exec + terminal_session 스키마는 기존 기본 네 도구보다 작다', async () => room(async ({ exec, start, ptyStart, control, session }) => {
   const bytes = (tools) => Buffer.byteLength(JSON.stringify(tools.map(({ name, description, parameters }) => ({

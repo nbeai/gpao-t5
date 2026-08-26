@@ -28,6 +28,7 @@ function argsForControl(args) {
  */
 export function makeTerminalSessionTool({
   start, ptyStart, control, output, effectSchema, normalizeEffect = (effect) => effect,
+  decorateResult = async (result) => result,
 } = {}) {
   if (!start || !ptyStart || !control) throw new TypeError('terminal session delegates are required');
   if (!effectSchema) throw new TypeError('terminal effect schema is required');
@@ -78,10 +79,14 @@ export function makeTerminalSessionTool({
       return { allowed: true };
     },
     async execute(args = {}, context = {}) {
-      if (args.action === 'start') return start.execute(argsForStart(args, normalizeEffect), context);
-      if (args.action === 'start_tty') return ptyStart.execute(argsForPty(args, normalizeEffect), context);
+      if (args.action === 'start') return decorateResult(
+        await start.execute(argsForStart(args, normalizeEffect), context), args,
+      );
+      if (args.action === 'start_tty') return decorateResult(
+        await ptyStart.execute(argsForPty(args, normalizeEffect), context), args,
+      );
       if (['list', 'poll', 'write', 'resize', 'stop'].includes(args.action)) {
-        return control.execute(argsForControl(args), context);
+        return decorateResult(await control.execute(argsForControl(args), context), args);
       }
       if (args.action === 'read_output') {
         if (!output) throw Object.assign(new Error('saved Terminal output is unavailable'), { status: 404 });

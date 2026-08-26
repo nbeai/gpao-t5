@@ -24,6 +24,9 @@ export function makeTerminalCredentialBroker({ registrations = [] } = {}) {
     byExecutable.set(registration.executable, registration);
   }
   return {
+    capabilities: registrations.map((registration) => ({
+      id: registration.id, executable: registration.executable,
+    })),
     prepare({ commandExplanation, managed = false } = {}) {
       const steps = commandExplanation?.ok ? commandExplanation.steps ?? [] : [];
       const executable = steps[0]?.executable;

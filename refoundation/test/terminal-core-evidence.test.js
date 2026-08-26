@@ -17,7 +17,9 @@ test('Terminal Core 증거는 표면·effect·output 부담 감소와 남은 자
   assert.equal(evidence.qualified.approvalBoundaryPreservedWithThreeFieldEffect, true);
   assert.equal(evidence.qualified.wholeOutputReloadForRangeRead, false);
   assert.equal(evidence.qualified.genericGithubCliBypassOnMacos, 0);
-  assert.ok(evidence.notYetQualified.includes('Terra and gpt-5.5 same-purpose live A/B'));
+  assert.ok(evidence.notYetQualified.includes(
+    'clean full-model performance median beyond the completed paired user-goal qualification',
+  ));
   assert.equal(evidence.verification.personalCredentialRun, false);
 });
 

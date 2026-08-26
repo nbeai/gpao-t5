@@ -61,6 +61,7 @@ const server = makeConsoleServer({
   stateDir, workspace, computerEnvironment: computer, terminalEnvironment,
   modelFactory: (context) => access.model(context), modelStatus: () => access.status(),
   modelConnections: makeModelConnectionService({ file: connectionFile, secretStore }),
+  learningReviewMode: 'off',
   // This local file store is intentionally empty: real Telegram credentials are never opened here.
   messengerCredentialStore: new MessengerCredentialStore(join(stateDir, 'messenger-credentials')),
   terminalPlatformAdapter: await makeTerminalPlatformAdapter({
