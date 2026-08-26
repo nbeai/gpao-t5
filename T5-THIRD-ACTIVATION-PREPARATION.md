@@ -148,6 +148,14 @@ content-free receipt로 세웠다. compound shell과 미등록 action은 generic
 아직 실제 사용자 credential capability를 등록하지 않았으므로 사용 가능한 authenticated CLI가 늘었다고
 주장하지 않는다. 다음 실제 CLI는 사용자 수요와 공식 CLI 계약을 특정한 별도 자격 뒤에만 등록한다.
 
+### S3-T2A — Foreground output exact recall
+
+잘린 foreground stdout·stderr는 process record를 지우기 전에 Session·Run 소유의 0600 object로 보존한다.
+모델은 계속 작은 head/tail과 생략량만 받고, 잘린 결과가 실제로 생긴 다음 턴에만 `terminal_output` schema가
+활성화된다. exact handle·stream·offset으로 bounded range를 읽으며 원래 command를 재실행하지 않는다.
+다른 Session handle은 404로 닫고 재시작 뒤에도 같은 range를 읽는다. 전체 출력 보존기간·disk 회전과
+generic personal secret output 분류는 아직 미완료이며, 무한 보존을 약속하지 않는다.
+
 ## 5. S3-A 전 절대 금지선
 
 S3-A 결과와 오너 판정 전에는 다음을 구현하지 않는다.

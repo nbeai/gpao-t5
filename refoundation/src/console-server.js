@@ -8,6 +8,7 @@ import { homedir } from 'node:os';
 import { runAgent } from './agent-loop.js';
 import { ConsoleSessionStore } from './console-session-store.js';
 import { makeTerminalHand } from './exec-tool.js';
+import { TerminalOutputStore } from './terminal-output-store.js';
 import { discoverComputerEnvironment, publicComputerFacts } from './computer-environment.js';
 import { makePathRevealer } from './path-revealer.js';
 import { sanitizeTerminalPath } from './console-config.js';
@@ -122,7 +123,7 @@ function informationFamily(name) {
   if (name === 'automation' || name === 'automation_outcome') return 'automation';
   if (name === 'skill') return 'capability';
   if (name === 'attachment') return 'artifact';
-  if (name === 'exec' || name === 'process_control') return 'computer';
+  if (name === 'exec' || name === 'process_control' || name === 'terminal_output') return 'computer';
   return null;
 }
 function attachmentSurface(record) {
@@ -421,6 +422,7 @@ export function makeConsoleServer({
   const learningAdvances = new Set();
   const authority = new AuthorityStore(join(stateDir, 'authority'));
   const attachments = attachmentStore ?? new AttachmentStore(join(stateDir, 'attachments'));
+  const terminalOutputs = new TerminalOutputStore(join(stateDir, 'terminal-outputs'));
   const executableOutputOperations = new ExecutableOutputOperationStore({
     attachmentStore: attachments, workspace,
   });
@@ -1085,6 +1087,7 @@ export function makeConsoleServer({
         protectedBrowserRoots: [join(stateDir, 'browser-host'), browserArtifactRoot],
         terminalPlatformAdapter,
         terminalCredentialBroker,
+        terminalOutputStore: terminalOutputs,
         capabilityAttribution: ({ commandExplanation }) => managedCliStore.attributeCommand(commandExplanation),
         env: {
           T5_DOCUMENT_CLI: documentCli,

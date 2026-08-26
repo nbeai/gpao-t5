@@ -7,6 +7,7 @@ import { compareEffectObservations, observeDeclaredEffect } from './effect-obser
 import { makePtyStartTool } from './pty-tool.js';
 import { commandWithManagedPath } from './managed-command-path.js';
 import { redactBrokeredTerminalResult } from './terminal-credential-broker.js';
+import { makeTerminalOutputTool } from './terminal-output-store.js';
 
 const DEFAULT_YIELD_MS = 1000;
 const DEFAULT_OUTPUT_LIMIT = 64_000;
@@ -73,6 +74,7 @@ function makeCommandTool(options = {}, { managed }) {
     effectPreflight,
     terminalPlatformAdapter,
     terminalCredentialBroker,
+    terminalOutputStore,
     protectedBrowserRoots = [],
   } = options;
   const defaultDirectory = workingDirectory ?? workspace;
@@ -195,6 +197,13 @@ function makeCommandTool(options = {}, { managed }) {
           credentialBroker: brokered.receipt,
         };
         if (!managed && result.state !== 'running' && result.state !== 'stop_requested') {
+          if (result.truncated && terminalOutputStore && options.originRunId) {
+            const full = registry.fullOutput(result.processId, ownerId);
+            const stored = await terminalOutputStore.save({ sessionId: ownerId, runId: options.originRunId,
+              stdout: full.stdout.text, stderr: full.stderr.text });
+            result.outputRecall = { handle: stored.handle, streams: stored.streams };
+            result.activatedTools = ['terminal_output'];
+          }
           registry.forget(result.processId, ownerId);
           const { processId: ignoredProcessId, cursor: ignoredCursor, ...foreground } = result;
           return { ...foreground, commandExplanation };
@@ -325,9 +334,11 @@ export function makeTerminalHand(options = {}) {
   const start = makeProcessStartTool({ ...options, processRegistry });
   const ptyStart = makePtyStartTool({ ...options, processRegistry });
   const control = makeProcessControlTool({ processRegistry, ownerId: options.ownerId });
+  const output = options.terminalOutputStore && options.ownerId
+    ? makeTerminalOutputTool({ store: options.terminalOutputStore, sessionId: options.ownerId }) : null;
   start.relatedTools = ['process_control'];
   start.searchTerms = ['long running background command managed process', '오래 걸리는 백그라운드 작업'];
   ptyStart.relatedTools = ['process_control'];
   ptyStart.searchTerms = ['interactive terminal tty tui stdin prompt', '대화형 터미널 입력'];
-  return { processRegistry, tools: [exec, start, ptyStart, control] };
+  return { processRegistry, tools: [exec, start, ptyStart, control, ...(output ? [output] : [])] };
 }

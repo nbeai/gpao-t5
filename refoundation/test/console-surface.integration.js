@@ -50,6 +50,50 @@ test('제품 콘솔은 safe login PATH와 configured HOME을 실제 모델 Termi
   }
 });
 
+test('잘린 foreground output은 다음 모델 턴에만 recall tool을 열고 exact 중간을 재실행 없이 읽는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-console-terminal-recall-'));
+  const stateDir = join(room, 'state'); const workspace = join(room, 'workspace'); await mkdir(workspace);
+  let turn = 0; let execCalls = 0;
+  const modelFactory = () => ({ async respond(input) {
+    turn += 1;
+    if (turn === 1) {
+      assert.equal(input.tools.some((tool) => tool.name === 'terminal_output'), false);
+      execCalls += 1;
+      return { text: '', toolCalls: [{ id: 'large-output', name: 'exec', args: {
+        command: `${JSON.stringify(process.execPath)} -e ${JSON.stringify(
+          "process.stdout.write('HEAD-' + 'x'.repeat(40000) + '-EXACT-MIDDLE-' + 'y'.repeat(40000) + '-TAIL')",
+        )}`, cwd: null,
+        effect: { kind: 'observe', summary: 'large output', targets: [], reversible: true,
+          backupAvailable: false, recipientNew: false, approvalToken: null },
+      } }] };
+    }
+    const receipt = JSON.parse(input.messages.at(-1).content);
+    if (turn === 2) {
+      assert.equal(receipt.actualCall.name, 'exec'); assert.equal(receipt.result.truncated, true);
+      assert.ok(receipt.result.outputRecall.handle);
+      assert.equal(input.tools.some((tool) => tool.name === 'terminal_output'), true);
+      return { text: '', toolCalls: [{ id: 'recall-output', name: 'terminal_output', args: {
+        handle: receipt.result.outputRecall.handle, stream: 'stdout', offset: 39980, limit: 100,
+      } }] };
+    }
+    assert.equal(receipt.actualCall.name, 'terminal_output');
+    assert.match(receipt.result.text, /EXACT-MIDDLE/u);
+    return { text: '중간 출력까지 확인했습니다.', toolCalls: [] };
+  } });
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory,
+    modelStatus: () => ({ connected: true, provider: 'test', modelId: 'terminal-recall-model' }) });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const reply = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: '긴 출력의 중간 표식을 확인해줘' }) }).then((response) => response.json());
+    assert.equal(reply.reply, '중간 출력까지 확인했습니다.'); assert.equal(execCalls, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true });
+  }
+});
+
 test('빈 스킬 root인 비교군은 skill 도구 없이 기존 터미널만 모델에 제공한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-console-no-skills-'));
   const stateDir = join(room, 'state');

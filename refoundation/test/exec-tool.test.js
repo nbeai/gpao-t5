@@ -6,6 +6,7 @@ import { join } from 'node:path';
 
 import { makeExecTool, makeProcessControlTool, makeProcessStartTool } from '../src/exec-tool.js';
 import { ManagedProcessRegistry } from '../src/managed-process.js';
+import { TerminalOutputStore } from '../src/terminal-output-store.js';
 
 async function rooms(fn) {
   const root = await mkdtemp(join(tmpdir(), 't5-exec-boundary-'));
@@ -85,6 +86,27 @@ test('foreground exec는 관리 spool보다 큰 출력도 전체의 처음과 �
   assert.match(result.stdout, /^BEGIN-/);
   assert.match(result.stdout, /-END$/);
   assert.equal(result.omittedChars, 146);
+}));
+
+test('잘린 foreground output은 command 재실행 없이 exact 중간 구간을 recall한다', async () => rooms(async ({ root, workspace }) => {
+  const registry = new ManagedProcessRegistry({ outputLimit: 64 });
+  const outputs = new TerminalOutputStore(join(root, 'terminal-outputs'));
+  const tool = makeExecTool({ workspace, processRegistry: registry, outputLimit: 64,
+    terminalOutputStore: outputs, originRunId: 'run-output-recall', ownerId: 'session-output-recall' });
+  const result = await tool.execute({
+    command: `${JSON.stringify(process.execPath)} -e ${JSON.stringify(
+      "process.stdout.write('HEAD-' + 'x'.repeat(100) + '-MIDDLE-NEEDLE-' + 'y'.repeat(100) + '-TAIL')",
+    )}`, cwd: null,
+    effect: { kind: 'observe', summary: 'large output', targets: [], reversible: true,
+      backupAvailable: false, recipientNew: false, approvalToken: null },
+  });
+  assert.equal(result.truncated, true);
+  assert.ok(result.outputRecall?.handle);
+  assert.deepEqual(result.activatedTools, ['terminal_output']);
+  const full = await outputs.read({ handle: result.outputRecall.handle, sessionId: 'session-output-recall',
+    stream: 'stdout', offset: 90, limit: 80 });
+  assert.match(full.text, /MIDDLE-NEEDLE/u);
+  assert.equal(result.stdout.includes('MIDDLE-NEEDLE'), false);
 }));
 
 test('foreground exec를 취소하면 기다림만 끝내지 않고 자식 프로세스 효과도 멈춘다', async () => rooms(async ({ workspace }) => {

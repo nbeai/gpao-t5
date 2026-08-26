@@ -1,0 +1,24 @@
+{
+  "schema": "t5.s3t2.output-recall-qualification.v1",
+  "recordedAt": "2026-08-26T09:26:51.595Z",
+  "sourceCommit": "76eb15f89dfca9eb131e57b6f8fcd0ffa62f3df1",
+  "status": "exact_recall_complete_retention_open",
+  "truncated": true,
+  "omittedChars": 79768,
+  "handlePresent": true,
+  "activatedOnDemand": true,
+  "commandExecutions": 1,
+  "exactMiddleRecovered": true,
+  "restartRecovered": true,
+  "foreignSessionRejected": true,
+  "fileMode": "600",
+  "foregroundWallNs": 100737958,
+  "modelContextFullOutputInjected": false,
+  "remaining": [
+    "retention and disk rotation policy",
+    "generic personal secret output classification",
+    "find action"
+  ],
+  "nextCandidate": "output_retention_then_terminal_session_driver",
+  "pass": true
+}

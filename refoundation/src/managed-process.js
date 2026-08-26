@@ -48,6 +48,7 @@ class OutputSpool {
       omittedChars: output.omittedChars + Math.max(0, this.start - requested),
     };
   }
+  full() { return { text: this.text, totalChars: this.total, omittedChars: this.start }; }
 }
 
 function terminal(state) {
@@ -326,6 +327,11 @@ export class ManagedProcessRegistry {
 
   metadata(processId, ownerId) {
     return structuredClone(this.#owned(processId, ownerId).metadata);
+  }
+
+  fullOutput(processId, ownerId) {
+    const record = this.#owned(processId, ownerId);
+    return { stdout: record.stdout.full(), stderr: record.stderr.full() };
   }
 
   claimTerminalWake(processId) {
