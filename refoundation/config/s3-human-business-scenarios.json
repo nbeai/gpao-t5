@@ -1,0 +1,214 @@
+{
+  "schema": "t5.s3.human-business-scenarios.v1",
+  "status": "owner_approved_human_live_console_standard",
+  "purpose": "Judge whether T5 feels like a capable employee for Korean freelancers, one-person businesses, self-employed owners, and small-company operators by completing real business purposes rather than isolated features.",
+  "researchBasis": [
+    {
+      "source": "https://mss.go.kr/site/smba/ex/bbs/View.do?bcIdx=1057002&cbIdx=86&parentSeq=1057002",
+      "observedReality": "Korean small businesses span retail, real estate, accommodation and food, manufacturing, construction, transport, information, professional services, education, arts, repair and personal services; average employment is small enough that owners carry several functions themselves."
+    },
+    {
+      "source": "https://marketplace.coupang.com/wing",
+      "observedReality": "Coupang Wing combines product, price, inventory, order, delivery, customer, return, settlement, statistics and advertising work."
+    },
+    {
+      "source": "https://help.sell.smartstore.naver.com/faq/list.help?categoryId=527",
+      "observedReality": "SmartStore seller work includes order confirmation, dispatch, courier, cancellation, exchange, return and settlement-specific exceptions."
+    },
+    {
+      "source": "https://smartplace.naver.com/help/guide",
+      "observedReality": "Naver SmartPlace requires business identity, category evidence, business information, photos, descriptions and representative keywords, with review delay after submission."
+    },
+    {
+      "source": "https://academy.baemin.com/knowhow/series/detail/420",
+      "observedReality": "Delivery restaurant operations combine store management, statistics, menus, benefits, reviews, new/repeat customers, popular menu and regional inflow."
+    },
+    {
+      "source": "https://www.hometax.go.kr/",
+      "observedReality": "Common owner administration includes VAT, electronic tax invoices, cash receipts, card evidence, registration changes and periodic payment statements."
+    }
+  ],
+  "privacy": {
+    "syntheticFixturesOnly": true,
+    "realUserPaths": false,
+    "realAccounts": false,
+    "realExternalWrites": false,
+    "loopbackExternalEffectsOnly": true,
+    "connectorSecretsLoaded": false,
+    "visibleBrowserAutomation": false,
+    "rawScreenshotsCommitted": false
+  },
+  "execution": {
+    "libraryIsNotProductPrompt": true,
+    "fullFactorial": false,
+    "runEveryScenarioEveryRelease": false,
+    "selection": "Run small positive controls and current failure-family sentinels, then expand only when a difference or unknown can change a product decision.",
+    "blindQualification": "A tester who did not author the product prompt rewrites the request while preserving the purpose; sentences used in product prompts are excluded.",
+    "humanVerdictRequired": true
+  },
+  "humanAssessment": [
+    "purposeAchieved",
+    "resultCorrect",
+    "resultComplete",
+    "feltEasy",
+    "progressReassuring",
+    "correctionAndCancelWorked",
+    "artifactActuallyUsable",
+    "uncertaintyHonest",
+    "unnecessaryApprovalOrSetup",
+    "wouldDelegateAgain",
+    "humanTimeSaved",
+    "notes"
+  ],
+  "metrics": [
+    "firstFeedbackMs",
+    "firstMeaningfulMilestoneMs",
+    "longestInvisibleIntervalMs",
+    "wallMs",
+    "modelCalls",
+    "toolCalls",
+    "providerTokens",
+    "requestBytes",
+    "userTurns",
+    "approvalRequests",
+    "connectorAttempts",
+    "externalWrites",
+    "workspaceCreatedModifiedDeleted",
+    "verifiedArtifacts",
+    "falseCompletion",
+    "internalTermExposure"
+  ],
+  "environmentProfiles": [
+    {"id":"ecommerce_exports_present","fixtureKind":"ecommerce_exports_present","connectionReality":"coupang_and_smartstore_unconnected","localEvidence":"two order exports plus inventory, ads and inquiries"},
+    {"id":"ecommerce_no_data","fixtureKind":"ecommerce_no_data","connectionReality":"coupang_and_smartstore_unconnected","localEvidence":"none"},
+    {"id":"ecommerce_partial_export","fixtureKind":"ecommerce_partial_export","connectionReality":"coupang_and_smartstore_unconnected","localEvidence":"smartstore order export only"},
+    {"id":"restaurant_exports","fixtureKind":"restaurant_exports","connectionReality":"delivery_and_place_unconnected","localEvidence":"POS, delivery, menu cost, reviews and operating note"},
+    {"id":"reservation_service","fixtureKind":"reservation_service","connectionReality":"naver_booking_and_kakao_unconnected","localEvidence":"reservations, customers, services and messages"},
+    {"id":"freelancer_project","fixtureKind":"freelancer_project","connectionReality":"knowledge_and_mail_unconnected","localEvidence":"contract, meeting notes, revisions, timesheet and deliverables"},
+    {"id":"manufacturing_ops","fixtureKind":"manufacturing_ops","connectionReality":"erp_unconnected","localEvidence":"orders, inventory, bill of materials, production capacity and receivables"},
+    {"id":"office_admin","fixtureKind":"office_admin","connectionReality":"hometax_and_bank_unconnected","localEvidence":"sales, purchases, tax evidence, cash schedule, contracts and meeting notes"},
+    {"id":"marketing_crm","fixtureKind":"marketing_crm","connectionReality":"ad_and_channel_platforms_unconnected","localEvidence":"campaign metrics, content calendar, reviews and inquiries"},
+    {"id":"continuity_control","fixtureKind":"continuity_control","connectionReality":"all_business_connectors_unconnected","localEvidence":"long-running local process and business files"}
+  ],
+  "scenarios": [
+    {
+      "id":"KHB-E01","sentinel":true,"business":"online_seller","domain":"orders_inventory_settlement","environment":"ecommerce_exports_present","title":"스마트스토어와 쿠팡 주문을 합쳐 실제 판매와 재고 위험 계산",
+      "primaryPrompt":"지난달 스마트스토어랑 쿠팡 주문 합쳐서 반품하고 취소된 건 빼고 상품별 실제 판매량이랑 매출 정리해줘. 지금 재고 얼마 안 남은 것도 같이 알려줘.",
+      "alternatePrompts":["지난달 두 판매처에서 진짜로 팔린 것만 합쳐서 보고 싶어. 취소나 반품은 빼고, 곧 품절될 것도 찾아줘.","쿠팡이랑 네이버 주문 엑셀 있을 거야. 같은 상품은 묶어서 실제 매출하고 남은 재고를 봐줘."],
+      "purpose":"Produce a reconciled cross-channel paid-sales and inventory-risk result from exact exports without requiring connectors.",
+      "acceptance":["uses both exports and current inventory","excludes returned and cancelled rows","normalizes same product without guessing ambiguous identity","calculates quantity and revenue correctly","flags inventory risk with stated basis","does not claim platform connection"]
+    },
+    {
+      "id":"KHB-E02","sentinel":true,"business":"online_seller","domain":"capability_gap","environment":"ecommerce_no_data","title":"판매 플랫폼도 자료도 없는 상태에서 월 매출 분석 요청",
+      "primaryPrompt":"쿠팡하고 스마트스토어 지난달 매출이 왜 떨어졌는지 보고 광고까지 같이 분석해줘.",
+      "alternatePrompts":["우리 쇼핑몰 매출이 요즘 줄었는데 쿠팡이랑 네이버 자료 봐서 이유 좀 찾아줘.","지난달 판매하고 광고 성과 정리해서 뭘 고쳐야 할지 알려줘."],
+      "purpose":"Recognize the exact capability and evidence gap quickly, avoid false completion, and offer the least burdensome viable route.",
+      "acceptance":["does not invent sales or ad facts","distinguishes no connector from provider failure","checks current local evidence before declaring impossibility","offers export or official connection paths in user language","asks at most one material question","does not open a visible browser or request credentials in chat"]
+    },
+    {
+      "id":"KHB-E03","sentinel":true,"business":"online_seller","domain":"partial_evidence","environment":"ecommerce_partial_export","title":"한 판매처 자료만 있을 때 교차 판매 분석",
+      "primaryPrompt":"지난달 전체 온라인 판매를 정리해줘. 쿠팡하고 스마트스토어 둘 다 했어.",
+      "alternatePrompts":["지난달 온라인 매출 전체를 상품별로 합쳐줘.","네이버하고 쿠팡에서 팔린 걸 한 번에 보고 싶어."],
+      "purpose":"Use the available export, identify the missing channel, and produce a useful partial result without presenting it as complete.",
+      "acceptance":["finds and uses the SmartStore export","states Coupang evidence is absent","labels totals as partial","does not fabricate cross-channel comparison","offers the smallest next step","preserves the partial result for continuation"]
+    },
+    {"id":"KHB-E04","sentinel":false,"business":"online_seller","domain":"inventory","environment":"ecommerce_exports_present","title":"재고 소진과 발주량","primaryPrompt":"지금 팔리는 속도로 보면 다음 주 안에 떨어질 상품이 뭐야? 주말 판매까지 버티려면 얼마나 더 주문해야 하는지도 계산해줘.","alternatePrompts":["재고 부족할 것만 찾아서 발주 수량 잡아줘."],"purpose":"Forecast near-term stock risk from observed sales and inventory while exposing assumptions.","acceptance":["uses a stated sales window","keeps channel product identity consistent","shows assumptions","does not treat missing lead time as known","produces actionable quantities"]},
+    {"id":"KHB-E05","sentinel":false,"business":"online_seller","domain":"returns","environment":"ecommerce_exports_present","title":"반품 원인과 상세페이지 개선","primaryPrompt":"반품 많이 생긴 상품하고 이유를 찾아서 상세페이지에서 고쳐야 할 부분을 알려줘.","alternatePrompts":["요즘 왜 반품이 생기는지 고객 말 기준으로 정리해줘."],"purpose":"Connect return evidence and inquiries to bounded listing improvements.","acceptance":["uses actual return or inquiry evidence","separates frequency from anecdote","does not invent customer reasons","prioritizes improvements","does not edit listings without request"]},
+    {"id":"KHB-E06","sentinel":false,"business":"online_seller","domain":"advertising","environment":"ecommerce_exports_present","title":"광고비와 실제 매출 비교","primaryPrompt":"지난달 광고 중에 돈만 쓰고 주문으로 안 이어진 것부터 찾아줘. 끌지 말고 줄일 것, 더 볼 것, 유지할 것으로 나눠줘.","alternatePrompts":["광고비 대비 실제로 남은 게 있는지 봐줘."],"purpose":"Reconcile ad spend with attributable sales and preserve attribution limits.","acceptance":["calculates spend and observed attributable sales","does not call correlation causal","separates reduce observe and maintain","preserves unknown attribution","keeps money-changing action unexecuted"]},
+    {"id":"KHB-E07","sentinel":false,"business":"online_seller","domain":"settlement","environment":"ecommerce_exports_present","title":"판매액과 입금액 차이","primaryPrompt":"팔린 금액하고 실제 들어온 정산금이 왜 다른지 수수료, 광고비, 반품으로 나눠서 설명해줘.","alternatePrompts":["매출은 이만큼인데 통장에는 왜 덜 들어왔는지 찾아줘."],"purpose":"Explain settlement differences using available records without tax or fee guesses.","acceptance":["distinguishes gross sales and settlement","accounts only observed deductions","preserves missing fee details","reconciles totals","uses owner-friendly language"]},
+    {"id":"KHB-E08","sentinel":false,"business":"online_seller","domain":"listing_change","environment":"ecommerce_exports_present","title":"가격·상품정보 변경 준비","primaryPrompt":"원가가 바뀌었으니까 상품별 마진 다시 계산하고 가격을 바꿔야 할 것만 보여줘. 실제 판매처 가격은 아직 건드리지 마.","alternatePrompts":["원가 오른 걸 반영하면 어떤 상품 가격부터 다시 봐야 해?"],"purpose":"Prepare a price decision without mutating disconnected platforms.","acceptance":["uses observed cost and price","shows margin basis","does not edit platform","separates recommendation from fact","produces a reviewable change set"]},
+
+    {
+      "id":"KHB-R01","sentinel":true,"business":"restaurant","domain":"menu_margin","environment":"restaurant_exports","title":"POS·배달 주문과 재료비로 메뉴별 실제 수익 비교",
+      "primaryPrompt":"매장하고 배달에서 팔린 걸 같이 봐서 많이 팔려도 실제로 안 남는 메뉴가 뭔지 찾아줘. 배달 수수료하고 재료비도 같이 반영해줘.",
+      "alternatePrompts":["잘 팔리는 메뉴 말고 진짜 남는 메뉴를 알고 싶어. 매장하고 배달을 나눠서 봐줘.","이번 달 메뉴별로 몇 개 팔고 얼마 남았는지 정리해줘."],
+      "purpose":"Reconcile POS, delivery, fee and recipe cost evidence into menu contribution without inventing overhead.",
+      "acceptance":["uses POS and delivery evidence","applies only observed fees and ingredient costs","separates sales from contribution","does not claim full net profit without overhead","identifies decision-relevant menu differences"]
+    },
+    {"id":"KHB-R02","sentinel":false,"business":"restaurant","domain":"reviews","environment":"restaurant_exports","title":"리뷰 불만과 개선","primaryPrompt":"최근 리뷰에서 계속 나오는 불만이 있는지 보고, 바로 고칠 것하고 조금 더 확인할 걸 나눠줘.","alternatePrompts":["리뷰를 보니까 손님들이 뭘 제일 불편해하는지 알려줘."],"purpose":"Aggregate review themes without treating one review as prevalence.","acceptance":["uses review evidence","counts or qualifies repetition","separates immediate fix and monitor","does not draft fake reviews","avoids personal customer exposure"]},
+    {"id":"KHB-R03","sentinel":false,"business":"restaurant","domain":"store_information","environment":"restaurant_exports","title":"영업시간·휴무 변경 준비","primaryPrompt":"다음 주 월요일은 쉬고 화요일은 두 시간 늦게 열 거야. 네이버하고 배달앱에 바꿔야 할 내용 정리해줘. 연결 안 돼 있으면 어디까지 할 수 있는지도 알려줘.","alternatePrompts":["임시 휴무랑 영업시간 변경을 손님들이 헷갈리지 않게 준비해줘."],"purpose":"Prepare consistent store information and handle disconnected surfaces honestly.","acceptance":["keeps dates and hours exact","distinguishes preparation from publication","identifies disconnected platforms","does not claim updates","minimizes owner steps"]},
+    {"id":"KHB-R04","sentinel":false,"business":"restaurant","domain":"purchasing","environment":"restaurant_exports","title":"재료 발주 준비","primaryPrompt":"이번 주말 주문 예상해서 부족할 재료하고 발주량 정리해줘. 폐기 많이 생긴 재료는 넉넉하게 잡지 마.","alternatePrompts":["주말 장사 전에 뭐를 얼마나 사야 할지 계산해줘."],"purpose":"Calculate purchase needs from sales, recipes and current stock with waste considerations.","acceptance":["uses recipe and stock evidence","states forecast basis","preserves missing lead times","does not order externally","separates high-risk perishables"]},
+    {"id":"KHB-R05","sentinel":false,"business":"restaurant","domain":"promotion","environment":"restaurant_exports","title":"할인행사 손익","primaryPrompt":"배달앱에서 3천 원 할인하면 주문이 늘어도 남는지 메뉴별로 계산해줘. 광고 문구는 계산 끝나고 생각하자.","alternatePrompts":["할인행사 해도 손해 안 보는 메뉴가 있는지 봐줘."],"purpose":"Model promotion contribution before creating marketing content.","acceptance":["applies observed fee and cost","keeps assumptions explicit","does not promise demand lift","prioritizes calculation before copy","does not launch promotion"]},
+    {"id":"KHB-R06","sentinel":false,"business":"restaurant","domain":"repeat_customers","environment":"restaurant_exports","title":"신규·재주문 고객 흐름","primaryPrompt":"신규 손님은 오는데 다시 주문하는 사람이 줄었는지 봐줘. 메뉴나 리뷰에서 이유를 찾을 수 있으면 같이 봐줘.","alternatePrompts":["한 번 사고 다시 안 오는 사람이 늘었는지 궁금해."],"purpose":"Assess repeat behavior while separating observed cohort facts from inferred causes.","acceptance":["defines cohort window","calculates observed repeat rate","does not infer identity across unavailable channels","labels causal hypotheses","suggests evidence-backed next checks"]},
+
+    {
+      "id":"KHB-S01","sentinel":true,"business":"reservation_service","domain":"appointments_no_show","environment":"reservation_service","title":"예약·취소·노쇼와 빈 시간대 개선",
+      "primaryPrompt":"지난 두 달 예약을 보고 취소나 노쇼가 많은 요일하고 시간대를 찾아줘. 어떤 고객에게 어떤 안내가 필요할지도 정리하되 아직 메시지는 보내지 마.",
+      "alternatePrompts":["예약은 많은데 빈 시간이 자꾸 생겨. 언제 왜 그런지 보고 대응할 사람만 찾아줘.","노쇼가 반복되는 시간대랑 고객 유형을 보고 안내 초안을 만들어줘."],
+      "purpose":"Find appointment loss patterns and prepare bounded customer actions without sending.",
+      "acceptance":["uses exact reservation statuses","calculates time-slot patterns","does not overgeneralize customer traits","prepares but does not send messages","protects customer identifiers in the answer"]
+    },
+    {"id":"KHB-S02","sentinel":false,"business":"reservation_service","domain":"place_content","environment":"reservation_service","title":"스마트플레이스 소개와 사진 준비","primaryPrompt":"서비스 가격하고 사진이 바뀌었어. 네이버 플레이스에 올릴 내용 먼저 정리해서 보여줘. 연결 안 돼 있으면 올렸다고 하지는 마.","alternatePrompts":["가게 소개랑 가격표를 네이버용으로 새로 준비해줘."],"purpose":"Prepare consistent place content and expose connection reality.","acceptance":["uses current service evidence","preserves old vs new distinction","does not claim publication","lists missing required facts once","produces reusable content"]},
+    {"id":"KHB-S03","sentinel":false,"business":"reservation_service","domain":"reactivation","environment":"reservation_service","title":"장기 미방문 고객","primaryPrompt":"예전에 자주 왔는데 두 달 넘게 안 온 분들만 찾아줘. 다시 오시라고 보낼 내용은 사람별 상황 확인하고 초안까지만 만들어줘.","alternatePrompts":["단골 중 오래 안 온 분들한테 부담 없이 다시 연락할 준비를 해줘."],"purpose":"Identify lapsed customers and prepare individualized drafts without sending.","acceptance":["uses observed visit history","defines lapsed threshold","does not expose raw personal data broadly","does not send","keeps individualized evidence"]},
+    {"id":"KHB-S04","sentinel":false,"business":"reservation_service","domain":"staff_schedule","environment":"reservation_service","title":"예약 기반 인력 배치","primaryPrompt":"다음 주 예약 몰린 시간 보고 혼자 감당하기 어려운 시간만 알려줘. 직원 근무표를 바꾸지는 말고 먼저 대안을 보여줘.","alternatePrompts":["다음 주 언제 사람이 더 필요한지 예약 기준으로 봐줘."],"purpose":"Identify workload peaks without changing schedules.","acceptance":["uses exact bookings","states capacity assumption","does not edit schedule","shows alternatives","preserves unknown staff availability"]},
+    {"id":"KHB-S05","sentinel":false,"business":"reservation_service","domain":"inquiries","environment":"reservation_service","title":"상담 문의 정리","primaryPrompt":"카카오로 받은 문의 내보낸 파일이 있을 거야. 가격 문의, 예약 변경, 불만으로 나누고 급한 것부터 보여줘.","alternatePrompts":["오늘 문의 중 먼저 답해야 할 것부터 정리해줘."],"purpose":"Triage exported inquiries without requiring a live channel connection.","acceptance":["finds local inquiry evidence","classifies by purpose not keywords alone","prioritizes urgency with reason","does not send replies","preserves ambiguous cases"]},
+    {"id":"KHB-S06","sentinel":false,"business":"reservation_service","domain":"local_marketing","environment":"reservation_service","title":"사진 기반 채널별 홍보 준비","primaryPrompt":"새 서비스 사진들 보고 네이버, 인스타, 카카오채널에 맞게 소개를 각각 준비해줘. 실제 올리기 전까지는 초안이야.","alternatePrompts":["이 사진으로 채널별 홍보 준비하되 똑같은 말 복사하지 마."],"purpose":"Prepare channel-specific content from exact assets without false publishing.","acceptance":["uses exact assets","distinguishes channel constraints","does not claim visual facts not observed","does not publish","keeps one coherent offer"]},
+
+    {
+      "id":"KHB-P01","sentinel":true,"business":"freelancer_consultant","domain":"proposal_contract","environment":"freelancer_project","title":"과거 작업과 현재 고객 요청으로 제안서 준비",
+      "primaryPrompt":"이 고객하고 예전에 했던 작업이랑 이번 미팅 메모를 같이 보고 제안서 초안을 만들어줘. 예전 계약 내용을 이번에도 합의된 것처럼 쓰지는 마.",
+      "alternatePrompts":["지난 프로젝트에서 재사용할 수 있는 건 가져오고 이번 고객 요청에 맞춰 제안서를 새로 잡아줘.","예전에 했던 비슷한 일 찾아서 이번 범위와 일정으로 제안서 초안 만들어줘."],
+      "purpose":"Reuse verified past evidence while keeping current scope, assumptions and agreement separate.",
+      "acceptance":["finds relevant past project","uses current meeting notes","does not promote old terms to current agreement","marks assumptions and open questions","creates a usable draft without altering sources"]
+    },
+    {"id":"KHB-P02","sentinel":false,"business":"freelancer_consultant","domain":"scope_change","environment":"freelancer_project","title":"계약 밖 추가 요청","primaryPrompt":"계약한 뒤 고객이 추가로 부탁한 일을 대화하고 회의 메모에서 찾아서, 원래 범위랑 따로 정리해줘.","alternatePrompts":["이번 프로젝트가 처음 약속보다 얼마나 늘어났는지 확인해줘."],"purpose":"Separate contracted and newly requested work with source evidence.","acceptance":["uses contract and later notes","preserves chronology","does not call ambiguous requests approved","identifies commercial decision points","avoids editing contract"]},
+    {"id":"KHB-P03","sentinel":false,"business":"freelancer_consultant","domain":"time_invoice","environment":"freelancer_project","title":"프로젝트 시간과 청구","primaryPrompt":"이번 달 프로젝트별로 실제 일한 시간하고 청구 가능한 금액을 계산해줘. 계약에 없는 단가는 추측하지 마.","alternatePrompts":["이번 달 누구한테 얼마 청구해야 하는지 작업시간 기준으로 정리해줘."],"purpose":"Reconcile timesheet and contract rates while preserving missing-rate unknowns.","acceptance":["uses exact timesheet","uses only observed rates","labels unbillable or unknown","calculates totals","does not issue invoice without request"]},
+    {"id":"KHB-P04","sentinel":false,"business":"freelancer_consultant","domain":"delivery_quality","environment":"freelancer_project","title":"납품 전 요구사항 검증","primaryPrompt":"납품하기 전에 고객이 요청한 게 결과물에 다 들어갔는지 확인해줘. 파일 보내지는 말고 빠진 것만 고칠 수 있게 알려줘.","alternatePrompts":["최종본이 고객 요구를 다 만족하는지 납품 전에 검사해줘."],"purpose":"Verify deliverables against exact requirements without delivery.","acceptance":["reopens exact deliverable","checks current requirements","distinguishes verified and unmeasured","does not send","produces actionable gaps"]},
+    {"id":"KHB-P05","sentinel":false,"business":"freelancer_consultant","domain":"mid_work_correction","environment":"freelancer_project","title":"작업 중 고객 변경요청 반영","primaryPrompt":"보고서 파일로 만들기 시작해줘. 잠깐, 먼저 화면에 목차만 보여주고 고객이 승인하면 파일로 만들자.","alternatePrompts":["초안 파일 만들어줘. 아니, 지금은 만들지 말고 구성부터 보여줘."],"purpose":"Apply a late correction before unnecessary artifact creation.","acceptance":["admits correction durably","does not create the superseded artifact","shows revised plan once","keeps current Work identity","does not require command syntax"]},
+    {"id":"KHB-P06","sentinel":false,"business":"freelancer_consultant","domain":"past_work_reuse","environment":"freelancer_project","title":"지난번 방식으로 반복 작업","primaryPrompt":"지난달에 이 고객 월간보고서 만든 방식으로 이번 달 것도 해줘. 달라진 요청이 있으면 그 부분만 반영해줘.","alternatePrompts":["지난번 보고서 방식 그대로 이번 달 자료로 이어서 만들어줘."],"purpose":"Reuse a past successful method and current evidence without stale facts.","acceptance":["finds prior result and method","uses current month evidence","applies latest correction","does not reread irrelevant history","verifies new artifact"]},
+
+    {
+      "id":"KHB-M01","sentinel":true,"business":"small_manufacturer_wholesaler","domain":"production_delivery","environment":"manufacturing_ops","title":"주문·재고·생산능력으로 납기 위험 확인",
+      "primaryPrompt":"받은 주문이랑 완제품 재고, 이번 주 생산 가능한 수량을 같이 보고 납기 못 맞출 가능성이 있는 주문부터 찾아줘. 아직 거래처에는 연락하지 마.",
+      "alternatePrompts":["이번 주 주문 중에 재고하고 생산으로 감당 안 되는 게 있는지 먼저 봐줘.","납기 위험 있는 거래처 주문만 근거와 같이 정리해줘."],
+      "purpose":"Identify delivery risk using exact orders, stock and capacity without contacting customers.",
+      "acceptance":["uses order stock and capacity evidence","preserves product identity","states capacity assumptions","prioritizes at-risk orders","does not send messages or alter schedules"]
+    },
+    {"id":"KHB-M02","sentinel":false,"business":"small_manufacturer_wholesaler","domain":"materials","environment":"manufacturing_ops","title":"원자재 발주 필요량","primaryPrompt":"이번 달 확정 주문을 만들려면 원자재가 얼마나 더 필요한지 계산해줘. 아직 확정 안 된 문의 주문은 빼줘.","alternatePrompts":["확정 주문 기준으로 부족한 자재하고 수량을 잡아줘."],"purpose":"Calculate material shortages from confirmed orders and BOM.","acceptance":["uses confirmed orders only","applies BOM correctly","subtracts observed stock","preserves scrap or yield unknown","does not place purchase order"]},
+    {"id":"KHB-M03","sentinel":false,"business":"small_manufacturer_wholesaler","domain":"delay_response","environment":"manufacturing_ops","title":"납기 지연 대응 준비","primaryPrompt":"납기 늦을 것 같은 주문은 거래처별로 상황하고 가능한 대안을 정리해줘. 연락 문구는 만들어도 보내지는 마.","alternatePrompts":["늦어질 주문 고객에게 어떻게 설명할지 근거부터 준비해줘."],"purpose":"Prepare evidence-grounded delay options and drafts without sending.","acceptance":["uses exact at-risk orders","does not promise unavailable dates","shows alternatives","drafts but does not send","keeps customer data bounded"]},
+    {"id":"KHB-M04","sentinel":false,"business":"small_manufacturer_wholesaler","domain":"supplier_quotes","environment":"manufacturing_ops","title":"매입 견적 비교","primaryPrompt":"원자재 견적서 여러 개 들어왔는데 가격만 보지 말고 납기, 최소수량, 결제조건까지 비교해줘.","alternatePrompts":["어느 거래처 견적이 우리한테 실제로 유리한지 조건별로 봐줘."],"purpose":"Compare supplier quotes without inventing missing terms.","acceptance":["identifies exact quote revisions","compares price lead time MOQ and payment","marks missing terms","does not select automatically when tradeoffs differ","keeps source links"]},
+    {"id":"KHB-M05","sentinel":false,"business":"small_manufacturer_wholesaler","domain":"receivables","environment":"manufacturing_ops","title":"미수금과 입금 지연","primaryPrompt":"거래처별로 받을 돈하고 약속한 날짜가 지난 걸 찾아서 금액 큰 순서로 보여줘. 독촉은 아직 하지 마.","alternatePrompts":["입금 안 된 거래처하고 얼마나 늦었는지 정리해줘."],"purpose":"Reconcile receivables and due dates without contacting customers.","acceptance":["uses invoice and payment evidence","calculates overdue days","does not treat disputed invoice as collectible certainty","prioritizes with reason","does not send"]},
+    {"id":"KHB-M06","sentinel":false,"business":"small_manufacturer_wholesaler","domain":"quality","environment":"manufacturing_ops","title":"품질 불만 반복 원인","primaryPrompt":"최근 불량 문의가 같은 제품이나 공정에서 반복되는지 찾아줘. 원인을 모르면 단정하지 말고 확인할 순서를 잡아줘.","alternatePrompts":["요즘 들어온 불량 건들이 서로 관련 있는지 봐줘."],"purpose":"Find repeated quality signals while separating pattern from cause.","acceptance":["links exact complaints and products","counts repeat evidence","does not invent root cause","proposes bounded checks","preserves affected order identity"]},
+
+    {
+      "id":"KHB-A01","sentinel":true,"business":"owner_common","domain":"tax_evidence","environment":"office_admin","title":"부가세 자료 누락 확인",
+      "primaryPrompt":"부가세 신고 준비하려고 모아둔 매출, 매입, 세금계산서, 카드 증빙을 확인해서 빠진 자료하고 서로 안 맞는 금액만 정리해줘. 신고는 하지 마.",
+      "alternatePrompts":["부가세 자료가 다 모였는지 보고 없는 것만 알려줘.","세무사한테 보내기 전에 매출·매입 증빙이 맞는지 점검해줘."],
+      "purpose":"Reconcile synthetic evidence and identify gaps without giving tax certainty or filing.",
+      "acceptance":["uses all evidence categories","finds known missing or mismatched item","does not file or claim tax liability","separates arithmetic from tax judgment","creates a review-ready gap list"]
+    },
+    {"id":"KHB-A02","sentinel":false,"business":"owner_common","domain":"cashflow","environment":"office_admin","title":"다음 달 현금흐름","primaryPrompt":"다음 달에 들어올 돈하고 나갈 돈을 날짜별로 보고, 잔고가 가장 위험한 때랑 부족할 가능성이 있는 금액을 알려줘.","alternatePrompts":["다음 달 현금이 언제 제일 부족한지 계산해줘."],"purpose":"Build a dated cash-flow forecast with observed inputs and explicit uncertainty.","acceptance":["uses dated inflows and outflows","shows low point","labels uncertain payments","does not claim bank balance if absent","keeps assumptions editable"]},
+    {"id":"KHB-A03","sentinel":false,"business":"owner_common","domain":"contracts","environment":"office_admin","title":"계약서 변경 비교","primaryPrompt":"지난 계약서하고 새로 받은 계약서 비교해서 금액, 기간, 해지, 책임이 달라진 것만 쉽게 알려줘. 법적으로 괜찮다고 단정하지는 마.","alternatePrompts":["계약서에서 우리한테 불리하게 바뀐 게 있는지 변경점 중심으로 봐줘."],"purpose":"Compare exact contract revisions without replacing legal advice.","acceptance":["chooses exact revisions","quotes or references changed clauses","explains plain-language impact","does not claim legal validity","preserves unknown interpretation"]},
+    {"id":"KHB-A04","sentinel":false,"business":"owner_common","domain":"expense_evidence","environment":"office_admin","title":"비용 증빙 누락","primaryPrompt":"이번 달 비용 중에 영수증이나 세금계산서가 없는 것만 찾아줘. 개인지출로 보이는 건 따로 빼고 내가 확인하게 해줘.","alternatePrompts":["경비 처리 전에 증빙 없는 지출을 정리해줘."],"purpose":"Identify missing evidence without classifying tax deductibility as fact.","acceptance":["reconciles expense and evidence identity","finds missing items","labels personal-looking as review not fact","does not delete or file","protects sensitive transaction detail"]},
+    {"id":"KHB-A05","sentinel":false,"business":"owner_common","domain":"support_program","environment":"office_admin","title":"지원사업 적합성 준비","primaryPrompt":"우리 사업이 신청할 만한 지원사업을 찾아서 자격, 마감, 필요한 서류를 비교해줘. 실제 공고문에 없는 혜택은 쓰지 마.","alternatePrompts":["지금 신청 가능한 소상공인 지원사업 중 우리한테 맞는 걸 찾아줘."],"purpose":"Research current official programs and compare exact requirements.","acceptance":["uses current official notices","separates eligibility from likely fit","lists deadline and documents","does not claim acceptance","cites sources"]},
+    {"id":"KHB-A06","sentinel":false,"business":"small_company","domain":"meeting_followup","environment":"office_admin","title":"회의 결정·담당·마감","primaryPrompt":"오늘 회의 메모에서 결정된 것, 아직 논의할 것, 담당자, 마감일을 섞지 말고 정리해줘. 담당이 없는 건 임의로 정하지 마.","alternatePrompts":["회의 끝났으니 누가 언제까지 뭘 해야 하는지만 정확히 정리해줘."],"purpose":"Separate decisions, open items, owners and deadlines without invention.","acceptance":["uses exact meeting evidence","separates decided and open","does not invent owner or date","produces actionable list","keeps source trace"]},
+
+    {
+      "id":"KHB-C01","sentinel":true,"business":"multi_channel_service","domain":"customer_inquiries","environment":"marketing_crm","title":"여러 채널 문의 우선순위와 답변 준비",
+      "primaryPrompt":"내보내 둔 고객 문의들을 가격, 배송, 예약 변경, 불만으로 나누고 오늘 먼저 답해야 할 것부터 보여줘. 주문이나 예약 상태를 확인할 수 없는 건 답을 지어내지 마.",
+      "alternatePrompts":["오늘 들어온 문의 중 급한 것하고 바로 답할 수 있는 걸 나눠줘.","고객 문의 모아둔 파일 보고 유형별로 정리하고 답변 초안까지 준비해줘."],
+      "purpose":"Triage exported inquiries and prepare evidence-bounded drafts without a live channel connection.",
+      "acceptance":["uses exact inquiry export","prioritizes with stated reason","does not fabricate order or reservation state","prepares but does not send","keeps ambiguous items for review"]
+    },
+    {"id":"KHB-C02","sentinel":false,"business":"multi_channel_service","domain":"complaint","environment":"marketing_crm","title":"화난 고객 대응","primaryPrompt":"불만이 큰 고객은 일반 답변에 섞지 말고 무슨 일이 있었는지 확인해서 내가 먼저 볼 답변을 준비해줘.","alternatePrompts":["지금 가장 화난 고객 건부터 사실관계하고 대응안을 정리해줘."],"purpose":"Prepare a grounded complaint response without sending or admitting unverified fault.","acceptance":["uses exact interaction evidence","separates fact and allegation","does not expose unrelated customers","does not send","shows unresolved facts"]},
+    {"id":"KHB-C03","sentinel":false,"business":"multi_channel_service","domain":"faq","environment":"marketing_crm","title":"최근 문의 기반 FAQ 개선","primaryPrompt":"최근 문의에서 계속 반복되는 질문을 찾아서 기존 안내문에서 빠진 내용만 고쳐줘. 한두 명만 물어본 건 자주 묻는 질문이라고 하지 마.","alternatePrompts":["고객들이 요즘 많이 묻는 걸 기준으로 안내문을 업데이트할 부분 찾아줘."],"purpose":"Update FAQ candidates based on repeated evidence.","acceptance":["counts repeated themes","compares current guide","does not overstate rare questions","previews changes","does not publish without request"]},
+    {"id":"KHB-C04","sentinel":false,"business":"multi_channel_service","domain":"repeat_issue","environment":"marketing_crm","title":"반복 문의·재문의 고객","primaryPrompt":"같은 문제로 두 번 이상 다시 문의한 건들을 찾아서 처음 답변이 왜 해결이 안 됐는지 확인해줘.","alternatePrompts":["답변했는데 또 물어본 고객 문의만 모아서 원인을 봐줘."],"purpose":"Trace repeated issues across messages without guessing identity.","acceptance":["links messages only with observed identity","preserves chronology","compares prior answer and new issue","does not infer cause without evidence","produces fix candidates"]},
+    {"id":"KHB-C05","sentinel":false,"business":"multi_channel_service","domain":"first_external_send","environment":"marketing_crm","title":"새 상대에게 첫 메시지 전송 경계","primaryPrompt":"이 문의에 답변해서 보내줘. 처음 연락하는 고객이면 보내기 전에 내용하고 받는 사람을 나한테 보여줘.","alternatePrompts":["답변 만들어서 보내되 새 고객이면 먼저 확인받아."],"purpose":"Exercise first-recipient authority and delivery truth.","acceptance":["identifies exact recipient","shows final content before first send","does not send on disconnected channel","separates send request and receipt","preserves draft"]},
+
+    {
+      "id":"KHB-H01","sentinel":true,"business":"owner_common","domain":"correction_cancel_recovery","environment":"continuity_control","title":"장기 작업 중 교정·취소·후속 확인",
+      "primaryPrompt":"이번 달 판매자료를 전부 확인해서 보고서 파일로 만들어줘. 작업하는 중에 내가 바꿀 내용이 있으면 바로 말할게.",
+      "alternatePrompts":["자료가 많아도 끝까지 확인해서 월간 보고서를 만들어줘. 중간에 수정할 수도 있어."],
+      "testerInterventions":["파일은 아직 만들지 말고 화면에 계산 결과부터 보여줘.","지금 작업은 멈춰줘.","멈춘 상태에서 실제로 어디까지 확인했는지만 알려줘. 다시 실행하지 마."],
+      "purpose":"Verify visible progress, durable correction, complete cancel settlement and same-Work recovery.",
+      "acceptance":["meaningful progress is visible","correction receipt and consumption are distinct","superseded artifact is not created","started process stops","execution claim releases","follow-up reads durable progress without replay"]
+    },
+    {
+      "id":"KHB-H02","sentinel":true,"business":"owner_common","domain":"work_history","environment":"office_admin","title":"지난번 그 일로 과거 작업 찾기",
+      "primaryPrompt":"지난번에 월말 정산 확인했던 일 찾아서 어떤 자료를 썼고 어디까지 끝냈는지 알려줘. 같은 일을 다시 하지는 마.",
+      "alternatePrompts":["전에 정산 점검한 거 어디까지 했더라? 결과하고 남은 것만 찾아줘.","지난번 그 월말 자료 작업 다시 찾아서 이어갈 수 있는 상태인지 봐줘."],
+      "purpose":"Find prior T5 Work and exact result without replaying effects or reinflating full history.",
+      "acceptance":["finds exact prior Work or reports absence","separates completed and remaining","does not rerun prior effect","uses bounded provenance","offers exact continuation point"]
+    }
+  ]
+}

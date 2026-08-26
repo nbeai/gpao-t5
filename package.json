@@ -63,6 +63,8 @@
     "refoundation:compare:interaction-tools": "node refoundation/scripts/run-interaction-core-tool-comparison.mjs",
     "refoundation:compare:interaction-long": "node refoundation/scripts/run-interaction-long-conversation.mjs",
     "refoundation:qualify:human-scenarios": "node refoundation/scripts/run-human-scenarios.mjs",
+    "refoundation:qualify:business-human": "node refoundation/scripts/launch-s3-human-business-console.mjs --human-controlled",
+    "refoundation:summarize:business-human": "node refoundation/scripts/summarize-s3-human-business-console.mjs",
     "refoundation:qualify:business-workflow": "node refoundation/scripts/run-business-workflow-qualification.mjs",
     "refoundation:summarize:business-continuity": "node refoundation/scripts/summarize-business-artifact-continuity.mjs",
     "refoundation:qualify:document-data": "node refoundation/scripts/run-document-data-qualification.mjs",
