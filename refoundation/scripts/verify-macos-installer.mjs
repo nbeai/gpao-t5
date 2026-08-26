@@ -47,6 +47,7 @@ try {
     join(app, 'Contents', 'MacOS', 'GPAO-T5'),
     join(resources, 'GPAO-T5 제거.command'),
     join(runtime, 'node'), join(runtime, 'node-arm64'), join(runtime, 'node-x64'),
+    join(runtime, 't5-memory-spotlight'),
     join(appRoot, 'refoundation', 'scripts', 'start-console.mjs'),
     join(appRoot, 'refoundation', 'scripts', 'connect-chatgpt.mjs'),
     join(appRoot, 'refoundation', 'bin', 't5-document.mjs'),
@@ -81,6 +82,9 @@ try {
   if (!launcherKind.includes('universal binary')) throw new Error('launcher is not universal');
   if (!run('file', ['-b', join(runtime, 'node-arm64')]).includes('arm64')) throw new Error('arm64 runtime missing');
   if (!run('file', ['-b', join(runtime, 'node-x64')]).includes('x86_64')) throw new Error('x64 runtime missing');
+  if (!run('file', ['-b', join(runtime, 't5-memory-spotlight')]).includes('universal binary')) {
+    throw new Error('Memory Spotlight helper is not universal');
+  }
 
   const node = join(runtime, 'node');
   const refoundation = join(appRoot, 'refoundation');

@@ -116,6 +116,20 @@ async function buildDocxPageRenderer(work, runtimeBin) {
   if (architectures.join(',') !== 'arm64,x86_64') throw new Error('DOCX page renderer is not universal');
 }
 
+async function buildMemorySpotlightHelper(work, runtimeBin) {
+  const source = join(repo, 'refoundation', 'native', 'macos-memory-spotlight.swift');
+  const arm = join(work, 'memory-spotlight-arm64');
+  const x64 = join(work, 'memory-spotlight-x64');
+  const frameworks = ['-framework', 'CoreSpotlight', '-framework', 'UniformTypeIdentifiers'];
+  run('xcrun', ['swiftc', '-O', '-target', 'arm64-apple-macos13.0', ...frameworks, source, '-o', arm]);
+  run('xcrun', ['swiftc', '-O', '-target', 'x86_64-apple-macos13.0', ...frameworks, source, '-o', x64]);
+  const destination = join(runtimeBin, 't5-memory-spotlight');
+  run('lipo', ['-create', arm, x64, '-output', destination]);
+  await chmod(destination, 0o755);
+  const architectures = run('lipo', ['-archs', destination]).trim().split(/\s+/u).sort();
+  if (architectures.join(',') !== 'arm64,x86_64') throw new Error('Memory Spotlight helper is not universal');
+}
+
 async function signMachO(app, identity, keychain, entitlements, nodePaths) {
   const keychainArgs = keychain ? ['--keychain', keychain] : [];
   const sign = (path, extra = []) => run('codesign', [
@@ -150,6 +164,7 @@ async function main() {
     await mkdir(runtimeBin, { recursive: true });
     await copyRuntimeApp(join(resources, 'app'));
     await buildDocxPageRenderer(work, runtimeBin);
+    await buildMemorySpotlightHelper(work, runtimeBin);
 
     const armNode = join(runtimeBin, 'node-arm64');
     const x64Node = join(runtimeBin, 'node-x64');
