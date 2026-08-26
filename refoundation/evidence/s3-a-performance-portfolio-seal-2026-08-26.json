@@ -1,0 +1,53 @@
+{
+  "schema": "t5.s3a.performance-portfolio-seal.v1",
+  "status": "adaptive_coverage_sealed_s3a_not_complete",
+  "sourceCommit": "ed487d65af1e31c73853b64beca5dafbf7cef58a",
+  "officialReleaseGateChanged": false,
+  "officialReleaseGate": "SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER",
+  "portfolio": {
+    "coverageAreas": 10,
+    "minimumRepresentativeJourneys": 7,
+    "fullFactorial": false,
+    "fixedCellCount": null,
+    "fixedTotalRuns": null,
+    "expansion": "only a relevant axis with an observed difference or named uncertainty",
+    "measurementStarted": false
+  },
+  "artifacts": [
+    {
+      "path": "T5-THIRD-ACTIVATION-PREPARATION.md",
+      "sha256": "5af685004dfba5e45241962768c80431e6c80328e829368f5ebd4d78d7462859"
+    },
+    {
+      "path": "docs/03-verification/T5-S3-A-PERFORMANCE-TRUTH-WORK-ORDER-2026-08-26-ko.md",
+      "sha256": "710a5e4841b1a2f453fc9e71573042af610984efcef525902c97989ca7a01c1e"
+    },
+    {
+      "path": "refoundation/config/s3-a-performance-truth-portfolio.json",
+      "sha256": "5d48161230ff39f05b6d6254ca7df2ab0b58c4f1890d6b81df0130b275d0ed14"
+    },
+    {
+      "path": "refoundation/test/s3a-performance-truth-portfolio.test.js",
+      "sha256": "cfb41a39492948705d4dfd79ced0b9b7c77d3363c369cd15d7f12aa30c17cc83"
+    }
+  ],
+  "verifiedStartingObservations": {
+    "core": "889/889",
+    "productIntegration": "142/142",
+    "mutation": "2/2 killed",
+    "consoleServerLines": 3698,
+    "consoleInstructionsUtf8Bytes": 24262,
+    "consoleInstructionsApproxTokensAtFourChars": 5770,
+    "observedLongCheckpointModelCalls": 6
+  },
+  "forbiddenImplementationsAdded": [],
+  "userOwnedDirtyPathsModifiedByThisSeal": [],
+  "verification": {
+    "targetedPortfolioContract": "3/3 passed",
+    "currentProductCheckAfterCorrection": "891/892 passed",
+    "unrelatedFailure": "existing QH-3 paused-candidate test cleanup returned ENOTEMPTY for its temporary state directory; targeted rerun was 1/2 with the same cleanup failure",
+    "lastFullPassBeforeCorrection": "892/892; the correction changed only preparation documents, portfolio config, evidence, and its contract test",
+    "jsonParsed": true,
+    "diffCheck": "passed"
+  }
+}

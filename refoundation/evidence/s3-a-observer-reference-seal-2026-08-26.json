@@ -1,0 +1,73 @@
+{
+  "schema": "t5.s3a.observer-reference-seal.v1",
+  "status": "reference_sealed_before_shadow",
+  "observedAt": "2026-08-26",
+  "sources": [
+    {
+      "product": "OpenClaw",
+      "revision": "0482cbf1c06cc82e2dffcc44c6dadfd9a701d5c7",
+      "source": "https://github.com/openclaw/openclaw/blob/main/docs/gateway/opentelemetry.md",
+      "observed": [
+        "bounded content-free model, queue, tool, liveness, and exporter attributes",
+        "diagnostic async queue drop is itself measured",
+        "request bytes, time-to-first-byte, prompt component sizes, and usage remain separate",
+        "exporter failure and health use bounded categories rather than raw errors"
+      ]
+    },
+    {
+      "product": "Hermes",
+      "revision": "main_observed_2026-08-26_head_pin_unavailable_after_network_timeout",
+      "source": "https://github.com/NousResearch/hermes-agent/blob/main/docs/observability/README.md",
+      "observed": [
+        "observer hooks report lifecycle without replacing requests, tool arguments, or execution callbacks",
+        "observer callback exceptions are fail-open and the agent loop continues",
+        "request and tool lifecycles have explicit start, end, duration, status, and correlation identity",
+        "behavior-affecting legacy hook returns are not observability requirements"
+      ]
+    },
+    {
+      "product": "Codex",
+      "revision": "a26f1806a4f4b8cfec2ea1be129963815a61e58c",
+      "source": "https://github.com/openai/codex/blob/main/codex-rs/core/src/config/otel.rs",
+      "observed": [
+        "malformed user-editable telemetry metadata becomes a startup warning instead of startup failure",
+        "signal-specific exporter configuration remains separate"
+      ]
+    },
+    {
+      "product": "Codex actual failure",
+      "revision": "issue_30936_observed_2026-08-26",
+      "source": "https://github.com/openai/codex/issues/30936",
+      "observed": [
+        "missing event timestamps serialized as zero and downstream collectors dropped records",
+        "traces and metrics arriving did not prove log coverage",
+        "telemetry lifecycle and timestamp truth require their own negative controls"
+      ]
+    }
+  ],
+  "adopted": [
+    "content-free bounded span fields",
+    "monotonic start and end captured at the actual boundary",
+    "observer errors never change product output, error, effect, or surface",
+    "writer and flush occur after the foreground product result",
+    "buffer drop and writer failure are explicit observer diagnostics",
+    "each signal and lifecycle path requires its own coverage countertest"
+  ],
+  "rejected": [
+    "remote telemetry export",
+    "OpenTelemetry dependency",
+    "SQLite metrics store",
+    "outbox",
+    "observer data in model context or user surface",
+    "residual phase calculation",
+    "behavior-changing hook return values"
+  ],
+  "t5Counterexamples": [
+    "writer throws after product result",
+    "clock throws at a boundary",
+    "bounded buffer drops spans",
+    "raw secret metadata is offered",
+    "trace field contaminates the provider request",
+    "operation throws and observer must preserve the same error identity"
+  ]
+}

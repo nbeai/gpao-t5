@@ -1,0 +1,183 @@
+{
+  "schema": "t5.s3a.existing-evidence-reuse-audit.v1",
+  "status": "reuse_audit_complete_measurement_not_started",
+  "officialReleaseGateChanged": false,
+  "productCodeChanged": false,
+  "method": {
+    "coverageAreas": 10,
+    "fullFactorial": false,
+    "rule": "Reuse quality and aggregate performance evidence first; run a new matched sample only when it can distinguish a named phase or causal axis.",
+    "phaseCompleteEvidenceRequired": [
+      "state_read_replay", "context_compilation", "provider_wait_or_unknown",
+      "model_generation_or_unknown", "tool_execution", "verification",
+      "surface_publication"
+    ]
+  },
+  "summary": {
+    "coverageWithExistingEvidence": 10,
+    "coverageWithReusableQualityOracle": 10,
+    "coverageWithSomeReusableAggregatePerformance": 9,
+    "coverageWithReusablePairedAggregateAB": 2,
+    "coverageWithPhaseCompleteCurrentEvidence": 0,
+    "coverageRequiringImmediateFullRerun": 0,
+    "fixedNewRunCount": null
+  },
+  "coverage": [
+    {
+      "id": "C01",
+      "area": "simple_conversation_and_short_tool",
+      "reuseLevel": "quality_and_journey_wall_partial",
+      "sources": ["p0-human-completion-2026-08-24.json"],
+      "reusable": {
+        "quality": ["latest correction", "state separation", "no internal terms", "all turns answered"],
+        "aggregate": ["18-turn conversation duration 68536ms", "12-turn file journey duration 46233ms"]
+      },
+      "missing": ["per-turn model/tool calls", "request bytes", "tokens", "all phase timings"],
+      "newMeasurement": "S1 observer O0/O1/O2 positive control; no condition expansion unless behavior or overhead differs"
+    },
+    {
+      "id": "C02",
+      "area": "file_discovery",
+      "reuseLevel": "quality_and_aggregate_partial",
+      "sources": ["s2-a2-information-control-complete-2026-08-24.json"],
+      "reusable": {
+        "quality": ["purpose achieved", "exact latest file", "same target retained", "unsettled zero"],
+        "aggregate": ["Terra first wall 14804.109ms", "follow-up wall 1493.565ms", "first model calls 6", "follow-up model calls 1", "follow-up tool calls 0"]
+      },
+      "missing": ["request bytes", "tokens", "state replay", "context compilation", "cold/warm pair"],
+      "newMeasurement": "S2 cold/warm pair only after observer qualification"
+    },
+    {
+      "id": "C03",
+      "area": "bulk_file_work",
+      "reuseLevel": "paired_aggregate_reusable",
+      "sources": ["s2-a2-information-control-complete-2026-08-24.json"],
+      "reusable": {
+        "quality": ["400 files accounted", "ambiguous 24 preserved", "movement receipt", "destination verification", "unsettled zero"],
+        "aggregate": ["Terra wall 31710.081→24957.898ms", "request bytes 391937→314861", "provider tokens 84628→66046", "model calls 5", "tool calls 4"]
+      },
+      "missing": ["phase timings", "cold/warm", "file I/O exclusive time"],
+      "newMeasurement": "Do not repeat initially; open S3 only if S2/S6 phase data cannot explain the remaining wall"
+    },
+    {
+      "id": "C04",
+      "area": "xlsx_pdf_docx",
+      "reuseLevel": "paired_aggregate_reusable_without_wall",
+      "sources": ["r7-d1-document-data-live.json", "s2-second-completion-human-closeout-2026-08-25.json"],
+      "reusable": {
+        "quality": ["source trace", "conflict and unknown preserved", "artifact verified", "source unchanged"],
+        "aggregate": ["model turns 15→10", "tool calls 10→5", "provider tokens 257744→128851", "request bytes 946625→519575"]
+      },
+      "missing": ["paired wall", "render/reopen exclusive time", "state/context/provider phase"],
+      "newMeasurement": "Keep one S3 document subjourney only after a phase hypothesis exists"
+    },
+    {
+      "id": "C05",
+      "area": "telegram",
+      "reuseLevel": "quality_only_performance_missing",
+      "sources": ["s2-f-connected-reality-2026-08-25.json", "s2-second-completion-human-closeout-2026-08-25.json", "telegram-conversation-delivery-repair-2026-08-26.json"],
+      "reusable": {
+        "quality": ["inbound document identity", "caption/reply preservation", "secret exposure zero", "exact outbound file receipt", "blind retry zero"],
+        "aggregate": []
+      },
+      "missing": ["wall", "calls", "tokens", "request bytes", "delivery publication timing"],
+      "newMeasurement": "One instrumented loopback Telegram journey in S4; expand only if delivery or model route dominates"
+    },
+    {
+      "id": "C06",
+      "area": "notion",
+      "reuseLevel": "dual_model_aggregate_reusable",
+      "sources": ["s2-f-connected-reality-2026-08-25.json"],
+      "reusable": {
+        "quality": ["exact connection identity", "verified write and readback", "unknown mismatch unresolved"],
+        "aggregate": ["Terra 8148ms, 3 model calls, 2 tools, 16193 input tokens", "gpt-5.5 17418ms, 4 model calls, 3 tools, 22575 input tokens"]
+      },
+      "missing": ["paired repeat", "provider/network vs generation", "verification exclusive time"],
+      "newMeasurement": "Retain the model axis as a signal; repeat only after S4 instrumentation can attribute the difference"
+    },
+    {
+      "id": "C07",
+      "area": "busy_correction_cancel_followup",
+      "reuseLevel": "quality_and_nonmatched_aggregate",
+      "sources": ["s2-b-work-conversation-continuity-2026-08-24.json"],
+      "reusable": {
+        "quality": ["durable admission", "input loss zero", "process stop", "known exception-surface limitation"],
+        "aggregate": ["Terra correction 3413.051ms, 2 model turns, 1 tool", "gpt-5.5 cancel 3636.423ms, 2 model turns, 1 tool"]
+      },
+      "missing": ["same-purpose model pair", "admission/state/publication phase", "reliable defer/independent surface quality"],
+      "newMeasurement": "One S5 matched semantic journey after observer qualification; do not expand the accepted known limitation into prompt repair"
+    },
+    {
+      "id": "C08",
+      "area": "automation",
+      "reuseLevel": "dual_model_aggregate_reusable",
+      "sources": ["s2-d-time-continuity-2026-08-25.json"],
+      "reusable": {
+        "quality": ["stale worker effects zero", "objective and delivery separate", "unknown acknowledgement resend zero"],
+        "aggregate": ["Terra 13477ms, 4 model calls, 3 tools", "gpt-5.5 31428ms, 4 model calls, 3 tools"]
+      },
+      "missing": ["foreground off/on pair", "queue wait", "publication phase", "provider attribution"],
+      "newMeasurement": "S7 foreground matched pair with deterministic automation background; primary missing causal evidence"
+    },
+    {
+      "id": "C09",
+      "area": "long_conversation_checkpoint",
+      "reuseLevel": "strong_scale_curve_and_checkpoint_aggregate_not_current_phase_baseline",
+      "sources": ["c1-conversation-pressure-live.json", "c1-repeated-restart-checkpoint-live.json"],
+      "reusable": {
+        "quality": ["needles retained", "restart same session", "canonical conversation not rewritten"],
+        "aggregate": ["41→1301 messages: request 20829→892889 bytes, tokens 4976→248756, wall 2537→7318ms", "each repeated checkpoint: 5 chunks plus merge = 6 model calls", "checkpoint total request about 838101/853432 bytes and input tokens 276914/269254"]
+      },
+      "missing": ["current-source baseline", "state replay", "context compilation", "provider wait/generation", "cold/warm"],
+      "newMeasurement": "Highest-priority S6 current gpt-5.5 short/long and cold/warm pairs after observer qualification; add Terra only if provider/model attribution remains material"
+    },
+    {
+      "id": "C10",
+      "area": "memory_learning",
+      "reuseLevel": "dual_model_aggregate_and_background_truth_reusable",
+      "sources": ["s2-c-memory-portfolio-2026-08-24.json", "s2-e-i3-learning-review-live-2026-08-25.json", "s2-e-learning-complete-2026-08-25.json", "s2-e-learning-runtime-repair-2026-08-25.json"],
+      "reusable": {
+        "quality": ["current correction wins", "stale/secret/speculation excluded", "foreground not blocked by reviewer", "unqualified promotion zero"],
+        "aggregate": ["780k-char Memory: Terra 68796.873ms/281105 tokens, gpt-5.5 154581.244ms/291910 tokens", "reviewer Terra 5068–12125ms and gpt-5.5 8198–12937ms", "field model turns 4 and tools 3 for both models"]
+      },
+      "missing": ["foreground off/on causal delta", "state projection time", "reviewer resource overlap"],
+      "newMeasurement": "S7 foreground matched pair with deterministic reviewer background; do not rerun the full learning lifecycle"
+    }
+  ],
+  "phaseReuseConclusion": {
+    "directlyReusable": ["purpose outcome", "quality invariants", "aggregate wall where present", "model/tool calls", "request bytes and tokens where present"],
+    "notDirectlyReusable": ["state read/replay", "context compilation", "provider queue/network", "model generation", "tool execution exclusive time", "verification exclusive time", "surface publication", "background causal interference"],
+    "reason": "The sealed evidence contains aggregate receipts but not a common monotonic phase trace; named historical Run state was not found elsewhere in the repository. Residual subtraction is forbidden."
+  },
+  "minimalNewMeasurementOrder": [
+    {"order":1,"journey":"S1","scope":"deterministic O0/O1/O2 observer cost and product non-intervention"},
+    {"order":2,"journey":"S6","scope":"current gpt-5.5 short/long and cold/warm only"},
+    {"order":3,"journey":"S7","scope":"foreground background-off/on pair for automation then reviewer"},
+    {"order":4,"journey":"S2","scope":"file discovery cold/warm pair if S6 does not explain state cost"},
+    {"order":5,"journey":"S4","scope":"one Telegram loopback plus instrumented Notion model signal"},
+    {"order":6,"journey":"S5","scope":"one matched correction/cancel/publication journey"},
+    {"order":7,"journey":"S3","scope":"only the unresolved bulk/document phase hypothesis"}
+  ],
+  "verification": {
+    "s3aFocusedContracts": "6/6 passed",
+    "currentFullCheck": "894/895 passed",
+    "unrelatedExistingFailure": "QH-3 paused-candidate temporary state cleanup returned ENOTEMPTY; no S3-A or product assertion failed",
+    "legacyImports": 0
+  },
+  "sourceDigests": {
+    "p0-human-completion-2026-08-24.json": "0c245decffb747f76f26855fa66a7c48bf72de582bf0186ff26967146ffa5d7e",
+    "s2-a2-information-control-complete-2026-08-24.json": "b870c566689ea97527a51d357afdf88ed5c43f096225e13b682db367a090e06c",
+    "r7-d1-document-data-live.json": "3432b432e36115c684504cd4791c3207adaf57ae261b040ff9244c604ee09ec3",
+    "s2-f-connected-reality-2026-08-25.json": "ea89d450f034b39dcf9b7fdcf15dcf99f2b213855cf0e51e9b38491173016f89",
+    "s2-second-completion-human-closeout-2026-08-25.json": "eb1fc0eeb27189bed82a1cc35cfba513057e699e581897740ea8cc7d1aa4d4bb",
+    "telegram-conversation-delivery-repair-2026-08-26.json": "e018c36ef7a1b5987fc44dfa056bb25adce5a24b373769759e9038239344c884",
+    "s2-b-work-conversation-continuity-2026-08-24.json": "ccde71667c3c6a7c13713c11e43a6e7456e50251d214be1883075174cb7b56f1",
+    "s2-d-time-continuity-2026-08-25.json": "e84ba3f4114cb9db0f0f812fd480f44e54551df69e5b1e1344f2cb7a6c1dd73a",
+    "c1-conversation-pressure-live.json": "9bfb1e886db6c77d938fb3b6b174d203ea4d7e791f44788d577aff76274c75b9",
+    "c1-repeated-restart-checkpoint-live.json": "c6c5f41f353bbe8568cf11e1544a985bd9ed22c9615f35fe45c8ec6f8e6090bf",
+    "s2-c-memory-portfolio-2026-08-24.json": "7980d96561552ede150ab75e142aa459f22f6c7335ea854aa9029a1c756af2f1",
+    "s2-e-i3-learning-review-live-2026-08-25.json": "fa678964323f720af20fdcf798d51a013634888ffca329380333bf7a8a48d023",
+    "s2-e-learning-complete-2026-08-25.json": "4e0fd4c241d00ec4db46461cf55a58091cfcd0f8a9ff094c388031ff9d486401",
+    "s2-e-learning-runtime-repair-2026-08-25.json": "03e0b687c2586df3f0a3c3ad20dea04a60f06273094bd4d0b14b6d2b14b67bac"
+  }
+}

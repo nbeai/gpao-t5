@@ -1,0 +1,117 @@
+{
+  "schema": "t5.s3a.performance-truth-portfolio.v2",
+  "status": "adaptive_coverage_sealed_before_instrumentation_not_executed",
+  "officialReleaseGate": "SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER",
+  "purpose": "Cover the whole product, reuse existing evidence, and expand only axes that distinguish an observed cause.",
+  "privacy": {
+    "isolatedHomeDataWorkspace": true,
+    "realUserData": false,
+    "realExternalWrites": false,
+    "loopbackExternalEffectsOnly": true,
+    "rawPromptOrToolPayloadInTrace": false,
+    "rawSecretsAllowed": false
+  },
+  "sampling": {
+    "strategy": "adaptive_failure_family_sampling",
+    "fullFactorial": false,
+    "fixedCellCount": null,
+    "fixedTotalRuns": null,
+    "equalSamplesPerCoverageArea": false,
+    "start": "reuse_existing_evidence_then_small_representative_sample",
+    "expandOnlyWhen": [
+      "paired phase or wall difference appears",
+      "quality or route differs",
+      "provider or observer provenance remains unresolved",
+      "one additional matched pair can reduce a named uncertainty"
+    ],
+    "stopWhen": [
+      "the failure family and critical phase are distinguished",
+      "additional samples do not change the direction or decision",
+      "no difference is observed and no unresolved product risk remains",
+      "the next sample would not distinguish a cause"
+    ],
+    "candidateAxes": {
+      "models": ["terra_exact_runtime_identity", "gpt-5.5_exact_runtime_identity"],
+      "processState": ["cold_process", "warm_resident"],
+      "backgroundState": ["background_off", "background_on_fixed_workload"],
+      "sessionClass": ["short_session", "long_session"]
+    }
+  },
+  "instrumentationModes": ["O0_off", "O1_clock_only", "O2_full_shadow"],
+  "phases": [
+    "startup", "state_read_replay", "context_compilation",
+    "provider_queue_network_or_combined_unknown", "model_generation_or_combined_unknown",
+    "tool_execution", "verification", "surface_publication",
+    "background_interference_paired_delta"
+  ],
+  "absoluteInvariants": {
+    "falseCompletion": 0,
+    "unknownExternalEffectBlindReplay": 0,
+    "userInputLoss": 0,
+    "staleMemoryForcedInjection": 0,
+    "accuracyCompletenessRecoveryRegression": 0,
+    "instrumentationInModelContextOrUserSurface": 0
+  },
+  "coverageAreas": [
+    {"id":"C01","area":"simple_conversation_and_short_tool","existingEvidence":["A-H01"],"sentinel":"S1"},
+    {"id":"C02","area":"file_discovery","existingEvidence":["HP-01","A-H02"],"sentinel":"S2"},
+    {"id":"C03","area":"bulk_file_work","existingEvidence":["HP-02","A-H05"],"sentinel":"S3"},
+    {"id":"C04","area":"xlsx_pdf_docx","existingEvidence":["A-H03","QH-2"],"sentinel":"S3"},
+    {"id":"C05","area":"telegram","existingEvidence":["HP-04","HP-05","HP-07","A-O02"],"sentinel":"S4"},
+    {"id":"C06","area":"notion","existingEvidence":["HP-08","HP-09","A-O03"],"sentinel":"S4"},
+    {"id":"C07","area":"busy_correction_cancel_followup","existingEvidence":["HP-06","A-H07","A-O01"],"sentinel":"S5"},
+    {"id":"C08","area":"automation","existingEvidence":["A-O04","S2-D"],"sentinel":"S7"},
+    {"id":"C09","area":"long_conversation_checkpoint","existingEvidence":["LC-01","LC-02","LC-03","LC-05","LC-06"],"sentinel":"S6"},
+    {"id":"C10","area":"memory_learning","existingEvidence":["S2-C","S2-E"],"sentinel":"S7"}
+  ],
+  "sentinelJourneys": [
+    {
+      "id":"S1","title":"Simple positive control","covers":["C01"],
+      "firstAxes":["model_if_provider_baseline_needed"],
+      "fixture":"Natural correction followed by one exact three-file observation.",
+      "oracle":["latest correction wins","exact file count","internal terms absent","false completion zero"]
+    },
+    {
+      "id":"S2","title":"File discovery bottleneck","covers":["C02"],
+      "firstAxes":["cold_process_vs_warm_resident","short_vs_long_only_if_replay_signal"],
+      "fixture":"Privacy-safe document revisions with one exact latest brief and one follow-up.",
+      "oracle":["exact latest identity","correct facts","same target retained","unnecessary reread zero"]
+    },
+    {
+      "id":"S3","title":"Bulk files and mixed office documents","covers":["C03","C04"],
+      "firstAxes":["cold_process_vs_warm_resident","model_only_if_context_or_route_differs"],
+      "fixture":"A 400-file reversible move fixture plus XLSX, PDF, and DOCX with one conflict.",
+      "oracle":["source loss zero","movement receipt complete","unknown preserved","artifact reopened"]
+    },
+    {
+      "id":"S4","title":"Telegram and Notion connected reality","covers":["C05","C06"],
+      "firstAxes":["model_if_tool_route_differs","network_attempt_provenance"],
+      "fixture":"Separate loopback delivery and verified-write episodes under one connected-reality family.",
+      "oracle":["secret exposure zero","effect and delivery separate","exact readback","blind retry zero"]
+    },
+    {
+      "id":"S5","title":"Busy correction cancel and follow-up","covers":["C07"],
+      "firstAxes":["model","background_only_if_admission_contention_appears"],
+      "fixture":"Long-running local process, durable busy input, cancel, and two expected surfaces.",
+      "oracle":["input loss zero","process stopped","cancel not success","duplicate surface zero"]
+    },
+    {
+      "id":"S6","title":"Long conversation and checkpoint","covers":["C09"],
+      "firstAxes":["short_session_vs_long_session","cold_process_vs_warm_resident"],
+      "fixture":"Existing 1,000-turn and repeated-checkpoint evidence, then matched recall only if required.",
+      "oracle":["current Work exact","latest correction wins","anchor recall exact","raw full reinflation zero"]
+    },
+    {
+      "id":"S7","title":"Automation and Learning background interference","covers":["C08","C10"],
+      "firstAxes":["background_off_vs_background_on"],
+      "fixture":"Foreground observation paired with deterministic scheduler or reviewer background work.",
+      "oracle":["foreground priority","stale worker effect zero","stale Memory injection zero","ineligible promotion zero"]
+    }
+  ],
+  "requiredMetrics": [
+    "purposeAchieved", "resultCorrect", "resultComplete", "falseCompletion",
+    "modelCalls", "toolCalls", "providerCachedAndUncachedTokens", "requestBytes",
+    "firstFeedbackMs", "firstActualActionMs", "foregroundWallMs", "userAndApprovalBurden",
+    "stateReadReplayMs", "contextCompilationMs", "fileIoMs", "backgroundInterferencePairedDelta"
+  ]
+}

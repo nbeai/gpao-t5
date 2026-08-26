@@ -1,0 +1,112 @@
+{
+  "schema": "t5.s3a.s1-observer-countertest.v1",
+  "status": "deterministic_shadow_qualified_live_models_not_executed",
+  "officialReleaseGateChanged": false,
+  "productCodeChanged": false,
+  "testOnly": true,
+  "design": {
+    "modes": ["O0_off", "O1_clock_only", "O2_full_shadow"],
+    "blocksPerSample": 5,
+    "deterministicJourneysPerModePerBlock": 250,
+    "samples": 2,
+    "acceptanceThresholdPredetermined": false,
+    "writerRunsBeforeProductTerminal": false,
+    "remoteExport": false
+  },
+  "behavior": {
+    "providerRequestDigestChanged": false,
+    "toolOrderOrArgsDigestChanged": false,
+    "authorityDigestChanged": false,
+    "effectOrVerificationDigestChanged": false,
+    "surfaceDigestChanged": false,
+    "productDigestCountPerSample": [1, 1],
+    "clockFailureChangedProduct": false,
+    "writerFailureChangedProduct": false,
+    "boundedDropChangedProduct": false,
+    "operationErrorIdentityPreserved": true,
+    "requestContaminationMutationDetected": true,
+    "rawPromptToolOrSecretInTrace": false
+  },
+  "samples": [
+    {
+      "foregroundMedianMicrosecondsPerJourney": {
+        "O0_off": 2.492,
+        "O1_clock_only": 2.783668,
+        "O2_full_shadow": 3.874
+      },
+      "foregroundDeltaMicroseconds": {
+        "O1_clock_only": 0.291668,
+        "O2_full_shadow": 1.382
+      },
+      "cpuMedianMicrosecondsPerJourney": {
+        "O0_off": 3.444,
+        "O1_clock_only": 3.388,
+        "O2_full_shadow": 6.98
+      },
+      "maxBlockRssDeltaBytes": {
+        "O0_off": 2555904,
+        "O1_clock_only": 999424,
+        "O2_full_shadow": 3735552
+      },
+      "eventLoopDelayMilliseconds": {"mean": 1.00384, "max": 1.715199},
+      "postProductFlushMilliseconds": 1.167418,
+      "tracePayloadBytes": 9229,
+      "actualSidecarBytes": 9234,
+      "blockingWritesBeforeProductTerminal": 0
+    },
+    {
+      "foregroundMedianMicrosecondsPerJourney": {
+        "O0_off": 2.440664,
+        "O1_clock_only": 2.867664,
+        "O2_full_shadow": 3.937332
+      },
+      "foregroundDeltaMicroseconds": {
+        "O1_clock_only": 0.427,
+        "O2_full_shadow": 1.496668
+      },
+      "cpuMedianMicrosecondsPerJourney": {
+        "O0_off": 4.42,
+        "O1_clock_only": 3.372,
+        "O2_full_shadow": 7.06
+      },
+      "maxBlockRssDeltaBytes": {
+        "O0_off": 2441216,
+        "O1_clock_only": 966656,
+        "O2_full_shadow": 3948544
+      },
+      "eventLoopDelayMilliseconds": {"mean": 0.982251, "max": 1.632255},
+      "postProductFlushMilliseconds": 1.159582,
+      "tracePayloadBytes": 9229,
+      "actualSidecarBytes": 9234,
+      "blockingWritesBeforeProductTerminal": 0
+    }
+  ],
+  "interpretation": {
+    "O1ForegroundDeltaRangeMicroseconds": [0.291668, 0.427],
+    "O2ForegroundDeltaRangeMicroseconds": [1.382, 1.496668],
+    "postProductFlushRangeMilliseconds": [1.159582, 1.167418],
+    "rssCausalClaim": "unknown; allocator and garbage-collection effects are co-occurring block observations, not per-turn attribution",
+    "eventLoopCausalClaim": "unknown; the measurement reports whole-process delay at 1ms resolution, not a per-mode delta",
+    "decision": "The test-only observer is small enough to open one current S6 shadow, but actual console boundary placement and live Terra/gpt-5.5 non-intervention remain unqualified."
+  },
+  "notExecuted": [
+    "actual console hot-path instrumentation",
+    "Terra live paired observer test",
+    "gpt-5.5 live paired observer test",
+    "S6 short/long or cold/warm",
+    "S7 background interference"
+  ],
+  "artifacts": {
+    "referenceSealSha256": "b2ac35a670699a64780f051be0cc0275bca7569e23d086f4eea03ced863c987f",
+    "observerSha256": "5d1bcdb9b2b562ad9803a21b23cbc11f8f2e6f5fc17b22afca39b7737110e2b5",
+    "countertestSha256": "1a5e0d7db03656b4c0d8df2d8072fcbf0d7e2a5f536b365bd6540d60af284951",
+    "runnerSha256": "6519cf73557f4ce2b6b271ba5caaf05e24698fe7da8ec0ab7f8cb411e3611736"
+  },
+  "verification": {
+    "observerFocused": "4/4 passed",
+    "benchmarkSamples": "2/2 passed",
+    "allS3aFocusedContracts": "12/12 passed",
+    "currentFullCheck": "901/901 passed",
+    "diffCheck": "passed"
+  }
+}

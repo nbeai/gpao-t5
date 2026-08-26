@@ -1,0 +1,89 @@
+{
+  "schema": "t5.s3a.s6-state-context-shadow.v1",
+  "status": "local_state_context_shadow_complete_provider_not_executed",
+  "officialReleaseGateChanged": false,
+  "productCodeChanged": false,
+  "testOnly": true,
+  "design": {
+    "blocks": 3,
+    "samples": 12,
+    "conditions": [
+      "short_session:cold_process", "short_session:warm_resident",
+      "long_session:cold_process", "long_session:warm_resident"
+    ],
+    "coldDefinition": "fresh Node process and new store instances; operating-system page cache not purged",
+    "warmDefinition": "same process and store instances after one unmeasured state+context pass",
+    "subprocessWallUsedForColdWarmClaim": false,
+    "modelProviderCalled": false,
+    "backgroundAxisOpened": false
+  },
+  "fixtures": {
+    "sameCurrentRequest": true,
+    "sameOracle": ["PROJECT-S6", "DEADLINE-2026-09-30", "UNKNOWN-COST-771", "LATEST-CORRECTION-S6"],
+    "short": {"messages": 8, "checkpoints": 0, "conversationJsonlBytes": 5851},
+    "long": {"messages": 1000, "checkpoints": 1, "conversationJsonlBytes": 757658},
+    "qualityPasses": "12/12",
+    "bodyDigestsPerCondition": 1
+  },
+  "groups": {
+    "short_session:cold_process": {
+      "n": 3, "stateReadReplayMedianMs": 0.947375, "contextCompilationMedianMs": 1.09325,
+      "requestBytes": 28865, "inputItems": 10, "tailEntries": 8
+    },
+    "short_session:warm_resident": {
+      "n": 3, "stateReadReplayMedianMs": 0.232458, "contextCompilationMedianMs": 0.363625,
+      "requestBytes": 28865, "inputItems": 10, "tailEntries": 8
+    },
+    "long_session:cold_process": {
+      "n": 3, "stateReadReplayMedianMs": 6.734625, "contextCompilationMedianMs": 1.675041,
+      "requestBytes": 49501, "inputItems": 53, "tailEntries": 50
+    },
+    "long_session:warm_resident": {
+      "n": 3, "stateReadReplayMedianMs": 4.755833, "contextCompilationMedianMs": 0.801125,
+      "requestBytes": 49501, "inputItems": 53, "tailEntries": 50
+    }
+  },
+  "deltasMs": {
+    "longMinusShortColdState": 5.78725,
+    "longMinusShortWarmState": 4.523375,
+    "longMinusShortColdContext": 0.581791,
+    "longMinusShortWarmContext": 0.4375,
+    "longWarmMinusColdState": -1.978792,
+    "longWarmMinusColdContext": -0.873916
+  },
+  "interpretation": {
+    "directObservation": [
+      "checkpoint bounds the 757658-byte canonical fixture to a 49501-byte provider request",
+      "long-session local replay is materially larger than context compilation in both cold and warm samples",
+      "warm residence reduces both measured phases while preserving the exact provider body digest and oracle"
+    ],
+    "inference": "ConversationLedger still parses the complete canonical JSONL while WorkStore reuses its resident projection; this is consistent with the long warm replay remaining 4.755833ms despite bounded context.",
+    "decision": "Do not open Event Kernel or SQLite work. The long local state+context total is about 8.41ms cold and 5.56ms warm, while existing evidence shows checkpoint auxiliary model work at six calls and about 270k input tokens. Continue to S7 background interference before any architecture choice."
+  },
+  "notMeasured": [
+    "provider queue or network", "model generation", "checkpoint auxiliary model wall",
+    "Terra", "live gpt-5.5", "background interference", "machine-cold page cache",
+    "tool execution", "verification", "surface publication"
+  ],
+  "sourceDigests": {
+    "conversation-ledger.js": "3261746e03e889807f1d071019d3028305b94c15fe4544ae90281e7175f0540b",
+    "work-store.js": "155f83657e4e7fd53d1ae8af853a98a8463806f695cc0bc6d6850c6f1f1fb053",
+    "memory-ledger.js": "6d8df58fd6d17881bd73dd7412a0e4446ada3f5791ca44c616070a8fb620f5ed",
+    "conversation-checkpoint.js": "7173b286ac17f6b28d58e23938f0bd87d009cec805bf00180821129ba2e678b0",
+    "information-context.js": "c1938b6aacecc05e043bb470900cdcff74c77b59dc252a9db72f0be81522258a",
+    "conversation-projection.js": "3bfcdbec95d12f07d0f68e8d6f6da598134c6d392f0f734b3ac565fbd3f53949",
+    "context-receipt.js": "93e7516773b6bb205862460ef1bf5a75fc24800f5d9ef9346b337f35c4ab632d"
+  },
+  "artifactDigests": {
+    "fixtureAndProbe": "64d5c5b73b43d7728a9e434d79f0eba71b1d3dbf76c8367ff72d159ffc827c33",
+    "contractTest": "c97e007bdd75cbf7495822adec74dae1c02480b1b0af3b847ca8e0273d63c92d",
+    "worker": "db5acd52058d03a7566921653324cb5f2ebf173bb325fbf5215b8539d823e3ca",
+    "runner": "66763f9c41dc2b3d8f8cda89393f3453dadefee43f5de595e49bd584eee02b27"
+  },
+  "verification": {
+    "s6Focused": "3/3 passed",
+    "allS3aFocused": "17/17 passed",
+    "diffCheck": "passed",
+    "fullCheck": "906/906 passed"
+  }
+}
