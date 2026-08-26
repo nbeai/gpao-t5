@@ -1,0 +1,50 @@
+{
+  "schema": "t5.s3.terminal-windows-github-qualification.v1",
+  "verdict": "PASS_WITH_OBSERVATION",
+  "sourceCommit": "b28a55048fe1c7e8b18330104eb2e013afa5ee91",
+  "github": {
+    "runId": 32965720326,
+    "jobId": 98167633516,
+    "job": "windows-terminal",
+    "conclusion": "success",
+    "durationSeconds": 75,
+    "runner": "Windows Server 2025 10.0.26100",
+    "node": "24.19.0"
+  },
+  "nativeHosts": {
+    "x64CompiledAndExecuted": true,
+    "arm64CrossCompiled": true,
+    "artifact": "t5-windows-terminal-hosts",
+    "artifactId": 9605618783,
+    "artifactArchiveSha256": "6616198254bd18cbcd431fcb30652c2b9f6241a68ae7c6b2fe094213a14684f8"
+  },
+  "qualified": {
+    "powershellNoProfile": true,
+    "jobObjectKillOnClose": true,
+    "childCreatedSuspendedBeforeAssignment": true,
+    "grandchildLateEffectAfterCancel": 0,
+    "taskkillTreeFallback": 0,
+    "conptyInputAndTerminalExit": true,
+    "currentUserDpapiRoundTrip": true,
+    "credentialPlaintextOnDisk": 0,
+    "missingJobHostExecution": 0
+  },
+  "referenceFailuresApplied": [
+    "OpenClaw issue 120134: taskkill /T can kill the restart caller inside the gateway tree",
+    "Microsoft Job Objects: child processes inherit the job and KILL_ON_JOB_CLOSE terminates the unit",
+    "Microsoft process termination: terminating one process does not terminate its children",
+    "WSL2 is not used as the T5 Windows runtime"
+  ],
+  "observations": [
+    "the complete GitHub workflow remained red because pre-existing Linux jobs failed outside the Windows job",
+    "the ConPTY assertions pass but node-pty leaves a test-runner worker handle; only the Windows integration test process uses Node --test-force-exit",
+    "actual Terra and gpt-5.5 user journeys were not executed on a physical Windows desktop",
+    "Windows sandbox-first effect-null execution remains closed; Windows requires the explicit three-field effect until an official isolation host is qualified"
+  ],
+  "notClaimed": [
+    "physical Windows UI human qualification",
+    "Windows sandbox-first",
+    "ARM64 execution",
+    "signed Windows installer"
+  ]
+}

@@ -13,11 +13,16 @@ test('Windows Terminal Gate는 Linux·WSL 복제 없이 GitHub runner와 격리 
   assert.equal(value.wsl2.productRuntime, false);
   assert.equal(value.githubWindowsRunner.required.some((item) => /grandchild cancellation/u.test(item)), true);
   assert.equal(value.isolatedWindowsVm.requiredBeforeHumanProductPass.some((item) => /Terra and gpt-5.5/u.test(item)), true);
-  assert.equal(value.completion.windowsComplete, false);
+  assert.equal(value.completion.githubRunnerPass, true);
+  assert.equal(value.completion.windowsRuntimeComplete, true);
+  assert.equal(value.completion.windowsHumanModelSurfacePass, false);
+  assert.equal(value.completion.verdict, 'PASS_WITH_OBSERVATION');
 });
 
 test('Windows CI는 MSVC Job host·DPAPI·ConPTY 실제 시험을 모두 실행한다', async () => {
   const workflow = await readFile(new URL('.github/workflows/ci.yml', root), 'utf8');
+  assert.match(workflow, /macos-product:[\s\S]*runs-on: macos-15/u);
+  assert.doesNotMatch(workflow, /runs-on: ubuntu-/u);
   assert.match(workflow, /windows-terminal:[\s\S]*runs-on: windows-latest/u);
   assert.match(workflow, /cl\.exe \/nologo \/W4 \/WX/u);
   assert.match(workflow, /vcvarsamd64_arm64\.bat/u);

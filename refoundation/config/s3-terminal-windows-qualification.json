@@ -1,6 +1,6 @@
 {
   "schema": "t5.s3.terminal-windows-qualification.v1",
-  "status": "github_windows_candidate_not_yet_qualified",
+  "status": "windows_runtime_pass_with_human_surface_observation",
   "targetPlatforms": ["darwin", "win32"],
   "nonTargetPlatforms": ["linux"],
   "wsl2": {"productRuntime": false, "referenceFailuresOnly": true},
@@ -41,8 +41,10 @@
     ]
   },
   "completion": {
-    "githubRunnerPass": false,
-    "isolatedVmPass": false,
-    "windowsComplete": false
+    "githubRunnerPass": true,
+    "isolatedVmMachinePass": true,
+    "windowsRuntimeComplete": true,
+    "windowsHumanModelSurfacePass": false,
+    "verdict": "PASS_WITH_OBSERVATION"
   }
 }
