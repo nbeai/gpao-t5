@@ -1,0 +1,147 @@
+{
+  "schema": "t5.s3-m6-complete-evidence.v1",
+  "stage": "S3-M6",
+  "status": "IMPLEMENTATION_COMPLETE_PASS_WITH_OBSERVATION_DEFAULT_OFF",
+  "recordedAt": "2026-08-27T04:40:00+09:00",
+  "sourceCommit": "bc6fe5fd2ac92683d10c60f87b86a3485e632782",
+  "officialReleaseGateChanged": false,
+  "implementationComplete": true,
+  "activationDefault": "off",
+  "reflection": {
+    "sourcedInactiveCandidate": true,
+    "taintAndSensitivityPreserved": true,
+    "currentCorrectionAndForgetFence": true,
+    "authoritativeCounterexampleReceipt": true,
+    "appendOnlyLedger": true,
+    "stalePublicationCommitZero": true,
+    "actualModels": {
+      "gpt-5.6-terra": { "propose": "PASS", "abstain": "PASS" },
+      "gpt-5.5": { "propose": "PASS", "abstain": "PASS" }
+    },
+    "humanReview": {
+      "settingsOnly": true,
+      "sourceCounterexampleUnknownCorrectionVisible": true,
+      "retainRejectLater": true,
+      "opaqueHandles": true,
+      "requestIdIdempotent": true,
+      "twoReviewerCas": true,
+      "sourceChangedMissingPermissionUnknownSeparated": true,
+      "internalIdLeak": 0,
+      "applied": false,
+      "productQualificationJourneys": 10,
+      "productQualificationPassed": true
+    }
+  },
+  "principle": {
+    "minimumBlindPairs": 2,
+    "sameEvaluatorIdentityAndPrompt": true,
+    "correctnessCompletenessNoRegression": true,
+    "currentCorrectionReopened": true,
+    "pairwiseParetoMetrics": ["userCorrections", "wallMs", "providerTokens"],
+    "nearMissAndCounterexample": true,
+    "independentField": true,
+    "freshRuntimeMaterialization": true,
+    "rawOrClonedQualificationAccepted": false,
+    "appendOnlyLedger": true,
+    "fieldQualifiedOnlyPublication": true,
+    "rollback": {
+      "exactRuntimeObservedTrigger": true,
+      "previousQualifiedOrNullRestore": true,
+      "requestIdIdempotent": true,
+      "appendFailureProjectionChanges": 0,
+      "defaultContextAfter": 0,
+      "activeSkillsAfter": 0
+    },
+    "fixtureAdapter": {
+      "status": "FIXTURE_BOUNDARY_PASS_PRODUCT_UNWIRED",
+      "retainedReflectionLedgerActual": true,
+      "actualWorkRunStores": false,
+      "replayPairs": 2,
+      "independentField": true,
+      "fieldQualified": true,
+      "productQualification": false
+    }
+  },
+  "backgroundNoninterference": {
+    "design": "small_quartet_ab_ba_o0_o2",
+    "fullMatrix": false,
+    "foregroundSemanticDigestAgreement": true,
+    "toolArgsAndOrderAgreement": true,
+    "providerCalls": 0,
+    "contextBytesAgreement": true,
+    "foregroundStoreOpsAgreement": true,
+    "independentLane": true,
+    "yieldedBeforeForeground": true,
+    "stalePublicationCommits": 0,
+    "actualModels": 0,
+    "externalWrites": 0
+  },
+  "verification": {
+    "m6Focused": { "passed": 176, "failed": 0 },
+    "refoundationCheck": "PASS",
+    "legacyImports": 0,
+    "reflectionReviewBundle": { "passed": 25, "failed": 0 },
+    "principleMaterializerQualifierLedger": { "passed": 33, "failed": 0 },
+    "principleFixtureAdapter": { "passed": 2, "failed": 0 },
+    "backgroundQuartet": { "passed": 4, "failed": 0 }
+  },
+  "resourceTruth": {
+    "reflectionLiveProviderRequestsIncludingFailures": 10,
+    "reflectionLiveKnownTokens": 3013,
+    "failedRequestTokens": "unknown",
+    "completeDollarChargeReceipt": false,
+    "principleModelCalls": 0,
+    "normalTurnModelCallsAdded": 0,
+    "externalWrites": 0
+  },
+  "optionalInternalSkill": {
+    "implemented": false,
+    "reason": "Field-qualified Principle is sufficient and no evidence showed a separate internal Skill revision would improve the user purpose.",
+    "activeSkillChanges": 0
+  },
+  "commits": {
+    "reflectionContract": "691eb6f9",
+    "reflectionShadowStorage": "8ad3d55b",
+    "sourceWindowMeaning": "13e9d2e2",
+    "sourceWindowEvidence": "49713138",
+    "liveModelRunner": "c24e7a39",
+    "liveModelBoundary": "03e377a1",
+    "humanReviewFoundation": "74bb21d8",
+    "humanReviewSettings": "b7d1e4c7",
+    "humanReviewHardening": "0ce53bcc",
+    "humanReviewAdapter": "688cfcd2",
+    "principleRuntime": "ffa28470",
+    "principleLedgerRollback": "ad6beb79",
+    "backgroundNoninterference": "f122fd5b",
+    "principleFixtureAdapter": "347a4fe2",
+    "principleBoundaryCorrection": "bc6fe5fd"
+  },
+  "sourceDigests": {
+    "refoundation/src/reflection-review-product-adapter.js": "f83bf5f716b723f68c44cb0cbe0ba32f653e9d5850ac0353e3528dbc0f9437a0",
+    "refoundation/src/reflection-background-noninterference.js": "93efab2cfe3194f694dae2efb083090e3e54251c2566f2f66e67d2e2ca85fe52",
+    "refoundation/src/principle-evidence-materializer.js": "a7e4548a3243cc15462cfe7b348212380a6570d556bf09d67089bcb54f40c8da",
+    "refoundation/src/principle-qualification.js": "14e9ca6689c16b6841ca289ce102b3062db6e936b98ea48b08655101ece2aad0",
+    "refoundation/src/principle-ledger.js": "fe6ab545ae08280836bbcc1734dda9f1edb004153df72c08c863d24bce3ea5c9",
+    "refoundation/src/principle-evidence-product-adapter.js": "df1d1a55a18de1f49af00ecbfa4c3255d4e3eb427947082716c58e954431114d",
+    "refoundation/scripts/run-s3m6-principle-product-qualification.mjs": "2e0be7f7f09e104b81774bb12f0151f9540755a76775529b970d735daedd4031",
+    "refoundation/scripts/run-s3m6-reflection-review-product-qualification.mjs": "61d9ae3cdd2fe4ffc11fc4e65f7d9020b062949049b45b3d28366a2072f4240c"
+  },
+  "observations": [
+    "Production default Reflection reviewer, Principle evidence adapter, and background scheduler remain off.",
+    "Principle replay and independent field qualification use a deterministic fixture-bounded dependency adapter; actual product WorkStore and RunLedger qualification is not claimed.",
+    "Direct nonparticipating writers, cross-process exclusion, and cross-store atomic CAS remain unqualified.",
+    "Actual Principle replay/field model calls were not executed; task correctness is deterministic-oracle qualified.",
+    "Windows native execution remains in the owner-approved M7 deferred batch.",
+    "The first four live Reflection requests were provider schema failures and their token usage remains unknown."
+  ],
+  "notClaimed": [
+    "Production-default automatic learning is active",
+    "A fixture dependency brand is an actual WorkStore or RunLedger product qualification",
+    "Reviewed Reflection is injected into default model Context",
+    "An internal Skill was required or activated",
+    "External Skill, CLI, MCP, or Plugin acquisition belongs to M6",
+    "Windows M7 qualification is complete",
+    "The official Release Gate changed"
+  ],
+  "nextOneTask": "Stop and report S3-M6. Do not open M7 until the owner accepts this PASS WITH OBSERVATION boundary and schedules the deferred Windows qualification batch."
+}
