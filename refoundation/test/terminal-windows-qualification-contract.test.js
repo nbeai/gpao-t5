@@ -22,7 +22,8 @@ test('Windows Terminal Gate는 Linux·WSL 복제 없이 GitHub runner와 격리 
 test('Windows CI는 MSVC Job host·DPAPI·ConPTY 실제 시험을 모두 실행한다', async () => {
   const workflow = await readFile(new URL('.github/workflows/ci.yml', root), 'utf8');
   assert.match(workflow, /macos-product:[\s\S]*runs-on: macos-15/u);
-  assert.match(workflow, /Verify macOS Core[\s\S]*refoundation:check/u);
+  assert.match(workflow, /Verify macOS Core[\s\S]*refoundation:doctor[\s\S]*refoundation:boundary/u);
+  assert.match(workflow, /--test-concurrency=1 --test-force-exit refoundation\/test\/\*\.test\.js/u);
   assert.match(workflow, /Verify macOS product integrations[\s\S]*refoundation:integration/u);
   assert.match(workflow, /Verify macOS mutation smoke[\s\S]*refoundation:mutation/u);
   assert.doesNotMatch(workflow, /runs-on: ubuntu-/u);

@@ -16,7 +16,10 @@ jobs:
       - name: Install pinned refoundation runtime dependencies
         run: npm ci --prefix refoundation
       - name: Verify macOS Core
-        run: npm run refoundation:check
+        run: |
+          npm run refoundation:doctor
+          npm run refoundation:boundary
+          node --test --test-concurrency=1 --test-force-exit refoundation/test/*.test.js
       - name: Verify macOS product integrations
         run: npm run refoundation:integration
       - name: Verify macOS mutation smoke
