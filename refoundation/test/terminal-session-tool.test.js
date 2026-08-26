@@ -130,8 +130,8 @@ test('exec + terminal_session 스키마는 기존 기본 네 도구보다 작다
   assert.ok(candidate < current, { current, candidate });
 }));
 
-test('모델 effect 표면은 세 필드이고 런타임은 기존 권한 사실을 정확히 복원한다', () => {
-  assert.deepEqual(EFFECT_SCHEMA.required, ['kind', 'targets', 'confirmation']);
+test('모델 effect 표면은 strict 네 필드이고 런타임은 기존 권한 사실을 정확히 복원한다', () => {
+  assert.deepEqual(EFFECT_SCHEMA.required, ['kind', 'targets', 'confirmation', 'rollbackOfToolCallId']);
   const destructive = normalizeTerminalEffect({
     kind: 'destructive', targets: ['/tmp/result'], confirmation: 'backup_unavailable',
   });

@@ -41,7 +41,7 @@ export const EFFECT_SCHEMA = {
     rollbackOfToolCallId: { type: ['string', 'null'], maxLength: 200,
       description: 'Use only when this exact effect is intended to restore a prior tool effect.' },
   },
-  required: ['kind', 'targets', 'confirmation'],
+  required: ['kind', 'targets', 'confirmation', 'rollbackOfToolCallId'],
   additionalProperties: false,
 };
 
