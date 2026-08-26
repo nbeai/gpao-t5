@@ -79,6 +79,8 @@ function installWakeEvents() {
       (payload) => !!payload?.sessionId && !!payload?.text, 't5:messenger-progress');
     attachPayloadEvent(stream, 'session_activity',
       (payload) => !!payload?.sessionId && !!payload?.runId, 't5:session-activity');
+    attachPayloadEvent(stream, 'work_reality',
+      (payload) => !!payload?.sessionId && Number.isSafeInteger(payload?.version), 't5:work-reality');
   }
 
   connect();

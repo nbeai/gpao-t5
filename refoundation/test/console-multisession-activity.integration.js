@@ -58,12 +58,17 @@ test('두 세션을 동시에 실행해도 목록·재진입 상세가 각 진�
     const byId = new Map(list.sessions.map((session) => [session.id, session]));
     assert.equal(byId.get(a.id).activity.status, 'running');
     assert.equal(byId.get(b.id).activity.status, 'running');
-    assert.equal((await fetch(`${base}/sessions/${a.id}`).then((response) => response.json())).activity.sessionId, a.id);
+    assert.equal(byId.get(a.id).workReality.showPanel, true);
+    const detailA = await fetch(`${base}/sessions/${a.id}`).then((response) => response.json());
+    assert.equal(detailA.activity.sessionId, a.id);
+    assert.deepEqual(detailA.workReality, byId.get(a.id).workReality);
+    assert.doesNotMatch(JSON.stringify(detailA.workReality), new RegExp([a.id, b.id].join('|'), 'u'));
 
     releases.get(b.id)({ text: '두 번째 완료', toolCalls: [] });
     await streamB;
     const afterB = await fetch(`${base}/sessions`).then((response) => response.json());
     assert.equal(afterB.sessions.find((session) => session.id === b.id).activity, null);
+    assert.equal(afterB.sessions.find((session) => session.id === b.id).workReality.showPanel, false);
     assert.equal(afterB.sessions.find((session) => session.id === a.id).activity.status, 'running');
 
     releases.get(a.id)({ text: '첫 번째 완료', toolCalls: [] });

@@ -36,6 +36,7 @@ import { loadSkillPolicyCatalog } from './skill-policy-catalog.js';
 import { ConversationLedger } from './conversation-ledger.js';
 import { WorkStore } from './work-store.js';
 import { WorkCancellationCoordinator } from './work-cancellation-coordinator.js';
+import { projectPublicWorkReality, projectWorkReality } from './work-reality-projection.js';
 import { makeWorkCompletionTool } from './work-completion-tool.js';
 import { evaluateWorkCompletion } from './work-completion-evaluator.js';
 import { makeInputSettlementScope } from './input-settlement-scope.js';
@@ -620,7 +621,70 @@ export function makeConsoleServer({
   const wakeSubscribers = new Set();
   const measurementRuns = new Map();
   const sessionActivities = new SessionActivityStore();
+  const workRealityVersions = new Map();
+  const workRealityPublished = new Map();
+  const workRealityQueues = new Map();
   const pendingSurfaceMetrics = new Map();
+  function serializeWorkReality(sessionId, operation) {
+    const prior = workRealityQueues.get(sessionId) ?? Promise.resolve();
+    const next = prior.then(operation, operation); workRealityQueues.set(sessionId, next.catch(() => {}));
+    return next;
+  }
+  async function computeWorkReality(sessionId) {
+    const workState = await workStore.read();
+    const sessionWorkIds = new Set(workState.works.filter((work) => work.sessionId === sessionId)
+      .map((work) => work.workId));
+    const claims = workState.claims.filter((claim) => sessionWorkIds.has(claim.workId));
+    const runs = await runLedger.list({ sessionId }); const byRun = new Map(runs.map((run) => [run.runId, run]));
+    const runningRunId = running.get(sessionId)?.runId ?? null;
+    const activeWork = workState.works.filter((work) => work.sessionId === sessionId
+      && work.status === 'active').at(-1)
+      ?? workState.works.filter((work) => work.sessionId === sessionId).at(-1) ?? null;
+    const currentClaim = runningRunId
+      ? claims.find((claim) => claim.runId === runningRunId) ?? null
+      : [...claims].reverse().find((claim) => claim.workId === activeWork?.workId
+        && byRun.has(claim.runId)) ?? null;
+    const run = currentClaim ? byRun.get(currentClaim.runId) : null;
+    return projectWorkReality({ sessionId, workState, run });
+  }
+  async function currentWorkReality(sessionId) {
+    return serializeWorkReality(sessionId, async () => {
+      const internal = await computeWorkReality(sessionId); const previous = workRealityVersions.get(sessionId);
+      const version = previous?.generation === internal.generation ? previous.version : (previous?.version ?? 0) + 1;
+      const value = { generation: internal.generation, version,
+        public: { ...projectPublicWorkReality(internal), version } };
+      workRealityVersions.set(sessionId, value); return value;
+    });
+  }
+  async function publishWorkReality(sessionId, emit = null) {
+    return serializeWorkReality(sessionId, async () => {
+      const previous = workRealityVersions.get(sessionId); const internal = await computeWorkReality(sessionId);
+      if (workRealityPublished.get(sessionId) === internal.generation) return null;
+      const version = previous?.generation === internal.generation
+        ? previous.version : (previous?.version ?? 0) + 1;
+      const current = { generation: internal.generation, version,
+        public: { ...projectPublicWorkReality(internal), version } };
+      workRealityVersions.set(sessionId, current);
+      workRealityPublished.set(sessionId, internal.generation);
+      emit?.('work_reality', { sessionId, ...current.public });
+      broadcastEvent('work_reality', { sessionId, ...current.public });
+      return current.public;
+    });
+  }
+  function compactWorkRealityText(value) {
+    const exactFacts = [value?.milestone?.text,
+      ...(value?.inputs ?? []).map((item) => item.text),
+      value?.userActionNeeded ? '계속하려면 사용자 확인이 필요해요.' : null]
+      .filter(Boolean).slice(0, 4).join(' · ');
+    return exactFacts || null;
+  }
+  function safeWorkRealityProgressText(value) {
+    const text = String(value ?? '').trim().slice(0, 800);
+    if (!text || /[\u0000-\u001f\u007f]|(?:\/Users\/|[A-Za-z]:\\)|\b(?:runId|workId|RecordRef)\b/iu.test(text)) {
+      return null;
+    }
+    return text;
+  }
   const webReadTool = makeWebReadTool(webReadOptions);
   const webSearchTool = makeWebSearchTool({ providers: webSearchProviders });
   const webResearchTool = makeWebResearchTool({ searchTool: webSearchTool, readTool: webReadTool });
@@ -1007,6 +1071,7 @@ export function makeConsoleServer({
       });
       emit(type, { text: progressText });
       if (activity) broadcastEvent('session_activity', { ...activity, done: false });
+      queueMicrotask(() => publishWorkReality(sessionId, emit).catch((error) => onError?.(error)));
     };
     const finishActivity = (activityStatus) => {
       const activity = sessionActivities.finish({
@@ -1264,6 +1329,7 @@ export function makeConsoleServer({
         if (options.admittedInput) await workStore.claimInputExecution({
           inputId: options.admittedInput.inputId, runId: run.runId,
         });
+        await publishWorkReality(sessionId, emit).catch((error) => onError?.(error));
       } else await run.append({ type: 'work_observation', stepId: 'work', payload: {
         originRunId: options.metadata?.originRunId ?? null,
       } });
@@ -2294,6 +2360,7 @@ export function makeConsoleServer({
     } finally {
       options.externalSignal?.removeEventListener('abort', abortFromExternal);
       await resourceRun.close(resourceRunStatus).catch((error) => onError?.(error));
+      await publishWorkReality(sessionId, emit).catch((error) => onError?.(error));
       const endingEntry = running.get(sessionId);
       if (endingEntry?.admission && !endingEntry.cancellationSettled) {
         endingEntry.rejectCancelTerminal?.(Object.assign(
@@ -2335,6 +2402,48 @@ export function makeConsoleServer({
     return true;
   }
 
+  const messengerForegroundSessions = new Set();
+  async function admitMessengerWorkInput(message, notify) {
+    const session = await sessions.load(message.sessionId);
+    if (!session) throw Object.assign(new Error('session not found'), { status: 404 });
+    await conversations.ensure({ sessionId: message.sessionId, legacyMessages: historyFrom(session) });
+    const messageId = `messenger:${message.provider}:${message.chatId}:${message.messageId ?? randomUUID()}`;
+    const attachmentIds = [...new Set((message.attachmentIds ?? []).map(String))];
+    const source = {
+      channel: message.provider, chatId: message.chatId, threadId: message.threadId ?? null,
+      senderId: message.userId ?? null, sourceMessageId: message.messageId ?? null,
+      replyIdentity: structuredClone(message.replyIdentity ?? null),
+      admissionTime: { activeRun: true, currentResultProduced: false },
+    };
+    const prepared = await workStore.prepareInputAdmission({
+      sessionId: message.sessionId, messageId, origin: message.provider,
+      attachmentIds, source,
+    });
+    try {
+      if (attachmentIds.length) await attachments.link({
+        sessionId: message.sessionId, attachmentIds, messageId, inputId: prepared.inputId,
+      });
+      const attachmentProjection = await Promise.all(attachmentIds.map((attachmentId) => (
+        attachments.get({ sessionId: message.sessionId, attachmentId })
+      )));
+      await conversations.appendMessage({ sessionId: message.sessionId, messageId,
+        message: { role: 'user', content: String(message.text),
+          ...(attachmentProjection.length ? { attachments: attachmentProjection.map(attachmentSurface) } : {}) } });
+      const admitted = await workStore.commitInputAdmission(prepared.inputId);
+      await sessions.append(message.sessionId, { role: 'user', text: String(message.text), admitted: true,
+        channel: message.provider, source,
+        ...(attachmentProjection.length ? { attachments: attachmentProjection.map(attachmentSurface) } : {}) });
+      await publishWorkReality(message.sessionId, notify).catch((error) => onError?.(error));
+      return admitted;
+    } catch (error) {
+      await conversations.abortMessage({ sessionId: message.sessionId, messageId,
+        inputId: prepared.inputId, reason: error?.message }).catch(() => {});
+      await attachments.abortInputLink({ sessionId: message.sessionId,
+        inputId: prepared.inputId }).catch(() => {});
+      await workStore.abortInputAdmission(prepared.inputId, error?.message).catch(() => {});
+      throw error;
+    }
+  }
   const messenger = makeMessengerGateway({
     credentialStore: messengerCredentials,
     stateStore: messengerState,
@@ -2347,13 +2456,29 @@ export function makeConsoleServer({
       const ownership = await messengerState.claimFirstOwner(message.provider, message);
       return ownership.allowed;
     },
-    onInbound: async (message, { progress, deliver } = {}) => {
+    onInbound: async (message, { progress, deliver, signal } = {}) => {
       const notify = (type, payload) => {
+        if (type === 'work_reality') {
+          if (payload?.showPanel !== true) return;
+          const compact = compactWorkRealityText(payload);
+          if (!compact) return;
+          const text = safeWorkRealityProgressText(compact);
+          if (!text) return;
+          progress?.(text);
+          broadcastEvent('messenger_progress', { sessionId: message.sessionId, text, done: false });
+          return;
+        }
         if (!['trace_status', 'tool_progress'].includes(type)) return;
         const text = safeProgressText(payload?.text);
         progress?.(text);
         broadcastEvent('messenger_progress', { sessionId: message.sessionId, text, done: false });
       };
+      if (running.has(message.sessionId) || messengerForegroundSessions.has(message.sessionId)) {
+        await admitMessengerWorkInput(message, notify);
+        const delivery = await deliver({ text: '현재 작업에 반영할 내용을 받았어요.' });
+        return { text: null, delivery };
+      }
+      messengerForegroundSessions.add(message.sessionId);
       try {
         const issueNote = (message.attachmentIssues ?? []).length
           ? `\n\n[받지 못한 첨부: ${(message.attachmentIssues ?? []).map((issue) => `${issue.originalName} (${issue.state})`).join(', ')}]`
@@ -2374,6 +2499,7 @@ export function makeConsoleServer({
               sourceMessageId: message.messageId, replyIdentity: message.replyIdentity,
             },
           },
+          externalSignal: signal,
           deliverSurface: ({ reply, artifactIds }) => deliver({ text: reply, artifactIds }),
         });
         broadcastEvent('messenger_progress', {
@@ -2387,6 +2513,8 @@ export function makeConsoleServer({
           text: failure?.reply ?? '요청을 처리하는 중 문제가 생겼어요.', done: true,
         });
         throw error;
+      } finally {
+        messengerForegroundSessions.delete(message.sessionId);
       }
     },
     log: (...values) => onError?.(new Error(values.map(String).join(' '))),
@@ -3335,6 +3463,13 @@ export function makeConsoleServer({
           'cache-control': 'no-cache', connection: 'keep-alive',
         });
         res.write(`event: runtime_ready\ndata: ${JSON.stringify({ runtimeInstanceId })}\n\n`);
+        const listed = await sessions.list();
+        for (const session of listed) {
+          try {
+            const reality = (await currentWorkReality(session.id)).public;
+            res.write(`event: work_reality\ndata: ${JSON.stringify({ sessionId: session.id, ...reality })}\n\n`);
+          } catch (error) { onError?.(error); }
+        }
         wakeSubscribers.add(res);
         req.once('close', () => wakeSubscribers.delete(res));
         return;
@@ -3443,9 +3578,10 @@ export function makeConsoleServer({
           archived: url.searchParams.get('archived') === '1',
           deleted: url.searchParams.get('deleted') === '1',
         });
-        json(res, 200, { sessions: listed.map((session) => ({
+        json(res, 200, { sessions: await Promise.all(listed.map(async (session) => ({
           ...session, activity: sessionActivities.get(session.id),
-        })) }); return;
+          workReality: (await currentWorkReality(session.id)).public,
+        }))) }); return;
       }
       if (req.method === 'GET' && url.pathname === '/runs') {
         const runs = await runLedger.list({ sessionId: url.searchParams.get('sessionId') ?? undefined });
@@ -3486,6 +3622,7 @@ export function makeConsoleServer({
           continuationOf: session.continuationOf ?? null,
           transcript: session.transcript,
           activity: sessionActivities.get(session.id),
+          workReality: (await currentWorkReality(session.id)).public,
           activePendingIds: (await authority.listActive(session.id)).map((item) => item.pendingId),
           activeRecoveryIds: activeSessionRecoveryIds(session),
           activeConnectionHandoffIds: activeSessionConnectionHandoffIds(session),
@@ -3525,15 +3662,18 @@ export function makeConsoleServer({
         const admission = await workCancellation.admit({ sessionId: input.sessionId,
           runId: entry.runId, disposition, requestId: input.requestId ?? null });
         entry.admission = admission;
+        await publishWorkReality(input.sessionId).catch((error) => onError?.(error));
         entry.childSettlementReceipt = await workCancellation.requestStop({ admission,
           controller: entry.controller });
         const terminal = await entry.cancelTerminal;
-        json(res, 200, { ok: true, state: terminal.receipt.state,
-          disposition: terminal.receipt.disposition, runTerminal: terminal.receipt.runTerminal,
+        json(res, 200, { ok: true, terminal: terminal.receipt.state === 'terminal',
+          resumable: terminal.receipt.disposition === 'interrupted_resumable'
+            && terminal.receipt.childrenTerminal === true,
+          runTerminal: terminal.receipt.runTerminal,
           childrenTerminal: terminal.receipt.childrenTerminal,
           claimReleased: terminal.receipt.claimReleased, unknownEffect: terminal.receipt.unknownEffect,
           userSafeSummary: terminal.receipt.userSafeSummary, surfacePersisted: true,
-          receipt: terminal.receipt }); return;
+          nextSafeAction: terminal.receipt.nextSafeAction }); return;
       }
       if (req.method === 'POST' && url.pathname === '/turn/stream-start') {
         const input = await body(req);
@@ -3581,6 +3721,7 @@ export function makeConsoleServer({
             await mirrorConsoleInputToBoundMessenger(
               session, input.text, admittedAttachmentIds,
             );
+            await publishWorkReality(input.sessionId).catch((error) => onError?.(error));
             json(res, 202, { admitted: true, inputId: admitted.inputId, state: 'pending_model_judgment' }); return;
           } catch (error) {
             await conversations.abortMessage({ sessionId: input.sessionId, messageId,

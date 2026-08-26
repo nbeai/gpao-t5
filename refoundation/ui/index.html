@@ -701,6 +701,8 @@ let currentSessionId = null;
 let stagedAttachments = [];
 let activeLocalTurns = 0;
 const sessionActivityById = new Map();
+const workRealityBySession = new Map();
+let workRealityPanelTimer = 0;
 let sessionListRefreshTimer = null;
 const RUNTIME_RELOAD_STATE_KEY = 't5-runtime-reload-state-v1';
 
@@ -761,9 +763,14 @@ addEventListener('t5:runtime-connection', (event) => {
 
 addEventListener('t5:runtime-changed', () => {
   const canReloadQuietly = !text.value.trim() && stagedAttachments.length === 0 && activeLocalTurns === 0;
+  workRealityBySession.clear();
+  if (workRealityPanelTimer) clearTimeout(workRealityPanelTimer);
+  workRealityPanelTimer = 0;
+  document.getElementById('work-reality-panel')?.remove();
   rememberPageStateForReload();
   if (canReloadQuietly) { location.reload(); return; }
   runtimeNotice('T5가 새로 준비됐어요. 쓰던 내용은 그대로 보관해 두었어요.', true);
+  queueMicrotask(() => { 대화다시그리기().catch(() => {}); });
 });
 
 function scheduleSessionListRefresh() {
@@ -789,6 +796,16 @@ addEventListener('t5:session-activity', async (event) => {
   // 원장만 다시 그리면 중지 안내가 나타나자마자 지워진다. 다른 탭·재진입 작업만 서버 투영을 따른다.
   if (activeLocalTurns > 0) return;
   await 대화다시그리기().catch(() => {});
+});
+
+addEventListener('t5:work-reality', (event) => {
+  const reality = event.detail ?? {};
+  if (!reality.sessionId) return;
+  const previous = workRealityBySession.get(reality.sessionId);
+  if (previous && Number(reality.version) <= Number(previous.version)) return;
+  workRealityBySession.set(reality.sessionId, reality);
+  scheduleSessionListRefresh();
+  if (reality.sessionId === currentSessionId) renderWorkReality(reality);
 });
 
 const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
@@ -3053,6 +3070,7 @@ async function 대화투영(s) {
     });
   });
   renderSessionActivity(s.activity ?? sessionActivityById.get(s.id));
+  renderWorkReality(s.workReality, { reconnect: true, sessionId: s.id });
   return s;
 }
 
@@ -3063,11 +3081,14 @@ function makeSessionStopButton(sessionId, trace) {
   stop.dataset.sessionActivityStop = sessionId;
   stop.onclick = async () => {
     stop.disabled = true; stop.textContent = '멈추는 중…';
-    await fetch('/turn/cancel', {
+    const response = await fetch('/turn/cancel', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sessionId }),
-    }).catch(() => {});
-    setActivityTrace(trace, '멈추는 중이에요 — 하던 걸음까지만 끝내요');
+    }).catch(() => null);
+    const result = await response?.json().catch(() => null);
+    setActivityTrace(trace, response?.ok
+      ? (result?.userSafeSummary ?? '작업을 멈췄어요.')
+      : '중지 상태를 확인하지 못했어요. 현재 작업 상태를 다시 확인해 주세요.');
   };
   return stop;
 }
@@ -3123,6 +3144,51 @@ function renderSessionActivity(activity) {
     trace.parentNode.appendChild(makeSessionStopButton(activity.sessionId, trace));
   }
   scrollToBottom();
+}
+
+function clearWorkRealityPanel() {
+  if (workRealityPanelTimer) clearTimeout(workRealityPanelTimer);
+  workRealityPanelTimer = 0;
+  document.getElementById('work-reality-panel')?.remove();
+  document.getElementById('session-activity-trace')?.remove();
+  document.querySelector('[data-session-activity-stop]')?.remove();
+}
+
+function renderWorkReality(reality, { reconnect = false, sessionId = null } = {}) {
+  if (!reality) return;
+  const realitySessionId = reality.sessionId ?? sessionId ?? currentSessionId;
+  if (!realitySessionId) return;
+  const previous = workRealityBySession.get(realitySessionId);
+  if (previous && Number(reality.version) < Number(previous.version)) return;
+  workRealityBySession.set(realitySessionId, reality);
+  if (realitySessionId !== currentSessionId) return;
+  if (reality.showPanel !== true) { clearWorkRealityPanel(); return; }
+  const paint = () => {
+    if (workRealityBySession.get(realitySessionId) !== reality || realitySessionId !== currentSessionId) return;
+    document.getElementById('work-reality-panel')?.remove();
+    const turns = wrap.querySelectorAll('.turn');
+    const host = turns.length ? turns[turns.length - 1] : turnBox();
+    const panel = el('trace'); panel.id = 'work-reality-panel';
+    panel.setAttribute('role', 'status'); panel.setAttribute('aria-live', 'polite');
+    const lines = [
+      reality.milestone?.text,
+      reality.activity?.text ?? reality.statusText,
+      ...(reality.inputs ?? []).map((item) => item.text),
+      ...(reconnect ? (reality.recap ?? []) : []),
+      reality.userActionNeeded ? '계속하려면 사용자 확인이 필요해요.' : null,
+      reality.result?.deliveryText,
+    ].filter(Boolean);
+    for (const line of [...new Set(lines)].slice(0, 6)) panel.appendChild(el(null, line));
+    host.appendChild(panel);
+    const trace = document.getElementById('session-activity-trace');
+    if (trace) trace.hidden = true;
+    const stop = document.querySelector('[data-session-activity-stop]');
+    if (stop) stop.hidden = false;
+    scrollToBottom();
+  };
+  if (reconnect) { paint(); return; }
+  if (workRealityPanelTimer) clearTimeout(workRealityPanelTimer);
+  workRealityPanelTimer = setTimeout(() => { workRealityPanelTimer = 0; paint(); }, 400);
 }
 
 /** 서버에서 현재 대화를 다시 받아 통째로 투영한다(턴·승인·거절이 끝난 뒤). */
@@ -3902,11 +3968,13 @@ async function submit() {
   const trace = el('trace', '요청을 이해하고 있어요…');
   trace.id = 'session-activity-trace'; trace.dataset.sessionActivity = submittedSessionId;
   setActivityTrace(trace, '요청을 이해하고 있어요', Date.now());
+  trace.hidden = true;
   box.appendChild(trace);
   // **멈춤**(F-5) — 한 턴이 수백 번 손을 쓸 수 있게 된 뒤로, 멈출 데가 없으면 사용자는
   // 자기 컴퓨터에서 벌어지는 일을 못 세운다. 문만 있고 누를 데가 없으면 없는 것과 같다.
   // 이미 한 일은 되돌리지 않는다 — 되돌리기는 사용자가 따로 말하는 별개의 일이다.
   const 멈춤 = makeSessionStopButton(submittedSessionId, trace);
+  멈춤.hidden = true;
   box.appendChild(멈춤);
   const 멈춤치우기 = () => 멈춤.remove();
   const firstFeedbackPaint = afterVisiblePaint(surfaceStartedAt);
@@ -4000,6 +4068,10 @@ async function streamTurn(sessionId, t, trace, { surfaceStartedAt, firstFeedback
     const show = (e) => { try { setActivityTrace(trace, JSON.parse(e.data).text || '작업 중'); } catch {} };
     es.addEventListener('trace_status', show);
     es.addEventListener('tool_progress', show);
+    es.addEventListener('work_reality', (e) => {
+      try { const reality = JSON.parse(e.data);
+        if (reality.sessionId === sessionId) renderWorkReality(reality, { sessionId }); } catch {}
+    });
     es.addEventListener('evidence_added', () => { setActivityTrace(trace, '근거를 정리하고 있어요'); });
     es.addEventListener('approval_required', () => { setActivityTrace(trace, '승인이 필요해요'); });
     es.addEventListener('capability_needed', () => { setActivityTrace(trace, '연결/준비가 필요해요'); });

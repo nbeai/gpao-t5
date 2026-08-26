@@ -493,7 +493,9 @@ test('콘솔 취소는 실행 중인 자식 프로세스 트리를 실제로 끝
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sessionId: created.id }),
     }).then((response) => response.json());
-    assert.equal(cancelResponse.ok, true); assert.equal(cancelResponse.state, 'terminal');
+    assert.equal(cancelResponse.ok, true); assert.equal(cancelResponse.terminal, true);
+    assert.equal('state' in cancelResponse, false); assert.equal('disposition' in cancelResponse, false);
+    assert.equal('receipt' in cancelResponse, false);
     assert.equal(cancelResponse.runTerminal, true); assert.equal(cancelResponse.childrenTerminal, true);
     assert.equal(cancelResponse.claimReleased, true); assert.equal(cancelResponse.surfacePersisted, true);
     const stream = await streamPromise;

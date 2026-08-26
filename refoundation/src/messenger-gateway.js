@@ -278,6 +278,7 @@ export function makeMessengerGateway({
   }
   let running = false;
   let activeProvider = null;
+  const backgroundInboundTasks = new Set();
   let stopController = null;
   let loopPromise = null;
   let lastError = null;
@@ -308,7 +309,7 @@ export function makeMessengerGateway({
     return stateStore.bind(message.provider, scopedChatId, id);
   }
 
-  async function pollOnce({ provider = 'telegram', signal } = {}) {
+  async function pollOnce({ provider = 'telegram', signal, detachInbound = false } = {}) {
     const active = activeProvider?.id === provider;
     const runtime = active ? activeProvider : (await providerFromStore(provider)).provider;
     if (!active) await runtime.validate({ signal });
@@ -420,11 +421,44 @@ export function makeMessengerGateway({
           ownedDelivery = { sent: true, provider, chatId: update.message.chatId, messageIds, files };
           return structuredClone(ownedDelivery);
         };
-        const reply = await onInbound({
+        const inbound = onInbound({
           ...update.message, sessionId, attachmentIds, attachmentIssues,
         }, {
-          progress: (text) => progress?.update(text), deliver,
+          progress: (text) => progress?.update(text), deliver, signal,
         });
+        if (detachInbound) {
+          const taskTyping = typing;
+          const task = Promise.resolve(inbound).then(async (reply) => {
+            const text = typeof reply === 'string' ? reply : reply?.text;
+            let delivery = ownedDelivery ?? reply?.delivery ?? null;
+            if (!delivery && String(text ?? '').trim()) delivery = await deliver({ text });
+            await stateStore.markIngress(provider, updateId, 'completed', {
+              sessionId, completedAt: Date.now(),
+              messageIds: structuredClone(delivery?.messageIds ?? []),
+              files: structuredClone(delivery?.files ?? []),
+            });
+          }).catch(async (error) => {
+            const failureDelivery = error?.surfaceResult?.channelDelivery;
+            if (failureDelivery?.sent === true && (failureDelivery.messageIds ?? []).length > 0) {
+              await stateStore.markIngress(provider, updateId, 'completed', {
+                sessionId, completedAt: Date.now(), failedTurn: true,
+                messageIds: structuredClone(failureDelivery.messageIds),
+                files: structuredClone(failureDelivery.files ?? []),
+              }).catch(() => {});
+              return;
+            }
+            await progress?.discard?.().catch(() => {});
+            await stateStore.markIngress(provider, updateId, 'adopted_unknown', {
+              sessionId, reason: String(error?.code ?? error?.message ?? 'unknown').slice(0, 160),
+              failedAt: Date.now(),
+            }).catch(() => {});
+          }).finally(() => { taskTyping.stop(); backgroundInboundTasks.delete(task); });
+          backgroundInboundTasks.add(task);
+          nextOffset = await stateStore.saveOffset(provider, acknowledgedOffset);
+          typing = null;
+          continue;
+        }
+        const reply = await inbound;
         const text = typeof reply === 'string' ? reply : reply?.text;
         let delivery = ownedDelivery ?? reply?.delivery ?? null;
         if (!delivery && String(text ?? '').trim()) delivery = await deliver({ text });
@@ -467,7 +501,7 @@ export function makeMessengerGateway({
           cause: error,
         });
       } finally {
-        typing.stop();
+        typing?.stop();
       }
     }
     return { received, accepted, replied, offset: nextOffset };
@@ -556,7 +590,7 @@ export function makeMessengerGateway({
       loopPromise = (async () => {
         while (running) {
           try {
-            await pollOnce({ provider, signal: stopController.signal });
+            await pollOnce({ provider, signal: stopController.signal, detachInbound: true });
           } catch (error) {
             if (!running || stopController.signal.aborted || error?.code === 'telegram_poll_stopped') break;
             lastError = {
@@ -582,6 +616,9 @@ export function makeMessengerGateway({
       running = false;
       stopController?.abort();
       await loopPromise?.catch(() => {});
+      while (backgroundInboundTasks.size) {
+        await Promise.allSettled([...backgroundInboundTasks]);
+      }
       stopController = null;
       loopPromise = null;
       activeProvider = null;
