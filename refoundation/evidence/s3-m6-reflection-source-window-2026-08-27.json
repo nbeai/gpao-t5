@@ -1,0 +1,123 @@
+{
+  "schema": "t5.s3-m6-reflection-source-window-evidence.v1",
+  "stage": "S3-M6-TURN-3",
+  "status": "COORDINATED_INACTIVE_SHADOW_PRODUCT_UNWIRED",
+  "observedAt": "2026-08-26T17:52:09.000Z",
+  "sourceCommit": "13e9d2e2ae3355ee87658eb4e79cfe3f453e6e49",
+  "officialReleaseGateChanged": false,
+  "ownerPurpose": "Let a model author only bounded Reflection meaning over runtime-owned opaque handles while a same-backing source-window rejects coordinated foreground changes before inactive shadow append.",
+  "sourceWindow": {
+    "arbitraryCallerKeyAccepted": false,
+    "relativeBackingAccepted": false,
+    "missingBackingAccepted": false,
+    "canonicalRealpathIdentity": true,
+    "separateInstancesSameBackingShareEpoch": true,
+    "symlinkAliasSharesEpoch": true,
+    "macosTmpAliasSharesEpoch": true,
+    "requiredStoreSetExact": true,
+    "writerRegistrationDigestExact": true,
+    "storeHeadReceiptExactAtEnumeration": true,
+    "foregroundMutationOddEvenEpoch": true,
+    "staleMaterializationAppendAccepted": false,
+    "appendFailureReusesConsumedMaterialization": false,
+    "configuredAndObserved": true,
+    "coordinatedSnapshotCoverageQualified": true,
+    "sameProcessCoverageQualified": false,
+    "directWriterObservationQualified": false,
+    "prePublicationStoreHeadsReobserved": false,
+    "crossProcessQualified": false,
+    "crossStoreAtomicCasQualified": false
+  },
+  "meaningBoundary": {
+    "providerFields": [
+      "action",
+      "hypothesis",
+      "sourceEpisodeHandles",
+      "counterexampleHandles",
+      "affectedScopeHandles",
+      "correctionRelations",
+      "unknowns"
+    ],
+    "strictClosedSchema": true,
+    "runtimeIdentityModelAuthored": false,
+    "sourceRolesModelAuthored": false,
+    "fenceOrTaintModelAuthored": false,
+    "stateOrReceiptModelAuthored": false,
+    "allowlistsBounded": true,
+    "authoritativeMultiScopeCorrectionCompatible": true,
+    "privacySafeProjection": true,
+    "correctionHeadProjected": false,
+    "recordReferenceProjected": false,
+    "projectionDeepClonedAndFrozen": true,
+    "foreignOrDuplicateHandleAccepted": false,
+    "unrelatedCorrectionAdvertised": false,
+    "mixedForeignScopeAccepted": false,
+    "abstainWrites": 0,
+    "proposalState": "proposed_inactive",
+    "productProjection": "none",
+    "managedCapabilityChanges": 0
+  },
+  "independentRedTeam": {
+    "p0Found": [
+      "caller-selected window key could split one canonical source window",
+      "store-name equality overclaimed writer coverage",
+      "separate instances of one backing store could split epochs",
+      "relative missing and symlink-aliased backing identities could split epochs",
+      "single-scope correction schema disagreed with authoritative multi-scope corrections",
+      "authoritative correction provenance lacked an explicit provider-safe projection"
+    ],
+    "p0RemainingInDeclaredInactiveShadowScope": 0,
+    "finalFocused": { "passed": 77, "failed": 0 }
+  },
+  "verification": {
+    "combinedRecordCandidateMaterializerLedgerCoordinatorMeaningIncidents": {
+      "passed": 80,
+      "failed": 0
+    },
+    "actualModels": 0,
+    "providerRequests": 0,
+    "externalWrites": 0,
+    "productWriterEvents": 0,
+    "memoryWrites": 0,
+    "principleWrites": 0,
+    "managedCapabilityChanges": 0
+  },
+  "productNonInterference": {
+    "consoleImportsCoordinator": false,
+    "consoleImportsMeaningTool": false,
+    "backgroundSchedulerChanged": false,
+    "modelContextChanged": false,
+    "userSurfaceChanged": false,
+    "backgroundJobsAdded": 0,
+    "normalTurnModelCallsAdded": 0
+  },
+  "knownUnqualified": [
+    "Backing identity replacement after coordinator construction is not revalidated",
+    "Direct same-process and nonparticipating writers are not observed",
+    "Store heads are not reopened immediately before Reflection ledger append",
+    "Cross-process exclusion and cross-store atomic CAS are not qualified",
+    "Enumeration and ledger append foreground latency and interference are not measured",
+    "Coordinator epochs and publication receipts are not durable across process restart",
+    "Opaque handle non-identifiability remains the runtime enumerator responsibility",
+    "stableAfterProposal describes only the coordinator epoch and is not a broader source CAS claim",
+    "Windows filesystem behavior remains deferred to the owner-approved M7 qualification batch"
+  ],
+  "sourceDigests": {
+    "refoundation/src/reflection-source-window-coordinator.js": "8da1ff94b065a014800199c8ef4d5356fddf986c2f1e5272f9ff0d98c00da6b5",
+    "refoundation/test/reflection-source-window-coordinator.test.js": "4b214000d92b6553e7de4fddd4353398682c2131a523fb610f1d64371e57e3b4",
+    "refoundation/src/reflection-meaning-tool.js": "0a941c4502ae7db41bfcf04888b2816ac9ab66fcdcf540cf9da56a9b71947525",
+    "refoundation/test/reflection-meaning-tool.test.js": "2fa03eb04acdc756ddef39e8876429541e090ca81eeae079d0507aea9a56c4c1"
+  },
+  "notClaimed": [
+    "Reflection is wired into the product or background scheduler",
+    "Reflection is published to Memory or normal model Context",
+    "The source window is a global atomic snapshot",
+    "human review surface exists",
+    "Principle qualification exists",
+    "internal Skill revision exists",
+    "S3-M6 PASS",
+    "S3-M7 PASS",
+    "official Release Gate activation"
+  ],
+  "nextOneTask": "Run the isolated Reflection shadow meaning journey with actual model abstain and proposal cases, preserving provider privacy and product noninterference; do not publish a Principle or wire a background reviewer."
+}
