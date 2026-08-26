@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { makePlatformSecretStore } from '../src/platform-secret-store.js';
+import { makePlatformSecretStore, platformSecretChunkAccount } from '../src/platform-secret-store.js';
 import { readFile } from 'node:fs/promises';
 
 test('macOS Keychain adapter는 비밀을 argv에 넣지 않고 stdin으로 저장한다', async () => {
@@ -41,4 +41,15 @@ test('macOS security 저장은 비밀을 argv에 넣지 않고 bounded Keychain 
   assert.match(source, /t5\.keychain\.chunks\.v1/u);
   assert.match(source, /sha256/u);
   assert.doesNotMatch(source, /'-w',\s*serialized|-w \$\{serialized\}/u);
+});
+
+test('긴 credential account도 Keychain chunk 이름 상한 안에서 안정적으로 주소화한다', () => {
+  const account = `model-credential-${'a'.repeat(32)}`;
+  const first = platformSecretChunkAccount(account, '123456789abc', 0);
+  const second = platformSecretChunkAccount(account, '123456789abc', 1);
+  assert.ok(first.length <= 64);
+  assert.match(first, /^chunk-[0-9a-f]{32}-123456789abc-0000$/u);
+  assert.notEqual(first, second);
+  assert.equal(platformSecretChunkAccount('short-name', '123456789abc', 0),
+    'short-name-123456789abc-0000');
 });

@@ -59,8 +59,11 @@ function runSecurityCommands(commands, { timeoutMs = 10_000 } = {}) {
 }
 
 function hash(value) { return createHash('sha256').update(value).digest('hex'); }
-function chunkAccount(account, generation, index) {
-  return safeName(`${account}-${generation}-${String(index).padStart(4, '0')}`);
+export function platformSecretChunkAccount(account, generation, index) {
+  const suffix = `${generation}-${String(index).padStart(4, '0')}`;
+  const legacy = `${account}-${suffix}`;
+  if (legacy.length <= 64) return safeName(legacy);
+  return safeName(`chunk-${hash(account).slice(0, 32)}-${suffix}`);
 }
 function manifestFrom(raw) {
   const value = String(raw ?? '').trim();
@@ -99,7 +102,7 @@ async function deleteItem(run, account) {
 async function deleteChunks(run, account, manifest) {
   if (!manifest) return;
   await Promise.all(Array.from({ length: manifest.count }, (_, index) => (
-    deleteItem(run, chunkAccount(account, manifest.generation, index))
+    deleteItem(run, platformSecretChunkAccount(account, manifest.generation, index))
   )));
 }
 
@@ -108,7 +111,7 @@ async function defaultWriteSecret({ run, account, serialized }) {
   const chunks = encoded.match(new RegExp(`.{1,${CHUNK_CHARS}}`, 'gu')) ?? [];
   const generation = randomBytes(6).toString('hex');
   const items = chunks.map((value, index) => ({
-    account: chunkAccount(account, generation, index), value,
+    account: platformSecretChunkAccount(account, generation, index), value,
   }));
   const commands = items.map((item) => (
     `add-generic-password -a ${item.account} -s ${KEYCHAIN_SERVICE} -l GPAO-T5-${item.account} -U -w ${item.value}`
@@ -154,7 +157,7 @@ export function makePlatformSecretStore({
       if (!decoded?.manifest) throw new Error('macOS Keychain의 연결 자격 형식을 읽지 못했어요.');
       const chunks = [];
       for (let index = 0; index < decoded.manifest.count; index += 1) {
-        const chunk = await readItem(run, chunkAccount(account, decoded.manifest.generation, index));
+        const chunk = await readItem(run, platformSecretChunkAccount(account, decoded.manifest.generation, index));
         if (chunk == null) throw new Error('macOS Keychain의 연결 자격 일부를 읽지 못했어요.');
         chunks.push(chunk);
       }
