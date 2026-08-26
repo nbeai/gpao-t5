@@ -87,35 +87,44 @@ test('process_control resize는 실제 PTY의 stty geometry를 바꾼다', async
     workingDirectory: root, processRegistry: exec.processRegistry, ownerId: 'pty-resize', yieldMs: 30,
   });
   let current = await pty.execute({
-    command: "printf 'SIZE1 '; stty size; IFS= read -r value; printf 'SIZE2 '; stty size", cwd: null,
+    command: "printf 'SIZE1 '; stty -a; IFS= read -r value; printf 'SIZE2 '; stty -a", cwd: null,
     effect: { kind: 'observe', summary: 'PTY 크기 확인', targets: [], reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null },
     cols: 80, rows: 24,
   });
   const control = makeProcessControlTool({ processRegistry: exec.processRegistry, ownerId: 'pty-resize' });
-  let output = current.stdout;
-  for (let attempt = 0; attempt < 5 && !output.includes('SIZE1'); attempt += 1) {
-    current = await control.execute({
-      action: 'poll', processId: current.processId, cursor: current.cursor,
-      input: null, end: null, waitMs: 1000, cols: null, rows: null,
+  try {
+    let output = current.stdout;
+    for (let attempt = 0; attempt < 5 && !output.includes('SIZE1'); attempt += 1) {
+      current = await control.execute({
+        action: 'poll', processId: current.processId, cursor: current.cursor,
+        input: null, end: null, waitMs: 1000, cols: null, rows: null,
+      });
+      output += current.stdout;
+    }
+    assert.match(output, /SIZE1[^\r\n]*(?:rows 24|24 rows)[^\r\n]*(?:columns 80|80 columns)/);
+    const resized = await control.execute({
+      action: 'resize', processId: current.processId, cursor: current.cursor,
+      input: null, end: null, waitMs: null, cols: 100, rows: 40,
     });
-    output += current.stdout;
-  }
-  assert.match(output, /SIZE1 24 80/);
-  const resized = await control.execute({
-    action: 'resize', processId: current.processId, cursor: current.cursor,
-    input: null, end: null, waitMs: null, cols: 100, rows: 40,
-  });
-  assert.deepEqual({ cols: resized.cols, rows: resized.rows }, { cols: 100, rows: 40 });
-  await control.execute({
-    action: 'write', processId: current.processId, cursor: current.cursor,
-    input: 'continue\r', end: false, waitMs: null, cols: null, rows: null,
-  });
-  for (let attempt = 0; attempt < 10 && current.state === 'running'; attempt += 1) {
-    current = await control.execute({
-      action: 'poll', processId: current.processId, cursor: current.cursor,
-      input: null, end: null, waitMs: 1000, cols: null, rows: null,
+    assert.deepEqual({ cols: resized.cols, rows: resized.rows }, { cols: 100, rows: 40 });
+    await control.execute({
+      action: 'write', processId: current.processId, cursor: current.cursor,
+      input: 'continue\r', end: false, waitMs: null, cols: null, rows: null,
     });
-    output += current.stdout;
+    for (let attempt = 0; attempt < 10 && current.state === 'running'; attempt += 1) {
+      current = await control.execute({
+        action: 'poll', processId: current.processId, cursor: current.cursor,
+        input: null, end: null, waitMs: 1000, cols: null, rows: null,
+      });
+      output += current.stdout;
+    }
+    assert.match(output, /SIZE2[^\r\n]*(?:rows 40|40 rows)[^\r\n]*(?:columns 100|100 columns)/);
+  } finally {
+    if (current.state === 'running' || current.state === 'stop_requested') {
+      await control.execute({
+        action: 'stop', processId: current.processId, cursor: current.cursor,
+        input: null, end: null, waitMs: null, cols: null, rows: null,
+      });
+    }
   }
-  assert.match(output, /SIZE2 40 100/);
 }));
