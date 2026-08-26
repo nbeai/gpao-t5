@@ -107,7 +107,8 @@ test('사용자는 자연어로 temporal claim을 기억·교정·확인·철회
     modelFactory: ({ sessionId }) => ({ async respond(input) {
       const count = phase.get(sessionId) ?? 0; phase.set(sessionId, count + 1);
       const request = input.messages.filter((message) => message.role === 'user').at(-1)?.content ?? '';
-      const expectedCallId = /뭐라고/u.test(request) ? 'read'
+      const expectedCallId = /복원/u.test(request) ? 'restore'
+        : /뭐라고/u.test(request) ? 'read'
         : /기억해/u.test(request) ? 'remember'
         : /고쳐/u.test(request) ? 'correct'
           : /잊어/u.test(request) ? 'retract' : null;
@@ -123,6 +124,13 @@ test('사용자는 자연어로 temporal claim을 기억·교정·확인·철회
       const pointers = input.messages.find((message) => /T5 TEMPORAL MEMORY POINTERS/u.test(message.content));
       const pointerLines = pointers?.content.split('\n').filter((line) => line.startsWith('{')).map(JSON.parse) ?? [];
       const active = pointerLines.find((item) => item.temporalState === 'current');
+      const forgetPointers = input.messages.find((message) => /T5 RECOVERABLE FORGET POINTERS/u.test(message.content));
+      const forgotten = forgetPointers?.content.split('\n').filter((line) => line.startsWith('{')).map(JSON.parse)[0];
+      if (/복원/u.test(request) && forgotten) return { text: '', toolCalls: [{
+        id: 'restore', name: 'memory_control', args: {
+          action: 'restore', requestId: forgotten.requestId, memoryId: forgotten.memoryId,
+        },
+      }] };
       if (/뭐라고/u.test(request) && active) return { text: '', toolCalls: [{
         id: 'read', name: 'memory', args: {
           action: 'read', memoryIds: [active.memoryId], memoryId: null, kind: null,
@@ -168,10 +176,22 @@ test('사용자는 자연어로 temporal claim을 기억·교정·확인·철회
     const secondRecall = await session(base);
     assert.equal((await turn(base, secondRecall.id, '내 커피 선호를 뭐라고 기억해?')).reply, 'light roast');
     const retractSession = await session(base);
-    assert.equal((await turn(base, retractSession.id, '그 커피 선호를 잊어.')).reply, 'retracted');
+    const retractedSurface = await turn(base, retractSession.id, '그 커피 선호를 잊어.');
+    assert.equal(retractedSurface.reply, 'retracted');
+    const retractRun = await fetch(`${base}/runs/${retractedSurface.runId}`).then((response) => response.json());
+    const forgetReceipt = retractRun.events.find((event) => event.type === 'tool_completed'
+      && event.payload?.receipt?.actualCall?.name === 'memory_claim')?.payload?.receipt?.result?.forgetReceipt;
+    assert.equal(forgetReceipt.searchHitAfter, 0);
+    assert.equal(forgetReceipt.contextProjectionAfter, 0);
+    assert.equal(forgetReceipt.behaviorProbeAfter, 'unknown');
     const after = await session(base);
     assert.equal((await turn(base, after.id, '내 커피 선호를 뭐라고 기억해?')).reply,
       '현재 유효한 커피 기억이 없습니다.');
+    const restoreSession = await session(base);
+    assert.equal((await turn(base, restoreSession.id, '방금 잊은 커피 기억을 복원해.')).reply, 'restored');
+    const restoredRecall = await session(base);
+    assert.equal((await turn(base, restoredRecall.id, '내 커피 선호를 뭐라고 기억해?')).reply,
+      'light roast');
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await rm(room, { recursive: true, force: true });

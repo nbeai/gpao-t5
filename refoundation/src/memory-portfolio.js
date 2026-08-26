@@ -61,6 +61,18 @@ export function temporalMemoryCandidateProjection(claims = [], {
   ].join('\n') };
 }
 
+export function forgetTombstoneProjection(tombstones = []) {
+  if (!tombstones.length) return null;
+  return { role: 'assistant', content: [
+    '[T5 RECOVERABLE FORGET POINTERS — no memory content]',
+    'Use memory_control restore only when the user explicitly asks to restore an exact forgotten memory.',
+    ...tombstones.slice(0, 50).map((item) => JSON.stringify({
+      requestId: item.requestId, memoryId: item.memoryId,
+      subjectHandle: item.subjectKey, reversibleUntil: item.reversibleUntil,
+    })),
+  ].join('\n') };
+}
+
 export function memoryCandidateProjection(items = []) {
   const candidates = currentUserMemoryCandidates(items.filter((item) => !item.temporal))
     .filter((item) => item.alwaysRelevant !== true);

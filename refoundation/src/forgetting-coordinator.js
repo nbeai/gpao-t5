@@ -13,11 +13,14 @@ function exactIds(values, label) {
 export class ForgettingCoordinator {
   constructor({
     memoryLedger, makeId = randomUUID, now = () => new Date().toISOString(),
-    derivedAdapters = {}, backupAvailable = true,
+    derivedAdapters = {}, backupAvailable = true, exactRecallProbe = null,
+    contextProjectionProbe = null, behaviorProbe = null,
   } = {}) {
     if (!memoryLedger) throw new TypeError('forgetting coordinator requires MemoryLedger');
     this.memoryLedger = memoryLedger; this.makeId = makeId; this.now = now;
     this.derivedAdapters = derivedAdapters; this.backupAvailable = backupAvailable;
+    this.exactRecallProbe = exactRecallProbe; this.contextProjectionProbe = contextProjectionProbe;
+    this.behaviorProbe = behaviorProbe;
   }
 
   async preview(selectorInput = {}) {
@@ -143,14 +146,29 @@ export class ForgettingCoordinator {
       try { searchProbes.push(adapter?.probe ? await adapter.probe({ target, plan }) : null); }
       catch { searchProbes.push(null); }
     }
-    const searchHitAfter = searchProbes.length === 0 || searchProbes.some((value) => value == null)
-      ? null : searchProbes.reduce((sum, value) => sum + Number(value), 0);
+    let exactHits = null;
+    try { exactHits = this.exactRecallProbe ? await this.exactRecallProbe({ plan }) : null; } catch { exactHits = null; }
+    const hasRecallProbe = Boolean(this.exactRecallProbe) || searchProbes.length > 0;
+    const searchHitAfter = !hasRecallProbe
+      || (searchProbes.length && searchProbes.some((value) => value == null))
+      || (this.exactRecallProbe && exactHits == null) ? null
+      : Number(exactHits ?? 0) + searchProbes.reduce((sum, value) => sum + Number(value), 0);
+    let contextProjectionAfter = null;
+    try {
+      contextProjectionAfter = this.contextProjectionProbe
+        ? await this.contextProjectionProbe({ plan }) : null;
+    } catch { contextProjectionAfter = null; }
+    let behaviorProbeAfter = 'unknown';
+    try {
+      const observed = this.behaviorProbe ? await this.behaviorProbe({ plan }) : 'unknown';
+      behaviorProbeAfter = ['pass', 'fail', 'unknown'].includes(observed) ? observed : 'unknown';
+    } catch { behaviorProbeAfter = 'unknown'; }
     return {
       state: 'executed', plan,
       receipt: makeForgetReceipt({
         plan, executedTargets, unknownTargets, retainedTargets,
-        searchHitAfter, contextProjectionAfter: null,
-        behaviorProbeAfter: 'unknown', reversibleUntil,
+        searchHitAfter, contextProjectionAfter,
+        behaviorProbeAfter, reversibleUntil,
       }),
     };
   }

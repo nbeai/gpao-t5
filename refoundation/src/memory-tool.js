@@ -145,7 +145,7 @@ export function makeMemoryTool({ ledger, source, sourceReader = null, readOnly =
   };
 }
 
-export function makeMemoryClaimTool({ ledger, runtimeReality } = {}) {
+export function makeMemoryClaimTool({ ledger, runtimeReality, forgettingRuntime = null } = {}) {
   if (!ledger || typeof runtimeReality !== 'function') {
     throw new TypeError('memory claim tool requires ledger and runtime reality');
   }
@@ -188,10 +188,12 @@ export function makeMemoryClaimTool({ ledger, runtimeReality } = {}) {
           memoryId: item.memoryId, subjectHandle: candidate.claim.subjectKey };
       }
       if (candidate.state === 'retract_candidate') {
-        await ledger.retractClaim({
-          memoryId: candidate.targetMemoryId, recordRefs: candidate.sources,
-        });
-        return { state: 'retracted', memoryId: candidate.targetMemoryId };
+        if (typeof forgettingRuntime !== 'function') return {
+          state: 'forgetting_unavailable', memoryId: candidate.targetMemoryId,
+        };
+        const result = await forgettingRuntime(candidate);
+        return { state: result.state === 'executed' ? 'retracted' : result.state,
+          memoryId: candidate.targetMemoryId, forgetReceipt: result.receipt ?? null };
       }
       return candidate;
     },

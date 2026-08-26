@@ -41,8 +41,8 @@ import { makeInputSettlementScope } from './input-settlement-scope.js';
 import { makePausedWorkScope } from './paused-work-scope.js';
 import { decideTransition } from './transition-decision.js';
 import {
-  memoryCandidateProjection, selectMemoryPortfolio, temporalMemoryCandidateProjection,
-  workingMemoryProjection,
+  forgetTombstoneProjection, memoryCandidateProjection, selectMemoryPortfolio,
+  temporalMemoryCandidateProjection, workingMemoryProjection,
 } from './memory-portfolio.js';
 import { projectHistoricalConversationEntries } from './conversation-projection.js';
 import { makeConversationRecallTool } from './conversation-recall-tool.js';
@@ -55,6 +55,8 @@ import {
 import { MemoryLedger } from './memory-ledger.js';
 import { makeRecordSourceReader } from './record-source-reader.js';
 import { projectConversationRecordReference } from './record-projection.js';
+import { ForgettingCoordinator } from './forgetting-coordinator.js';
+import { makeMemoryControlTool } from './memory-control-tool.js';
 import {
   makeMemoryClaimTool, makeMemoryTool, memoryContextMessage, memoryFlushRequest,
   MEMORY_FLUSH_SYSTEM_INSTRUCTIONS,
@@ -794,9 +796,23 @@ export function makeConsoleServer({
       asOf: new Date().toISOString(), currentWork: preexistingWork,
       currentChannel: session.origin?.channel ?? 'console',
     });
+    const forgetCandidates = forgetTombstoneProjection(memorySnapshot.tombstones ?? []);
     const memorySourceReader = makeRecordSourceReader({
       mode: 'O2_full_shadow', conversationLedger: conversations, runLedger, workStore,
       attachmentStore: attachments,
+    });
+    const forgettingCoordinator = new ForgettingCoordinator({
+      memoryLedger: memories,
+      exactRecallProbe: async ({ plan }) => {
+        const state = await memories.read();
+        return plan.targets.filter((target) => target.kind === 'memory'
+          && state.claims.some((claim) => claim.memoryId === target.id && claim.status === 'active')).length;
+      },
+      contextProjectionProbe: async ({ plan }) => {
+        const state = await memories.read();
+        return plan.targets.filter((target) => target.kind === 'memory'
+          && state.items.some((item) => item.memoryId === target.id)).length;
+      },
     });
     let canonicalConversation = await conversations.read(sessionId);
     if (options.admittedInput) {
@@ -1056,6 +1072,7 @@ export function makeConsoleServer({
       const history = projection.messages;
       if (memoryCandidates) history.push(memoryCandidates);
       if (temporalMemoryCandidates) history.push(temporalMemoryCandidates);
+      if (forgetCandidates) history.push(forgetCandidates);
       if (!options.admittedInput) {
         await conversations.appendMessage({
           sessionId, messageId: `${run.runId}:user`, runId: run.runId,
@@ -1334,24 +1351,37 @@ export function makeConsoleServer({
           messageId: `${run.runId}:user`, ...(activeWork
             ? { workId: activeWork.workId, revision: activeWork.revision } : {}) },
       }));
+      const currentMemoryRecordRefs = async () => {
+        const conversationState = await conversations.read(sessionId);
+        const messageId = `${run.runId}:user`;
+        const sourceEvent = conversationState.events.find((event) => (
+          event.type === 'message' && event.messageId === messageId
+        ));
+        if (!sourceEvent) throw new Error('current memory source message is unavailable');
+        const observedAt = new Date().toISOString();
+        return [projectConversationRecordReference({
+          event: sourceEvent, expectedSessionId: sessionId,
+          workId: activeWork?.workId ?? null, channel: session.origin?.channel ?? 'console',
+          trust: 'user_asserted', sensitivity: 'personal', observedAt,
+        })];
+      };
+      offeredTools.unshift(makeMemoryControlTool({
+        ledger: memories, coordinator: forgettingCoordinator,
+        currentRecordRefs: currentMemoryRecordRefs,
+      }));
       offeredTools.unshift(makeMemoryClaimTool({
         ledger: memories,
+        forgettingRuntime: async (candidate) => {
+          const forgetPlan = await forgettingCoordinator.preview({
+            memoryIds: [candidate.targetMemoryId], subjectKeys: [], scopeIds: [],
+          });
+          return forgettingCoordinator.execute({ plan: forgetPlan, recordRefs: candidate.sources });
+        },
         runtimeReality: async (meaning) => {
-          const [memoryState, conversationState] = await Promise.all([
-            memories.read(), conversations.read(sessionId),
-          ]);
-          const messageId = `${run.runId}:user`;
-          const sourceEvent = conversationState.events.find((event) => (
-            event.type === 'message' && event.messageId === messageId
-          ));
-          if (!sourceEvent) throw new Error('current memory source message is unavailable');
+          const memoryState = await memories.read();
           const channel = session.origin?.channel ?? 'console';
           const observedAt = new Date().toISOString();
-          const sourceReference = projectConversationRecordReference({
-            event: sourceEvent, expectedSessionId: sessionId,
-            workId: activeWork?.workId ?? null, channel,
-            trust: 'user_asserted', sensitivity: 'personal', observedAt,
-          });
+          const [sourceReference] = await currentMemoryRecordRefs();
           const handle = meaning?.subjectHandle == null ? null : String(meaning.subjectHandle);
           const target = handle == null ? null : (memoryState.claims ?? []).filter((claim) => (
             claim.subjectKey === handle && claim.status === 'active'
@@ -1388,7 +1418,8 @@ export function makeConsoleServer({
         performConnection: (id, actionId) => performConnectionAction(id, actionId, { sessionId }),
       }));
       const coreToolNames = [
-        'connection', 'memory', 'memory_claim', 'skill',
+        'connection', 'memory', 'memory_claim',
+        ...((memorySnapshot.tombstones ?? []).length ? ['memory_control'] : []), 'skill',
         ...(options.trigger === 'automation' ? [] : ['work_completion']),
         ...(pendingLearningTrials.length ? ['learning_trial'] : []),
         // Public-web search, exact URL reading, and bounded multi-source research are

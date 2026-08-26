@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { MemoryLedger } from '../src/memory-ledger.js';
+import { ForgettingCoordinator } from '../src/forgetting-coordinator.js';
 import { makeRecordReference } from '../src/record-reference.js';
 import { makeMemoryClaim } from '../src/temporal-memory.js';
 import {
@@ -97,6 +98,19 @@ test('memory_claim 도구는 model meaning만 받고 runtime reality로 commit·
       trust: 'user_asserted', sensitivity: 'personal', coverage: 'full', availability: 'available',
     });
     let phase = 0;
+    const coordinator = new ForgettingCoordinator({
+      memoryLedger: ledger, makeId: () => 'forget-tool',
+      now: () => '2026-08-26T00:04:00.000Z',
+      exactRecallProbe: async ({ plan }) => {
+        const state = await ledger.read();
+        return plan.targets.filter((target) => target.kind === 'memory'
+          && state.claims.some((item) => item.memoryId === target.id && item.status === 'active')).length;
+      },
+      contextProjectionProbe: async ({ plan }) => {
+        const state = await ledger.read();
+        return plan.targets.filter((target) => state.items.some((item) => item.memoryId === target.id)).length;
+      },
+    });
     const tool = makeMemoryClaimTool({ ledger, runtimeReality: async (meaning) => {
       phase += 1;
       const state = await ledger.read(); const current = state.claims.find((item) => item.status === 'active');
@@ -114,6 +128,11 @@ test('memory_claim 도구는 model meaning만 받고 runtime reality로 commit·
         conflictingMemoryIds: [], normalPolicyQualified: false,
         channelSensitivity: 'personal', alwaysRelevantQualified: false,
       };
+    }, forgettingRuntime: async (candidate) => {
+      const forgetPlan = await coordinator.preview({
+        memoryIds: [candidate.targetMemoryId], subjectKeys: [], scopeIds: [],
+      });
+      return coordinator.execute({ plan: forgetPlan, recordRefs: candidate.sources });
     } });
     assert.deepEqual(Object.keys(tool.parameters.properties).sort(), [
       'action', 'kind', 'scopeMeaning', 'subjectHandle', 'validTimeMeaning', 'value',
@@ -133,6 +152,9 @@ test('memory_claim 도구는 model meaning만 받고 runtime reality로 commit·
     const retracted = await tool.execute({ ...meaning, action: 'retract', value: 'remove coffee preference',
       subjectHandle: 'subject-runtime-1' });
     assert.equal(retracted.state, 'retracted');
+    assert.equal(retracted.forgetReceipt.searchHitAfter, 0);
+    assert.equal(retracted.forgetReceipt.contextProjectionAfter, 0);
+    assert.equal(retracted.forgetReceipt.behaviorProbeAfter, 'unknown');
     assert.equal((await ledger.read()).claims.at(-1).status, 'retracted');
   } finally { await rm(room, { recursive: true, force: true }); }
 });
