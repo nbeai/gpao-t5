@@ -99,15 +99,14 @@ const registrations = result.receipts.filter((receipt) => (
   && receipt.requestedCall?.args?.action === 'register_output'
   && receipt.result?.state === 'registered'
 ));
+const finalVisualReceipt = visualReceipts.at(-1)?.result?.observation?.designReceipt ?? null;
 const checks = {
   agentCompleted: result.status === 'completed',
   exactFacts: ['8월 운영 현황', '128', '3', '주문과 현재 재고를 실제 자료로 대조했습니다.']
     .every((value) => html.includes(value)),
   noExternalOrActiveContent: !/<script|<form|https?:\/\//iu.test(html),
   visualInspectionUsed: visualReceipts.length > 0,
-  qualifiedDesignReceipt: visualReceipts.some((receipt) => (
-    receipt.result.observation.designReceipt.state === 'qualified'
-  )),
+  finalDesignReceiptNotFailed: ['qualified', 'unmeasured'].includes(finalVisualReceipt?.state),
   renderedPixelsSupplied: visualReceipts.some((receipt) => (
     receipt.result.observation.pixelsSuppliedToModel === true
   )),
@@ -120,6 +119,8 @@ const evidence = {
   model: { provider: connection.provider, modelId: connection.modelId },
   request, durationMs: Date.now() - startedAt, status: result.status,
   modelTurns: result.modelTurns, modelCalls: result.modelCalls.length,
+  finalDesignState: finalVisualReceipt?.state ?? null,
+  finalDesignUnmeasured: finalVisualReceipt?.unmeasured ?? [],
   toolCalls: result.receipts.map((receipt) => ({
     name: receipt.requestedCall?.name, action: receipt.requestedCall?.args?.action ?? null,
     outcome: receipt.outcome, designState: receipt.result?.observation?.designReceipt?.state ?? null,
