@@ -1,0 +1,211 @@
+{
+  "schema": "t5.s3m.m1-record-provenance-evidence.v1",
+  "status": "PASS_SHADOW",
+  "sourceCommit": "508b6302f00f0ea01a2446156d39912761c3aabd",
+  "recordedAt": "2026-08-26",
+  "officialReleaseGate": "SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER",
+  "officialReleaseGateChanged": false,
+  "stage": {
+    "completed": "S3-M1",
+    "next": "S3-M2_NOT_OPEN",
+    "productHotPathWired": false,
+    "newCanonicalStore": false,
+    "sqliteAdded": false,
+    "modelContextChanged": false,
+    "memoryWriterChanged": false,
+    "userSurfaceChanged": false
+  },
+  "productGoal": "Represent and reopen the exact record behind a future memory without copying its content, confusing unknown with absence, or changing the foreground product.",
+  "failureOriginals": [
+    "M0-01 unsourced model inference promotion",
+    "M0-04 same-name person merge needs verified subject identity",
+    "M0-06 source changed without digest detection",
+    "M0-09 external content memory poisoning",
+    "M0-13 macOS-to-Windows record identity drift",
+    "M0-14 private memory channel leak",
+    "M0-15 raw secret storage"
+  ],
+  "comparisonSources": [
+    {
+      "product": "OpenClaw",
+      "revision": "6a8278d8223a94c6e8811c4c7710eca52528cf38",
+      "source": "https://github.com/openclaw/openclaw/blob/main/docs/concepts/memory-architecture.md",
+      "adopted": [
+        "closed provenance outside memory prose",
+        "conservative external-untrusted classification",
+        "source references survive consolidation"
+      ],
+      "rejected": [
+        "SQLite memory index at M1",
+        "background promotion",
+        "automatic injection"
+      ]
+    },
+    {
+      "product": "Hermes",
+      "revision": "d0351e32309bd68a1012c302157947b955323fca",
+      "source": "https://github.com/NousResearch/hermes-agent/blob/main/agent/memory_provider.py",
+      "adopted": [
+        "structured write provenance metadata",
+        "session and execution correlation"
+      ],
+      "rejected": [
+        "provider-owned canonical truth",
+        "multiple backend-specific provenance contracts"
+      ]
+    },
+    {
+      "product": "Codex",
+      "revision": "f5420174dafba153913a3e697f89002c338dfd7e",
+      "source": "https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md",
+      "adopted": [
+        "stable thread and rollout source identity",
+        "resume from canonical recorded history"
+      ],
+      "rejected": [
+        "coding thread as user life memory",
+        "opaque provider history as T5 canonical memory"
+      ]
+    },
+    {
+      "product": "Claude Code",
+      "revision": "official_docs_observed_2026-08-26",
+      "source": "https://code.claude.com/docs/en/memory",
+      "adopted": [
+        "plain human-inspectable memory surface",
+        "repository scope and on-demand topic detail"
+      ],
+      "rejected": [
+        "Markdown file as source provenance",
+        "auto-memory notes as immediately authoritative user facts"
+      ]
+    }
+  ],
+  "contract": {
+    "stableIdentity": "sourceKind + sourceStore + sourceId + sourceRevision",
+    "runtimeDerivedRecordId": true,
+    "rawContentFieldsAccepted": false,
+    "unknownDigestPromotedToZero": false,
+    "unknownAvailabilityPromotedToMissing": false,
+    "uncertainSensitivityFloor": "personal",
+    "modelInferredSoleDurableSourceAllowed": false,
+    "externalUntrustedSoleDurableSourceAllowed": false,
+    "secretReference": "runtime-observed metadata-only connection resource with no content digest"
+  },
+  "adapterCoverage": [
+    "conversation_message",
+    "run_event",
+    "work_event",
+    "attachment",
+    "artifact",
+    "local_file",
+    "web_source",
+    "channel_message",
+    "connection_resource"
+  ],
+  "sourceReopen": {
+    "availableSeparated": true,
+    "changedSeparated": true,
+    "missingSeparated": true,
+    "permissionDeniedSeparated": true,
+    "unknownSeparated": true,
+    "foreignSessionReadAttempted": false,
+    "foreignWorkReadAttempted": false,
+    "symlinkAllowed": false,
+    "hardlinkAllowed": false,
+    "outsideManagedRootAllowed": false,
+    "providerCrashReportedAsMemoryAbsence": false,
+    "accountingContainsRawSource": false
+  },
+  "samePurposeAB": {
+    "pairs": 12,
+    "fullFactorial": false,
+    "productDigestAgreement": true,
+    "providerRequestChanged": false,
+    "toolCallsChanged": false,
+    "authorityChanged": false,
+    "effectsChanged": false,
+    "surfaceChanged": false,
+    "shadowRunsAfterTerminalProductDigest": true,
+    "rawSourceInAccounting": false,
+    "O0_off": {
+      "samples": 12,
+      "medianWallUs": 1.8535,
+      "medianAccountingBytes": 0,
+      "states": ["off"]
+    },
+    "O2_full_shadow": {
+      "samples": 12,
+      "medianWallUs": 106.7705,
+      "medianReaderUs": 81.458,
+      "medianAccountingBytes": 383,
+      "states": ["reopened"]
+    },
+    "interpretation": "Small local fixture measurement only. It proves bounded shadow structure cost and product digest nonintervention, not live-model latency or production filesystem performance."
+  },
+  "verification": {
+    "focused": "20 passed · 0 failed",
+    "latestFullCheck": {
+      "total": 992,
+      "passed": 990,
+      "failed": 1,
+      "skipped": 1,
+      "failure": "pre-existing QH-3 temporary-directory ENOTEMPTY cleanup variation",
+      "focusedReruns": [
+        "1 passed · 1 failed with the same ENOTEMPTY cleanup variation",
+        "2 passed · 0 failed"
+      ]
+    },
+    "lastFullyGreenFullCheckBeforeObservedAdapter": {
+      "total": 988,
+      "passed": 987,
+      "failed": 0,
+      "skipped": 1
+    },
+    "productIntegration": {
+      "total": 145,
+      "passed": 144,
+      "failed": 0,
+      "skipped": 1
+    },
+    "mutation": {
+      "total": 2,
+      "killed": 2
+    }
+  },
+  "sourceDigests": {
+    "refoundation/src/record-reference.js": "bcf024e12b8a93090aefb24a8c580f952af504f4209e3a69887beffb2073cfad",
+    "refoundation/src/record-projection.js": "c52024e060ccbad698be254f4d2f08738162144b4d476c09fffc0d71cba5537d",
+    "refoundation/src/record-source-reader.js": "bfec48e1924782dbcbbebdf8ba361142adc70821b6ba6021a92771d965430d91"
+  },
+  "testAndRunnerDigests": {
+    "refoundation/test/record-reference.test.js": "f14f882766507bdd824dabba90791d56628ff171999594beeef2200a5d794438",
+    "refoundation/test/record-projection.test.js": "8ff3eed7579d8531f61b56873f3169c79e1bc61ac97f26b1740acb608b41fb5c",
+    "refoundation/test/record-source-reader.test.js": "2e07207dfa148b63581ef6d8d490eebbcdad7ef73c2019b0b25720bd32cceadb",
+    "refoundation/scripts/run-s3m1-record-provenance.mjs": "2d2aca80c271e69091a134fcf7655cc75d9299f52d4772b2ae99599f686230fc"
+  },
+  "priorEvidence": {
+    "refoundation/config/s3-memory-incidents.json": "a69355162d646792b2d2ba5d3bbbf5c61f01b394cfae7f81ccf48c997834194c",
+    "refoundation/evidence/s3-m0-memory-constitution-2026-08-26.json": "cb133f245b156280f894b0b8ffaccffa492b35ccee501d93c7f485354f19cdb7"
+  },
+  "notExecuted": [
+    "RecordRef product hot-path wiring",
+    "MemoryClaim writer or temporal conflict logic",
+    "model Context injection",
+    "user-facing source inspection surface",
+    "live Terra or gpt-5.5 journey",
+    "Windows runner or Windows VM RecordRef journey",
+    "cross-platform export",
+    "forgetting cascade",
+    "FTS, vector, graph, or semantic retrieval",
+    "Living Library"
+  ],
+  "notClaimed": [
+    "Life Continuity is product-active",
+    "M0 memory gaps are fixed",
+    "local microbenchmark predicts live-model latency",
+    "Windows Memory qualification is complete",
+    "the official Release Gate changed"
+  ],
+  "nextOneTask": "Open S3-M2-0 temporal shadow contract only: reproduce stale-current-correction and same-name-person failures with RecordRef-backed MemoryClaim fixtures before changing MemoryLedger events or Context projection."
+}
