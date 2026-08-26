@@ -1,6 +1,6 @@
 # T5 3차 고도화 — 활성화 전 준비 정본
 
-상태: `OWNER_ACTIVATED_S3A · S3T_PASS_WITH_OBSERVATION · S3M_ACTIVE_UNTOUCHED · S3UX_REGISTERED · S3CA_REGISTERED_IMPLEMENTATION_LOCKED · OPTIMIZATION LOCKED`
+상태: `OWNER_ACTIVATED_S3A · S3T_PASS_WITH_OBSERVATION · S3M_ACTIVE_UNTOUCHED · S3UX_REGISTERED · S3CA_REGISTERED_IMPLEMENTATION_LOCKED · S3CH0_3_PLANNED_SEQUENCED · OPTIMIZATION LOCKED`
 
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER`
 
@@ -10,16 +10,18 @@
 Capability의 개발자 명시 설치와 자연어 자기확장을 한 엔진으로 다루는 S3-CA는 연구·계획만 등록하고 제품
 구현은 S3-A 결과와 오너의 명시적 개통 전까지 잠근다. 2.0 설치본 실제 사용자가 확인한 장기 작업의 불안·
 교정·결과 전달·효과 사고 가족은 S3-UX 연구 입력과 기존 S3-A coverage에 비식별로 등록하되, 진행 중인 S3-M
-문서·source·시험은 이 반영에서 변경하지 않는다. 이 문서는 측정·반대시험·판정의 범위와 최적화 전 금지선을
+문서·source·시험은 이 반영에서 변경하지 않는다. Local Computer History는 CH-0 T5 Work History만 S3-UX에
+결속하고 파일·앱·목적별 검색 CH-1~3은 3차의 후속 개발 순서로 확정하되 현재 진행 중인 M·UX보다 먼저
+collector를 얹지 않는다. 이 문서는 측정·반대시험·판정의 범위와 최적화 전 금지선을
 유지한다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가 우선한다.
 
 ## 1. 활성화 전 판정
 
 ```text
 2차 Release Gate: 변경 없음
-3차 개발선: S3-A 측정 활성 · S3-T 완료 · S3-M 별도 진행 · S3-UX 연구 등록 · S3-CA 연구 등록/구현 잠금 · S3-PW 대기
-현재 허용 작업: S3-A 측정·판정, 오너가 연 exact 한 Gate, S3-UX/S3-CA 실제 실패·완료 문장·반대시험의 제품 변경 0 연구
-현재 금지 작업: 측정 결과를 전제한 구조 변경·성능 최적화, S3-UX/CA 제품 hot path 선구현, 여러 큰 개발선 동시 개통
+3차 개발선: S3-A 측정 활성 · S3-T 완료 · S3-M 별도 진행 · S3-UX 연구 등록/CH-0 소유 · S3-CH1~3 후속 순서 확정 · S3-CA 연구 등록/구현 잠금 · S3-PW 대기
+현재 허용 작업: S3-A 측정·판정, 오너가 연 exact 한 Gate, S3-UX/S3-CA/S3-CH 실제 실패·완료 문장·반대시험의 제품 변경 0 연구
+현재 금지 작업: 측정 결과를 전제한 구조 변경·성능 최적화, S3-UX/CA 제품 hot path 선구현, UX/CH-0 전 CH-1 collector 선행, screen/audio/content capture, 여러 큰 개발선 동시 개통
 ```
 
 서명 identity 부재라는 Release 외부 blocker를 3차 소스 변경으로 해결한 것처럼 기록하지 않는다. 반대로
@@ -38,12 +40,14 @@ scope·evidence·판정을 유지한다.
 | S3-M | Life Continuity·Memory Stewardship·내부 Reflection/Principle/Skill | 별도 개발 세션 진행 · 이 반영에서 변경 0 |
 | S3-UX | Work Reality·교정/취소/복구·인간용 Receipt·Artifact/Effect 안심 | 설치본 실패 등록 · 제품 구현 미개통 |
 | S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | 연구 승인 · 제품 구현 잠금 |
+| S3-CH | Local Computer History·과거 Work/파일/앱 provenance | CH-0은 S3-UX 소유 · CH-1→2→3 후속 순서 확정/현재 미착수 |
 | S3-PW | Windows installer·app shell·공통 제품 자격 | 대기 |
 
 개발선 표는 일정표가 아니다. S3-A 뒤 구조가 자동 개통되지 않으며, 오너가 연 한 제품 개발선만 hot path를
 변경한다. S3-M6는 내부 학습 Skill만, S3-CA는 외부 Skill·MCP·CLI·Plugin 획득만 소유한다. S3-UX는 기존
 Run·Tool·Effect·Artifact truth의 인간용 projection과 통제 표면을 소유하며 모델 의미 판단이나 새 원장을
-소유하지 않는다.
+소유하지 않는다. S3-CH는 raw activity를 사용자 Memory·persona로 승격하지 않으며 CH-1→2→3의 선행조건과
+각 Gate 완료 문장을 지켜 순차 개발한다.
 
 ## 2. 제품 약속과 3차 준비의 목적
 
@@ -496,6 +500,8 @@ digest는 기본 경로에서 사용하지 않고, 주 모델 commentary가 없�
   계약을 최종 제품 자격에서 확인한다.
 - S3-M은 기억의 의미·교정·망각·출처를 소유하고, S3-UX는 그 truth의 인간 언어·recap·receipt만 소유한다.
 - 설정 catalogue·연결 준비·비밀 입력은 S3-CA/PW 책임이며 S3-UX가 가짜 버튼이나 두 번째 연결 상태를 만들지 않는다.
+- S3-CH0은 기존 Conversation·Work·Run·Effect·Artifact·Resource truth를 과거 작업 검색·재개용으로 투영하며
+  S3-UX의 Activity/Receipt surface에서 닫는다. 파일·앱 collector나 screen recorder는 이 접합으로 열리지 않는다.
 
 S3-UX 구현은 진행 중인 S3-M exact qualification과 동시에 제품 hot path를 바꾸지 않는다. S3-M source·계획·
 시험은 이 개발선 등록에서 변경하지 않으며, 현재 exact M 작업의 commit/evidence가 닫힌 뒤 오너가 S3-UX의
@@ -621,7 +627,8 @@ S3-M6는 CA capability의 usage outcome pointer를 Reflection Evidence로 참고
 S3-A Performance Truth
 AND S3-T Terminal exact close
 AND S3-M Life Continuity
-AND S3-UX Work Visibility, Control & Outcome Reassurance
+AND S3-UX Work Visibility, Control & Outcome Reassurance including CH-0 T5 Work History
+AND S3-CH Local Computer History CH-0~3
 AND S3-CA Capability Reality & Safe Acquisition
 AND S3-PW가 필요한 Windows 공통 자격
 AND macOS·Windows 실제 사용자·비교군 Release
@@ -629,3 +636,129 @@ AND macOS·Windows 실제 사용자·비교군 Release
 
 S3-CA의 다음 작업은 제품 코드가 아니라, 현재 능력으로 끝나는 positive control 하나와 미등록 외부 능력이
 필요한 실제 사용자 실패 하나의 목적·원본·종료점·비목표를 고정하는 것이다.
+
+## 11. S3-CH — Local Computer History 등록 계약
+
+S3-CH의 목적은 컴퓨터를 상시 녹화하는 것이 아니다. 사용자가 파일명·위치·정확한 날짜를 기억하지 못해도
+과거에 T5와 했던 일과 허용한 업무 범위의 실제 파일·앱 흐름을 찾아 이어가고 복구하는 것이다.
+
+```text
+잘못된 제품:
+모든 화면·대화·입력을 기록하는 감시형 Recall
+
+T5 제품:
+출처 있는 Work·파일·앱 metadata를 로컬에서 결속하고
+현재 목적에 필요한 작은 과거 조각만 회수하는 작업 History
+```
+
+### 사용자 완료 문장
+
+> 사용자는 “지난번 그 일”, “어제 쓰던 견적서”, “지난주 재고 정리 때 쓴 자료”처럼 평소 말로 과거 작업과
+> 파일을 찾고 같은 목적에서 이어간다. T5는 실제 기록·현재 사실·잠정적 추론을 구분하며, 화면·대화·비밀을
+> 상시 녹화하지 않고 사용자가 허용한 로컬 범위에서만 작은 Evidence를 회수한다.
+
+### CH-0 — T5 Work History
+
+CH-0은 새 collector나 새 원장이 아니다. 기존 Conversation·Work·Run·Effect·Artifact·Resource·RecordRef의
+현재 truth를 S3-UX Activity/Receipt 표면과 과거 Work 검색에 투영한다.
+
+사용자는 다음을 자연어로 할 수 있어야 한다.
+
+- T5가 과거에 수행한 작업과 결과 찾기
+- 사용한 파일·앱·연결과 검증 상태 확인
+- 완료·부분 완료·취소·실패·unknown 구분
+- exact 결과물 다시 열기·전달하기
+- 남은 단계부터 같은 Work 재개
+- T5가 만든 변경과 사용자·system·unknown 변경을 잘못 합치지 않기
+
+CH-0은 S3-UX에서 구현·자격하며 3차 완료 범위에 포함한다. 과거 전체 transcript·ToolReceipt를 모델 Context에
+재주입하지 않고 local metadata filter→작은 후보→exact handle 순으로 회수한다.
+
+### CH-1 — Scoped File Activity
+
+CH-1은 S3-UX와 CH-0이 닫힌 뒤 시작한다. macOS FSEvents·Spotlight와 Windows USN Journal·Windows Search의
+공식 platform boundary를 adapter로 사용하고, 사용자가 허용한 업무 폴더의 metadata 변화만 다룬다.
+
+```text
+created | modified | moved | deleted | opened_when_observable
++ occurredAt
++ stable file identity 또는 availability
++ T5 Work/Run 결속 여부
++ actor: t5 | user | system | unknown
++ coverage: metadata_only
+```
+
+OS journal은 “무엇이 바뀌었다”는 증거이지 “왜 바뀌었다”는 증거가 아니다. T5 receipt가 없는 human/system
+변경의 원인을 모델이 지어내지 않고 `unknown`으로 둔다. 파일 내용·hash·excerpt는 현재 사용자 목적에서 exact
+재열람이 필요하고 기존 권한이 허용할 때만 별도 관측한다.
+
+### CH-2 — Coarse App Activity
+
+CH-2는 CH-1의 정확성·비용·privacy 자격 뒤 시작한다. 기본 범위는 foreground app identity·coarse duration·
+AFK·현재 Work와의 명시적 결속뿐이다. window title·document title·전체 URL·browser history·채팅/메일 제목과 본문은 기본 수집하지
+않는다. 앱 사용 시간은 사용자 선호·직업·성과의 증거가 아니며 MemoryClaim·persona로 자동 승격하지 않는다.
+
+사용자는 기록 상태, pause/private mode, 포함·제외 앱, 삭제·내보내기, 현재 저장량을 이해할 수 있어야 한다.
+다른 OS 사용자·remote desktop·private browsing·비밀 입력 surface는 수집 범위 밖이다.
+
+### CH-3 — Purpose-Bounded History Intelligence
+
+CH-3은 CH-0~2의 raw event를 모델에게 모두 주는 단계가 아니다.
+
+```text
+현재 사용자 목적
+→ local time·Work·app·folder metadata filter
+→ local FTS/OS index의 작은 후보
+→ sensitivity·scope redaction
+→ 모델이 후보 관련성 판단
+→ 선택한 exact RecordRef만 재열람
+→ 답·파일 열기·Work 재개·복구
+```
+
+raw activity는 Memory가 아니다. Episode는 과거 Work/Activity의 pointer이고, Memory는 사용자가 말한 사실·선호·
+결정이며, Reflection은 여러 Episode의 잠정적 해석이다. 현재 교정은 과거 활동과 추론보다 우선한다.
+
+### 절대 비목표와 개인정보 경계
+
+다음 기능은 S3-CH에 포함하지 않으며 후속 screen Recall 자리도 예약하지 않는다.
+
+- 상시 screenshot·screen video·OCR
+- microphone·meeting audio 상시 기록
+- keylogging·입력 문자 기록
+- clipboard 원문 상시 기록
+- 비밀번호·OTP·API key·결제·신분정보 수집
+- private/incognito browser 기록
+- 전체 URL·browser history·채팅·메일 본문 상시 수집
+- raw History의 provider/model Context 일괄 전송
+- 활동량으로 사용자 persona·직업·성과·선호 자동 판정
+
+로컬 저장과 모델 전송은 별도 경계다. 기록이 로컬에 있어도 외부 provider 모델에 excerpt를 보내면 외부 전송이므로
+현재 목적·scope·sensitivity에 필요한 최소 projection만 사용한다. 기록·index·Episode·Library·export·backup의
+삭제 가능성과 unknown 외부 copy는 ForgetPlan·ForgetReceipt에서 분리한다.
+
+### 속도·저장·플랫폼 계약
+
+- foreground model/tool/file 작업의 wall·CPU·I/O 체감 저하 0
+- 동일 metadata heartbeat/event의 병합과 bounded batch
+- 사용자 원문·파일 내용 없는 metadata-first 저장
+- hidden fixed retention·disk quota로 조용히 기록 손실 0
+- 저장량·보존 상태·삭제 가능성의 사용자 가시성
+- macOS·Windows 같은 사용자 약속, 교체 가능한 collector adapter
+- collector 실패는 사용자 Work 실패나 거짓 History 성공으로 승격하지 않음
+
+CH-1~3의 자격은 ActivityWatch 같은 event 기반 비교군과 동일 사용자 목적 A/B를 먼저 사용한다. 새 collector가
+OS native index·기존 local capability보다 정확성·비용·사용자 부담에서 우위가 없으면 만들지 않는다.
+
+### 3차 개발 순서
+
+```text
+CH-0 T5 Work History: S3-UX 책임으로 구현·자격
+→ CH-1 Scoped File Activity: CH-0 뒤 구현·자격
+→ CH-2 Coarse App Activity: CH-1 뒤 구현·자격
+→ CH-3 Purpose-Bounded History Intelligence: CH-2 뒤 구현·자격
+screen/audio/content Recall: 제품 범위 밖
+```
+
+각 단계는 앞 단계의 사용자 완료 문장과 macOS·Windows interface·privacy·비용 반대시험이 통과되면 다음 단계로
+진입한다. 새 오너 승인을 반복 요구하는 잠금은 두지 않지만 여러 collector와 의미 계층을 한 번에 열지 않는다.
+3차 완료는 CH-0~3 전체를 요구한다.

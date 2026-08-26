@@ -73,6 +73,18 @@ test('S3-UX는 사례 문구가 아니라 취소 소유권·원본 publication·
   assert.match(preparation, /progress·recap·receipt projection 때문에 추가 provider\/model call `0`/u);
 });
 
+test('S3-CH는 화면 Recall 없이 CH-0→1→2→3을 3차 후속 순서로 고정한다', async () => {
+  const preparation = await readFile(
+    new URL('T5-THIRD-ACTIVATION-PREPARATION.md', root), 'utf8',
+  );
+  assert.match(preparation, /## 11\. S3-CH — Local Computer History 등록 계약/u);
+  assert.match(preparation, /CH-0 T5 Work History:[\s\S]*→ CH-1 Scoped File Activity:[\s\S]*→ CH-2 Coarse App Activity:[\s\S]*→ CH-3 Purpose-Bounded History Intelligence:/u);
+  assert.match(preparation, /AND S3-CH Local Computer History CH-0~3/u);
+  assert.match(preparation, /상시 screenshot·screen video·OCR[\s\S]*keylogging[\s\S]*clipboard 원문 상시 기록/u);
+  assert.match(preparation, /screen\/audio\/content Recall: 제품 범위 밖/u);
+  assert.doesNotMatch(preparation, /CH-4|CH-1~3[^\n]*구현 잠금/u);
+});
+
 test('S3-A 준비는 공식 Gate·제품 진실·observer 비개입을 유지한다', async () => {
   const [value, current, preparation, workOrder] = await Promise.all([
     load(),
