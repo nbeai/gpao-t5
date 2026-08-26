@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
   projectAttachmentRecordReference,
   projectConversationRecordReference,
+  projectObservedRecordReference,
   projectRunRecordReference,
   projectWorkRecordReference,
 } from '../src/record-projection.js';
@@ -129,6 +130,40 @@ test('projection은 trust를 추측하지 않고 sensitivity 불확실 시 perso
     event, runId: 'run-1', sessionId: 'session-1', trust: 'runtime_observed', observedAt: NOW,
   });
   assert.equal(reference.sensitivity, 'personal');
+});
+
+test('local file·Web·channel·connection은 원문 없는 observed metadata adapter 하나로 표현한다', () => {
+  const web = projectObservedRecordReference({
+    sourceKind: 'web_source', sourceStore: 'web-observation', sourceId: 'web-1',
+    sourceRevision: null, sha256: null, occurredAt: null, observedAt: NOW,
+    sessionId: 'session-1', trust: 'external_untrusted', coverage: 'partial',
+  });
+  assert.equal(web.sourceKind, 'web_source');
+  assert.equal(web.availability, 'available');
+  assert.equal(web.sensitivity, 'personal');
+
+  const channel = projectObservedRecordReference({
+    sourceKind: 'channel_message', sourceStore: 'telegram-ledger', sourceId: 'message-7',
+    sourceRevision: 1, sha256: 'd'.repeat(64), occurredAt: NOW, observedAt: NOW,
+    sessionId: 'session-1', channel: 'telegram:private', trust: 'user_asserted',
+    sensitivity: 'private', coverage: 'full',
+  });
+  assert.equal(channel.scope.channel, 'telegram:private');
+
+  const secret = projectObservedRecordReference({
+    sourceKind: 'connection_resource', sourceStore: 'platform-secret-store',
+    sourceId: 'secret-ref-1', sourceRevision: 1, sha256: null, occurredAt: null,
+    observedAt: NOW, sessionId: 'session-1', trust: 'runtime_observed',
+    sensitivity: 'secret_ref', coverage: 'metadata_only',
+  });
+  assert.equal(secret.sensitivity, 'secret_ref');
+
+  assert.throws(() => projectObservedRecordReference({
+    sourceKind: 'web_source', sourceStore: 'web-observation', sourceId: 'web-2',
+    sourceRevision: null, sha256: null, occurredAt: null, observedAt: NOW,
+    sessionId: 'session-1', trust: 'external_untrusted', coverage: 'partial',
+    content: 'must not enter metadata adapter',
+  }), /unknown field/u);
 });
 
 test('RecordRef shadow는 AgentLoop·Memory·Context·사용자 surface hot path에 아직 연결되지 않는다', async () => {

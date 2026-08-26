@@ -2,6 +2,15 @@ import { createHash } from 'node:crypto';
 
 import { makeRecordReference } from './record-reference.js';
 
+const OBSERVED_SOURCE_KINDS = new Set([
+  'local_file', 'web_source', 'connection_resource', 'channel_message',
+]);
+const OBSERVED_FIELDS = new Set([
+  'sourceKind', 'sourceStore', 'sourceId', 'sourceRevision', 'sha256', 'occurredAt',
+  'observedAt', 'sessionId', 'workId', 'subjectKeys', 'channel', 'trust', 'sensitivity',
+  'coverage', 'availability',
+]);
+
 function record(value, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new TypeError(`${label} is required`);
@@ -125,5 +134,34 @@ export function projectAttachmentRecordReference({
     sourceId: required(attachment.attachmentId, 'attachmentId'), sourceRevision: revision,
     sha256: attachment.sha256, occurredAt: attachment.createdAt, observedAt,
     sessionId, workId, channel, subjectKeys, trust, sensitivity, coverage, availability,
+  });
+}
+
+export function projectObservedRecordReference(input = {}) {
+  record(input, 'observed source metadata');
+  for (const field of Object.keys(input)) {
+    if (!OBSERVED_FIELDS.has(field)) {
+      throw new TypeError(`observed source metadata has unknown field: ${field}`);
+    }
+  }
+  if (!OBSERVED_SOURCE_KINDS.has(input.sourceKind)) {
+    throw new TypeError('observed sourceKind is not supported by this adapter');
+  }
+  return common({
+    sourceKind: input.sourceKind,
+    sourceStore: required(input.sourceStore, 'observed sourceStore'),
+    sourceId: required(input.sourceId, 'observed sourceId'),
+    sourceRevision: input.sourceRevision ?? null,
+    sha256: input.sha256 ?? null,
+    occurredAt: input.occurredAt ?? null,
+    observedAt: input.observedAt,
+    sessionId: input.sessionId ?? null,
+    workId: input.workId ?? null,
+    subjectKeys: input.subjectKeys ?? [],
+    channel: input.channel ?? null,
+    trust: input.trust,
+    sensitivity: input.sensitivity ?? 'personal',
+    coverage: input.coverage ?? 'unknown',
+    availability: input.availability ?? 'available',
   });
 }
