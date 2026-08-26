@@ -1,7 +1,7 @@
 {
   "schema": "t5.s3t1b.product-confinement-qualification.v1",
-  "recordedAt": "2026-08-26T08:39:22.004Z",
-  "sourceCommit": "bb3cc1b5a5dd7d9ea2a829708a291c32f4138cd6",
+  "recordedAt": "2026-08-26T08:41:48.566Z",
+  "sourceCommit": "f937bbf783c974815fcbb8f3bf224a50779251ee",
   "status": "t5_owned_secret_confinement_wired_registered_cli_broker_open",
   "protectedRead": {
     "normalReadable": true,
