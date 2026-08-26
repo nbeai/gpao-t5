@@ -1,0 +1,143 @@
+{
+  "schema": "t5.s3-m5-living-library-complete-evidence.v1",
+  "stage": "S3-M5",
+  "status": "IMPLEMENTATION_COMPLETE_WINDOWS_ACTUAL_DEFERRED",
+  "observedAt": "2026-08-26T16:55:00.000Z",
+  "sourceCommit": "96ca7bb5f4a7cacae1fae91bfdf2378293a0fd43",
+  "officialReleaseGateChanged": false,
+  "stageState": {
+    "m5ImplementationClosed": true,
+    "m5WindowsActualPassed": false,
+    "m6PlatformNeutralImplementationMayOpen": true,
+    "m7RequiresDeferredWindowsBatch": true,
+    "m8aRequiresM7Pass": true
+  },
+  "userOutcome": [
+    "The user can inspect current and historical Memory, reopen its source, correct it in conversation, forget it, restore it, and rebuild one derived record view from the same server state.",
+    "The generated record view provides current, history, Timeline, Projects, Decisions, Research, and user-authored notes without requiring Obsidian.",
+    "A correction makes the old generation unavailable, a rebuild removes stale generations, and forgetting purges every generation containing the exact memory handle.",
+    "Forgotten value, sensitivity, subject key, RecordRef ID, memory ID, and UserNote ID are not rendered on user surfaces."
+  ],
+  "completedStages": {
+    "m5_0": "isolated deterministic HTML Markdown and manifest",
+    "m5_1": "UserNote canonical separation, edit rename conflict and Obsidian independence",
+    "m5_2": "T5 UI single state, source, correction entry, forget, restore and Library",
+    "m5_3": "macOS Core Spotlight actual synthetic qualification; EventKit actual retained for M7",
+    "m5_4": "Windows structural projection and Explorer boundary; actual Windows retained in deferred manifest",
+    "m5_5": "no-plugin Obsidian A/B and two actual model journeys"
+  },
+  "cascadeTruth": {
+    "correctionOldGenerationHttpState": "410_stale",
+    "rebuildPurgesStaleGeneration": true,
+    "forgetPlanIncludesLibraryView": true,
+    "forgetReceiptLibraryViewExecuted": true,
+    "forgetProbeAfter": 0,
+    "forgottenValueOnMemorySurface": false,
+    "forgottenValueInGeneratedView": false,
+    "restoreThenRebuildShowsCurrentValue": true,
+    "externalGeneratedEditAccepted": false,
+    "userNoteEditOrRenameOldViewState": "stale",
+    "deleteAfterEffectCrashState": "unknown",
+    "deleteFailureState": "retained"
+  },
+  "views": {
+    "files": 10,
+    "html": ["index", "timeline", "projects", "decisions", "research"],
+    "markdown": ["memory", "timeline", "projects", "decisions", "research"],
+    "relativeNavigation": true,
+    "javascript": false,
+    "externalNetwork": false,
+    "researchSource": "KnowledgeClaim array only",
+    "researchStringInference": false,
+    "rawInternalIdsRendered": 0
+  },
+  "samePurposeNonInterference": {
+    "foregroundPurpose": "Inspect the current answer-style preference without changing it",
+    "libraryAbsentVsGenerated": true,
+    "semanticModelInputEqual": true,
+    "toolSchemasEqual": true,
+    "replyEqual": true,
+    "canonicalMemoryEventsEqual": true,
+    "providerCallsEqual": true,
+    "productHotPathLibraryCalls": 0,
+    "modelCallsAdded": 0,
+    "providerRequestsAdded": 0,
+    "contextBytesAdded": 0
+  },
+  "qualificationCost": {
+    "syntheticClaims": 2,
+    "syntheticKnowledgeClaims": 1,
+    "generationNs": "8844958",
+    "existingGenerationVerificationNs": "1600708",
+    "generatedFiles": 10,
+    "generatedBytes": 5628,
+    "modelCalls": 0,
+    "providerRequests": 0,
+    "externalWrites": 0,
+    "userData": false
+  },
+  "actualModelsReused": {
+    "gpt-5.5": "PASS_4_OF_4",
+    "gpt-5.6-terra": "PASS_4_OF_4_AFTER_ONE_CORRECTION_SELECTION_FAILURE",
+    "secretReferenceOnly": true,
+    "isolatedState": true,
+    "externalWrites": 0,
+    "sourceEvidence": "refoundation/evidence/s3-m5-obsidian-independent-2026-08-27.json"
+  },
+  "actualMacSurface": {
+    "settingsMemoryVisible": true,
+    "libraryBuildAndOpen": true,
+    "timelineNavigationVisible": true,
+    "projectViewVisible": true,
+    "decisionViewVisible": true,
+    "internalIdsVisible": 0,
+    "coreSpotlightEvidence": "refoundation/evidence/s3-m5-macos-native-surface-2026-08-27.json",
+    "eventKitActualPassed": false,
+    "eventKitDeferredToM7": true
+  },
+  "windows": {
+    "structuralImplementationPassed": true,
+    "actualPassed": false,
+    "deferredNotWaived": true,
+    "manifest": "refoundation/config/s3-windows-deferred-qualification.json",
+    "requiredItems": 25,
+    "m7BlockedUntilComplete": true
+  },
+  "verification": {
+    "m5Focused": { "passed": 64, "failed": 0 },
+    "productIntegration": { "total": 156, "passed": 154, "failed": 0, "windowsSkipped": 2 },
+    "unitAndEvidence": {
+      "total": 1130,
+      "passed": 1128,
+      "failed": 1,
+      "windowsSkipped": 1,
+      "unrelatedExistingFailure": "QH-3 temporary state directory ENOTEMPTY cleanup race"
+    },
+    "unrelatedMessengerExactRerun": { "passed": 7, "failed": 0 },
+    "actualBrowser": "PASS"
+  },
+  "sourceDigests": {
+    "refoundation/src/living-library.js": "c3ab37ad1b70447aa90f8a41e06b1f7510c00e0e1cddf1f95806b3e335d0452e",
+    "refoundation/src/living-library-registry.js": "5bd9adc7c85881b83d5f45dfb618d9311c2d5c9c3550feddc43fb2bbafa6752d",
+    "refoundation/src/memory-surface.js": "656e3ad4c5dabc88b061f61a9af8b6ffdd572f251c88de79a3d5882c36f08ad0",
+    "refoundation/src/console-server.js": "76dad42ec10b10d70c85876806205c43d0a6f2cd7eef80707b4c970b6795073c",
+    "refoundation/src/forgetting-coordinator.js": "c64dcbd9c23554e191ed3f75a178ae2d12e4de59fa1a1ba4c6c4afdc7bda04fe",
+    "refoundation/test/living-library.test.js": "73dc03aea51f7d4906b17e7000a392598b9d613649885da5ab41702c7ac877a4",
+    "refoundation/test/living-library-registry.test.js": "102c0ef8e0014915514fd1a7efa15ab9af78e57c5eb07194079b2bd6df13ca30",
+    "refoundation/test/memory-library-cascade.integration.js": "5e99451b3f0445980b3e88ab46c11fd30bebde735473c51424a0adf7e6524d3b",
+    "refoundation/test/living-library-noninterference.integration.js": "e01bf837bb9a3d5c2c31efb2d876cdf609184e0bac31585085146f3f18d2aad0",
+    "refoundation/scripts/run-s3m5-living-library-qualification.mjs": "63374bdb552a64e5c3cd5dc69b0e49080519ea7465ca042a15572c1faffb0113",
+    "refoundation/config/s3-windows-deferred-qualification.json": "6244392c938fdece75614c7fa28921fb281028a73aa09c998c5d64efe66e91c8",
+    "docs/03-product-plan/T5-THIRD-COMPLETION-LIFE-CONTINUITY-IMPLEMENTATION-PLAN-2026-08-26-ko.md": "b933c83d3ec597e3b98485ec30dfbc9a017eb28d184f04efdff6ab0a4df00b3f"
+  },
+  "notClaimed": [
+    "Windows actual PASS",
+    "EventKit actual PASS",
+    "QH-3 cleanup race fixed",
+    "S3-M6 implemented",
+    "S3-M7 PASS",
+    "S3-M8A release qualification",
+    "Life Continuity active in the official Release Gate"
+  ],
+  "nextOneTask": "Open S3-M6 Turn 1 with a pure sourced ReflectionCandidate contract and RED incident fixtures only; product writer, scheduler, Principle, Skill activation, and default Context remain closed."
+}
