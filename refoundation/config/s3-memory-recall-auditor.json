@@ -1,0 +1,29 @@
+{
+  "schema": "t5.s3m.recall-auditor-corpus.v1",
+  "status": "owner_plan_questions_frozen_before_retrieval_expansion",
+  "sourceCommit": "b2432d4c7aadcdbcd09f1904e2b33f4eaad399a8",
+  "ownerSource": "Approved Life Continuity plan natural-language actions",
+  "cases": [
+    { "id": "M4-Q1", "lane": "exact_identifier", "kind": "deterministic",
+      "purpose": "나에 대해 뭘 기억하고 있어?", "sourceId": "memory:M4-ID-4821",
+      "oracle": { "memoryIds": ["M4-ID-4821"], "sourceReopened": true, "irrelevant": 0 } },
+    { "id": "M4-Q2", "lane": "source_provenance", "kind": "deterministic",
+      "purpose": "이건 어디서 나온 거야?", "sourceId": "record:M4-SOURCE-731",
+      "oracle": { "recordIds": ["M4-SOURCE-731"], "sourceReopened": true, "irrelevant": 0 } },
+    { "id": "M4-Q3", "lane": "current_correction", "kind": "model",
+      "purpose": "그건 지금은 틀렸어. 현재 값은 M4-CURRENT-852야.", "sourceId": "subject:M4-SUBJECT-1",
+      "oracle": { "answerIncludes": ["M4-CURRENT-852"], "answerExcludesAsCurrent": ["M4-OLD-741"], "sourceReopened": true } },
+    { "id": "M4-Q4", "lane": "historical_date", "kind": "model",
+      "purpose": "2025년에는 어떻게 알고 있었어?", "sourceId": "subject:M4-SUBJECT-1@2025",
+      "oracle": { "answerIncludes": ["M4-OLD-741"], "answerExcludesAsHistorical": ["M4-CURRENT-852"], "sourceReopened": true } },
+    { "id": "M4-Q5", "lane": "exact_project_person_scope", "kind": "model",
+      "purpose": "이 프로젝트에서 Alex A의 기억만 보여줘.", "sourceId": "project:M4-PROJECT-A/person:M4-ALEX-A",
+      "oracle": { "answerIncludes": ["M4-ALEX-A-913"], "answerExcludes": ["M4-ALEX-B-624"], "sourceReopened": true } }
+  ],
+  "thresholds": {
+    "deterministicFailuresToFail": 1,
+    "modelRuns": 3,
+    "modelFailuresToFail": 2,
+    "bothModelsSameFamilyFailure": true
+  }
+}
