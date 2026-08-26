@@ -1,0 +1,82 @@
+{
+  "schema": "t5.s3m.m4-recall-evidence.v1",
+  "status": "COMPLETE_NO_RETRIEVAL_EXPANSION",
+  "sourceCommit": "c30626f1f208a17f3054139eb93660a013ff728d",
+  "recordedAt": "2026-08-27",
+  "officialReleaseGateChanged": false,
+  "productCodeChanged": false,
+  "retrievalEnginesAdded": [],
+  "audits": [
+    { "caseId": "M4-Q1", "lane": "exact_identifier", "status": "passed", "samples": 1,
+      "failures": 0, "wallMs": 0.1, "requestBytes": 0, "tokens": 0 },
+    { "caseId": "M4-Q2", "lane": "source_provenance", "status": "passed", "samples": 1,
+      "failures": 0, "wallMs": 0.2, "requestBytes": 0, "tokens": 0 },
+    { "caseId": "M4-Q3", "lane": "current_correction", "status": "passed", "samples": 3,
+      "failures": 0, "wallMs": 26755.6125, "requestBytes": 413940, "tokens": 77646 },
+    { "caseId": "M4-Q4", "lane": "historical_date", "status": "passed", "samples": 3,
+      "failures": 0, "wallMs": 27316.467666, "requestBytes": 416481, "tokens": 77848 },
+    { "caseId": "M4-Q5", "lane": "exact_project_person_scope", "status": "passed", "samples": 3,
+      "failures": 0, "wallMs": 32522.141959, "requestBytes": 459421, "tokens": 84694 }
+  ],
+  "decision": {
+    "fts": "closed_no_deficit",
+    "embedding": "closed_prerequisite_not_proven",
+    "temporalRelation": "closed_no_deficit",
+    "graph": "closed_prerequisite_not_proven",
+    "deepRecallModel": "closed_prerequisite_not_proven",
+    "failedCases": [],
+    "insufficientCases": []
+  },
+  "actualModels": {
+    "gpt-5.5": { "scopeSamples": 2, "scopePasses": 2,
+      "scopeWallMs": 25239.467542, "scopeRequestBytes": 334600, "scopeTokens": 61499 },
+    "gpt-5.6-terra": { "scopeSamples": 1, "scopePasses": 1,
+      "scopeWallMs": 7282.674417, "scopeRequestBytes": 124821, "scopeTokens": 23195,
+      "additionalCurrentHistoricalSamples": 2 },
+    "externalWrites": 0,
+    "secretReferencesOnly": true
+  },
+  "productInvariants": {
+    "currentPurposeRecallMaintained": true,
+    "irrelevantInjection": 0,
+    "sourceReopenRate": 1,
+    "abstentionMaintained": true,
+    "normalTurnRecallModelCallsAdded": 0,
+    "providerUnavailableReplyLoss": 0,
+    "contextReceiptAccounting": true
+  },
+  "samePurposeAB": {
+    "baseline": "exact and structured current product",
+    "candidate": "same exact and structured current product",
+    "productDigestAgreement": true,
+    "requestBytesDelta": 0,
+    "providerCallsDelta": 0,
+    "tokensDelta": 0,
+    "wallDeltaMs": 0,
+    "qualificationResourcesAreNotNormalTurnOverhead": true
+  },
+  "verification": {
+    "auditor": "5/5 passed",
+    "latestFullCheck": "1055 total · 1053 passed · 1 known QH-3 ENOTEMPTY · 1 Windows skip; two focused ENOTEMPTY observations followed by 2/2 pass",
+    "productIntegrationReused": "147 total · 146 passed · 0 failed · 1 Windows skip",
+    "mutationReused": "2/2 killed"
+  },
+  "digests": {
+    "refoundation/config/s3-memory-recall-auditor.json": "0c234968503274c27b8ff49c6725864bbb5484b74672a2f8cc7e559b901885e8",
+    "refoundation/config/s3-memory-recall-observations.json": "73a74b18def72a85156b857047e2edd8f6c7b78530701e4697f207bd61525925",
+    "refoundation/src/memory-recall-auditor.js": "b0c5167a3b64708503b5427cc1e3b189db0c21dbcbf50e79ba2339b1d6c989c1",
+    "refoundation/test/memory-recall-auditor.test.js": "cf05f4a6182fe56cd6e9866cef262e7b3fccfa59fee1c026de218cdc41a8a33b",
+    "refoundation/test/s3m4-recall-audit.test.js": "0e3e648d8374bb21b8752b1c04863690ae9344fa566624bcfe37e4da292473be",
+    "refoundation/scripts/run-s3m4-recall-auditor.mjs": "d77de19dddb94d6b14fb1da376499821498815a79c9bd0eeffff1ec1bed309d9",
+    "refoundation/scripts/run-s3m4-scope-recall-qualification.mjs": "1535c605735fe01a3b8111367b6a37c5563614fea8e83f376a079a9468ea8216",
+    "refoundation/scripts/run-s3m4-temporal-recall-sample.mjs": "b93717f6e8e0959011c614609186177062cfae53831c7a10359a1b41496de8fa"
+  },
+  "notClaimed": [
+    "FTS, embedding, graph, or deep recall was qualified",
+    "qualification token cost is normal-turn overhead",
+    "broad product Context cost is caused by recall",
+    "Windows Memory platform qualification is complete",
+    "the official Release Gate changed"
+  ],
+  "nextOneTask": "Open M5-0 isolated generated Living Library view from canonical claims. Keep the view derived, rebuildable, optional, and non-canonical."
+}
