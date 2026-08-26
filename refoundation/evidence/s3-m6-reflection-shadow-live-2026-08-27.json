@@ -1,0 +1,158 @@
+{
+  "schema": "t5.s3-m6-reflection-shadow-live-evidence.v1",
+  "stage": "S3-M6-TURN-4",
+  "status": "PASS_WITH_OBSERVATION_PRODUCT_UNWIRED",
+  "recordedAt": "2026-08-26T18:17:48.463Z",
+  "sourceCommit": "04c0a846fb1ab93dd0e279a24f7a2fa8bffe05a9",
+  "officialReleaseGateChanged": false,
+  "authorization": {
+    "connections": [
+      "api_key:openai:gpt-5.6-terra",
+      "chatgpt_oauth:gpt-5.5"
+    ],
+    "samePurposeFutureUseApproved": true,
+    "modelCostAllowed": true,
+    "externalWritesAllowed": false
+  },
+  "scope": {
+    "fixtures": ["positive_repeated_method", "insufficient_shared_method"],
+    "fullFactorial": false,
+    "automaticRepeats": 0,
+    "expandedOnlyFailedAxis": true,
+    "recordingCoordinator": true,
+    "productWiring": false,
+    "materializationCalls": 0,
+    "ledgerWrites": 0,
+    "memoryWrites": 0,
+    "principleWrites": 0,
+    "managedCapabilityChanges": 0,
+    "externalProductWrites": 0
+  },
+  "firstFixedAttempt": {
+    "sourceCommit": "f5604af147f6215f6372310283ffabbe6d353e68",
+    "providerRequests": 4,
+    "successfulResponses": 0,
+    "result": "FAILED_PROVIDER_TOOL_SCHEMA",
+    "failureFamily": "provider_incompatible_uniqueItems",
+    "runtimeSafetyPassed": true,
+    "writes": 0,
+    "tokenUsage": "unknown",
+    "requestPrivacyPassed": true
+  },
+  "providerCompatibilityRepair": {
+    "sourceCommit": "c2f11a422f64993248931f85a4951a170932d705",
+    "removedProviderKeyword": "uniqueItems",
+    "runtimeDuplicateRejectionPreserved": true,
+    "focusedTests": { "passed": 24, "failed": 0 }
+  },
+  "secondAttempt": {
+    "sourceCommit": "c2f11a422f64993248931f85a4951a170932d705",
+    "providerRequests": 4,
+    "successfulResponses": 4,
+    "knownTokens": 2162,
+    "positive": {
+      "gpt-5.6-terra": {
+        "action": "propose",
+        "structuralSlotsPassed": true,
+        "humanMeaningReviewPassed": true,
+        "hypothesisDigest": "2c4fe651e576e4a3bdd6d1047f165faec4350eff5bc80c504b3e371e7d99661e",
+        "tokens": 574
+      },
+      "gpt-5.5": {
+        "action": "propose",
+        "structuralSlotsPassed": true,
+        "humanMeaningReviewPassed": true,
+        "hypothesisDigest": "56828a062679a3bd8360a9c46740498f26dd150ed0a0d8585fab8d7869007df7",
+        "tokens": 581
+      },
+      "humanReviewOracle": {
+        "conditionalProcedureNotPersona": true,
+        "currentCorrectionPreserved": true,
+        "counterexamplePreserved": true,
+        "runtimeIdentityClaimed": false,
+        "publicationClaimed": false
+      }
+    },
+    "negative": {
+      "bothModelsSelectedAbstain": true,
+      "bothModelsViolatedEmptyAbstainEnvelope": true,
+      "runtimeRejected": true,
+      "recordingCalls": 0,
+      "runtimeSafetyPassed": true,
+      "modelFormatQualityPassed": false
+    }
+  },
+  "failedAxisRepair": {
+    "sourceCommit": "04c0a846fb1ab93dd0e279a24f7a2fa8bffe05a9",
+    "change": "State the existing empty abstain envelope contract in the model instructions and allow exact fixture-only rerun.",
+    "positiveRerun": false,
+    "negativeProviderRequests": 2,
+    "knownTokens": 851,
+    "gpt-5.6-terra": {
+      "action": "abstain",
+      "modelQualityPassed": true,
+      "runtimeSafetyPassed": true,
+      "costObservationPassed": true,
+      "tokens": 434
+    },
+    "gpt-5.5": {
+      "action": "abstain",
+      "modelQualityPassed": true,
+      "runtimeSafetyPassed": true,
+      "costObservationPassed": true,
+      "tokens": 417
+    }
+  },
+  "requestAndCredentialBoundary": {
+    "secretReferenceOnly": true,
+    "credentialStoreWrites": 0,
+    "oauthRefreshRequests": 0,
+    "inlineSecretsAccepted": false,
+    "providerAttemptsMaxPerJourney": 1,
+    "storeFalseObserved": true,
+    "authorizationHeaderObserved": true,
+    "expectedModelMatched": true,
+    "exactToolSchemaDigestMatched": true,
+    "wireAndContextBytesMatched": true,
+    "forbiddenRequestHits": 0,
+    "forbiddenModelOutputHits": 0,
+    "rawHeadersPersisted": false,
+    "rawRequestBodiesPersisted": false,
+    "providerRetentionNotClaimed": true
+  },
+  "resourceTruth": {
+    "totalProviderRequestsIncludingFailures": 10,
+    "successfulProviderResponses": 6,
+    "knownInputTokens": 2228,
+    "knownOutputTokens": 785,
+    "knownTotalTokens": 3013,
+    "failedAttemptTokenUsage": "unknown",
+    "totalTokenCompleteness": false,
+    "estimatedCostUsd": null,
+    "actualChargeReceiptObserved": false
+  },
+  "independentRedTeam": {
+    "finalP0": 0,
+    "focusedRunnerTests": { "passed": 13, "failed": 0 },
+    "qualitySafetyCostSeparated": true,
+    "humanMeaningReviewBeforePass": true,
+    "credentialEchoToEvidenceBlocked": true
+  },
+  "sourceDigests": {
+    "refoundation/scripts/run-s3m6-reflection-shadow-qualification.mjs": "ba227f91d7b160b4dc68ed50818fab70ef113002eb8150b427fee95edbdef222",
+    "refoundation/src/reflection-meaning-tool.js": "dfa9da2508bf689faba4f64f95cd97d0014713662bb6e2fc138e8ea5bcda3f9e",
+    "refoundation/test/s3m6-reflection-shadow-qualification.test.js": "af9ee53d8182d575eb7767e902f4da2a9336bed41ace747796b37365f01e61a5",
+    "refoundation/test/reflection-meaning-tool.test.js": "19f8243fa7f4d039f58a2c91a30ce0ab0fa35f543917f6bc509d3dfb30927737"
+  },
+  "notClaimed": [
+    "The Reflection reviewer is connected to the product or background scheduler",
+    "A Reflection was materialized or written to the durable ledger",
+    "A Principle was qualified or published",
+    "An internal Skill revision was activated",
+    "Provider retention is zero",
+    "The ten requests have a complete token or dollar charge total",
+    "S3-M6 PASS",
+    "the official Release Gate changed"
+  ],
+  "nextOneTask": "Create the human Reflection review surface over inactive durable candidates, with exact source and counterexample visibility, retain/reject actions, and no Principle publication."
+}
