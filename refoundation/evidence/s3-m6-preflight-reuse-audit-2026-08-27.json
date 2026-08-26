@@ -1,0 +1,147 @@
+{
+  "schema": "t5.s3-m6-preflight-reuse-audit.v1",
+  "stage": "S3-M6-PREFLIGHT",
+  "status": "PREPARED_GATE_CLOSED",
+  "observedAt": "2026-08-26T16:20:00.000Z",
+  "sourceCommit": "2fe6f2fe898d02d3f910c000811c1b7042713f1d",
+  "officialReleaseGateChanged": false,
+  "m6GateOpened": false,
+  "reasonGateClosed": "S3-M5-4 Windows GitHub runner has not started because GitHub Actions billing or spending-limit status blocks all hosted runners.",
+  "focusedVerification": {
+    "tests": 28,
+    "passed": 28,
+    "failed": 0,
+    "externalWrites": 0,
+    "actualModelsRerun": false
+  },
+  "reusableEvidence": [
+    {
+      "requirement": "distinct achieved Episode sources",
+      "state": "reusable",
+      "evidence": "learning source eligibility rejects unresolved, unverified, undelivered, incomplete, and effect-unknown Work"
+    },
+    {
+      "requirement": "proposal-only shadow",
+      "state": "reusable",
+      "evidence": "background reviewer creates at most one inactive candidate and has no external tools or active write"
+    },
+    {
+      "requirement": "counterexample and near-miss",
+      "state": "reusable",
+      "evidence": "trigger holdout and replay reject false positive, false negative, different-purpose, and faster-but-wrong candidates"
+    },
+    {
+      "requirement": "same evaluator baseline and candidate",
+      "state": "reusable",
+      "evidence": "paired evaluations bind each baseline and candidate Run to one exact evaluator receipt"
+    },
+    {
+      "requirement": "correctness and completeness no regression",
+      "state": "reusable",
+      "evidence": "qualification rejects any pair without both correctness and completeness"
+    },
+    {
+      "requirement": "independent field Work",
+      "state": "reusable",
+      "evidence": "field Work identity cannot equal a qualification source Work and must be achieved"
+    },
+    {
+      "requirement": "rollback",
+      "state": "reusable",
+      "evidence": "regression archives the exact active revision recoverably"
+    }
+  ],
+  "partialEvidence": [
+    {
+      "requirement": "exact source method and effect evidence",
+      "state": "partial",
+      "gap": "METHOD.json preserves bounded tool/action/template and source Run IDs, but no RecordRef source set or exact effect receipt genealogy is part of an M6 Reflection claim"
+    },
+    {
+      "requirement": "current correction preserved",
+      "state": "partial",
+      "gap": "comparison receives a userCorrectionPreserved boolean, but does not reopen current Memory correction sources or prove temporal precedence"
+    },
+    {
+      "requirement": "verified improvement",
+      "state": "partial",
+      "gap": "Pareto comparison covers duration, model turns, and tool outcomes; M6 still needs user correction or token advantage and product-purpose quality evidence"
+    },
+    {
+      "requirement": "background foreground noninterference",
+      "state": "partial",
+      "gap": "existing test proves foreground does not await reviewer, but lacks the S3-A matched background-off/on phase accounting and deterministic contention delta"
+    }
+  ],
+  "missingEvidence": [
+    {
+      "requirement": "Reflection shadow contract",
+      "state": "missing",
+      "firstAllowedWork": "define sourced, taint-preserving, inactive ReflectionCandidate and incident countertests only"
+    },
+    {
+      "requirement": "human review surface",
+      "state": "missing",
+      "firstAllowedWork": "show source, counterexample, uncertainty, and reject/retain without publishing a Principle"
+    },
+    {
+      "requirement": "Principle qualification",
+      "state": "missing",
+      "firstAllowedWork": "separate Principle revision from Memory and external Skill state"
+    },
+    {
+      "requirement": "stale background publication rejection",
+      "state": "missing",
+      "firstAllowedWork": "foreground correction and reviewer publication race with exact source generation fence"
+    },
+    {
+      "requirement": "bounded Reflection recall",
+      "state": "missing",
+      "firstAllowedWork": "no default Memory injection; only requested or qualified current-Work projection"
+    }
+  ],
+  "incompatibleExistingTarget": {
+    "state": "must_not_promote_as_m6",
+    "currentBehavior": "LearningCandidateStore stages a new managed SKILL.md and later activates it through the external capability lifecycle.",
+    "m6Requirement": "M6 Skill means an internal procedural revision only; external Skill, CLI, MCP, and Plugin acquisition belongs to S3-CA.",
+    "requiredSeparation": "Reuse Episode, replay, comparison, field, and rollback evidence machinery without installing or mutating an external capability."
+  },
+  "backgroundPerformanceRequirement": {
+    "portfolioJourney": "S7",
+    "requiredPair": "same foreground purpose with background_off versus background_on_fixed_workload",
+    "requiredPhases": [
+      "state read/replay",
+      "context compilation",
+      "provider queue/network",
+      "model generation",
+      "tool execution",
+      "verification",
+      "surface publication",
+      "background interference paired delta"
+    ],
+    "currentlySatisfied": false
+  },
+  "sourceDigests": {
+    "refoundation/src/learning-review.js": "36cd3241c907919d79827143915a0d84af4e6db895c8cd7ebe21dce052ec9139",
+    "refoundation/src/learning-candidate.js": "b6b7b16e1951ab7473467cead85b7599a29449bb208eb769a80b64c40d19f3aa",
+    "refoundation/src/learning-qualification.js": "9321939c7490b3f2f999067f5a87a22db6198351039770df34d2142025887f51",
+    "refoundation/src/learning-replay.js": "190f7d95703c3a4d186fc06a91a2091a5718adf1aaed522d3947de77871629a9",
+    "refoundation/src/learning-review-scheduler.js": "fac87d89f7f2fa784e306bce49fb11eff5710ba6b5adbcfdabc6065604aaa639",
+    "refoundation/test/learning-background-product.integration.js": "6f445294aa8f2a95fe26fd21dee8310c85aee0681bf7aa291c2406a0bda1450c",
+    "refoundation/test/learning-promotion-product.integration.js": "44e5ee4772de9cbc80388e7d3295a1b8337cac999d19b5ffbe8de584365f6b8f",
+    "refoundation/evidence/s2-e-learning-complete-2026-08-25.json": "4e0fd4c241d00ec4db46461cf55a58091cfcd0f8a9ff094c388031ff9d486401",
+    "refoundation/config/s3-memory-incidents.json": "a69355162d646792b2d2ba5d3bbbf5c61f01b394cfae7f81ccf48c997834194c",
+    "refoundation/config/s3-a-performance-truth-portfolio.json": "4d459fe2d914c2a106f23dd566e2535ce72f9b045f818bdc36a3d97aa5bcf7b3"
+  },
+  "productChanges": 0,
+  "notClaimed": [
+    "S3-M6 Gate opened",
+    "Reflection exists",
+    "Principle qualification exists",
+    "existing managed Skill activation is an M6 internal Skill",
+    "background interference PASS",
+    "S3-M5 complete",
+    "Life Continuity active in the official Release Gate"
+  ],
+  "nextOneTaskAfterUnblock": "Rerun exact Windows CI at the blocked M5 head. Only after M5 closes, open M6 Turn 1 with ReflectionCandidate contract and incident fixtures; product changes remain zero in that turn."
+}
