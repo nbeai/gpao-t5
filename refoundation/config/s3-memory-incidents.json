@@ -1,0 +1,160 @@
+{
+  "schema": "t5.s3m.memory-incidents.v1",
+  "status": "m0_locked_before_product_change",
+  "sourceCommit": "9c96d9fbc2db9e950ebc4cb73ff5653fa55d35fb",
+  "purpose": "Freeze Life Continuity failure families before RecordRef, temporal memory, forgetting, retrieval, Living Library, or reflection implementation.",
+  "privacy": {
+    "realUserData": false,
+    "realAccounts": false,
+    "rawSecrets": false,
+    "safeCanariesOnly": true,
+    "isolatedHomeDataWorkspace": true
+  },
+  "absoluteInvariants": [
+    "false durable memory = 0",
+    "unsourced inference promotion = 0",
+    "stale correction injection = 0",
+    "cross-person/work/channel leak = 0",
+    "secret raw memory = 0",
+    "deleted memory reuse = 0",
+    "persona fixation = 0",
+    "memory-based false completion = 0"
+  ],
+  "incidents": [
+    {
+      "id": "M0-01",
+      "family": "unsourced_inference_promotion",
+      "userFailure": "T5 stores a model-authored inference as if the current user message supported it.",
+      "fixture": "Foreground memory tool receives a safe fact absent from the source message.",
+      "oracle": "Durable fact write must require supporting RecordRef or remain a Reflection candidate.",
+      "expectedBaseline": "gap",
+      "ownerStage": "S3-M1/M2"
+    },
+    {
+      "id": "M0-02",
+      "family": "stale_current_correction",
+      "userFailure": "A stored preference is projected after the user corrects it in the current turn.",
+      "fixture": "Always-relevant old preference plus explicit current correction.",
+      "oracle": "Current correction wins; stale value is never presented as current truth.",
+      "expectedBaseline": "partial",
+      "ownerStage": "S3-M2/M4"
+    },
+    {
+      "id": "M0-03",
+      "family": "cross_work_revision_contamination",
+      "userFailure": "A completed or older Work decision enters another Work revision.",
+      "fixture": "Two work memories with the same workId and different revisions.",
+      "oracle": "Only exact current Work revision is projected.",
+      "expectedBaseline": "pass",
+      "ownerStage": "CURRENT_BASELINE"
+    },
+    {
+      "id": "M0-04",
+      "family": "same_name_person_merge",
+      "userFailure": "Two different people with the same display subject collapse into one current memory.",
+      "fixture": "Two user memories share a subject string but have different person evidence.",
+      "oracle": "Distinct verified person identities remain distinct; missing identity is unresolved.",
+      "expectedBaseline": "gap",
+      "ownerStage": "S3-M1/M2"
+    },
+    {
+      "id": "M0-05",
+      "family": "memory_absence_promoted_to_event_absence",
+      "userFailure": "An empty current Memory list is reported as proof that an earlier event never happened.",
+      "fixture": "No current Memory item but one settled Work Episode pointer.",
+      "oracle": "Episode remains discoverable through Conversation/Run pointers.",
+      "expectedBaseline": "pass",
+      "ownerStage": "CURRENT_BASELINE"
+    },
+    {
+      "id": "M0-06",
+      "family": "source_changed_without_digest_detection",
+      "userFailure": "Memory continues to cite a source after its exact content changed.",
+      "fixture": "Memory source pointer has identity but no content digest or coverage.",
+      "oracle": "Changed source is reported and current truth requires reopen.",
+      "expectedBaseline": "gap",
+      "ownerStage": "S3-M1"
+    },
+    {
+      "id": "M0-07",
+      "family": "checkpoint_exact_identifier_loss",
+      "userFailure": "Compaction removes an exact identifier needed to resume the current purpose.",
+      "fixture": "Checkpoint summary and tail carry a stable safe identifier.",
+      "oracle": "Identifier remains present without rewriting canonical messages.",
+      "expectedBaseline": "pass",
+      "ownerStage": "CURRENT_BASELINE"
+    },
+    {
+      "id": "M0-08",
+      "family": "embedding_unavailable_becomes_no_memory",
+      "userFailure": "A retrieval provider outage is answered as if no relevant memory exists.",
+      "fixture": "Semantic provider unavailable while exact and lexical sources remain.",
+      "oracle": "Provider outage, no result, and event absence remain distinct.",
+      "expectedBaseline": "not_open",
+      "ownerStage": "S3-M4"
+    },
+    {
+      "id": "M0-09",
+      "family": "external_content_memory_poisoning",
+      "userFailure": "Untrusted Web or attachment instructions become durable trusted memory.",
+      "fixture": "Safe external canary is offered to the foreground memory writer.",
+      "oracle": "External origin stays tainted and cannot become curated fact by prose or frequency.",
+      "expectedBaseline": "gap",
+      "ownerStage": "S3-M1/M2"
+    },
+    {
+      "id": "M0-10",
+      "family": "reflection_promoted_to_persona",
+      "userFailure": "A repeated observation becomes a durable statement about the user's identity.",
+      "fixture": "Multiple Episodes support only a provisional behavior hypothesis.",
+      "oracle": "Reflection remains reviewable and never becomes persona or fact automatically.",
+      "expectedBaseline": "not_open",
+      "ownerStage": "S3-M6"
+    },
+    {
+      "id": "M0-11",
+      "family": "forgetting_derived_residue",
+      "userFailure": "A removed memory remains in search, summary, view, index, or behavior.",
+      "fixture": "Remove one safe memory and inspect current store plus unopened future derived surfaces.",
+      "oracle": "Current store and every qualified derivative stop recalling or using the target.",
+      "expectedBaseline": "partial",
+      "ownerStage": "S3-M3"
+    },
+    {
+      "id": "M0-12",
+      "family": "background_reviewer_foreground_interference",
+      "userFailure": "Reflection or learning maintenance delays or overwrites current user work.",
+      "fixture": "Eligible background review overlaps a foreground user turn.",
+      "oracle": "Foreground completes first and stale background publication is rejected.",
+      "expectedBaseline": "pass",
+      "ownerStage": "CURRENT_BASELINE/S3-M6"
+    },
+    {
+      "id": "M0-13",
+      "family": "mac_windows_record_identity_drift",
+      "userFailure": "A record exported on macOS becomes a different or missing memory on Windows.",
+      "fixture": "Platform-neutral safe record manifest with path-independent identity.",
+      "oracle": "Source digest, revision, valid time, and current truth survive platform transfer.",
+      "expectedBaseline": "gap",
+      "ownerStage": "S3-M7"
+    },
+    {
+      "id": "M0-14",
+      "family": "private_memory_channel_leak",
+      "userFailure": "A personal private-session memory is automatically projected into another channel.",
+      "fixture": "Always-relevant user memory from one private channel and a foreign channel request.",
+      "oracle": "Channel and sender scope fail closed; foreign projection count is zero.",
+      "expectedBaseline": "gap",
+      "ownerStage": "S3-M2/M4"
+    },
+    {
+      "id": "M0-15",
+      "family": "secret_raw_memory_storage",
+      "userFailure": "A credential-like value is stored as ordinary durable memory and later projected.",
+      "fixture": "Non-secret credential-shaped canary passed to current MemoryLedger.",
+      "oracle": "Raw secret-shaped content is never stored; only qualified OS secret references are allowed.",
+      "expectedBaseline": "gap",
+      "ownerStage": "S3-M2/M3"
+    }
+  ]
+}

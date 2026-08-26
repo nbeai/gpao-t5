@@ -1,0 +1,186 @@
+{
+  "schema": "t5.s3m.m0-memory-constitution-evidence.v1",
+  "status": "PASS",
+  "sourceCommit": "9c96d9fbc2db9e950ebc4cb73ff5653fa55d35fb",
+  "recordedAt": "2026-08-26",
+  "officialReleaseGate": "SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER",
+  "officialReleaseGateChanged": false,
+  "stage": {
+    "completed": "S3-M0",
+    "next": "S3-M1_NOT_OPEN",
+    "productSourceChanged": false,
+    "newStoreOrRetrievalEngine": false
+  },
+  "productGoal": "Before changing durable memory, freeze the failures that would make a long-lived T5 confuse records, current truth, people, channels, secrets, forgetting, or completed work.",
+  "activation": {
+    "ownerDeclaredStart": true,
+    "terminalVerdict": "PASS WITH OBSERVATION",
+    "terminalCloseCommit": "9c96d9fbc2db9e950ebc4cb73ff5653fa55d35fb",
+    "terminalWindowsEvidence": "refoundation/evidence/s3-terminal-windows-github-qualification-2026-08-26.json",
+    "terminalWindowsEvidenceSha256": "0f1929a2cfee1cd4f00b58f3f0eec98133a46ec245853a466b68395258295345",
+    "acceptedNonBlockers": [
+      "physical Windows Terra and gpt-5.5 human UI journey",
+      "Windows sandbox-first qualification",
+      "Windows ARM64 physical execution",
+      "signed Windows installation package"
+    ]
+  },
+  "environment": {
+    "node": "v24.14.0",
+    "platform": "darwin",
+    "architecture": "arm64"
+  },
+  "preflight": {
+    "coreFirstAttempt": {
+      "total": 963,
+      "passed": 961,
+      "failed": 1,
+      "skipped": 1,
+      "failure": "known QH-3 temporary-directory ENOTEMPTY cleanup variation"
+    },
+    "qh3FocusedRerun": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "productIntegration": {
+      "total": 145,
+      "passed": 144,
+      "failed": 0,
+      "skipped": 1
+    },
+    "mutation": {
+      "total": 2,
+      "killed": 2
+    },
+    "productPatchForPreflight": false
+  },
+  "constitution": {
+    "incidentFamilies": 15,
+    "absoluteInvariants": [
+      "false durable memory = 0",
+      "unsourced inference promotion = 0",
+      "stale correction injection = 0",
+      "cross-person/work/channel leak = 0",
+      "secret raw memory = 0",
+      "deleted memory reuse = 0",
+      "persona fixation = 0",
+      "memory-based false completion = 0"
+    ],
+    "privacy": {
+      "realUserData": false,
+      "realAccounts": false,
+      "rawSecrets": false,
+      "safeCanariesOnly": true,
+      "isolatedHomeDataWorkspace": true
+    }
+  },
+  "baseline": {
+    "counts": {
+      "pass": 4,
+      "gap": 7,
+      "partial": 2,
+      "not_open": 2
+    },
+    "preservedCurrentStrengths": [
+      "exact Work revision isolation",
+      "Memory absence remains distinct from Episode absence",
+      "checkpoint preserves a required exact identifier",
+      "foreground publication is protected from stale background review"
+    ],
+    "gaps": [
+      "M0-01 unsourced model inference can be accepted by the foreground memory writer",
+      "M0-04 different people sharing one display subject collapse in current-user selection",
+      "M0-06 source identity lacks content digest and coverage needed to detect change",
+      "M0-09 external untrusted origin is not required or propagated",
+      "M0-13 no platform-neutral macOS-to-Windows memory identity contract exists",
+      "M0-14 always-relevant private memory can project across a foreign channel",
+      "M0-15 credential-shaped content can be stored and read as raw ordinary memory"
+    ],
+    "partial": [
+      "M0-02 current-request-wins instruction exists, but stale always-relevant memory is still projected",
+      "M0-11 current item removal works, but derived-index cleanup and post-forget behavior are unqualified"
+    ],
+    "notOpen": [
+      "M0-08 semantic retrieval outage behavior because no semantic provider is in the current core",
+      "M0-10 reflection-to-persona promotion because no reflection store or promotion path is open"
+    ]
+  },
+  "testsExecuted": [
+    {
+      "command": "node --check refoundation/test/helpers/s3m0-memory-incident-baseline.js",
+      "result": "PASS"
+    },
+    {
+      "command": "node --check refoundation/scripts/run-s3m0-memory-incident-baseline.mjs",
+      "result": "PASS"
+    },
+    {
+      "command": "node --test refoundation/test/s3m0-memory-constitution.test.js refoundation/test/s3m0-memory-incident-baseline.test.js",
+      "result": "4 passed · 0 failed"
+    },
+    {
+      "command": "node refoundation/scripts/run-s3m0-memory-incident-baseline.mjs",
+      "result": "15 incidents reproduced · PASS 4 · GAP 7 · PARTIAL 2 · NOT_OPEN 2"
+    },
+    {
+      "command": "node --test refoundation/test/s3m0-memory-constitution.test.js refoundation/test/s3m0-memory-incident-baseline.test.js refoundation/test/s3m0-memory-evidence.test.js",
+      "result": "6 passed · 0 failed"
+    },
+    {
+      "command": "npm run refoundation:check (restricted execution sandbox)",
+      "result": "UNQUALIFIED ENVIRONMENT · 920 passed · 40 failed · 1 skipped; loopback listen and macOS sandbox-exec were denied with EPERM, plus one resulting Node native assertion"
+    },
+    {
+      "command": "npm run refoundation:check (local loopback and macOS sandbox-exec enabled)",
+      "result": "967 passed · 1 failed · 1 skipped / 969; sole failure was the pre-existing QH-3 temporary-directory ENOTEMPTY cleanup variation"
+    },
+    {
+      "command": "node --test refoundation/test/qh3-projection-publication-isolation.test.js",
+      "result": "2 passed · 0 failed"
+    }
+  ],
+  "sourceDigests": {
+    "refoundation/src/memory-ledger.js": "6d8df58fd6d17881bd73dd7412a0e4446ada3f5791ca44c616070a8fb620f5ed",
+    "refoundation/src/memory-portfolio.js": "b5d47fbe1a1b7357110492fdf3d6560f827c3e1e63bbd7c9334767c235ef864b",
+    "refoundation/src/memory-tool.js": "70871bb45516c0380005735d25aaf7534187fdea10e273048e7fb3ed7973e06d",
+    "refoundation/src/conversation-ledger.js": "3261746e03e889807f1d071019d3028305b94c15fe4544ae90281e7175f0540b",
+    "refoundation/src/work-store.js": "155f83657e4e7fd53d1ae8af853a98a8463806f695cc0bc6d6850c6f1f1fb053",
+    "refoundation/src/learning-candidate.js": "b6b7b16e1951ab7473467cead85b7599a29449bb208eb769a80b64c40d19f3aa",
+    "refoundation/src/learning-qualification.js": "9321939c7490b3f2f999067f5a87a22db6198351039770df34d2142025887f51",
+    "refoundation/src/session-search-tool.js": "0989dab46e3691b8815d79b1588e391ae131a2bb6b751cf120b64ee557bdeafc"
+  },
+  "fixtureDigests": {
+    "refoundation/config/s3-memory-incidents.json": "a69355162d646792b2d2ba5d3bbbf5c61f01b394cfae7f81ccf48c997834194c",
+    "refoundation/test/helpers/s3m0-memory-incident-baseline.js": "13a5f5856a631003a2d44bb1822bbcd7121c3dde5fbe2ea37c61b4fd631363ff",
+    "refoundation/test/s3m0-memory-constitution.test.js": "8bbbf5a6c23bc861a32f0b889a6f7e526c352087024fe13dc3808ab541ce8ee8",
+    "refoundation/test/s3m0-memory-incident-baseline.test.js": "3c174daf0a83745dfe35cdd8226d3f0ae41517968271fdfbf874e466ee778cce",
+    "refoundation/scripts/run-s3m0-memory-incident-baseline.mjs": "5c0f3c1a0e627d303ba8478cfe4f5d9ccee46fd52b246110f1d50d5a1403acb3",
+    "docs/03-product-plan/T5-THIRD-COMPLETION-LIFE-CONTINUITY-IMPLEMENTATION-PLAN-2026-08-26-ko.md": "0fed74bbbfddf32b90532329d931e7a4e2e4b952ded7c71e145ebe32d2d69ada"
+  },
+  "governingDocumentDigests": {
+    "T5-PRODUCT.md": "1a5befb25d77bdaf513701843bd08477b6ea697b1d4255dda253957fb7697987",
+    "T5-SECOND-COMPLETION.md": "1c7ef84548b273304c14fc3438b38cd7d5d77bc1e04dbaee239e577bdd586bfd",
+    "T5-THIRD-ACTIVATION-PREPARATION.md": "3e64a93377f213306e2a58ceedf6130263543365109c6580f7045d4b8b6ef206"
+  },
+  "notExecuted": [
+    "RecordRef implementation or product wiring",
+    "MemoryClaim temporal or sensitivity implementation",
+    "forgetting cascade and behavior probe",
+    "FTS, vector, graph, semantic provider, or deep recall",
+    "Living Library projection",
+    "Reflection or Principle promotion",
+    "macOS-to-Windows memory transfer journey",
+    "Terra or gpt-5.5 Life Continuity model journey",
+    "LoCoMo or LongMemEval",
+    "S3-M8A time-compressed or S3-M8B real longitudinal journey"
+  ],
+  "notClaimed": [
+    "M0 gaps are fixed",
+    "Life Continuity is product-active",
+    "Windows Memory qualification is complete",
+    "physical Windows Terminal observations are closed",
+    "the official Release Gate changed"
+  ],
+  "nextOneTask": "After owner review, open S3-M1 contract tests for one additive RecordRef shadow over existing Conversation, Run, Work, Attachment, and Memory pointers; keep product wiring off until the contract and countertests are red for the intended reason."
+}
