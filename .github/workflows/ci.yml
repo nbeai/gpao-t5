@@ -15,8 +15,12 @@ jobs:
           node-version: '24'
       - name: Install pinned refoundation runtime dependencies
         run: npm ci --prefix refoundation
-      - name: Verify macOS product development lane
-        run: npm run refoundation:ci
+      - name: Verify macOS Core
+        run: npm run refoundation:check
+      - name: Verify macOS product integrations
+        run: npm run refoundation:integration
+      - name: Verify macOS mutation smoke
+        run: npm run refoundation:mutation
       - name: Guard committed build artifacts
         run: |
           if git ls-files | grep -E '(^|/)(dist|build|out|node_modules)/'; then
