@@ -44,7 +44,7 @@
     "clean full-model performance median beyond the completed paired user-goal qualification",
     "age or Session-lifecycle retention policy beyond compressed Run evidence",
     "authenticated CLI broker registrations beyond GitHub read operations",
-    "Windows and Linux secret confinement"
+    "Windows secret confinement through official Windows boundaries, GitHub Windows runners, and isolated Windows VM qualification"
   ],
   "sourceDigests": {
     "terminal-session-tool.js": "6a85ff10197a10a614f9ec9f06d9a07e259502ba204db44fec91ed75f17dc533",
@@ -61,6 +61,6 @@
     "console-surface.integration.js": "c66057f7af968e48b593b26b0eb77b764cccb11726d8cc3e5f8424d612531e75",
     "terminal-output-store.test.js": "20e6f5b5f7574cbea68bf11cf00b384bd7d1f730d98b32e105ddf325aaa661b7",
     "github-cli-broker.test.js": "53428f9c2210f2bc1c7f9582f873d76b3523643fb4f0dfd1409f7f6e70a9c082",
-    "terminal-platform-adapter.test.js": "82b789aa744530032e514271a173de77a6a1f75b42a079965f6e038e0d2585c8"
+    "terminal-platform-adapter.test.js": "d3fcd24915942e25d6d2c1c3fb6a5f1c1d740c212463eebaf9ce7a85b7ef4204"
   }
 }

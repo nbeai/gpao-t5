@@ -138,8 +138,9 @@ brokered CLI: 등록 action만 실행 · 내부 secret 사용 가능 · stdout/s
 root를 실행 전 `realpath`로 결속하고 결속 실패를 열린 실행으로 낮추지 않은 뒤 실제 표본이 통과했다.
 candidate 자격 뒤 `TerminalPlatformAdapter`를 제품에 연결해 macOS generic Terminal에서 T5 credential roots의
 직접 read와 `/usr/bin/security` 실행을 차단했다. 일반 파일·일반 CLI·PTY·process는 유지한다. 개인 `.ssh`와
-third-party CLI credential roots는 broker 없이 막지 않으며 Windows·Linux는 미자격 passthrough 사실을
-receipt에 남긴다. 따라서 전체 secret confinement나 registered authenticated CLI broker 완료가 아니다.
+third-party CLI credential roots는 broker 없이 막지 않는다. Windows는 아직 미자격 passthrough 사실을
+receipt에 남기며 GitHub Windows runner와 격리 Windows VM에서 별도로 자격한다. Linux는 제품 목표가 아니며
+비대상 passthrough 사실만 유지한다. 따라서 전체 secret confinement나 Windows 자격 완료가 아니다.
 근거: `refoundation/evidence/s3-t1b-secret-confinement-candidate-2026-08-26.json`,
 `refoundation/evidence/s3-t1b-product-confinement-2026-08-26.json`.
 

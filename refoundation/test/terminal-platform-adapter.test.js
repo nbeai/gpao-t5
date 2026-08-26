@@ -49,7 +49,7 @@ test('없는 optional root는 비밀이 있다고 꾸미지 않고 다른 canoni
   assert.match(launch.args[1], /\/real\/exists/u);
 });
 
-test('Windows·Linux adapter는 macOS profile을 복제하지 않고 미자격 사실을 밝힌다', async () => {
+test('Windows target과 non-target Linux adapter는 macOS profile을 복제하지 않고 미자격 사실을 밝힌다', async () => {
   for (const platform of ['win32', 'linux']) {
     const adapter = await makeTerminalPlatformAdapter({ platform });
     const launch = await adapter.prepare({ program: 'shell', args: ['arg'], cwd: '/tmp', env: {} });

@@ -50,7 +50,7 @@
     "cleanMedianClaimed": false
   },
   "notClaimed": [
-    "Windows or Linux sandbox-first",
+    "Windows sandbox-first through official Windows boundaries and isolated Windows qualification",
     "generic external-network CLI execution",
     "clean multi-sample speed improvement",
     "all operating-system effect classes"

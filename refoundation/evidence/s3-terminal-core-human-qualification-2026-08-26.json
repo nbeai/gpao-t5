@@ -48,7 +48,7 @@
   "notClaimed": [
     "clean full-model performance median",
     "GitHub account live qualification",
-    "Windows or Linux credential confinement",
+    "Windows credential confinement",
     "provider-native shell parity"
   ]
 }
