@@ -107,6 +107,28 @@ test('사용자는 자연어로 temporal claim을 기억·교정·확인·철회
     modelFactory: ({ sessionId }) => ({ async respond(input) {
       const count = phase.get(sessionId) ?? 0; phase.set(sessionId, count + 1);
       const request = input.messages.filter((message) => message.role === 'user').at(-1)?.content ?? '';
+      if (/내보내/u.test(request)) {
+        const exportedReceipt = input.messages.find((message) => message.role === 'tool'
+          && message.toolCallId === 'export');
+        if (exportedReceipt) {
+          const result = JSON.parse(exportedReceipt.content).result;
+          assert.equal(result.state, 'exported');
+          assert.equal(result.bundle.schema, 't5.memory-portable.v1');
+          return { text: `exported:${result.bundle.claims.length}`, toolCalls: [] };
+        }
+        const searchReceipt = input.messages.find((message) => message.role === 'tool'
+          && message.toolCallId === 'find-export');
+        if (searchReceipt) {
+          const result = JSON.parse(searchReceipt.content).result;
+          assert.deepEqual(result.activatedTools, ['memory_control']);
+          return { text: '', toolCalls: [{ id: 'export', name: 'memory_control', args: {
+            action: 'export', requestId: null, memoryId: null,
+          } }] };
+        }
+        return { text: '', toolCalls: [{ id: 'find-export', name: 'tool_search', args: {
+          query: 'portable JSON export restore',
+        } }] };
+      }
       const expectedCallId = /복원/u.test(request) ? 'restore'
         : /뭐라고/u.test(request) ? 'read'
         : /기억해/u.test(request) ? 'remember'
@@ -192,6 +214,9 @@ test('사용자는 자연어로 temporal claim을 기억·교정·확인·철회
     const restoredRecall = await session(base);
     assert.equal((await turn(base, restoredRecall.id, '내 커피 선호를 뭐라고 기억해?')).reply,
       'light roast');
+    const exportSession = await session(base);
+    const exportSurface = await turn(base, exportSession.id, '내 기억을 portable JSON으로 내보내.');
+    assert.equal(exportSurface.reply, 'exported:2', JSON.stringify(exportSurface));
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await rm(room, { recursive: true, force: true });
