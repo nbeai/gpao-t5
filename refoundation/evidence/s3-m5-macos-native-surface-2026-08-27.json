@@ -3,7 +3,8 @@
   "stage": "S3-M5-3",
   "status": "PASS_WITH_OBSERVATION",
   "observedAt": "2026-08-26T15:52:01.112Z",
-  "sourceCommit": "fdd406e716a266cbcaf14d69a2526f6d09379cc6",
+  "sourceCommit": "cc50cfd774439b7740512d6e3d0761a4538e23e5",
+  "sourceReboundReason": "M5-4 added only an explicit verificationKind receipt field to the shared platform-neutral reconciler; macOS qualification behavior and native helper bytes are unchanged.",
   "officialReleaseGateChanged": false,
   "productPlatforms": ["macos", "windows"],
   "linuxProductTarget": false,
@@ -84,7 +85,7 @@
     }
   },
   "sourceDigests": {
-    "refoundation/src/memory-platform-adapter.js": "0af7cfe6f7471eaef89b796a526c42b44acd86643ad9d2b3581596f335e4743d",
+    "refoundation/src/memory-platform-adapter.js": "052dc99afcb176bc26f549defa40ca021a441559de40c57b6471f048dd7a5033",
     "refoundation/src/macos-memory-platform-adapter.js": "3cf9e52f107eb970b7b9cf918ff6483938e41d1dadc91d7eabd059a05f556221",
     "refoundation/src/macos-spotlight-driver.js": "b3410b69cd4f493f65d9fcf63f01a66da0c93d69717ec78c1af34499e3e6af53",
     "refoundation/native/macos-memory-spotlight.swift": "df81bf1e77d4d409351dfadad60de5b63a6594ab1a316bc805b58f9a01c22329",

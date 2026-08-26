@@ -1,0 +1,70 @@
+{
+  "schema": "t5.s3-m5-windows-native-surface-evidence.v1",
+  "stage": "S3-M5-4",
+  "status": "BLOCKED_EXTERNAL_RUNNER",
+  "observedAt": "2026-08-26T16:08:18.000Z",
+  "sourceCommit": "cc50cfd774439b7740512d6e3d0761a4538e23e5",
+  "officialReleaseGateChanged": false,
+  "localStructural": {
+    "derivedFileProjection": "passed",
+    "unicodeAddUpdateDeleteRebuild": "passed",
+    "manifestCanonical": false,
+    "sensitiveAutoIndex": 0,
+    "symlinkRootRejected": true,
+    "explorerDirectArgv": "passed",
+    "tests": {
+      "passed": 4,
+      "failed": 0,
+      "windowsSkipped": 1
+    }
+  },
+  "github": {
+    "workflowRunId": 32986897058,
+    "workflowUrl": "https://github.com/nbeai/gpao-t5/actions/runs/32986897058",
+    "event": "workflow_dispatch",
+    "headSha": "cc50cfd774439b7740512d6e3d0761a4538e23e5",
+    "windowsJobId": 98235220550,
+    "runnerId": 0,
+    "stepsStarted": 0,
+    "conclusion": "failure",
+    "failureFamily": "account_billing_or_spending_limit",
+    "annotation": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings"
+  },
+  "qualificationBoundary": {
+    "derivedFileProjectionIsWindowsSearchPass": false,
+    "githubRunnerPassed": false,
+    "windowsSearchActualPassed": false,
+    "explorerHumanJourneyPassed": false,
+    "windowsVmPassed": false,
+    "billingChangedByDevelopmentSession": false
+  },
+  "productNonInterference": {
+    "wiredIntoNormalTurn": false,
+    "additionalModelCalls": 0,
+    "additionalProviderRequests": 0,
+    "additionalWindowsSearchCalls": 0
+  },
+  "sourceDigests": {
+    "refoundation/src/windows-search-projection-driver.js": "e1749ca2cc2a47906ef06f954665aee6f511317253ebe77e4406b967b5cda08f",
+    "refoundation/src/windows-memory-platform-adapter.js": "d903377387efee8ffa3d5ca4a2a58e2b37b69bbec39e73a9304b4023431cfef0",
+    "refoundation/src/memory-platform-adapter.js": "052dc99afcb176bc26f549defa40ca021a441559de40c57b6471f048dd7a5033",
+    "refoundation/test/windows-memory-platform.integration.js": "667553b5a657e971150c1baed3ef6102fa11af55aca203f0097c478cd8f95167",
+    ".github/workflows/ci.yml": "e329555e99780c658fd6a61d37f71bd0af5e9577e006c799537eeeff9dd84d10"
+  },
+  "officialSources": [
+    "https://learn.microsoft.com/en-us/windows/win32/search/-search-3x-wds-development-ovr",
+    "https://learn.microsoft.com/en-us/windows/win32/search/-search-3x-wds-notifyingofchanges",
+    "https://learn.microsoft.com/en-us/windows/win32/search/-search-3x-wds-mngidx-catalog-manager",
+    "https://learn.microsoft.com/en-us/windows/win32/shell/search-protocol"
+  ],
+  "notClaimed": [
+    "Windows GitHub runner PASS",
+    "Windows Search add update delete rebuild PASS",
+    "Explorer human journey PASS",
+    "Windows VM PASS",
+    "S3-M5 complete",
+    "S3-M6 opened",
+    "Life Continuity active in the official Release Gate"
+  ],
+  "nextOneTask": "After the owner resolves GitHub Actions billing or spending-limit status, rerun CI workflow 32986897058 at the same exact head SHA. Do not change product code or Gate meaning to bypass the runner."
+}

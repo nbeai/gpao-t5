@@ -29,7 +29,8 @@ test('M5-3 evidence는 제품 비개입과 qualification 비용을 섞지 않는
 });
 
 test('M5-3 evidence source digest는 exact source commit과 일치한다', async () => {
-  assert.equal(evidence.sourceCommit, 'fdd406e716a266cbcaf14d69a2526f6d09379cc6');
+  assert.equal(evidence.sourceCommit, 'cc50cfd774439b7740512d6e3d0761a4538e23e5');
+  assert.match(evidence.sourceReboundReason, /verificationKind/u);
   for (const [path, expected] of Object.entries(evidence.sourceDigests)) {
     const bytes = await readFile(new URL(`../../${path}`, import.meta.url));
     assert.equal(createHash('sha256').update(bytes).digest('hex'), expected, path);
