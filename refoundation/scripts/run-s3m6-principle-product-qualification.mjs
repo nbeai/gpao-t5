@@ -254,7 +254,9 @@ export async function runPrincipleProductQualification() {
     const expectedMethods = ['withStableWindow', 'loadReviewedReflections', 'loadCanonicalPair',
       'evaluateBlindPair', 'observeCurrentCorrection', 'searchNearMiss', 'searchCounterexamples',
       'observeSideEffects', 'loadCanonicalField', 'evaluateField'];
-    const result = { schema: 't5.s3m6.principle-product-qualification.v1',
+    const result = { schema: 't5.s3m6.principle-fixture-adapter-qualification.v1',
+      status: 'FIXTURE_BOUNDARY_PASS_PRODUCT_UNWIRED', productQualification: false,
+      fixtureDependencyBrands: true, actualWorkRunStores: false,
       state: fieldQualified.candidate.state, replayPairs: replay.evidence.pairs.length,
       nearMisses: replay.evidence.nearMiss ? 1 : 0,
       counterexamples: replay.evidence.counterexamples.length, independentField: true,

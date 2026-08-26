@@ -5,12 +5,14 @@ import test from 'node:test';
 import { runPrincipleProductQualification } from '../scripts/run-s3m6-principle-product-qualification.mjs';
 import { makePrincipleEvidenceProductAdapter } from '../src/principle-evidence-product-adapter.js';
 
-test('actual retained Reflection과 deterministic canonical runtime은 field_qualified까지 닫는다', async () => {
+test('actual retained Reflection과 fixture-bounded deterministic runtime은 field_qualified까지 닫는다', async () => {
   const result = await runPrincipleProductQualification();
   assert.equal(result.pass, true, JSON.stringify(result));
   assert.equal(result.state, 'field_qualified'); assert.equal(result.replayPairs, 2);
   assert.equal(result.nearMisses, 1); assert.equal(result.counterexamples, 1);
   assert.equal(result.actualReflectionLedger, true); assert.equal(result.retainedReviewReceipt, true);
+  assert.equal(result.status, 'FIXTURE_BOUNDARY_PASS_PRODUCT_UNWIRED');
+  assert.equal(result.productQualification, false); assert.equal(result.actualWorkRunStores, false);
   assert.equal(result.sourceWindowStableLock, true);
   assert.equal(result.seededOpaqueArmMappings, 2);
   assert.ok(Object.values(result.runtimeMethodCalls).every((count) => count > 0));
