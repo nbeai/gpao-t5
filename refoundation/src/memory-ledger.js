@@ -132,6 +132,26 @@ function projectTombstones(events) {
   return [...tombstones.values()];
 }
 
+function projectForgetOperations(events) {
+  const operations = new Map();
+  for (const event of events) {
+    if (event.type === 'memory_forget_prepared') {
+      operations.set(event.requestId, {
+        requestId: event.requestId, plan: clone(event.plan), recordRefs: clone(event.recordRefs),
+        settledTargets: [], recordedAt: event.recordedAt,
+      });
+    } else if (event.type === 'memory_forget_target_settled') {
+      const operation = operations.get(event.requestId);
+      if (operation && !operation.settledTargets.some((item) => item.id === event.targetHandle)) {
+        operation.settledTargets.push({
+          id: event.targetHandle, disposition: event.disposition, reason: event.reason ?? null,
+        });
+      }
+    }
+  }
+  return [...operations.values()];
+}
+
 export class MemoryLedger {
   constructor(directory, { maxEntryBytes = 2_000, maxActiveBytes = 16_000, maxItems = 100 } = {}) {
     if (!directory) throw new TypeError('memory ledger directory is required');
@@ -169,7 +189,7 @@ export class MemoryLedger {
   async read() {
     const events = parseEvents(await readFile(this.path, 'utf8'));
     return { events: clone(events), items: project(events), claims: projectClaims(events),
-      tombstones: projectTombstones(events) };
+      tombstones: projectTombstones(events), forgetOperations: projectForgetOperations(events) };
   }
 
   validateCapacity(items) {
