@@ -1,0 +1,39 @@
+{
+  "schema": "t5.s3ux.requalification-required.v1",
+  "recordedAt": "2026-08-27T08:45:00+09:00",
+  "status": "REQUALIFICATION_REQUIRED",
+  "supersedesVerdictAtCommit": "807a6502",
+  "releaseBlocker": true,
+  "failure": {
+    "family": "provider_strict_tool_schema_integration",
+    "cause": "rollbackOfToolCallId was added to shared Effect schema properties without being added to required",
+    "impact": "the complete product tool request could fail with provider 400 before ordinary model execution",
+    "missedBecause": [
+      "deterministic component tests did not submit the current complete tool list to a provider",
+      "S3-UX live model qualification was explicitly a synthetic language shadow, not product behavior"
+    ]
+  },
+  "repair": {
+    "commit": "c55eefc0",
+    "effectSchemaRequiredFixed": true,
+    "ptyEffectSchemaRequiredFixed": true,
+    "providerStrictClosedObjectCountertestAdded": true
+  },
+  "preservedEvidence": [
+    "Terminal Core",
+    "Memory temporal correction forgetting and source contracts",
+    "Reflection default-off safety boundary",
+    "Visual Deliverable Core",
+    "UX correction cancellation claim-release and state-restore structure",
+    "CH0 search and conversation reopen",
+    "human scenario system"
+  ],
+  "requiredBeforeRepass": [
+    "current complete tool list provider smoke on gpt-5.5 and gpt-5.6-terra",
+    "meaningful progress milestone",
+    "actual managed child-process cancellation",
+    "KHB-H01 end-to-end rerun"
+  ],
+  "newFeatureWorkPaused": ["S3-CH1", "S3-CH2", "S3-CH3", "S3-CA1", "S3-CA2", "S3-CA3", "S3-CA4"],
+  "officialReleaseGateChanged": false
+}

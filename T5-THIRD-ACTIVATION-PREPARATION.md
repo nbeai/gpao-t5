@@ -1,6 +1,6 @@
 # T5 3차 고도화 — 활성화 전 준비 정본
 
-상태: `S3A_PASS_WITH_OBSERVATION · S3_SCOPE_FROZEN · S3T_PASS_WITH_OBSERVATION · S3M_PASS_WITH_OBSERVATION · S3UX_PASS_WITH_OBSERVATION · S3CA_OWNER_OPENED_SEQUENCED · S3CH0_COMPLETE_CH1_ACTIVE · S3VD_CORE_PASS_WITH_OBSERVATION · OPTIMIZATION LOCKED`
+상태: `S3A_PASS_WITH_OBSERVATION · S3_SCOPE_FROZEN · S3T_PASS_WITH_OBSERVATION · S3M_PASS_WITH_OBSERVATION · S3UX_REQUALIFICATION_REQUIRED · S3CA_OWNER_OPENED_PAUSED · S3CH0_COMPLETE_CH1_PAUSED · S3VD_CORE_PASS_WITH_OBSERVATION · OPTIMIZATION LOCKED`
 
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER`
 
@@ -9,8 +9,12 @@
 `PASS WITH OBSERVATION`으로 닫았으며, Life Continuity는 commit `80dc0305`에서
 `PASS WITH OBSERVATION · default off`로 닫았다. 오너가 2026-08-27 개통한 S3-UX1→UX2→UX3→CH-0은
 commit `fbba29e7`과 evidence `s3-ux-live-qualification-2026-08-27.json`에서
-`PASS WITH OBSERVATION`으로 닫았다. 외부
-S3-A는 evidence `s3-a-performance-truth-close-2026-08-27.json`에서 `PASS WITH OBSERVATION`으로 닫았다.
+`PASS WITH OBSERVATION`으로 닫았으나, 공유 Effect strict schema의 required 누락이 전체 제품 provider 진입을
+막은 P0가 뒤늦게 확인되어 이 판정은 `s3-ux-requalification-required-2026-08-27.json`에 따라 철회했다.
+commit `c55eefc0`에서 schema 결함은 수리됐지만 full-tool provider smoke·meaningful milestone·managed child cancel·
+KHB-H01을 다시 통과하기 전에는 S3-UX를 완료로 부르지 않는다. 오너가 개통한 CH·CA는 유지하되 재자격 전
+신규 구현을 중단한다. S3-A는 evidence `s3-a-performance-truth-close-2026-08-27.json`에서
+`PASS WITH OBSERVATION`으로 닫았다.
 오너는 S3-CH와 S3-CA 구현을 함께 승인했지만 hot path를 동시에 열지 않으며, CH-1→2→3을 순차 자격한 뒤
 CA-1→2→3→4를 순차 자격한다. 2.0 설치본 실제 사용자가 확인한 장기 작업의 불안·
 교정·결과 전달·효과 사고 가족은 S3-UX 연구 입력과 기존 S3-A coverage에 비식별로 등록하되, 진행 중인 S3-M
@@ -28,8 +32,8 @@ collector를 얹지 않는다. 이 문서는 측정·반대시험·판정의 범
 
 ```text
 2차 Release Gate: 변경 없음
-3차 개발선: S3-A 완료 · S3-T 완료 · S3-M 완료(default off) · S3-UX/CH-0 완료 · S3-CH1 활성 · S3-CH2~3 순차 대기 · S3-CA 오너 개통/CH3 뒤 CA1 활성 예정 · S3-VD Core 완료 · S3-PW 대기
-현재 허용 작업: S3-CH1→2→3 exact 순차 구현·자격, 뒤이은 S3-CA1→2→3→4 exact 순차 구현·자격, 완료선 관측 입력 정리
+3차 개발선: S3-A 완료 · S3-T 완료 · S3-M 완료(default off) · S3-UX 재자격 · CH-0 완료 · S3-CH1~3 오너 개통/중단 · S3-CA 오너 개통/중단 · S3-VD Core 완료 · S3-PW 대기
+현재 허용 작업: S3-UX full-tool provider smoke·meaningful milestone·managed child cancel·KHB-H01 재자격과 그 P0/P1 최소 수리
 현재 금지 작업: 측정 결과를 전제한 구조 변경·성능 최적화, S3-UX/CA/VD 제품 hot path 선구현, UX/CH-0 전 CH-1 collector 선행, screen/audio/content capture, 여러 큰 개발선 동시 개통, 새 3차 개발선·기능 범위 추가
 ```
 
@@ -47,9 +51,9 @@ scope·evidence·판정을 유지한다.
 | S3-A | 실제 사용자 목적의 phase·critical path·observer effect | `PASS WITH OBSERVATION` · 완료 |
 | S3-T | 모델과 Terminal의 환경·process·PTY·출력 recall·플랫폼 실행 | `PASS WITH OBSERVATION` · 완료 |
 | S3-M | Life Continuity·Memory Stewardship·내부 Reflection/Principle/Skill | `PASS WITH OBSERVATION` · default off · 완료 evidence `80dc0305` |
-| S3-UX | Work Reality·교정/취소/복구·인간용 Receipt·Artifact/Effect 안심 | `PASS WITH OBSERVATION` · UX1→UX3·CH-0 완료 |
-| S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | 오너 개통 · CH-3 뒤 CA-1→4 순차 구현 대기 |
-| S3-CH | Local Computer History·과거 Work/파일/앱 provenance | CH-0 완료 · CH-1 활성 · CH-2→3 순차 대기 |
+| S3-UX | Work Reality·교정/취소/복구·인간용 Receipt·Artifact/Effect 안심 | `REQUALIFICATION REQUIRED` · 과거 PASS 철회 · schema 수리 완료 |
+| S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | 오너 개통 유지 · S3-UX 재자격까지 구현 중단 |
+| S3-CH | Local Computer History·과거 Work/파일/앱 provenance | CH-0 완료 · CH-1→3 오너 개통 유지 · S3-UX 재자격까지 구현 중단 |
 | S3-PW | Windows installer·app shell·공통 제품 자격 | 대기 |
 | S3-VD | Visual Deliverable Core·출력 표면 선택·렌더 관측·교정·브랜드 파라미터 | Core `PASS WITH OBSERVATION` · Windows/편집형 PPTX/브랜드 인간 패널은 PW·HQ 자격 대기 |
 | S3-WA | Whole-product Wiring Audit·3차 부품의 실제 제품 배선·단일 진실·복구 경계 | 3차 기술 개발 완료 뒤 읽기 전용 감사 대기 |
