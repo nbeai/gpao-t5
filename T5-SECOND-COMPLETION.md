@@ -18,7 +18,7 @@
   공개 metadata와 secret reference만 남긴다. 검증 실패는 기존 파일을 먼저 지우지 않는다.
 - WorkStore는 resident event·projection을 재사용하고 다른 writer의 append는 file size 경계에서 다시
   읽는다. ResourceLedger의 기존 resident cache와 함께 한 프로세스의 반복 전체 replay를 제거했다.
-- 현재 제품 CI는 core 888/888, product integration 142/142, 핵심 mutation 2/2 killed다. 가시
+- 현재 제품 CI는 core 889/889, product integration 142/142, 핵심 mutation 2/2 killed다. 가시
   Browser-live와 실제 개인 계정·외부 쓰기는 실행하지 않았다.
 - 0.2.1 universal unsigned package의 isolated payload·Node·console·로컬 보안·legacy root 0 검증은
   통과했다. 현재 Keychain에 Developer ID private identity가 없어 서명·공증·staple은 수행하지 않았으며,

@@ -21,7 +21,7 @@
     "resourceResidentCachePreserved": true
   },
   "qualification": {
-    "core": { "passed": 888, "failed": 0 },
+    "core": { "passed": 889, "failed": 0 },
     "productIntegration": { "passed": 142, "failed": 0 },
     "mutation": { "killed": 2, "survived": 0 },
     "visibleBrowserLiveExecuted": false,
