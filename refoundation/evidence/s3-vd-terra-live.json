@@ -1,0 +1,90 @@
+{
+  "schema": "t5.s3.visual-deliverable-actual-model.v1",
+  "observedAt": "2026-08-26T19:11:22.651Z",
+  "sourceCommit": "dbd240ce4bdace0bb67cf890cd0431e415ab50be",
+  "runtimeDirty": false,
+  "runtimeDigest": "ddecf9dbffc2da7fa29e99bdbf3aa66d0ea0d6ac49a913a83bfa0761a6d64ece",
+  "model": {
+    "provider": "openai",
+    "modelId": "gpt-5.6-terra"
+  },
+  "requestPurpose": "Create one Korean visual operations report from exact synthetic facts, render-inspect it, and register the verified HTML output.",
+  "durationMs": 38281,
+  "status": "completed",
+  "modelTurns": 8,
+  "modelCalls": 8,
+  "finalDesignState": "qualified",
+  "finalDesignUnmeasured": [],
+  "toolCalls": [
+    {
+      "name": "skill",
+      "action": "view",
+      "outcome": "succeeded",
+      "designState": null,
+      "filePath": null,
+      "reason": null
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "succeeded",
+      "designState": null,
+      "filePath": null,
+      "reason": null
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "succeeded",
+      "designState": null,
+      "filePath": null,
+      "reason": null
+    },
+    {
+      "name": "attachment",
+      "action": "inspect",
+      "outcome": "succeeded",
+      "designState": "failed",
+      "filePath": "운영현황.html",
+      "reason": null
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "succeeded",
+      "designState": null,
+      "filePath": null,
+      "reason": null
+    },
+    {
+      "name": "attachment",
+      "action": "inspect",
+      "outcome": "succeeded",
+      "designState": "qualified",
+      "filePath": "운영현황.html",
+      "reason": null
+    },
+    {
+      "name": "attachment",
+      "action": "register_output",
+      "outcome": "succeeded",
+      "designState": null,
+      "filePath": "운영현황.html",
+      "reason": null
+    }
+  ],
+  "checks": {
+    "agentCompleted": true,
+    "exactFacts": true,
+    "noRawSourceKeysVisible": true,
+    "noExternalOrActiveContent": true,
+    "visualSkillUsed": true,
+    "visualInspectionUsed": true,
+    "finalDesignReceiptNotFailed": true,
+    "renderedPixelsSupplied": true,
+    "registeredOutput": true
+  },
+  "error": null,
+  "passed": true,
+  "candidatePassedIgnoringDirtySource": true
+}

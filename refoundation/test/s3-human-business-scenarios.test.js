@@ -268,6 +268,9 @@ test('3차 핵심 정본은 기술 완료 뒤 내부 두 wave와 외부 테스�
   assert.match(third,
     /S3-A·T·M·UX·CA·CH·VD·PW와 종료 Gate인 S3-WA·HQ까지만[\s\S]*3차를 완료하고 종료한다/u);
   assert.match(third, /AND S3-VD Visual Deliverable Core/u);
+  assert.match(third, /S3VD_CORE_PASS_WITH_OBSERVATION/u);
+  assert.match(third,
+    /Windows WebView2 또는 동등 native renderer actual[\s\S]*editable PPTX[\s\S]*user-approved brand parameter/u);
   assert.match(third,
     /화면 보고서·대시보드·온보딩·고정 인포그래픽[\s\S]*편집 가능한 발표자료/u);
   assert.match(third, /Runtime은 업종·문구·색 이름·template keyword로 디자인을 선택하지 않는다/u);

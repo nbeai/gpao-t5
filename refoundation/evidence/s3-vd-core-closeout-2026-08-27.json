@@ -1,0 +1,57 @@
+{
+  "schema": "t5.s3.visual-deliverable-core-closeout.v1",
+  "status": "PASS_WITH_OBSERVATION",
+  "implementationCommit": "1948f6241c5e5fe2c097e1d5df9fc508f1fa846b",
+  "latestQualificationCommit": "dbd240ce4bdace0bb67cf890cd0431e415ab50be",
+  "qualified": {
+    "htmlSourceSafety": true,
+    "svgParagraphFailureDetected": true,
+    "macosWebkitActualCompileAndRender": true,
+    "domGeometryReceipt": true,
+    "fontAndContrastFacts": true,
+    "complexBackgroundContrastCanRemainUnmeasured": true,
+    "attachmentInspectReturnsDesignReceiptAndPixels": true,
+    "visualSkillIsBundledDefault": true,
+    "sourceFieldKeysTranslatedForUserSurface": true,
+    "modelRepairLoopUsesActualRender": true,
+    "artifactRegistrationAfterObservation": true
+  },
+  "actualModels": [
+    {
+      "modelId": "gpt-5.5",
+      "sourceCommit": "781a8b14416682c7d6b60326bca39083a3b3470b",
+      "durationMs": 110201,
+      "finalDesignState": "unmeasured",
+      "unmeasured": ["text_contrast_on_complex_background"],
+      "allRequiredChecksPassed": true
+    },
+    {
+      "modelId": "gpt-5.6-terra",
+      "sourceCommit": "dbd240ce4bdace0bb67cf890cd0431e415ab50be",
+      "durationMs": 38281,
+      "finalDesignState": "qualified",
+      "unmeasured": [],
+      "allRequiredChecksPassed": true
+    }
+  ],
+  "unfavorableAttempts": [
+    "Runner omitted the platform Keychain owner and stopped before provider work.",
+    "Runner used a non-UUID Attachment owner, so render repair succeeded but publication could not settle.",
+    "A visually usable early model sample exposed raw source field keys; the general user-language Skill contract and qualification oracle were strengthened.",
+    "An exact clean run preserved gradient contrast as unmeasured rather than inventing a pass."
+  ],
+  "notClaimed": [
+    "Windows HTML renderer actual PASS",
+    "editable PPTX visual qualification",
+    "brand Memory source and human panel PASS",
+    "all complex-background contrast automatically qualified",
+    "S3-HQ or third-completion PASS"
+  ],
+  "boundaries": {
+    "realUserData": false,
+    "realAccountData": false,
+    "externalNetworkFromArtifact": false,
+    "externalWrites": false,
+    "visibleBrowser": false
+  }
+}

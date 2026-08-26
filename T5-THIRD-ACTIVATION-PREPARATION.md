@@ -1,6 +1,6 @@
 # T5 3차 고도화 — 활성화 전 준비 정본
 
-상태: `OWNER_ACTIVATED_S3A · S3_SCOPE_FROZEN · S3T_PASS_WITH_OBSERVATION · S3M_ACTIVE_UNTOUCHED · S3UX_REGISTERED · S3CA_REGISTERED_IMPLEMENTATION_LOCKED · S3CH0_3_PLANNED_SEQUENCED · S3VD_REGISTERED_IMPLEMENTATION_LOCKED · OPTIMIZATION LOCKED`
+상태: `OWNER_ACTIVATED_S3A · S3_SCOPE_FROZEN · S3T_PASS_WITH_OBSERVATION · S3M_ACTIVE_UNTOUCHED · S3UX_REGISTERED · S3CA_REGISTERED_IMPLEMENTATION_LOCKED · S3CH0_3_PLANNED_SEQUENCED · S3VD_CORE_PASS_WITH_OBSERVATION · OPTIMIZATION LOCKED`
 
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER`
 
@@ -47,7 +47,7 @@ scope·evidence·판정을 유지한다.
 | S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | 연구 승인 · 제품 구현 잠금 |
 | S3-CH | Local Computer History·과거 Work/파일/앱 provenance | CH-0은 S3-UX 소유 · CH-1→2→3 후속 순서 확정/현재 미착수 |
 | S3-PW | Windows installer·app shell·공통 제품 자격 | 대기 |
-| S3-VD | Visual Deliverable Core·출력 표면 선택·렌더 관측·교정·브랜드 파라미터 | 연구 승인 · 현재 개발선 종료와 오너 개통 전 구현 잠금 |
+| S3-VD | Visual Deliverable Core·출력 표면 선택·렌더 관측·교정·브랜드 파라미터 | Core `PASS WITH OBSERVATION` · Windows/편집형 PPTX/브랜드 인간 패널은 PW·HQ 자격 대기 |
 | S3-WA | Whole-product Wiring Audit·3차 부품의 실제 제품 배선·단일 진실·복구 경계 | 3차 기술 개발 완료 뒤 읽기 전용 감사 대기 |
 | S3-HQ | 한국 사업자 Human Reality Qualification·외부 테스터 전 내부 인간 자격 | 실행 체계 완료 · 3차 기술 개발 완료 뒤 실행 대기 |
 
@@ -1018,6 +1018,26 @@ S3-VD 등록은 현재 S3-M·S3-UX·S3-CA hot path 병행 개통을 뜻하지 �
 positive control 하나의 목적·종료점·비목표를 고정하고, 비교군 source가 막는 실패를 T5 반대시험으로 먼저
 옮긴다. SVG·Satori·Typst·font의 공식 계약과 현재 T5의 renderer·Artifact·QualityReceipt를 근거로 사용하며,
 Gamma·Tome의 시장 성과나 조건이 불명확한 benchmark 숫자는 제품 계약의 증거로 사용하지 않는다.
+
+### 현재 Core 정산 — 2026-08-27
+
+기존 Attachment `inspect`가 current-Run HTML·SVG를 실제 PNG로 렌더하고 factual DesignReceipt와 pixels를
+모델에 공급하도록 연결했다. macOS helper는 local-only WKWebView·OCR에 DOM geometry·declared block overlap·
+overflow·font·contrast·alt/caption 관측을 추가했고, gradient·투명 배경의 대비는 합격으로 꾸미지 않고
+`unmeasured`로 남긴다. 기본 `visual-deliverables` Skill은 지면/도형/편집형 surface 선택, 내부 source key의
+사용자 언어 변환, render-inspect-repair-register 절차를 공급한다.
+
+격리된 같은 한국어 운영 현황 과업에서 gpt-5.5와 gpt-5.6-terra가 source fact 보존·내부 field key 0·외부
+network/script 0·Skill view·render inspect·실제 pixels·최종 DesignReceipt non-failed·output registration을 모두
+통과했다. 첫 실제 표본에서 runner의 Keychain owner·상대경로·UUID 결속 결함과 사용자 화면의 raw field key를
+발견해 제품/runner 원리로 교정했으며 실패 기록을 성공으로 덮어쓰지 않는다.
+
+다음은 S3-VD Core 완료로 주장하지 않고 S3-PW·S3-HQ의 최종 자격으로 남긴다.
+
+- Windows WebView2 또는 동등 native renderer actual
+- editable PPTX 전체 slide·font·overflow actual
+- user-approved brand parameter의 실제 Memory source·인간 패널 A/B
+- gradient·image·alpha가 섞인 모든 색 대비의 자동 qualified 판정
 
 구현 전 다시 확인할 직접 source:
 
