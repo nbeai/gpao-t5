@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { windowsJobHostLaunch } from './windows-process-boundary.js';
 
 const DEFAULT_OUTPUT_LIMIT = 64_000;
 const DEFAULT_SPOOL_LIMIT = 1024 * 1024;
@@ -63,6 +64,7 @@ export class ManagedProcessRegistry {
     spoolLimit = DEFAULT_SPOOL_LIMIT,
     stopGraceMs = 1000,
     killGraceMs = 2000,
+    windowsJobHost = process.env.T5_WINDOWS_JOB_HOST ?? null,
   } = {}) {
     this.platform = platform;
     this.spawnProcess = spawnProcess;
@@ -70,6 +72,7 @@ export class ManagedProcessRegistry {
     this.spoolLimit = spoolLimit;
     this.stopGraceMs = stopGraceMs;
     this.killGraceMs = killGraceMs;
+    this.windowsJobHost = windowsJobHost;
     this.records = new Map();
     this.terminalListeners = new Set();
   }
@@ -104,6 +107,7 @@ export class ManagedProcessRegistry {
       ...(record.stopReason ? { stopReason: record.stopReason } : {}),
       ...(record.state === 'stopped' ? { terminationConfirmed: true } : {}),
       ...(record.state === 'stop_requested' ? { terminationConfirmed: false } : {}),
+      ...(record.processBoundary ? { processBoundary: structuredClone(record.processBoundary) } : {}),
     };
   }
 
@@ -145,8 +149,15 @@ export class ManagedProcessRegistry {
     spoolLimit = this.spoolLimit, metadata = {},
   }) {
     if (!program || !cwd || !ownerId) throw new TypeError('program, cwd, and ownerId are required');
+    if (this.platform === 'win32' && !this.windowsJobHost) {
+      throw Object.assign(new Error('Windows Job Object host is required'), {
+        code: 'T5_WINDOWS_JOB_HOST_REQUIRED',
+      });
+    }
     const id = randomUUID();
-    const child = this.spawnProcess(program, args, {
+    const hosted = this.platform === 'win32' && this.windowsJobHost
+      ? windowsJobHostLaunch({ host: this.windowsJobHost, program, args, cwd }) : null;
+    const child = this.spawnProcess(hosted?.program ?? program, hosted?.args ?? args, {
       cwd,
       env,
       detached: this.platform !== 'win32',
@@ -155,6 +166,8 @@ export class ManagedProcessRegistry {
     const record = {
       id, ownerId, child, command, cwd,
       metadata: structuredClone(metadata), terminalObserved: false, wakeClaimed: false,
+      processBoundary: hosted?.boundary ?? (this.platform === 'win32'
+        ? { kind: 'windows_process_tree_unqualified', qualified: false } : null),
       state: 'running', exitCode: null, signal: null, error: null,
       stopReason: null, startedAt: new Date().toISOString(), startedAtMs: Date.now(), endedAt: null, endedAtMs: null,
       stdout: new OutputSpool(spoolLimit),
@@ -272,12 +285,11 @@ export class ManagedProcessRegistry {
       return;
     }
     if (this.platform === 'win32') {
-      const force = signal === 'SIGKILL' ? ['/F'] : [];
-      const killer = this.spawnProcess('taskkill.exe', ['/PID', String(record.child.pid), '/T', ...force], {
-        stdio: 'ignore', detached: false,
-      });
-      killer.unref?.();
-      return;
+      if (record.processBoundary?.kind === 'windows_job_object') {
+        try { record.child.kill(); } catch (error) { if (error?.code !== 'ESRCH') throw error; }
+        return;
+      }
+      throw new Error('unqualified Windows process tree cannot be terminated');
     }
     try { process.kill(-record.child.pid, signal); }
     catch (error) { if (error?.code !== 'ESRCH') throw error; }

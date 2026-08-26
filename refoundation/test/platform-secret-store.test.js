@@ -31,8 +31,8 @@ test('macOS Keychain adapter는 비밀을 argv에 넣지 않고 stdin으로 저�
   assert.equal(await store.get('notion'), null);
 });
 
-test('아직 안전한 OS 자격 저장소가 없는 플랫폼은 파일 평문으로 조용히 낮추지 않는다', () => {
-  assert.throws(() => makePlatformSecretStore({ platform: 'win32' }), /secure credential store/u);
+test('비대상 Linux는 파일 평문 자격 저장소로 조용히 낮추지 않는다', () => {
+  assert.throws(() => makePlatformSecretStore({ platform: 'linux' }), /secure credential store/u);
 });
 
 test('macOS security 저장은 비밀을 argv에 넣지 않고 bounded Keychain 조각과 manifest를 사용한다', async () => {

@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import pty from 'node-pty';
+import { makeWindowsDpapiSecretStore } from './windows-dpapi-secret-store.js';
 
 const KEYCHAIN_SERVICE = 'kr.co.gpao.t5.workspace';
 
@@ -144,8 +145,9 @@ function safeName(value) {
 }
 
 export function makePlatformSecretStore({
-  platform = process.platform, run = runSecurity, writeSecret = null,
+  platform = process.platform, run = runSecurity, writeSecret = null, windows = {},
 } = {}) {
+  if (platform === 'win32') return makeWindowsDpapiSecretStore(windows);
   if (platform !== 'darwin') throw new Error('secure credential store is not implemented for this platform');
   return {
     async get(name) {

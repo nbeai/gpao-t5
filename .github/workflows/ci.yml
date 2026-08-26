@@ -17,6 +17,44 @@ jobs:
       - name: Verify refoundation development lane
         run: npm run refoundation:ci
 
+  windows-terminal:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install pinned Terminal runtime dependencies
+        run: npm ci --prefix refoundation
+      - name: Build Windows Job Object host
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $install = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $install) { throw "Visual C++ toolchain not found" }
+          $vcvars = Join-Path $install "VC\Auxiliary\Build\vcvars64.bat"
+          $outDir = Join-Path $env:GITHUB_WORKSPACE ".ci\windows"
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+          $source = Join-Path $env:GITHUB_WORKSPACE "refoundation\native\windows\t5-windows-job-host.c"
+          $output = Join-Path $outDir "t5-windows-job-host.exe"
+          $compile = "`"$vcvars`" && cl.exe /nologo /W4 /WX /O2 /utf-8 /Fe:`"$output`" `"$source`""
+          & "$env:SystemRoot\System32\cmd.exe" /d /s /c $compile
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $output)) { throw "Windows Job Object host build failed" }
+          $vcvarsArm64 = Join-Path $install "VC\Auxiliary\Build\vcvarsamd64_arm64.bat"
+          $arm64 = Join-Path $outDir "t5-windows-job-host-arm64.exe"
+          $compileArm64 = "`"$vcvarsArm64`" && cl.exe /nologo /W4 /WX /O2 /utf-8 /Fe:`"$arm64`" `"$source`""
+          & "$env:SystemRoot\System32\cmd.exe" /d /s /c $compileArm64
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $arm64)) { throw "Windows ARM64 Job Object host build failed" }
+          "T5_WINDOWS_JOB_HOST=$output" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Qualify native Windows Terminal boundaries
+        shell: pwsh
+        run: node --test refoundation/test/windows-process-boundary.test.js refoundation/test/windows-dpapi-secret-store.test.js refoundation/test/terminal-windows.integration.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: t5-windows-terminal-hosts
+          path: .ci/windows/*.exe
+
   test:
     runs-on: ubuntu-latest
     steps:

@@ -1,0 +1,48 @@
+{
+  "schema": "t5.s3.terminal-windows-qualification.v1",
+  "status": "github_windows_candidate_not_yet_qualified",
+  "targetPlatforms": ["darwin", "win32"],
+  "nonTargetPlatforms": ["linux"],
+  "wsl2": {"productRuntime": false, "referenceFailuresOnly": true},
+  "validatedPrinciples": [
+    "PowerShell uses -NoProfile -NonInteractive and cmd uses /d /s /c",
+    "a child is created suspended, assigned to a Job Object, then resumed",
+    "JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE owns the whole child tree",
+    "absence of the release-built Job host fails before execution and never falls back to taskkill /T",
+    "ConPTY input resize exit and tree kill use the pinned node-pty Windows implementation",
+    "model and messenger secrets use DPAPI CurrentUser and ciphertext-only files",
+    "sandbox-first remains unavailable until an official Windows isolation host is qualified"
+  ],
+  "sourceFailures": [
+    "OpenClaw Windows taskkill /T can kill the restart caller inside the target process tree",
+    "terminating one Windows process does not terminate its children",
+    "PowerShell profiles and PATH shadowing can change commands before T5 observes them",
+    "WSL2 crosses filesystem identity device and Windows process boundaries"
+  ],
+  "githubWindowsRunner": {
+    "runtime": "windows-latest",
+    "node": 24,
+    "required": [
+      "x64 Job host compiles with MSVC /W4 /WX",
+      "ARM64 Job host cross-compiles",
+      "PowerShell foreground output",
+      "Job Object grandchild cancellation and late-effect zero",
+      "ConPTY input and terminal exit",
+      "DPAPI set get restart clear and plaintext-on-disk zero"
+    ]
+  },
+  "isolatedWindowsVm": {
+    "requiredBeforeHumanProductPass": [
+      "installed T5 resolves the signed or release-built architecture-matched Job host",
+      "Terra and gpt-5.5 complete bulk managed TTY and cancel journeys",
+      "visible Browser zero",
+      "credential plaintext zero",
+      "unsettled child process zero"
+    ]
+  },
+  "completion": {
+    "githubRunnerPass": false,
+    "isolatedVmPass": false,
+    "windowsComplete": false
+  }
+}
