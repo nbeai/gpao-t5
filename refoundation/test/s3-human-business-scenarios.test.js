@@ -94,6 +94,8 @@ test('라이브 launcher는 실제 연결을 mock하지 않고 인간 통제·�
   assert.match(launcher, /browserAutomationLoaded: false/u);
   assert.match(launcher, /legacy raw secret field/u);
   assert.match(launcher, /protectedReadRoots/u);
+  assert.match(launcher, /process\.platform === 'darwin'[\s\S]*process\.platform === 'win32'/u);
+  assert.match(launcher, /cmd\.exe[\s\S]*start/u);
   assert.doesNotMatch(launcher, /makeNotionMcpConnection|makeSlackMcpConnection|makeChannelTalkConnection/u);
 });
 

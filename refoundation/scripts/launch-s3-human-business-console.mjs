@@ -194,8 +194,14 @@ if (scenario.testerInterventions?.length) {
 console.log('\n종료 후 요약 명령');
 console.log(`npm run refoundation:summarize:business-human -- --room ${JSON.stringify(root)}`);
 
-if (!process.argv.includes('--no-open') && process.platform === 'darwin') {
-  spawn('open', [url], { stdio: 'ignore', detached: true }).unref();
+if (!process.argv.includes('--no-open')) {
+  if (process.platform === 'darwin') {
+    spawn('open', [url], { stdio: 'ignore', detached: true }).unref();
+  } else if (process.platform === 'win32') {
+    spawn('cmd.exe', ['/d', '/s', '/c', 'start', '', url], {
+      stdio: 'ignore', detached: true, windowsHide: true,
+    }).unref();
+  }
 }
 
 let stopping = false;
