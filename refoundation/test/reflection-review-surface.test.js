@@ -162,6 +162,7 @@ test('source projection은 sanitized reopen만 받고 changed·missing이면 con
     const projected = projectReflectionReviewSource(entry, { sourceHandle,
       reopened: { state, content: '절대 보여주지 않음' } });
     assert.equal(projected.content, null); assert.notEqual(projected.state, 'available');
+    assert.equal(projected.state, state);
   }
   assert.throws(() => projectReflectionReviewSource(entry, { sourceHandle: 'source_foreign',
     reopened: { state: 'reopened', content: 'x' } }), /not available/u);

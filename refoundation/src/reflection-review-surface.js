@@ -216,6 +216,7 @@ function reopenedState(state) {
   if (state === 'changed') return { code: 'changed', label: '기록 뒤 원본이 바뀌었어요.' };
   if (state === 'missing') return { code: 'missing', label: '원본을 찾을 수 없어요.' };
   if (state === 'permission_denied') return { code: 'permission_denied', label: '현재 권한으로 열 수 없어요.' };
+  if (state === 'unknown') return { code: 'unknown', label: '현재 원본 상태를 알 수 없어요.' };
   return { code: 'unavailable', label: '지금 원본을 열 수 없어요.' };
 }
 
