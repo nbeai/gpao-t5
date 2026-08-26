@@ -1,0 +1,41 @@
+{
+  "schema": "t5.release-isolation-hardening.v1",
+  "recordedAt": "2026-08-26T13:34:15+09:00",
+  "version": "0.2.1",
+  "sourceCommit": "83fe8863d08046d1a26160280ff14323b954b005",
+  "legacyArchive": {
+    "path": "/Users/jyp/Developer/t5-legacy-archive",
+    "commit": "5f3c5cec11f223cfe25bc876c5c8fa99fc00ae23",
+    "activeRepositoryRootsPresent": 0,
+    "packagedRootsPresent": 0
+  },
+  "secrets": {
+    "modelCredentialTarget": "macOS Keychain",
+    "plaintextMigrationVerified": true,
+    "migrationFailurePreservesPriorFile": true
+  },
+  "ledger": {
+    "workResidentEventCache": true,
+    "workResidentProjectionCache": true,
+    "externalAppendInvalidation": true,
+    "resourceResidentCachePreserved": true
+  },
+  "qualification": {
+    "core": { "passed": 888, "failed": 0 },
+    "productIntegration": { "passed": 142, "failed": 0 },
+    "mutation": { "killed": 2, "survived": 0 },
+    "visibleBrowserLiveExecuted": false,
+    "personalAccountExternalWriteExecuted": false
+  },
+  "package": {
+    "path": "dist/GPAO-T5-0.2.1-universal-unsigned.pkg",
+    "bytes": 186082861,
+    "sha256": "2031e42304de35bf034d2eead7a6a15cced1882b541ceebba13dce810c83ab66",
+    "payloadVerification": "passed",
+    "signed": false,
+    "notarized": false,
+    "stapled": false,
+    "releaseReady": false,
+    "blocker": "Developer ID private signing identity unavailable in current Keychain"
+  }
+}

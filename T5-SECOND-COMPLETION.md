@@ -1,12 +1,30 @@
 # T5 Second Completion — Current Development Source
 
-상태: `SECOND_COMPLETION_SOURCE_COMPLETE_PACKAGE_READY`
-현재 Gate: `CP COMPLETE · P0 COMPLETE · QH-1 COMPLETE · QH-2 CORE ACCEPTED · QH-3 KNOWN OBSERVATION ACCEPTED · QH-4 PROVIDER DEFERRED`
-기준 source: `12b1aad4`
-배포 상태: `package source ready · 설치·서명·공증은 다음 Release 작업에서 실행`
+상태: `SECOND_COMPLETION_COMPLETE_RELEASE_HARDENING_SOURCE_COMPLETE`
+현재 Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER`
+기준 source: `83fe8863`
+배포 상태: `legacy-free 0.2.1 payload verified · Developer ID private signing identity unavailable`
 
 이 문서는 T5 2차 완성의 유일한 현재 작업 계획이다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은
 `AGENTS.md`, 1차 완성의 역사·실패 원본·과거 Gate는 `T5-REFOUNDATION.md`가 담당한다.
+
+## 0.2.1 Release hardening — 2026-08-26
+
+- 현재 저장소의 제품·UI·검사·배포 입력은 `refoundation/` 단일선이다. 1차 완성 코드·검사·스크립트·
+  bin·vendor는 `/Users/jyp/Developer/t5-legacy-archive`의 별도 Git archive로 격리했다.
+- 루트 `start`·`test`·package verification은 현재 제품만 실행하며, 경계 검사는 legacy 경로와 진입점이
+  다시 들어오면 실패한다.
+- 모델 API key와 ChatGPT access·refresh token은 시작 시 macOS Keychain으로 검증 이주하고 JSON에는
+  공개 metadata와 secret reference만 남긴다. 검증 실패는 기존 파일을 먼저 지우지 않는다.
+- WorkStore는 resident event·projection을 재사용하고 다른 writer의 append는 file size 경계에서 다시
+  읽는다. ResourceLedger의 기존 resident cache와 함께 한 프로세스의 반복 전체 replay를 제거했다.
+- 현재 제품 CI는 core 888/888, product integration 142/142, 핵심 mutation 2/2 killed다. 가시
+  Browser-live와 실제 개인 계정·외부 쓰기는 실행하지 않았다.
+- 0.2.1 universal unsigned package의 isolated payload·Node·console·로컬 보안·legacy root 0 검증은
+  통과했다. 현재 Keychain에 Developer ID private identity가 없어 서명·공증·staple은 수행하지 않았으며,
+  이 unsigned package를 사용자 배포 완료로 승격하지 않는다.
+
+근거: `refoundation/evidence/release-0.2.1-isolation-hardening-2026-08-26.json`
 
 ## 현재 Quality Hardening 정산
 
