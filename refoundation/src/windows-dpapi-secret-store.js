@@ -9,7 +9,7 @@ const PROTECT = [
   '[Console]::InputEncoding=(New-Object System.Text.UTF8Encoding($false))',
   '[Console]::OutputEncoding=(New-Object System.Text.UTF8Encoding($false))',
   'Add-Type -AssemblyName System.Security',
-  '$plain=[Console]::In.ReadToEnd()',
+  '$plain=[string]::Join([Environment]::NewLine,@($input))',
   '$bytes=[Text.Encoding]::UTF8.GetBytes($plain)',
   '$cipher=[Security.Cryptography.ProtectedData]::Protect($bytes,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser)',
   '[Console]::Out.Write([Convert]::ToBase64String($cipher))',
@@ -19,7 +19,7 @@ const UNPROTECT = [
   '[Console]::InputEncoding=(New-Object System.Text.UTF8Encoding($false))',
   '[Console]::OutputEncoding=(New-Object System.Text.UTF8Encoding($false))',
   'Add-Type -AssemblyName System.Security',
-  '$encoded=[Console]::In.ReadToEnd()',
+  '$encoded=[string]::Join([Environment]::NewLine,@($input))',
   '$cipher=[Convert]::FromBase64String($encoded)',
   '$plain=[Security.Cryptography.ProtectedData]::Unprotect($cipher,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser)',
   '[Console]::Out.Write([Text.Encoding]::UTF8.GetString($plain))',
@@ -50,15 +50,21 @@ function runPowerShell(program, script, input, env = process.env) {
         env[key] == null ? [] : [[key, env[key]]]
       ))),
     });
-    const stdout = []; const stderr = []; let bytes = 0;
+    const stdout = []; const stderr = []; let bytes = 0; let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return; settled = true; child.kill(); reject(new Error('Windows DPAPI operation timed out'));
+    }, 10_000);
     const collect = (target) => (chunk) => {
       bytes += chunk.length;
       if (bytes > MAX_SECRET_BYTES * 2) child.kill();
       else target.push(Buffer.from(chunk));
     };
     child.stdout.on('data', collect(stdout)); child.stderr.on('data', collect(stderr));
-    child.once('error', reject);
+    child.once('error', (error) => {
+      if (settled) return; settled = true; clearTimeout(timer); reject(error);
+    });
     child.once('close', (code) => {
+      if (settled) return; settled = true; clearTimeout(timer);
       if (code !== 0 || bytes > MAX_SECRET_BYTES * 2) {
         reject(new Error('Windows DPAPI operation failed')); return;
       }
