@@ -67,6 +67,7 @@ export async function reconcileNativeSearch({ state, adapter, personalOptInMemor
   const projection = deriveNativeSearchProjection({ state, personalOptInMemoryIds });
   if (await adapter.searchAvailability() !== 'available') return {
     state: 'platform_unavailable', platform: adapter.platform ?? 'unknown',
+    verificationKind: adapter.searchVerificationKind ?? 'unavailable',
     indexed: [], deleted: [], blocked: projection.blocked,
   };
   try {
@@ -90,11 +91,13 @@ export async function reconcileNativeSearch({ state, adapter, personalOptInMemor
       && observed.size === desired.size;
     return {
       state: verified ? 'verified' : 'verification_failed', platform: adapter.platform,
+      verificationKind: adapter.searchVerificationKind ?? 'os_index',
       indexed: indexed.map((item) => item.identifier), deleted,
       blocked: projection.blocked, remainingIdentifiers, missingOrChanged,
     };
   } catch (error) {
     return { state: 'unknown', platform: adapter.platform ?? 'unknown', indexed: [], deleted: [],
+      verificationKind: adapter.searchVerificationKind ?? 'unknown',
       blocked: projection.blocked, errorKind: error?.code ?? error?.name ?? 'Error' };
   }
 }

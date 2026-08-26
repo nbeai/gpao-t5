@@ -69,6 +69,9 @@ jobs:
       - name: Qualify Windows PowerShell Job Object and ConPTY journey
         shell: pwsh
         run: node --test --test-timeout=30000 --test-force-exit refoundation/test/terminal-windows.integration.js
+      - name: Qualify Windows memory projection and Explorer boundary
+        shell: pwsh
+        run: node --test --test-timeout=20000 refoundation/test/windows-memory-platform.integration.js
       - uses: actions/upload-artifact@v4
         with:
           name: t5-windows-terminal-hosts
