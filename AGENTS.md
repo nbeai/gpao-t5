@@ -120,7 +120,8 @@ baseline으로 보고하고 오너 결정 없이 의미를 바꾸지 않는다.
 
 3차 완성의 각 기술 Gate를 구현하는 동안 전체 사업자 인간 시나리오 wave를 반복하지 않는다. 관련 실패를
 확인할 최소 시나리오만 선택한다. 모든 3차 기술 개발선이 닫힌 뒤에는
-`T5-THIRD-ACTIVATION-PREPARATION.md`의 S3-HQ 순서대로 `developer_fast_feedback`과
+`T5-THIRD-ACTIVATION-PREPARATION.md`의 S3-WA에서 읽기 전용 다중 에이전트 배선 감사를 먼저 수행하고,
+재현된 P0/P1만 통합 책임자 한 명이 순차 수리한다. 그 뒤 S3-HQ의 `developer_fast_feedback`과
 `pre_tester_reality`를 내부에서 통과하기 전 외부 테스터·설치본 평가나 3차 종합 완료를 주장하지 않는다.
 
 ## 8. 중단선

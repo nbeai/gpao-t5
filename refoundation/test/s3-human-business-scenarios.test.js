@@ -262,9 +262,11 @@ test('3차 핵심 정본은 기술 완료 뒤 내부 두 wave와 외부 테스�
     readFile(new URL('AGENTS.md', root), 'utf8'),
   ]);
   assert.match(third,
-    /각 S3 기술 개발선의 exact 완료·회귀[\s\S]*developer_fast_feedback[\s\S]*pre_tester_reality[\s\S]*외부 인간 테스터/u);
+    /각 S3 기술 개발선의 exact 완료·회귀[\s\S]*S3-WA 읽기 전용 다중 에이전트 배선 감사[\s\S]*developer_fast_feedback[\s\S]*pre_tester_reality[\s\S]*외부 인간 테스터/u);
+  assert.match(third, /S3-WA Whole-product Wiring Audit·재현 P0\/P1 close/u);
+  assert.match(third, /감사 중 병렬 제품 수정[\s\S]*금지한다/u);
   assert.match(third, /S3-HQ developer_fast_feedback·pre_tester_reality 내부 인간 자격/u);
   assert.match(third, /미실행·미평가 0/u);
   assert.match(agents,
-    /모든 3차 기술 개발선이 닫힌 뒤[\s\S]*외부 테스터·설치본 평가나 3차 종합 완료를 주장하지 않는다/u);
+    /모든 3차 기술 개발선이 닫힌 뒤[\s\S]*S3-WA[\s\S]*외부 테스터·설치본 평가나 3차 종합 완료를 주장하지 않는다/u);
 });

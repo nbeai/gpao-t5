@@ -42,6 +42,7 @@ scope·evidence·판정을 유지한다.
 | S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | 연구 승인 · 제품 구현 잠금 |
 | S3-CH | Local Computer History·과거 Work/파일/앱 provenance | CH-0은 S3-UX 소유 · CH-1→2→3 후속 순서 확정/현재 미착수 |
 | S3-PW | Windows installer·app shell·공통 제품 자격 | 대기 |
+| S3-WA | Whole-product Wiring Audit·3차 부품의 실제 제품 배선·단일 진실·복구 경계 | 3차 기술 개발 완료 뒤 읽기 전용 감사 대기 |
 | S3-HQ | 한국 사업자 Human Reality Qualification·외부 테스터 전 내부 인간 자격 | 실행 체계 완료 · 3차 기술 개발 완료 뒤 실행 대기 |
 
 개발선 표는 일정표가 아니다. S3-A 뒤 구조가 자동 개통되지 않으며, 오너가 연 한 제품 개발선만 hot path를
@@ -49,6 +50,52 @@ scope·evidence·판정을 유지한다.
 Run·Tool·Effect·Artifact truth의 인간용 projection과 통제 표면을 소유하며 모델 의미 판단이나 새 원장을
 소유하지 않는다. S3-CH는 raw activity를 사용자 Memory·persona로 승격하지 않으며 CH-1→2→3의 선행조건과
 각 Gate 완료 문장을 지켜 순차 개발한다.
+
+### S3-WA — S3-HQ 전 필수 Whole-product Wiring Audit
+
+S3-WA는 새 기능·리팩터링·완벽화 개발선이 아니다. 각 S3 기술 Gate가 독립적으로 통과한 뒤 실제 제품
+진입점부터 사용자 surface까지 서로 연결됐는지 확인하는 일회성 종합 배선 감사다. 진행 중인 개발선의
+source가 움직일 때 열지 않고, 3차 기술 개발 완료 기준 commit을 하나 고정한 뒤 시작한다.
+
+다중 에이전트는 다음 책임을 겹치지 않게 읽기 전용으로 조사한다.
+
+```text
+실행·진실·정산: 요청→허용→실행→효과→검증→완료→전달
+기억·Context·Capability: 실제 import/call graph·source truth·모델 시야·Connection
+Work·UX·복구: 교정·취소·crash·restart·장기 작업·Artifact·과거 Work
+보안·플랫폼·배포: 비밀·권한·macOS/Windows interface·설치 payload
+```
+
+각 발견은 exact 파일·제품 call path·깨지는 사용자 목적·재현 가능한 반대시험을 가져야 한다. 코드 냄새,
+스타일, 파일 크기, 더 익숙한 아키텍처라는 이유만으로 결함을 만들지 않는다. 여러 에이전트의 발견은 한
+통합 책임자가 중복·전제를 교차 확인하고 다음으로 분리한다.
+
+- **P0/P1 제품 결함**: 실제 사용자 목적·비밀·외부 효과·진실·복구를 깨며 재현됨
+- **관측**: 현재 계약은 지키지만 비용·복잡성·플랫폼 자격이 불확실함
+- **비채택**: 이론적·스타일성·현재 Gate 밖 개선
+
+감사 중 병렬 제품 수정, 같은 파일 동시 수정, 전면 리팩터링, Prompt 문장 패치, 새 원장·상태 기계·고정
+상한 도입을 금지한다. 읽기 전용 감사가 끝난 뒤 P0/P1만 통합 책임자 한 명이 exact 반대시험→최소 수리→
+관련 사용자 목적→전체 회귀 순서로 하나씩 닫는다. 같은 결함 가족에 세 번째 patch가 필요하면 수리를
+중단하고 본질·원리·구조를 다시 판정한다.
+
+S3-WA 완료 문장:
+
+> 3차 기술 완료 기준 commit에서 네 감사 책임이 실제 제품 import/call graph와 사용자 surface까지 확인됐고,
+> 재현된 P0/P1은 순차 수리와 전체 회귀로 닫혔으며, 남은 관측과 비채택은 3차 완료를 거짓으로 만들지 않는
+> 이유가 기록됐다. 감사 자체가 제품 행동·Prompt·상태를 바꾸지 않았다.
+
+정확한 순서는 다음이다.
+
+```text
+각 S3 기술 개발선의 exact 완료·회귀
+→ S3-WA 읽기 전용 다중 에이전트 배선 감사
+→ 재현된 P0/P1 순차 수리·전체 회귀
+→ developer_fast_feedback
+→ pre_tester_reality
+→ S3-HQ PASS
+→ 외부 인간 테스터
+```
 
 ### S3-HQ — 3차 완료와 외부 테스터 사이의 필수 Human Reality Gate
 
@@ -68,7 +115,7 @@ S3-HQ는 제품 기능 개발선이 아니라, 각 기술 개발선이 실제 �
 실행 순서는 다음으로 고정한다.
 
 ```text
-각 S3 기술 개발선의 exact 완료·회귀
+각 S3 기술 개발선의 exact 완료·회귀와 S3-WA 완료
 → developer_fast_feedback 6개 내부 wave
 → 실패를 제품 구조·Capability/Connection·Fixture/시험·UX·model variance로 판정
 → core 실패를 해당 개발선에서 닫고 영향 wave 재실행
@@ -692,6 +739,7 @@ AND S3-UX Work Visibility, Control & Outcome Reassurance including CH-0 T5 Work 
 AND S3-CH Local Computer History CH-0~3
 AND S3-CA Capability Reality & Safe Acquisition
 AND S3-PW가 필요한 Windows 공통 자격
+AND S3-WA Whole-product Wiring Audit·재현 P0/P1 close
 AND S3-HQ developer_fast_feedback·pre_tester_reality 내부 인간 자격
 AND macOS·Windows 실제 사용자·비교군 Release
 ```
