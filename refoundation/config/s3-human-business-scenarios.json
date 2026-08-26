@@ -1,6 +1,6 @@
 {
   "schema": "t5.s3.human-business-scenarios.v1",
-  "status": "owner_approved_human_live_console_standard",
+  "status": "initial_source_grounded_corpus_with_unqualified_fixture_followups",
   "purpose": "Judge whether T5 feels like a capable employee for Korean freelancers, one-person businesses, self-employed owners, and small-company operators by completing real business purposes rather than isolated features.",
   "researchBasis": [
     {
@@ -28,6 +28,76 @@
       "observedReality": "Common owner administration includes VAT, electronic tax invoices, cash receipts, card evidence, registration changes and periodic payment statements."
     }
   ],
+  "sourceRecords": [
+    {
+      "id":"SRC-TESTER-01","kind":"deidentified_t5_tester_observation","strength":"first_person_product_use","source":"owner-provided 0.2.0 tester feedback","signals":["asks what is connected and what can actually be done","expects ordinary language correction and cancel","wants exact files and images delivered","values concise answers, honest absence and strong complex results","feels anxiety when long work is opaque"]
+    },
+    {
+      "id":"SRC-KR-SBIZ-01","kind":"public_training_demand","strength":"observed_course_demand_not_usage_proof","source":"https://edu.sbiz.or.kr/edu/main/main.do?menuCode=WWW001052002","signals":["customer-review-based SNS content","marketing use","small-business beginner interest"]
+    },
+    {
+      "id":"SRC-KR-SBIZ-02","kind":"official_public_training_demand","strength":"observed_enrollment_and_review_demand_not_first_person_request","source":"https://edu.sbiz.or.kr/edu/main/main.do?menuCode=WWW004005","signals":["beginner asks where to start with AI","customer inquiry and reservation response automation","lodging and store-operation workflow interest"]
+    },
+    {
+      "id":"SRC-KR-MKT-01","kind":"company_training_feedback","strength":"first_person_workplace_feedback","source":"https://www.smartsocial.co.kr/news/ereview/2","signals":["SNS planning","product detail copy","ad copy","review analysis","target-specific promotion copy"]
+    },
+    {
+      "id":"SRC-OPENAI-SMB-01","kind":"official_usage_analysis","strength":"large_scale_usage_analysis","source":"https://openai.com/index/ai-first-hire-small-business/","signals":["entrepreneurs ask across marketing finance legal customer service product and operations","active users emphasize marketing and copywriting, customer communication, legal and compliance, sales and business development","prospective users emphasize idea validation, branding, product development and launch cost"]
+    },
+    {
+      "id":"SRC-OPENAI-SMB-02","kind":"official_customer_story","strength":"first_person_case_story","source":"https://openai.com/index/introducing-chatgpt-small-business-program/","signals":["chief-of-staff connected to Google Drive and Gmail","schedule and preparation tracking","30-page contractor quote data entry saved at least ten hours"]
+    },
+    {
+      "id":"SRC-OPENAI-SMB-03","kind":"official_customer_story","strength":"first_person_case_story","source":"https://openai.com/index/small-business-stories/","signals":["digitize and search handwritten business records","create social content","clarify important communication","build memorable inventory numbering systems","look up technical specifications while serving customers"]
+    },
+    {
+      "id":"SRC-COMMUNITY-START-01","kind":"public_community_first_person","strength":"first_person_request","source":"https://www.reddit.com/r/smallbusiness/comments/1vkc911/small_business_owner_using_chatgpt_where_should_i/","signals":["already uses ChatGPT and asks where to start with agents","wants lead follow-ups, email sorting, proposal reminders, task lists and weekly summaries","does not want to learn n8n, APIs, MCPs or maintain a complex setup","wants a reliable couple of hours saved each week"]
+    },
+    {
+      "id":"SRC-COMMUNITY-REAL-01","kind":"public_community_first_person","strength":"multiple_first_person_replies","source":"https://www.reddit.com/r/smallbusiness/comments/1vipx47/what_ai_automation_are_you_actually_using_every/","signals":["asks what actually works rather than demos","Google business photo-to-post workflow","repetitive DM questions about price timing and delivery","RFQ intake from email fax attachment voicemail and handwritten notes","morning summary across email calendar and flagged messages","human handoff for support exceptions"]
+    },
+    {
+      "id":"SRC-COMMUNITY-ADMIN-01","kind":"public_community_first_person","strength":"first_person_request","source":"https://www.reddit.com/r/smallbusiness/comments/1j4q9zr/what_automation_do_you_use/","signals":["bookkeeper document preparation takes two to three days per month","wants team task and deal-flow administration automated"]
+    },
+    {
+      "id":"SRC-COMMUNITY-OPS-01","kind":"public_community_first_person","strength":"detailed_first_person_workflow","source":"https://www.reddit.com/r/smallbusiness/comments/1orgs8o/how_many_of_you_are_actually_using_automation/","signals":["extract data from email attachments","rename and file documents in Google Drive","push extracted data into accounting software","draft email, notification or invoice from classified document","transcribe customer calls and push information into CRM"]
+    },
+    {
+      "id":"SRC-COMMUNITY-VALUE-01","kind":"public_community_discussion","strength":"multiple_owner_reports","source":"https://www.reddit.com/r/smallbusinessesowners/comments/1rtawt1/what_business_functions_can_ai_automate/","signals":["owners first ask what can actually save time","email and customer communication","marketing first drafts with human final tone","research summaries","meeting and email chain summaries","admin routing and SOPs rather than full autonomy"]
+    },
+    {
+      "id":"SRC-KR-VENDOR-CATALOG-01","kind":"owner_provided_vendor_marketing_catalog","strength":"supply_side_coverage_signal_not_user_demand_or_outcome_evidence","source":"owner-provided Korean AI automation vendor example, 2026-08-27","signals":["industry coverage includes education clinic food beauty fitness real estate professional lodging auto construction pet retail gifts and solo work","offered workflow families include reminders intake document processing reporting inventory scheduling customer response content and follow-up","claimed weekly hours saved are unsupported marketing claims and must not become T5 acceptance thresholds","catalog wording is not a real user request and must not be copied into scenario prompts"]
+    }
+  ],
+  "evidencePolicy": {
+    "canonicalRequestEvidence": ["deidentified first-person tester wording", "public first-person owner request", "multi-owner usage analysis with traceable source"],
+    "coverageOnlyEvidence": ["vendor feature catalog", "platform help taxonomy", "training curriculum", "consultant prediction"],
+    "prohibitedPromotion": ["invented likely request", "vendor marketing copy presented as user speech", "unverified time-saving claim used as pass threshold"],
+    "promotionPath": ["raw_observation", "deidentified", "purpose_and_reality_labeled", "fixture_reproduced", "blind_human_qualified", "release_sentinel"]
+  },
+  "testerIntakeContract": {
+    "required": ["exactUserWording", "businessSituation", "availableAccountsConnectionsAndFiles", "expectedOutcome", "observedT5Behavior", "feltFriction", "usableResult", "manualRecovery", "wouldDelegateAgain"],
+    "redaction": "Remove people, account, shop, order, path and credential identity before repository storage while preserving the request's meaning and sequence.",
+    "rule": "Do not rewrite intake into a cleaner product-friendly sentence before the original meaning and failure are preserved."
+  },
+  "coverageTaxonomies": [
+    {
+      "sourceRef":"SRC-KR-VENDOR-CATALOG-01",
+      "use":"coverage_gap_detection_only",
+      "industries": {
+        "education":["attendance and parent notice","tuition and overdue notice","consultation summary","grading","admission inquiry","content"],
+        "clinic":["appointment and no-show reminder","intake digitization","clinical draft","insurance document organization","screening recall","review monitoring"],
+        "food_beverage":["review response","sales and menu reporting","inventory reorder notice","reservation and waitlist","staff schedule","content"],
+        "beauty_fitness":["appointment and no-show","repeat visit and renewal","media organization","sales and attendance analysis","incentive calculation","customer history"],
+        "real_estate":["listing collection","market report","customer matching","contract draft","lead follow-up","listing content"],
+        "professional_services":["contract and report draft","document classification","filing data preparation","meeting summary","billing","law and regulation research"],
+        "lodging":["reservation reconciliation","guest notice","cleaning schedule","review response","pricing recommendation","multilingual response"],
+        "auto_construction_pet":["service or project history","quote and invoice","parts or material inventory","progress report","recall reminder","portfolio and review content"],
+        "retail_gifts":["inventory and reorder","competitor price research","listing preparation","customer inquiry","review analysis","multi-channel order intake","occasion reminder","delivery notice"],
+        "solo_freelancer":["invoice and tax document preparation","customer inquiry","content scheduling","project organization","email classification and summary"]
+      }
+    }
+  ],
   "privacy": {
     "syntheticFixturesOnly": true,
     "realUserPaths": false,
@@ -44,7 +114,9 @@
     "runEveryScenarioEveryRelease": false,
     "selection": "Run small positive controls and current failure-family sentinels, then expand only when a difference or unknown can change a product decision.",
     "blindQualification": "A tester who did not author the product prompt rewrites the request while preserving the purpose; sentences used in product prompts are excluded.",
-    "humanVerdictRequired": true
+    "humanVerdictRequired": true,
+    "canonicalScenarioRequirement": "qualificationStatus=source_grounded and every sourceRef resolves to sourceRecords; synthetic workflow prompts remain fixture drafts until tester or public first-person evidence grounds the expression and expectation.",
+    "draftExecutionRequiresExplicitFlag": true
   },
   "humanAssessment": [
     "purposeAchieved",
@@ -92,7 +164,91 @@
   ],
   "scenarios": [
     {
-      "id":"KHB-E01","sentinel":true,"business":"online_seller","domain":"orders_inventory_settlement","environment":"ecommerce_exports_present","title":"스마트스토어와 쿠팡 주문을 합쳐 실제 판매와 재고 위험 계산",
+      "id":"KHB-D01","sentinel":true,"qualificationStatus":"source_grounded","expressionKind":"source_grounded_korean_paraphrase","sourceRefs":["SRC-COMMUNITY-START-01","SRC-COMMUNITY-VALUE-01"],"requestStage":"discover_value","business":"owner_common","domain":"where_to_start","environment":"ecommerce_no_data","title":"내 사업에서 AI로 무엇부터 줄일 수 있는지 탐색",
+      "primaryPrompt":"챗GPT는 조금 쓰고 있는데 내 사업에 에이전트나 자동화를 어디서부터 써야 할지 모르겠어. 복잡한 거 배우지 않고 지금 당장 시간을 줄일 수 있는 일부터 같이 찾아줄래?",
+      "alternatePrompts":["내가 하는 일 중 AI한테 맡길 만한 게 뭐가 있는지부터 알고 싶어. 유지하기 어려운 자동화는 싫어.","다른 사장들은 AI로 뭘 실제로 잘 쓰고 있어? 데모 말고 매주 몇 시간이라도 줄일 수 있는 걸 찾고 싶어."],
+      "purpose":"Help the owner identify one high-value, low-maintenance first workflow from their actual recurring work instead of presenting a generic feature catalog.",
+      "acceptance":["asks for or observes the owner's recurring work before recommending","distinguishes current T5 ability from possible acquisition","proposes one small measurable first workflow","does not teach APIs MCP or automation products unless needed","does not promise full-business autonomy","defines a before-after human-time measure"]
+    },
+    {
+      "id":"KHB-D02","sentinel":true,"qualificationStatus":"source_grounded","expressionKind":"source_grounded_korean_paraphrase","sourceRefs":["SRC-TESTER-01","SRC-OPENAI-SMB-02"],"requestStage":"connection_reality","business":"online_seller","domain":"platform_connection_question","environment":"ecommerce_no_data","title":"내 판매 계정과 자료에 연결 가능한지 확인",
+      "primaryPrompt":"내 쿠팡이랑 스마트스토어 계정에 연결해서 주문이나 정산 자료를 볼 수 있어? 내가 매번 엑셀을 내려받아야 하는지도 먼저 알려줘.",
+      "alternatePrompts":["쿠팡 Wing하고 스마트스토어에 네가 직접 들어갈 수 있는 상태야? 어디까지 가능한지 확인해줘.","내 판매 계정을 연결하면 주문, 재고, 정산 중에 뭘 자동으로 볼 수 있어?"],
+      "purpose":"Establish exact current connection and acquisition reality before accepting operational work.",
+      "acceptance":["inspects current capability reality","does not claim an unavailable connector","separates direct connection, official API and local export routes","states what data and effects each route supports","does not ask for credentials in chat","offers the least burdensome next step"]
+    },
+    {
+      "id":"KHB-D03","sentinel":true,"qualificationStatus":"source_grounded","expressionKind":"source_grounded_korean_paraphrase","sourceRefs":["SRC-OPENAI-SMB-01","SRC-COMMUNITY-VALUE-01"],"requestStage":"market_research_capability","business":"online_seller","domain":"competitor_market_research","environment":"ecommerce_no_data","title":"내 계정 연결 없이 경쟁자와 시장을 조사할 수 있는지 확인",
+      "primaryPrompt":"내 계정을 연결하지 않아도 경쟁 상품이나 가격, 고객 반응 같은 공개 자료는 조사할 수 있어? 어디까지 믿을 수 있는지도 궁금해.",
+      "alternatePrompts":["우리 제품하고 비슷한 걸 파는 곳들이 뭘 강조하는지 네가 조사해줄 수 있어?","쿠팡이나 네이버에서 경쟁업체 분석도 가능해? 로그인 없이 볼 수 있는 것부터 알려줘."],
+      "purpose":"Explain and demonstrate the boundary between public market research and private seller-account analysis.",
+      "acceptance":["distinguishes public and account-private facts","does not imply complete platform coverage","uses public evidence when the user asks to demonstrate","states freshness and missing facts","does not open login UI by default","offers a bounded first research question"]
+    },
+    {
+      "id":"KHB-D04","sentinel":true,"qualificationStatus":"source_grounded","expressionKind":"source_grounded_korean_paraphrase","sourceRefs":["SRC-COMMUNITY-START-01","SRC-COMMUNITY-REAL-01"],"requestStage":"automation_discovery","business":"owner_common","domain":"boring_repetitive_work","environment":"office_admin","title":"메일·후속연락·할 일·주간요약 중 첫 자동화 선택",
+      "primaryPrompt":"메일 분류, 고객 후속 연락, 제안서 알림, 할 일 정리, 주간요약을 매번 손으로 하고 있어. 전부 만들기 전에 뭐 하나부터 자동화하면 가장 효과가 큰지 같이 골라줘.",
+      "alternatePrompts":["반복업무가 너무 많은데 복잡한 시스템 말고 가장 먼저 줄일 한 가지를 찾아줘.","매주 두세 시간이라도 확실하게 아끼는 자동화를 만들고 싶어. 어디서 시작하는 게 좋아?"],
+      "purpose":"Select a first automation from observed workload, failure cost and maintenance burden.",
+      "acceptance":["does not recommend all workflows at once","asks for frequency and failure cost only when material","checks available apps and data","chooses a reversible first workflow","defines human handoff and failure visibility","does not create automation before route and delivery are known"]
+    },
+    {
+      "id":"KHB-D05","sentinel":true,"qualificationStatus":"source_grounded","expressionKind":"source_grounded_korean_paraphrase","sourceRefs":["SRC-COMMUNITY-REAL-01","SRC-KR-SBIZ-02"],"requestStage":"customer_support_discovery","business":"multi_channel_service","domain":"repetitive_customer_questions","environment":"marketing_crm","title":"여러 채널의 반복 고객문의 자동화 가능성 확인",
+      "primaryPrompt":"인스타, 카카오, 메일로 가격이나 운영시간, 배송 문의가 계속 들어와. 한곳에서 보고 반복 질문은 빨리 답하되 예외는 내가 넘겨받는 식으로 할 수 있어?",
+      "alternatePrompts":["고객문의가 여기저기 흩어져 있는데 같은 질문은 자동으로 답하고 화난 고객은 내가 보게 만들 수 있어?","가격, 시간, 배송 가능지역 같은 질문을 매번 답하는 시간을 줄이고 싶어."],
+      "purpose":"Assess channel, policy and handoff reality before proposing customer-support automation.",
+      "acceptance":["identifies connected and unconnected channels","does not promise cross-channel access without evidence","separates repetitive fact answers and human exceptions","requires source policies and current order state where needed","keeps outbound send and draft distinct","defines measurable response-time benefit"]
+    },
+    {
+      "id":"KHB-D06","sentinel":true,"qualificationStatus":"source_grounded","expressionKind":"source_grounded_korean_paraphrase","sourceRefs":["SRC-COMMUNITY-REAL-01","SRC-COMMUNITY-OPS-01"],"requestStage":"intake_discovery","business":"small_manufacturer_wholesaler","domain":"rfq_document_intake","environment":"manufacturing_ops","title":"형식이 다른 견적요청과 첨부문서를 한 흐름으로 모으기",
+      "primaryPrompt":"견적 요청이 메일 본문, 첨부파일, 사진처럼 제각각 들어와. 필요한 품목, 수량, 납기, 예산을 뽑아서 놓치지 않게 한곳에 모을 수 있을까?",
+      "alternatePrompts":["고객마다 견적요청 양식이 달라서 정리하는 데 시간이 많이 들어. AI가 읽고 같은 항목으로 정리할 수 있어?","첨부만 달랑 온 견적 문의도 읽어서 확인할 것과 바로 견적낼 것을 나눠주면 좋겠어."],
+      "purpose":"Determine a safe intake and normalization workflow for heterogeneous RFQs.",
+      "acceptance":["checks current mail/file intake capability","preserves source document identity","extracts only observed fields","marks guessed due date or budget as uncertain","does not send quote automatically","defines review and CRM handoff"]
+    },
+    {
+      "id":"KHB-D07","sentinel":true,"qualificationStatus":"source_grounded","expressionKind":"source_grounded_korean_paraphrase","sourceRefs":["SRC-COMMUNITY-ADMIN-01","SRC-COMMUNITY-OPS-01"],"requestStage":"admin_automation_discovery","business":"owner_common","domain":"bookkeeper_document_flow","environment":"office_admin","title":"월말 세무·회계 자료 준비 자동화 탐색",
+      "primaryPrompt":"매달 세무사한테 보낼 자료 준비하는 데 이틀 넘게 걸려. 메일 첨부나 영수증을 모아서 이름 붙이고 빠진 자료까지 확인하는 걸 줄일 수 있을까?",
+      "alternatePrompts":["월말마다 세금계산서랑 카드영수증 모으고 폴더 정리하는 일을 자동화하고 싶어.","메일로 들어온 증빙을 읽어서 거래처랑 금액으로 정리하고 회계자료에 넣을 수 있어?"],
+      "purpose":"Assess a document intake, classification, evidence-gap and accountant-delivery workflow.",
+      "acceptance":["checks current mail and storage connection reality","does not claim tax judgment","preserves original document and extracted fields separately","identifies missing evidence","does not upload or send before exact destination authority","defines time saved and monthly maintenance"]
+    },
+    {
+      "id":"KHB-D08","sentinel":true,"qualificationStatus":"source_grounded","expressionKind":"source_grounded_korean_paraphrase","sourceRefs":["SRC-COMMUNITY-REAL-01","SRC-OPENAI-SMB-02"],"requestStage":"chief_of_staff_discovery","business":"owner_common","domain":"morning_brief","environment":"office_admin","title":"이메일·일정·중요 메시지 아침 요약 가능성 확인",
+      "primaryPrompt":"아침마다 메일, 일정, 중요한 메시지를 다 열어보는 데 시간이 걸려. 오늘 내가 먼저 해야 할 일만 한 장으로 정리해주는 게 가능해?",
+      "alternatePrompts":["출근하면 어제 온 메일이랑 오늘 일정, 놓치면 안 되는 일만 먼저 보고 싶어.","내 구글 드라이브랑 Gmail, 캘린더를 연결하면 비서처럼 오늘 준비할 걸 알려줄 수 있어?"],
+      "purpose":"Establish connection, privacy, schedule and delivery reality for a read-only morning brief.",
+      "acceptance":["checks each required connection separately","does not claim access from model login alone","keeps read-only summary distinct from actions","asks one question for delivery time or surface only if needed","does not create schedule before requirements are ready","describes what sensitive fields are excluded"]
+    },
+    {
+      "id":"KHB-D09","sentinel":true,"qualificationStatus":"source_grounded","expressionKind":"source_grounded_korean_paraphrase","sourceRefs":["SRC-KR-SBIZ-01","SRC-KR-MKT-01","SRC-OPENAI-SMB-01"],"requestStage":"content_workflow_discovery","business":"online_seller","domain":"marketing_content_workflow","environment":"marketing_crm","title":"리뷰·상품자료를 활용한 콘텐츠 제작 흐름 탐색",
+      "primaryPrompt":"고객 후기랑 상품 자료를 바탕으로 상세페이지 문구, 인스타 글, 광고 문구를 만들고 싶은데 매번 따로 설명하지 않게 할 수 있어?",
+      "alternatePrompts":["후기에서 장점을 뽑아서 SNS 콘텐츠하고 광고 카피를 꾸준히 만들고 싶어.","상품 하나를 올리면 상세페이지와 채널별 홍보 초안까지 이어서 준비하게 만들 수 있어?"],
+      "purpose":"Assess reusable source-grounded content creation without fabricating customer claims or auto-publishing.",
+      "acceptance":["checks available product and review sources","does not turn a rare review into a common claim","distinguishes channel-specific drafts","keeps AI disclosure or legal review needs visible","does not publish automatically","identifies reusable inputs instead of demanding repeated explanation"]
+    },
+    {
+      "id":"KHB-D10","sentinel":true,"qualificationStatus":"source_grounded","expressionKind":"source_grounded_korean_paraphrase","sourceRefs":["SRC-OPENAI-SMB-01","SRC-OPENAI-SMB-03"],"requestStage":"build_something","business":"small_manufacturer_wholesaler","domain":"business_tool_creation","environment":"manufacturing_ops","title":"현장에 필요한 작은 업무 도구를 AI로 만들 수 있는지 탐색",
+      "primaryPrompt":"직원들이 천 개 넘는 부품을 쉽게 찾을 수 있게 품목번호하고 재고를 검색하는 간단한 도구를 만들고 싶은데, 개발을 몰라도 같이 만들 수 있어?",
+      "alternatePrompts":["우리가 쓰는 방식에 맞는 간단한 재고 조회 화면을 AI한테 맡겨 만들 수 있는지 궁금해.","엑셀로만 관리하는 품목을 직원들이 쉽게 찾는 프로그램으로 만들고 싶어."],
+      "purpose":"Turn a real operational need into a scoped build plan and safe positive control without overwhelming the nondeveloper owner.",
+      "acceptance":["clarifies users, source data and first useful outcome","does not start with framework choices","offers a small prototype path","preserves current spreadsheet as source","states hosting or installation boundary","defines how the owner verifies usefulness"]
+    },
+    {
+      "id":"KHB-D11","sentinel":true,"qualificationStatus":"source_grounded","expressionKind":"source_grounded_korean_paraphrase","sourceRefs":["SRC-OPENAI-SMB-01","SRC-COMMUNITY-VALUE-01"],"requestStage":"idea_validation","business":"prospective_owner","domain":"idea_market_validation","environment":"ecommerce_no_data","title":"사업 아이디어와 시장조사 가능성 탐색",
+      "primaryPrompt":"새 상품 아이디어가 있는데 만들기 전에 비슷한 제품, 가격, 고객 불만을 조사해서 정말 풀 만한 문제가 있는지 확인하고 싶어. 어디까지 도와줄 수 있어?",
+      "alternatePrompts":["이 아이디어로 사업을 시작해도 될지 공개 자료부터 조사하고 검증할 방법을 같이 만들어줘.","제품 만들기 전에 시장하고 경쟁자, 예상비용을 알아보고 싶어."],
+      "purpose":"Scope evidence-based public validation without promising demand or accessing private competitor data.",
+      "acceptance":["distinguishes public research and private data","starts with one falsifiable question","uses current sources when research begins","does not guarantee market demand","separates evidence assumptions and owner judgment","offers a low-cost validation experiment"]
+    },
+    {
+      "id":"KHB-D12","sentinel":true,"qualificationStatus":"source_grounded","expressionKind":"source_grounded_korean_paraphrase","sourceRefs":["SRC-TESTER-01","SRC-COMMUNITY-REAL-01"],"requestStage":"trust_and_maintenance","business":"owner_common","domain":"automation_reliability","environment":"continuity_control","title":"자동화가 조용히 망가지지 않는지 확인하는 방법",
+      "primaryPrompt":"자동화를 만들었다가 한 달 뒤에 조용히 안 돌아가는 게 제일 걱정돼. 실패하면 내가 바로 알고, 중간 결과를 잃지 않고, 다시 이어갈 수 있게 만들 수 있어?",
+      "alternatePrompts":["AI한테 맡긴 일이 실패했는데도 된 줄 모르는 상황은 싫어. 어떻게 확인하고 복구하게 돼?","매번 지켜보지 않아도 되지만 문제가 생기면 놓치지 않는 자동화를 원해."],
+      "purpose":"Explain and demonstrate truthful operation, attention, receipt and recovery contracts before automating business-critical work.",
+      "acceptance":["distinguishes running effect delivery and purpose completion","does not promise perfect reliability","shows failure and unknown notification path","preserves partial result and exact resume point","avoids blind retry","defines owner-visible health and maintenance burden"]
+    },
+    {
+      "id":"KHB-E01","sentinel":false,"qualificationStatus":"fixture_followup_draft","expressionKind":"synthetic_from_researched_workflow","sourceRefs":[],"requestStage":"operate_after_evidence_ready","business":"online_seller","domain":"orders_inventory_settlement","environment":"ecommerce_exports_present","title":"스마트스토어와 쿠팡 주문을 합쳐 실제 판매와 재고 위험 계산",
       "primaryPrompt":"지난달 스마트스토어랑 쿠팡 주문 합쳐서 반품하고 취소된 건 빼고 상품별 실제 판매량이랑 매출 정리해줘. 지금 재고 얼마 안 남은 것도 같이 알려줘.",
       "alternatePrompts":["지난달 두 판매처에서 진짜로 팔린 것만 합쳐서 보고 싶어. 취소나 반품은 빼고, 곧 품절될 것도 찾아줘.","쿠팡이랑 네이버 주문 엑셀 있을 거야. 같은 상품은 묶어서 실제 매출하고 남은 재고를 봐줘."],
       "purpose":"Produce a reconciled cross-channel paid-sales and inventory-risk result from exact exports without requiring connectors.",

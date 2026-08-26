@@ -32,6 +32,9 @@ function publicScenario(scenario) {
     id: scenario.id, title: scenario.title, business: scenario.business,
     domain: scenario.domain, environment: scenario.environment,
     sentinel: scenario.sentinel === true,
+    qualificationStatus: scenario.qualificationStatus,
+    requestStage: scenario.requestStage,
+    sourceRefs: scenario.sourceRefs,
   };
 }
 
@@ -57,6 +60,13 @@ if (!Number.isSafeInteger(variant) || variant < 0) throw new Error('--variant mu
 const connectionFile = resolve(option('--connection-file')
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
 const { catalog, scenario } = await findS3HumanBusinessScenario(scenarioId);
+if (scenario.qualificationStatus !== 'source_grounded'
+  && !process.argv.includes('--allow-research-draft')) {
+  throw new Error(
+    `scenario ${scenario.id} is an unqualified research draft; `
+    + 'pass --allow-research-draft only for explicit fixture exploration',
+  );
+}
 const prompts = [scenario.primaryPrompt, ...(scenario.alternatePrompts ?? [])];
 if (!prompts[variant]) throw new Error(`scenario ${scenario.id} has no variant ${variant}`);
 

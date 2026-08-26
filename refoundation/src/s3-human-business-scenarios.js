@@ -16,7 +16,25 @@ export async function loadS3HumanBusinessScenarios() {
   if (value?.schema !== 't5.s3.human-business-scenarios.v1') {
     throw new Error('invalid S3 human business scenario schema');
   }
-  return value;
+  const sourceIds = new Set((value.sourceRecords ?? []).map((item) => item.id));
+  return {
+    ...value,
+    scenarios: value.scenarios.map((item) => {
+      const sourceGrounded = item.qualificationStatus === 'source_grounded';
+      if (sourceGrounded && !(item.sourceRefs ?? []).every((id) => sourceIds.has(id))) {
+        throw new Error(`scenario ${item.id} has an unresolved sourceRef`);
+      }
+      if (sourceGrounded) return item;
+      return {
+        ...item,
+        sentinel: false,
+        qualificationStatus: 'fixture_followup_draft',
+        expressionKind: item.expressionKind ?? 'synthetic_from_researched_workflow',
+        sourceRefs: item.sourceRefs ?? [],
+        requestStage: item.requestStage ?? 'operate_after_evidence_ready',
+      };
+    }),
+  };
 }
 
 export async function findS3HumanBusinessScenario(id) {

@@ -11,10 +11,10 @@ import {
 
 const root = new URL('../../', import.meta.url);
 
-test('한국 사업자 인간 시나리오는 기능 목록이 아니라 다양한 실제 목적 library다', async () => {
+test('정식 인간 시나리오는 출처가 있는 발견·연결·업무 목적이고 합성 후속업무와 분리된다', async () => {
   const catalog = await loadS3HumanBusinessScenarios();
   assert.equal(catalog.schema, 't5.s3.human-business-scenarios.v1');
-  assert.ok(catalog.scenarios.length >= 40, catalog.scenarios.length);
+  assert.ok(catalog.scenarios.length >= 50, catalog.scenarios.length);
   assert.ok(catalog.scenarios.filter((item) => item.sentinel).length >= 10);
   assert.equal(new Set(catalog.scenarios.map((item) => item.id)).size, catalog.scenarios.length);
   for (const business of [
@@ -25,6 +25,16 @@ test('한국 사업자 인간 시나리오는 기능 목록이 아니라 다양�
     item.primaryPrompt && item.purpose && item.environment && item.acceptance.length >= 5
   )));
   assert.ok(catalog.scenarios.some((item) => item.testerInterventions?.length >= 3));
+  const sourceIds = new Set(catalog.sourceRecords.map((item) => item.id));
+  const canonical = catalog.scenarios.filter((item) => item.qualificationStatus === 'source_grounded');
+  const drafts = catalog.scenarios.filter((item) => item.qualificationStatus !== 'source_grounded');
+  assert.ok(canonical.length >= 10, canonical.length);
+  assert.ok(canonical.some((item) => item.requestStage === 'connection_reality'));
+  assert.ok(canonical.some((item) => item.requestStage === 'market_research_capability'));
+  assert.ok(canonical.every((item) => item.sourceRefs.length > 0));
+  assert.ok(canonical.every((item) => item.sourceRefs.every((id) => sourceIds.has(id))));
+  assert.ok(drafts.length > 0);
+  assert.ok(drafts.every((item) => item.sentinel === false));
 });
 
 test('시나리오 library는 실제 플랫폼 업무를 근거로 하지만 제품 Prompt와 개인정보 fixture가 아니다', async () => {
@@ -36,6 +46,13 @@ test('시나리오 library는 실제 플랫폼 업무를 근거로 하지만 제
   assert.equal(catalog.privacy.realAccounts, false);
   assert.equal(catalog.privacy.realExternalWrites, false);
   assert.ok(catalog.researchBasis.length >= 6);
+  assert.ok(catalog.sourceRecords.some((item) => item.kind === 'public_community_first_person'));
+  const vendor = catalog.sourceRecords.find((item) => item.id === 'SRC-KR-VENDOR-CATALOG-01');
+  assert.equal(vendor.strength,
+    'supply_side_coverage_signal_not_user_demand_or_outcome_evidence');
+  assert.equal(catalog.coverageTaxonomies[0].use, 'coverage_gap_detection_only');
+  assert.ok(catalog.evidencePolicy.prohibitedPromotion.includes('invented likely request'));
+  assert.ok(catalog.testerIntakeContract.required.includes('exactUserWording'));
   assert.doesNotMatch(raw, /\/Users\//u);
   assert.doesNotMatch(raw, /\bntn_[A-Za-z0-9_-]+|bot\d+:[A-Za-z0-9_-]+|sk-[A-Za-z0-9_-]{12,}/u);
 });
@@ -89,6 +106,7 @@ test('라이브 launcher는 실제 연결을 mock하지 않고 인간 통제·�
     new URL('refoundation/scripts/launch-s3-human-business-console.mjs', root), 'utf8',
   );
   assert.match(launcher, /--human-controlled is required/u);
+  assert.match(launcher, /--allow-research-draft/u);
   assert.match(launcher, /workspaceConnectionInspectors: \[\], workspaceConnectionServices: \[\]/u);
   assert.match(launcher, /messenger-empty/u);
   assert.match(launcher, /browserAutomationLoaded: false/u);
