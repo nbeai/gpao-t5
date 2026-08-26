@@ -1052,6 +1052,12 @@ Living Library 반대시험:
 
 현재 Learning lifecycle을 확장하며 새 자동 학습 engine을 만들지 않는다.
 
+M6의 `Skill`은 T5가 실제 Episode·counterexample·replay·field benefit에서 배운 **내부 절차 revision**만 뜻한다.
+외부 Agent Skill·MCP·CLI·Plugin의 발견·qualification·설치·활성·update·제거·rollback은 독립 개발선
+`S3-CA — Capability Reality & Safe Acquisition`이 소유한다. M6는 외부 capability의 사용 결과와 exact
+Qualification/Outcome pointer를 Reflection Evidence로 참고할 수 있지만 설치 상태를 만들거나 바꾸지 않는다.
+반대로 S3-CA는 사용자 Memory·Reflection·Principle을 저장하거나 의미 선택하지 않는다.
+
 단계:
 
 ```text
@@ -1063,6 +1069,11 @@ Reflection shadow
 → Principle qualification
 → optional Skill revision
 ```
+
+외부 capability가 없다는 이유로 M6가 package 설치법을 학습 Skill로 만들어 우회하지 않는다. 내부 Skill이
+특정 외부 capability를 필요로 하면 content-free capability identity와 필요한 상태만 선언하고, 실제 사용 가능
+여부와 준비·복구는 S3-CA의 단일 상태를 소비한다. 외부 설치 성공은 Principle qualification이나 Work achieved를
+대신하지 않는다.
 
 파일 후보:
 

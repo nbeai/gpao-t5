@@ -1,26 +1,44 @@
 # T5 3차 고도화 — 활성화 전 준비 정본
 
-상태: `OWNER_ACTIVATED_S3A_TERMINAL_FIRST · OPTIMIZATION LOCKED`
+상태: `OWNER_ACTIVATED_S3A · S3T_PASS_WITH_OBSERVATION · S3M_M0_COMPLETE · S3CA_REGISTERED_IMPLEMENTATION_LOCKED · OPTIMIZATION LOCKED`
 
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER`
 
 현재 공식 Release Gate와 2차 완성의 진행 정본은 계속 `T5-SECOND-COMPLETION.md`가 담당한다. 이 문서는
-그 Release 상태는 변경하지 않는다. 오너는 2026-08-26 Terminal-first 고도화를 맡기며 S3-A 측정선을
-활성화했다. 이 문서는 측정·반대시험·판정의 범위와 최적화 전 금지선을 유지한다. 제품 정의는
-`T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가 우선한다.
+그 Release 상태는 변경하지 않는다. 오너는 2026-08-26 S3-A 측정선을 활성화하고 Terminal-first 고도화를
+`PASS WITH OBSERVATION`으로 닫았으며, Life Continuity의 M0 완료 뒤 M1은 별도 개통 전까지 잠갔다. 외부
+Capability의 개발자 명시 설치와 자연어 자기확장을 한 엔진으로 다루는 S3-CA는 연구·계획만 등록하고 제품
+구현은 S3-A 결과와 오너의 명시적 개통 전까지 잠근다. 이 문서는 측정·반대시험·판정의 범위와 최적화 전
+금지선을 유지한다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가 우선한다.
 
 ## 1. 활성화 전 판정
 
 ```text
 2차 Release Gate: 변경 없음
-3차 개발선: S3-A Terminal-first 측정 활성
-현재 허용 작업: S3-A 측정·판정과 S3-T0/T1B가 직접 확인한 Terminal 환경·T5-owned secret 경계의 좁은 보안 수리
-현재 금지 작업: 측정 결과를 전제한 구조 변경과 성능 최적화
+3차 개발선: S3-A 측정 활성 · S3-T 완료 · S3-M M0 완료/M1 잠금 · S3-CA 연구 등록/구현 잠금 · S3-PW 대기
+현재 허용 작업: S3-A 측정·판정, 오너가 연 exact 한 Gate, S3-CA 실제 실패·완료 문장·반대시험의 제품 변경 0 연구
+현재 금지 작업: 측정 결과를 전제한 구조 변경·성능 최적화, S3-CA 제품 hot path·설치 engine 선구현, 여러 큰 개발선 동시 개통
 ```
 
 서명 identity 부재라는 Release 외부 blocker를 3차 소스 변경으로 해결한 것처럼 기록하지 않는다. 반대로
 S3-A 준비가 Release package의 서명·공증 완료 조건을 대신하지도 않는다. Release 작업과 S3-A는 서로 다른
 scope·evidence·판정을 유지한다.
+
+### 현재 개발선 등록부
+
+이 표는 새 정본이 아니라 이 문서가 소유하는 현재 상태 index다. 각 상세 계약과 evidence는 해당 개발선의
+기존 문서·source를 가리키며 같은 사실을 반복하지 않는다.
+
+| 개발선 | 소유 책임 | 현재 상태 |
+|---|---|---|
+| S3-A | 실제 사용자 목적의 phase·critical path·observer effect | 활성 · 미완료 |
+| S3-T | 모델과 Terminal의 환경·process·PTY·출력 recall·플랫폼 실행 | `PASS WITH OBSERVATION` · 완료 |
+| S3-M | Life Continuity·Memory Stewardship·내부 Reflection/Principle/Skill | M0 완료 · M1 개통 전 잠금 |
+| S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | 연구 승인 · 제품 구현 잠금 |
+| S3-PW | Windows installer·app shell·공통 제품 자격 | 대기 |
+
+개발선 표는 일정표가 아니다. S3-A 뒤 구조가 자동 개통되지 않으며, 오너가 연 한 제품 개발선만 hot path를
+변경한다. S3-M6는 내부 학습 Skill만, S3-CA는 외부 Skill·MCP·CLI·Plugin 획득만 소유한다.
 
 ## 2. 제품 약속과 3차 준비의 목적
 
@@ -103,6 +121,12 @@ S3-A는 최적화 Gate가 아니라 관측 Gate다. 코드 변경 전에 단순 
 Codex의 unified exec, OpenClaw의 process registry, Hermes의 terminal/process, OpenHands의
 action/observation에서 실제로 막은 실패를 반대시험으로 옮기되 source를 복사하지 않는다. 제품 hot path
 변경은 이 관측과 오너의 다음 한 작업 선택 뒤에만 연다.
+
+현재 Terminal 개발선은 commit `9c96d9fbc2db9e950ebc4cb73ff5653fa55d35fb`와
+`refoundation/evidence/s3-terminal-windows-github-qualification-2026-08-26.json`을 기준으로
+`PASS WITH OBSERVATION` 종료했다. 아래 T1A·T1B·T2A는 그 결론에 이른 단계별 결함과 수리 기록이며 현재
+Terminal 상태를 되돌리지 않는다. physical Windows UI 인간 자격·Windows sandbox-first·Windows ARM64 실제
+실행·signed installer는 완료 범위 밖 관측으로 유지한다.
 
 ### S3-T1A — Login shell isolation repair
 
@@ -224,5 +248,121 @@ S3-A 완료는 3차 전체 활성화나 특정 아키텍처 채택이 아니다.
 정확성·완전성 무회귀, 변경 위험을 보고 다음 한 작업을 별도로 선택한다. SQLite·Prompt 분해·Actor·Outbox·
 Completion Envelope는 각각 독립 가설이며 묶음으로 승인되지 않는다.
 
-다음 작업은 S3-A shadow 계측 계약을 반대시험부터 세우는 것이다. 제품 hot path 변경이나 최적화는 아직
-다음 작업이 아니다.
+S3-A에서 다음 작업을 열 때는 shadow 계측 계약을 반대시험부터 세운다. 이 문장은 이미 별도로 개통된 S3-M의
+현재 exact Gate를 되돌리거나 S3-CA 구현을 자동 개통하지 않는다. 제품 hot path 변경이나 최적화는 각 개발선의
+오너 개통과 실제 증거 없이 다음 작업이 아니다.
+
+## 9. S3-CA — Capability Reality & Safe Acquisition 등록 계약
+
+S3-CA는 Plugin 관리 화면이나 새 marketplace가 아니다. `T5-PRODUCT.md`가 이미 약속한 다음 생명주기를
+개발자 명시 설치와 일반 사용자 자연어 요청에서 한 acquisition·qualification·lifecycle로 완성하는 개발선이다.
+
+```text
+사용자 목적 → 현재 현실·능력 확인 → 부족한 능력 판단 → 검증된 후보 발견
+→ 출처·권한·비용·적합성 확인 → 필요한 능력만 준비 → 원래 목적 재개
+→ 실제 결과 검증 → 개선·교체·비활성·제거 → 필요하면 복원
+```
+
+### 사용자 완료 문장
+
+> 개발자는 local·Git exact ref·registry·remote MCP source를 명시해 외부 확장을 inspect·설치·활성·비활성·
+> update·제거·rollback할 수 있다. 일반 사용자는 확장 형식을 몰라도 평소 말로 목적을 설명하면 T5가 지금
+> 가능한 일과 부족한 능력·사용자 행동이 필요한 경계·아직 불확실한 부분을 빠르게 구분하고, 가장 가벼운
+> 대안을 조사·검증·준비해 같은 Work를 정확히 한 번 재개하고 실제 목적 달성까지 확인한다.
+
+설치 성공, runtime 등록, 모델 노출, 실제 호출, 사용자 목적 달성은 하나의 `success`로 합치지 않는다.
+개발자 표면과 자연어 표면은 같은 source identity·qualification·install record·activation generation·rollback을
+사용한다.
+
+### 네 제품 Gate
+
+#### S3-CA1 — Capability Reality & Package Contract
+
+현재 설치·연결·권한·실측에서 기계적으로 확인된 `usable_now·available_inactive·needs_auth·degraded·preparable·
+unknown·incompatible` 사실만 작게 제공한다. 모델은 사용자 목적과 이 현실을 보고 필요한 능력과 대안을
+판단한다. Runtime은 서비스 이름·사용자 표현·키워드 규칙으로 의미를 선택하지 않는다.
+
+외부 package는 source·resolved version/commit·artifact digest·kind·platform·entrypoint·필요한 비밀·파일·
+network·effect·install/update/remove 전략을 선언한다. 하나의 고정 `trustLevel`로 자동 실행을 결정하지 않고,
+publisher/namespace identity·immutable ref·signature/attestation·license·실행 코드·권한·실제 qualification을
+독립 Evidence로 보존한다.
+
+#### S3-CA2 — Developer Extension Surface
+
+결정적 positive control로 개발자 명시 설치를 먼저 닫는다. 첫 지원 종류는 Agent Skill, remote/local MCP,
+managed CLI, 별도 process로 격리한 executable extension, 선언형 T5 package다. local directory·Git exact ref·
+registry package·remote MCP URL을 같은 coordinator로 inspect·install·enable/disable·update·uninstall·rollback한다.
+
+Codex·Claude·OpenClaw bundle 전체 호환을 약속하지 않는다. Agent Skills·MCP 같은 공개 표준과 선언적으로
+정규화 가능한 구성만 adapter로 수용한다. 임의 JavaScript·Python lifecycle hook을 서명된 T5 Core process에
+직접 load하는 경로는 첫 완료 범위에서 제외한다.
+
+#### S3-CA3 — Qualification & Lifecycle
+
+후보는 source identity·exact commit/version/hash·license·dependency/install script·prompt injection·OS/architecture·
+filesystem/network/secret/external effect·격리 fixture·동일 사용자 목적·제거/복원·Context/오류 비밀 노출을
+분리해 확인한다. Scanner·별점·다운로드 수·공식 Registry 존재·Skill의 `allowed-tools` 선언 하나는 합격이 아니다.
+
+```text
+candidate → quarantined → structurally_checked → task_qualified
+→ installed_inactive → current scope active → actual purpose verified → reusable
+```
+
+새 version·commit은 기존 동의를 자동 상속하지 않는다. 기존 검증본을 유지한 채 새 identity를 격리 자격하고,
+통과한 generation만 교체한다. 실패·취소·crash는 부분 설치를 활성 상태로 남기지 않는다.
+
+사용자가 이미 되돌릴 수 있는 managed 설치와 목적 수행을 요청했다면 source가 공개 웹이라는 이유만으로
+반복 승인하지 않는다. 비밀값 입력·백업 없는 파괴·새 상대 첫 외부 전송·돈이 나가는 일에서 멈추며, T5
+관리 영역 밖의 전역 설치·관리자 권한·Core in-process 실행처럼 목적 범위를 실질적으로 넓히는 후보는 가장
+가까운 격리 대안을 먼저 제시하고 새 방향이 필요할 때 사용자에게 설명한다.
+
+#### S3-CA4 — Natural-Language Acquisition & Work Resume
+
+주 모델은 현재 목적·Capability Reality·후보 Evidence를 보고 `지금 실행·준비·사용자 경계·추가 조사·안전한
+방법 없음`을 판단한다. 별도 intent classifier·한국어 키워드·고정 서비스 mapping을 만들지 않는다. 준비가
+필요하면 CA2~3의 같은 엔진을 사용하고, exact Work/revision을 잃지 않은 채 현재 scope에만 능력을 활성화해
+한 번 재개한다. 설치만 성공하고 원래 목적이 실패하면 Work는 achieved가 아니다.
+
+### 속도·Context·경제성 계약
+
+평상시 hot path에는 작은 Capability Reality와 현재 활성 Hand만 둔다. 이미 가능한 요청에는 외부 후보 검색을
+열지 않고, catalog 전체·비활성 schema·Skill 본문·scanner 결과를 모델 Context에 넣지 않는다. 부족함이 확인된
+뒤 local/cached catalog, 외부 registry·웹, 상세 source 조사, 격리 qualification 순으로 필요한 단계만 연다.
+
+qualification cache는 source·resolved commit/version·artifact digest·OS/architecture·T5 policy·fixture identity가
+모두 같을 때만 재사용한다. 독립적인 provenance·license·platform·advisory 확인은 안전할 때 병렬화하되 build·
+실행·외부 효과·activation은 실제 상태 전이를 보존한다. 별도 auxiliary model을 상시 호출하지 않고, 주 모델이
+이미 이해한 목적에서 검색 요구를 만들며 후보 문서 비교가 실제로 필요할 때만 모델 판단을 추가한다.
+
+S3-CA의 합격은 동일 사용자 목적 A/B에서 false `can_do`·false `cannot_do`, capability 판정까지의 wall, 추가
+model/tool calls, request bytes·tokens, qualification 재사용, install-to-purpose wall, 사용자 교정·승인 부담을
+함께 본다. 측정 전 fixed 후보 수·검색 횟수·timeout·Context quota를 제품 정책으로 만들지 않는다.
+
+### 개발 순서와 종합 Release 의존성
+
+```text
+S3-A 결과·오너 개통
+→ CA1 Capability Reality
+→ CA2 개발자 명시 설치 positive control
+→ CA3 격리 qualification·lifecycle
+→ CA4 자연어 gap·획득·exact Work 재개
+→ macOS·Windows Terra·gpt-5.5 인간 종단과 비교 A/B
+```
+
+S3-CA 연구 등록은 S3-M hot path 병행 개통을 뜻하지 않는다. 현재 제품 개발선은 오너가 연 한 작업만 진행한다.
+S3-M6는 CA capability의 usage outcome pointer를 Reflection Evidence로 참고할 수 있지만 외부 설치·update·rollback을
+수행하지 않는다. S3-CA는 사용자 Memory·Reflection·Principle을 저장하거나 의미 선택하지 않는다.
+
+3차 종합 완료는 각 개발선의 독립 PASS와 최종 사용자 목적 교차 자격을 요구한다.
+
+```text
+S3-A Performance Truth
+AND S3-T Terminal exact close
+AND S3-M Life Continuity
+AND S3-CA Capability Reality & Safe Acquisition
+AND S3-PW가 필요한 Windows 공통 자격
+AND macOS·Windows 실제 사용자·비교군 Release
+```
+
+S3-CA의 다음 작업은 제품 코드가 아니라, 현재 능력으로 끝나는 positive control 하나와 미등록 외부 능력이
+필요한 실제 사용자 실패 하나의 목적·원본·종료점·비목표를 고정하는 것이다.
