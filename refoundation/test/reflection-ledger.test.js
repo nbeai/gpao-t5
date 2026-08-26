@@ -11,7 +11,10 @@ import {
   makeReflectionCandidateEnvelope,
 } from '../src/reflection-candidate.js';
 import { materializeReflectionEvidence } from '../src/reflection-evidence-materializer.js';
-import { ReflectionLedger } from '../src/reflection-ledger.js';
+import {
+  materializeReflectionReviewProbe,
+  ReflectionLedger,
+} from '../src/reflection-ledger.js';
 
 const sha = (value) => createHash('sha256').update(value).digest('hex');
 const canonical = (value) => {
@@ -79,6 +82,19 @@ function evidence(envelope) {
   return { affectedScopeHandles: envelope.candidate.affectedScopes, episodes: envelope.episodes,
     recordRefs: envelope.recordRefs, correctionHeads: envelope.correctionHeads,
     forgetHeads: envelope.sourceFence.forgetHeads };
+}
+
+function qualifiedProbe(materialization) {
+  const envelope = materialization.envelope;
+  return materializeReflectionReviewProbe({
+    sourceFenceDigest: envelope.sourceFence.windowDigest,
+    affectedScopeDigest: materialization.receipt.affectedScopeDigest,
+    recordRefs: envelope.recordRefs,
+    recordSourceReader: { async reopen(reference) { return { state: 'reopened', source: {}, accounting: {
+      recordId: reference.recordId, availability: 'available', digestMatched: true,
+      observedSha256: reference.sha256,
+    } }; } },
+  });
 }
 
 async function roomFor(name) {
@@ -233,8 +249,13 @@ test('caller는 reviewed/stateHistory를 직접 저장하지 못하고 ledger tr
   try {
     const ledger = new ReflectionLedger(join(room, 'ledger'), { clock: () => recordedAt });
     await ledger.ensure(); const proposed = await freshMaterialization(); await ledger.propose(proposed);
-    const reviewed = await ledger.transition('reflection-safe-1', { to: 'reviewed',
-      currentEvidence: evidence(proposed.envelope) });
+    await assert.rejects(ledger.transition('reflection-safe-1', { to: 'reviewed',
+      currentEvidence: evidence(proposed.envelope) }), (failure) => (
+      failure.code === 'reflection_review_api_required'
+    ));
+    const reviewed = await ledger.review('reflection-safe-1', { requestId: 'review-transition-1',
+      expectedCandidateDigest: proposed.envelope.candidateDigest, decision: 'retain',
+      currentEvidence: evidence(proposed.envelope), sourceProbeReceipt: await qualifiedProbe(proposed) });
     assert.equal(reviewed.candidate.candidate.state, 'reviewed');
     const tested = await ledger.transition('reflection-safe-1', { to: 'tested',
       currentEvidence: evidence(reviewed.candidate) });
@@ -257,6 +278,196 @@ test('caller는 reviewed/stateHistory를 직접 저장하지 못하고 ledger tr
     await assert.rejects(ledger.propose(reviewed.candidate), (error) => (
       error.code === 'reflection_materialization_not_fresh'
     ));
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('human retain은 expected digest CAS와 qualified all-source probe로 reviewed receipt를 원자 append한다', async () => {
+  const room = await roomFor('human-retain');
+  try {
+    const ledger = new ReflectionLedger(join(room, 'ledger'), { clock: () => recordedAt });
+    await ledger.ensure(); const materialization = await freshMaterialization();
+    await ledger.propose(materialization); const envelope = materialization.envelope;
+    const retained = await ledger.review(envelope.candidate.reflectionId, {
+      requestId: 'review-retain-1', expectedCandidateDigest: envelope.candidateDigest,
+      decision: 'retain', currentEvidence: evidence(envelope),
+      sourceProbeReceipt: await qualifiedProbe(materialization),
+    });
+    assert.equal(retained.candidate.candidate.state, 'reviewed');
+    assert.equal(retained.reviewReceipt.reviewerKind, 'settings_runtime');
+    assert.equal(retained.reviewReceipt.decision, 'retain');
+    assert.equal(retained.reviewReceipt.sourceProbeReceipt.reopenedSources, envelope.recordRefs.length);
+    assert.deepEqual(retained.reviewReceipt.sideEffects,
+      { memoryWrites: 0, principleWrites: 0, managedCapabilityChanges: 0, externalWrites: 0 });
+    const restarted = await new ReflectionLedger(ledger.directory).read();
+    assert.equal(restarted.events.filter((event) => event.type === 'reflection_review_decided').length, 1);
+    assert.deepEqual(restarted.reviewReceipts, [retained.reviewReceipt]);
+    assert.doesNotMatch(JSON.stringify(retained.reviewReceipt),
+      /reflection-safe-1|objective-1|memory-safe|subject-safe|run-1|work-1/u);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('human reject는 source probe 없이 expected digest CAS로 rejected만 기록한다', async () => {
+  const room = await roomFor('human-reject');
+  try {
+    const ledger = new ReflectionLedger(join(room, 'ledger'), { clock: () => recordedAt });
+    await ledger.ensure(); const materialization = await freshMaterialization();
+    await ledger.propose(materialization); const envelope = materialization.envelope;
+    const rejected = await ledger.review(envelope.candidate.reflectionId, {
+      requestId: 'review-reject-1', expectedCandidateDigest: envelope.candidateDigest,
+      decision: 'reject', currentEvidence: null, sourceProbeReceipt: null,
+    });
+    assert.equal(rejected.candidate.candidate.state, 'rejected');
+    assert.equal(rejected.reviewReceipt.sourceProbeReceipt, null);
+    assert.deepEqual(rejected.sideEffects,
+      { memoryWrites: 0, principleWrites: 0, managedCapabilityChanges: 0, externalWrites: 0 });
+    await assert.rejects(ledger.review(envelope.candidate.reflectionId, {
+      requestId: 'bad request id', expectedCandidateDigest: envelope.candidateDigest,
+      decision: 'reject', currentEvidence: null, sourceProbeReceipt: null,
+    }), /opaque identity/u);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('review probe는 실제 reader가 만든 fresh wrapper만 한 번 소비하고 clone·scope mismatch를 거부한다', async () => {
+  const room = await roomFor('human-probe-brand');
+  try {
+    const ledger = new ReflectionLedger(join(room, 'ledger'), { clock: () => recordedAt });
+    await ledger.ensure(); const materialization = await freshMaterialization();
+    await ledger.propose(materialization); const envelope = materialization.envelope;
+    const probe = await qualifiedProbe(materialization);
+    await assert.rejects(ledger.review(envelope.candidate.reflectionId, {
+      requestId: 'review-probe-clone', expectedCandidateDigest: envelope.candidateDigest,
+      decision: 'retain', currentEvidence: evidence(envelope),
+      sourceProbeReceipt: structuredClone(probe),
+    }), /fresh exact source probe/u);
+    const wrongScope = await materializeReflectionReviewProbe({
+      recordSourceReader: { async reopen(reference) { return { state: 'reopened', source: {}, accounting: {
+        recordId: reference.recordId, availability: 'available', digestMatched: true,
+        observedSha256: reference.sha256,
+      } }; } }, recordRefs: envelope.recordRefs,
+      sourceFenceDigest: envelope.sourceFence.windowDigest, affectedScopeDigest: sha('wrong-scope'),
+    });
+    await assert.rejects(ledger.review(envelope.candidate.reflectionId, {
+      requestId: 'review-probe-scope', expectedCandidateDigest: envelope.candidateDigest,
+      decision: 'retain', currentEvidence: evidence(envelope), sourceProbeReceipt: wrongScope,
+    }), /qualified exact source probe/u);
+    assert.equal((await ledger.read()).events.filter((event) => event.type === 'reflection_review_decided').length, 0);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('reviewed 후보의 later reject도 generic transition 없이 human receipt로 기록한다', async () => {
+  const room = await roomFor('human-reviewed-reject');
+  try {
+    const ledger = new ReflectionLedger(join(room, 'ledger'), { clock: () => recordedAt });
+    await ledger.ensure(); const materialization = await freshMaterialization();
+    await ledger.propose(materialization); const envelope = materialization.envelope;
+    const retained = await ledger.review(envelope.candidate.reflectionId, {
+      requestId: 'review-keep-first', expectedCandidateDigest: envelope.candidateDigest,
+      decision: 'retain', currentEvidence: evidence(envelope),
+      sourceProbeReceipt: await qualifiedProbe(materialization),
+    });
+    const rejected = await ledger.review(envelope.candidate.reflectionId, {
+      requestId: 'review-reject-later', expectedCandidateDigest: retained.candidate.candidateDigest,
+      decision: 'reject', currentEvidence: null, sourceProbeReceipt: null,
+    });
+    assert.equal(rejected.candidate.candidate.state, 'rejected');
+    assert.equal(rejected.reviewReceipt.beforeState, 'reviewed');
+    assert.equal(rejected.reviewReceipt.reviewerKind, 'settings_runtime');
+    assert.equal((await ledger.read()).reviewReceipts.length, 2);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('두 reviewer의 same-version retain/reject는 정확히 하나만 commit하고 stale loser는 덮지 않는다', async () => {
+  const room = await roomFor('human-race');
+  try {
+    const directory = join(room, 'ledger'); const first = new ReflectionLedger(directory, { clock: () => recordedAt });
+    const second = new ReflectionLedger(directory, { clock: () => recordedAt });
+    await first.ensure(); const materialization = await freshMaterialization();
+    await first.propose(materialization); const envelope = materialization.envelope;
+    const settled = await Promise.allSettled([
+      first.review(envelope.candidate.reflectionId, { requestId: 'review-race-retain',
+        expectedCandidateDigest: envelope.candidateDigest, decision: 'retain',
+        currentEvidence: evidence(envelope), sourceProbeReceipt: await qualifiedProbe(materialization) }),
+      second.review(envelope.candidate.reflectionId, { requestId: 'review-race-reject',
+        expectedCandidateDigest: envelope.candidateDigest, decision: 'reject',
+        currentEvidence: null, sourceProbeReceipt: null }),
+    ]);
+    assert.equal(settled.filter((item) => item.status === 'fulfilled').length, 1);
+    const failure = settled.find((item) => item.status === 'rejected').reason;
+    assert.equal(failure.code, 'reflection_review_version_changed');
+    const state = await first.read();
+    assert.equal(state.events.filter((event) => event.type === 'reflection_review_decided').length, 1);
+    assert.equal(state.reviewReceipts.length, 1);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('review requestId는 restart retry에서 같은 receipt를 반환하고 payload 충돌은 막는다', async () => {
+  const room = await roomFor('human-idempotent');
+  try {
+    const ledger = new ReflectionLedger(join(room, 'ledger'), { clock: () => recordedAt });
+    await ledger.ensure(); const materialization = await freshMaterialization();
+    await ledger.propose(materialization); const envelope = materialization.envelope;
+    const input = { requestId: 'review-restart-1', expectedCandidateDigest: envelope.candidateDigest,
+      decision: 'retain', currentEvidence: evidence(envelope),
+      sourceProbeReceipt: await qualifiedProbe(materialization) };
+    const first = await ledger.review(envelope.candidate.reflectionId, input);
+    const restarted = new ReflectionLedger(ledger.directory, { clock: () => recordedAt });
+    const replayed = await restarted.review(envelope.candidate.reflectionId, { ...input,
+      currentEvidence: null, sourceProbeReceipt: null });
+    assert.equal(replayed.idempotent, true); assert.deepEqual(replayed.reviewReceipt, first.reviewReceipt);
+    assert.equal((await restarted.read()).events
+      .filter((event) => event.type === 'reflection_review_decided').length, 1);
+    await assert.rejects(restarted.review(envelope.candidate.reflectionId, {
+      requestId: input.requestId, expectedCandidateDigest: envelope.candidateDigest,
+      decision: 'reject', currentEvidence: null, sourceProbeReceipt: null,
+    }), (error) => error.code === 'reflection_review_request_conflict');
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('retain은 missing probe·stale correction·append failure에서 review event 0을 유지한다', async () => {
+  for (const mode of ['missing-probe', 'stale-correction', 'append-failure']) {
+    const room = await roomFor(`human-${mode}`);
+    try {
+      const ledger = new ReflectionLedger(join(room, 'ledger'), { clock: () => recordedAt,
+        beforeAppend: async (event) => {
+          if (mode === 'append-failure' && event.type === 'reflection_review_decided') {
+            throw new Error('injected review append failure');
+          }
+        } });
+      await ledger.ensure(); const materialization = await freshMaterialization();
+      await ledger.propose(materialization); const envelope = materialization.envelope;
+      const current = structuredClone(evidence(envelope));
+      if (mode === 'stale-correction') current.correctionHeads[0].subjectRevision += 1;
+      await assert.rejects(ledger.review(envelope.candidate.reflectionId, {
+        requestId: `review-${mode}`, expectedCandidateDigest: envelope.candidateDigest,
+        decision: 'retain', currentEvidence: current,
+        sourceProbeReceipt: mode === 'missing-probe' ? null : await qualifiedProbe(materialization),
+      }), mode === 'missing-probe' ? (error) => error.code === 'current_evidence_unqualified'
+        : mode === 'stale-correction' ? (error) => error.code === 'reflection_stale_source_window'
+          : /injected review append failure/u);
+      const state = await new ReflectionLedger(ledger.directory).read();
+      assert.equal(state.candidates[0].candidate.state, 'proposed');
+      assert.equal(state.events.filter((event) => event.type === 'reflection_review_decided').length, 0);
+    } finally { await rm(room, { recursive: true, force: true }); }
+  }
+});
+
+test('review event semantic tamper는 event digest를 다시 써도 restart에서 거부한다', async () => {
+  const room = await roomFor('human-tamper');
+  try {
+    const ledger = new ReflectionLedger(join(room, 'ledger'), { clock: () => recordedAt });
+    await ledger.ensure(); const materialization = await freshMaterialization();
+    await ledger.propose(materialization); const envelope = materialization.envelope;
+    await ledger.review(envelope.candidate.reflectionId, { requestId: 'review-tamper-1',
+      expectedCandidateDigest: envelope.candidateDigest, decision: 'reject',
+      currentEvidence: null, sourceProbeReceipt: null });
+    const events = (await readFile(ledger.path, 'utf8')).trimEnd().split('\n').map(JSON.parse);
+    const review = events.at(-1); review.payload.review.reviewerKind = 'background_reviewer';
+    const reviewCore = { ...review.payload.review }; delete reviewCore.receiptDigest;
+    review.payload.review.receiptDigest = sha(JSON.stringify(canonical(reviewCore)));
+    const eventCore = { ...review }; delete eventCore.eventDigest;
+    review.eventDigest = sha(JSON.stringify(canonical(eventCore)));
+    await writeFile(ledger.path, `${events.map(JSON.stringify).join('\n')}\n`, 'utf8');
+    await assert.rejects(new ReflectionLedger(ledger.directory).read(), /invalid Reflection review receipt/u);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 

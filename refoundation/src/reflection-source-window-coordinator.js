@@ -5,7 +5,9 @@ import { isAbsolute } from 'node:path';
 import { materializeReflectionEvidence } from './reflection-evidence-materializer.js';
 
 const SHARED_WINDOWS = new Map();
+const SOURCE_WINDOW_INSTANCES = new WeakSet();
 const MATERIALIZE_FIELDS = new Set(['meaningProposal']);
+const STABLE_READ_FIELDS = new Set(['observe', 'commit']);
 const MUTATION_FIELDS = new Set(['store', 'mutate']);
 const ENUMERATION_FIELDS = new Set([
   'runtimeSnapshot', 'episodeAllowlist', 'recordSourceReader', 'storeHeadReceipt',
@@ -214,6 +216,10 @@ function staleError(startEpoch, currentEpoch) {
   return error;
 }
 
+export function isReflectionSourceWindowCoordinator(value) {
+  return Boolean(value && SOURCE_WINDOW_INSTANCES.has(value));
+}
+
 export class ReflectionSourceWindowCoordinator {
   constructor(input = {}) {
     known(input, CONSTRUCTOR_FIELDS, 'ReflectionSourceWindowCoordinator');
@@ -243,10 +249,46 @@ export class ReflectionSourceWindowCoordinator {
     ))].join('|');
     this.windowIdentityDigest = hash(sourceIdentity);
     this.shared = sharedWindow(sourceIdentity, this.requiredStores, this.storeBindings);
+    SOURCE_WINDOW_INSTANCES.add(this);
   }
 
   status() {
     return snapshotStatus(this.windowIdentityDigest, this.shared, this.requiredStores, this.storeBindings);
+  }
+
+  async withStableRead(input = {}) {
+    exact(input, STABLE_READ_FIELDS, 'ReflectionStableRead');
+    if (typeof input.observe !== 'function' || typeof input.commit !== 'function') {
+      throw new TypeError('Reflection stable observe and commit callbacks are required');
+    }
+    return exclusive(this.shared, async () => {
+      const manifest = coverageManifest(this.requiredStores, this.storeBindings, this.shared);
+      if (!manifest.configuredCoverageComplete) {
+        const problem = new Error('Reflection stable read has non-participating canonical writers');
+        problem.code = 'reflection_source_window_unqualified'; problem.coverageManifest = manifest;
+        throw problem;
+      }
+      if (this.shared.epoch % 2 !== 0) throw staleError(this.shared.epoch, this.shared.epoch);
+      const epoch = this.shared.epoch;
+      const writerRegistrations = this.requiredStores.map((store) => ({ store,
+        writerRegistrationDigest: this.storeBindings[store].writerRegistrationDigest }));
+      const context = { windowIdentityDigest: this.windowIdentityDigest, epoch,
+        stores: Object.fromEntries(this.requiredStores.map((name) => [name, this.storeBindings[name].store])),
+        writerRegistrations: structuredClone(writerRegistrations) };
+      const before = await this.enumerateSourceWindow(context);
+      exact(before, ENUMERATION_FIELDS, 'ReflectionStableReadBefore');
+      const beforeReceipt = this.#validateStoreHeadReceipt(before.storeHeadReceipt, epoch, writerRegistrations);
+      const observed = await input.observe({ ...context, runtimeSnapshot: structuredClone(before.runtimeSnapshot),
+        episodeAllowlist: structuredClone(before.episodeAllowlist), recordSourceReader: before.recordSourceReader,
+        storeHeadReceipt: structuredClone(beforeReceipt) });
+      const preCommit = await this.enumerateSourceWindow(context);
+      exact(preCommit, ENUMERATION_FIELDS, 'ReflectionStableReadPreCommit');
+      const preCommitReceipt = this.#validateStoreHeadReceipt(preCommit.storeHeadReceipt, epoch, writerRegistrations);
+      if (preCommitReceipt.receiptDigest !== beforeReceipt.receiptDigest) throw staleError(epoch, this.shared.epoch);
+      const value = await input.commit(observed);
+      if (this.shared.epoch !== epoch || this.shared.epoch % 2 !== 0) throw staleError(epoch, this.shared.epoch);
+      return value;
+    });
   }
 
   async withForegroundMutation(input = {}) {

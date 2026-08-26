@@ -15,8 +15,29 @@ const SCHEMA = 't5.reflection-ledger-event.v1';
 const EVENT_FIELDS = new Set([
   'schema', 'sequence', 'type', 'recordedAt', 'previousEventDigest', 'payload', 'eventDigest',
 ]);
-const EVENT_TYPES = new Set(['reflection_ledger_started', 'reflection_proposed', 'reflection_transitioned']);
+const EVENT_TYPES = new Set([
+  'reflection_ledger_started', 'reflection_proposed', 'reflection_transitioned',
+  'reflection_review_decided',
+]);
+const REVIEW_INPUT_FIELDS = new Set([
+  'requestId', 'expectedCandidateDigest', 'decision', 'currentEvidence', 'sourceProbeReceipt',
+]);
+const REVIEW_RECEIPT_FIELDS = new Set([
+  'schema', 'requestId', 'requestFingerprint', 'reviewerKind', 'decision',
+  'beforeCandidateDigest', 'afterCandidateDigest', 'beforeState', 'afterState',
+  'materializationDigest', 'sourceFenceDigest', 'sourceProbeReceipt', 'sideEffects',
+  'receiptDigest',
+]);
+const SOURCE_PROBE_FIELDS = new Set([
+  'schema', 'state', 'sourceFenceDigest', 'sourceSetDigest', 'requiredSources',
+  'reopenedSources', 'missingSources', 'changedSources', 'permissionDeniedSources',
+  'unknownSources', 'affectedScopeDigest', 'receiptDigest',
+]);
+const SIDE_EFFECT_FIELDS = new Set([
+  'memoryWrites', 'principleWrites', 'managedCapabilityChanges', 'externalWrites',
+]);
 const SHARED_QUEUES = new Map();
+const FRESH_REVIEW_PROBES = new WeakSet();
 
 const canonical = (value) => {
   if (Array.isArray(value)) return value.map(canonical);
@@ -43,6 +64,160 @@ function canonicalTime(value) {
     throw new Error('Reflection ledger time must be canonical UTC');
   }
   return value;
+}
+
+function boundedText(value, label, max = 256) {
+  if (typeof value !== 'string' || !value || value.trim() !== value || value.length > max
+    || /[\u0000-\u001f\u007f]/u.test(value)) throw new TypeError(`${label} is invalid`);
+  return value;
+}
+
+function requestIdentity(value) {
+  const id = boundedText(value, 'review requestId', 128);
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(id)) {
+    throw new TypeError('review requestId must be an opaque identity');
+  }
+  return id;
+}
+
+function digest(value, label) {
+  if (typeof value !== 'string' || !/^[a-f0-9]{64}$/u.test(value)) {
+    throw new TypeError(`${label} must be a lowercase SHA-256 digest`);
+  }
+  return value;
+}
+
+function count(value, label) {
+  if (!Number.isSafeInteger(value) || value < 0) throw new TypeError(`${label} is invalid`);
+  return value;
+}
+
+function sourceSetDigest(recordIds) {
+  if (!Array.isArray(recordIds) || recordIds.length > 512) {
+    throw new TypeError('source record identities must be a bounded array');
+  }
+  const ids = recordIds.map((id) => boundedText(id, 'source record identity'));
+  if (new Set(ids).size !== ids.length) throw new TypeError('source record identities must be unique');
+  return hash(ids.toSorted());
+}
+
+export async function materializeReflectionReviewProbe({
+  recordSourceReader, recordRefs, sourceFenceDigest, affectedScopeDigest,
+} = {}) {
+  if (typeof recordSourceReader?.reopen !== 'function' || !Array.isArray(recordRefs)) {
+    throw new TypeError('Reflection review probe requires an exact source reader and RecordRefs');
+  }
+  const ids = [];
+  for (const reference of recordRefs) {
+    if (!reference?.recordId || !reference.sha256) {
+      throw new TypeError('Reflection review probe requires source digests');
+    }
+    let reopened;
+    try {
+      reopened = await recordSourceReader.reopen(reference, {
+        expectedSessionId: reference.scope?.sessionId ?? null,
+        expectedWorkId: reference.scope?.workId ?? null,
+      });
+    } catch {
+      const failure = new Error('Reflection review source is unknown');
+      failure.code = 'reflection_review_source_unknown'; throw failure;
+    }
+    const accounting = reopened?.accounting;
+    if (reopened?.state !== 'reopened' || !reopened.source
+      || accounting?.recordId !== reference.recordId
+      || accounting?.availability !== 'available' || accounting?.digestMatched !== true
+      || accounting?.observedSha256 !== reference.sha256) {
+      const state = ['changed', 'missing', 'permission_denied', 'unknown'].includes(reopened?.state)
+        ? reopened.state : accounting?.digestMatched === false ? 'changed' : 'unknown';
+      const failure = new Error(`Reflection review source is ${state}`);
+      failure.code = `reflection_review_source_${state}`; throw failure;
+    }
+    ids.push(reference.recordId);
+  }
+  const core = { schema: 't5.reflection-source-probe-receipt.v1', state: 'qualified',
+    sourceFenceDigest: digest(sourceFenceDigest, 'sourceFenceDigest'),
+    sourceSetDigest: sourceSetDigest(ids), requiredSources: ids.length, reopenedSources: ids.length,
+    missingSources: 0, changedSources: 0, permissionDeniedSources: 0, unknownSources: 0,
+    affectedScopeDigest: digest(affectedScopeDigest, 'affectedScopeDigest') };
+  const wrapper = Object.freeze({ schema: 't5.reflection-review-probe-materialization.v1',
+    receipt: Object.freeze({ ...core, receiptDigest: hash(core) }) });
+  FRESH_REVIEW_PROBES.add(wrapper); return wrapper;
+}
+
+function validateSourceProbeReceipt(input, candidate, materialization) {
+  exactFields(input, SOURCE_PROBE_FIELDS, 'Reflection source-probe receipt');
+  const core = { schema: input.schema, state: input.state,
+    sourceFenceDigest: digest(input.sourceFenceDigest, 'sourceProbe.sourceFenceDigest'),
+    sourceSetDigest: digest(input.sourceSetDigest, 'sourceProbe.sourceSetDigest'),
+    requiredSources: count(input.requiredSources, 'sourceProbe.requiredSources'),
+    reopenedSources: count(input.reopenedSources, 'sourceProbe.reopenedSources'),
+    missingSources: count(input.missingSources, 'sourceProbe.missingSources'),
+    changedSources: count(input.changedSources, 'sourceProbe.changedSources'),
+    permissionDeniedSources: count(input.permissionDeniedSources, 'sourceProbe.permissionDeniedSources'),
+    unknownSources: count(input.unknownSources, 'sourceProbe.unknownSources'),
+    affectedScopeDigest: digest(input.affectedScopeDigest, 'sourceProbe.affectedScopeDigest') };
+  const expectedIds = candidate.recordRefs.map((reference) => reference.recordId);
+  if (core.schema !== 't5.reflection-source-probe-receipt.v1' || core.state !== 'qualified'
+    || core.sourceFenceDigest !== candidate.sourceFence.windowDigest
+    || core.affectedScopeDigest !== materialization.receipt.affectedScopeDigest
+    || core.sourceSetDigest !== sourceSetDigest(expectedIds)
+    || core.requiredSources !== expectedIds.length || core.reopenedSources !== expectedIds.length
+    || core.missingSources !== 0 || core.changedSources !== 0
+    || core.permissionDeniedSources !== 0 || core.unknownSources !== 0
+    || input.receiptDigest !== hash(core)) {
+    throw new TypeError('Reflection retain requires a qualified exact source probe');
+  }
+  return { ...core, receiptDigest: input.receiptDigest };
+}
+
+function consumeReviewProbe(input, candidate, materialization) {
+  if (!input || !FRESH_REVIEW_PROBES.has(input)) {
+    throw new TypeError('Reflection retain requires a fresh exact source probe');
+  }
+  FRESH_REVIEW_PROBES.delete(input);
+  return validateSourceProbeReceipt(input.receipt, candidate, materialization);
+}
+
+function reviewFingerprint({ requestId, reflectionId, expectedCandidateDigest, decision }) {
+  return hash({ schema: 't5.reflection-review-request.v1', requestId, reflectionId,
+    expectedCandidateDigest, decision });
+}
+
+function validateReviewReceipt(input, { previous, after, materialization }) {
+  exactFields(input, REVIEW_RECEIPT_FIELDS, 'Reflection review receipt');
+  exactFields(input.sideEffects, SIDE_EFFECT_FIELDS, 'Reflection review sideEffects');
+  const decision = input.decision;
+  if (!['retain', 'reject'].includes(decision) || input.schema !== 't5.reflection-review-receipt.v1'
+    || input.reviewerKind !== 'settings_runtime') throw new Error('invalid Reflection review receipt');
+  const expectedAfter = decision === 'retain' ? 'reviewed' : 'rejected';
+  const requestId = requestIdentity(input.requestId);
+  const beforeCandidateDigest = digest(input.beforeCandidateDigest, 'beforeCandidateDigest');
+  const afterCandidateDigest = digest(input.afterCandidateDigest, 'afterCandidateDigest');
+  const requestFingerprint = digest(input.requestFingerprint, 'review requestFingerprint');
+  const materializationDigest = digest(input.materializationDigest, 'review materializationDigest');
+  const sourceFence = digest(input.sourceFenceDigest, 'review sourceFenceDigest');
+  const sourceProbeReceipt = decision === 'retain'
+    ? validateSourceProbeReceipt(input.sourceProbeReceipt, previous, materialization) : input.sourceProbeReceipt;
+  if (decision === 'reject' && sourceProbeReceipt !== null) throw new Error('reject review cannot claim a source probe');
+  if ((decision === 'retain' && previous.candidate.state !== 'proposed')
+    || (decision === 'reject' && !['proposed', 'reviewed'].includes(previous.candidate.state))
+    || input.beforeState !== previous.candidate.state || input.afterState !== expectedAfter
+    || after.candidate.state !== expectedAfter || beforeCandidateDigest !== previous.candidateDigest
+    || afterCandidateDigest !== after.candidateDigest
+    || materializationDigest !== materialization.materializationDigest
+    || sourceFence !== previous.sourceFence.windowDigest
+    || requestFingerprint !== reviewFingerprint({ requestId,
+      reflectionId: previous.candidate.reflectionId, expectedCandidateDigest: beforeCandidateDigest,
+      decision })
+    || Object.values(input.sideEffects).some((value) => value !== 0)) {
+    throw new Error('invalid Reflection review receipt');
+  }
+  const core = { schema: input.schema, requestId, requestFingerprint,
+    reviewerKind: 'settings_runtime', decision, beforeCandidateDigest, afterCandidateDigest,
+    beforeState: input.beforeState, afterState: input.afterState, materializationDigest,
+    sourceFenceDigest: sourceFence, sourceProbeReceipt, sideEffects: clone(input.sideEffects) };
+  if (input.receiptDigest !== hash(core)) throw new Error('invalid Reflection review receipt digest');
+  return { ...core, receiptDigest: input.receiptDigest };
 }
 
 function sameIdentity(left, right) {
@@ -93,6 +268,7 @@ function applyEvents(events) {
   const candidates = new Map();
   const materializations = new Map();
   const proposalKeys = new Map();
+  const reviewRequests = new Map();
   for (const event of events) {
     if (event.type === 'reflection_ledger_started') continue;
     if (event.type === 'reflection_proposed') {
@@ -119,9 +295,16 @@ function applyEvents(events) {
       || envelope.stateHistory.at(-1).to !== envelope.candidate.state) {
       throw new Error('invalid Reflection transition event');
     }
+    if (event.type === 'reflection_review_decided') {
+      const receipt = validateReviewReceipt(event.payload.review,
+        { previous, after: envelope, materialization });
+      if (reviewRequests.has(receipt.requestId)) throw new Error('duplicate Reflection review request');
+      reviewRequests.set(receipt.requestId, { fingerprint: receipt.requestFingerprint,
+        receipt, reflectionId: id, envelope: clone(envelope) });
+    }
     candidates.set(id, envelope);
   }
-  return { candidates, materializations, proposalKeys };
+  return { candidates, materializations, proposalKeys, reviewRequests };
 }
 
 function parseLedger(text, maxEventBytes) {
@@ -144,9 +327,12 @@ function parseLedger(text, maxEventBytes) {
       if (index !== 0 || JSON.stringify(event.payload) !== '{}') throw new Error('invalid Reflection ledger start');
     } else if (event.type === 'reflection_proposed') {
       exactFields(event.payload, new Set(['materialization']), 'Reflection ledger proposal payload');
-    } else {
+    } else if (event.type === 'reflection_transitioned') {
       exactFields(event.payload, new Set(['envelope', 'materializationDigest']),
         'Reflection ledger transition payload');
+    } else {
+      exactFields(event.payload, new Set(['envelope', 'materializationDigest', 'review']),
+        'Reflection ledger review payload');
     }
     events.push(event); previousDigest = event.eventDigest;
   }
@@ -328,6 +514,7 @@ export class ReflectionLedger {
     return {
       events: clone(parsed.events), candidates: [...parsed.candidates.values()].map(clone),
       reflectionEntries,
+      reviewReceipts: [...parsed.reviewRequests.values()].map((item) => clone(item.receipt)),
       productProjection: [], activeCandidates: [], publicationQualified: false,
       crossStoreAtomicCasQualified: false, productWiring: false,
       truncationQualified: false, anchoredHead: false,
@@ -362,6 +549,10 @@ export class ReflectionLedger {
 
   async transition(reflectionId, { to, currentEvidence = null } = {}) {
     const id = String(reflectionId ?? '');
+    if (to === 'reviewed' || to === 'rejected') {
+      const failure = new Error('Human Reflection decisions require the atomic review API');
+      failure.code = 'reflection_review_api_required'; throw failure;
+    }
     return this.#serialize(async () => {
       const parsed = await this.#load();
       const current = parsed.candidates.get(id);
@@ -372,6 +563,70 @@ export class ReflectionLedger {
         materializationDigest: materialization.materializationDigest }, parsed.events);
       await this.#appendEvent(event, parsed.identity);
       return result(transitioned, materialization, { transitioned: true });
+    });
+  }
+
+  async review(reflectionId, input = {}) {
+    exactFields(input, REVIEW_INPUT_FIELDS, 'Reflection review input');
+    const id = boundedText(reflectionId, 'reflectionId');
+    const requestId = requestIdentity(input.requestId);
+    const expectedCandidateDigest = digest(input.expectedCandidateDigest, 'expectedCandidateDigest');
+    const decision = input.decision;
+    if (!['retain', 'reject'].includes(decision)) throw new TypeError('Reflection review decision is invalid');
+    const fingerprint = reviewFingerprint({ requestId, reflectionId: id, expectedCandidateDigest, decision });
+    return this.#serialize(async () => {
+      const parsed = await this.#load();
+      const priorRequest = parsed.reviewRequests.get(requestId);
+      if (priorRequest) {
+        if (priorRequest.fingerprint !== fingerprint) {
+          const error = new Error('Reflection review request identity conflicts with prior decision');
+          error.code = 'reflection_review_request_conflict'; throw error;
+        }
+        const materialization = parsed.materializations.get(priorRequest.reflectionId);
+        const currentCandidate = parsed.candidates.get(priorRequest.reflectionId);
+        return result(currentCandidate, materialization, { reviewDecisionRecorded: true, idempotent: true,
+          decisionCandidateDigest: priorRequest.envelope.candidateDigest,
+          reviewReceipt: clone(priorRequest.receipt) });
+      }
+      const current = parsed.candidates.get(id);
+      if (!current) throw new Error('Reflection candidate not found');
+      const stateAllowed = decision === 'retain' ? current.candidate.state === 'proposed'
+        : ['proposed', 'reviewed'].includes(current.candidate.state);
+      if (current.candidateDigest !== expectedCandidateDigest || !stateAllowed) {
+        const error = new Error('Reflection candidate changed after human review surface');
+        error.code = 'reflection_review_version_changed'; throw error;
+      }
+      const materialization = parsed.materializations.get(id);
+      let sourceProbeReceipt = null;
+      if (decision === 'retain') {
+        if (!input.currentEvidence || !input.sourceProbeReceipt) {
+          const error = new Error('Reflection retain current evidence is unqualified');
+          error.code = 'current_evidence_unqualified'; throw error;
+        }
+        sourceProbeReceipt = consumeReviewProbe(input.sourceProbeReceipt, current, materialization);
+      } else if (input.currentEvidence !== null || input.sourceProbeReceipt !== null) {
+        throw new TypeError('Reflection reject does not accept source evidence');
+      }
+      const transitioned = transitionReflectionCandidate(current, {
+        to: decision === 'retain' ? 'reviewed' : 'rejected',
+        currentEvidence: decision === 'retain' ? input.currentEvidence : null,
+      });
+      const sideEffects = { memoryWrites: 0, principleWrites: 0,
+        managedCapabilityChanges: 0, externalWrites: 0 };
+      const core = { schema: 't5.reflection-review-receipt.v1', requestId,
+        requestFingerprint: fingerprint, reviewerKind: 'settings_runtime', decision,
+        beforeCandidateDigest: current.candidateDigest,
+        afterCandidateDigest: transitioned.candidateDigest,
+        beforeState: current.candidate.state, afterState: transitioned.candidate.state,
+        materializationDigest: materialization.materializationDigest,
+        sourceFenceDigest: current.sourceFence.windowDigest,
+        sourceProbeReceipt, sideEffects };
+      const reviewReceipt = { ...core, receiptDigest: hash(core) };
+      const event = this.#makeEvent('reflection_review_decided', { envelope: transitioned,
+        materializationDigest: materialization.materializationDigest, review: reviewReceipt }, parsed.events);
+      await this.#appendEvent(event, parsed.identity);
+      return result(transitioned, materialization, { reviewDecisionRecorded: true, idempotent: false,
+        reviewReceipt });
     });
   }
 }

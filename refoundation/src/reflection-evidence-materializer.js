@@ -47,7 +47,11 @@ const MATERIALIZATION_FIELDS = new Set([
 const RECEIPT_FIELDS = new Set([
   'schema', 'runtimeSnapshotDigest', 'reopenAccountingRecords',
   'reopenAccountingDigest', 'counterexampleSearch', 'correctionDigest',
-  'forgetDigest', 'episodeDigest', 'candidateDigest', 'sourceFenceDigest',
+  'forgetDigest', 'episodeDigest', 'affectedScopeHeads', 'affectedScopeDigest',
+  'candidateDigest', 'sourceFenceDigest',
+]);
+const AFFECTED_SCOPE_HEAD_FIELDS = new Set([
+  'handle', 'sessionId', 'workId', 'subjectKeys', 'channel', 'headDigest',
 ]);
 const RECEIPT_COUNTEREXAMPLE_FIELDS = new Set([
   'state', 'queryDigest', 'sourceWindowDigest', 'resultCount', 'resultDigest',
@@ -146,6 +150,14 @@ function digestText(value, label) {
     throw new TypeError(`${label} must be a lowercase SHA-256 digest`);
   }
   return value;
+}
+
+function affectedScopeHeads(scopes) {
+  return scopes.map((scope) => {
+    const body = { handle: scope.handle, sessionId: scope.sessionId, workId: scope.workId,
+      subjectKeys: [...scope.subjectKeys].toSorted(), channel: scope.channel };
+    return { ...body, headDigest: hash(body) };
+  }).toSorted((left, right) => left.handle.localeCompare(right.handle));
 }
 
 function normalizeEpisodeHandle(input) {
@@ -517,8 +529,9 @@ export async function materializeReflectionEvidence(input = {}) {
   });
   const accountingRecords = reopenAccounting
     .toSorted((left, right) => left.recordId.localeCompare(right.recordId));
+  const scopeHeads = affectedScopeHeads(scopes);
   const receipt = {
-    schema: 't5.reflection-materialization-receipt.v1',
+    schema: 't5.reflection-materialization-receipt.v2',
     runtimeSnapshotDigest: hash(snapshot),
     reopenAccountingRecords: accountingRecords,
     reopenAccountingDigest: hash(accountingRecords),
@@ -535,11 +548,13 @@ export async function materializeReflectionEvidence(input = {}) {
       relations: envelope.correctionRelations }),
     forgetDigest: hash(envelope.sourceFence.forgetHeads),
     episodeDigest: hash(envelope.episodes),
+    affectedScopeHeads: scopeHeads,
+    affectedScopeDigest: hash(scopeHeads),
     candidateDigest: envelope.candidateDigest,
     sourceFenceDigest: envelope.sourceFence.windowDigest,
   };
   const materialization = {
-    schema: 't5.reflection-materialization.v1', envelope, receipt,
+    schema: 't5.reflection-materialization.v2', envelope, receipt,
     materializationDigest: '',
   };
   materialization.materializationDigest = hash({ schema: materialization.schema,
@@ -576,13 +591,16 @@ function validateAccounting(records, envelope) {
 
 export function validatePersistedReflectionMaterialization(input) {
   exact(input, MATERIALIZATION_FIELDS, 'ReflectionMaterialization');
-  if (input.schema !== 't5.reflection-materialization.v1') {
+  if (input.schema === 't5.reflection-materialization.v1') {
+    throw new TypeError('Reflection materialization v1 lacks retain-qualified affected scope heads');
+  }
+  if (input.schema !== 't5.reflection-materialization.v2') {
     throw new TypeError('Reflection materialization schema is invalid');
   }
   const envelope = validateReflectionCandidateEnvelope(input.envelope);
   exact(input.receipt, RECEIPT_FIELDS, 'ReflectionMaterializationReceipt');
   const receipt = input.receipt;
-  if (receipt.schema !== 't5.reflection-materialization-receipt.v1') {
+  if (receipt.schema !== 't5.reflection-materialization-receipt.v2') {
     throw new TypeError('Reflection materialization receipt schema is invalid');
   }
   for (const [value, label] of [
@@ -591,6 +609,7 @@ export function validatePersistedReflectionMaterialization(input) {
     [receipt.correctionDigest, 'correctionDigest'],
     [receipt.forgetDigest, 'forgetDigest'],
     [receipt.episodeDigest, 'episodeDigest'],
+    [receipt.affectedScopeDigest, 'affectedScopeDigest'],
     [receipt.candidateDigest, 'candidateDigest'],
     [receipt.sourceFenceDigest, 'sourceFenceDigest'],
     [input.materializationDigest, 'materializationDigest'],
@@ -604,6 +623,36 @@ export function validatePersistedReflectionMaterialization(input) {
     || receipt.candidateDigest !== envelope.candidateDigest
     || receipt.sourceFenceDigest !== envelope.sourceFence.windowDigest) {
     throw new TypeError('Reflection materialization receipt does not match its envelope');
+  }
+  if (!Array.isArray(receipt.affectedScopeHeads)
+    || receipt.affectedScopeHeads.length !== envelope.candidate.affectedScopes.length) {
+    throw new TypeError('materialization affected scope heads must cover every opaque scope exactly once');
+  }
+  const normalizedScopeHeads = receipt.affectedScopeHeads.map((head) => {
+    exact(head, AFFECTED_SCOPE_HEAD_FIELDS, 'ReflectionMaterializationAffectedScopeHead');
+    const handle = text(head.handle, 'affected scope head handle');
+    const sessionId = head.sessionId === null ? null : text(head.sessionId, 'affected scope head sessionId');
+    const workId = head.workId === null ? null : text(head.workId, 'affected scope head workId');
+    const channel = head.channel === null ? null : text(head.channel, 'affected scope head channel');
+    if (!Array.isArray(head.subjectKeys) || head.subjectKeys.length > 32) {
+      throw new TypeError('affected scope head subjectKeys must be a bounded array');
+    }
+    const subjectKeys = head.subjectKeys.map((item) => text(item, 'affected scope head subjectKey'));
+    if (new Set(subjectKeys).size !== subjectKeys.length
+      || JSON.stringify(subjectKeys) !== JSON.stringify([...subjectKeys].toSorted())) {
+      throw new TypeError('affected scope head subjectKeys must be unique and canonical');
+    }
+    const body = { handle, sessionId, workId, subjectKeys, channel };
+    const headDigest = digestText(head.headDigest, 'affected scope head digest');
+    if (headDigest !== hash(body)) throw new TypeError('affected scope head digest does not match its mapping');
+    return { ...body, headDigest };
+  }).toSorted((left, right) => left.handle.localeCompare(right.handle));
+  if (new Set(normalizedScopeHeads.map((head) => head.handle)).size !== normalizedScopeHeads.length
+    || JSON.stringify(receipt.affectedScopeHeads) !== JSON.stringify(normalizedScopeHeads)
+    || JSON.stringify(normalizedScopeHeads.map((head) => head.handle))
+      !== JSON.stringify([...envelope.candidate.affectedScopes].toSorted())
+    || receipt.affectedScopeDigest !== hash(normalizedScopeHeads)) {
+    throw new TypeError('materialization affected scope mapping is incomplete, duplicate, or changed');
   }
   exact(receipt.counterexampleSearch, RECEIPT_COUNTEREXAMPLE_FIELDS,
     'ReflectionMaterializationCounterexampleSearch');

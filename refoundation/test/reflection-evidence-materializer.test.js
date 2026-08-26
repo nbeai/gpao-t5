@@ -149,10 +149,14 @@ test('runtime은 canonical Conversation·Run·Work를 reopen해 role과 envelope
   await withFixture(async (input) => {
     const materialization = await materializeReflectionEvidence(input);
     const envelope = materialization.envelope;
-    assert.equal(materialization.schema, 't5.reflection-materialization.v1');
+    assert.equal(materialization.schema, 't5.reflection-materialization.v2');
+    assert.equal(materialization.receipt.schema, 't5.reflection-materialization-receipt.v2');
     assert.equal(materialization.receipt.candidateDigest, envelope.candidateDigest);
     assert.equal(materialization.receipt.sourceFenceDigest, envelope.sourceFence.windowDigest);
     assert.equal(materialization.receipt.reopenAccountingRecords.length, envelope.recordRefs.length);
+    assert.deepEqual(envelope.candidate.affectedScopes, ['scope-1', 'scope-2']);
+    assert.equal('affectedScopeHeads' in envelope.candidate, false);
+    assert.equal('affectedScopeHeads' in envelope, false);
     assert.equal(envelope.candidate.reflectionId, 'reflection-runtime-1');
     assert.equal(envelope.candidate.state, 'proposed');
     assert.equal(envelope.candidate.userConfirmed, false);
@@ -189,6 +193,53 @@ test('receipt의 query·original window·counterexample heads는 serialization�
     assert.match(restarted.receipt.episodeDigest, /^[a-f0-9]{64}$/u);
     assert.match(restarted.receipt.correctionDigest, /^[a-f0-9]{64}$/u);
     assert.match(restarted.receipt.forgetDigest, /^[a-f0-9]{64}$/u);
+    assert.deepEqual(restarted.receipt.affectedScopeHeads.map((head) => ({
+      handle: head.handle, sessionId: head.sessionId, workId: head.workId,
+      subjectKeys: head.subjectKeys, channel: head.channel,
+    })), [
+      { handle: 'scope-1', sessionId, workId: input.episodeAllowlist[0].workId,
+        subjectKeys: ['owner'], channel: 'private' },
+      { handle: 'scope-2', sessionId, workId: input.episodeAllowlist[1].workId,
+        subjectKeys: ['owner'], channel: 'private' },
+    ]);
+    assert.match(restarted.receipt.affectedScopeDigest, /^[a-f0-9]{64}$/u);
+  });
+});
+
+test('affected scope mapping omission·mutation·duplicate·opaque handle scope swap은 restart에서 실패한다', async () => {
+  await withFixture(async (input) => {
+    const fresh = await materializeReflectionEvidence(input);
+    const omitted = JSON.parse(JSON.stringify(fresh));
+    delete omitted.receipt.affectedScopeHeads;
+    assert.throws(() => validatePersistedReflectionMaterialization(omitted),
+      /Receipt|affectedScope|affected scope/u);
+
+    const mutated = JSON.parse(JSON.stringify(fresh));
+    mutated.receipt.affectedScopeHeads[0].workId = 'foreign-work';
+    assert.throws(() => validatePersistedReflectionMaterialization(mutated), /scope head digest/u);
+
+    const duplicate = JSON.parse(JSON.stringify(fresh));
+    duplicate.receipt.affectedScopeHeads.push(structuredClone(duplicate.receipt.affectedScopeHeads[0]));
+    assert.throws(() => validatePersistedReflectionMaterialization(duplicate), /cover every opaque scope/u);
+
+    const wrongScope = JSON.parse(JSON.stringify(fresh));
+    const [first, second] = wrongScope.receipt.affectedScopeHeads;
+    [first.workId, second.workId] = [second.workId, first.workId];
+    for (const head of wrongScope.receipt.affectedScopeHeads) {
+      const { headDigest: ignored, ...body } = head; head.headDigest = hashObject(body);
+    }
+    wrongScope.receipt.affectedScopeDigest = hashObject(wrongScope.receipt.affectedScopeHeads);
+    assert.throws(() => validatePersistedReflectionMaterialization(wrongScope), /materialization digest/u);
+  });
+});
+
+test('v1 materialization without affected scope mapping은 retain qualification에서 명시적으로 거부한다', async () => {
+  await withFixture(async (input) => {
+    const old = JSON.parse(JSON.stringify(await materializeReflectionEvidence(input)));
+    old.schema = 't5.reflection-materialization.v1';
+    old.receipt.schema = 't5.reflection-materialization-receipt.v1';
+    delete old.receipt.affectedScopeHeads; delete old.receipt.affectedScopeDigest;
+    assert.throws(() => validatePersistedReflectionMaterialization(old), /v1 lacks retain-qualified affected scope/u);
   });
 });
 

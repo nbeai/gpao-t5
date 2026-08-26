@@ -220,6 +220,41 @@ test('foreground mutation 실패도 epoch를 안정된 다음 세대로 넘겨 �
   assert.equal(coordinator.status().stable, true);
 });
 
+test('stable review window는 pre-commit store heads를 재확인하고 ledger commit까지 foreground를 막는다', async () => {
+  const enteredCommit = deferred(); const releaseCommit = deferred(); let mutationRan = false;
+  const counter = { calls: 0, values: [] };
+  const coordinator = makeCoordinator({ materialize: fakeMaterializer(counter) });
+  const review = coordinator.withStableRead({ observe: async ({ storeHeadReceipt }) => {
+    assert.equal(storeHeadReceipt.heads.length, 4); return 'observed';
+  }, commit: async (value) => { assert.equal(value, 'observed'); enteredCommit.resolve();
+    await releaseCommit.promise; return 'committed'; } });
+  await enteredCommit.promise;
+  const mutation = coordinator.withForegroundMutation({ store: 'memory', mutate: async () => {
+    mutationRan = true; return 'changed';
+  } });
+  await new Promise((resolve) => setTimeout(resolve, 5)); assert.equal(mutationRan, false);
+  releaseCommit.resolve(); assert.equal(await review, 'committed'); await mutation;
+  assert.equal(mutationRan, true); assert.equal(coordinator.status().epoch, 2);
+});
+
+test('stable review window는 observe 뒤 direct store-head 변화가 보이면 commit하지 않는다', async () => {
+  let enumerations = 0; let commits = 0; const counter = { calls: 0, values: [] };
+  const coordinator = makeCoordinator({ materialize: fakeMaterializer(counter),
+    enumerate: async (context) => {
+      enumerations += 1; const result = enumeration(context);
+      if (enumerations === 2) {
+        result.storeHeadReceipt.heads[0].headDigest = hash('direct-writer-change');
+        const { schema, epoch, heads } = result.storeHeadReceipt;
+        result.storeHeadReceipt.receiptDigest = hash({ schema, epoch, heads });
+      }
+      return result;
+    } });
+  await assert.rejects(coordinator.withStableRead({ observe: async () => 'observed',
+    commit: async () => { commits += 1; return 'committed'; } }),
+  (error) => error.code === 'reflection_source_window_stale');
+  assert.equal(commits, 0); assert.equal(enumerations, 2);
+});
+
 test('nonparticipating canonical writer는 coverage manifest에 남고 proposal qualification을 열지 않는다', async () => {
   let enumerations = 0; const counter = { calls: 0, values: [] };
   const coordinator = makeCoordinator({ materialize: fakeMaterializer(counter),
@@ -239,6 +274,11 @@ test('nonparticipating canonical writer는 coverage manifest에 남고 proposal 
   assert.equal(enumerations, 0); assert.equal(counter.calls, 0);
   await assert.rejects(coordinator.withForegroundMutation({ store: 'memory', mutate: async () => {} }),
     (error) => error.code === 'reflection_source_window_writer_unqualified');
+  let observed = 0; let committed = 0;
+  await assert.rejects(coordinator.withStableRead({ observe: async () => { observed += 1; },
+    commit: async () => { committed += 1; } }),
+  (error) => error.code === 'reflection_source_window_unqualified');
+  assert.equal(observed, 0); assert.equal(committed, 0);
 });
 
 test('arbitrary supplied key는 constructor contract 밖이며 같은 canonical store epoch를 우회할 수 없다', () => {
