@@ -64,6 +64,7 @@
     "refoundation:compare:interaction-long": "node refoundation/scripts/run-interaction-long-conversation.mjs",
     "refoundation:qualify:human-scenarios": "node refoundation/scripts/run-human-scenarios.mjs",
     "refoundation:qualify:business-human": "node refoundation/scripts/launch-s3-human-business-console.mjs --human-controlled",
+    "refoundation:qualify:visual-deliverable": "node refoundation/scripts/run-visual-deliverable-qualification.mjs",
     "refoundation:plan:business-human": "node refoundation/scripts/plan-s3-human-business-wave.mjs",
     "refoundation:observe:business-human": "node refoundation/scripts/manage-s3-human-business-observation.mjs",
     "refoundation:summarize:business-human": "node refoundation/scripts/summarize-s3-human-business-console.mjs",

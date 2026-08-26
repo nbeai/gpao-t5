@@ -12,6 +12,30 @@ private struct PageReceipt: Codable {
     let height: Int
     let nonWhitePixels: Int
     let ocrText: String
+    let dom: DOMReceipt?
+}
+
+private struct DOMReceipt: Codable {
+    let viewportWidth: Int
+    let viewportHeight: Int
+    let scrollWidth: Int
+    let scrollHeight: Int
+    let artboardCount: Int
+    let observedBlockCount: Int
+    let overflowElementCount: Int
+    let overlapPairCount: Int
+    let textCharacters: Int
+    let headingCount: Int
+    let tableCount: Int
+    let imageCount: Int
+    let imagesMissingAlt: Int
+    let figureCount: Int
+    let figuresMissingCaption: Int
+    let contrastFailureCount: Int
+    let contrastUnmeasuredCount: Int
+    let minimumTextSizePx: Double?
+    let requestedFontFamilies: [String]
+    let unavailableFontFamilies: [String]
 }
 
 private final class LocalOnlyDelegate: NSObject, WKNavigationDelegate {
@@ -83,7 +107,7 @@ private final class LocalOnlyDelegate: NSObject, WKNavigationDelegate {
         return String(joined.prefix(maximumOCRCharacters))
     }
 
-    private func snapshot(_ webView: WKWebView) {
+    private func snapshot(_ webView: WKWebView, dom: DOMReceipt?) {
         let snapshot = WKSnapshotConfiguration()
         snapshot.rect = webView.bounds
         snapshot.afterScreenUpdates = true
@@ -100,7 +124,7 @@ private final class LocalOnlyDelegate: NSObject, WKNavigationDelegate {
                 let (width, height, nonWhite) = self.pixelFacts(cgImage)
                 let receipt = PageReceipt(
                     width: width, height: height, nonWhitePixels: nonWhite,
-                    ocrText: self.recognize(cgImage)
+                    ocrText: self.recognize(cgImage), dom: dom
                 )
                 let encoded = try JSONEncoder().encode(receipt)
                 FileHandle.standardOutput.write(encoded)
@@ -109,6 +133,94 @@ private final class LocalOnlyDelegate: NSObject, WKNavigationDelegate {
             } catch {
                 self.fail(error.localizedDescription, code: 4)
             }
+        }
+    }
+
+    private let domObservationScript = #"""
+    (() => {
+      const finite = value => Number.isFinite(value) ? value : 0;
+      const rect = element => element.getBoundingClientRect();
+      const blocks = [...document.querySelectorAll('[data-vd-block]')];
+      let overflowElementCount = 0;
+      for (const element of document.querySelectorAll('body *')) {
+        if (element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1) {
+          overflowElementCount += 1;
+        }
+      }
+      let overlapPairCount = 0;
+      for (let left = 0; left < blocks.length; left += 1) for (let right = left + 1; right < blocks.length; right += 1) {
+        const a = blocks[left], b = blocks[right];
+        if (a.contains(b) || b.contains(a)) continue;
+        const ar = rect(a), br = rect(b);
+        const width = Math.min(ar.right, br.right) - Math.max(ar.left, br.left);
+        const height = Math.min(ar.bottom, br.bottom) - Math.max(ar.top, br.top);
+        if (width > 1 && height > 1) overlapPairCount += 1;
+      }
+      const parseColor = value => {
+        const match = String(value || '').match(/rgba?\((\d+(?:\.\d+)?)[, ]+(\d+(?:\.\d+)?)[, ]+(\d+(?:\.\d+)?)(?:[, /]+(\d+(?:\.\d+)?))?\)/);
+        if (!match) return null;
+        return { r:+match[1], g:+match[2], b:+match[3], a:match[4] == null ? 1 : +match[4] };
+      };
+      const luminance = color => {
+        const channel = value => { const c=value/255; return c<=0.04045 ? c/12.92 : Math.pow((c+0.055)/1.055,2.4); };
+        return 0.2126*channel(color.r)+0.7152*channel(color.g)+0.0722*channel(color.b);
+      };
+      const background = element => {
+        for (let current=element; current; current=current.parentElement) {
+          const style=getComputedStyle(current);
+          if (style.backgroundImage && style.backgroundImage !== 'none') return null;
+          const color=parseColor(style.backgroundColor);
+          if (color && color.a >= 0.99) return color;
+        }
+        return {r:255,g:255,b:255,a:1};
+      };
+      let contrastFailureCount = 0;
+      let contrastUnmeasuredCount = 0;
+      let minimumTextSizePx = null;
+      const fonts = new Set();
+      for (const element of document.querySelectorAll('body *')) {
+        if (![...element.childNodes].some(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim())) continue;
+        const style=getComputedStyle(element), foreground=parseColor(style.color), bg=background(element);
+        const size=parseFloat(style.fontSize), weight=parseInt(style.fontWeight,10) || 400;
+        if (Number.isFinite(size)) minimumTextSizePx = minimumTextSizePx == null ? size : Math.min(minimumTextSizePx,size);
+        String(style.fontFamily || '').split(',').map(value=>value.trim().replace(/^['"]|['"]$/g,'')).filter(Boolean).forEach(value=>fonts.add(value));
+        if (!foreground || foreground.a < 0.99 || !bg) { contrastUnmeasuredCount += 1; continue; }
+        const lighter=Math.max(luminance(foreground),luminance(bg)), darker=Math.min(luminance(foreground),luminance(bg));
+        const ratio=(lighter+0.05)/(darker+0.05), large=size >= 24 || (size >= 18.66 && weight >= 700);
+        if (ratio < (large ? 3 : 4.5)) contrastFailureCount += 1;
+      }
+      const requestedFontFamilies=[...fonts].sort();
+      const generic=new Set(['serif','sans-serif','monospace','cursive','fantasy','system-ui','ui-serif','ui-sans-serif','ui-monospace']);
+      const unavailableFontFamilies=requestedFontFamilies.filter(name => !generic.has(name.toLowerCase()) && document.fonts && !document.fonts.check(`16px "${name.replace(/"/g,'')}"`));
+      const images=[...document.images], figures=[...document.querySelectorAll('figure')];
+      return {
+        viewportWidth: Math.round(window.innerWidth), viewportHeight: Math.round(window.innerHeight),
+        scrollWidth: Math.round(Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth || 0)),
+        scrollHeight: Math.round(Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0)),
+        artboardCount: document.querySelectorAll('[data-vd-artboard]').length || 1,
+        observedBlockCount: blocks.length, overflowElementCount, overlapPairCount,
+        textCharacters: (document.body?.innerText || '').length,
+        headingCount: document.querySelectorAll('h1,h2,h3,h4,h5,h6').length,
+        tableCount: document.querySelectorAll('table').length,
+        imageCount: images.length,
+        imagesMissingAlt: images.filter(image => !image.hasAttribute('alt')).length,
+        figureCount: figures.length,
+        figuresMissingCaption: figures.filter(figure => !figure.querySelector('figcaption')).length,
+        contrastFailureCount, contrastUnmeasuredCount, minimumTextSizePx,
+        requestedFontFamilies, unavailableFontFamilies,
+      };
+    })()
+    """#
+
+    private func observeDOM(_ webView: WKWebView) {
+        webView.evaluateJavaScript(domObservationScript) { value, _ in
+            var receipt: DOMReceipt? = nil
+            if let value, JSONSerialization.isValidJSONObject(value),
+               let data = try? JSONSerialization.data(withJSONObject: value),
+               let decoded = try? JSONDecoder().decode(DOMReceipt.self, from: data) {
+                receipt = decoded
+            }
+            self.snapshot(webView, dom: receipt)
         }
     }
 
@@ -131,7 +243,7 @@ private final class LocalOnlyDelegate: NSObject, WKNavigationDelegate {
         }
         webView.setFrameSize(NSSize(width: width, height: height))
         webView.layoutSubtreeIfNeeded()
-        DispatchQueue.main.async { self.snapshot(webView) }
+        DispatchQueue.main.async { self.observeDOM(webView) }
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {

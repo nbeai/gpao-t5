@@ -100,10 +100,10 @@ test('bundled file-discovery는 특정 명령이 아니라 해석·전환·검�
   assert.doesNotMatch(viewed.content, /비아이5|BEAI5/i);
 });
 
-test('공식 초안은 네 개 기본과 분류된 on-demand package로 나뉘고 본문은 그대로다', async () => {
+test('공식 기본 Skill과 분류된 on-demand package는 실제 catalog와 일치한다', async () => {
   const bundled = await loadSkillSnapshot({ directory: bundledSkills });
   assert.deepEqual(bundled.skills.map((skill) => skill.name), [
-    'diagrams', 'document-data', 'file-discovery', 'nano-pdf',
+    'diagrams', 'document-data', 'file-discovery', 'nano-pdf', 'visual-deliverables',
   ]);
   const packages = await loadSkillSnapshot({ directory: skillPackages });
   const names = packages.skills.map((skill) => skill.name);

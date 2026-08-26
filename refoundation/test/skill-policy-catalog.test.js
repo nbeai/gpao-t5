@@ -12,6 +12,7 @@ const expectedDigests = {
   'apple-reminders': 'f23943b61c02746d9b7a45a980bc25f5ac0e368862e2f9d1e3385b84dee7e86c',
   blogwatcher: 'bf1c624943aaf5940b2302a93c92701711e45fef5a6c057cda1ebc5bf2dd65fb',
   diagrams: '35f4e12110930fe6410a37f5aade2f18df77a5441f3f1a5161006ced503cb064',
+  'visual-deliverables': '8d4a7da2b08e3f5446934334935883b993b2072cbcf462473b07165a2f05f67a',
   'github-workflow': '79e171be0c075d7f821fff4ee88b2cb383fe8a5baf92b4c89577805c075ff0f1',
   'himalaya-email': '44cbb1fbddee8d13fe8d400cb4cc628d5db64f989e8909d83c4fd74a1f468848',
   'nano-pdf': '354462e94d6ccc4121a78d225e84b9f90d2dea7f1cd5c04544981ef8aa8d6781',
@@ -28,7 +29,7 @@ const expectedDigests = {
 test('오너 분류와 8월 19일 공식 초안 bytes를 그대로 보존한다', async () => {
   const catalog = await loadSkillPolicyCatalog(join(root, 'config/skill-catalog.json'));
   const group = (selection) => catalog.entries.filter((entry) => entry.selection === selection).map((entry) => entry.name);
-  assert.deepEqual(group('minimum_default'), ['file-discovery', 'document-data', 'nano-pdf', 'diagrams']);
+  assert.deepEqual(group('minimum_default'), ['file-discovery', 'document-data', 'nano-pdf', 'diagrams', 'visual-deliverables']);
   assert.deepEqual(group('environment_detected'), ['notion', 'blogwatcher', 'xurl', 'apple-notes', 'apple-reminders', 'obsidian']);
   assert.deepEqual(group('developer_selected'), ['github-workflow', 'python-debugpy', 'node-inspect-debugger', 'spike']);
   assert.deepEqual(group('restricted_selected'), ['himalaya-email', 'openhue', 'songsee']);
@@ -37,7 +38,7 @@ test('오너 분류와 8월 19일 공식 초안 bytes를 그대로 보존한다'
     assert.match(entry.display.description, /[가-힣]/u, `${entry.name} has no Korean user description`);
   }
   for (const [name, expected] of Object.entries(expectedDigests)) {
-    const base = ['diagrams', 'nano-pdf'].includes(name) ? 'skills' : 'skill-packages';
+    const base = ['diagrams', 'nano-pdf', 'visual-deliverables'].includes(name) ? 'skills' : 'skill-packages';
     const bytes = await readFile(join(root, base, name, 'SKILL.md'));
     assert.equal(createHash('sha256').update(bytes).digest('hex'), expected, `${name} content changed`);
   }

@@ -5,6 +5,7 @@
     {"name":"document-data","selection":"minimum_default","activeByDefault":true,"prepare":"bundled","display":{"label":"document-data","description":"Word·Excel·PDF 같은 업무 문서의 내용과 표를 읽고 검증해요."}},
     {"name":"nano-pdf","selection":"minimum_default","activeByDefault":true,"prepare":"bundled","display":{"label":"nano-pdf","description":"간단한 PDF 결과물을 만들고 다시 열어 내용과 형식을 확인해요."}},
     {"name":"diagrams","selection":"minimum_default","activeByDefault":true,"prepare":"bundled","display":{"label":"diagrams","description":"관계·순서·구조를 이해하기 쉬운 도식과 다이어그램으로 만들어요."}},
+    {"name":"visual-deliverables","selection":"minimum_default","activeByDefault":true,"prepare":"bundled","display":{"label":"visual-deliverables","description":"보고서·대시보드·도식 같은 결과물을 실제로 렌더하고 읽기 어려운 부분을 고쳐요."}},
     {"name":"customer-inquiry-triage","selection":"official_on_demand","activeByDefault":false,"prepare":"managed","display":{"label":"customer-inquiry-triage","description":"여러 고객 문의를 내용과 긴급도에 따라 정리하고 다음 대응을 준비해요."}},
     {"name":"notion","selection":"environment_detected","activeByDefault":false,"prepare":"managed","display":{"label":"notion","description":"연결된 Notion에서 문서와 지식을 찾고 읽고 수정하는 방법이에요."},"requirements":{"connection":"notion"}},
     {"name":"blogwatcher","selection":"environment_detected","activeByDefault":false,"prepare":"managed","display":{"label":"blogwatcher","description":"블로그와 웹페이지의 새 글이나 변경 사항을 확인해요."},"requirements":{"route":"network"}},

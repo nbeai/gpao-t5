@@ -11,6 +11,9 @@ test('native DOCX helper는 visible window·network·JavaScript 없이 local pag
   assert.match(source, /websiteDataStore = \.nonPersistent\(\)/u);
   assert.match(source, /url\.isFileURL/u);
   assert.match(source, /takeSnapshot/u);
+  assert.match(source, /evaluateJavaScript\(domObservationScript\)/u);
+  assert.match(source, /overflowElementCount/u);
+  assert.match(source, /contrastFailureCount/u);
   assert.doesNotMatch(source, /NSWindow\s*\(/u);
 });
 
