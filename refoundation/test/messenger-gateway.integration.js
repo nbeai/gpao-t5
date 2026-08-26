@@ -749,3 +749,39 @@ test('sendDocument ACK가 사라지면 unknown으로 보존하고 같은 artifac
     assert.equal(fixture.calls.filter((call) => call.method === 'sendDocument').length, 1);
   } finally { await fixture.close(); }
 });
+
+test('background inbound가 stop signal 뒤 정리될 때까지 gateway stop은 반환하지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-background-stop-'));
+  let firstPoll = true; let inboundStarted = false; let cleanupFinished = false;
+  const provider = {
+    id: 'telegram', inboundMode: 'long_polling', async validate() { return { id: 'bot', username: 'bot' }; },
+    async poll({ signal } = {}) {
+      if (firstPoll) { firstPoll = false; return [{ updateId: 120, message: { provider: 'telegram',
+        messageId: '120', chatId: '555', threadId: null, userId: '42', username: 'owner',
+        text: '긴 작업', isDirectMessage: true } }]; }
+      await new Promise((resolve) => signal?.addEventListener('abort', resolve, { once: true }));
+      return [];
+    },
+    startTyping() { return { stop() {} }; },
+  };
+  const gateway = makeMessengerGateway({
+    credentialStore: new MessengerCredentialStore(room), stateStore: new MessengerStateStore(room),
+    providerFactory: () => provider, createSession: async () => 'background-session',
+    authorizeInbound: async () => true,
+    onInbound: async (_message, { signal }) => {
+      inboundStarted = true;
+      await new Promise((resolve) => signal.addEventListener('abort', resolve, { once: true }));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      cleanupFinished = true; return null;
+    },
+  });
+  await gateway.connect({ provider: 'telegram', token: TOKEN });
+  await gateway.start({ provider: 'telegram' });
+  for (let count = 0; !inboundStarted && count < 100; count += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 2));
+  }
+  assert.equal(inboundStarted, true);
+  await gateway.stop();
+  assert.equal(cleanupFinished, true);
+  assert.equal((await new MessengerStateStore(room).ingress('telegram', 120)).state, 'completed');
+});
