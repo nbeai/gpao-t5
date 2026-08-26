@@ -119,6 +119,19 @@ function projectClaims(events) {
   return [...claims.values()];
 }
 
+function projectTombstones(events) {
+  const tombstones = new Map();
+  for (const event of events) {
+    if (event.type === 'memory_removed' && event.tombstone) {
+      tombstones.set(event.memoryId, clone(event.tombstone));
+    } else if (event.type === 'memory_added' && event.temporal?.restoresForgetRequestId) {
+      const current = tombstones.get(event.memoryId);
+      if (current?.requestId === event.temporal.restoresForgetRequestId) tombstones.delete(event.memoryId);
+    }
+  }
+  return [...tombstones.values()];
+}
+
 export class MemoryLedger {
   constructor(directory, { maxEntryBytes = 2_000, maxActiveBytes = 16_000, maxItems = 100 } = {}) {
     if (!directory) throw new TypeError('memory ledger directory is required');
@@ -155,7 +168,8 @@ export class MemoryLedger {
 
   async read() {
     const events = parseEvents(await readFile(this.path, 'utf8'));
-    return { events: clone(events), items: project(events), claims: projectClaims(events) };
+    return { events: clone(events), items: project(events), claims: projectClaims(events),
+      tombstones: projectTombstones(events) };
   }
 
   validateCapacity(items) {
@@ -249,6 +263,10 @@ export class MemoryLedger {
     const candidate = makeMemoryClaim(input);
     return this.serialize(async () => {
       const current = await this.read();
+      const blockingTombstone = current.tombstones.find((tombstone) => (
+        tombstone.subjectKey === candidate.subjectKey
+      ));
+      if (blockingTombstone) throw new Error('MemoryClaim subject is fenced by active forget tombstone');
       if (current.items.some((item) => item.memoryId === candidate.memoryId)) {
         throw new Error('MemoryClaim memoryId already exists');
       }
@@ -324,6 +342,67 @@ export class MemoryLedger {
         recordRefs: references,
       });
       return clone(previous);
+    });
+  }
+
+  async forgetClaim({ requestId, memoryId, expectedRevision, recordRefs, reversibleUntil, recordedAt } = {}) {
+    const id = String(memoryId ?? ''); const request = String(requestId ?? '');
+    if (!request || !Array.isArray(recordRefs) || !recordRefs.length) {
+      throw new TypeError('forget claim requires request identity and RecordRef');
+    }
+    const references = recordRefs.map(validateRecordReference);
+    return this.serialize(async () => {
+      const current = await this.read();
+      const claim = current.claims.find((item) => item.memoryId === id && item.status === 'active');
+      if (!claim) throw new Error('active MemoryClaim not found');
+      if (claim.subjectRevision !== expectedRevision) throw new Error('MemoryClaim revision changed after preview');
+      await this.append('memory_removed', {
+        ...(recordedAt ? { recordedAt } : {}),
+        memoryId: id, source: { recordId: references[0].recordId }, recordRefs: references,
+        tombstone: {
+          requestId: request, memoryId: id, subjectKey: claim.subjectKey,
+          targetRevision: claim.subjectRevision, reversibleUntil: reversibleUntil ?? null,
+        },
+      });
+      return clone(claim);
+    });
+  }
+
+  async restoreForgottenClaim({ requestId, memoryId, recordRefs, recordedAt } = {}) {
+    const id = String(memoryId ?? ''); const request = String(requestId ?? '');
+    if (!request || !Array.isArray(recordRefs) || !recordRefs.length) {
+      throw new TypeError('restore claim requires request identity and RecordRef');
+    }
+    const references = recordRefs.map(validateRecordReference);
+    return this.serialize(async () => {
+      const current = await this.read();
+      const tombstone = current.tombstones.find((item) => item.memoryId === id && item.requestId === request);
+      if (!tombstone) throw new Error('forget tombstone not found');
+      const prior = current.claims.find((item) => item.memoryId === id);
+      if (!prior || prior.status !== 'retracted') throw new Error('retracted MemoryClaim not found');
+      const sourceOrder = current.events.length + 1;
+      const subjectRevision = Math.max(0, ...current.claims.filter((item) => item.subjectKey === prior.subjectKey)
+        .map((item) => Number(item.subjectRevision))) + 1;
+      const restored = makeMemoryClaim({
+        ...prior, status: 'active', subjectRevision, sourceOrder,
+        recordedAt: recordedAt ?? new Date().toISOString(),
+        sources: [...prior.sources, ...references], supersedes: [], conflictsWith: [],
+      });
+      const legacyKind = restored.scope.workId || restored.scope.projectId ? 'work' : 'user';
+      await this.append('memory_added', {
+        recordedAt: restored.recordedAt, memoryId: restored.memoryId, kind: legacyKind,
+        content: restored.value,
+        source: { recordId: restored.sources[0].recordId, sourceKind: restored.sources[0].sourceKind,
+          sourceStore: restored.sources[0].sourceStore, sourceId: restored.sources[0].sourceId,
+          sourceRevision: restored.sources[0].sourceRevision },
+        subjects: [restored.subjectKey], alwaysRelevant: restored.alwaysRelevant,
+        subjectRevision, sourceOrder,
+        temporal: { claimKind: restored.kind, subjectKey: restored.subjectKey, scope: clone(restored.scope),
+          validFrom: restored.validFrom, validTo: restored.validTo, status: 'active', supersedes: [],
+          conflictsWith: [], sensitivity: restored.sensitivity, restoresForgetRequestId: request },
+        recordRefs: clone(restored.sources),
+      });
+      return clone((await this.read()).claims.find((item) => item.memoryId === id));
     });
   }
 }
