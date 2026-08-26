@@ -9,6 +9,7 @@ import { runAgent } from '../src/agent-loop.js';
 import { AttachmentStore } from '../src/attachment-store.js';
 import { makeAttachmentTool } from '../src/attachment-hand.js';
 import { consoleInstructions, makeConsoleModelAccess } from '../src/console-model-factory.js';
+import { makeStoredModelCredentialCatalog } from '../src/chatgpt-oauth-credential.js';
 import { makeTerminalHand } from '../src/exec-tool.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 import { renderVisualDeliverable } from '../src/visual-deliverable-renderer.js';
@@ -46,7 +47,18 @@ const runtimeDigest = createHash('sha256');
 for (const file of runtimeFiles) runtimeDigest.update(file).update('\0').update(await readFile(file)).update('\0');
 
 const secretStore = makePlatformSecretStore({ platform: process.platform });
-const access = makeConsoleModelAccess({ connectionFile, stateDir, secretStore });
+const isolatedConnectionFile = join(stateDir, 'model-connection.json');
+await writeFile(isolatedConnectionFile, await readFile(connectionFile), { mode: 0o600 });
+const credentialCatalog = makeStoredModelCredentialCatalog({
+  file: isolatedConnectionFile, secretStore,
+});
+const requestedModel = option('--model');
+if (requestedModel) {
+  const selected = (await credentialCatalog.list()).find((item) => item.modelId === requestedModel);
+  if (!selected) throw new Error(`model is not configured: ${requestedModel}`);
+  await credentialCatalog.activate(selected.id);
+}
+const access = makeConsoleModelAccess({ connectionFile: isolatedConnectionFile, stateDir, secretStore });
 const connection = await access.status();
 if (!connection.connected) throw new Error('verified model connection is required');
 const computer = { platform: process.platform, architecture: process.arch, commandFamily: 'posix', commandProgram: 'zsh' };
