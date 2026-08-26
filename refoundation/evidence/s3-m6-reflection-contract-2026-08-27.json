@@ -1,0 +1,111 @@
+{
+  "schema": "t5.s3-m6-reflection-contract-evidence.v1",
+  "stage": "S3-M6-TURN-1",
+  "status": "CONTRACT_COMPLETE_PRODUCT_UNWIRED",
+  "observedAt": "2026-08-26T17:05:00.000Z",
+  "sourceCommit": "691eb6f9fe7582f48e649de8ac8f4b1e97c016c5",
+  "officialReleaseGateChanged": false,
+  "ownerPurpose": "Create only a sourced, taint-preserving, inactive Reflection contract before any writer, reviewer, Principle, internal Skill, or default Context wiring.",
+  "incidentFamilies": {
+    "count": 14,
+    "personaPromotion": "blocked",
+    "modelInferenceOnly": "blocked",
+    "duplicateEpisodeOrWork": "blocked",
+    "methodAndEffectGenealogyMissing": "blocked",
+    "sourceUnavailableOrChanged": "blocked",
+    "taintLaundering": "blocked",
+    "counterexampleOmittedOrOverlapped": "fixture_locked_product_adapter_pending",
+    "currentCorrectionOmitted": "contract_requires_relation_product_enumeration_pending",
+    "foregroundCorrectionStalePublication": "fence_shape_proven_atomic_CAS_pending",
+    "forgottenSourceReuse": "forget_epoch_fence_proven_store_enumeration_pending",
+    "managedCapabilitySideEffect": "product_wiring_absent"
+  },
+  "contractTruth": {
+    "schema": "t5.reflection-candidate.v1",
+    "initialState": "proposed",
+    "initialUserConfirmed": false,
+    "projection": "none",
+    "distinctAchievedEpisodesMinimum": 2,
+    "distinctWorkAndRunRequired": true,
+    "recordRoles": ["objective", "method", "effectSettlement", "completion"],
+    "roleRecordRefsDistinct": true,
+    "trustedGroundingRequired": true,
+    "modelInferenceOnlyAccepted": false,
+    "externalUntrustedOriginPreserved": true,
+    "sensitivityFloorDerived": true,
+    "secretRefAccepted": false,
+    "neverStoreAccepted": false,
+    "supportCounterexampleRecordOverlapAccepted": false,
+    "currentCorrectionRelationRequired": true,
+    "affectedScopeForgetHeadRequired": true,
+    "sourceFenceIncludes": [
+      "Episode workId runId revision resultDigest",
+      "full RecordRef identity source scope channel subject and observed times",
+      "current correction heads",
+      "scope forget epoch and tombstone digest"
+    ],
+    "stateHistoryBeginsAtProposed": true,
+    "closedTransitions": true,
+    "derivedFieldsDeepRebuilt": true,
+    "inputOrderAffectsFence": false
+  },
+  "independentRedTeam": {
+    "stateForgeryFoundAndFixed": true,
+    "runIdOnlyFenceFoundAndFixed": true,
+    "forgetEpochOmissionFoundAndFixed": true,
+    "recordScopeAndTimeOmissionFoundAndFixed": true,
+    "roleRecordReuseFoundAndFixed": true,
+    "remainingProductBoundariesExplicit": true
+  },
+  "verification": {
+    "recordRefAndReflection": { "passed": 23, "failed": 0 },
+    "incidentFixture": { "passed": 4, "failed": 0 },
+    "combined": { "passed": 27, "failed": 0 },
+    "actualModelsExecuted": false,
+    "externalWrites": 0,
+    "productWriterEvents": 0,
+    "managedCapabilityChanges": 0
+  },
+  "productNonInterference": {
+    "consoleServerImportsReflection": false,
+    "learningReviewerImportsReflection": false,
+    "memoryToolImportsReflection": false,
+    "reflectionLedgerExists": false,
+    "backgroundSchedulerChanged": false,
+    "modelContextChanged": false,
+    "userSurfaceChanged": false,
+    "providerRequestsAdded": 0,
+    "modelCallsAdded": 0
+  },
+  "knownUnproven": [
+    "Actual reopened Run and Work event payload proves method, effect settlement, verification, and completion semantic roles",
+    "Runtime counterexample retrieval returns the authoritative complete eligible set and independent Episode or Work holdout",
+    "Runtime enumerates every authoritative current correction and affected scope instead of accepting caller omission",
+    "A store-only append writer makes legal stateHistory authentic rather than merely well-shaped and rehashable",
+    "Foreground publication and source re-read occur in one atomic CAS boundary",
+    "Model proposal schema excludes reflection identity, creator, RecordRefs, correction heads, forget heads, fence, taint, state, and history",
+    "Background reviewer yields to foreground and passes matched off/on phase accounting",
+    "Principle qualification exists",
+    "Internal procedural Skill revision exists"
+  ],
+  "sourceDigests": {
+    "refoundation/src/reflection-candidate.js": "d523066994000e8bc15b193486f638274362dfae5794f75fa7316164882df96e",
+    "refoundation/test/reflection-candidate.test.js": "d7af26fa5380e19671fed781c562ca43fb3622d5aaad09322742997fbbf0fd91",
+    "refoundation/config/s3-m6-reflection-incidents.json": "43e07b6776175d7b2890b34a10d5350ed5970992c36df40a3534292b90c7f55e",
+    "refoundation/test/s3-m6-reflection-incidents.test.js": "0d3482d5236d090153a2f8effaf150e6bfa54c03ff9361f2029d4975172ebbcb",
+    "refoundation/src/record-reference.js": "bcf024e12b8a93090aefb24a8c580f952af504f4209e3a69887beffb2073cfad",
+    "refoundation/evidence/s3-m6-preflight-reuse-audit-2026-08-27.json": "f01a5e1786f001310f123e122a2d255521836e4895fcef0bf88f2baa41796f72"
+  },
+  "notClaimed": [
+    "Reflection product behavior exists",
+    "Reflection state history authenticity is proven",
+    "background publication CAS exists",
+    "human review surface exists",
+    "Principle is qualified",
+    "managed Skill activation belongs to M6",
+    "S3-M6 PASS",
+    "S3-M7 PASS",
+    "official Release Gate activation"
+  ],
+  "nextOneTask": "Implement an authoritative Reflection evidence materializer and append-only store-only writer with exact Run Work source reopen, complete counterexample and correction enumeration, and stale publication CAS; keep model and background reviewer disconnected."
+}
