@@ -1014,6 +1014,30 @@ M5-0 isolated generated HTML/Markdown
 → M5-5 Obsidian no-plugin compatibility
 ```
 
+#### 2026-08-27 오너 실행 순서 결정 — Windows 실측 일괄 자격
+
+Windows를 제품 목표에서 빼거나 PASS 요건을 낮추지 않는다. 다만 Windows hosted runner 비용·실행 환경과
+로컬 VM 저장공간이 준비될 때까지 실제 Windows 실행을 각 구현 Gate의 즉시 선행조건으로 두지 않고,
+`refoundation/config/s3-windows-deferred-qualification.json`의 **한 묶음**으로 보존해 M7에서 일괄 실행한다.
+
+```text
+지금: platform-neutral Core + Windows adapter + 반대시험 + runner/VM fixture
+→ M5 implementation close (Windows actual은 DEFERRED, PASS 아님)
+→ M6 platform-neutral 구현·macOS 실측
+→ Windows runner + 격리 VM 일괄 실측
+→ M7 macOS·Windows qualification
+→ M8A release qualification
+```
+
+- M5-4 구조 구현과 실행 목록이 exact commit·manifest로 보존되면 M6 개발은 열 수 있다.
+- 이 결정은 Windows 시험의 **유예**이지 면제·삭제·대체 PASS가 아니다.
+- macOS 성공, mock, Linux, WSL, Wine, x64 emulation을 Windows native PASS로 승격하지 않는다.
+- Windows를 실행할 때 지금까지 누적된 해당 플랫폼 시험을 전부 실행하며 불리한 결과도 보존한다.
+- M7은 deferred manifest의 모든 required item과 `WindowsPlatformQualificationReceipt`가 닫히기 전 PASS가 아니다.
+- M8A는 M7 PASS 전 출하 자격을 주장하지 않는다.
+- Windows 실제 모델 여정에는 기존 오너의 동일 목적·동일 모델 API 비용 승인을 적용하지만, VM·hosted runner·
+  라이선스 비용은 별도 명시 승인 없이 발생시키지 않는다.
+
 파일 후보:
 
 ```text
@@ -1170,6 +1194,10 @@ Windows VM journeys:
 - forget cascade.
 - exact `WindowsPlatformQualificationReceipt` 소비.
 - platform upgrade·rollback 뒤 Memory canonical·Library·index 복원 확인.
+
+Windows 실측을 앞 Gate에서 유예했다면 위 목록만 실행하지 않는다. 반드시
+`s3-windows-deferred-qualification.json`에 누적된 Terminal·Memory·검색·보안·설치·모델·이동·background
+항목 전체를 같은 qualification window에서 실행하고 각 결과를 독립 receipt로 남긴다.
 
 macOS Memory 자격과 Windows runner+VM Memory 자격이 모두 통과해야 M7 PASS다. installer·signing·공통
 Windows 제품 개통의 PASS/FAIL은 S3-PW가 소유한다.

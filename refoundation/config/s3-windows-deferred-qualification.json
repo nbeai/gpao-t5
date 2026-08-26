@@ -1,0 +1,75 @@
+{
+  "schema": "t5.s3-windows-deferred-qualification.v1",
+  "ownerDecisionDate": "2026-08-27",
+  "status": "DEFERRED_NOT_WAIVED",
+  "purpose": "Continue platform-neutral Life Continuity development while preserving every required Windows execution for one later runner and isolated-VM qualification window.",
+  "productPlatforms": ["macos", "windows"],
+  "nonProductPlatforms": ["linux", "wsl2"],
+  "gateRules": {
+    "m5ImplementationMayClose": true,
+    "m5WindowsActualPass": false,
+    "m6PlatformNeutralDevelopmentMayOpen": true,
+    "m7PassRequiresAllRequiredItems": true,
+    "m8aPassRequiresM7Pass": true,
+    "officialReleaseGateChanged": false
+  },
+  "immediateDevelopmentRules": [
+    "Core schemas must not contain macOS paths, Windows paths, registry identities, PIDs, or platform signals.",
+    "Every new platform effect must have a Windows adapter contract and deterministic fault test before product wiring.",
+    "Windows-only code must remain buildable or structurally testable from the committed workflow and fixture.",
+    "No missing Windows execution may be reported as pass, zero, not-applicable, or covered by macOS.",
+    "No deferred test may be deleted or weakened to close a later Gate."
+  ],
+  "requiredItems": [
+    { "id": "W01", "lane": "runner", "requirement": "PowerShell -NoProfile, isolated HOME and PATH, Unicode and timezone" },
+    { "id": "W02", "lane": "runner", "requirement": "x64 actual execution and ARM64 build artifact" },
+    { "id": "W03", "lane": "runner", "requirement": "Job Object child-tree cancellation and crash cleanup" },
+    { "id": "W04", "lane": "runner", "requirement": "ConPTY input, resize, output delta, terminal completion" },
+    { "id": "W05", "lane": "runner", "requirement": "CurrentUser DPAPI secret store restart and delete" },
+    { "id": "W06", "lane": "runner", "requirement": "Memory projection Unicode add, update, delete, rebuild" },
+    { "id": "W07", "lane": "runner", "requirement": "forget cascade fault injection, crash, restart, exact absence" },
+    { "id": "W08", "lane": "runner", "requirement": "HTML and Markdown export/import digest and standard-path behavior" },
+    { "id": "W09", "lane": "runner", "requirement": "macOS-specific API, chmod, path, or identity does not leak into Core" },
+    { "id": "W10", "lane": "vm", "requirement": "actual Windows architecture classified as arm64_native, x64_native, or x64_emulated without equivalence claims" },
+    { "id": "W11", "lane": "vm", "requirement": "Windows Search actual add, update, delete, rebuild and exact query readback" },
+    { "id": "W12", "lane": "vm", "requirement": "Explorer opens generated HTML and Markdown from the user start point" },
+    { "id": "W13", "lane": "vm", "requirement": "NTFS ACL, junction, symlink, hardlink, and root-escape countertests" },
+    { "id": "W14", "lane": "vm", "requirement": "Credential Locker or qualified DPAPI host and direct secret-file read denial" },
+    { "id": "W15", "lane": "vm", "requirement": "sandbox-first read, protected-secret denial, and explicit effect elevation" },
+    { "id": "W16", "lane": "vm", "requirement": "signed installer startup, upgrade, rollback, and canonical-state preservation" },
+    { "id": "W17", "lane": "vm", "requirement": "actual T5 UI memory inspect, source, correct, forget, restore, and Library" },
+    { "id": "W18", "lane": "vm", "requirement": "gpt-5.5 actual isolated journey" },
+    { "id": "W19", "lane": "vm", "requirement": "gpt-5.6-terra actual isolated journey" },
+    { "id": "W20", "lane": "vm", "requirement": "macOS export to Windows resume with source and bundle digest" },
+    { "id": "W21", "lane": "vm", "requirement": "restart and power-loss simulation leave no false current Memory or stale native index" },
+    { "id": "W22", "lane": "vm", "requirement": "foreground background-off/on matched pair with phase accounting" },
+    { "id": "W23", "lane": "vm", "requirement": "stale background Reflection or index publication loses to foreground correction or forget fence" },
+    { "id": "W24", "lane": "human", "requirement": "nondeveloper can understand progress, success or failure, and currently applied state" },
+    { "id": "W25", "lane": "receipt", "requirement": "exact WindowsPlatformQualificationReceipt consumed without Memory-owned installer repair" }
+  ],
+  "executionOptions": [
+    { "kind": "github_hosted", "costRule": "execute only after explicit hosted-runner cost authorization or confirmed included quota" },
+    { "kind": "existing_physical_windows", "costRule": "preferred when already owned and isolated test account is available" },
+    { "kind": "zero_cost_vm", "costRule": "UTM or free VMware plus official 90-day Windows Enterprise evaluation, only when safe disk capacity exists" }
+  ],
+  "forbiddenSubstitutions": [
+    "macOS pass for Windows pass",
+    "Linux or WSL passthrough for Windows product behavior",
+    "mock Search result for Windows Search query readback",
+    "x64 emulation labeled x64 native",
+    "GitHub workflow with runner_id 0 labeled executed",
+    "unsigned development launch labeled signed installer pass"
+  ],
+  "currentEvidence": {
+    "terminalWindowsGitHub": "refoundation/evidence/s3-terminal-windows-github-qualification-2026-08-26.json",
+    "m5WindowsStructural": "refoundation/evidence/s3-m5-windows-native-surface-2026-08-27.json",
+    "blockedWorkflowRun": 32986897058,
+    "blockedWorkflowHead": "cc50cfd774439b7740512d6e3d0761a4538e23e5"
+  },
+  "completionReceipts": [
+    "WindowsRunnerQualificationReceipt",
+    "WindowsVmMemoryQualificationReceipt",
+    "WindowsPlatformQualificationReceipt",
+    "WindowsHumanJourneyReceipt"
+  ]
+}
