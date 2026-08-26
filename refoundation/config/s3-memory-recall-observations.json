@@ -1,0 +1,49 @@
+{
+  "schema": "t5.s3m.recall-observations.v1",
+  "recordedAt": "2026-08-27",
+  "observations": {
+    "M4-Q1": [
+      { "passed": true, "sourcePresent": true, "oracleValid": true, "sourceReopened": true,
+        "model": null, "wallMs": 0.1, "requestBytes": 0, "tokens": 0,
+        "sourceEvidence": "record-reference.test.js exact identity" }
+    ],
+    "M4-Q2": [
+      { "passed": true, "sourcePresent": true, "oracleValid": true, "sourceReopened": true,
+        "model": null, "wallMs": 0.2, "requestBytes": 0, "tokens": 0,
+        "sourceEvidence": "record-source-reader.test.js exact reopen" }
+    ],
+    "M4-Q3": [
+      { "passed": true, "sourcePresent": true, "oracleValid": true, "sourceReopened": true,
+        "model": "gpt-5.5", "wallMs": 13382.578875, "requestBytes": 168425, "tokens": 31385,
+        "sourceEvidence": "S3-M2 gpt-5.5 current journey" },
+      { "passed": true, "sourcePresent": true, "oracleValid": true, "sourceReopened": true,
+        "model": "gpt-5.6-terra", "wallMs": 7340.833375, "requestBytes": 122834, "tokens": 23310,
+        "sourceEvidence": "S3-M2 Terra current journey" },
+      { "passed": true, "sourcePresent": true, "oracleValid": true, "sourceReopened": true,
+        "model": "gpt-5.6-terra", "wallMs": 6032.20025, "requestBytes": 122681, "tokens": 22951,
+        "sourceEvidence": "S3-M4 temporal sample" }
+    ],
+    "M4-Q4": [
+      { "passed": true, "sourcePresent": true, "oracleValid": true, "sourceReopened": true,
+        "model": "gpt-5.5", "wallMs": 14359.380583, "requestBytes": 167709, "tokens": 31322,
+        "sourceEvidence": "S3-M2 gpt-5.5 historical journey" },
+      { "passed": true, "sourcePresent": true, "oracleValid": true, "sourceReopened": true,
+        "model": "gpt-5.6-terra", "wallMs": 7542.183208, "requestBytes": 124705, "tokens": 23487,
+        "sourceEvidence": "S3-M2 Terra historical journey" },
+      { "passed": true, "sourcePresent": true, "oracleValid": true, "sourceReopened": true,
+        "model": "gpt-5.6-terra", "wallMs": 5414.903875, "requestBytes": 124067, "tokens": 23039,
+        "sourceEvidence": "S3-M4 temporal sample" }
+    ],
+    "M4-Q5": [
+      { "passed": true, "sourcePresent": true, "oracleValid": true, "sourceReopened": true,
+        "model": "gpt-5.5", "wallMs": 12999.460958, "requestBytes": 167270, "tokens": 30746,
+        "sourceEvidence": "S3-M4 scope sample 1" },
+      { "passed": true, "sourcePresent": true, "oracleValid": true, "sourceReopened": true,
+        "model": "gpt-5.5", "wallMs": 12240.006584, "requestBytes": 167330, "tokens": 30753,
+        "sourceEvidence": "S3-M4 scope sample 2" },
+      { "passed": true, "sourcePresent": true, "oracleValid": true, "sourceReopened": true,
+        "model": "gpt-5.6-terra", "wallMs": 7282.674417, "requestBytes": 124821, "tokens": 23195,
+        "sourceEvidence": "S3-M4 scope Terra sample" }
+    ]
+  }
+}
