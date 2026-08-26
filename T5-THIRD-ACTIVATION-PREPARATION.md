@@ -267,19 +267,29 @@ positive control만 사용한다.
 
 ```text
 F1 장기 Work의 완료 milestone·현재 활동·새 Evidence·기다림이 보이지 않음
-F2 자연어 교정·취소가 즉시 결속되지 않고 회복권이 늦거나 같은 실패 surface가 반복됨
-F3 요청한 이미지·기존 파일이 실제 Artifact bytes가 아니라 URL·깨진 preview·불필요한 변환으로 전달됨
+F2 자연어 교정·취소가 즉시 결속되지 않거나, process는 멈췄어도 Work 실행 claim이 남아 다음 입력이 막힘
+F3 요청한 이미지·기존 파일이 실제 Artifact bytes가 아니라 URL·깨진 preview·불필요한 변환·새 identity로 전달됨
 F4 대량 파일 effect 뒤 mode·ACL·flags·openability·원인·rollback의 forensic truth가 부족함
-F5 현재 목적보다 후속 산출을 먼저 실행하고 managed temporary·결과 이름·정리가 Work와 분리됨
+F5 현재 목적보다 후속 산출을 먼저 실행하고 managed temporary·원본/결과 이름·정리가 Work와 분리되며
+   요청하지 않은 복사본이 사용자 작업공간에 남음
 F6 provider/resource terminal 뒤 보존 상태와 가능한 다음 route가 사용자에게 이어지지 않음
+F7 내부 상태값·식별자·기계 시각이 한국 일반 사용자 화면에 그대로 나타남
 
 P1 실제 프로그램·테스트·API 분석과 외부 문서 반영의 높은 결과 품질
 P2 불명확한 로컬 파일을 여러 관측 route로 찾아 실제 내용 확인
 P3 없는 사실을 없다고 기록하고 기만적 문서 변조를 거절
 ```
 
-S3-UX는 F1~F6을 줄이면서 P1~P3를 보존해야 한다. 특정 한국어 문장·서비스·폴더·이미지 검색어를 제품 규칙이나
+S3-UX는 F1~F7을 줄이면서 P1~P3를 보존해야 한다. 특정 한국어 문장·서비스·폴더·이미지 검색어를 제품 규칙이나
 prompt few-shot으로 추가하지 않는다.
+
+2026-08-27 격리 라이브 콘솔에서 다음 구조 증거를 확보했다. 로컬 자료 계산·근거 설명, 실행 중 교정,
+없는 사실의 정직한 처리, 실제 파일 bytes 전달은 기존 강점으로 재확인했다. 반면 장기 작업은 실제 파일
+탐색·계산 중에도 약 40초 이상 일반 진행 문구만 보였고, 장기 process cancel 자체는 정확했으나 다음 입력이
+모델에 도달하기 전 남은 execution claim에 막혔다. 기존 파일 전달은 bytes·hash가 맞아도 새 이름의 동일
+복사본을 사용자 작업공간에 남겼다. M5 기록 화면은 내부 ID를 제거했지만 `active`와 ISO timestamp 같은
+기계 표현이 남았다. 이 문장·파일명·시간 수치는 제품 규칙이 아니라 아래 상태 전이와 projection 반대시험의
+출발 증거다.
 
 ### 사용자 완료 문장
 
@@ -297,6 +307,36 @@ prompt few-shot으로 추가하지 않는다.
 클라이언트가 계산하고 heartbeat를 원장에 누적하지 않는다. Session 이동·재시작 뒤 같은 Work 현실을 복원하며,
 자연어 교정·취소와 버튼 cancel은 같은 durable admission·process settlement·surface 결과로 이어진다.
 
+진행 표면은 문구 순환기가 아니다. canonical 실행 사건을 다음 최소 사실로 투영한다.
+
+```text
+현재 목적
++ 마지막으로 완료·확인한 의미 있는 단계
++ 지금 실제로 실행·검증·대기 중인 종류
++ 새 Evidence가 생긴 시각 또는 변화 없는 기다림
++ 사용자 행동이 필요한 정확한 경계
+```
+
+파일명·명령·검색어·내부 ID를 그대로 보여주지 않더라도 `자료를 찾는 중 → 필요한 자료를 확인함 → 계산·검증
+중`처럼 현실이 바뀐 사실은 구분한다. 관측 가능한 새 사건이 있는데도 일반적인 “생각 중” 문구 하나로 전체
+구간을 덮으면 실패다. 새 사건이 없으면 같은 단계의 elapsed만 갱신하고 일을 더 한 것처럼 표현하지 않는다.
+
+취소의 사용자 terminal은 process signal 전송 시점이 아니다. 다음 전이가 전부 정산된 뒤에만 “멈췄어요”로
+닫는다.
+
+```text
+cancel admitted
+→ 시작한 model/tool/process child settle
+→ unknown external effect 보존
+→ exact Work revision execution claim release
+→ interrupted/resumable 또는 cancelled disposition commit
+→ cancel surface publication
+→ 다음 사용자 입력이 같은 Work의 새 revision 또는 명시한 새 Work로 claim 가능
+```
+
+취소 뒤 단순 상태 확인이 모델 호출 전 `already claimed`에 막히면 cancel 성공이 아니다. 기존 process를 다시
+실행하지 않고 마지막 durable output·progress·Receipt를 읽어 이어갈 수 있어야 한다.
+
 #### S3-UX2 — Human Receipt & Artifact Hygiene
 
 사용한 능력, 실제 생성·수정·전달한 결과, 검증 상태와 복원 가능성을 일반 사용자 언어로 접을 수 있는 표면에
@@ -307,6 +347,18 @@ MIME·decode/reopen·hash·Attachment/Artifact publication이 선 뒤에만 전�
 사람이 이해할 이름과 source Work를 가진다. 취소·실패 뒤 temporary를 사용자 폴더에 흩어 두지 않으며 최종
 결과만 사용자 공간에 publication한다.
 
+사용자가 “그 기존 파일 자체”를 요청하면 원본 path를 모델 Context나 URL에 노출하지 않고도 기존 file identity·
+bytes·hash·사용자 파일명을 output handle에 직접 결속한다. 변환·편집·새 이름을 요청하지 않았다면 사용자
+작업공간에 `cp`로 동일 복사본을 만들거나 임의 이름으로 바꾸지 않는다. transport상 staging copy가 필요하면
+T5 managed temporary 영역에서 만들고 publication 후 정리하며, 사용자에게는 원본 이름과 동일성·변환 여부를
+정확히 표시한다. 새 산출물이 필요한 작업과 기존 파일 전달은 같은 artifact 경로를 사용하되 source identity를
+합치지 않는다.
+
+일반 사용자 표면은 내부 상태를 직역하지 않는다. `active`, `pending_surface`, UUID, RecordRef, ISO timestamp는
+기본 화면에 노출하지 않고 `현재 사용 중`, `전달 준비 중`, `오늘`, `지난 기록`처럼 현재 의미를 한국어로
+projection한다. 감사에 필요한 exact state·identifier·시각은 접힌 개발자 상세나 출처 Receipt에서만 볼 수
+있으며, 번역이 원래 상태의 불확실성을 지우면 안 된다.
+
 #### S3-UX3 — Effect Forensics & Recovery
 
 대량 이동·권한·설정·package 작업은 실행 전후의 exact target identity와 가능한 mode·ACL·flags·ownership·
@@ -316,9 +368,10 @@ rollback Receipt를 사용하며 광범위한 chmod·재이동을 원인 확인 
 
 ### S3-A·Terminal·CA·PW 접합
 
-- S3-A는 F1~F6을 기존 S2·S3·S4·S5 대표 여정에 흡수해 first meaningful milestone, longest invisible interval,
-  cancel-to-stop, recovery visible, artifact/effect verification을 측정한다. 대표 여정 수를 늘리거나 trace를
-  사용자 surface에 직접 노출하지 않는다.
+- S3-A는 F1~F7을 기존 S2·S3·S4·S5 대표 여정에 흡수해 first meaningful milestone, longest invisible interval,
+  cancel-to-stop, cancel-to-claim-release, same-Work recovery, original artifact identity, unrequested workspace copy,
+  사용자용 상태 언어와 artifact/effect verification을 측정한다. 대표 여정 수를 늘리거나 trace를 사용자
+  surface에 직접 노출하지 않는다.
 - S3-T는 완료된 process·PTY·output recall·platform execution 기반으로 유지하며 S3-UX 때문에 재개하지 않는다.
 - S3-CA는 기능이 존재하지만 degraded인 상태와 실제 부재를 구분하고, 안전한 Secret Input·Capability 연결과
   실제 이미지/Artifact route를 같은 Work에 제공한다.

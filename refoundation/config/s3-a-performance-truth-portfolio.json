@@ -49,6 +49,9 @@
     "unknownExternalEffectBlindReplay": 0,
     "userInputLoss": 0,
     "staleMemoryForcedInjection": 0,
+    "cancelledWorkClaimStranding": 0,
+    "unrequestedWorkspaceArtifactCopies": 0,
+    "internalStateLiteralExposure": 0,
     "accuracyCompletenessRecoveryRegression": 0,
     "instrumentationInModelContextOrUserSurface": 0
   },
@@ -81,7 +84,7 @@
       "id":"S3","title":"Bulk files and mixed office documents","covers":["C03","C04"],
       "firstAxes":["cold_process_vs_warm_resident","model_only_if_context_or_route_differs"],
       "fixture":"A 400-file reversible move fixture plus XLSX, PDF, and DOCX with one conflict.",
-      "oracle":["source loss zero","movement receipt complete","unknown preserved","artifact reopened"]
+      "oracle":["source loss zero","movement receipt complete","unknown preserved","artifact reopened","existing source identity preserved","unrequested workspace copy zero"]
     },
     {
       "id":"S4","title":"Telegram and Notion connected reality","covers":["C05","C06"],
@@ -93,7 +96,7 @@
       "id":"S5","title":"Busy correction cancel and follow-up","covers":["C07"],
       "firstAxes":["model","background_only_if_admission_contention_appears"],
       "fixture":"Long-running local process, durable busy input, cancel, and two expected surfaces.",
-      "oracle":["input loss zero","process stopped","cancel not success","duplicate surface zero"]
+      "oracle":["input loss zero","process stopped","execution claim released before cancel terminal","same Work next revision claimable","cancel not success","duplicate surface zero"]
     },
     {
       "id":"S6","title":"Long conversation and checkpoint","covers":["C09"],
@@ -113,7 +116,9 @@
     "modelCalls", "toolCalls", "providerCachedAndUncachedTokens", "requestBytes",
     "firstFeedbackMs", "firstActualActionMs", "foregroundWallMs", "userAndApprovalBurden",
     "firstMeaningfulMilestoneMs", "longestInvisibleIntervalMs", "cancelAdmissionToStopMs",
-    "recoveryActionVisibleMs", "verifiedArtifactVisible", "effectForensicCoverage",
+    "cancelToClaimReleaseMs", "sameWorkRecoveryAccepted", "recoveryActionVisibleMs",
+    "verifiedArtifactVisible", "originalArtifactIdentityPreserved", "unrequestedWorkspaceCopies",
+    "userSurfaceInternalStateLiterals", "effectForensicCoverage",
     "stateReadReplayMs", "contextCompilationMs", "fileIoMs", "backgroundInterferencePairedDelta"
   ]
 }

@@ -80,16 +80,24 @@ S7 Automation·Learning background interference
 | 실패 가족 | 기존 여정 | 추가 관측·oracle |
 |---|---|---|
 | 장기 Work 불가시성 | S2·S3·S4 | first meaningful milestone, longest invisible interval, 새 Evidence 없는 진전 표시 0 |
-| 교정·취소·복구 | S5 | admission→표시, cancel→process terminal, recovery action visible, 같은 실패 surface 반복 0 |
-| 이미지·기존 파일 전달 | S3·S4 | URL/Markdown 주장 대신 actual bytes·decode/reopen·Artifact surface |
+| 교정·취소·복구 | S5 | admission→표시, cancel→started child terminal→exact execution claim release→surface, 같은 Work next revision claim, 같은 실패 surface 반복 0 |
+| 이미지·기존 파일 전달 | S3·S4 | URL/Markdown 주장 대신 actual bytes·decode/reopen·Artifact surface, 기존 파일 source identity·이름 보존, 요청하지 않은 workspace copy 0 |
 | 대량 파일 effect 사고 | S3 | 전후 identity·mode/ACL/flags 관측 범위, openability, reverse plan·rollback, unobserved cause unknown |
 | 현재 목적·temporary 위생 | S3·S4 | 현재 목적 우선, managed temporary publication 0, final artifact naming·source Work |
 | provider/resource terminal | S1·S5·S6 | 보존 상태·사용 가능한 다음 route·사용자 surface, false completion 0 |
+| 인간용 상태 언어 | S1·S5·S7 | 내부 state literal·UUID·RecordRef·ISO 시각 기본 노출 0, 한국어 의미 projection과 exact developer detail 분리 |
 
 positive control은 실제 프로그램·테스트·API 분석의 결과 품질, 불명확 파일의 다중 route 탐색, 없는 사실의
 정직한 처리다. 계측·UX 후보가 이 세 행동을 줄이거나 모델 route를 미리 정하면 실패다. S3-A trace sidecar는
 계속 모델 Context와 사용자 surface에 0이며, 이후 S3-UX는 canonical Run·Tool·Effect·Artifact 사건만 인간용으로
 projection한다.
+
+cancel은 화면에 “멈췄어요”가 나타난 것만으로 합격하지 않는다. 중단 직후 exact durable progress를 읽는 후속
+요청이 모델 호출 전에 stale claim으로 거절되지 않고, 취소한 process를 재실행하지 않은 채 같은 Work의 다음
+revision으로 이어져야 한다. 기존 파일 전달도 download link와 hash만으로 합격하지 않는다. 사용자가 변환을
+요청하지 않았다면 원본 파일명·source identity가 유지되고 사용자 workspace의 새 복사본 수가 0이어야 한다.
+일시적인 model/provider wall 변동은 matched repeat 없이 회귀로 확정하지 않지만 model/tool call·request bytes가
+증가한 표본은 같은 목적의 다음 A/B를 여는 신호로 기록한다.
 
 같은 여정 안에서도 서로 다른 외부 effect나 oracle을 한 성공값으로 합치지 않는다. 기존 증거만으로 phase와
 현재 비용을 같은 기준에서 재계산할 수 있으면 새 모델 호출 없이 재사용한다. 모델별로 표현을 바꾸거나 실패 후
