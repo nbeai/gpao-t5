@@ -1,0 +1,112 @@
+{
+  "schema": "t5.s3m.m3-forgetting-evidence.v1",
+  "status": "PASS_WITH_LIVE_MODEL_OBSERVATION_REQUIRED",
+  "sourceCommit": "fee6b2f43566d7ffec205de8dae6442b6c91f7fa",
+  "recordedAt": "2026-08-26",
+  "officialReleaseGateChanged": false,
+  "stage": {
+    "deterministicProductQualified": true,
+    "liveModelQualified": false,
+    "completed": false,
+    "next": "S3-M3_LIVE_MODEL_QUALIFICATION",
+    "m4Opened": false,
+    "newCanonicalStore": false,
+    "sqliteAdded": false
+  },
+  "comparisonSources": [
+    { "product": "Claude Code", "revision": "official_docs_observed_2026-08-26",
+      "source": "https://code.claude.com/docs/en/memory",
+      "adopted": ["human inspect and delete"], "rejected": ["plain-file deletion as proof of derived cleanup"] },
+    { "product": "Codex", "revision": "f5420174dafba153913a3e697f89002c338dfd7e",
+      "source": "https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md",
+      "adopted": ["idempotent missing-as-deleted semantics", "archive and delete separation"],
+      "counterexamples": ["issue 27545 archive data loss", "issue 36558 orphaned database row"] },
+    { "product": "Hermes", "revision": "d0351e32309bd68a1012c302157947b955323fca",
+      "source": "https://github.com/NousResearch/hermes-agent/issues/76883",
+      "adopted": ["archive before mutation", "recoverability by default"],
+      "counterexamples": ["issue 81120 unrelated fact deletion loop"] }
+  ],
+  "contracts": {
+    "exactOpaqueSelector": true,
+    "previewDigestIncludesRevision": true,
+    "revisionChangedAppends": 0,
+    "targetPartition": ["executed", "unknown", "retained"],
+    "successBooleanAllowed": false,
+    "recoverableDays": 30,
+    "tombstoneRejectsStaleReintroduction": true,
+    "unrelatedRecordLoss": 0,
+    "localPathInPortableExport": false
+  },
+  "faultMatrix": {
+    "families": 9,
+    "revisionChangedAfterPreview": "PASS",
+    "indexDeleteFailureSeparated": true,
+    "libraryFailureSeparated": true,
+    "backupUnknownPreserved": true,
+    "externalCopyUnknownPreserved": true,
+    "crashResume": "PASS",
+    "broaderSelectorLoss": 0,
+    "sameNameForeignPersonLoss": 0,
+    "backgroundReintroductionBlocked": true
+  },
+  "productJourneys": {
+    "naturalForgetAbsenceRestore": "PASS",
+    "forgetReceipt": { "exactRecallAfter": 0, "contextProjectionAfter": 0,
+      "behaviorProbeAfter": "unknown" },
+    "postForgetBehaviorFixture": "PASS",
+    "portableExport": "PASS",
+    "liveModels": {
+      "gpt-5.5": "NOT_EXECUTED_M3_ACTUAL_ACCOUNT_APPROVAL_REQUIRED",
+      "gpt-5.6-terra": "NOT_EXECUTED_M3_ACTUAL_ACCOUNT_APPROVAL_REQUIRED",
+      "runnerRequires": "--human-controlled",
+      "externalWrites": 0
+    }
+  },
+  "samePurposeAB": {
+    "pairs": 12,
+    "surfaceDigestAgreement": true,
+    "baseline": { "medianWallUs": 195.083, "medianAddedEventBytes": 780,
+      "providerCalls": 0, "externalWrites": 0, "receiptPresent": false,
+      "tombstoneCreated": false, "restored": false },
+    "candidate": { "medianWallUs": 1499.792, "medianAddedEventBytes": 4148,
+      "providerCalls": 0, "externalWrites": 0, "receiptPresent": true,
+      "tombstoneCreated": true, "restored": true, "exactHitAfterForget": 0,
+      "contextAfterForget": 0, "unrelatedLoss": 0 },
+    "interpretation": "Candidate adds about 1.305 ms median local wall and 3368 event bytes to gain revision preview, partitioned receipt, tombstone, crash recovery, and restore."
+  },
+  "verification": {
+    "latestFullCheck": "1044 total · 1043 passed · 0 failed · 1 Windows skip",
+    "productIntegration": "147 total · 146 passed · 0 failed · 1 Windows skip",
+    "mutation": "2/2 killed"
+  },
+  "sourceDigests": {
+    "refoundation/src/forgetting-contract.js": "002dd0fdad5fcdcc91d9d099d08a8f7c1855a60dcff2c4d9468293b8d1e54bbd",
+    "refoundation/src/forgetting-coordinator.js": "63c94a91096681b25c00c04588f907137802949dde1d1ee9c3bd50df7dcc6504",
+    "refoundation/src/memory-ledger.js": "f1bbcaf2d4048743667ae2060006d13f3f489d10395643bd6e53711d7cbf39d0",
+    "refoundation/src/memory-control-tool.js": "ac36c40ea4b8953ef5eba4180cac8df4a4e7cdec3887a7f9f875f79e254b7bff",
+    "refoundation/src/memory-export.js": "698ba6c28921dbb98bf26a2be6e7d425e4eccc64a4d66ff4bc07175c7fab3c20",
+    "refoundation/src/memory-tool.js": "cf75cd23a7ac242ceba597cc7a965ec28d834506379181d35dc23c23bc97c8d3",
+    "refoundation/src/memory-portfolio.js": "a3ccb291d10c5c5144d83e103881a228a46d9dce8f07d2ed812749a144f6e387",
+    "refoundation/src/console-server.js": "c492029ce9b393573a4c69a731c976eb5e746d45e5fb6d5f2097277465656511"
+  },
+  "testDigests": {
+    "refoundation/test/forgetting-contract.test.js": "031f6753707d5d99ab9d6c57df72db690be39c268e4a03d2ced6cc90cc4f788e",
+    "refoundation/test/forgetting-coordinator.test.js": "a7e48502d42efa7f1fb88071505705f9ac21381ee582ea50340f463334114513",
+    "refoundation/test/forgetting-fault-matrix.test.js": "f2562136ec43d9eff6511b73a3748fcfe17a3072826f6674ddcf7a83685d6cc9",
+    "refoundation/test/memory-user-control.test.js": "0ae0ae114f0e6dfb9cc4ef3672bbbeb335327b162e6a8e6be5ffff231de95fc3",
+    "refoundation/test/memory-temporal-current-state.integration.js": "b541609091df36e083be27fa474942320b161ade4be3df03ccf3358fc9ef2d09"
+  },
+  "runnerDigests": {
+    "refoundation/scripts/run-s3m3-forgetting-qualification.mjs": "21d1fd0b8bef08e1c39fc2fa5472b01236a50ed54f437ae7d93ad22370328677",
+    "refoundation/scripts/run-s3m3-live-model-qualification.mjs": "f23a5271731ba43d374a0382945d8afbe7681a3f8dc5e6dbcd540e9da9d42941"
+  },
+  "notClaimed": [
+    "M3 is complete",
+    "gpt-5.5 or gpt-5.6-terra passed actual M3 journeys",
+    "external copies were deleted",
+    "unopened FTS, embedding, Library, Spotlight, or Windows Search adapters were tested as product features",
+    "M4 is open",
+    "the official Release Gate changed"
+  ],
+  "nextOneTask": "After explicit owner approval for actual account use and model cost for M3, run the human-controlled six-journey gpt-5.5 and gpt-5.6-terra qualification. Do not open M4 first."
+}
