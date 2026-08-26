@@ -34,10 +34,10 @@ export function makeWorkTransitionTool({ store, sessionId, runId = null,
           deactivatedTools: ['work_completion'], workOwnershipRelinquished: true };
       }
       if (args.action === 'cancel_current_work') {
-        await stopProcesses();
         const cancelled = await store.cancelPresentedBatchWork({
           inputIds, workId: current.workId, runId,
         });
+        await stopProcesses();
         return { state: 'current_work_cancelled', ...cancelled,
           deactivatedTools: ['work_completion'], workOwnershipRelinquished: true };
       }

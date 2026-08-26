@@ -35,6 +35,7 @@ import { CapabilityLifecycleLedger, makeCapabilityLifecycleTool } from './capabi
 import { loadSkillPolicyCatalog } from './skill-policy-catalog.js';
 import { ConversationLedger } from './conversation-ledger.js';
 import { WorkStore } from './work-store.js';
+import { WorkCancellationCoordinator } from './work-cancellation-coordinator.js';
 import { makeWorkCompletionTool } from './work-completion-tool.js';
 import { evaluateWorkCompletion } from './work-completion-evaluator.js';
 import { makeInputSettlementScope } from './input-settlement-scope.js';
@@ -497,11 +498,14 @@ export function makeConsoleServer({
   async function recoverTerminalFailedWorkClaims() {
     const state = await workStore.read(); const released = [];
     for (const claim of state.claims.filter((item) => item.state === 'active')) {
-      if (state.events.some((event) => event.type === 'work_settled' && event.runId === claim.runId)) continue;
+      if (state.cancellations.some((item) => item.runId === claim.runId)) continue;
       const run = await runLedger.read(claim.runId).catch(() => null);
       if (!run || !['failed', 'cancelled', 'interrupted'].includes(run.status)) continue;
+      const settled = state.events.find((event) => event.type === 'work_settled' && event.runId === claim.runId);
+      if (settled && settled.outcome !== 'cancelled') continue;
       const result = await workStore.releaseExecution({ runId: claim.runId,
-        reason: 'restart_terminal_run_recovery' });
+        reason: settled ? 'legacy_cancelled_claim_repair' : 'restart_terminal_run_recovery',
+        allowSettled: Boolean(settled) });
       if (result.released) released.push(claim.runId);
     }
     return released;
@@ -540,6 +544,72 @@ export function makeConsoleServer({
   const automationOwner = makeLocalAutomationOwner({ runtimeId: runtimeInstanceId });
   const computerFacts = publicComputerFacts(computer);
   const processes = processRegistry ?? new ManagedProcessRegistry({ platform: computer.platform });
+  const workCancellation = new WorkCancellationCoordinator({
+    workStore, runLedger, processRegistry: processes,
+  });
+  function publicCancellationSurface(receipt) {
+    const cancellation = { terminal: receipt.state === 'terminal',
+      resumable: receipt.disposition === 'interrupted_resumable' && receipt.childrenTerminal === true,
+      runTerminal: receipt.runTerminal, childrenTerminal: receipt.childrenTerminal,
+      claimReleased: receipt.claimReleased, unknownEffect: receipt.unknownEffect,
+      userSafeSummary: receipt.userSafeSummary, nextSafeAction: receipt.nextSafeAction };
+    return { kind: receipt.state === 'recovery_pending' ? 'cancel_recovery_pending' : 'cancelled',
+      reply: receipt.userSafeSummary,
+      ...(receipt.nextSafeAction ? { nextSafeAction: receipt.nextSafeAction } : {}), cancellation };
+  }
+  async function persistCancellationSurface({ admission, receipt, deliverSurface = null,
+    completeDelivery = true } = {}) {
+    const surfaceResult = publicCancellationSurface(receipt);
+    const resultDigest = createHash('sha256').update(JSON.stringify(surfaceResult)).digest('hex');
+    let existing = (await workStore.read()).results.find((item) => item.runId === admission.runId);
+    if (existing && (existing.resultDigest !== resultDigest
+      || existing.surfaceResult?.kind !== surfaceResult.kind)) {
+      throw Object.assign(new Error('existing cancel result identity mismatch'), {
+        code: 'work_cancel_result_mismatch',
+      });
+    }
+    if (!existing) {
+      await workStore.recordResultReady({ runId: admission.runId, sessionId: admission.sessionId,
+        workId: admission.workId, revision: admission.revision,
+        objectiveOutcome: receipt.state === 'recovery_pending' ? 'unresolved' : 'cancelled',
+        resultDigest, surfaceResult });
+      existing = (await workStore.read()).results.find((item) => item.runId === admission.runId);
+    }
+    const currentSession = await sessions.load(admission.sessionId);
+    const existingSurface = (currentSession?.transcript ?? []).find((entry) => (
+      entry.role === 'assistant' && entry.runId === admission.runId
+      && entry.result?.kind === surfaceResult.kind
+    ));
+    if (existingSurface && createHash('sha256').update(JSON.stringify(existingSurface.result)).digest('hex')
+      !== resultDigest) throw Object.assign(new Error('existing cancel surface identity mismatch'), {
+      code: 'work_cancel_surface_mismatch',
+    });
+    if (!existingSurface) await sessions.append(admission.sessionId, {
+      role: 'assistant', runId: admission.runId, result: surfaceResult,
+    });
+    if (existing?.state === 'pending_surface') await workStore.markResultSurfacePersisted(admission.runId);
+    await workStore.markCancellationSurfacePersisted({ requestId: admission.requestId,
+      runId: admission.runId, nextRevision: receipt.nextRevision, resultDigest });
+    let channelDelivery = null;
+    if (completeDelivery) {
+      channelDelivery = { provider: 'console', state: 'persisted' };
+      if (typeof deliverSurface === 'function') {
+        await workStore.markResultDeliveryStarted(admission.runId, { provider: 'telegram', state: 'started' });
+        try {
+          const sent = await deliverSurface({ reply: surfaceResult.reply, artifactIds: [] });
+          channelDelivery = sent?.sent === false ? { provider: 'telegram', state: 'failed', reason: 'not_sent' }
+            : { provider: 'telegram', state: 'sent' };
+        } catch (deliveryError) {
+          channelDelivery = { provider: 'telegram',
+            state: deliveryError?.effectUnknown ? 'unknown' : 'failed',
+            reason: deliveryError?.code ?? 'cancel_delivery_failed' };
+        }
+      }
+      await workStore.markResultDeliveryTerminal(admission.runId, channelDelivery);
+    }
+    return { surfaceResult, resultDigest,
+      channelDelivery: channelDelivery?.provider === 'telegram' ? channelDelivery : null };
+  }
   const reveal = revealPath ?? makePathRevealer({
     platform: computer.platform, userHome: computer.userHome,
   });
@@ -639,7 +709,7 @@ export function makeConsoleServer({
       metadata: { trigger: 'user_recovery', mode },
     });
     try {
-      running.get(sessionId)?.abort();
+      running.get(sessionId)?.controller?.abort();
       let discardedStreams = 0;
       for (const [streamId, pending] of pendingStreams) {
         if (pending.sessionId === sessionId) {
@@ -967,10 +1037,41 @@ export function makeConsoleServer({
     const abortFromExternal = () => controller.abort(options.externalSignal?.reason);
     if (options.externalSignal?.aborted) abortFromExternal();
     else options.externalSignal?.addEventListener('abort', abortFromExternal, { once: true });
-    running.set(sessionId, controller);
+    let resolveCancelTerminal; let rejectCancelTerminal;
+    const cancelTerminal = new Promise((resolveTerminal, rejectTerminal) => {
+      resolveCancelTerminal = resolveTerminal; rejectCancelTerminal = rejectTerminal;
+    });
+    cancelTerminal.catch(() => {});
+    const runningEntry = { controller, runId: run.runId, cancelTerminal,
+      resolveCancelTerminal, rejectCancelTerminal, admission: null, childSettlementReceipt: null,
+      cancellationSettled: false };
+    running.set(sessionId, runningEntry);
     let runFinished = false;
     let resourceRunStatus = 'unknown';
     let surfacePersisted = false;
+    const finishCancelledWork = async ({ result = null, disposition = 'interrupted_resumable' } = {}) => {
+      const activeEntry = running.get(sessionId) ?? runningEntry;
+      try {
+        let admission = activeEntry.admission;
+        if (!admission) admission = await workCancellation.admit({ sessionId, runId: run.runId, disposition });
+        let childSettlementReceipt = activeEntry.childSettlementReceipt;
+        if (!childSettlementReceipt) childSettlementReceipt = await workCancellation.requestStop({ admission, controller });
+        const unknownEffect = (result?.receipts ?? []).some((receipt) => (
+          receipt?.result?.effectUnknown === true || receipt?.outcome === 'unknown'
+        ));
+        const cancellationReceipt = await workCancellation.settle({ admission,
+          childSettlementReceipt, unknownEffect });
+        const persisted = await persistCancellationSurface({ admission, receipt: cancellationReceipt,
+          deliverSurface: options.deliverSurface, completeDelivery: true });
+        surfacePersisted = true;
+        const value = { receipt: cancellationReceipt, surfaceResult: persisted.surfaceResult,
+          channelDelivery: persisted.channelDelivery };
+        activeEntry.cancellationSettled = true;
+        activeEntry.cancellationValue = value; return value;
+      } catch (cancelError) {
+        activeEntry.rejectCancelTerminal?.(cancelError); throw cancelError;
+      }
+    };
     try {
       if (conversationCheckpointMode === 'in-place-v0') {
         const plan = planConversationCheckpoint({
@@ -1618,8 +1719,11 @@ export function makeConsoleServer({
                 usage: decision.usage ?? null, responseId: decision.responseId ?? null,
               } } });
             if (decision.choice === 'cancel') {
-              await processes.stopOwner(sessionId, 'model_classified_cancel');
-              controller.abort('transition_cancel');
+              const admission = await workCancellation.admit({ sessionId, runId: run.runId,
+                disposition: 'hard_cancelled' });
+              runningEntry.admission = admission;
+              runningEntry.childSettlementReceipt = await workCancellation.requestStop({ admission,
+                controller });
             }
           }
           let pending = await workStore.pendingInputs(sessionId);
@@ -1799,7 +1903,17 @@ export function makeConsoleServer({
         runFinished = true;
         resourceRunStatus = 'cancelled';
         finishActivity('cancelled');
-        return { kind: 'cancelled', result, runId: run.runId };
+        const cancellationState = await workStore.read();
+        const runClaim = cancellationState.claims.find((item) => item.runId === run.runId);
+        const runWork = runClaim && cancellationState.works.find((item) => item.workId === runClaim.workId);
+        const hardCancelled = runWork?.status === 'cancelled'
+          || cancellationState.cancellations.some((item) => (
+            item.runId === run.runId && item.disposition === 'hard_cancelled'
+          ));
+        const cancelled = await finishCancelledWork({ result,
+          disposition: hardCancelled ? 'hard_cancelled' : 'interrupted_resumable' });
+        return { kind: 'cancelled', result, runId: run.runId,
+          surfaceResult: cancelled.surfaceResult, channelDelivery: cancelled.channelDelivery };
       }
       if (result.status !== 'completed' || !String(result.answer ?? '').trim()) {
         throw new Error(`agent ended without an answer: ${result.status}`);
@@ -2100,10 +2214,11 @@ export function makeConsoleServer({
         }
         resourceRunStatus = 'cancelled';
         finishActivity('cancelled');
+        const cancelled = await finishCancelledWork({ disposition: 'interrupted_resumable' });
         return {
           kind: 'cancelled', runId: run.runId,
           result: { status: 'cancelled', answer: null, receipts: [], modelTurns: null },
-          surfaceResult: { kind: 'cancelled', runId: run.runId },
+          surfaceResult: cancelled.surfaceResult, channelDelivery: cancelled.channelDelivery,
         };
       }
       const connection = await Promise.resolve().then(() => status()).catch(() => null);
@@ -2179,6 +2294,14 @@ export function makeConsoleServer({
     } finally {
       options.externalSignal?.removeEventListener('abort', abortFromExternal);
       await resourceRun.close(resourceRunStatus).catch((error) => onError?.(error));
+      const endingEntry = running.get(sessionId);
+      if (endingEntry?.admission && !endingEntry.cancellationSettled) {
+        endingEntry.rejectCancelTerminal?.(Object.assign(
+          new Error('Run ended without a cancellation terminal'), { code: 'work_cancel_not_terminal' },
+        ));
+      } else if (endingEntry?.cancellationSettled) {
+        endingEntry.resolveCancelTerminal?.(endingEntry.cancellationValue);
+      }
       running.delete(sessionId);
       await scheduleNextWorkInput(sessionId).catch((error) => onError?.(error));
       for (const [processId, event] of pendingProcessWakes) {
@@ -2287,12 +2410,22 @@ export function makeConsoleServer({
       if (!session) continue;
       if (result.state === 'pending_surface') {
         const exists = (session.transcript ?? []).some((entry) => entry.role === 'assistant'
-          && entry.result?.runId === result.runId);
-        if (!exists) await sessions.append(result.sessionId, { role: 'assistant', result: result.surfaceResult });
+          && (entry.runId === result.runId || entry.result?.runId === result.runId)
+          && createHash('sha256').update(JSON.stringify(entry.result)).digest('hex') === result.resultDigest);
+        if (!exists) await sessions.append(result.sessionId, {
+          role: 'assistant', runId: result.runId, result: result.surfaceResult });
         result = await workStore.markResultSurfacePersisted(result.runId);
         await runLedger.appendRecoveredSurface(result.runId, 'surface_persisted', {
           role: 'assistant', recovered: true,
         }).catch((error) => onError?.(error));
+      }
+      const cancellation = (await workStore.read()).cancellations.find((item) => (
+        item.runId === result.runId && item.state === 'terminal' && item.surfacePersisted !== true
+      ));
+      if (cancellation && result.surfaceResult?.kind === 'cancelled') {
+        await workStore.markCancellationSurfacePersisted({ requestId: cancellation.requestId,
+          runId: result.runId, nextRevision: cancellation.nextRevision,
+          resultDigest: result.resultDigest });
       }
       const surfaceReceipt = { surface: 'console_session', sessionId: result.sessionId,
         runId: result.runId, resultDigest: result.resultDigest, recovered: true };
@@ -2324,6 +2457,21 @@ export function makeConsoleServer({
       recovered.push({ runId: result.runId, delivery: delivery.state });
     }
     return recovered;
+  }
+  async function recoverCancellationPublications() {
+    const recovered = await workCancellation.reconcileAfterRestart();
+    const results = [];
+    for (const item of recovered) {
+      const session = await sessions.load(item.admission.sessionId);
+      const telegram = session?.origin?.channel === 'telegram';
+      const persisted = await persistCancellationSurface({ admission: item.admission,
+        receipt: item.receipt, completeDelivery: true,
+        deliverSurface: telegram ? ({ reply, artifactIds }) => messenger.sendToSession({
+          sessionId: item.admission.sessionId, text: reply, artifactIds,
+        }) : null });
+      results.push({ requestId: item.admission.requestId, resultDigest: persisted.resultDigest });
+    }
+    return results;
   }
   let resultPublicationRecovery = Promise.resolve([]);
   const connectionServices = new Map(workspaceConnectionServices.map((service) => {
@@ -2888,6 +3036,7 @@ export function makeConsoleServer({
     onError: (error) => onError?.(error),
   });
   resultPublicationRecovery = (async () => {
+    await recoverCancellationPublications();
     const recovered = await recoverResultPublications();
     await capabilityCoordinator.recover();
     return recovered;
@@ -3370,9 +3519,21 @@ export function makeConsoleServer({
       }
       if (req.method === 'POST' && url.pathname === '/turn/cancel') {
         const input = await body(req);
-        running.get(input.sessionId)?.abort();
-        await processes.stopOwner(input.sessionId, 'user_cancelled');
-        json(res, 200, { ok: true }); return;
+        const entry = running.get(input.sessionId);
+        if (!entry) { json(res, 409, { ok: false, error: '현재 멈출 작업이 없어요.' }); return; }
+        const disposition = input.hard === true ? 'hard_cancelled' : 'interrupted_resumable';
+        const admission = await workCancellation.admit({ sessionId: input.sessionId,
+          runId: entry.runId, disposition, requestId: input.requestId ?? null });
+        entry.admission = admission;
+        entry.childSettlementReceipt = await workCancellation.requestStop({ admission,
+          controller: entry.controller });
+        const terminal = await entry.cancelTerminal;
+        json(res, 200, { ok: true, state: terminal.receipt.state,
+          disposition: terminal.receipt.disposition, runTerminal: terminal.receipt.runTerminal,
+          childrenTerminal: terminal.receipt.childrenTerminal,
+          claimReleased: terminal.receipt.claimReleased, unknownEffect: terminal.receipt.unknownEffect,
+          userSafeSummary: terminal.receipt.userSafeSummary, surfacePersisted: true,
+          receipt: terminal.receipt }); return;
       }
       if (req.method === 'POST' && url.pathname === '/turn/stream-start') {
         const input = await body(req);

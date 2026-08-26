@@ -1,20 +1,32 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 import { appendFile, chmod, mkdir, readFile, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 
 const SCHEMA = 't5.work-event.v1';
 const OUTCOMES = new Set(['achieved', 'unresolved', 'cancelled']);
 const clone = (value) => structuredClone(value);
+const SHARED_QUEUES = new Map();
+const hash = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+function canonicalFutureDirectory(input) {
+  let cursor = resolve(input); const suffix = [];
+  while (true) {
+    try { return join(realpathSync.native(cursor), ...suffix.reverse()); }
+    catch { const parent = dirname(cursor); if (parent === cursor) return resolve(input);
+      suffix.push(basename(cursor)); cursor = parent; }
+  }
+}
 
 export class WorkStore {
   constructor(directory, { makeId = randomUUID, now = () => new Date().toISOString() } = {}) {
     if (!directory) throw new TypeError('work directory is required');
-    this.directory = directory; this.file = join(directory, 'events.jsonl');
-    this.makeId = makeId; this.now = now; this.queue = Promise.resolve();
+    this.directory = canonicalFutureDirectory(directory); this.file = join(this.directory, 'events.jsonl');
+    this.makeId = makeId; this.now = now;
     this.loadedEvents = null; this.loadedProjection = null; this.loadedBytes = 0;
   }
 
-  serialize(work) { const next = this.queue.then(work, work); this.queue = next.catch(() => {}); return next; }
+  serialize(work) { const prior = SHARED_QUEUES.get(this.file) ?? Promise.resolve();
+    const next = prior.then(work, work); SHARED_QUEUES.set(this.file, next.catch(() => {})); return next; }
   async events() {
     if (this.loadedEvents) {
       let size = 0; try { size = (await stat(this.file)).size; }
@@ -32,7 +44,9 @@ export class WorkStore {
     return this.loadedEvents;
   }
   async append(type, payload) {
-    return this.serialize(async () => {
+    return this.serialize(() => this.appendUnlocked(type, payload));
+  }
+  async appendUnlocked(type, payload) {
       await mkdir(this.directory, { recursive: true, mode: 0o700 }); await chmod(this.directory, 0o700);
       const events = await this.events();
       const event = { schema: SCHEMA, sequence: events.length + 1, recordedAt: this.now(), type, ...clone(payload) };
@@ -41,13 +55,12 @@ export class WorkStore {
       catch (error) { this.loadedEvents = null; this.loadedProjection = null; this.loadedBytes = 0; throw error; }
       events.push(event); this.loadedBytes += Buffer.byteLength(line, 'utf8'); this.loadedProjection = null;
       await chmod(this.file, 0o600); return clone(event);
-    });
   }
   async read() {
     const events = await this.events();
     if (this.loadedProjection) return clone(this.loadedProjection);
     const works = new Map(); const inputs = new Map(); const claims = new Map();
-    const proposals = new Map(); const results = new Map();
+    const proposals = new Map(); const results = new Map(); const cancellations = new Map();
     for (const event of events) {
       if (event.type === 'work_created') works.set(event.workId, { workId: event.workId,
         sessionId: event.sessionId, revision: 1, status: 'active', sourceMessageId: event.sourceMessageId });
@@ -86,9 +99,9 @@ export class WorkStore {
             schedule: 'independent_work', workId: event.targetWorkId, revision: event.targetRevision });
         }
         if (event.choice === 'cancel') {
-          if (current) current.status = 'cancelled';
-          if (input) Object.assign(input, { state: 'cancelled', disposition: 'cancelled_work',
-            schedule: null, workId: event.currentWorkId, revision: event.currentRevision });
+          if (input) Object.assign(input, { state: 'executing', disposition: 'cancelled_work',
+            schedule: null, workId: event.currentWorkId, revision: event.currentRevision,
+            executionRunId: event.runId });
         }
         if (event.choice === 'ambiguous' && input) Object.assign(input, {
           state: 'ambiguous', disposition: 'ambiguous', schedule: null,
@@ -135,7 +148,7 @@ export class WorkStore {
           settlementDisposition: null, settlementWorkId: null, settlementRevision: null,
           settlementReason: null,
         });
-        const work = works.get(event.workId); if (work) { work.revision = event.revision; work.status = 'cancelled'; }
+        const work = works.get(event.workId); if (work) { work.revision = event.revision; work.status = 'active'; }
       }
       if (event.type === 'input_classified') {
         const legacy = { steer: ['revise_current_work', 'within_current_work'],
@@ -210,6 +223,84 @@ export class WorkStore {
         const claim = claims.get(event.runId);
         if (claim) Object.assign(claim, { state: 'released', reason: event.reason });
       }
+      if (event.type === 'work_cancel_admitted') {
+        if (cancellations.has(event.requestId)) throw new Error('duplicate work cancel admission');
+        cancellations.set(event.requestId, {
+        requestId: event.requestId, sessionId: event.sessionId, runId: event.runId,
+        workId: event.workId, revision: event.revision, disposition: event.disposition,
+        fingerprint: event.fingerprint, state: 'stopping', admittedAt: event.recordedAt,
+      });
+        const cancellingWork = works.get(event.workId);
+        if (cancellingWork?.status === 'active') cancellingWork.status = 'paused';
+      }
+      if (event.type === 'work_cancellation_settled') {
+        const cancellation = cancellations.get(event.requestId);
+        if (!cancellation || cancellation.state === 'terminal'
+          || cancellation.runId !== event.runId || cancellation.workId !== event.workId
+          || cancellation.revision !== event.revision || cancellation.disposition !== event.disposition
+          || cancellation.fingerprint !== event.fingerprint) {
+          throw new Error('orphan, duplicate, or mismatched work cancellation terminal');
+        }
+        const claim = claims.get(event.runId);
+        const expectedNext = event.disposition === 'interrupted_resumable'
+          ? event.revision + 1 : event.revision;
+        if (event.nextRevision !== expectedNext || event.claimReleased !== true
+          || !claim || claim.state !== 'released') {
+          throw new Error('work cancellation terminal lacks prior exact claim release');
+        }
+        if (cancellation) Object.assign(cancellation, { state: 'terminal', terminalAt: event.recordedAt,
+          unknownEffect: event.unknownEffect === true, nextRevision: event.nextRevision,
+          claimReleased: event.claimReleased === true,
+          childrenTerminal: event.childrenTerminal === true ? true : null, surfacePersisted: false });
+        const work = works.get(event.workId);
+        if (work) {
+          work.revision = event.nextRevision;
+          work.status = event.disposition === 'hard_cancelled' ? 'cancelled' : 'paused';
+        }
+        for (const input of inputs.values()) if (input.executionRunId === event.runId) {
+          Object.assign(input, { state: 'cancelled', schedule: null, settlementDisposition: 'cancelled',
+            settlementWorkId: event.workId, settlementRevision: event.revision,
+            settlementReason: event.disposition });
+        }
+      }
+      if (event.type === 'work_cancellation_recovery_pending') {
+        const cancellation = cancellations.get(event.requestId);
+        if (!cancellation || cancellation.state !== 'stopping'
+          || cancellation.runId !== event.runId || cancellation.workId !== event.workId
+          || cancellation.revision !== event.revision || cancellation.disposition !== event.disposition
+          || cancellation.fingerprint !== event.fingerprint) {
+          throw new Error('mismatched work cancellation recovery state');
+        }
+        const claim = claims.get(event.runId);
+        if (event.nextRevision !== event.revision + 1 || event.claimReleased !== true
+          || !claim || claim.state !== 'released') {
+          throw new Error('work cancellation recovery lacks exact claim release');
+        }
+        Object.assign(cancellation, { state: 'recovery_pending', terminalAt: null,
+          unknownEffect: true, nextRevision: event.nextRevision, claimReleased: true,
+          childrenTerminal: null, surfacePersisted: false });
+        const work = works.get(event.workId);
+        if (work) { work.revision = event.nextRevision; work.status = 'paused'; }
+        for (const input of inputs.values()) if (input.executionRunId === event.runId) {
+          Object.assign(input, { state: 'cancel_recovery_pending', schedule: null,
+            settlementDisposition: 'unresolved', settlementWorkId: event.workId,
+            settlementRevision: event.revision, settlementReason: 'restart_children_unconfirmed',
+            executionRunId: null });
+        }
+      }
+      if (event.type === 'work_cancel_surface_persisted') {
+        const cancellation = cancellations.get(event.requestId);
+        if (!cancellation || !['terminal', 'recovery_pending'].includes(cancellation.state)
+          || cancellation.surfacePersisted
+          || cancellation.runId !== event.runId || cancellation.nextRevision !== event.nextRevision) {
+          throw new Error('work cancel surface does not match one terminal cancellation');
+        }
+        cancellation.surfacePersisted = true;
+        cancellation.resultDigest = event.resultDigest;
+        const work = works.get(cancellation.workId);
+        if (work && cancellation.disposition === 'interrupted_resumable'
+          && cancellation.childrenTerminal === true) work.status = 'active';
+      }
       if (event.type === 'completion_proposed') proposals.set(event.runId, {
         runId: event.runId, workId: event.workId, revision: event.revision,
         proposedOutcome: event.proposedOutcome, verifiedOutcome: event.verifiedOutcome,
@@ -243,7 +334,7 @@ export class WorkStore {
     }
     this.loadedProjection = { events: clone(events), works: clone([...works.values()]), inputs: clone([...inputs.values()]),
       claims: clone([...claims.values()]), proposals: clone([...proposals.values()]),
-      results: clone([...results.values()]) };
+      results: clone([...results.values()]), cancellations: clone([...cancellations.values()]) };
     return clone(this.loadedProjection);
   }
   async create({ sessionId, sourceMessageId }) {
@@ -351,7 +442,9 @@ export class WorkStore {
     for (const input of inputs) await this.append('input_cancelled_current_work', {
       inputId: input.inputId, workId, revision, runId });
     await this.claimExecution({ workId, revision, runId });
-    await this.append('work_settled', { workId, revision, outcome: 'cancelled', runId });
+    const requestId = `input-cancel:${runId}`;
+    await this.admitCancellation({ requestId, sessionId: inputs[0].sessionId,
+      runId, workId, revision, disposition: 'hard_cancelled' });
     return { workId, revision, inputs: inputs.map((input) => ({
       inputId: input.inputId, workId, revision, state: 'executing' })) };
   }
@@ -408,6 +501,12 @@ export class WorkStore {
       if (!paused || paused.status !== 'paused' || paused.revision !== target?.revision) {
         throw new Error('transition paused target is unavailable');
       }
+      const cancellation = state.cancellations.filter((item) => item.workId === paused.workId
+        && item.nextRevision === paused.revision).at(-1);
+      if (['terminal', 'recovery_pending'].includes(cancellation?.state)
+        && cancellation.childrenTerminal !== true) {
+        throw new Error('cancelled Work children are not terminal');
+      }
       targetWorkId = paused.workId; targetRevision = paused.revision + 1;
     }
     await this.append('input_transition_committed', { inputId, sessionId, runId,
@@ -454,6 +553,7 @@ export class WorkStore {
     verifiedOutcome = 'unresolved', blockerDigest = null, blockers = [], inputSettlements = [] }) {
     const state = await this.read(); const work = state.works.find((item) => item.workId === workId);
     if (!work || work.revision !== revision) throw new Error('stale work revision');
+    if (work.status !== 'active') throw new Error('active work is not claimable');
     const claim = state.claims.find((item) => item.runId === runId);
     if (!claim || claim.state !== 'active' || claim.workId !== workId || claim.revision !== revision) {
       throw new Error('work execution claim mismatch');
@@ -473,6 +573,7 @@ export class WorkStore {
     if (!OUTCOMES.has(outcome)) throw new TypeError('invalid work outcome');
     const state = await this.read(); const work = state.works.find((item) => item.workId === workId);
     if (!work || work.revision !== revision) throw new Error('stale work revision');
+    if (work.status !== 'active') throw new Error('active work is not claimable');
     const claim = state.claims.filter((item) => item.runId === runId).at(-1);
     if (!claim || claim.state !== 'active' || claim.workId !== workId || claim.revision !== revision) {
       throw new Error('work execution claim mismatch');
@@ -483,12 +584,21 @@ export class WorkStore {
     if (!['active', 'paused', 'cancelled'].includes(status)) throw new TypeError('invalid work status');
     const state = await this.read(); const work = state.works.find((item) => item.workId === workId);
     if (!work || work.revision !== expectedRevision) throw new Error('stale work revision');
+    if (status === 'active') {
+      const cancellation = state.cancellations.filter((item) => item.workId === workId
+        && item.nextRevision === expectedRevision).at(-1);
+      if (['terminal', 'recovery_pending'].includes(cancellation?.state)
+        && cancellation.childrenTerminal !== true) {
+        throw new Error('cancelled Work children are not terminal');
+      }
+    }
     await this.append('work_status_changed', { workId, revision: expectedRevision, status });
     return { workId, revision: expectedRevision, status };
   }
   async claimExecution({ workId, revision, runId }) {
     const state = await this.read(); const work = state.works.find((item) => item.workId === workId);
     if (!work || work.revision !== revision) throw new Error('stale work revision');
+    if (work.status !== 'active') throw new Error('active work is not claimable');
     const existing = state.claims.find((item) => item.runId === runId && item.state === 'active');
     if (existing) {
       if (existing.workId !== workId) throw new Error('work execution claim mismatch');
@@ -501,15 +611,139 @@ export class WorkStore {
     await this.append('execution_claimed', { workId, revision, runId });
     return { workId, revision, runId };
   }
-  async releaseExecution({ runId, reason = 'run_failed' }) {
+  async releaseExecution({ runId, reason = 'run_failed', allowSettled = false }) {
     const state = await this.read();
     const claim = state.claims.find((item) => item.runId === runId && item.state === 'active');
-    if (!claim || state.events.some((event) => event.type === 'work_settled' && event.runId === runId)) {
+    if (!claim || (!allowSettled
+      && state.events.some((event) => event.type === 'work_settled' && event.runId === runId))) {
       return { runId, released: false };
     }
     await this.append('execution_released', { runId, workId: claim.workId,
       revision: claim.revision, reason: String(reason).slice(0, 120) });
     return { ...claim, state: 'released', reason: String(reason).slice(0, 120), released: true };
+  }
+  async admitCancellation({ requestId, sessionId, runId, workId, revision, disposition }) {
+    const fingerprint = hash({ requestId, sessionId, runId, workId, revision, disposition });
+    return this.serialize(async () => {
+      const state = await this.read();
+      const sameRequest = state.cancellations.find((item) => item.requestId === requestId);
+      if (sameRequest) {
+        if (sameRequest.fingerprint !== fingerprint) {
+          throw Object.assign(new Error('work cancel request identity conflict'), {
+            code: 'work_cancel_request_conflict',
+          });
+        }
+        return sameRequest;
+      }
+      const sameRun = state.cancellations.find((item) => item.runId === runId && item.state !== 'terminal');
+      if (sameRun) {
+        if (sameRun.disposition !== disposition || sameRun.sessionId !== sessionId
+          || sameRun.workId !== workId || sameRun.revision !== revision) {
+          throw Object.assign(new Error('work cancel run has a conflicting disposition'), {
+            code: 'work_cancel_request_conflict',
+          });
+        }
+        return sameRun;
+      }
+      const claim = state.claims.find((item) => item.runId === runId && item.state === 'active');
+      const work = state.works.find((item) => item.workId === workId);
+      if (!claim || claim.workId !== workId || claim.revision !== revision
+        || !work || work.sessionId !== sessionId || work.revision !== revision
+        || !(work.status === 'active'
+          || (disposition === 'hard_cancelled' && work.status === 'cancelled'))) {
+        throw Object.assign(new Error('current Work execution claim is unavailable'), {
+          code: 'work_cancel_claim_unavailable',
+        });
+      }
+      await this.appendUnlocked('work_cancel_admitted', { requestId, sessionId, runId,
+        workId, revision, disposition, fingerprint });
+      return { requestId, sessionId, runId, workId, revision, disposition,
+        fingerprint, state: 'stopping' };
+    });
+  }
+  async settleCancellation({ admission, unknownEffect, childrenTerminal = true }) {
+    return this.serialize(async () => {
+      const state = await this.read();
+      const persisted = state.cancellations.find((item) => item.requestId === admission.requestId);
+      if (!persisted || ['sessionId', 'runId', 'workId', 'revision', 'disposition', 'fingerprint']
+        .some((field) => persisted[field] !== admission[field])) {
+        throw Object.assign(new Error('work cancel admission does not match persisted request'), {
+          code: 'work_cancel_admission_mismatch',
+        });
+      }
+      if (persisted.state === 'terminal') return persisted;
+      const work = state.works.find((item) => item.workId === persisted.workId);
+      if (!work || work.revision !== persisted.revision) {
+        throw Object.assign(new Error('work changed before cancellation terminal'), {
+          code: 'work_cancel_revision_changed',
+        });
+      }
+      const claim = state.claims.find((item) => item.runId === persisted.runId);
+      if (claim?.state === 'active') await this.appendUnlocked('execution_released', {
+        runId: persisted.runId, workId: persisted.workId, revision: persisted.revision,
+        reason: 'user_cancelled',
+      });
+      const nextRevision = persisted.disposition === 'interrupted_resumable'
+        ? persisted.revision + 1 : persisted.revision;
+      await this.appendUnlocked('work_cancellation_settled', { requestId: persisted.requestId,
+        sessionId: persisted.sessionId, runId: persisted.runId, workId: persisted.workId,
+        revision: persisted.revision, nextRevision, disposition: persisted.disposition,
+        fingerprint: persisted.fingerprint, unknownEffect: unknownEffect === true,
+        childrenTerminal: childrenTerminal === true, claimReleased: true });
+      return (await this.read()).cancellations.find((item) => item.requestId === persisted.requestId);
+    });
+  }
+  async markCancellationRecoveryPending({ admission }) {
+    return this.serialize(async () => {
+      const state = await this.read(); const persisted = state.cancellations
+        .find((item) => item.requestId === admission.requestId);
+      if (!persisted || persisted.state !== 'stopping'
+        || ['sessionId', 'runId', 'workId', 'revision', 'disposition', 'fingerprint']
+          .some((field) => persisted[field] !== admission[field])) {
+        throw Object.assign(new Error('work cancel admission does not match recovery request'), {
+          code: 'work_cancel_admission_mismatch',
+        });
+      }
+      const claim = state.claims.find((item) => item.runId === persisted.runId);
+      if (claim?.state === 'active') await this.appendUnlocked('execution_released', {
+        runId: persisted.runId, workId: persisted.workId, revision: persisted.revision,
+        reason: 'restart_cancel_state_unknown',
+      });
+      await this.appendUnlocked('work_cancellation_recovery_pending', {
+        requestId: persisted.requestId, sessionId: persisted.sessionId, runId: persisted.runId,
+        workId: persisted.workId, revision: persisted.revision, nextRevision: persisted.revision + 1,
+        disposition: persisted.disposition, fingerprint: persisted.fingerprint, claimReleased: true,
+      });
+      return (await this.read()).cancellations.find((item) => item.requestId === persisted.requestId);
+    });
+  }
+  async markCancellationSurfacePersisted({ requestId, runId, nextRevision, resultDigest }) {
+    return this.serialize(async () => {
+      const state = await this.read(); const cancellation = state.cancellations
+        .find((item) => item.requestId === requestId);
+      if (!cancellation || !['terminal', 'recovery_pending'].includes(cancellation.state)
+        || cancellation.runId !== runId
+        || cancellation.nextRevision !== nextRevision
+        || typeof resultDigest !== 'string' || !/^[a-f0-9]{64}$/u.test(resultDigest)) {
+        throw Object.assign(new Error('work cancel surface identity mismatch'), {
+          code: 'work_cancel_surface_mismatch',
+        });
+      }
+      if (cancellation.surfacePersisted) {
+        if (cancellation.resultDigest !== resultDigest) throw Object.assign(
+          new Error('work cancel surface result changed'), { code: 'work_cancel_surface_mismatch' });
+        return cancellation;
+      }
+      const result = state.results.find((item) => item.runId === runId);
+      if (!result || result.resultDigest !== resultDigest || result.state === 'pending_surface') {
+        throw Object.assign(new Error('work cancel result surface is not persisted'), {
+          code: 'work_cancel_surface_not_persisted',
+        });
+      }
+      await this.appendUnlocked('work_cancel_surface_persisted', { requestId, runId,
+        nextRevision, resultDigest });
+      return (await this.read()).cancellations.find((item) => item.requestId === requestId);
+    });
   }
   async workForRun(runId) {
     const state = await this.read(); const claim = state.claims.filter((item) => item.runId === runId).at(-1);

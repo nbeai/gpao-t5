@@ -245,12 +245,13 @@ test('cancel은 process와 Work를 끝내고 proposal 없는 busy input을 execu
     env: process.env, ownerId: session.id, waitMs: 10, metadata: { kind: 'managed', originRunId: null } });
   let entered; const started = new Promise((resolve) => { entered = resolve; });
   let release; const gate = new Promise((resolve) => { release = resolve; }); let turn = 0;
+  const errors = [];
   const server = makeConsoleServer({ stateDir, workspace, processRegistry: processes,
     modelFactory: fixtureFactory(async () => {
     turn += 1;
     if (turn === 1) { entered(); await gate; return { text: '진행 중', toolCalls: [] }; }
     throw new Error('cancelled run must not call the main model again');
-  }, 'cancel') });
+  }, 'cancel'), onError: (error) => errors.push(error) });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
@@ -259,14 +260,26 @@ test('cancel은 process와 Work를 끝내고 proposal 없는 busy input을 execu
     const stream = fetch(`${base}/turn/stream?streamId=${first.streamId}`).then((response) => response.text()); await started;
     const admitted = await fetch(`${base}/turn/stream-start`, { method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sessionId: session.id, text: '이 작업을 중단해줘' }) }).then((response) => response.json());
-    release(); const wire = await stream; assert.match(wire, /"kind":"cancelled"/u);
+    release(); const wire = await stream; assert.match(wire, /"kind":"cancelled"/u,
+      errors.map((error) => error?.stack ?? error?.message).join('\n'));
     const state = await server.workStore.read(); const input = state.inputs.find((item) => item.inputId === admitted.inputId);
     assert.equal(input.state, 'cancelled'); assert.equal(input.schedule, null);
     assert.equal(input.resultDigest, undefined); assert.equal(state.works[0].status, 'cancelled');
     assert.equal(state.proposals.length, 0); assert.equal(processes.list(session.id)[0].state, 'stopped');
     await new Promise((resolve) => setTimeout(resolve, 30));
     const view = await fetch(`${base}/sessions/${session.id}`).then((response) => response.json());
-    assert.equal(view.transcript.filter((entry) => entry.role === 'assistant').length, 0);
+    const cancelledSurface = view.transcript.filter((entry) => entry.role === 'assistant');
+    assert.equal(cancelledSurface.length, 1);
+    assert.equal(cancelledSurface[0].result.kind, 'cancelled');
+    assert.match(cancelledSurface[0].result.reply, /취소했어요/u);
+    assert.equal('runId' in cancelledSurface[0].result, false);
+    const cancelledRunId = state.cancellations[0].runId;
+    assert.equal(state.claims.find((claim) => claim.runId === cancelledRunId)?.state, 'released');
+    const releaseEvent = state.events.find((event) => event.type === 'execution_released'
+      && event.runId === cancelledRunId);
+    const terminalEvent = state.events.find((event) => event.type === 'work_cancellation_settled'
+      && event.runId === cancelledRunId);
+    assert.ok(releaseEvent.sequence < terminalEvent.sequence);
     assert.equal(processes.claimTerminalWake(child.processId), null);
   } finally { release?.(); await processes.stopAll('test_cleanup');
     await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true }); }

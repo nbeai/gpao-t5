@@ -489,10 +489,13 @@ test('콘솔 취소는 실행 중인 자식 프로세스 트리를 실제로 끝
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
     assert.equal(server.managedProcesses.list(created.id)[0]?.state, 'running');
-    await fetch(`${base}/turn/cancel`, {
+    const cancelResponse = await fetch(`${base}/turn/cancel`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sessionId: created.id }),
-    });
+    }).then((response) => response.json());
+    assert.equal(cancelResponse.ok, true); assert.equal(cancelResponse.state, 'terminal');
+    assert.equal(cancelResponse.runTerminal, true); assert.equal(cancelResponse.childrenTerminal, true);
+    assert.equal(cancelResponse.claimReleased, true); assert.equal(cancelResponse.surfacePersisted, true);
     const stream = await streamPromise;
     assert.match(stream, /멈췄어요/);
     assert.equal(server.managedProcesses.list(created.id)[0].state, 'stopped');
@@ -503,6 +506,13 @@ test('콘솔 취소는 실행 중인 자식 프로세스 트리를 실제로 끝
     const toolReceipts = run.events.filter((event) => event.type === 'tool_completed')
       .map((event) => event.payload.receipt);
     assert.ok(toolReceipts.some((receipt) => receipt.result.state === 'stopped'), JSON.stringify(toolReceipts));
+    const workState = await server.workStore.read(); const cancellation = workState.cancellations[0];
+    assert.equal(cancellation.surfacePersisted, true);
+    const work = workState.works.find((item) => item.workId === cancellation.workId);
+    assert.equal(work.status, 'active'); assert.equal(work.revision, cancellation.nextRevision);
+    assert.equal(workState.claims.find((item) => item.runId === cancellation.runId).state, 'released');
+    await server.workStore.claimExecution({ workId: work.workId, revision: work.revision,
+      runId: 'next-after-cancel-run' });
     await new Promise((resolve) => setTimeout(resolve, 550));
     const { access } = await import('node:fs/promises');
     await assert.rejects(() => access(marker));
