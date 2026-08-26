@@ -49,7 +49,8 @@ test('ManagedProcessRegistry는 Windows child를 Job host에 먼저 넣고 quali
 
 test('Windows Job host가 없으면 taskkill fallback으로 낮추지 않고 실행 전에 닫힌다', async () => {
   let spawned = false;
-  const registry = new ManagedProcessRegistry({ platform: 'win32', spawnProcess: () => { spawned = true; } });
+  const registry = new ManagedProcessRegistry({ platform: 'win32', windowsJobHost: null,
+    spawnProcess: () => { spawned = true; } });
   await assert.rejects(registry.start({ program: 'C:\\Windows\\System32\\cmd.exe', args: [],
     cwd: 'C:\\Work', env: {}, ownerId: 'owner' }), { code: 'T5_WINDOWS_JOB_HOST_REQUIRED' });
   assert.equal(spawned, false);
