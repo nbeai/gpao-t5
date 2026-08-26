@@ -1,0 +1,113 @@
+{
+  "schema": "t5.s3-m5-macos-native-surface-evidence.v1",
+  "stage": "S3-M5-3",
+  "status": "PASS_WITH_OBSERVATION",
+  "observedAt": "2026-08-26T15:52:01.112Z",
+  "sourceCommit": "fdd406e716a266cbcaf14d69a2526f6d09379cc6",
+  "officialReleaseGateChanged": false,
+  "productPlatforms": ["macos", "windows"],
+  "linuxProductTarget": false,
+  "userOutcome": [
+    "normal Memory can be projected to an on-device named Core Spotlight index",
+    "personal Memory requires exact per-memory opt-in",
+    "private, secret_ref, and never_store Memory cannot enter native search",
+    "update and retraction are verified by exact OS-index readback",
+    "Calendar and Reminders cannot be changed without a user-started action, full access, exact item identity, and read-after-write"
+  ],
+  "coreSpotlightActual": {
+    "fixture": "synthetic_non_user_data",
+    "availability": true,
+    "index": "T5LifeContinuityQualification",
+    "domain": "t5.life-continuity.memory",
+    "add": {
+      "state": "verified",
+      "attempts": 1,
+      "durationNs": "75269958"
+    },
+    "update": {
+      "state": "verified",
+      "attempts": 1,
+      "durationNs": "39616000"
+    },
+    "delete": {
+      "state": "verified",
+      "attempts": 1,
+      "durationNs": "65547541"
+    },
+    "cleanupExactIdentifierAbsent": true,
+    "sensitiveValuesEmittedToDriver": 0,
+    "networkCalls": 0,
+    "userDataRead": false,
+    "userDataWritten": false
+  },
+  "eventKit": {
+    "contractTests": "passed",
+    "actualCalendarWrites": 0,
+    "actualReminderWrites": 0,
+    "permissionPromptOpened": false,
+    "observation": "Actual EventKit qualification requires the signed installed product, explicit permission, and an isolated non-sync calendar in S3-M7. Structural success is not promoted to an actual Calendar or Reminders PASS."
+  },
+  "productNonInterference": {
+    "wiredIntoNormalTurn": false,
+    "normalTurnAdditionalModelCalls": 0,
+    "normalTurnAdditionalProviderRequests": 0,
+    "normalTurnAdditionalContextBytes": 0,
+    "normalTurnAdditionalNativeSearchCalls": 0,
+    "reason": "M5-3 qualifies the adapter and packaged helper. Product activation waits for the signed installed-product and background-interference qualification; current memory defaults remain personal and cannot be auto-indexed."
+  },
+  "qualificationCost": {
+    "modelCalls": 0,
+    "providerRequests": 0,
+    "coreSpotlightWrites": 3,
+    "calendarWrites": 0,
+    "reminderWrites": 0,
+    "cleanupWrites": 1,
+    "maximumObservedOperationNs": "75269958"
+  },
+  "tests": {
+    "focused": {
+      "total": 10,
+      "passed": 10,
+      "failed": 0
+    },
+    "m5Boundary": {
+      "total": 24,
+      "passed": 24,
+      "failed": 0
+    },
+    "fullRepository": {
+      "total": 1069,
+      "passed": 1067,
+      "failed": 1,
+      "skipped": 1,
+      "unrelatedExistingFailure": "QH-3 temporary state directory ENOTEMPTY cleanup race; repeated independently and no M5 path was in the failure"
+    }
+  },
+  "sourceDigests": {
+    "refoundation/src/memory-platform-adapter.js": "0af7cfe6f7471eaef89b796a526c42b44acd86643ad9d2b3581596f335e4743d",
+    "refoundation/src/macos-memory-platform-adapter.js": "3cf9e52f107eb970b7b9cf918ff6483938e41d1dadc91d7eabd059a05f556221",
+    "refoundation/src/macos-spotlight-driver.js": "b3410b69cd4f493f65d9fcf63f01a66da0c93d69717ec78c1af34499e3e6af53",
+    "refoundation/native/macos-memory-spotlight.swift": "df81bf1e77d4d409351dfadad60de5b63a6594ab1a316bc805b58f9a01c22329",
+    "refoundation/test/memory-platform-adapter.test.js": "dc8e11ca0e5dc6f8a6e0bbededfb44782c51df892c35174c898051c9090f198d",
+    "refoundation/test/macos-spotlight-driver.test.js": "f8d0a1b23f265596a8f6653fb06348070da96c31f2f48c8b2415c5940b45899d",
+    "refoundation/scripts/run-s3m5-macos-native-surface-qualification.mjs": "2c9cb598761b8d1428816697e6fb78fee97a933132c86d6e161809d716ca5a90",
+    "refoundation/scripts/build-macos-installer.mjs": "5f1cce0ffeb6d3333d8d0a5a6504929c1438ad916da9fcb03eeb7eff7bdb8580",
+    "refoundation/scripts/verify-macos-installer.mjs": "a1e5c19628114752d9c42d76a71361ce989d47cb09f1f180522ae7c3a448234d"
+  },
+  "officialSources": [
+    "https://developer.apple.com/documentation/CoreSpotlight/adding-your-app-s-content-to-spotlight-indexes",
+    "https://developer.apple.com/documentation/corespotlight/cssearchableindex",
+    "https://developer.apple.com/documentation/EventKit/accessing-the-event-store",
+    "https://developer.apple.com/documentation/eventkit/ekeventstore/event(withidentifier:)"
+  ],
+  "notClaimed": [
+    "EventKit actual Calendar or Reminders PASS",
+    "signed installed-product Core Spotlight PASS",
+    "background interference PASS",
+    "Windows Search or Explorer PASS",
+    "S3-M5 complete",
+    "S3-M7 complete",
+    "Life Continuity active in the official Release Gate"
+  ],
+  "nextOneTask": "Open M5-4 Windows Search/Explorer as a structural adapter and GitHub-runner boundary without promoting it to Windows VM PASS."
+}
