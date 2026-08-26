@@ -1,6 +1,6 @@
 # T5 3차 고도화 — 활성화 전 준비 정본
 
-상태: `OWNER_ACTIVATED_S3A · S3T_PASS_WITH_OBSERVATION · S3M_ACTIVE_UNTOUCHED · S3UX_REGISTERED · S3CA_REGISTERED_IMPLEMENTATION_LOCKED · S3CH0_3_PLANNED_SEQUENCED · S3VD_REGISTERED_IMPLEMENTATION_LOCKED · OPTIMIZATION LOCKED`
+상태: `OWNER_ACTIVATED_S3A · S3_SCOPE_FROZEN · S3T_PASS_WITH_OBSERVATION · S3M_ACTIVE_UNTOUCHED · S3UX_REGISTERED · S3CA_REGISTERED_IMPLEMENTATION_LOCKED · S3CH0_3_PLANNED_SEQUENCED · S3VD_REGISTERED_IMPLEMENTATION_LOCKED · OPTIMIZATION LOCKED`
 
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER`
 
@@ -15,13 +15,18 @@ Capability의 개발자 명시 설치와 자연어 자기확장을 한 엔진으
 collector를 얹지 않는다. 이 문서는 측정·반대시험·판정의 범위와 최적화 전 금지선을
 유지한다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가 우선한다.
 
+오너는 2026-08-27 현재 이 문서에 등록된 S3-A·T·M·UX·CA·CH·VD·PW와 종료 Gate인 S3-WA·HQ까지만
+3차 완성 범위로 동결했다. 새 기능·새 개발선·새 최적화 축을 3차에 더 추가하지 않는다. 이후 발견되는 좋은
+아이디어와 비핵심 관측은 현재 범위를 넓히지 않고 3차 종료 뒤 별도 후속 후보로 남긴다. 등록된 각 기술선의
+완료 문장, S3-WA 전체 배선 감사, S3-HQ 내부 인간 자격이 모두 닫히면 3차를 완료하고 종료한다.
+
 ## 1. 활성화 전 판정
 
 ```text
 2차 Release Gate: 변경 없음
 3차 개발선: S3-A 측정 활성 · S3-T 완료 · S3-M 별도 진행 · S3-UX 연구 등록/CH-0 소유 · S3-CH1~3 후속 순서 확정 · S3-CA/S3-VD 연구 등록·구현 잠금 · S3-PW 대기
 현재 허용 작업: S3-A 측정·판정, 오너가 연 exact 한 Gate, S3-UX/S3-CA/S3-CH/S3-VD 실제 실패·완료 문장·반대시험의 제품 변경 0 연구
-현재 금지 작업: 측정 결과를 전제한 구조 변경·성능 최적화, S3-UX/CA/VD 제품 hot path 선구현, UX/CH-0 전 CH-1 collector 선행, screen/audio/content capture, 여러 큰 개발선 동시 개통
+현재 금지 작업: 측정 결과를 전제한 구조 변경·성능 최적화, S3-UX/CA/VD 제품 hot path 선구현, UX/CH-0 전 CH-1 collector 선행, screen/audio/content capture, 여러 큰 개발선 동시 개통, 새 3차 개발선·기능 범위 추가
 ```
 
 서명 identity 부재라는 Release 외부 blocker를 3차 소스 변경으로 해결한 것처럼 기록하지 않는다. 반대로

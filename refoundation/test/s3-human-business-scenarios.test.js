@@ -264,6 +264,9 @@ test('3차 핵심 정본은 기술 완료 뒤 내부 두 wave와 외부 테스�
   assert.match(third,
     /각 S3 기술 개발선의 exact 완료·회귀[\s\S]*S3-WA 읽기 전용 다중 에이전트 배선 감사[\s\S]*developer_fast_feedback[\s\S]*pre_tester_reality[\s\S]*외부 인간 테스터/u);
   assert.match(third, /S3-WA Whole-product Wiring Audit·재현 P0\/P1 close/u);
+  assert.match(third, /S3_SCOPE_FROZEN/u);
+  assert.match(third,
+    /S3-A·T·M·UX·CA·CH·VD·PW와 종료 Gate인 S3-WA·HQ까지만[\s\S]*3차를 완료하고 종료한다/u);
   assert.match(third, /AND S3-VD Visual Deliverable Core/u);
   assert.match(third,
     /화면 보고서·대시보드·온보딩·고정 인포그래픽[\s\S]*편집 가능한 발표자료/u);
