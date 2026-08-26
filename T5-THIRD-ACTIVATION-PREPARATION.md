@@ -1,6 +1,6 @@
 # T5 3차 고도화 — 활성화 전 준비 정본
 
-상태: `OWNER_ACTIVATED_S3A · S3T_PASS_WITH_OBSERVATION · S3M_ACTIVE_UNTOUCHED · S3UX_REGISTERED · S3CA_REGISTERED_IMPLEMENTATION_LOCKED · S3CH0_3_PLANNED_SEQUENCED · OPTIMIZATION LOCKED`
+상태: `OWNER_ACTIVATED_S3A · S3T_PASS_WITH_OBSERVATION · S3M_ACTIVE_UNTOUCHED · S3UX_REGISTERED · S3CA_REGISTERED_IMPLEMENTATION_LOCKED · S3CH0_3_PLANNED_SEQUENCED · S3VD_REGISTERED_IMPLEMENTATION_LOCKED · OPTIMIZATION LOCKED`
 
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER`
 
@@ -19,9 +19,9 @@ collector를 얹지 않는다. 이 문서는 측정·반대시험·판정의 범
 
 ```text
 2차 Release Gate: 변경 없음
-3차 개발선: S3-A 측정 활성 · S3-T 완료 · S3-M 별도 진행 · S3-UX 연구 등록/CH-0 소유 · S3-CH1~3 후속 순서 확정 · S3-CA 연구 등록/구현 잠금 · S3-PW 대기
-현재 허용 작업: S3-A 측정·판정, 오너가 연 exact 한 Gate, S3-UX/S3-CA/S3-CH 실제 실패·완료 문장·반대시험의 제품 변경 0 연구
-현재 금지 작업: 측정 결과를 전제한 구조 변경·성능 최적화, S3-UX/CA 제품 hot path 선구현, UX/CH-0 전 CH-1 collector 선행, screen/audio/content capture, 여러 큰 개발선 동시 개통
+3차 개발선: S3-A 측정 활성 · S3-T 완료 · S3-M 별도 진행 · S3-UX 연구 등록/CH-0 소유 · S3-CH1~3 후속 순서 확정 · S3-CA/S3-VD 연구 등록·구현 잠금 · S3-PW 대기
+현재 허용 작업: S3-A 측정·판정, 오너가 연 exact 한 Gate, S3-UX/S3-CA/S3-CH/S3-VD 실제 실패·완료 문장·반대시험의 제품 변경 0 연구
+현재 금지 작업: 측정 결과를 전제한 구조 변경·성능 최적화, S3-UX/CA/VD 제품 hot path 선구현, UX/CH-0 전 CH-1 collector 선행, screen/audio/content capture, 여러 큰 개발선 동시 개통
 ```
 
 서명 identity 부재라는 Release 외부 blocker를 3차 소스 변경으로 해결한 것처럼 기록하지 않는다. 반대로
@@ -42,6 +42,7 @@ scope·evidence·판정을 유지한다.
 | S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | 연구 승인 · 제품 구현 잠금 |
 | S3-CH | Local Computer History·과거 Work/파일/앱 provenance | CH-0은 S3-UX 소유 · CH-1→2→3 후속 순서 확정/현재 미착수 |
 | S3-PW | Windows installer·app shell·공통 제품 자격 | 대기 |
+| S3-VD | Visual Deliverable Core·출력 표면 선택·렌더 관측·교정·브랜드 파라미터 | 연구 승인 · 현재 개발선 종료와 오너 개통 전 구현 잠금 |
 | S3-WA | Whole-product Wiring Audit·3차 부품의 실제 제품 배선·단일 진실·복구 경계 | 3차 기술 개발 완료 뒤 읽기 전용 감사 대기 |
 | S3-HQ | 한국 사업자 Human Reality Qualification·외부 테스터 전 내부 인간 자격 | 실행 체계 완료 · 3차 기술 개발 완료 뒤 실행 대기 |
 
@@ -738,6 +739,7 @@ AND S3-M Life Continuity
 AND S3-UX Work Visibility, Control & Outcome Reassurance including CH-0 T5 Work History
 AND S3-CH Local Computer History CH-0~3
 AND S3-CA Capability Reality & Safe Acquisition
+AND S3-VD Visual Deliverable Core
 AND S3-PW가 필요한 Windows 공통 자격
 AND S3-WA Whole-product Wiring Audit·재현 P0/P1 close
 AND S3-HQ developer_fast_feedback·pre_tester_reality 내부 인간 자격
@@ -872,3 +874,150 @@ screen/audio/content Recall: 제품 범위 밖
 각 단계는 앞 단계의 사용자 완료 문장과 macOS·Windows interface·privacy·비용 반대시험이 통과되면 다음 단계로
 진입한다. 새 오너 승인을 반복 요구하는 잠금은 두지 않지만 여러 collector와 의미 계층을 한 번에 열지 않는다.
 3차 완료는 CH-0~3 전체를 요구한다.
+
+## 12. S3-VD — Visual Deliverable Core 등록 계약
+
+S3-VD는 별도 디자인 제품이나 캔버스 편집기가 아니다. 사용자가 보고서·대시보드·도식·차트·문서·발표자료처럼
+시각 품질이 목적 달성에 영향을 주는 결과물을 요청했을 때, 모델이 내용과 표현을 판단하고 T5가 실제 렌더·
+전체 범위·글자·색·접근성·편집 가능성을 관측해 쓸 수 있는 결과로 끝내는 내재 능력이다.
+
+현재 T5의 HTML·SVG natural preview, Artifact source/download, Semantic·Domain·Structural·Screen·Print
+QualityReceipt, current-Run pixel observation, macOS WKWebView·Quick Look renderer, Sharp qualified decode,
+bundled `diagrams` Skill을 재사용한다. 새 원장이나 두 번째 Artifact 체계를 만들지 않는다.
+
+### 사용자 완료 문장
+
+> 사용자는 내용과 목적을 평소 말로 설명한다. T5는 화면용·인쇄용·편집용·도식용 중 목적에 맞는 형식을
+> 선택하고 한글·데이터·사용자가 승인한 브랜드 자료를 보존해 실제 결과물을 만든다. 전체 페이지나 artboard를
+> 렌더해 잘림·겹침·폰트·대비·내용 누락·접근성·편집 가능성을 확인하고, 미달이면 모델이 실제 관측을 보고
+> 고친 뒤 원본 구조·시각 출력·다운로드와 확인하지 못한 부분을 함께 전달한다.
+
+### 표현층과 책임 경계
+
+| 사용자 목적 | 기본 후보 | 지켜야 할 경계 |
+|---|---|---|
+| 화면 보고서·대시보드·온보딩·고정 인포그래픽 | HTML/CSS artboard | network-free render·한글 조판·semantic HTML |
+| 인쇄·고정 배포 | HTML/CSS 또는 기존 document structure → PDF | 전체 page·print geometry·text extraction |
+| 도식·관계·차트 mark·아이콘 | SVG·Mermaid·Graphviz 중 실제 renderer가 선 최소 형식 | 문단 text 좌표 직작성 금지·viewBox·label·source 보존 |
+| 편집 가능한 문서 | 기존 qualified DOCX 구조 | HTML preview를 editable DOCX 성공으로 승격 금지 |
+| 편집 가능한 발표자료 | qualified PPTX 구조 또는 현재 capability boundary | HTML/PDF가 아름답다는 이유로 editable PPTX를 주장하지 않음 |
+
+SVG `<text>`는 기본 자동 줄바꿈이 없고 CSS 경로도 일반 HTML 조판보다 호환성 부담이 크므로 문단·복합
+지면의 기본 저작 언어로 사용하지 않는다. 단순 label·도식·차트에는 계속 사용한다.
+
+```text
+모델: 내용 구조·정보 위계·출력 surface·시각 표현·브랜드 적용·수정·종료 판단
+Runtime: renderer·font·viewport/page·geometry·render bytes·text/color/accessibility·전체 unit 관측
+사용자: 승인한 브랜드 자료와 필요할 때의 주관적 미감·실제 사용 가능성 최종 판단
+```
+
+Runtime은 업종·문구·색 이름·template keyword로 디자인을 선택하지 않는다. “예쁘다·세련됐다·브랜드답다”를
+기계 점수로 판정하거나 고정 layout·palette·font 크기로 모델 판단을 대신하지 않는다.
+
+### VD0 — Visual Failure Constitution & Baseline
+
+제품 변경 전에 한국어 one-page 보고서, source-backed chart, 관계 diagram, 인쇄 PDF, editable office 결과에서
+다음을 재현한다.
+
+- raw SVG 문단의 줄바꿈·overflow, 한글 금칙·font fallback·glyph 손실
+- 일부 artboard만 보고 전체 확인 주장, source parse 성공의 visual PASS 승격
+- 차트 값·단위·범례·순서의 원본 불일치, 색만으로 상태 구분
+- glyph path SVG의 접근 가능한 text 거짓 주장
+- HTML/PDF의 editable DOCX·PPTX 거짓 승격
+- 승인 없는 브랜드 추론·지속, visual 교정이 새 내용 오류나 무진전 반복을 만드는 상태
+
+일러스트 생성 benchmark와 미감 점수는 지면·업무 결과물의 제품 기준선으로 사용하지 않는다.
+
+### VD1 — Renderer Interface & Korean Qualification
+
+renderer를 미리 선택하지 않고 동일 계약으로 Satori+resvg 계열, macOS WKWebView helper 재사용, Windows
+WebView2 또는 동등 native helper를 A/B한다.
+
+```text
+render(sourceKind, sourceIdentity, viewportOrPage, fontBundle, outputKind)
+→ engine·platform identity + source/output digest + rendered units
++ text/font/geometry facts + duration·memory·failure boundary
+```
+
+Satori의 Flexbox 중심 CSS subset·TTF/OTF/WOFF·명시 font 공급·WOFF2 미지원 계약을 전제로 한다. 공식 목록의
+`wordBreak: keep-all` 존재만으로 한국어 조판을 자격하지 않고, 실제 어절·금칙·혼합 숫자·표·긴 제목·fallback을
+macOS·Windows에서 비교한다. renderer는 외부 network·script·form·file escape를 닫고 font license·재배포와
+package 비용을 측정한다. WKWebView 선례를 Core의 macOS 전제로 굳히지 않는다.
+
+### VD2 — Factual DesignReceipt
+
+별도 미적 원장을 만들지 않고 기존 QualityReceipt에 다음 관측 사실을 공급한다.
+
+- content: source fact·text·data value·unit·legend coverage
+- geometry: viewport/page/artboard·overflow·clipping·overlap·out-of-bounds
+- typography: requested/loaded/fallback font·glyph coverage·line break·관측 text size
+- color: foreground/background contrast·status color 충돌·색각 simulation 뒤 구분 가능성
+- layout: alignment·spacing consistency와 hierarchy evidence. 단일 grid나 미적 정답 강제가 아님
+- accessibility: heading/table/alt/figcaption/ARIA·text extractability. glyph path는 accessible text가 아님
+- delivery: screen·print·editable medium·source/output digest·전체 render coverage
+
+WCAG 대비·OKLab/OKLCH 거리·색각 simulation을 독립 사실로 남기고 하나의 ΔE 숫자로 합격을 대신하지 않는다.
+label·shape·pattern도 함께 본다. 이중 축·특정 색 수·“형태 먼저 색은 마지막”은 Skill의 절차와 경고가 될 수
+있지만 Runtime 절대 규칙으로 만들지 않는다.
+
+### VD3 — Render→Observe→Model Repair
+
+```text
+모델 초안 → runtime render → bounded DesignReceipt + 필요한 artboard pixels
+→ 모델이 목적과 관측을 대조 → 수정 또는 정확한 capability boundary
+→ 재렌더·전체 coverage → 기존 Artifact registration·publication
+```
+
+source 전체·모든 pixel·renderer log를 모델 Context에 누적하지 않는다. 현재 수정에 필요한 최신 관측과 exact
+handle만 공급하고 전체 원본은 실행 증거에 둔다. 같은 결함·같은 결과 반복은 기존 Resource Situation·runaway
+계약으로 다루며 새 고정 반복 상한을 만들지 않는다.
+
+### VD4 — Brand Parameters, Artifact Surface & Human Qualification
+
+브랜드는 사용자가 승인한 logo·font·color ramp·spacing·tone 자료와 exact source pointer를 parameter로
+공급한다. Memory는 사용자가 말한 브랜드 사실·선호·결정만 소유하며, S3-VD가 과거 산출물에서 브랜드를 자동
+추론해 지속하지 않는다. 방법은 Skill, renderer와 검사는 Capability/Runtime, 결과와 Receipt는 기존 Artifact가
+소유한다.
+
+같은 내용·데이터·브랜드 입력의 current/new A/B에서 정확성·source trace·전체 coverage·한글 overflow·font·
+contrast·accessibility·첫 usable preview·전체 wall·model/tool calls·request bytes·tokens·실제 재개방·수동
+수정 시간·한국 사업자 인간 패널의 사용 가능성과 재위임 의사를 함께 판정한다.
+
+### 첫 완료 비목표와 S3-CA 경계
+
+- 새 범용 canvas/editor·멀티 artboard 디자인 앱
+- 새 HTML→PPTX 변환 engine·PowerPoint 전체 호환 약속
+- Typst·Marp Core dependency 내장
+- 생성형 이미지·전용 vector model/provider 통합
+- 사용자 승인 없는 brand inference
+- 고정 template·palette·font·미적 score로 모델 판단 대체
+- HTML·SVG·PDF 중 하나를 모든 결과의 단일 표준으로 강제
+
+Typst·Marp·외부 chart/diagram renderer는 S3-CA에서 exact source·license·platform·same-purpose 자격을 거친
+선택적 Capability 후보로 둔다. 준비 성공을 결과물 품질 성공으로 합치지 않는다.
+
+### 개발 순서
+
+```text
+현재 활성 S3 exact Gate 종료·오너 개통
+→ VD0 failure constitution·current baseline
+→ VD1 renderer 후보 A/B와 macOS·Windows interface
+→ VD2 factual DesignReceipt를 기존 QualityReceipt에 연결
+→ VD3 render-observe-model repair
+→ VD4 brand parameter·Artifact surface·인간 A/B
+→ S3-WA 전체 배선 감사
+→ S3-HQ 내부 인간 자격
+```
+
+S3-VD 등록은 현재 S3-M·S3-UX·S3-CA hot path 병행 개통을 뜻하지 않는다. 구현 전 실제 사용자 실패 하나와
+positive control 하나의 목적·종료점·비목표를 고정하고, 비교군 source가 막는 실패를 T5 반대시험으로 먼저
+옮긴다. SVG·Satori·Typst·font의 공식 계약과 현재 T5의 renderer·Artifact·QualityReceipt를 근거로 사용하며,
+Gamma·Tome의 시장 성과나 조건이 불명확한 benchmark 숫자는 제품 계약의 증거로 사용하지 않는다.
+
+구현 전 다시 확인할 직접 source:
+
+- SVG text wrapping·compatibility: <https://developer.mozilla.org/en-US/docs/Web/SVG/Reference/Element/text>
+- Satori CSS·font·text contract: <https://github.com/vercel/satori/blob/main/README.md>
+- Typst SVG accessibility·export: <https://typst.app/docs/reference/svg/>
+- Pretendard license·font assets: <https://github.com/orioncactus/pretendard>
+- Gamma HTML→structured editable layer 참고: <https://vercel.com/blog/gamma-builds-design-first-agents-with-vercel>
