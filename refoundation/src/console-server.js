@@ -315,6 +315,7 @@ export function makeConsoleServer({
   processYieldMs = 1000,
   terminalEnvironment = null,
   terminalPlatformAdapter = null,
+  terminalCredentialBroker = null,
   documentCli = bundledDocumentCli,
   attachmentStore,
   resourceLedger: providedResourceLedger,
@@ -1083,6 +1084,7 @@ export function makeConsoleServer({
         pathPrepend: managedCliStore.bin,
         protectedBrowserRoots: [join(stateDir, 'browser-host'), browserArtifactRoot],
         terminalPlatformAdapter,
+        terminalCredentialBroker,
         capabilityAttribution: ({ commandExplanation }) => managedCliStore.attributeCommand(commandExplanation),
         env: {
           T5_DOCUMENT_CLI: documentCli,

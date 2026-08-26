@@ -143,6 +143,11 @@ receipt에 남긴다. 따라서 전체 secret confinement나 registered authenti
 근거: `refoundation/evidence/s3-t1b-secret-confinement-candidate-2026-08-26.json`,
 `refoundation/evidence/s3-t1b-product-confinement-2026-08-26.json`.
 
+registered CLI broker의 제품 계약은 exact executable·단일 foreground action·direct argv·secret redaction·
+content-free receipt로 세웠다. compound shell과 미등록 action은 generic Terminal fallback으로 우회하지 않는다.
+아직 실제 사용자 credential capability를 등록하지 않았으므로 사용 가능한 authenticated CLI가 늘었다고
+주장하지 않는다. 다음 실제 CLI는 사용자 수요와 공식 CLI 계약을 특정한 별도 자격 뒤에만 등록한다.
+
 ## 5. S3-A 전 절대 금지선
 
 S3-A 결과와 오너 판정 전에는 다음을 구현하지 않는다.

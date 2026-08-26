@@ -6,6 +6,7 @@ import { ManagedProcessRegistry } from './managed-process.js';
 import { compareEffectObservations, observeDeclaredEffect } from './effect-observation.js';
 import { makePtyStartTool } from './pty-tool.js';
 import { commandWithManagedPath } from './managed-command-path.js';
+import { redactBrokeredTerminalResult } from './terminal-credential-broker.js';
 
 const DEFAULT_YIELD_MS = 1000;
 const DEFAULT_OUTPUT_LIMIT = 64_000;
@@ -71,6 +72,7 @@ function makeCommandTool(options = {}, { managed }) {
     explainCommand,
     effectPreflight,
     terminalPlatformAdapter,
+    terminalCredentialBroker,
     protectedBrowserRoots = [],
   } = options;
   const defaultDirectory = workingDirectory ?? workspace;
@@ -138,15 +140,20 @@ function makeCommandTool(options = {}, { managed }) {
       context.signal?.addEventListener('abort', onAbort, { once: true });
       try {
         const effectBefore = await observeDeclaredEffect(args.effect ?? { kind: 'observe', targets: [] }, cwd);
-        const launch = terminalPlatformAdapter?.prepare ? await terminalPlatformAdapter.prepare({
-          program: runtime.program,
-          args: runtime.argsFor(commandWithManagedPath(command, pathPrepend, runtime.family)),
-          cwd, env: isolatedEnv(root, env, runtime),
-        }) : {
+        const normalLaunch = {
           program: runtime.program,
           args: runtime.argsFor(commandWithManagedPath(command, pathPrepend, runtime.family)),
           cwd, env: isolatedEnv(root, env, runtime), confinement: null,
         };
+        const brokered = terminalCredentialBroker?.prepare?.({ commandExplanation, managed }) ?? { matched: false };
+        if (brokered.matched && !brokered.allowed) {
+          throw Object.assign(new Error(brokered.reason), { code: 'T5_REGISTERED_CLI_ACTION_REQUIRED' });
+        }
+        const launch = brokered.allowed ? {
+          ...normalLaunch, program: brokered.launch.program, args: brokered.launch.args,
+          env: { ...normalLaunch.env, ...brokered.launch.env },
+          confinement: { kind: 'registered_cli_broker', qualified: true },
+        } : terminalPlatformAdapter?.prepare ? await terminalPlatformAdapter.prepare(normalLaunch) : normalLaunch;
         let result = await registry.start({
           program: launch.program,
           args: launch.args,
@@ -182,6 +189,10 @@ function makeCommandTool(options = {}, { managed }) {
           effectObservation: compareEffectObservations(
             args.effect ?? { kind: 'observe', targets: [] }, effectBefore, effectAfter,
           ),
+        };
+        if (brokered.allowed) result = {
+          ...redactBrokeredTerminalResult(result, brokered.launch.sensitiveValues),
+          credentialBroker: brokered.receipt,
         };
         if (!managed && result.state !== 'running' && result.state !== 'stop_requested') {
           registry.forget(result.processId, ownerId);
