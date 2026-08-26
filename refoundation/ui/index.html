@@ -2057,6 +2057,160 @@ async function renderConnectionCatalog(target) {
   section.appendChild(list); target.appendChild(section);
 }
 
+function reflectionReviewRequestId() {
+  return globalThis.crypto?.randomUUID?.()
+    ?? `review-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+async function renderReflectionReview(target) {
+  const section = mk('section', 'settings-section');
+  const head = mk('div', 'settings-section-head');
+  const titles = document.createElement('div');
+  titles.appendChild(mk('h3', null, '배운 점 검토'));
+  titles.appendChild(mk('p', null, '과거 작업에서 찾은 제안의 근거와 반례를 살펴봐요. 아직 어떤 작업에도 사용하지 않아요.'));
+  head.appendChild(titles); section.appendChild(head);
+  const list = mk('div', 'settings-list'); section.appendChild(list); target.appendChild(section);
+
+  const sourceButton = (reviewHandle, source, destination) => {
+    const button = document.createElement('button'); button.className = 'connection-button';
+    button.textContent = '출처 보기';
+    button.onclick = async () => {
+      button.disabled = true;
+      try {
+        const response = await fetch('/reflection/review/source', { method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ reviewHandle, sourceHandle: source.sourceHandle }) });
+        const result = await response.json().catch(() => ({}));
+        destination.textContent = response.ok
+          ? (result.source?.content ?? result.source?.stateLabel ?? '지금 원본을 열 수 없어요.')
+          : '지금 원본을 열 수 없어요.';
+      } catch { destination.textContent = '지금 원본을 열 수 없어요.'; }
+      finally { button.disabled = false; }
+    };
+    return button;
+  };
+  const renderSources = (reviewHandle, sources, parent) => {
+    for (const source of sources ?? []) {
+      const row = mk('div', 'settings-item'); const main = mk('div', 'settings-item-main');
+      main.appendChild(mk('div', 'settings-item-title', source.label));
+      const description = mk('div', 'settings-item-desc', source.availabilityLabel ?? '현재 확인 상태를 알 수 없음');
+      main.appendChild(description); row.append(main, sourceButton(reviewHandle, source, description));
+      parent.appendChild(row);
+    }
+  };
+  const detailGroup = (title, description) => {
+    const group = mk('div', 'settings-list');
+    group.appendChild(mk('div', 'settings-item-title', title));
+    if (description) group.appendChild(mk('div', 'settings-item-desc', description));
+    return group;
+  };
+  const loadDetail = async (item, destination) => {
+    destination.replaceChildren(mk('div', 'settings-item-desc', '검토 내용을 확인하고 있어요…'));
+    let response; let detail;
+    try {
+      response = await fetch('/reflection/review/detail', { method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ reviewHandle: item.reviewHandle }) });
+      const result = await response.json().catch(() => ({})); detail = result.item;
+    } catch { response = null; }
+    if (!response?.ok || !detail) {
+      destination.replaceChildren(mk('div', 'settings-item-desc', '검토 내용을 불러오지 못했어요.'));
+      return;
+    }
+    destination.replaceChildren();
+    destination.appendChild(mk('div', 'settings-item-title', detail.hypothesis));
+    destination.appendChild(mk('div', 'settings-item-desc', detail.statusLabel));
+    for (const notice of detail.notices ?? []) destination.appendChild(mk('div', 'settings-item-desc', notice));
+
+    const support = detailGroup('근거', '서로 다른 과업에서 확인한 내용이에요.');
+    for (const episode of detail.support ?? []) {
+      support.appendChild(mk('div', 'settings-item-title', episode.label));
+      for (const group of episode.sourceGroups ?? []) {
+        support.appendChild(mk('div', 'settings-item-desc', group.label));
+        renderSources(detail.reviewHandle, group.sources, support);
+      }
+    }
+    if (!(detail.support ?? []).length) support.appendChild(mk('div', 'settings-item-desc', '표시할 근거가 없어요.'));
+    destination.appendChild(support);
+
+    const counterexamples = detailGroup('반례', '이 제안이 맞지 않을 수 있음을 보여주는 내용이에요.');
+    for (const counterexample of detail.counterexamples ?? []) {
+      counterexamples.appendChild(mk('div', 'settings-item-title', counterexample.label));
+      renderSources(detail.reviewHandle, counterexample.sources, counterexamples);
+    }
+    if (!(detail.counterexamples ?? []).length) counterexamples.appendChild(mk('div', 'settings-item-desc', '찾은 반례가 없어요.'));
+    destination.appendChild(counterexamples);
+
+    const uncertainties = detailGroup('확실하지 않은 점');
+    for (const uncertainty of detail.uncertainties ?? []) {
+      uncertainties.appendChild(mk('div', 'settings-item-desc', uncertainty));
+    }
+    if (!(detail.uncertainties ?? []).length) uncertainties.appendChild(mk('div', 'settings-item-desc', '따로 적힌 내용이 없어요.'));
+    destination.appendChild(uncertainties);
+
+    const corrections = detailGroup('현재 교정');
+    for (const correction of detail.currentCorrections ?? []) {
+      corrections.appendChild(mk('div', 'settings-item-title', correction.label));
+      corrections.appendChild(mk('div', 'settings-item-desc', correction.relationLabel));
+      renderSources(detail.reviewHandle, correction.sources, corrections);
+    }
+    if (!(detail.currentCorrections ?? []).length) corrections.appendChild(mk('div', 'settings-item-desc', '현재 교정과 연결된 내용이 없어요.'));
+    destination.appendChild(corrections);
+
+    const actions = mk('div', 'connection-actions'); const actionState = mk('div', 'settings-item-desc', '');
+    const requestIds = new Map();
+    const decide = async (decision) => {
+      for (const button of actions.querySelectorAll('button')) button.disabled = true;
+      const requestId = requestIds.get(decision) ?? reflectionReviewRequestId(); requestIds.set(decision, requestId);
+      let actionResponse = null;
+      try {
+        actionResponse = await fetch('/reflection/review/action', { method: 'POST',
+          headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+            requestId, reviewHandle: detail.reviewHandle, revisionHandle: detail.revisionHandle, decision,
+          }) });
+      } catch { /* show the same safe retry state below */ }
+      if (actionResponse?.ok) await SET_RENDER.memory();
+      else {
+        actionState.textContent = '검토 상태가 바뀌었어요. 다시 확인해 주세요.';
+        for (const button of actions.querySelectorAll('button')) button.disabled = false;
+      }
+    };
+    if (detail.actions?.retain) {
+      const retain = document.createElement('button'); retain.className = 'connection-button';
+      retain.textContent = '검토용으로 남기기'; retain.onclick = () => decide('retain'); actions.appendChild(retain);
+    }
+    if (detail.actions?.reject) {
+      const reject = document.createElement('button'); reject.className = 'connection-button';
+      reject.textContent = '사용하지 않기'; reject.onclick = () => decide('reject'); actions.appendChild(reject);
+    }
+    if (detail.status === 'needs_review') {
+      const later = document.createElement('button'); later.className = 'connection-button';
+      later.textContent = '나중에'; later.onclick = () => decide('later'); actions.appendChild(later);
+    }
+    destination.append(actions, actionState);
+  };
+
+  try {
+    const response = await fetch('/reflection/review/state');
+    const state = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error('review state unavailable');
+    if (!(state.items ?? []).length) {
+      list.appendChild(mk('div', 'tb-empty', '지금 검토할 배운 점이 없어요.')); return;
+    }
+    for (const item of state.items) {
+      const card = mk('div', 'settings-item'); const main = mk('div', 'settings-item-main');
+      main.appendChild(mk('div', 'settings-item-title', item.hypothesis));
+      main.appendChild(mk('div', 'settings-item-desc', `${item.statusLabel} · 근거 ${item.counts?.supportingExperiences ?? 0}건 · 반례 ${item.counts?.counterexamples ?? 0}건`));
+      const open = document.createElement('button'); open.className = 'connection-button'; open.textContent = '내용 보기';
+      const detail = mk('div', 'settings-item-main'); detail.hidden = true;
+      open.onclick = async () => { detail.hidden = false; open.disabled = true; await loadDetail(item, detail); open.disabled = false; };
+      card.append(main, open); list.append(card, detail);
+    }
+  } catch {
+    list.appendChild(mk('div', 'tb-empty', '배운 점 검토 상태를 불러오지 못했어요. 기억과 기록은 그대로 확인할 수 있어요.'));
+  }
+}
+
 const SET_RENDER = {
   async model() {
     setBody.replaceChildren();
@@ -2305,6 +2459,8 @@ const SET_RENDER = {
         }
         past.appendChild(list); setBody.appendChild(past);
       }
+
+      await renderReflectionReview(setBody);
 
       const privacy = mk('section', 'settings-section'); const head = mk('div', 'settings-section-head');
       const titles = document.createElement('div'); titles.appendChild(mk('h3', null, '개인정보와 기록'));

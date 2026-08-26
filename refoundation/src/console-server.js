@@ -338,6 +338,7 @@ export function makeConsoleServer({
   localConsoleToken,
   learningReviewMode = 'proposal',
   learningReviewIdleMs = 30_000,
+  reflectionReviewCoordinator = null,
   onError,
 } = {}) {
   if (!stateDir || !workspace) throw new TypeError('stateDir and workspace are required');
@@ -373,6 +374,10 @@ export function makeConsoleServer({
     throw new TypeError('unsupported memory flush mode');
   }
   if (!['off', 'proposal'].includes(learningReviewMode)) throw new TypeError('unsupported learning review mode');
+  if (reflectionReviewCoordinator != null && ['list', 'detail', 'source', 'later', 'retain', 'reject']
+    .some((name) => typeof reflectionReviewCoordinator[name] !== 'function')) {
+    throw new TypeError('reflectionReviewCoordinator is incomplete');
+  }
   // A browser tab can outlive this server process during development, an app restart, or a
   // computer restart. Give every process lifetime a public, non-secret identity so the page can
   // distinguish a reconnect from a connection to the same runtime.
@@ -3677,6 +3682,43 @@ export function makeConsoleServer({
         const memory = await memories.read();
         json(res, 200, projectMemorySurface(memory)); return;
       }
+      if (req.method === 'GET' && url.pathname === '/reflection/review/state') {
+        if (!reflectionReviewCoordinator) {
+          json(res, 200, { schema: 't5.reflection-review-surface.v1', available: false,
+            appliedCount: 0, items: [], sideEffects: { writes: 0 } }); return;
+        }
+        json(res, 200, { available: true, ...await reflectionReviewCoordinator.list() }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/reflection/review/detail') {
+        if (!reflectionReviewCoordinator) throw Object.assign(
+          new Error('검토할 배운 점 기능을 아직 사용할 수 없어요.'), { status: 409 });
+        json(res, 200, await reflectionReviewCoordinator.detail(await body(req))); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/reflection/review/source') {
+        if (!reflectionReviewCoordinator) throw Object.assign(
+          new Error('검토할 배운 점 기능을 아직 사용할 수 없어요.'), { status: 409 });
+        json(res, 200, await reflectionReviewCoordinator.source(await body(req))); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/reflection/review/action') {
+        if (!reflectionReviewCoordinator) throw Object.assign(
+          new Error('검토할 배운 점 기능을 아직 사용할 수 없어요.'), { status: 409 });
+        const input = await body(req); const decision = String(input.decision ?? '');
+        const actionInput = decision === 'later'
+          ? { reviewHandle: input.reviewHandle, revisionHandle: input.revisionHandle }
+          : { requestId: input.requestId, reviewHandle: input.reviewHandle,
+            revisionHandle: input.revisionHandle };
+        const action = decision === 'retain' ? 'retain' : decision === 'reject' ? 'reject'
+          : decision === 'later' ? 'later' : null;
+        if (!action) throw Object.assign(new Error('검토 동작을 이해하지 못했어요.'), { status: 400 });
+        try { json(res, 200, await reflectionReviewCoordinator[action](actionInput)); }
+        catch (problem) {
+          if (/reflection_review_|reflection_source_window|current_evidence/u.test(problem?.code ?? '')) {
+            problem.status = problem.code?.includes('not_found') ? 404 : 409;
+          }
+          throw problem;
+        }
+        return;
+      }
       if (req.method === 'GET' && url.pathname === '/memory/ledger') {
         await memories.ensure();
         const memory = await memories.read();
@@ -3887,6 +3929,7 @@ export function makeConsoleServer({
     return Promise.all(sessionsWithQueued.map((sessionId) => scheduleNextWorkInput(sessionId)));
   };
   server.memoryLedger = memories;
+  server.reflectionReviewCoordinator = reflectionReviewCoordinator;
   server.capabilityHandoffLedger = capabilityHandoffs;
   server.capabilityLifecycleLedger = capabilityLifecycle;
   server.learningCandidateStore = learningCandidates;
