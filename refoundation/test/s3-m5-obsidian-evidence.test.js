@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+
+import { digestAtCommit } from './helpers/git-evidence-digest.js';
 
 const evidence = JSON.parse(await readFile(new URL(
   '../evidence/s3-m5-obsidian-independent-2026-08-27.json', import.meta.url,
@@ -28,7 +29,6 @@ test('M5-5 evidence는 두 모델 최종 PASS와 앞선 불리한 실행을 함�
 test('M5-5 evidence source digest는 exact source commit과 일치한다', async () => {
   assert.equal(evidence.sourceCommit, '48b6222d5fdda5fa3b800ee6d0b472f358d4d895');
   for (const [path, expected] of Object.entries(evidence.sourceDigests)) {
-    const bytes = await readFile(new URL(`../../${path}`, import.meta.url));
-    assert.equal(createHash('sha256').update(bytes).digest('hex'), expected, path);
+    assert.equal(digestAtCommit(evidence.sourceCommit, path), expected, path);
   }
 });

@@ -171,3 +171,12 @@ test('output root 경로에 symlink가 끼면 관리 범위 밖 view를 쓰지 �
     await rm(outside, { recursive: true, force: true });
   } finally { await rm(room, { recursive: true, force: true }); }
 });
+
+test('M5 qualification runner는 생성 비용을 제품 hot path와 분리한다', async () => {
+  const runner = await readFile(new URL('../scripts/run-s3m5-living-library-qualification.mjs', import.meta.url), 'utf8');
+  assert.match(runner, /productHotPathCalls: 0/u);
+  assert.match(runner, /modelCalls: 0, providerRequests: 0, contextBytesAdded: 0/u);
+  assert.match(runner, /generationNs/u);
+  assert.match(runner, /existingVerificationNs/u);
+  assert.match(runner, /internalIdLeak/u);
+});
