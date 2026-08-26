@@ -55,7 +55,7 @@ jobs:
         run: node --test --test-timeout=20000 refoundation/test/windows-dpapi-secret-store.test.js
       - name: Qualify Windows PowerShell Job Object and ConPTY journey
         shell: pwsh
-        run: node --test --test-timeout=30000 refoundation/test/terminal-windows.integration.js
+        run: node --test --test-timeout=30000 --test-force-exit refoundation/test/terminal-windows.integration.js
       - uses: actions/upload-artifact@v4
         with:
           name: t5-windows-terminal-hosts
