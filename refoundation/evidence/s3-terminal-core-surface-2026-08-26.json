@@ -1,14 +1,16 @@
 {
   "schema": "t5.s3.terminal-core-surface.v1",
-  "status": "product_surface_integrated_human_provider_qualification_pending",
+  "status": "product_surface_effect_and_output_lifecycle_integrated_human_provider_qualification_pending",
   "userCompletionSlice": "short commands remain exec; managed process, TTY, delta observation, input, stop, and exact output recall share one continuous terminal_session surface",
   "comparison": {
     "beforeActiveTerminalTools": 4,
     "afterActiveTerminalTools": 2,
     "beforeSchemaBytes": 3869,
-    "afterSchemaBytes": 2895,
-    "schemaBytesReduced": 974,
-    "schemaReductionPercent": 25.2,
+    "afterSchemaBytes": 2930,
+    "schemaBytesReduced": 939,
+    "schemaReductionPercent": 24.3,
+    "effectRequiredFieldsBefore": 7,
+    "effectRequiredFieldsAfter": 3,
     "executionEngineRewritten": false,
     "receiptSemanticsChanged": false
   },
@@ -19,30 +21,34 @@
     "exactTruncatedOutputRecallPreserved": true,
     "commandRerunForRecall": 0,
     "cancelAndAutomaticWakeConsoleJourneysPreserved": true,
-    "progressLanguageUsesUserTerms": true
+    "progressLanguageUsesUserTerms": true,
+    "approvalBoundaryPreservedWithThreeFieldEffect": true,
+    "outputStorage": "gzip chunks with bounded cross-chunk reads",
+    "wholeOutputReloadForRangeRead": false
   },
   "verification": {
-    "focused": "47/47 passed",
-    "fullCore": "933/934 passed",
-    "fullCoreFailure": "pre-existing QH-3 temporary-directory cleanup ENOTEMPTY; reproduced alone; no Terminal assertion failed",
+    "focused": "12/12 Terminal Core evidence and behavior checks passed; new-schema approval journey passed",
+    "fullCore": "938/938 passed",
+    "fullCoreFailure": null,
     "visibleBrowserLiveRun": false,
     "personalCredentialRun": false,
     "externalEffectRun": false
   },
   "notYetQualified": [
     "Terra and gpt-5.5 same-purpose live A/B",
-    "effect declaration burden reduction",
-    "output retention and disk lifecycle",
+    "age or Session-lifecycle retention policy beyond compressed Run evidence",
     "authenticated personal CLI broker registrations",
     "Windows and Linux secret confinement"
   ],
   "sourceDigests": {
-    "terminal-session-tool.js": "0a9b82bf3c2118b62111b119dbe85a44e21ec931b80434b0e2bdfe908ecb6aaa",
-    "exec-tool.js": "60870fe0704130bb94038e7b3c79c815977c6054b07278160f8380d14e2a4d80",
-    "console-model-factory.js": "4edd7a0756f22b486968b4721379d00ada0631aff1dcdd2c1d98730ccb63e2d5"
+    "terminal-session-tool.js": "d9eacc3c23ad0d91d7a3b41ad844724511dd15a44a9b0e1e8d17c1b3b8d9cf7c",
+    "exec-tool.js": "aa50d5b071fb5d688011faa5fee3c004c3877641a55d19592dfdb1331142a263",
+    "console-model-factory.js": "a53c1ef4c0e76d27fc3695ca17df70af56d0c9682cbe5dc82c03c60ce2686b9e",
+    "terminal-output-store.js": "f44c46605d5661ab87504b6bbeccdc73469fbce65d666e4783ac0e43b5d94058"
   },
   "testDigests": {
-    "terminal-session-tool.test.js": "4278d3ffd87282631b1cb9ec822e15b2b1fc72c24000117e5aba5044e2043843",
-    "console-surface.integration.js": "a232353094262e801480e0ced4820434ed3c1907fa230f566e1a7604d52acc50"
+    "terminal-session-tool.test.js": "ce693e363fb47725b90ab4b62420a193713cd7a38d7d9c95d0497c3a43064fd3",
+    "console-surface.integration.js": "c66057f7af968e48b593b26b0eb77b764cccb11726d8cc3e5f8424d612531e75",
+    "terminal-output-store.test.js": "20e6f5b5f7574cbea68bf11cf00b384bd7d1f730d98b32e105ddf325aaa661b7"
   }
 }

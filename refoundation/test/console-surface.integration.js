@@ -656,8 +656,7 @@ test('백업 없는 삭제는 승인 전 실행되지 않고 exact call 승인 �
   const destructiveArgs = {
     command: `rm '${target}'`, cwd: null,
     effect: {
-      kind: 'destructive', summary: 'delete-me.txt 삭제', targets: [target],
-      reversible: false, backupAvailable: false, recipientNew: false, approvalToken: null,
+      kind: 'destructive', targets: [target], confirmation: 'backup_unavailable',
     },
   };
   const modelFactory = () => ({ async respond(input) {

@@ -4,7 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { EFFECT_SCHEMA, makeExecTool, makeProcessControlTool, makeProcessStartTool } from '../src/exec-tool.js';
+import {
+  EFFECT_SCHEMA, makeExecTool, makeProcessControlTool, makeProcessStartTool, normalizeTerminalEffect,
+} from '../src/exec-tool.js';
 import { ManagedProcessRegistry } from '../src/managed-process.js';
 import { makePtyStartTool } from '../src/pty-tool.js';
 import { makeTerminalOutputTool, TerminalOutputStore } from '../src/terminal-output-store.js';
@@ -33,7 +35,10 @@ async function room(run) {
     const ptyStart = makePtyStartTool({ ...common, processRegistry });
     const control = makeProcessControlTool({ processRegistry, ownerId: 'session-a' });
     const output = makeTerminalOutputTool({ store: outputStore, sessionId: 'session-a' });
-    const session = makeTerminalSessionTool({ start, ptyStart, control, output, effectSchema: EFFECT_SCHEMA });
+    const session = makeTerminalSessionTool({
+      start, ptyStart, control, output, effectSchema: EFFECT_SCHEMA,
+      normalizeEffect: normalizeTerminalEffect,
+    });
     await run({ root, exec, start, ptyStart, control, output, session });
   } finally { await rm(root, { recursive: true, force: true }); }
 }
@@ -97,3 +102,21 @@ test('exec + terminal_session 스키마는 기존 기본 네 도구보다 작다
   const candidate = bytes([exec, session]);
   assert.ok(candidate < current, { current, candidate });
 }));
+
+test('모델 effect 표면은 세 필드이고 런타임은 기존 권한 사실을 정확히 복원한다', () => {
+  assert.deepEqual(EFFECT_SCHEMA.required, ['kind', 'targets', 'confirmation']);
+  const destructive = normalizeTerminalEffect({
+    kind: 'destructive', targets: ['/tmp/result'], confirmation: 'backup_unavailable',
+  });
+  assert.equal(destructive.reversible, false);
+  assert.equal(destructive.backupAvailable, false);
+  assert.equal(destructive.recipientNew, false);
+  assert.equal(destructive.approvalToken, null);
+  const known = normalizeTerminalEffect({
+    kind: 'external_send', targets: ['existing-chat'], confirmation: 'known_recipient',
+  });
+  assert.equal(known.recipientNew, false);
+  assert.throws(() => normalizeTerminalEffect({
+    kind: 'observe', targets: [], confirmation: 'new_recipient',
+  }), { code: 'T5_EFFECT_CONFIRMATION_MISMATCH' });
+});

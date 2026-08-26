@@ -20,18 +20,48 @@ export const EFFECT_SCHEMA = {
       type: 'string',
       enum: ['observe', 'local_change', 'external_change', 'destructive', 'external_send', 'payment', 'secret_input'],
     },
-    summary: { type: 'string' },
     targets: { type: 'array', items: { type: 'string' } },
-    reversible: { type: 'boolean' },
-    backupAvailable: { type: 'boolean' },
-    recipientNew: { type: 'boolean' },
-    approvalToken: { type: ['string', 'null'] },
+    confirmation: {
+      type: 'string',
+      enum: ['not_applicable', 'backup_available', 'backup_unavailable', 'known_recipient', 'new_recipient'],
+      description: 'Use backup_* only for destructive work and *_recipient only for external_send. Otherwise use not_applicable.',
+    },
   },
-  required: [
-    'kind', 'summary', 'targets', 'reversible', 'backupAvailable', 'recipientNew', 'approvalToken',
-  ],
+  required: ['kind', 'targets', 'confirmation'],
   additionalProperties: false,
 };
+
+export function normalizeTerminalEffect(effect) {
+  const source = effect && typeof effect === 'object' ? effect : { kind: 'observe', targets: [] };
+  const kind = String(source.kind ?? 'observe');
+  const confirmation = source.confirmation ?? (
+    kind === 'destructive'
+      ? (source.backupAvailable === true ? 'backup_available' : 'backup_unavailable')
+      : kind === 'external_send'
+        ? (source.recipientNew === true ? 'new_recipient' : 'known_recipient')
+        : 'not_applicable'
+  );
+  const valid = (
+    (kind === 'destructive' && ['backup_available', 'backup_unavailable'].includes(confirmation))
+    || (kind === 'external_send' && ['known_recipient', 'new_recipient'].includes(confirmation))
+    || (!['destructive', 'external_send'].includes(kind) && confirmation === 'not_applicable')
+  );
+  if (!valid) throw Object.assign(new Error('effect confirmation does not match effect kind'), {
+    code: 'T5_EFFECT_CONFIRMATION_MISMATCH',
+  });
+  return {
+    kind,
+    summary: typeof source.summary === 'string' && source.summary.trim()
+      ? source.summary.trim() : kind,
+    targets: Array.isArray(source.targets) ? source.targets.map(String) : [],
+    reversible: ['observe', 'local_change', 'external_change'].includes(kind)
+      || confirmation === 'backup_available',
+    backupAvailable: confirmation === 'backup_available',
+    recipientNew: confirmation === 'new_recipient',
+    approvalToken: source.approvalToken ?? null,
+    confirmation,
+  };
+}
 
 function isolatedEnv(defaultDirectory, additions = {}, runtime = {}) {
   const keep = [
@@ -113,8 +143,9 @@ function makeCommandTool(options = {}, { managed }) {
     async execute(args = {}, context = {}) {
       const command = String(args.command ?? '').trim();
       if (!command) throw new TypeError('command is required');
-      if (args.effect?.kind === 'local_change'
-        && !(args.effect.targets ?? []).some((target) => String(target ?? '').trim())) {
+      const declaredEffect = normalizeTerminalEffect(args.effect);
+      if (declaredEffect.kind === 'local_change'
+        && !declaredEffect.targets.some((target) => String(target ?? '').trim())) {
         throw Object.assign(new Error('local_change requires at least one exact effect target'), {
           code: 'T5_EFFECT_TARGET_REQUIRED',
         });
@@ -142,7 +173,7 @@ function makeCommandTool(options = {}, { managed }) {
       const onAbort = () => { registry.stopOwner(ownerId, 'aborted').catch(() => {}); };
       context.signal?.addEventListener('abort', onAbort, { once: true });
       try {
-        const effectBefore = await observeDeclaredEffect(args.effect ?? { kind: 'observe', targets: [] }, cwd);
+        const effectBefore = await observeDeclaredEffect(declaredEffect, cwd);
         const normalLaunch = {
           program: runtime.program,
           args: runtime.argsFor(commandWithManagedPath(command, pathPrepend, runtime.family)),
@@ -169,7 +200,7 @@ function makeCommandTool(options = {}, { managed }) {
           metadata: {
             kind: managed ? 'managed' : 'foreground',
             ...(options.originRunId ? { originRunId: options.originRunId } : {}),
-            declaredEffect: structuredClone(args.effect ?? { kind: 'observe', targets: [] }),
+            declaredEffect: structuredClone(declaredEffect),
             effectBefore: structuredClone(effectBefore),
             effectCwd: cwd,
             ...(capabilitiesUsed.length ? { capabilitiesUsed: structuredClone(capabilitiesUsed) } : {}),
@@ -184,13 +215,13 @@ function makeCommandTool(options = {}, { managed }) {
           registry.markTerminalObserved(result.processId, ownerId);
         }
         const effectAfter = result.state === 'running' || result.state === 'stop_requested'
-          ? null : await observeDeclaredEffect(args.effect ?? { kind: 'observe', targets: [] }, cwd);
+          ? null : await observeDeclaredEffect(declaredEffect, cwd);
         result = {
           ...result,
           ...(launch.confinement ? { confinement: launch.confinement } : {}),
           ...(capabilitiesUsed.length ? { capabilitiesUsed: structuredClone(capabilitiesUsed) } : {}),
           effectObservation: compareEffectObservations(
-            args.effect ?? { kind: 'observe', targets: [] }, effectBefore, effectAfter,
+            declaredEffect, effectBefore, effectAfter,
           ),
         };
         if (brokered.allowed) result = {
@@ -232,8 +263,9 @@ function makeCommandTool(options = {}, { managed }) {
           };
         }
       }
+      const normalizedArgs = { ...structuredClone(args), effect: normalizeTerminalEffect(args?.effect) };
       return effectPreflight({
-        toolName: tool.name, args: structuredClone(args), ownerId, context,
+        toolName: tool.name, args: normalizedArgs, ownerId, context,
       });
     };
   }
@@ -339,6 +371,7 @@ export function makeTerminalHand(options = {}) {
     ? makeTerminalOutputTool({ store: options.terminalOutputStore, sessionId: options.ownerId }) : null;
   const session = makeTerminalSessionTool({
     start, ptyStart, control, output, effectSchema: EFFECT_SCHEMA,
+    normalizeEffect: normalizeTerminalEffect,
   });
   session.searchTerms = [
     'long running background command managed process interactive terminal tty tui stdin prompt exact output',

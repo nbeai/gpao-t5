@@ -1,11 +1,11 @@
 const ACTIONS = ['start', 'start_tty', 'list', 'poll', 'write', 'resize', 'stop', 'read_output'];
 
-function argsForStart(args) {
-  return { command: args.command, cwd: args.cwd, effect: args.effect };
+function argsForStart(args, normalizeEffect) {
+  return { command: args.command, cwd: args.cwd, effect: normalizeEffect(args.effect) };
 }
 
-function argsForPty(args) {
-  return { ...argsForStart(args), cols: args.cols, rows: args.rows };
+function argsForPty(args, normalizeEffect) {
+  return { ...argsForStart(args, normalizeEffect), cols: args.cols, rows: args.rows };
 }
 
 function argsForControl(args) {
@@ -26,7 +26,9 @@ function argsForControl(args) {
  * effect-observation, and exact-output implementations. This adapter owns no
  * process state and must not reinterpret commands or receipts.
  */
-export function makeTerminalSessionTool({ start, ptyStart, control, output, effectSchema } = {}) {
+export function makeTerminalSessionTool({
+  start, ptyStart, control, output, effectSchema, normalizeEffect = (effect) => effect,
+} = {}) {
   if (!start || !ptyStart || !control) throw new TypeError('terminal session delegates are required');
   if (!effectSchema) throw new TypeError('terminal effect schema is required');
   return {
@@ -68,16 +70,16 @@ export function makeTerminalSessionTool({ start, ptyStart, control, output, effe
     },
     async preflight(args, context) {
       if (args.action === 'start' && typeof start.preflight === 'function') {
-        return start.preflight(argsForStart(args), context);
+        return start.preflight(argsForStart(args, normalizeEffect), context);
       }
       if (args.action === 'start_tty' && typeof ptyStart.preflight === 'function') {
-        return ptyStart.preflight(argsForPty(args), context);
+        return ptyStart.preflight(argsForPty(args, normalizeEffect), context);
       }
       return { allowed: true };
     },
     async execute(args = {}, context = {}) {
-      if (args.action === 'start') return start.execute(argsForStart(args), context);
-      if (args.action === 'start_tty') return ptyStart.execute(argsForPty(args), context);
+      if (args.action === 'start') return start.execute(argsForStart(args, normalizeEffect), context);
+      if (args.action === 'start_tty') return ptyStart.execute(argsForPty(args, normalizeEffect), context);
       if (['list', 'poll', 'write', 'resize', 'stop'].includes(args.action)) {
         return control.execute(argsForControl(args), context);
       }

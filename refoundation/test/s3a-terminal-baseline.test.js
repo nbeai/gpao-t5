@@ -16,7 +16,7 @@ async function baseline() {
   } finally { await rm(room, { recursive: true, force: true }); }
 }
 
-test('S3-T0는 일반 파일과 비밀 fixture의 현재 Terminal read 경계를 실제 실행으로 구분한다', async () => {
+test('S3-T0 봉인 fixture는 일반 파일과 당시 비밀 read 경계를 실제 실행으로 구분한다', async () => {
   const result = await baseline();
   assert.equal(result.fixture.normalReadable, true);
   assert.equal(result.fixture.privateKeyReadable, true);
@@ -24,12 +24,10 @@ test('S3-T0는 일반 파일과 비밀 fixture의 현재 Terminal read 경계를
   assert.doesNotMatch(JSON.stringify(result), /FIXTURE-PRIVATE-KEY|FIXTURE-CLI-TOKEN/u);
 });
 
-test('S3-T0는 모델이 부담하는 현재 effect schema와 출력 recall 간극을 수치로 남긴다', async () => {
+test('S3-T0 fixture는 현재 effect schema 개선과 output-store 없는 기준선 간극을 수치로 남긴다', async () => {
   const result = await baseline();
   assert.deepEqual(result.toolSurface.execRequiredTopLevel, ['command', 'cwd', 'effect']);
-  assert.deepEqual(result.toolSurface.effectRequiredFields, [
-    'kind', 'summary', 'targets', 'reversible', 'backupAvailable', 'recipientNew', 'approvalToken',
-  ]);
+  assert.deepEqual(result.toolSurface.effectRequiredFields, ['kind', 'targets', 'confirmation']);
   assert.ok(result.toolSurface.schemaBytes > 0);
   assert.equal(result.foregroundOutput.truncated, true);
   assert.ok(result.foregroundOutput.omittedChars > 0);
