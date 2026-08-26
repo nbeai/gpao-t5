@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const consoleHtml = resolve(root, 'src/surface/web/index.html');
+const consoleHtml = resolve(root, 'refoundation/ui/index.html');
 
 test('긴 URL과 연속 문자열은 말풍선을 밀지 않고 코드·표만 내부에서 스크롤한다', async () => {
   const html = await readFile(consoleHtml, 'utf8');

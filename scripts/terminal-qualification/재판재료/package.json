@@ -1,7 +1,0 @@
-{
-  "name": "trial-room",
-  "private": true,
-  "type": "module",
-  "scripts": { "집계": "node 집계.mjs", "서버": "node 서버.mjs" },
-  "dependencies": { "picocolors": "^1.0.0" }
-}

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 test('오래된 콘솔 화면은 새 런타임을 감지하고 초안·첨부를 보존한 복구를 안내한다', async () => {
-  const html = await readFile(resolve(root, 'src/surface/web/index.html'), 'utf8');
+  const html = await readFile(resolve(root, 'refoundation/ui/index.html'), 'utf8');
   const wake = await readFile(resolve(root, 'refoundation/src/wake-events.js'), 'utf8');
 
   assert.match(wake, /runtime_ready/u);

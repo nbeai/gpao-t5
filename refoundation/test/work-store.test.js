@@ -6,6 +6,18 @@ import { join } from 'node:path';
 
 import { WorkStore } from '../src/work-store.js';
 
+test('WorkStore resident projection은 반복 read를 재사용하되 다른 writer의 append는 다시 읽는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-work-resident-projection-'));
+  const first = new WorkStore(room); const second = new WorkStore(room);
+  await first.create({ sessionId: 'session-a', sourceMessageId: 'message-a' });
+  const initial = await first.read();
+  assert.equal(initial.works.length, 1);
+  initial.works[0].status = 'tampered';
+  assert.equal((await first.read()).works[0].status, 'active');
+  await second.create({ sessionId: 'session-b', sourceMessageId: 'message-b' });
+  assert.equal((await first.read()).works.length, 2);
+});
+
 test('WorkStore는 input admission·revision·proposal·settlement를 append-only identity로 보존한다', async () => {
   const store = new WorkStore(await mkdtemp(join(tmpdir(), 't5-work-store-')));
   const work = await store.create({ sessionId: 'session', sourceMessageId: 'message-1' });
@@ -25,6 +37,21 @@ test('WorkStore는 input admission·revision·proposal·settlement를 append-onl
   assert.equal(state.works[0].status, 'completed');
   assert.equal(state.inputs[0].disposition, 'current_work');
   assert.deepEqual(state.events.map((event) => event.sequence), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+});
+
+test('input executed terminal은 exact persisted surface receipt 없이는 기록되지 않는다', async () => {
+  const store = new WorkStore(await mkdtemp(join(tmpdir(), 't5-work-surface-receipt-')));
+  const work = await store.create({ sessionId: 'session', sourceMessageId: 'message-1' });
+  const admitted = await store.admitInput({ sessionId: 'session', messageId: 'message-2' });
+  await store.claimExecution({ workId: work.workId, revision: 1, runId: 'run-1' });
+  await store.presentInputs({ sessionId: 'session', workId: work.workId, revision: 1, runId: 'run-1' });
+  await store.applyPresentedToCurrentWork({ sessionId: 'session', workId: work.workId, runId: 'run-1' });
+  await store.prepareInputCompletion({ inputId: admitted.inputId, runId: 'run-1',
+    resultPointer: 'work-result:run-1', resultDigest: 'digest-run-1' });
+  await assert.rejects(store.commitInputExecuted({ inputId: admitted.inputId, runId: 'run-1',
+    surfaceReceipt: null }), /exact input surface receipt/u);
+  assert.equal((await store.read()).inputs.find((input) => input.inputId === admitted.inputId).state,
+    'completed_pending_surface');
 });
 
 test('stale revision settlement와 다른 Run proposal은 최신 Work를 바꾸지 못한다', async () => {

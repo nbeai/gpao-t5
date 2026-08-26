@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const consoleHtml = resolve(root, 'src/surface/web/index.html');
+const consoleHtml = resolve(root, 'refoundation/ui/index.html');
 
 test('알려진 API 키 형태는 대화로 보내지 않고 전용 연결 입력면으로 돌린다', async () => {
   const html = await readFile(consoleHtml, 'utf8');

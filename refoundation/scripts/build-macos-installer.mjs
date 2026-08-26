@@ -11,12 +11,10 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..', '..');
 const product = {
-  name: 'GPAO-T5', bundleId: 'kr.co.gpao.t5', version: '0.2.0', port: 4174,
+  name: 'GPAO-T5', bundleId: 'kr.co.gpao.t5', version: '0.2.1', port: 4174,
 };
 const PACKAGE_SOURCE_PATHS = [
   'refoundation',
-  'src/surface/web/index.html', 'src/surface/web/markdown.js',
-  'src/surface/web/approval-state.js',
   'COPYRIGHT', 'NOTICE', 'THIRD_PARTY_NOTICES.md',
   'docs/00-product/GPAO-T5-FOUNDER-MANIFESTO-ko.md',
 ];
@@ -71,13 +69,12 @@ async function verifiedNode(tarball, expectedName, shasums, destination) {
 
 async function copyRuntimeApp(target) {
   const refoundation = join(target, 'refoundation');
-  await mkdir(join(target, 'src', 'surface', 'web'), { recursive: true });
   await mkdir(join(target, 'docs', '00-product'), { recursive: true });
   await mkdir(join(refoundation, 'scripts'), { recursive: true });
   for (const file of ['package.json', 'package-lock.json']) {
     await copyFile(join(repo, 'refoundation', file), join(refoundation, file));
   }
-  for (const directory of ['src', 'bin', 'skills', 'skill-packages', 'capabilities', 'config']) {
+  for (const directory of ['src', 'bin', 'skills', 'skill-packages', 'capabilities', 'config', 'ui']) {
     await cp(join(repo, 'refoundation', directory), join(refoundation, directory), {
       recursive: true, dereference: false,
     });
@@ -86,9 +83,6 @@ async function copyRuntimeApp(target) {
     'start-console.mjs', 'connect-chatgpt.mjs', 'prepare-node-pty.mjs', 'restrict-kordoc-bin.mjs',
   ]) {
     await copyFile(join(repo, 'refoundation', 'scripts', script), join(refoundation, 'scripts', script));
-  }
-  for (const file of ['index.html', 'markdown.js', 'approval-state.js']) {
-    await copyFile(join(repo, 'src', 'surface', 'web', file), join(target, 'src', 'surface', 'web', file));
   }
   for (const file of ['COPYRIGHT', 'NOTICE', 'THIRD_PARTY_NOTICES.md']) {
     await copyFile(join(repo, file), join(target, file));

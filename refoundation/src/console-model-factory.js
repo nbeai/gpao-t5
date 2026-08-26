@@ -92,9 +92,11 @@ export function consoleInstructions(workspace, computer = {}, { interactionCoreM
   ].join('\n');
 }
 
-export function makeConsoleModelAccess({ connectionFile, stateDir, fetchImpl = globalThis.fetch } = {}) {
+export function makeConsoleModelAccess({
+  connectionFile, stateDir, fetchImpl = globalThis.fetch, secretStore = null,
+} = {}) {
   if (!connectionFile || !stateDir) throw new TypeError('connectionFile and stateDir are required');
-  const catalog = makeStoredModelCredentialCatalog({ file: connectionFile });
+  const catalog = makeStoredModelCredentialCatalog({ file: connectionFile, secretStore });
 
   return {
     async status() {
@@ -118,7 +120,7 @@ export function makeConsoleModelAccess({ connectionFile, stateDir, fetchImpl = g
       if (selected.kind === 'chatgpt_oauth') {
         const responseDumper = diagnostics ? makePromptDumper({ directory: join(dumpRoot, 'response') }) : null;
         return Object.assign(makeChatGptResponsesModel({
-          credentials: makeStoredChatGptCredentialSource({ file: connectionFile, fetchImpl }),
+          credentials: makeStoredChatGptCredentialSource({ file: connectionFile, fetchImpl, secretStore }),
           model: selected.modelId,
           instructions,
           fetchImpl,

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { appendFile, chmod, mkdir, readFile } from 'node:fs/promises';
+import { appendFile, chmod, mkdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const SCHEMA = 't5.work-event.v1';
@@ -11,29 +11,42 @@ export class WorkStore {
     if (!directory) throw new TypeError('work directory is required');
     this.directory = directory; this.file = join(directory, 'events.jsonl');
     this.makeId = makeId; this.now = now; this.queue = Promise.resolve();
+    this.loadedEvents = null; this.loadedProjection = null; this.loadedBytes = 0;
   }
 
   serialize(work) { const next = this.queue.then(work, work); this.queue = next.catch(() => {}); return next; }
   async events() {
+    if (this.loadedEvents) {
+      let size = 0; try { size = (await stat(this.file)).size; }
+      catch (error) { if (error?.code !== 'ENOENT') throw error; }
+      if (size === this.loadedBytes) return this.loadedEvents;
+      this.loadedEvents = null; this.loadedProjection = null;
+    }
     let text = ''; try { text = await readFile(this.file, 'utf8'); }
     catch (error) { if (error?.code !== 'ENOENT') throw error; }
     const events = text.split('\n').filter(Boolean).map(JSON.parse);
     events.forEach((event, index) => {
       if (event.schema !== SCHEMA || event.sequence !== index + 1) throw new Error('invalid work event sequence');
     });
-    return events;
+    this.loadedEvents = events; this.loadedBytes = Buffer.byteLength(text, 'utf8');
+    return this.loadedEvents;
   }
   async append(type, payload) {
     return this.serialize(async () => {
       await mkdir(this.directory, { recursive: true, mode: 0o700 }); await chmod(this.directory, 0o700);
       const events = await this.events();
       const event = { schema: SCHEMA, sequence: events.length + 1, recordedAt: this.now(), type, ...clone(payload) };
-      await appendFile(this.file, `${JSON.stringify(event)}\n`, { encoding: 'utf8', mode: 0o600 });
+      const line = `${JSON.stringify(event)}\n`;
+      try { await appendFile(this.file, line, { encoding: 'utf8', mode: 0o600 }); }
+      catch (error) { this.loadedEvents = null; this.loadedProjection = null; this.loadedBytes = 0; throw error; }
+      events.push(event); this.loadedBytes += Buffer.byteLength(line, 'utf8'); this.loadedProjection = null;
       await chmod(this.file, 0o600); return clone(event);
     });
   }
   async read() {
-    const events = await this.events(); const works = new Map(); const inputs = new Map(); const claims = new Map();
+    const events = await this.events();
+    if (this.loadedProjection) return clone(this.loadedProjection);
+    const works = new Map(); const inputs = new Map(); const claims = new Map();
     const proposals = new Map(); const results = new Map();
     for (const event of events) {
       if (event.type === 'work_created') works.set(event.workId, { workId: event.workId,
@@ -228,9 +241,10 @@ export class WorkStore {
         }
       }
     }
-    return { events: clone(events), works: clone([...works.values()]), inputs: clone([...inputs.values()]),
+    this.loadedProjection = { events: clone(events), works: clone([...works.values()]), inputs: clone([...inputs.values()]),
       claims: clone([...claims.values()]), proposals: clone([...proposals.values()]),
       results: clone([...results.values()]) };
+    return clone(this.loadedProjection);
   }
   async create({ sessionId, sourceMessageId }) {
     const workId = this.makeId(); await this.append('work_created', { workId, sessionId, sourceMessageId });

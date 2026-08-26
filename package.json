@@ -1,6 +1,6 @@
 {
   "name": "gpao-t5",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "description": "GPAO-T5 Original AI Operating System — local development build",
@@ -10,27 +10,26 @@
     "node": ">=22"
   },
   "bin": {
-    "gpao-t5": "bin/gpao-t5.mjs"
+    "gpao-t5": "refoundation/scripts/start-console.mjs"
   },
   "files": [
-    "bin",
-    "src",
-    "vendor"
+    "refoundation",
+    "COPYRIGHT",
+    "NOTICE",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {
-    "audit:compare-live": "python3 scripts/compare-live/compare_contract.py",
-    "test": "node --test --test-concurrency=3",
-    "start": "node src/surface/server.js",
-    "audit:workspace": "node scripts/audit-project-entry.mjs",
-    "model:facts": "node scripts/model-connection-facts.mjs",
-    "verify:package": "node scripts/verify-package.mjs",
+    "test": "npm run refoundation:ci",
+    "start": "node refoundation/scripts/start-console.mjs",
+    "verify:package": "npm run refoundation:verify:macos",
     "refoundation:doctor": "node refoundation/scripts/doctor.mjs",
     "refoundation:boundary": "node refoundation/scripts/check-boundary.mjs",
     "refoundation:test": "node --test --test-concurrency=1 refoundation/test/*.test.js",
     "refoundation:check": "npm run refoundation:doctor && npm run refoundation:boundary && npm run refoundation:test",
     "refoundation:integration": "node refoundation/scripts/run-product-integrations.mjs",
     "refoundation:integration:browser-live": "node --test --test-concurrency=1 refoundation/test/persistent-browser-live.integration.js",
-    "refoundation:ci": "npm run refoundation:check && npm run refoundation:integration",
+    "refoundation:mutation": "node refoundation/scripts/run-core-mutation-smoke.mjs",
+    "refoundation:ci": "npm run refoundation:check && npm run refoundation:integration && npm run refoundation:mutation",
     "refoundation:isolated": "node refoundation/scripts/run-isolated.mjs --",
     "refoundation:live": "node refoundation/scripts/run-live.mjs",
     "refoundation:connections": "node refoundation/scripts/list-connections.mjs",
@@ -70,14 +69,6 @@
     "refoundation:qualify:restart-hygiene": "node refoundation/scripts/run-incomplete-tool-restart-qualification.mjs",
     "refoundation:package:macos": "node refoundation/scripts/build-macos-installer.mjs",
     "refoundation:verify:macos": "node refoundation/scripts/verify-macos-installer.mjs",
-    "gate": "node scripts/gate.mjs",
-    "live:charter": "node scripts/live/charter.mjs",
-    "audit:docs": "node scripts/audit-docs.mjs",
-    "audit:plan": "node scripts/audit-plan.mjs",
-    "audit:mutation": "node scripts/audit-mutation.mjs",
-    "p90-1:live-reseal": "node scripts/production90/p90-1-live-reseal.mjs",
-    "human-use:prepare": "node scripts/human-use/prepare.mjs",
-    "human-use:verify": "node scripts/human-use/verify-evidence.mjs",
-    "preview:isolated": "GPAO_T5_DATA_DIR=/tmp/t5-preview-state GPAO_T5_HOME=/tmp/t5-preview-home node src/surface/server.js"
+    "preview:isolated": "T5_REFOUNDATION_CONSOLE_STATE=/tmp/t5-preview-state T5_REFOUNDATION_WORKSPACE=/tmp/t5-preview-home node refoundation/scripts/start-console.mjs"
   }
 }

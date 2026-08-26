@@ -103,7 +103,7 @@ import { makeLocalConsoleGuard } from './local-console-guard.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
-const legacyUiRoot = resolve(repositoryRoot, 'src', 'surface', 'web');
+const bundledUiRoot = resolve(repositoryRoot, 'refoundation', 'ui');
 const bundledSkillsRoot = resolve(repositoryRoot, 'refoundation', 'skills');
 const bundledSkillPackagesRoot = resolve(repositoryRoot, 'refoundation', 'skill-packages');
 const bundledSkillCatalogFile = resolve(repositoryRoot, 'refoundation', 'config', 'skill-catalog.json');
@@ -271,7 +271,7 @@ export function makeConsoleServer({
   workspace,
   modelFactory,
   modelStatus = () => ({ connected: false, provider: null, modelId: null }),
-  uiRoot = legacyUiRoot,
+  uiRoot = bundledUiRoot,
   computerEnvironment,
   revealPath,
   processRegistry,

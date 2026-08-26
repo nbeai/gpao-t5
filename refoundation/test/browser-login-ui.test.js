@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 test('일반 대화 UI는 전용 T5 브라우저 handoff를 표시하지 않는다', async () => {
-  const html = await readFile(resolve(root, 'src/surface/web/index.html'), 'utf8');
+  const html = await readFile(resolve(root, 'refoundation/ui/index.html'), 'utf8');
   assert.doesNotMatch(html, /browserHandoff/u);
   assert.doesNotMatch(html, /눈앞에 열린 T5 브라우저/u);
   assert.doesNotMatch(html, /원격 디버깅|Chrome 연결/u);

@@ -23,9 +23,10 @@ export function modelConnectionProviders() {
 
 export function makeModelConnectionService({
   file, fetchImpl = globalThis.fetch, oauthPort = 1455, oauthModel = 'gpt-5.5',
+  secretStore = null,
 } = {}) {
   if (!file) throw new TypeError('model connection file is required');
-  const catalog = makeStoredModelCredentialCatalog({ file });
+  const catalog = makeStoredModelCredentialCatalog({ file, secretStore });
   let pendingOAuth = null;
 
   return {
@@ -41,7 +42,7 @@ export function makeModelConnectionService({
     },
     async connect({ provider, key, modelId } = {}) {
       return saveApiKeyConnection({
-        file, provider, apiKey: key, modelId, fetchImpl,
+        file, provider, apiKey: key, modelId, fetchImpl, secretStore,
       });
     },
     async startChatGpt() {
@@ -64,7 +65,9 @@ export function makeModelConnectionService({
         const credential = await exchangeChatGptCode({
           code, verifier: pending.pkce.verifier, port: oauthPort,
         }, { fetchImpl });
-        const saved = await saveChatGptOAuthConnection({ file, credential, modelId: oauthModel });
+        const saved = await saveChatGptOAuthConnection({
+          file, credential, modelId: oauthModel, secretStore,
+        });
         return { ...saved, userSafeSummary: 'ChatGPT 계정을 연결했어요.' };
       } finally {
         pending.callback.cancel();

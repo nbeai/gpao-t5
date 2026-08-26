@@ -6,6 +6,7 @@ import { join } from 'node:path';
 
 import {
   makeStoredChatGptCredentialSource, makeStoredModelCredentialCatalog,
+  migrateStoredModelCredentials,
 } from '../src/chatgpt-oauth-credential.js';
 import { makeChatGptResponsesModel } from '../src/chatgpt-responses-model.js';
 
@@ -31,6 +32,53 @@ function savedConnection(credential, modelId = 'gpt-account-model') {
     }],
   };
 }
+
+function secretStore() {
+  const values = new Map();
+  return {
+    values,
+    async get(name) { return structuredClone(values.get(name) ?? null); },
+    async set(name, value) { values.set(name, structuredClone(value)); },
+    async clear(name) { values.delete(name); },
+  };
+}
+
+test('기존 모델 API key와 OAuth token은 Keychain 검증 뒤 파일에서 제거된다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-model-secret-migration-'));
+  const file = join(dir, 'model-connection.json'); const secrets = secretStore();
+  const state = savedConnection({
+    access: ACCESS, refresh: REFRESH, expiresAt: Date.now() + 600_000, accountId: 'acct-1',
+  });
+  state.connections.push({ id: 'api_key:openai:gpt-5.6-terra', kind: 'api_key',
+    provider: 'openai', modelId: 'gpt-5.6-terra', key: 'sk-file-secret' });
+  await writeFile(file, JSON.stringify(state), { mode: 0o600 });
+  try {
+    assert.deepEqual(await migrateStoredModelCredentials({ file, secretStore: secrets }), { migrated: 2 });
+    const raw = await readFile(file, 'utf8');
+    assert.doesNotMatch(raw, /oauth-access-must-stay-secret|oauth-refresh-must-stay-secret|sk-file-secret/u);
+    const stored = JSON.parse(raw);
+    assert.ok(stored.connections.every((connection) => connection.secretRef));
+    const catalog = makeStoredModelCredentialCatalog({ file, secretStore: secrets });
+    assert.equal((await catalog.select('api_key:openai:gpt-5.6-terra')).apiKey, 'sk-file-secret');
+    assert.equal((await makeStoredChatGptCredentialSource({ file, secretStore: secrets }).get()).access, ACCESS);
+    assert.equal((await stat(file)).mode & 0o777, 0o600);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('Keychain 검증 실패는 기존 평문 자격 파일을 먼저 지우지 않는다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-model-secret-migration-failure-'));
+  const file = join(dir, 'model-connection.json');
+  await writeFile(file, JSON.stringify(savedConnection({
+    access: ACCESS, refresh: REFRESH, expiresAt: Date.now() + 600_000,
+  })), { mode: 0o600 });
+  const broken = { async set() {}, async get() { return { credential: { access: 'wrong' } }; },
+    async clear() {} };
+  try {
+    await assert.rejects(migrateStoredModelCredentials({ file, secretStore: broken }),
+      /verification failed/u);
+    assert.match(await readFile(file, 'utf8'), /oauth-access-must-stay-secret/u);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
 
 function sseResponse(lines, status = 200) {
   return new Response(`${lines.map((line) => `data: ${JSON.stringify(line)}\n\n`).join('')}data: [DONE]\n\n`, {

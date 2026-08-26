@@ -21,7 +21,7 @@ test('연결 성공과 modality 지원을 섞지 않고 unknown을 보존한다'
 });
 
 test('일반 사용자는 설정에서 현재 모델의 도구·이미지·스트리밍 지원 상태를 본다', async () => {
-  const html = await readFile(new URL('../../src/surface/web/index.html', import.meta.url), 'utf8');
+  const html = await readFile(new URL('../../refoundation/ui/index.html', import.meta.url), 'utf8');
   assert.match(html, /id="mcCapabilities"/u);
   assert.match(html, /이미지 입력 \$\{stateText\[facts\.visionInput\]/u);
   assert.match(html, /지원 안 함/u);

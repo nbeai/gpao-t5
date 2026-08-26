@@ -7,7 +7,9 @@ import { join, resolve } from 'node:path';
 
 import { makeConsoleModelAccess } from '../src/console-model-factory.js';
 import { makeModelConnectionService } from '../src/model-connection-service.js';
-import { makeStoredModelCredentialCatalog } from '../src/chatgpt-oauth-credential.js';
+import {
+  makeStoredModelCredentialCatalog, migrateStoredModelCredentials,
+} from '../src/chatgpt-oauth-credential.js';
 import { makeStoredOpenAIWebSearchProvider } from '../src/openai-web-search-provider.js';
 import { makeDuckDuckGoSearchProvider } from '../src/duckduckgo-search-provider.js';
 import { makeBingSearchProvider } from '../src/bing-search-provider.js';
@@ -45,16 +47,21 @@ const portFile = process.env.T5_REFOUNDATION_PORT_FILE
   ? resolve(process.env.T5_REFOUNDATION_PORT_FILE) : null;
 await Promise.all([mkdir(stateDir, { recursive: true }), mkdir(workspace, { recursive: true })]);
 
-const access = makeConsoleModelAccess({ connectionFile, stateDir });
-const modelConnections = makeModelConnectionService({ file: connectionFile });
-const credentialCatalog = makeStoredModelCredentialCatalog({ file: connectionFile });
+const platformSecretStore = makePlatformSecretStore({ platform: computerEnvironment.platform });
+await migrateStoredModelCredentials({ file: connectionFile, secretStore: platformSecretStore });
+const access = makeConsoleModelAccess({ connectionFile, stateDir, secretStore: platformSecretStore });
+const modelConnections = makeModelConnectionService({
+  file: connectionFile, secretStore: platformSecretStore,
+});
+const credentialCatalog = makeStoredModelCredentialCatalog({
+  file: connectionFile, secretStore: platformSecretStore,
+});
 const webSearchProviders = [
   makeStoredOpenAIWebSearchProvider({ credentialCatalog }),
   makeNaverSearchProvider(),
   makeDuckDuckGoSearchProvider(),
   makeBingSearchProvider(),
 ];
-const platformSecretStore = makePlatformSecretStore({ platform: computerEnvironment.platform });
 const connectionStateStore = new ConnectionStateStore(join(stateDir, 'connections', 'connection-state.sqlite'));
 const connectionCredentialCoordinator = new ConnectionCredentialCoordinator({
   stateStore: connectionStateStore, secretStore: platformSecretStore, makeId: randomUUID,

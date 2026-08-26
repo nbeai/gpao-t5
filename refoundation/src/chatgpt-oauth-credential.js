@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { modelCapabilityManifest } from './model-capabilities.js';
@@ -73,6 +74,52 @@ async function atomicSave(file, state) {
   await rename(temporary, file);
 }
 
+export function modelCredentialSecretName(id) {
+  const digest = createHash('sha256').update(String(id ?? '')).digest('hex').slice(0, 32);
+  return `model-credential-${digest}`;
+}
+
+function inlineSecret(connection) {
+  if (connection?.kind === 'api_key' && connection.key) return { key: connection.key };
+  if (connection?.kind === 'chatgpt_oauth' && connection.credential) {
+    return { credential: connection.credential };
+  }
+  return null;
+}
+
+async function connectionSecret(connection, secretStore) {
+  const inline = inlineSecret(connection);
+  if (!secretStore) return inline;
+  const ref = connection?.secretRef ?? modelCredentialSecretName(connection?.id);
+  return secretStore.get(ref);
+}
+
+export async function migrateStoredModelCredentials({ file, secretStore } = {}) {
+  if (!file || !secretStore?.get || !secretStore?.set || !secretStore?.clear) {
+    throw new TypeError('model connection file and secure store are required');
+  }
+  const state = await readState(file);
+  if (!state) return { migrated: 0 };
+  let migrated = 0;
+  const next = structuredClone(state);
+  for (const connection of next.connections ?? []) {
+    const secret = inlineSecret(connection);
+    if (!secret) continue;
+    const secretRef = modelCredentialSecretName(connection.id);
+    await secretStore.set(secretRef, secret);
+    const verified = await secretStore.get(secretRef);
+    if (JSON.stringify(verified) !== JSON.stringify(secret)) {
+      throw new Error('Secure model credential verification failed');
+    }
+    delete connection.key;
+    delete connection.credential;
+    connection.secretRef = secretRef;
+    migrated += 1;
+  }
+  if (migrated) await atomicSave(file, next);
+  return { migrated };
+}
+
 function validationRequest(provider, modelId, key) {
   const baseUrl = API_PROVIDERS[provider].baseUrl;
   if (provider === 'openai') return {
@@ -145,6 +192,7 @@ export async function validateApiKeyConnection({
 
 export async function saveApiKeyConnection({
   file, provider: providerValue, apiKey, modelId: modelValue, fetchImpl = globalThis.fetch,
+  secretStore = null,
 } = {}) {
   if (!file) throw new TypeError('model connection file is required');
   const provider = apiProvider(providerValue);
@@ -160,8 +208,10 @@ export async function saveApiKeyConnection({
     throw new ModelConnectionError('Stored model connection format is unsupported');
   }
   const id = `api_key:${provider}:${modelId}`;
+  const secretRef = secretStore ? modelCredentialSecretName(id) : null;
+  if (secretStore) await secretStore.set(secretRef, { key });
   const record = {
-    id, kind: 'api_key', provider, modelId, key,
+    id, kind: 'api_key', provider, modelId, ...(secretStore ? { secretRef } : { key }),
     baseUrl: API_PROVIDERS[provider].baseUrl,
     validation: {
       verifiedAt: new Date().toISOString(), observedModelId: validation.observedModelId ?? null,
@@ -204,6 +254,7 @@ async function refreshOAuth(connection, { fetchImpl, now }) {
 /** Read and refresh the existing console's OAuth credential without importing the legacy runtime. */
 export function makeStoredChatGptCredentialSource({
   file,
+  secretStore = null,
   fetchImpl = globalThis.fetch,
   now = Date.now,
 } = {}) {
@@ -213,35 +264,46 @@ export function makeStoredChatGptCredentialSource({
   async function loadConnection() {
     const state = await readState(file);
     const connection = activeConnection(state, 'chatgpt_oauth');
-    return { state, connection };
+    const secret = connection ? await connectionSecret(connection, secretStore) : null;
+    return { state, connection, credential: secret?.credential ?? null };
   }
 
   return {
     async inspect() {
-      const { connection } = await loadConnection();
-      if (!connection) return { available: false, provider: 'chatgpt_oauth', modelId: null, accountIdPresent: false };
+      const { connection, credential } = await loadConnection();
+      if (!connection || !credential?.access) {
+        return { available: false, provider: 'chatgpt_oauth', modelId: connection?.modelId ?? null,
+          accountIdPresent: false };
+      }
       return {
         available: true,
         provider: 'chatgpt_oauth',
         modelId: connection.modelId ?? null,
-        accountIdPresent: Boolean(connection.credential?.accountId),
+        accountIdPresent: Boolean(credential?.accountId),
       };
     },
     async get() {
-      const { state, connection } = await loadConnection();
-      if (!connection?.credential?.access) throw new Error('No stored ChatGPT OAuth connection is available');
-      if (!connection.credential.expiresAt || connection.credential.expiresAt <= now()) {
+      const { state, connection, credential } = await loadConnection();
+      if (!credential?.access) throw new Error('No stored ChatGPT OAuth connection is available');
+      if (!credential.expiresAt || credential.expiresAt <= now()) {
         refreshing ??= (async () => {
+          connection.credential = credential;
           await refreshOAuth(connection, { fetchImpl, now });
-          await atomicSave(file, state);
+          if (secretStore) await secretStore.set(
+            connection.secretRef ?? modelCredentialSecretName(connection.id),
+            { credential: connection.credential },
+          );
+          else await atomicSave(file, state);
         })().finally(() => { refreshing = null; });
         await refreshing;
       }
+      const current = secretStore
+        ? (await connectionSecret(connection, secretStore))?.credential : connection.credential;
       return {
-        access: connection.credential.access,
-        refresh: connection.credential.refresh,
-        expiresAt: connection.credential.expiresAt,
-        accountId: connection.credential.accountId,
+        access: current.access,
+        refresh: current.refresh,
+        expiresAt: current.expiresAt,
+        accountId: current.accountId,
         modelId: connection.modelId ?? null,
       };
     },
@@ -249,7 +311,7 @@ export function makeStoredChatGptCredentialSource({
 }
 
 /** Public metadata for both connection kinds. Secret values never leave `select`. */
-export function makeStoredModelCredentialCatalog({ file } = {}) {
+export function makeStoredModelCredentialCatalog({ file, secretStore = null } = {}) {
   if (!file) throw new TypeError('model connection file is required');
   return {
     async list() {
@@ -275,8 +337,10 @@ export function makeStoredModelCredentialCatalog({ file } = {}) {
       if (connection.kind === 'api_key') {
         const official = API_PROVIDERS[connection.provider];
         if (!official) throw new Error(`Unsupported API provider: ${connection.provider}`);
+        const secret = await connectionSecret(connection, secretStore);
+        if (!secret?.key) throw new Error('Stored model credential is unavailable');
         return {
-          kind: 'api_key', provider: connection.provider, apiKey: connection.key,
+          kind: 'api_key', provider: connection.provider, apiKey: secret.key,
           modelId: connection.modelId, baseUrl: official.baseUrl,
           capabilityManifest: modelCapabilityManifest(connection),
         };
@@ -303,6 +367,10 @@ export function makeStoredModelCredentialCatalog({ file } = {}) {
       if (!state?.connections) throw new ModelConnectionError('Model connection not found');
       const next = state.connections.filter((connection) => connection.id !== id);
       if (next.length === state.connections.length) throw new ModelConnectionError('Model connection not found');
+      const removed = state.connections.find((connection) => connection.id === id);
+      if (secretStore && removed) {
+        await secretStore.clear(removed.secretRef ?? modelCredentialSecretName(removed.id));
+      }
       state.connections = next;
       if (state.activeId === id) state.activeId = next[0]?.id ?? null;
       await atomicSave(file, state);

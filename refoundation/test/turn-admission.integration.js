@@ -117,7 +117,7 @@ test('실행 중 같은 대화의 새 발화는 의미 판단 전 Conversation·
 });
 
 test('콘솔은 서버 접수 성공 뒤에만 사용자 말풍선을 만들고 busy 입력을 보존한다', async () => {
-  const html = await readFile(new URL('../../src/surface/web/index.html', import.meta.url), 'utf8');
+  const html = await readFile(new URL('../../refoundation/ui/index.html', import.meta.url), 'utf8');
   const submit = html.slice(html.indexOf('async function submit()'), html.indexOf('function renderRecovery'));
   assert.ok(submit.indexOf('await startTurn(') < submit.indexOf("const box = turnBox()"));
   assert.match(submit, /turnStart\.admitted[\s\S]*반영하도록 받았어요/u);

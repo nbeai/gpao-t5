@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 test('설정은 서버가 실제 제공하는 모델과 ChatGPT OAuth를 동등한 연결 선택으로 보여준다', async () => {
-  const html = await readFile(resolve(root, 'src/surface/web/index.html'), 'utf8');
+  const html = await readFile(resolve(root, 'refoundation/ui/index.html'), 'utf8');
   assert.match(html, /endpointJson\('\/model\/providers'\)/u);
   assert.match(html, /id="mcProvider"/u);
   assert.match(html, /id="mcKey"[^>]*type="password"/u);
@@ -29,7 +29,7 @@ test('설정은 서버가 실제 제공하는 모델과 ChatGPT OAuth를 동등�
 });
 
 test('메신저 설정은 token 뒤 첫 개인 메시지를 자동 연결하고 현재 내 계정만 보여준다', async () => {
-  const html = await readFile(resolve(root, 'src/surface/web/index.html'), 'utf8');
+  const html = await readFile(resolve(root, 'refoundation/ui/index.html'), 'utf8');
   assert.match(html, /endpointJson\('\/channels\/providers'\)/u);
   assert.match(html, /id="msgProvider"/u);
   assert.match(html, /id="msgToken"[^>]*type="password"/u);
@@ -50,7 +50,7 @@ test('메신저 설정은 token 뒤 첫 개인 메시지를 자동 연결하고 
 });
 
 test('연결 설정은 설치·로그인 사용자 행동을 내부 용어 없이 실행하고 상태를 다시 확인한다', async () => {
-  const html = await readFile(resolve(root, 'src/surface/web/index.html'), 'utf8');
+  const html = await readFile(resolve(root, 'refoundation/ui/index.html'), 'utf8');
   assert.match(html, /action\.kind === 'user_action'/u);
   assert.match(html, /필요한 화면을 열고 있어요/u);
   assert.match(html, /JSON\.stringify\(\{ actionId: action\.id \}\)/u);

@@ -21,7 +21,7 @@ test('메신저에서 시작한 세션은 재시작·목록 projection까지 pro
 });
 
 test('현재 재사용 UI는 session origin만 받으면 기존 Telegram 아이콘을 표시한다', async () => {
-  const html = await readFile(new URL('../../src/surface/web/index.html', import.meta.url), 'utf8');
+  const html = await readFile(new URL('../../refoundation/ui/index.html', import.meta.url), 'utf8');
   assert.match(html, /CHANNEL_ICON\s*=\s*\{[^}]*telegram:\s*'✈️'/u);
   assert.match(html, /s\.origin\?\.channel/u);
   assert.match(html, /CHANNEL_ICON\[s\.origin\.channel\]/u);

@@ -19,7 +19,7 @@ test('창립 선언문은 제품 정본과 분리해 원문과 역할을 보존�
 test('설치된 T5는 같은 선언문을 설정에서 필요할 때만 읽는다', async () => {
   const [server, html, build, verify] = await Promise.all([
     readFile(resolve(root, 'refoundation', 'src', 'console-server.js'), 'utf8'),
-    readFile(resolve(root, 'src', 'surface', 'web', 'index.html'), 'utf8'),
+    readFile(resolve(root, 'refoundation', 'ui', 'index.html'), 'utf8'),
     readFile(resolve(root, 'refoundation', 'scripts', 'build-macos-installer.mjs'), 'utf8'),
     readFile(resolve(root, 'refoundation', 'scripts', 'verify-macos-installer.mjs'), 'utf8'),
   ]);

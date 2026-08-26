@@ -21,12 +21,13 @@
 
 ## 2. 현재 개발선
 
-- 기존 `src/`, `test/`, `scripts/`는 동결된 legacy 증거선이다.
-- 새 코어는 `refoundation/` 아래에서 독립적으로 만든다.
-- 새 코어는 legacy `src/`를 import하지 않는다.
+- 기존 1차 완성 `src/`, `test/`, `scripts/`, `bin/`, `vendor/`는 현재 저장소 밖
+  `/Users/jyp/Developer/t5-legacy-archive`의 읽기 전용 증거선으로 격리했다.
+- 현재 제품 코어·UI·검사·배포는 `refoundation/` 아래에서 독립적으로 만든다.
+- 현재 저장소는 legacy archive를 import·복사·실행하거나 배포 입력으로 사용하지 않는다.
 - 현재 콘솔 디자인과 대화 UX는 R4에서 재사용한다. 새 코어 개발을 이유로 UI를 다시 디자인하지 않는다.
-- legacy 제품 수정은 새 코어 비교에 필요한 계측 또는 즉시 차단해야 할 실제 P0 위험일 때만
-  오너에게 범위를 설명하고 별도 작업으로 연다.
+- legacy 조사는 archive에서 읽기 전용으로만 수행한다. 수정·재실행이 필요하면 현재 제품 작업과
+  분리된 별도 archive 작업으로 열며 결과를 현재 제품의 성공으로 간주하지 않는다.
 - Memory, Skills, Learning, Automation, Channels, Multi-agent는 `T5-SECOND-COMPLETION.md`의 현재
   Gate가 열기 전에는 구현하지 않는다.
 
@@ -104,8 +105,8 @@
 기존 검사를 지워 초록을 만들지 않는다. legacy 검사가 현재 제품 계약과 충돌하면 숨기지 말고 별도
 baseline으로 보고하고 오너 결정 없이 의미를 바꾸지 않는다.
 
-`npm test`와 `npm run gate`를 동시에 실행하지 않는다. 새 레인 일상 검사는
-`npm run refoundation:check`를 사용한다.
+현재 저장소의 `npm test`와 일상 검사는 현재 제품만 실행한다. 짧은 일상 검사는
+`npm run refoundation:check`, 제품 통합까지 포함한 CI는 `npm run refoundation:ci`를 사용한다.
 
 사용자에게 보이는 기능은 내부 호출 성공만으로 완료하지 않는다. 실제 콘솔에서 사용자의 시작점부터
 `진행 중 → 성공 또는 실패 → 현재 적용 상태`가 이해되는지 확인하고, 설정 화면·대화 입력 영역처럼

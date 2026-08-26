@@ -54,7 +54,8 @@ try {
     join(appRoot, 'refoundation', 'capabilities', 'asana', 'capability.json'),
     join(appRoot, 'refoundation', 'config', 'skill-catalog.json'),
     join(appRoot, 'refoundation', 'config', 'cli-catalog.json'),
-    join(appRoot, 'src', 'surface', 'web', 'index.html'),
+    join(appRoot, 'refoundation', 'ui', 'index.html'),
+    join(appRoot, 'refoundation', 'ui', 'connection-icons', 'notion.svg'),
     join(appRoot, 'COPYRIGHT'), join(appRoot, 'NOTICE'), join(appRoot, 'THIRD_PARTY_NOTICES.md'),
     join(appRoot, 'docs', '00-product', 'GPAO-T5-FOUNDER-MANIFESTO-ko.md'),
   ];
@@ -69,6 +70,12 @@ try {
   for (const forbidden of ['test', 'evidence']) {
     try { await stat(join(appRoot, 'refoundation', forbidden)); throw new Error(`forbidden payload: ${forbidden}`); }
     catch (error) { if (error?.code !== 'ENOENT') throw error; }
+  }
+  for (const forbiddenLegacyRoot of ['src', 'test', 'scripts', 'bin', 'vendor']) {
+    try {
+      await stat(join(appRoot, forbiddenLegacyRoot));
+      throw new Error(`legacy root is packaged: ${forbiddenLegacyRoot}`);
+    } catch (error) { if (error?.code !== 'ENOENT') throw error; }
   }
   const launcherKind = run('file', ['-b', join(app, 'Contents', 'MacOS', 'GPAO-T5')]);
   if (!launcherKind.includes('universal binary')) throw new Error('launcher is not universal');

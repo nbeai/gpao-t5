@@ -5,6 +5,7 @@ import { dirname } from 'node:path';
 
 import {
   CHATGPT_OAUTH_CLIENT_ID, CHATGPT_OAUTH_SCOPE, CHATGPT_OAUTH_TOKEN_URL,
+  modelCredentialSecretName,
 } from './chatgpt-oauth-credential.js';
 
 const AUTHORIZE_URL = 'https://auth.openai.com/oauth/authorize';
@@ -79,11 +80,16 @@ async function readExisting(file) {
   return parsed;
 }
 
-export async function saveChatGptOAuthConnection({ file, credential, modelId }) {
+export async function saveChatGptOAuthConnection({ file, credential, modelId, secretStore = null }) {
   if (!file || !credential?.access || !modelId) throw new TypeError('file, credential, and modelId are required');
   const state = await readExisting(file);
   const id = `chatgpt_oauth:${modelId}`;
-  const record = { id, kind: 'chatgpt_oauth', provider: 'chatgpt_oauth', modelId, credential };
+  const secretRef = secretStore ? modelCredentialSecretName(id) : null;
+  if (secretStore) await secretStore.set(secretRef, { credential });
+  const record = {
+    id, kind: 'chatgpt_oauth', provider: 'chatgpt_oauth', modelId,
+    ...(secretStore ? { secretRef } : { credential }),
+  };
   const index = state.connections.findIndex((connection) => connection.id === id);
   if (index >= 0) state.connections[index] = { ...state.connections[index], ...record };
   else state.connections.push(record);

@@ -8,7 +8,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 test('설정은 우측 overlay panel이 아니라 독립 경로·전체 작업면·브라우저 back을 가진 정식 page다', async () => {
   const [html, server] = await Promise.all([
-    readFile(resolve(root, 'src/surface/web/index.html'), 'utf8'),
+    readFile(resolve(root, 'refoundation/ui/index.html'), 'utf8'),
     readFile(resolve(root, 'refoundation/src/console-server.js'), 'utf8'),
   ]);
   assert.equal(server.includes("url.pathname === '/settings'"), true);
@@ -22,7 +22,7 @@ test('설정은 우측 overlay panel이 아니라 독립 경로·전체 작업�
 });
 
 test('도구와 연결 page는 OAuth와 사업자 credential을 같은 Connection Truth에서 그린다', async () => {
-  const html = await readFile(resolve(root, 'src/surface/web/index.html'), 'utf8');
+  const html = await readFile(resolve(root, 'refoundation/ui/index.html'), 'utf8');
   assert.match(html, /action\.kind === 'credentials'/u);
   assert.match(html, /connection\.credentialRequest\?\.fields/u);
   assert.match(html, /type = field\.secret \? 'password' : 'text'/u);

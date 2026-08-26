@@ -32,8 +32,9 @@ npm run refoundation:qualify:context-pressure -- --keep
 npm run refoundation:qualify:conversation-pressure -- --keep
 ```
 
-`refoundation:check`가 일상 진입점이다. legacy 전체 테스트와 gate는 새 코어의 일상 완료 기준이 아니다.
-legacy 기준선은 단계 비교 또는 legacy 변경 작업에서 별도로 실행한다.
+`refoundation:check`가 일상 진입점이다. 1차 완성 코드는 현재 저장소 밖
+`/Users/jyp/Developer/t5-legacy-archive`에 읽기 전용으로 보존되며 현재 제품의 실행·검사·배포에
+참여하지 않는다. 과거 비교가 필요할 때만 archive를 별도 환경에서 읽는다.
 
 `refoundation:integration`은 루프백 서버를 여는 관통 검사다. 로컬 포트를 제한하는 샌드박스에서는
 해당 권한이 필요하다. CI와 단계 Gate는 `refoundation:ci`로 일상 검사와 통합검사를 함께 실행한다.

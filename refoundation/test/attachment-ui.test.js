@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 test('기존 콘솔 입력은 다중 파일 선택·드래그앤드롭·첨부 chip을 한 표면에서 제공한다', async () => {
-  const html = await readFile(resolve(root, 'src/surface/web/index.html'), 'utf8');
+  const html = await readFile(resolve(root, 'refoundation/ui/index.html'), 'utf8');
   assert.match(html, /id="attach"[^>]*aria-label="파일 첨부"/);
   assert.match(html, /id="filepick"[^>]*type="file"[^>]*multiple/);
   assert.match(html, /uploadFiles\(e\.dataTransfer\?\.files/);
@@ -17,7 +17,7 @@ test('기존 콘솔 입력은 다중 파일 선택·드래그앤드롭·첨부 c
 });
 
 test('모델이 등록한 결과물은 preview를 먼저 보여주고 크게 보기·파일 받기·원문 보기를 제공한다', async () => {
-  const html = await readFile(resolve(root, 'src/surface/web/index.html'), 'utf8');
+  const html = await readFile(resolve(root, 'refoundation/ui/index.html'), 'utf8');
   assert.match(html, /function renderArtifacts/);
   assert.match(html, /record\.previewUrl/);
   assert.match(html, /artifact-preview/);
@@ -36,7 +36,7 @@ test('모델이 등록한 결과물은 preview를 먼저 보여주고 크게 보
 });
 
 test('결과물 크게 보기는 대화와 분리된 modal에 preview·코드·웹앱 파일목록을 연다', async () => {
-  const html = await readFile(resolve(root, 'src/surface/web/index.html'), 'utf8');
+  const html = await readFile(resolve(root, 'refoundation/ui/index.html'), 'utf8');
   assert.match(html, /function openArtifactDetail/);
   assert.match(html, /dialog\.showModal\(\)/);
   assert.match(html, /record\.previewKind === 'web_app'/);

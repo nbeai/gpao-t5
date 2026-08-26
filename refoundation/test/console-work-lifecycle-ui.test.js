@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const consoleHtml = resolve(root, 'src/surface/web/index.html');
+const consoleHtml = resolve(root, 'refoundation/ui/index.html');
 
 test('진행 표면은 서버 startedAt을 사용해 3초 뒤부터 실제 경과 시간을 표시한다', async () => {
   const html = await readFile(consoleHtml, 'utf8');

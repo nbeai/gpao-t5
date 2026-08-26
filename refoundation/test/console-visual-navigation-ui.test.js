@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const consoleHtml = resolve(root, 'src/surface/web/index.html');
+const consoleHtml = resolve(root, 'refoundation/ui/index.html');
 
 test('주요 픽토그램은 18px 시각 크기와 36px 클릭 영역을 함께 가진다', async () => {
   const html = await readFile(consoleHtml, 'utf8');
