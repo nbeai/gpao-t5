@@ -1,4 +1,4 @@
-const TERMINAL_TOOLS = new Set(['exec', 'process_start', 'pty_start', 'process_control']);
+const TERMINAL_TOOLS = new Set(['exec', 'terminal_session']);
 const BROWSER_TOOLS = new Set(['browser']);
 const RESULT_KEYS = [
   'state', 'stdout', 'stderr', 'truncated', 'omittedChars', 'exitCode', 'processExitCode',

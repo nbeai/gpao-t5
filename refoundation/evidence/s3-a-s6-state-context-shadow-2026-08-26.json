@@ -27,38 +27,38 @@
   },
   "groups": {
     "short_session:cold_process": {
-      "n": 3, "stateReadReplayMedianMs": 0.947375, "contextCompilationMedianMs": 1.09325,
-      "requestBytes": 28865, "inputItems": 10, "tailEntries": 8
+      "n": 3, "stateReadReplayMedianMs": 1.158, "contextCompilationMedianMs": 1.154333,
+      "requestBytes": 28767, "inputItems": 10, "tailEntries": 8
     },
     "short_session:warm_resident": {
-      "n": 3, "stateReadReplayMedianMs": 0.232458, "contextCompilationMedianMs": 0.363625,
-      "requestBytes": 28865, "inputItems": 10, "tailEntries": 8
+      "n": 3, "stateReadReplayMedianMs": 0.192792, "contextCompilationMedianMs": 0.358166,
+      "requestBytes": 28767, "inputItems": 10, "tailEntries": 8
     },
     "long_session:cold_process": {
-      "n": 3, "stateReadReplayMedianMs": 6.734625, "contextCompilationMedianMs": 1.675041,
-      "requestBytes": 49501, "inputItems": 53, "tailEntries": 50
+      "n": 3, "stateReadReplayMedianMs": 6.629458, "contextCompilationMedianMs": 1.629125,
+      "requestBytes": 49403, "inputItems": 53, "tailEntries": 50
     },
     "long_session:warm_resident": {
-      "n": 3, "stateReadReplayMedianMs": 4.755833, "contextCompilationMedianMs": 0.801125,
-      "requestBytes": 49501, "inputItems": 53, "tailEntries": 50
+      "n": 3, "stateReadReplayMedianMs": 4.94675, "contextCompilationMedianMs": 0.7975,
+      "requestBytes": 49403, "inputItems": 53, "tailEntries": 50
     }
   },
   "deltasMs": {
-    "longMinusShortColdState": 5.78725,
-    "longMinusShortWarmState": 4.523375,
-    "longMinusShortColdContext": 0.581791,
-    "longMinusShortWarmContext": 0.4375,
-    "longWarmMinusColdState": -1.978792,
-    "longWarmMinusColdContext": -0.873916
+    "longMinusShortColdState": 5.471458,
+    "longMinusShortWarmState": 4.753958,
+    "longMinusShortColdContext": 0.474792,
+    "longMinusShortWarmContext": 0.439334,
+    "longWarmMinusColdState": -1.682708,
+    "longWarmMinusColdContext": -0.831625
   },
   "interpretation": {
     "directObservation": [
-      "checkpoint bounds the 757658-byte canonical fixture to a 49501-byte provider request",
+      "checkpoint bounds the 757658-byte canonical fixture to a 49403-byte provider request",
       "long-session local replay is materially larger than context compilation in both cold and warm samples",
       "warm residence reduces both measured phases while preserving the exact provider body digest and oracle"
     ],
-    "inference": "ConversationLedger still parses the complete canonical JSONL while WorkStore reuses its resident projection; this is consistent with the long warm replay remaining 4.755833ms despite bounded context.",
-    "decision": "Do not open Event Kernel or SQLite work. The long local state+context total is about 8.41ms cold and 5.56ms warm, while existing evidence shows checkpoint auxiliary model work at six calls and about 270k input tokens. Continue to S7 background interference before any architecture choice."
+    "inference": "ConversationLedger still parses the complete canonical JSONL while WorkStore reuses its resident projection; this is consistent with the long warm replay remaining 4.94675ms despite bounded context.",
+    "decision": "Do not open Event Kernel or SQLite work. The long local state+context total is about 8.26ms cold and 5.74ms warm, while existing evidence shows checkpoint auxiliary model work at six calls and about 270k input tokens. Continue to S7 background interference before any architecture choice."
   },
   "notMeasured": [
     "provider queue or network", "model generation", "checkpoint auxiliary model wall",
@@ -71,7 +71,7 @@
     "memory-ledger.js": "6d8df58fd6d17881bd73dd7412a0e4446ada3f5791ca44c616070a8fb620f5ed",
     "conversation-checkpoint.js": "7173b286ac17f6b28d58e23938f0bd87d009cec805bf00180821129ba2e678b0",
     "information-context.js": "c1938b6aacecc05e043bb470900cdcff74c77b59dc252a9db72f0be81522258a",
-    "conversation-projection.js": "3bfcdbec95d12f07d0f68e8d6f6da598134c6d392f0f734b3ac565fbd3f53949",
+    "conversation-projection.js": "9269f62948396b2979d1fa383fc83c8ad8b9382ae4907044e1f092d39e3078c7",
     "context-receipt.js": "93e7516773b6bb205862460ef1bf5a75fc24800f5d9ef9346b337f35c4ab632d"
   },
   "artifactDigests": {

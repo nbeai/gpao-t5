@@ -204,7 +204,7 @@ export async function snapshotHumanFiles(root) {
   return snapshot;
 }
 
-const INTERNAL_TERMS = /pendingId|toolCallId|local_change|session_search|process_control|ToolReceipt|runId|approvalToken/u;
+const INTERNAL_TERMS = /pendingId|toolCallId|local_change|session_search|terminal_session|process_control|ToolReceipt|runId|approvalToken/u;
 
 export function commonHumanChecks(turns) {
   const answers = turns.map((turn) => String(turn.answer ?? ''));

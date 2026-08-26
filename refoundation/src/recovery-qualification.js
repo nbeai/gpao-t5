@@ -169,7 +169,8 @@ export function assessRecoveryCase({ definition, fixture, before, after, status,
     const allOutput = calls.map((call) => JSON.stringify(call.result ?? {})).join('\n');
     checks = {
       ...common,
-      usedPty: calls.some((call) => call.requestedCall?.name === 'pty_start'),
+      usedPty: calls.some((call) => call.requestedCall?.name === 'terminal_session'
+        && call.requestedCall?.args?.action === 'start_tty'),
       observedValue: /TTY_VALUE.*hello-r3/.test(`${allOutput}\n${answer}`),
       answeredValue: /hello-r3/.test(String(answer)),
     };

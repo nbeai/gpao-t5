@@ -30,9 +30,10 @@ test('진행 언어는 판단을 말하지 않고 실제 작업 단계에 맞는
     ['conversation_recall', { action: 'read' }, '이전 작업 결과를 다시 읽고 있어요'],
     ['exec', { effect: { kind: 'observe' } }, '컴퓨터에서 필요한 정보를 확인하고 있어요'],
     ['exec', { effect: { kind: 'local_change' } }, '컴퓨터에서 요청한 작업을 진행하고 있어요'],
-    ['process_start', {}, '시간이 걸리는 작업을 시작하고 있어요'],
-    ['process_control', { action: 'poll' }, '진행 중인 작업의 상태를 확인하고 있어요'],
-    ['pty_start', {}, '대화형 터미널 작업을 시작하고 있어요'],
+    ['terminal_session', { action: 'start' }, '시간이 걸리는 작업을 시작하고 있어요'],
+    ['terminal_session', { action: 'poll' }, '진행 중인 작업의 상태를 확인하고 있어요'],
+    ['terminal_session', { action: 'start_tty' }, '대화형 터미널 작업을 시작하고 있어요'],
+    ['terminal_session', { action: 'read_output' }, '필요한 컴퓨터 작업 결과를 정확히 확인하고 있어요'],
   ];
   for (const [name, args, expected] of starts) assert.equal(toolProgressText(name, args), expected);
   assert.ok(new Set(starts.map(([, , text]) => text)).size >= 15);
@@ -43,6 +44,7 @@ test('진행 언어는 판단을 말하지 않고 실제 작업 단계에 맞는
   assert.equal(toolCompletedProgressText('browser', {}), '화면에서 확인한 내용을 정리하고 있어요');
   assert.equal(toolCompletedProgressText('attachment', {}), '파일에서 확인한 내용을 정리하고 있어요');
   assert.equal(toolCompletedProgressText('exec', {}), '컴퓨터 작업 결과를 다시 확인하고 있어요');
+  assert.equal(toolCompletedProgressText('terminal_session', {}), '진행 중인 컴퓨터 작업 결과를 확인하고 있어요');
 
   const publicTexts = [
     modelProgressText(1), modelProgressText(2), safeProgressText('secret-token'),

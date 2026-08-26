@@ -104,9 +104,7 @@ const COMPLETED_PROGRESS = Object.freeze({
   session_search: '지난 대화에서 찾은 내용을 현재 요청과 이어보고 있어요',
   conversation_recall: '이전 작업에서 찾은 내용을 정리하고 있어요',
   exec: '컴퓨터 작업 결과를 다시 확인하고 있어요',
-  process_start: '시작한 작업의 상태를 확인하고 있어요',
-  process_control: '진행 중인 작업 결과를 확인하고 있어요',
-  pty_start: '대화형 작업 결과를 확인하고 있어요',
+  terminal_session: '진행 중인 컴퓨터 작업 결과를 확인하고 있어요',
 });
 
 const FIXED_PROGRESS_TEXT = new Set([
@@ -159,9 +157,12 @@ export function toolProgressText(name, args = {}) {
   if (name === 'session_search') return SESSION_PROGRESS[action] ?? '지난 대화를 확인하고 있어요';
   if (name === 'conversation_recall') return RECALL_PROGRESS[action]
     ?? '이전 작업 결과를 다시 확인하고 있어요';
-  if (name === 'process_start') return '시간이 걸리는 작업을 시작하고 있어요';
-  if (name === 'process_control') return PROCESS_PROGRESS[action] ?? '진행 중인 작업을 확인하고 있어요';
-  if (name === 'pty_start') return '대화형 터미널 작업을 시작하고 있어요';
+  if (name === 'terminal_session') {
+    if (action === 'start') return '시간이 걸리는 작업을 시작하고 있어요';
+    if (action === 'start_tty') return '대화형 터미널 작업을 시작하고 있어요';
+    if (action === 'read_output') return '필요한 컴퓨터 작업 결과를 정확히 확인하고 있어요';
+    return PROCESS_PROGRESS[action] ?? '진행 중인 작업을 확인하고 있어요';
+  }
   if (name === 'exec') return args?.effect?.kind === 'observe'
     ? '컴퓨터에서 필요한 정보를 확인하고 있어요'
     : '컴퓨터에서 요청한 작업을 진행하고 있어요';

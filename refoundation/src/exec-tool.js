@@ -8,6 +8,7 @@ import { makePtyStartTool } from './pty-tool.js';
 import { commandWithManagedPath } from './managed-command-path.js';
 import { redactBrokeredTerminalResult } from './terminal-credential-broker.js';
 import { makeTerminalOutputTool } from './terminal-output-store.js';
+import { makeTerminalSessionTool } from './terminal-session-tool.js';
 
 const DEFAULT_YIELD_MS = 1000;
 const DEFAULT_OUTPUT_LIMIT = 64_000;
@@ -202,7 +203,7 @@ function makeCommandTool(options = {}, { managed }) {
             const stored = await terminalOutputStore.save({ sessionId: ownerId, runId: options.originRunId,
               stdout: full.stdout.text, stderr: full.stderr.text });
             result.outputRecall = { handle: stored.handle, streams: stored.streams };
-            result.activatedTools = ['terminal_output'];
+            result.activatedTools = [options.outputRecallToolName ?? 'terminal_output'];
           }
           registry.forget(result.processId, ownerId);
           const { processId: ignoredProcessId, cursor: ignoredCursor, ...foreground } = result;
@@ -330,15 +331,18 @@ export function makeTerminalHand(options = {}) {
     platform: options.computer?.platform ?? process.platform,
     outputLimit: options.outputLimit ?? DEFAULT_OUTPUT_LIMIT,
   });
-  const exec = makeExecTool({ ...options, processRegistry });
+  const exec = makeExecTool({ ...options, processRegistry, outputRecallToolName: 'terminal_session' });
   const start = makeProcessStartTool({ ...options, processRegistry });
   const ptyStart = makePtyStartTool({ ...options, processRegistry });
   const control = makeProcessControlTool({ processRegistry, ownerId: options.ownerId });
   const output = options.terminalOutputStore && options.ownerId
     ? makeTerminalOutputTool({ store: options.terminalOutputStore, sessionId: options.ownerId }) : null;
-  start.relatedTools = ['process_control'];
-  start.searchTerms = ['long running background command managed process', '오래 걸리는 백그라운드 작업'];
-  ptyStart.relatedTools = ['process_control'];
-  ptyStart.searchTerms = ['interactive terminal tty tui stdin prompt', '대화형 터미널 입력'];
-  return { processRegistry, tools: [exec, start, ptyStart, control, ...(output ? [output] : [])] };
+  const session = makeTerminalSessionTool({
+    start, ptyStart, control, output, effectSchema: EFFECT_SCHEMA,
+  });
+  session.searchTerms = [
+    'long running background command managed process interactive terminal tty tui stdin prompt exact output',
+    '오래 걸리는 백그라운드 작업 대화형 터미널 입력 정확한 출력',
+  ];
+  return { processRegistry, tools: [exec, session] };
 }

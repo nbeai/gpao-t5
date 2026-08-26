@@ -6,6 +6,12 @@ import { join } from 'node:path';
 
 import { makeConsoleServer } from '../src/console-server.js';
 
+const terminalSessionArgs = (overrides = {}) => ({
+  action: 'list', command: null, cwd: null, effect: null, processId: null, cursor: null,
+  input: null, end: null, waitMs: null, cols: null, rows: null, handle: null,
+  stream: null, offset: null, limit: null, ...overrides,
+});
+
 test('제품 콘솔은 safe login PATH와 configured HOME을 실제 모델 Terminal 호출에 배선한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-console-terminal-environment-'));
   const stateDir = join(room, 'state'); const workspace = join(room, 'workspace');
@@ -50,14 +56,14 @@ test('제품 콘솔은 safe login PATH와 configured HOME을 실제 모델 Termi
   }
 });
 
-test('잘린 foreground output은 다음 모델 턴에만 recall tool을 열고 exact 중간을 재실행 없이 읽는다', async () => {
+test('잘린 foreground output은 다음 모델 턴에만 terminal session을 열고 exact 중간을 재실행 없이 읽는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-console-terminal-recall-'));
   const stateDir = join(room, 'state'); const workspace = join(room, 'workspace'); await mkdir(workspace);
   let turn = 0; let execCalls = 0;
   const modelFactory = () => ({ async respond(input) {
     turn += 1;
     if (turn === 1) {
-      assert.equal(input.tools.some((tool) => tool.name === 'terminal_output'), false);
+      assert.equal(input.tools.some((tool) => tool.name === 'terminal_session'), false);
       execCalls += 1;
       return { text: '', toolCalls: [{ id: 'large-output', name: 'exec', args: {
         command: `${JSON.stringify(process.execPath)} -e ${JSON.stringify(
@@ -71,12 +77,13 @@ test('잘린 foreground output은 다음 모델 턴에만 recall tool을 열고 
     if (turn === 2) {
       assert.equal(receipt.actualCall.name, 'exec'); assert.equal(receipt.result.truncated, true);
       assert.ok(receipt.result.outputRecall.handle);
-      assert.equal(input.tools.some((tool) => tool.name === 'terminal_output'), true);
-      return { text: '', toolCalls: [{ id: 'recall-output', name: 'terminal_output', args: {
-        handle: receipt.result.outputRecall.handle, stream: 'stdout', offset: 39980, limit: 100,
-      } }] };
+      assert.equal(input.tools.some((tool) => tool.name === 'terminal_session'), true);
+      return { text: '', toolCalls: [{ id: 'recall-output', name: 'terminal_session', args: terminalSessionArgs({
+        action: 'read_output', handle: receipt.result.outputRecall.handle,
+        stream: 'stdout', offset: 39980, limit: 100,
+      }) }] };
     }
-    assert.equal(receipt.actualCall.name, 'terminal_output');
+    assert.equal(receipt.actualCall.name, 'terminal_session');
     assert.match(receipt.result.text, /EXACT-MIDDLE/u);
     return { text: '중간 출력까지 확인했습니다.', toolCalls: [] };
   } });
@@ -349,7 +356,7 @@ test('콘솔 모델이 장기 exec handle을 poll해 새 출력과 실제 완료
     let observed = '';
     return { async respond(input) {
       const last = input.messages.at(-1);
-      if (!input.tools.some((tool) => tool.name === 'process_start')) return {
+      if (!input.tools.some((tool) => tool.name === 'terminal_session')) return {
         text: '', toolCalls: [{
           id: 'find-long-process', name: 'tool_search',
           args: { query: 'long running background command managed process' },
@@ -358,36 +365,37 @@ test('콘솔 모델이 장기 exec handle을 poll해 새 출력과 실제 완료
       if (last.role !== 'tool' || last.name === 'tool_search') return {
         text: '', responseId: 'start', responseModel: 'process-model',
         toolCalls: [{
-          id: 'long-exec', name: 'process_start',
-          args: {
+          id: 'long-exec', name: 'terminal_session',
+          args: terminalSessionArgs({
+            action: 'start',
             command: "printf 'phase-1'; sleep 0.08; printf 'phase-2'", cwd: null,
             effect: { kind: 'observe', summary: '진행 출력', targets: [], reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null },
-          },
+          }),
         }],
       };
       const receipt = JSON.parse(last.content);
-      if (receipt.requestedCall.name === 'process_start') {
+      if (receipt.requestedCall.name === 'terminal_session' && receipt.requestedCall.args.action === 'start') {
         assert.equal(receipt.result.state, 'running');
         observed += receipt.result.stdout;
         return {
           text: '', responseId: 'poll', responseModel: 'process-model',
           toolCalls: [{
-            id: 'long-poll', name: 'process_control', args: {
+            id: 'long-poll', name: 'terminal_session', args: terminalSessionArgs({
               action: 'poll', processId: receipt.result.processId,
               cursor: receipt.result.cursor, input: null, end: null, waitMs: 200,
-            },
+            }),
           }],
         };
       }
-      assert.equal(receipt.requestedCall.name, 'process_control');
+      assert.equal(receipt.requestedCall.name, 'terminal_session');
       observed += receipt.result.stdout;
       if (receipt.result.state === 'running') return {
         text: '', responseId: 'poll-again', responseModel: 'process-model',
         toolCalls: [{
-          id: `long-poll-${Date.now()}`, name: 'process_control', args: {
+          id: `long-poll-${Date.now()}`, name: 'terminal_session', args: terminalSessionArgs({
             action: 'poll', processId: receipt.result.processId,
             cursor: receipt.result.cursor, input: null, end: null, waitMs: 200,
-          },
+          }),
         }],
       };
       assert.equal(receipt.result.state, 'completed');
@@ -436,7 +444,7 @@ test('콘솔 취소는 실행 중인 자식 프로세스 트리를 실제로 끝
   const modelFactory = () => ({
     async respond(input) {
       const last = input.messages.at(-1);
-      if (!input.tools.some((tool) => tool.name === 'process_start')) return {
+      if (!input.tools.some((tool) => tool.name === 'terminal_session')) return {
         text: '', toolCalls: [{
           id: 'find-cancel-process', name: 'tool_search',
           args: { query: 'long running background command managed process' },
@@ -444,20 +452,21 @@ test('콘솔 취소는 실행 중인 자식 프로세스 트리를 실제로 끝
       };
       if (last.role !== 'tool' || last.name === 'tool_search') return {
         text: '', toolCalls: [{
-          id: 'cancel-exec', name: 'process_start',
-          args: {
+          id: 'cancel-exec', name: 'terminal_session',
+          args: terminalSessionArgs({
+            action: 'start',
             command: `(sleep 0.5; printf late > '${marker}') & wait`, cwd: null,
             effect: { kind: 'local_change', summary: '테스트 marker 생성', targets: [marker], reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null },
-          },
+          }),
         }],
       };
       const receipt = JSON.parse(last.content);
       return {
         text: '', toolCalls: [{
-          id: `cancel-poll-${Date.now()}`, name: 'process_control', args: {
+          id: `cancel-poll-${Date.now()}`, name: 'terminal_session', args: terminalSessionArgs({
             action: 'poll', processId: receipt.result.processId,
             cursor: receipt.result.cursor, input: null, end: null, waitMs: 30000,
-          },
+          }),
         }],
       };
     },
@@ -543,7 +552,7 @@ test('모델 호출 실패는 run_failed 원문과 다시 볼 사용자용 실�
   }
 });
 
-test('관측되지 않은 process_start 완료가 같은 세션의 모델 Run을 자동으로 깨운다', async () => {
+test('관측되지 않은 terminal_session 완료가 같은 세션의 모델 Run을 자동으로 깨운다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-console-process-wake-'));
   const stateDir = join(room, 'state');
   const workspace = join(room, 'workspace');
@@ -556,7 +565,7 @@ test('관측되지 않은 process_start 완료가 같은 세션의 모델 Run을
         text: '자동 완료 알림: wake-output', toolCalls: [],
         responseId: 'wake-model', responseModel: 'wake-test-model',
       };
-      if (!input.tools.some((tool) => tool.name === 'process_start')) return {
+      if (!input.tools.some((tool) => tool.name === 'terminal_session')) return {
         text: '', toolCalls: [{
           id: 'find-wake-process', name: 'tool_search',
           args: { query: 'long running background command managed process' },
@@ -564,11 +573,12 @@ test('관측되지 않은 process_start 완료가 같은 세션의 모델 Run을
       };
       if (turn++ === 0) return {
         text: '', toolCalls: [{
-          id: 'wake-process', name: 'process_start',
-          args: {
+          id: 'wake-process', name: 'terminal_session',
+          args: terminalSessionArgs({
+            action: 'start',
             command: "sleep 0.08; printf 'wake-output'", cwd: null,
             effect: { kind: 'observe', summary: '완료 출력', targets: [], reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null },
-          },
+          }),
         }],
         responseId: 'start-model', responseModel: 'wake-test-model',
       };

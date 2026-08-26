@@ -1,0 +1,48 @@
+{
+  "schema": "t5.s3.terminal-core-surface.v1",
+  "status": "product_surface_integrated_human_provider_qualification_pending",
+  "userCompletionSlice": "short commands remain exec; managed process, TTY, delta observation, input, stop, and exact output recall share one continuous terminal_session surface",
+  "comparison": {
+    "beforeActiveTerminalTools": 4,
+    "afterActiveTerminalTools": 2,
+    "beforeSchemaBytes": 3869,
+    "afterSchemaBytes": 2895,
+    "schemaBytesReduced": 974,
+    "schemaReductionPercent": 25.2,
+    "executionEngineRewritten": false,
+    "receiptSemanticsChanged": false
+  },
+  "qualified": {
+    "foregroundExecPreserved": true,
+    "managedProcessDeltaPollPreserved": true,
+    "ptyInputAndResizePreserved": true,
+    "exactTruncatedOutputRecallPreserved": true,
+    "commandRerunForRecall": 0,
+    "cancelAndAutomaticWakeConsoleJourneysPreserved": true,
+    "progressLanguageUsesUserTerms": true
+  },
+  "verification": {
+    "focused": "47/47 passed",
+    "fullCore": "933/934 passed",
+    "fullCoreFailure": "pre-existing QH-3 temporary-directory cleanup ENOTEMPTY; reproduced alone; no Terminal assertion failed",
+    "visibleBrowserLiveRun": false,
+    "personalCredentialRun": false,
+    "externalEffectRun": false
+  },
+  "notYetQualified": [
+    "Terra and gpt-5.5 same-purpose live A/B",
+    "effect declaration burden reduction",
+    "output retention and disk lifecycle",
+    "authenticated personal CLI broker registrations",
+    "Windows and Linux secret confinement"
+  ],
+  "sourceDigests": {
+    "terminal-session-tool.js": "0a9b82bf3c2118b62111b119dbe85a44e21ec931b80434b0e2bdfe908ecb6aaa",
+    "exec-tool.js": "60870fe0704130bb94038e7b3c79c815977c6054b07278160f8380d14e2a4d80",
+    "console-model-factory.js": "4edd7a0756f22b486968b4721379d00ada0631aff1dcdd2c1d98730ccb63e2d5"
+  },
+  "testDigests": {
+    "terminal-session-tool.test.js": "4278d3ffd87282631b1cb9ec822e15b2b1fc72c24000117e5aba5044e2043843",
+    "console-surface.integration.js": "a232353094262e801480e0ced4820434ed3c1907fa230f566e1a7604d52acc50"
+  }
+}

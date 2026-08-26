@@ -123,7 +123,7 @@ function informationFamily(name) {
   if (name === 'automation' || name === 'automation_outcome') return 'automation';
   if (name === 'skill') return 'capability';
   if (name === 'attachment') return 'artifact';
-  if (name === 'exec' || name === 'process_control' || name === 'terminal_output') return 'computer';
+  if (name === 'exec' || name === 'terminal_session') return 'computer';
   return null;
 }
 function attachmentSurface(record) {

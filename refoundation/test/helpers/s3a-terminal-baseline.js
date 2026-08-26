@@ -2,7 +2,9 @@ import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { makeTerminalHand } from '../../src/exec-tool.js';
+import { makeExecTool, makeProcessControlTool, makeProcessStartTool } from '../../src/exec-tool.js';
+import { ManagedProcessRegistry } from '../../src/managed-process.js';
+import { makePtyStartTool } from '../../src/pty-tool.js';
 import { makeS3aPerformanceObserver } from './s3a-performance-observer.js';
 
 const digest = (value) => createHash('sha256').update(String(value)).digest('hex');
@@ -48,11 +50,14 @@ export async function createTerminalBaselineFixture(root) {
 }
 
 export async function measureTerminalBaseline(fixture, { observerMode = 'O2_full_shadow' } = {}) {
-  const terminal = makeTerminalHand({
-    workingDirectory: fixture.home, workspace: fixture.home,
-    ownerId: 's3a-terminal-fixture', outputLimit: 256, yieldMs: 20,
-  });
-  const [exec, start, , control] = terminal.tools;
+  const common = { workingDirectory: fixture.home, workspace: fixture.home,
+    ownerId: 's3a-terminal-fixture', outputLimit: 256, yieldMs: 20 };
+  const processRegistry = new ManagedProcessRegistry({ outputLimit: 256 });
+  const exec = makeExecTool({ ...common, processRegistry });
+  const start = makeProcessStartTool({ ...common, processRegistry });
+  const ptyStart = makePtyStartTool({ ...common, processRegistry });
+  const control = makeProcessControlTool({ processRegistry, ownerId: common.ownerId });
+  const terminal = { tools: [exec, start, ptyStart, control] };
   const observer = makeS3aPerformanceObserver({ mode: observerMode, maxSpans: 16 });
   let environment;
   let output;
