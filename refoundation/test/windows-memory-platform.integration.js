@@ -82,5 +82,6 @@ test('actual Windows runner는 같은 projection 계약을 x64에서 실행한�
 test('GitHub Windows runner는 projection을 실행하되 VM Search PASS로 부르지 않는다', async () => {
   const workflow = await readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
   assert.match(workflow, /windows-terminal:[\s\S]*windows-memory-platform\.integration\.js/u);
+  assert.match(workflow, /workflow_dispatch:/u);
   assert.doesNotMatch(workflow, /Windows Search VM PASS/u);
 });
