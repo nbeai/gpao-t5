@@ -112,6 +112,8 @@
     "purposeAchieved", "resultCorrect", "resultComplete", "falseCompletion",
     "modelCalls", "toolCalls", "providerCachedAndUncachedTokens", "requestBytes",
     "firstFeedbackMs", "firstActualActionMs", "foregroundWallMs", "userAndApprovalBurden",
+    "firstMeaningfulMilestoneMs", "longestInvisibleIntervalMs", "cancelAdmissionToStopMs",
+    "recoveryActionVisibleMs", "verifiedArtifactVisible", "effectForensicCoverage",
     "stateReadReplayMs", "contextCompilationMs", "fileIoMs", "backgroundInterferencePairedDelta"
   ]
 }

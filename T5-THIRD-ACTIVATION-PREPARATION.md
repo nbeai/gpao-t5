@@ -1,23 +1,25 @@
 # T5 3차 고도화 — 활성화 전 준비 정본
 
-상태: `OWNER_ACTIVATED_S3A · S3T_PASS_WITH_OBSERVATION · S3M_M0_COMPLETE · S3CA_REGISTERED_IMPLEMENTATION_LOCKED · OPTIMIZATION LOCKED`
+상태: `OWNER_ACTIVATED_S3A · S3T_PASS_WITH_OBSERVATION · S3M_ACTIVE_UNTOUCHED · S3UX_REGISTERED · S3CA_REGISTERED_IMPLEMENTATION_LOCKED · OPTIMIZATION LOCKED`
 
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER`
 
 현재 공식 Release Gate와 2차 완성의 진행 정본은 계속 `T5-SECOND-COMPLETION.md`가 담당한다. 이 문서는
 그 Release 상태는 변경하지 않는다. 오너는 2026-08-26 S3-A 측정선을 활성화하고 Terminal-first 고도화를
-`PASS WITH OBSERVATION`으로 닫았으며, Life Continuity의 M0 완료 뒤 M1은 별도 개통 전까지 잠갔다. 외부
+`PASS WITH OBSERVATION`으로 닫았으며, Life Continuity는 별도 개발 세션에서 exact Gate 단위로 진행한다. 외부
 Capability의 개발자 명시 설치와 자연어 자기확장을 한 엔진으로 다루는 S3-CA는 연구·계획만 등록하고 제품
-구현은 S3-A 결과와 오너의 명시적 개통 전까지 잠근다. 이 문서는 측정·반대시험·판정의 범위와 최적화 전
-금지선을 유지한다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가 우선한다.
+구현은 S3-A 결과와 오너의 명시적 개통 전까지 잠근다. 2.0 설치본 실제 사용자가 확인한 장기 작업의 불안·
+교정·결과 전달·효과 사고 가족은 S3-UX 연구 입력과 기존 S3-A coverage에 비식별로 등록하되, 진행 중인 S3-M
+문서·source·시험은 이 반영에서 변경하지 않는다. 이 문서는 측정·반대시험·판정의 범위와 최적화 전 금지선을
+유지한다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가 우선한다.
 
 ## 1. 활성화 전 판정
 
 ```text
 2차 Release Gate: 변경 없음
-3차 개발선: S3-A 측정 활성 · S3-T 완료 · S3-M M0 완료/M1 잠금 · S3-CA 연구 등록/구현 잠금 · S3-PW 대기
-현재 허용 작업: S3-A 측정·판정, 오너가 연 exact 한 Gate, S3-CA 실제 실패·완료 문장·반대시험의 제품 변경 0 연구
-현재 금지 작업: 측정 결과를 전제한 구조 변경·성능 최적화, S3-CA 제품 hot path·설치 engine 선구현, 여러 큰 개발선 동시 개통
+3차 개발선: S3-A 측정 활성 · S3-T 완료 · S3-M 별도 진행 · S3-UX 연구 등록 · S3-CA 연구 등록/구현 잠금 · S3-PW 대기
+현재 허용 작업: S3-A 측정·판정, 오너가 연 exact 한 Gate, S3-UX/S3-CA 실제 실패·완료 문장·반대시험의 제품 변경 0 연구
+현재 금지 작업: 측정 결과를 전제한 구조 변경·성능 최적화, S3-UX/CA 제품 hot path 선구현, 여러 큰 개발선 동시 개통
 ```
 
 서명 identity 부재라는 Release 외부 blocker를 3차 소스 변경으로 해결한 것처럼 기록하지 않는다. 반대로
@@ -33,12 +35,15 @@ scope·evidence·판정을 유지한다.
 |---|---|---|
 | S3-A | 실제 사용자 목적의 phase·critical path·observer effect | 활성 · 미완료 |
 | S3-T | 모델과 Terminal의 환경·process·PTY·출력 recall·플랫폼 실행 | `PASS WITH OBSERVATION` · 완료 |
-| S3-M | Life Continuity·Memory Stewardship·내부 Reflection/Principle/Skill | M0 완료 · M1 개통 전 잠금 |
+| S3-M | Life Continuity·Memory Stewardship·내부 Reflection/Principle/Skill | 별도 개발 세션 진행 · 이 반영에서 변경 0 |
+| S3-UX | Work Reality·교정/취소/복구·인간용 Receipt·Artifact/Effect 안심 | 설치본 실패 등록 · 제품 구현 미개통 |
 | S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | 연구 승인 · 제품 구현 잠금 |
 | S3-PW | Windows installer·app shell·공통 제품 자격 | 대기 |
 
 개발선 표는 일정표가 아니다. S3-A 뒤 구조가 자동 개통되지 않으며, 오너가 연 한 제품 개발선만 hot path를
-변경한다. S3-M6는 내부 학습 Skill만, S3-CA는 외부 Skill·MCP·CLI·Plugin 획득만 소유한다.
+변경한다. S3-M6는 내부 학습 Skill만, S3-CA는 외부 Skill·MCP·CLI·Plugin 획득만 소유한다. S3-UX는 기존
+Run·Tool·Effect·Artifact truth의 인간용 projection과 통제 표면을 소유하며 모델 의미 판단이나 새 원장을
+소유하지 않는다.
 
 ## 2. 제품 약속과 3차 준비의 목적
 
@@ -252,7 +257,79 @@ S3-A에서 다음 작업을 열 때는 shadow 계측 계약을 반대시험부�
 현재 exact Gate를 되돌리거나 S3-CA 구현을 자동 개통하지 않는다. 제품 hot path 변경이나 최적화는 각 개발선의
 오너 개통과 실제 증거 없이 다음 작업이 아니다.
 
-## 9. S3-CA — Capability Reality & Safe Acquisition 등록 계약
+## 9. S3-UX — Work Visibility, Control & Outcome Reassurance 등록 계약
+
+S3-UX는 UI 재디자인이나 모델 사고 원문 공개가 아니다. 2.0 설치본 실제 사용자가 복잡한 프로그램 분석·
+Notion 결과 품질은 높게 평가하면서도 장기 작업 중 무엇이 진행되는지 알 수 없어 불안했고, 자연어 교정·취소·
+복구·이미지 전달·파일 효과 사고에서 통제권을 잃은 실제 실패를 기존 truth에서 인간이 이해할 projection으로
+닫는 개발선이다. 원본 피드백의 사람·경로·비밀·실제 파일은 저장소에 복제하지 않고 다음 비식별 실패 가족과
+positive control만 사용한다.
+
+```text
+F1 장기 Work의 완료 milestone·현재 활동·새 Evidence·기다림이 보이지 않음
+F2 자연어 교정·취소가 즉시 결속되지 않고 회복권이 늦거나 같은 실패 surface가 반복됨
+F3 요청한 이미지·기존 파일이 실제 Artifact bytes가 아니라 URL·깨진 preview·불필요한 변환으로 전달됨
+F4 대량 파일 effect 뒤 mode·ACL·flags·openability·원인·rollback의 forensic truth가 부족함
+F5 현재 목적보다 후속 산출을 먼저 실행하고 managed temporary·결과 이름·정리가 Work와 분리됨
+F6 provider/resource terminal 뒤 보존 상태와 가능한 다음 route가 사용자에게 이어지지 않음
+
+P1 실제 프로그램·테스트·API 분석과 외부 문서 반영의 높은 결과 품질
+P2 불명확한 로컬 파일을 여러 관측 route로 찾아 실제 내용 확인
+P3 없는 사실을 없다고 기록하고 기만적 문서 변조를 거절
+```
+
+S3-UX는 F1~F6을 줄이면서 P1~P3를 보존해야 한다. 특정 한국어 문장·서비스·폴더·이미지 검색어를 제품 규칙이나
+prompt few-shot으로 추가하지 않는다.
+
+### 사용자 완료 문장
+
+> 시간이 오래 걸리는 작업에서도 사용자는 T5가 실제로 완료한 단계, 현재 진행 중인 일, 새로 확인한 결과,
+> 기다리는 현실, 사용자 행동이 필요한 경계와 현재까지 보존된 상태를 이해한다. 언제든 평소 말이나 멈춤
+> 표면으로 교정·취소·재개할 수 있고, 결과가 파일·이미지·외부 효과라면 사용자가 실제로 열고 확인할 형태로
+> 전달된다. 내부 사고·prompt·원문 검색어·명령·비밀·민감 경로·Run/Tool ID는 노출하지 않는다.
+
+### 세 제품 Gate
+
+#### S3-UX1 — Work Reality & Control
+
+기존 Run·model·tool·process·Evidence·approval·capability·surface 사건에서 의미 있는 완료 milestone과 현재
+활동을 순서대로 projection한다. 정확한 전체 단계 수를 모르면 percentage·ETA를 만들지 않는다. elapsed는
+클라이언트가 계산하고 heartbeat를 원장에 누적하지 않는다. Session 이동·재시작 뒤 같은 Work 현실을 복원하며,
+자연어 교정·취소와 버튼 cancel은 같은 durable admission·process settlement·surface 결과로 이어진다.
+
+#### S3-UX2 — Human Receipt & Artifact Hygiene
+
+사용한 능력, 실제 생성·수정·전달한 결과, 검증 상태와 복원 가능성을 일반 사용자 언어로 접을 수 있는 표면에
+보인다. raw command는 개발자 상세에서만 exact Receipt로 접근한다. 이미지·문서·기존 로컬 파일은 실제 bytes·
+MIME·decode/reopen·hash·Attachment/Artifact publication이 선 뒤에만 전달됐다고 표시한다.
+
+파일은 Work source·temporary·verification artifact·final artifact·published copy·trash/rollback으로 구분하고,
+사람이 이해할 이름과 source Work를 가진다. 취소·실패 뒤 temporary를 사용자 폴더에 흩어 두지 않으며 최종
+결과만 사용자 공간에 publication한다.
+
+#### S3-UX3 — Effect Forensics & Recovery
+
+대량 이동·권한·설정·package 작업은 실행 전후의 exact target identity와 가능한 mode·ACL·flags·ownership·
+content/entry count·사용자 openability를 분리 관측한다. 한 move log에 명령이 없다는 이유로 전체 사고 원인을
+배제하지 않고, 관측하지 않은 원인은 `unknown`으로 둔다. recovery는 이전 상태·실행 diff·reverse plan·실제
+rollback Receipt를 사용하며 광범위한 chmod·재이동을 원인 확인 없이 덧붙이지 않는다.
+
+### S3-A·Terminal·CA·PW 접합
+
+- S3-A는 F1~F6을 기존 S2·S3·S4·S5 대표 여정에 흡수해 first meaningful milestone, longest invisible interval,
+  cancel-to-stop, recovery visible, artifact/effect verification을 측정한다. 대표 여정 수를 늘리거나 trace를
+  사용자 surface에 직접 노출하지 않는다.
+- S3-T는 완료된 process·PTY·output recall·platform execution 기반으로 유지하며 S3-UX 때문에 재개하지 않는다.
+- S3-CA는 기능이 존재하지만 degraded인 상태와 실제 부재를 구분하고, 안전한 Secret Input·Capability 연결과
+  실제 이미지/Artifact route를 같은 Work에 제공한다.
+- S3-PW는 macOS·Windows application icon·secret input·Finder/Explorer open·Activity/Receipt 표면의 동일 사용자
+  계약을 최종 제품 자격에서 확인한다.
+
+S3-UX 구현은 진행 중인 S3-M exact qualification과 동시에 제품 hot path를 바꾸지 않는다. S3-M source·계획·
+시험은 이 개발선 등록에서 변경하지 않으며, 현재 exact M 작업의 commit/evidence가 닫힌 뒤 오너가 S3-UX의
+한 Gate를 명시적으로 연다.
+
+## 10. S3-CA — Capability Reality & Safe Acquisition 등록 계약
 
 S3-CA는 Plugin 관리 화면이나 새 marketplace가 아니다. `T5-PRODUCT.md`가 이미 약속한 다음 생명주기를
 개발자 명시 설치와 일반 사용자 자연어 요청에서 한 acquisition·qualification·lifecycle로 완성하는 개발선이다.
@@ -282,6 +359,10 @@ S3-CA는 Plugin 관리 화면이나 새 marketplace가 아니다. `T5-PRODUCT.md
 unknown·incompatible` 사실만 작게 제공한다. 모델은 사용자 목적과 이 현실을 보고 필요한 능력과 대안을
 판단한다. Runtime은 서비스 이름·사용자 표현·키워드 규칙으로 의미를 선택하지 않는다.
 
+실제 반대시험은 제품에 이미지 delivery Hand가 있으나 현재 provider route만 degraded인 상태를 전체 기능 부재로
+승격하지 않고, existing bytes→decode→Attachment route와 새 외부 capability 필요를 구분해야 한다. 반대로 실제
+runtime·credential·platform이 없는 후보는 설명이나 설치 record만으로 `usable_now`가 될 수 없다.
+
 외부 package는 source·resolved version/commit·artifact digest·kind·platform·entrypoint·필요한 비밀·파일·
 network·effect·install/update/remove 전략을 선언한다. 하나의 고정 `trustLevel`로 자동 실행을 결정하지 않고,
 publisher/namespace identity·immutable ref·signature/attestation·license·실행 코드·권한·실제 qualification을
@@ -293,6 +374,11 @@ publisher/namespace identity·immutable ref·signature/attestation·license·실
 managed CLI, 별도 process로 격리한 executable extension, 선언형 T5 package다. local directory·Git exact ref·
 registry package·remote MCP URL을 같은 coordinator로 inspect·install·enable/disable·update·uninstall·rollback한다.
 
+비밀이 필요한 extension은 모델·Conversation·일반 Terminal·임시 `.command` 파일을 입력면으로 사용하지 않는다.
+사용자 통제 Secret Input이 원문을 platform Keychain/DPAPI owner에 직접 저장하고, provider/account identity와 실제
+permission probe가 성립한 뒤에만 ready generation을 연다. 이미 연결된 OAuth와 별도 API worker identity를 같은
+연결로 합치지 않는다.
+
 Codex·Claude·OpenClaw bundle 전체 호환을 약속하지 않는다. Agent Skills·MCP 같은 공개 표준과 선언적으로
 정규화 가능한 구성만 adapter로 수용한다. 임의 JavaScript·Python lifecycle hook을 서명된 T5 Core process에
 직접 load하는 경로는 첫 완료 범위에서 제외한다.
@@ -302,6 +388,10 @@ Codex·Claude·OpenClaw bundle 전체 호환을 약속하지 않는다. Agent Sk
 후보는 source identity·exact commit/version/hash·license·dependency/install script·prompt injection·OS/architecture·
 filesystem/network/secret/external effect·격리 fixture·동일 사용자 목적·제거/복원·Context/오류 비밀 노출을
 분리해 확인한다. Scanner·별점·다운로드 수·공식 Registry 존재·Skill의 `allowed-tools` 선언 하나는 합격이 아니다.
+
+Capability 준비 성공과 사용자 전달 성공도 분리한다. 이미지·문서·기존 파일을 제공하는 후보는 실제 bytes·
+MIME·decode/reopen·hash·Artifact/Attachment surface까지 동일 사용자 목적에서 확인하며, URL·Markdown·깨진 HTML
+preview를 결과 전달로 승격하지 않는다.
 
 ```text
 candidate → quarantined → structurally_checked → task_qualified
@@ -359,6 +449,7 @@ S3-M6는 CA capability의 usage outcome pointer를 Reflection Evidence로 참고
 S3-A Performance Truth
 AND S3-T Terminal exact close
 AND S3-M Life Continuity
+AND S3-UX Work Visibility, Control & Outcome Reassurance
 AND S3-CA Capability Reality & Safe Acquisition
 AND S3-PW가 필요한 Windows 공통 자격
 AND macOS·Windows 실제 사용자·비교군 Release

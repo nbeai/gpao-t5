@@ -70,6 +70,27 @@ S6 장기 Conversation·checkpoint
 S7 Automation·Learning background interference
 ```
 
+### 2.0 설치본 actual-user incident routing
+
+한 설치본 사용자가 복잡한 프로그램 분석·Notion 결과와 없는 사실의 정직한 처리는 높게 평가했지만 장기 작업의
+불가시성, 자연어 교정·취소, 이미지/기존 파일 전달, 대량 파일 효과 사고, 임시 산출물 위생, provider terminal
+복구에서 실제 실패를 관측했다. 사람·비밀·실경로·원본 파일은 fixture나 trace에 넣지 않는다. 새 대표 여정을
+추가하지 않고 다음처럼 기존 coverage에 비식별 동등 조건을 흡수한다.
+
+| 실패 가족 | 기존 여정 | 추가 관측·oracle |
+|---|---|---|
+| 장기 Work 불가시성 | S2·S3·S4 | first meaningful milestone, longest invisible interval, 새 Evidence 없는 진전 표시 0 |
+| 교정·취소·복구 | S5 | admission→표시, cancel→process terminal, recovery action visible, 같은 실패 surface 반복 0 |
+| 이미지·기존 파일 전달 | S3·S4 | URL/Markdown 주장 대신 actual bytes·decode/reopen·Artifact surface |
+| 대량 파일 effect 사고 | S3 | 전후 identity·mode/ACL/flags 관측 범위, openability, reverse plan·rollback, unobserved cause unknown |
+| 현재 목적·temporary 위생 | S3·S4 | 현재 목적 우선, managed temporary publication 0, final artifact naming·source Work |
+| provider/resource terminal | S1·S5·S6 | 보존 상태·사용 가능한 다음 route·사용자 surface, false completion 0 |
+
+positive control은 실제 프로그램·테스트·API 분석의 결과 품질, 불명확 파일의 다중 route 탐색, 없는 사실의
+정직한 처리다. 계측·UX 후보가 이 세 행동을 줄이거나 모델 route를 미리 정하면 실패다. S3-A trace sidecar는
+계속 모델 Context와 사용자 surface에 0이며, 이후 S3-UX는 canonical Run·Tool·Effect·Artifact 사건만 인간용으로
+projection한다.
+
 같은 여정 안에서도 서로 다른 외부 effect나 oracle을 한 성공값으로 합치지 않는다. 기존 증거만으로 phase와
 현재 비용을 같은 기준에서 재계산할 수 있으면 새 모델 호출 없이 재사용한다. 모델별로 표현을 바꾸거나 실패 후
 prompt를 보강하지 않는다. 짧은/긴 variant를 실제로 비교할 때는 현재 목적·필요 Evidence·정답이 같고 무관한
