@@ -125,6 +125,11 @@ test('사용자는 자연어로 temporal claim을 기억·교정·확인·철회
             action: 'export', requestId: null, memoryId: null,
           } }] };
         }
+        if (input.tools.some((tool) => tool.name === 'memory_control')) {
+          return { text: '', toolCalls: [{ id: 'export', name: 'memory_control', args: {
+            action: 'export', requestId: null, memoryId: null,
+          } }] };
+        }
         return { text: '', toolCalls: [{ id: 'find-export', name: 'tool_search', args: {
           query: 'portable JSON export restore',
         } }] };

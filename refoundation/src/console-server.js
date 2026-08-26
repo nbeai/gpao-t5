@@ -1418,8 +1418,7 @@ export function makeConsoleServer({
         performConnection: (id, actionId) => performConnectionAction(id, actionId, { sessionId }),
       }));
       const coreToolNames = [
-        'connection', 'memory', 'memory_claim',
-        ...((memorySnapshot.tombstones ?? []).length ? ['memory_control'] : []), 'skill',
+        'connection', 'memory', 'memory_claim', 'memory_control', 'skill',
         ...(options.trigger === 'automation' ? [] : ['work_completion']),
         ...(pendingLearningTrials.length ? ['learning_trial'] : []),
         // Public-web search, exact URL reading, and bounded multi-source research are
