@@ -37,7 +37,6 @@
     "refoundation:evidence": "node refoundation/scripts/summarize-live-evidence.mjs",
     "refoundation:qualify:project": "node refoundation/scripts/run-project-qualification.mjs",
     "refoundation:qualify:terminal": "node refoundation/scripts/run-terminal-performance.mjs",
-    "refoundation:qualify:terminal-human": "node refoundation/scripts/launch-terminal-core-human-console.mjs --human-controlled",
     "refoundation:baseline:documents": "node refoundation/scripts/run-document-compatibility-baseline.mjs",
     "refoundation:qualify:document-candidate": "node refoundation/scripts/run-document-candidate-qualification.mjs",
     "refoundation:qualify:document-connection": "node refoundation/scripts/run-qualified-document-connection.mjs",
