@@ -4,26 +4,6 @@ import { lstat, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs
 import { resolve, win32 } from 'node:path';
 
 const MAX_SECRET_BYTES = 512 * 1024;
-const PROTECT = [
-  "$ErrorActionPreference='Stop'",
-  '[Console]::InputEncoding=(New-Object System.Text.UTF8Encoding($false))',
-  '[Console]::OutputEncoding=(New-Object System.Text.UTF8Encoding($false))',
-  'Add-Type -AssemblyName System.Security',
-  '$plain=[string]::Join([Environment]::NewLine,@($input))',
-  '$bytes=[Text.Encoding]::UTF8.GetBytes($plain)',
-  '$cipher=[Security.Cryptography.ProtectedData]::Protect($bytes,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser)',
-  '[Console]::Out.Write([Convert]::ToBase64String($cipher))',
-].join(';');
-const UNPROTECT = [
-  "$ErrorActionPreference='Stop'",
-  '[Console]::InputEncoding=(New-Object System.Text.UTF8Encoding($false))',
-  '[Console]::OutputEncoding=(New-Object System.Text.UTF8Encoding($false))',
-  'Add-Type -AssemblyName System.Security',
-  '$encoded=[string]::Join([Environment]::NewLine,@($input))',
-  '$cipher=[Convert]::FromBase64String($encoded)',
-  '$plain=[Security.Cryptography.ProtectedData]::Unprotect($cipher,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser)',
-  '[Console]::Out.Write([Text.Encoding]::UTF8.GetString($plain))',
-].join(';');
 
 function safeName(value) {
   const name = String(value ?? '');
@@ -31,35 +11,28 @@ function safeName(value) {
   return name;
 }
 
-function trustedPowerShell(env = process.env) {
-  const root = env.SystemRoot ?? env.WINDIR;
-  if (!root || !win32.isAbsolute(root)) throw new Error('trusted Windows SystemRoot is unavailable');
-  return win32.join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+function trustedHost(program = process.env.T5_WINDOWS_JOB_HOST) {
+  if (!program || !win32.isAbsolute(program)) throw new Error('trusted Windows credential host is unavailable');
+  return program;
 }
 
-function encodedPowerShell(script) {
-  return Buffer.from(script, 'utf16le').toString('base64');
-}
-
-function runPowerShell(program, script, input, env = process.env) {
+function runNativeDpapi(program, action, input) {
   return new Promise((resolveRun, reject) => {
-    const child = spawn(program, ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand',
-      encodedPowerShell(script)], {
+    const child = spawn(program, [action], {
       stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true,
       env: Object.fromEntries(['SystemRoot', 'WINDIR', 'TEMP', 'TMP'].flatMap((key) => (
-        env[key] == null ? [] : [[key, env[key]]]
+        process.env[key] == null ? [] : [[key, process.env[key]]]
       ))),
     });
-    const stdout = []; const stderr = []; let bytes = 0; let settled = false;
+    const stdout = []; let bytes = 0; let settled = false;
     const timer = setTimeout(() => {
       if (settled) return; settled = true; child.kill(); reject(new Error('Windows DPAPI operation timed out'));
     }, 10_000);
-    const collect = (target) => (chunk) => {
+    child.stdout.on('data', (chunk) => {
       bytes += chunk.length;
-      if (bytes > MAX_SECRET_BYTES * 2) child.kill();
-      else target.push(Buffer.from(chunk));
-    };
-    child.stdout.on('data', collect(stdout)); child.stderr.on('data', collect(stderr));
+      if (bytes > MAX_SECRET_BYTES * 2) child.kill(); else stdout.push(Buffer.from(chunk));
+    });
+    child.stderr.on('data', () => {});
     child.once('error', (error) => {
       if (settled) return; settled = true; clearTimeout(timer); reject(error);
     });
@@ -77,9 +50,9 @@ function runPowerShell(program, script, input, env = process.env) {
 export function makeWindowsDpapiSecretStore({
   directory = process.env.LOCALAPPDATA
     ? resolve(process.env.LOCALAPPDATA, 'GPAO-T5', 'credentials') : null,
-  program = process.platform === 'win32' ? trustedPowerShell() : null,
-  protect = (plain) => runPowerShell(program, PROTECT, plain),
-  unprotect = (cipher) => runPowerShell(program, UNPROTECT, cipher),
+  program = process.platform === 'win32' ? trustedHost() : null,
+  protect = (plain) => runNativeDpapi(program, '--dpapi-protect', plain),
+  unprotect = (cipher) => runNativeDpapi(program, '--dpapi-unprotect', cipher),
 } = {}) {
   if (!directory) throw new Error('Windows credential directory is unavailable');
   const root = resolve(directory);

@@ -61,6 +61,8 @@ test('Windows Job host C source는 suspended child를 assign한 뒤 resume하고
     new URL('../native/windows/t5-windows-job-host.c', import.meta.url), 'utf8',
   ));
   assert.match(source, /JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE/u);
+  assert.match(source, /CryptProtectData/u);
+  assert.match(source, /CryptUnprotectData/u);
   assert.match(source, /CREATE_SUSPENDED/u);
   assert.ok(source.indexOf('AssignProcessToJobObject') < source.indexOf('ResumeThread'));
   assert.match(source, /SearchPathW/u);

@@ -10,7 +10,7 @@
     "JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE owns the whole child tree",
     "absence of the release-built Job host fails before execution and never falls back to taskkill /T",
     "ConPTY input resize exit and tree kill use the pinned node-pty Windows implementation",
-    "model and messenger secrets use DPAPI CurrentUser and ciphertext-only files",
+    "model and messenger secrets use native DPAPI CurrentUser in the release-built host and ciphertext-only files",
     "sandbox-first remains unavailable until an official Windows isolation host is qualified"
   ],
   "sourceFailures": [
