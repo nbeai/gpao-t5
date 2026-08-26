@@ -56,6 +56,10 @@ import { MemoryLedger } from './memory-ledger.js';
 import { makeRecordSourceReader } from './record-source-reader.js';
 import { projectConversationRecordReference } from './record-projection.js';
 import { ForgettingCoordinator } from './forgetting-coordinator.js';
+import {
+  makeSettingsMemoryRecordReference, projectMemorySurface, projectReopenedSource,
+} from './memory-surface.js';
+import { generateLivingLibrary } from './living-library.js';
 import { makeMemoryControlTool } from './memory-control-tool.js';
 import {
   makeMemoryClaimTool, makeMemoryTool, memoryContextMessage, memoryFlushRequest,
@@ -430,6 +434,45 @@ export function makeConsoleServer({
   const learningAdvances = new Set();
   const authority = new AuthorityStore(join(stateDir, 'authority'));
   const attachments = attachmentStore ?? new AttachmentStore(join(stateDir, 'attachments'));
+  const livingLibraryRoot = join(stateDir, 'living-library');
+  const userNotesRoot = join(stateDir, 'user-notes');
+  const settingsMemorySourceReader = makeRecordSourceReader({
+    mode: 'O2_full_shadow', conversationLedger: conversations, runLedger,
+    workStore, attachmentStore: attachments,
+  });
+  const settingsForgettingCoordinator = new ForgettingCoordinator({
+    memoryLedger: memories,
+    exactRecallProbe: async ({ plan }) => {
+      const state = await memories.read();
+      return plan.targets.filter((target) => target.kind === 'memory'
+        && state.claims.some((claim) => claim.memoryId === target.id && claim.status === 'active')).length;
+    },
+    contextProjectionProbe: async ({ plan }) => {
+      const state = await memories.read();
+      return plan.targets.filter((target) => target.kind === 'memory'
+        && state.items.some((item) => item.memoryId === target.id)).length;
+    },
+    behaviorProbe: async ({ plan }) => {
+      const state = await memories.read();
+      return plan.targets.some((target) => target.kind === 'memory'
+        && (state.items.some((item) => item.memoryId === target.id)
+          || state.claims.some((claim) => claim.memoryId === target.id && claim.status === 'active')))
+        ? 'fail' : 'pass';
+    },
+  });
+
+  function settingsMemoryReference(action, memoryId) {
+    return makeSettingsMemoryRecordReference({ action, memoryId });
+  }
+
+  async function forgetFromSettings(memoryId) {
+    const plan = await settingsForgettingCoordinator.preview({
+      memoryIds: [String(memoryId ?? '')], subjectKeys: [], scopeIds: [],
+    });
+    return settingsForgettingCoordinator.execute({
+      plan, recordRefs: [settingsMemoryReference('forget', memoryId)],
+    });
+  }
   const terminalOutputs = new TerminalOutputStore(join(stateDir, 'terminal-outputs'));
   const executableOutputOperations = new ExecutableOutputOperationStore({
     attachmentStore: attachments, workspace,
@@ -3625,21 +3668,81 @@ export function makeConsoleServer({
       if (req.method === 'GET' && url.pathname === '/memory/state') {
         await memories.ensure();
         const memory = await memories.read();
-        json(res, 200, { items: memory.items }); return;
+        json(res, 200, projectMemorySurface(memory)); return;
       }
       if (req.method === 'GET' && url.pathname === '/memory/ledger') {
         await memories.ensure();
         const memory = await memories.read();
-        json(res, 200, { entries: memory.events }); return;
+        json(res, 200, { deprecated: true, counts: projectMemorySurface(memory).counts }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/memory/source') {
+        const input = await body(req); await memories.ensure();
+        const memory = await memories.read();
+        const claim = memory.claims.find((item) => item.memoryId === String(input.memoryId ?? ''));
+        if (!claim) throw Object.assign(new Error('기억을 찾지 못했어요.'), { status: 404 });
+        const reference = claim.sources.find((item) => item.recordId === String(input.recordId ?? ''));
+        if (!reference) throw Object.assign(new Error('이 기억의 출처를 찾지 못했어요.'), { status: 404 });
+        const reopened = await settingsMemorySourceReader.reopen(reference, {
+          expectedSessionId: reference.scope.sessionId,
+          expectedWorkId: reference.scope.workId,
+        });
+        json(res, 200, { source: projectReopenedSource(reference, reopened) }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/memory/forget') {
+        const input = await body(req); const result = await forgetFromSettings(input.memoryId);
+        json(res, result.state === 'executed' ? 200 : 409, {
+          ...result, ok: result.state === 'executed', receiptWritten: Boolean(result.receipt),
+          userSafeSummary: result.state === 'executed'
+            ? '이 기억을 현재 사용에서 지웠어요. 되돌릴 수 있는 기록은 따로 남겼어요.'
+            : '기억이 바뀌어서 지우지 않았어요. 현재 상태를 다시 확인해 주세요.',
+        }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/memory/restore') {
+        const input = await body(req);
+        const restored = await settingsForgettingCoordinator.restore({
+          requestId: String(input.requestId ?? ''), memoryId: String(input.memoryId ?? ''),
+          recordRefs: [settingsMemoryReference('restore', input.memoryId)],
+        });
+        json(res, 200, { ...restored, ok: true,
+          userSafeSummary: '이 기억을 다시 현재 기억으로 되돌렸어요.' }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/memory/library/rebuild') {
+        await memories.ensure(); const memory = await memories.read();
+        const generated = await generateLivingLibrary({ state: memory, outputRoot: livingLibraryRoot,
+          userNotesRoot, generatedAt: new Date().toISOString() });
+        json(res, 200, { ok: true, generationId: generated.manifest.generationId,
+          canonical: generated.manifest.canonical, requiresObsidian: generated.manifest.requiresObsidian,
+          activeClaims: generated.manifest.activeClaims, userNotes: generated.manifest.userNotes,
+          viewUrl: `/memory/library/view/${generated.manifest.generationId}` }); return;
+      }
+      const livingLibraryView = req.method === 'GET' && url.pathname.match(
+        /^\/memory\/library\/view\/([a-f0-9]{24})$/u,
+      );
+      if (livingLibraryView) {
+        const html = await readFile(join(livingLibraryRoot, `generation-${livingLibraryView[1]}`, 'index.html'), 'utf8');
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store',
+          'content-security-policy': "default-src 'none'; base-uri 'none'; form-action 'none'",
+          'x-content-type-options': 'nosniff' });
+        res.end(html); return;
       }
       if (req.method === 'POST' && url.pathname === '/memory/rollback') {
         const input = await body(req);
         await memories.ensure();
-        const removed = await memories.remove({
-          memoryId: input.candidateId, source: { origin: 'settings', action: 'forget' },
-        });
+        const memory = await memories.read();
+        const temporal = memory.claims.some((claim) => claim.memoryId === input.candidateId
+          && claim.status === 'active');
+        if (temporal) {
+          const result = await forgetFromSettings(input.candidateId);
+          json(res, result.state === 'executed' ? 200 : 409, { ...result,
+            ok: result.state === 'executed', rolledBack: result.state === 'executed',
+            receiptWritten: Boolean(result.receipt),
+            userSafeSummary: '이 기억을 현재 사용에서 지웠어요. 되돌릴 수 있는 기록은 따로 남겼어요.',
+          }); return;
+        }
+        const removed = await memories.remove({ memoryId: input.candidateId,
+          source: { origin: 'settings', action: 'forget' } });
         json(res, 200, {
-          ok: true, removed: { id: removed.memoryId, kind: removed.kind },
+          ok: true, rolledBack: true, removed: { id: removed.memoryId, kind: removed.kind },
           receiptWritten: true,
           userSafeSummary: '이 기억을 현재 목록에서 지웠어요. 과거 대화는 그대로 남아요.',
         }); return;
