@@ -21,6 +21,7 @@ Do not place paragraph-length text by raw SVG coordinates. Preserve semantic tex
 ## Procedure
 
 1. Extract the exact content facts, data values, units, required result form, audience, and delivery medium.
+   Translate source field names and machine identifiers into audience language. Keep raw keys, paths, and internal labels out of the visible artifact unless the user needs them.
 2. Reuse only user-approved brand sources: logo, font, color ramp, spacing, and tone. Do not infer a durable brand from old outputs.
 3. Establish information hierarchy and geometry before decorative color. Use color, labels, shapes, and patterns together; never rely on color alone for meaning.
 4. For HTML artboards, mark the complete surface with `data-vd-artboard` and independent layout blocks with `data-vd-block`. Keep scripts, forms, network resources, and external fonts out of the artifact.

@@ -12,7 +12,7 @@ const expectedDigests = {
   'apple-reminders': 'f23943b61c02746d9b7a45a980bc25f5ac0e368862e2f9d1e3385b84dee7e86c',
   blogwatcher: 'bf1c624943aaf5940b2302a93c92701711e45fef5a6c057cda1ebc5bf2dd65fb',
   diagrams: '35f4e12110930fe6410a37f5aade2f18df77a5441f3f1a5161006ced503cb064',
-  'visual-deliverables': '8d4a7da2b08e3f5446934334935883b993b2072cbcf462473b07165a2f05f67a',
+  'visual-deliverables': 'ba7398ac2cd60a3410d446548c97003b14f294c14fc77d64fcedeef47037b885',
   'github-workflow': '79e171be0c075d7f821fff4ee88b2cb383fe8a5baf92b4c89577805c075ff0f1',
   'himalaya-email': '44cbb1fbddee8d13fe8d400cb4cc628d5db64f989e8909d83c4fd74a1f468848',
   'nano-pdf': '354462e94d6ccc4121a78d225e84b9f90d2dea7f1cd5c04544981ef8aa8d6781',

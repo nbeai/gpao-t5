@@ -12,6 +12,8 @@ import { consoleInstructions, makeConsoleModelAccess } from '../src/console-mode
 import { makeStoredModelCredentialCatalog } from '../src/chatgpt-oauth-credential.js';
 import { makeTerminalHand } from '../src/exec-tool.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
+import { makeSkillTool } from '../src/skill-tool.js';
+import { loadSkillSnapshot } from '../src/skill-snapshot.js';
 import { renderVisualDeliverable } from '../src/visual-deliverable-renderer.js';
 
 function option(name) {
@@ -70,6 +72,9 @@ const attachment = makeAttachmentTool({
   authorizeOutputPath: (candidate) => resolve(candidate).startsWith(`${resolve(workspace)}/`),
   renderVisualPreview: (file) => renderVisualDeliverable(file, { helperPath }),
 });
+const skill = makeSkillTool({
+  snapshot: await loadSkillSnapshot({ directory: resolve('refoundation/skills') }),
+});
 const output = join(workspace, '운영현황.html');
 const request = [
   '운영자료.json의 실제 내용만 사용해서 사장님이 한눈에 보는 한 페이지 한국어 HTML 운영 현황을 만들어줘.',
@@ -94,7 +99,7 @@ const startedAt = Date.now();
 let result;
 let error = null;
 try {
-  result = await runAgent({ request, model, tools: [...terminal.tools, attachment], maxModelTurns: 20,
+  result = await runAgent({ request, model, tools: [...terminal.tools, attachment, skill], maxModelTurns: 20,
   });
 } catch (caught) {
   error = caught?.message ?? String(caught);
@@ -111,12 +116,20 @@ const registrations = result.receipts.filter((receipt) => (
   && receipt.requestedCall?.args?.action === 'register_output'
   && receipt.result?.state === 'registered'
 ));
+const skillViews = result.receipts.filter((receipt) => (
+  receipt.requestedCall?.name === 'skill'
+  && receipt.requestedCall?.args?.action === 'view'
+  && receipt.requestedCall?.args?.name === 'visual-deliverables'
+  && receipt.outcome === 'succeeded'
+));
 const finalVisualReceipt = visualReceipts.at(-1)?.result?.observation?.designReceipt ?? null;
 const checks = {
   agentCompleted: result.status === 'completed',
   exactFacts: ['8월 운영 현황', '128', '3', '주문과 현재 재고를 실제 자료로 대조했습니다.']
     .every((value) => html.includes(value)),
+  noRawSourceKeysVisible: !/confirmedOrders|inventoryRisks/u.test(html),
   noExternalOrActiveContent: !/<script|<form|https?:\/\//iu.test(html),
+  visualSkillUsed: skillViews.length === 1,
   visualInspectionUsed: visualReceipts.length > 0,
   finalDesignReceiptNotFailed: ['qualified', 'unmeasured'].includes(finalVisualReceipt?.state),
   renderedPixelsSupplied: visualReceipts.some((receipt) => (
