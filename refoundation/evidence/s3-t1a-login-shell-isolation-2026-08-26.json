@@ -1,7 +1,7 @@
 {
   "schema": "t5.s3t1a.login-shell-isolation-qualification.v1",
-  "recordedAt": "2026-08-26T08:19:51.775Z",
-  "sourceCommit": "df891bb7525fb90ed9adeb3c0dccf6090c3fb362",
+  "recordedAt": "2026-08-26T08:23:45.772Z",
+  "sourceCommit": "7f31dd7a330496a0a62a77101108316dcad9798b",
   "status": "login_shell_isolation_repaired_secret_confinement_still_open",
   "before": {
     "configuredHomeEscaped": true,
