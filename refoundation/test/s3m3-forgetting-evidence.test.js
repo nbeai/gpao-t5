@@ -8,16 +8,19 @@ const root = new URL('../../', import.meta.url);
 const path = 'refoundation/evidence/s3-m3-forgetting-2026-08-26.json';
 const evidencePath = new URL(path, root);
 
-test('S3-M3 evidence는 deterministic forgetting과 미실행 actual model Gate를 분리한다', async () => {
+test('S3-M3 evidence는 deterministic forgetting과 actual two-model Gate를 모두 닫는다', async () => {
   const evidence = JSON.parse(await readFile(evidencePath, 'utf8'));
-  assert.equal(evidence.status, 'PASS_WITH_LIVE_MODEL_OBSERVATION_REQUIRED');
+  assert.equal(evidence.status, 'COMPLETE');
   assert.equal(evidence.stage.deterministicProductQualified, true);
-  assert.equal(evidence.stage.liveModelQualified, false);
-  assert.equal(evidence.stage.completed, false);
+  assert.equal(evidence.stage.liveModelQualified, true);
+  assert.equal(evidence.stage.completed, true);
   assert.equal(evidence.stage.m4Opened, false);
   assert.equal(evidence.contracts.unrelatedRecordLoss, 0);
   assert.equal(evidence.productJourneys.forgetReceipt.exactRecallAfter, 0);
   assert.equal(evidence.productJourneys.forgetReceipt.contextProjectionAfter, 0);
+  assert.equal(evidence.productJourneys.liveModels['gpt-5.5'].status, 'PASS_6_OF_6');
+  assert.equal(evidence.productJourneys.liveModels['gpt-5.6-terra'].status, 'PASS_6_OF_6');
+  assert.equal(evidence.productJourneys.liveModels.externalWrites, 0);
 });
 
 test('S3-M3 A/B는 추가 비용과 추가 통제 능력을 함께 보존한다', async () => {

@@ -1,14 +1,14 @@
 {
   "schema": "t5.s3m.m3-forgetting-evidence.v1",
-  "status": "PASS_WITH_LIVE_MODEL_OBSERVATION_REQUIRED",
-  "sourceCommit": "fee6b2f43566d7ffec205de8dae6442b6c91f7fa",
-  "recordedAt": "2026-08-26",
+  "status": "COMPLETE",
+  "sourceCommit": "0ce3d338d94cf391743fd57dcef193f59e4c9746",
+  "recordedAt": "2026-08-27",
   "officialReleaseGateChanged": false,
   "stage": {
     "deterministicProductQualified": true,
-    "liveModelQualified": false,
-    "completed": false,
-    "next": "S3-M3_LIVE_MODEL_QUALIFICATION",
+    "liveModelQualified": true,
+    "completed": true,
+    "next": "S3-M4_NOT_OPEN",
     "m4Opened": false,
     "newCanonicalStore": false,
     "sqliteAdded": false
@@ -56,10 +56,20 @@
     "postForgetBehaviorFixture": "PASS",
     "portableExport": "PASS",
     "liveModels": {
-      "gpt-5.5": "NOT_EXECUTED_M3_ACTUAL_ACCOUNT_APPROVAL_REQUIRED",
-      "gpt-5.6-terra": "NOT_EXECUTED_M3_ACTUAL_ACCOUNT_APPROVAL_REQUIRED",
+      "ownerApproval": "Owner approved actual gpt-5.5 and gpt-5.6-terra isolated M3 journeys and future same-purpose model API qualifications without repeated approval; external writes remain forbidden.",
+      "gpt-5.5": { "status": "PASS_6_OF_6", "wallMs": 90928.465457,
+        "providerCalls": 24, "totalTokens": 190857, "requestBytes": 1026140,
+        "forgetReceipt": { "searchHitAfter": 0, "contextProjectionAfter": 0,
+          "behaviorProbeAfter": "unknown" }, "portableExport": true, "localPathLeaked": false },
+      "gpt-5.6-terra": { "status": "PASS_6_OF_6", "wallMs": 46295.843582,
+        "providerCalls": 20, "totalTokens": 157059, "requestBytes": 842845,
+        "forgetReceipt": { "searchHitAfter": 0, "contextProjectionAfter": 0,
+          "behaviorProbeAfter": "unknown" }, "portableExport": true, "localPathLeaked": false },
+      "firstGptAttempt": "FAIL_EXPORT: model improvised memory list + exec + attachment JSON without complete provenance; rejected",
+      "repair": "memory_control three-field schema made always visible",
       "runnerRequires": "--human-controlled",
-      "externalWrites": 0
+      "externalWrites": 0,
+      "secretReferencesOnly": true
     }
   },
   "samePurposeAB": {
@@ -75,7 +85,7 @@
     "interpretation": "Candidate adds about 1.305 ms median local wall and 3368 event bytes to gain revision preview, partitioned receipt, tombstone, crash recovery, and restore."
   },
   "verification": {
-    "latestFullCheck": "1044 total · 1043 passed · 0 failed · 1 Windows skip",
+    "latestFullCheck": "1048 total · 1046 passed · 1 known QH-3 ENOTEMPTY · 1 Windows skip; first focused rerun repeated, second focused rerun 2/2 passed",
     "productIntegration": "147 total · 146 passed · 0 failed · 1 Windows skip",
     "mutation": "2/2 killed"
   },
@@ -87,26 +97,25 @@
     "refoundation/src/memory-export.js": "698ba6c28921dbb98bf26a2be6e7d425e4eccc64a4d66ff4bc07175c7fab3c20",
     "refoundation/src/memory-tool.js": "cf75cd23a7ac242ceba597cc7a965ec28d834506379181d35dc23c23bc97c8d3",
     "refoundation/src/memory-portfolio.js": "a3ccb291d10c5c5144d83e103881a228a46d9dce8f07d2ed812749a144f6e387",
-    "refoundation/src/console-server.js": "c492029ce9b393573a4c69a731c976eb5e746d45e5fb6d5f2097277465656511"
+    "refoundation/src/console-server.js": "05a583cb8e58c29f5e32980af146560078d9913c9ba976c8386ac54ca3a7aaae"
   },
   "testDigests": {
     "refoundation/test/forgetting-contract.test.js": "031f6753707d5d99ab9d6c57df72db690be39c268e4a03d2ced6cc90cc4f788e",
     "refoundation/test/forgetting-coordinator.test.js": "a7e48502d42efa7f1fb88071505705f9ac21381ee582ea50340f463334114513",
     "refoundation/test/forgetting-fault-matrix.test.js": "f2562136ec43d9eff6511b73a3748fcfe17a3072826f6674ddcf7a83685d6cc9",
     "refoundation/test/memory-user-control.test.js": "0ae0ae114f0e6dfb9cc4ef3672bbbeb335327b162e6a8e6be5ffff231de95fc3",
-    "refoundation/test/memory-temporal-current-state.integration.js": "b541609091df36e083be27fa474942320b161ade4be3df03ccf3358fc9ef2d09"
+    "refoundation/test/memory-temporal-current-state.integration.js": "633ae93f94b60e13c68e278e5717550a052cd683a814763365b8c48d62733f6a"
   },
   "runnerDigests": {
     "refoundation/scripts/run-s3m3-forgetting-qualification.mjs": "21d1fd0b8bef08e1c39fc2fa5472b01236a50ed54f437ae7d93ad22370328677",
     "refoundation/scripts/run-s3m3-live-model-qualification.mjs": "f23a5271731ba43d374a0382945d8afbe7681a3f8dc5e6dbcd540e9da9d42941"
   },
   "notClaimed": [
-    "M3 is complete",
-    "gpt-5.5 or gpt-5.6-terra passed actual M3 journeys",
+    "broad product Context and token cost is caused only by M3",
     "external copies were deleted",
     "unopened FTS, embedding, Library, Spotlight, or Windows Search adapters were tested as product features",
-    "M4 is open",
+    "M4 retrieval expansion is already justified",
     "the official Release Gate changed"
   ],
-  "nextOneTask": "After explicit owner approval for actual account use and model cost for M3, run the human-controlled six-journey gpt-5.5 and gpt-5.6-terra qualification. Do not open M4 first."
+  "nextOneTask": "Open M4-0 Recall Deficit Auditor only. Use M0 incidents and owner-fixed real user questions to decide whether exact lookup is deficient before opening FTS, semantic, graph, or deep recall."
 }
