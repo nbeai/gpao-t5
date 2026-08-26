@@ -1,0 +1,35 @@
+{
+  "schema": "t5.s3.human-business-qualification-system-evidence.v1",
+  "sourceCommit": "ee904fdf64b985f87278cc5e51e58e938ba39771",
+  "status": "IMPLEMENTATION_COMPLETE_LIVE_WAVES_READY_NOT_YET_RUN",
+  "portfolio": {
+    "scenarios": 57,
+    "observedDemand": 12,
+    "workflowCoverage": 39,
+    "structuralStress": 6,
+    "sourceRecords": 13,
+    "fixtureEnvironments": 10,
+    "qualificationWaves": 2
+  },
+  "closed": [
+    "evidence strength and test usefulness are separate",
+    "balanced waves cover observed demand, workflow coverage and structural stress",
+    "every live run starts in isolated HOME, DATA and WORKSPACE with real accounts and external writes disabled",
+    "each scenario acceptance criterion requires an explicit human pass or fail",
+    "machine observations and human judgment remain separate",
+    "missing assessment, missing scenario or missing wave run cannot become PASS",
+    "field observations preserve exact meaning but obvious identity, path and secret material is rejected before promotion",
+    "wave aggregation routes evidence without patching product prompts or code"
+  ],
+  "checks": {
+    "focused": { "command": "node --test refoundation/test/s3-human-business-scenarios.test.js", "passed": 9, "failed": 0 },
+    "full": { "command": "npm run refoundation:check", "passed": 1238, "failed": 0, "skipped": 1, "skipReason": "Windows-only qualification on non-Windows host" }
+  },
+  "nonClaims": [
+    "The live qualification waves have not yet been executed against actual production models in this closeout.",
+    "Research-derived scenarios do not prove measured user demand.",
+    "Vendor time-saving claims are not T5 performance evidence.",
+    "Real business accounts, personal data and real external writes were not qualified."
+  ],
+  "next": "Run developer_fast_feedback before sending a material product change to external testers; run pre_tester_reality before the next broad tester package."
+}
