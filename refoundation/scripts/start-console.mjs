@@ -20,6 +20,8 @@ import { resolveConsoleWorkspace } from '../src/console-config.js';
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
 import { resolveTerminalShellEnvironment } from '../src/terminal-shell-environment.js';
 import { makeTerminalPlatformAdapter } from '../src/terminal-platform-adapter.js';
+import { findExecutable, makeGitHubCliRegistration } from '../src/github-cli-broker.js';
+import { makeTerminalCredentialBroker } from '../src/terminal-credential-broker.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 import {
   MessengerPlatformCredentialStore, migrateMessengerCredentials,
@@ -48,6 +50,7 @@ const terminalEnvironment = await resolveTerminalShellEnvironment({
 });
 const connectionFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
+const githubCli = await findExecutable('gh', terminalEnvironment.PATH ?? '');
 const terminalPlatformAdapter = await makeTerminalPlatformAdapter({
   platform: computerEnvironment.platform,
   protectedReadRoots: [
@@ -56,6 +59,10 @@ const terminalPlatformAdapter = await makeTerminalPlatformAdapter({
     join(homedir(), 'Library', 'Keychains'),
     join(homedir(), 'Library', 'Application Support', 'GPAO-T5', 'credentials'),
   ],
+  protectedExecutableNames: githubCli ? ['gh'] : [],
+});
+const terminalCredentialBroker = makeTerminalCredentialBroker({
+  registrations: githubCli ? [makeGitHubCliRegistration(githubCli)] : [],
 });
 const portFile = process.env.T5_REFOUNDATION_PORT_FILE
   ? resolve(process.env.T5_REFOUNDATION_PORT_FILE) : null;
@@ -127,6 +134,7 @@ const server = makeConsoleServer({
   computerEnvironment,
   terminalEnvironment,
   terminalPlatformAdapter,
+  terminalCredentialBroker,
   webSearchProviders,
   webReadOptions: { urlResolvers: [naverReadableUrlResolver] },
   videoTextFetchImpl: globalThis.fetch,

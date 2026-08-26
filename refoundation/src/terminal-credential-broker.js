@@ -45,7 +45,10 @@ export function makeTerminalCredentialBroker({ registrations = [] } = {}) {
           program: registration.program, args: prepared.args,
           env: prepared.env ?? {}, sensitiveValues: prepared.sensitiveValues ?? [],
         },
-        receipt: { kind: 'registered_cli', capabilityId: registration.id, action: action.id },
+        receipt: {
+          kind: 'registered_cli', capabilityId: registration.id,
+          action: prepared.action ?? action.id,
+        },
       };
     },
   };

@@ -17,7 +17,8 @@ test('macOS adapter는 canonical protected roots와 Keychain CLI를 child sandbo
   assert.match(launch.args[1], /\/real\/a/u);
   assert.match(launch.args[1], /\/usr\/bin\/security/u);
   assert.deepEqual(launch.confinement, {
-    kind: 'macos_seatbelt', qualified: true, protectedRootCount: 2, keychainCliBlocked: true,
+    kind: 'macos_seatbelt', qualified: true, protectedRootCount: 2,
+    protectedExecutableCount: 0, keychainCliBlocked: true,
   });
 });
 

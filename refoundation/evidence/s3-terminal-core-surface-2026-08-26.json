@@ -24,11 +24,14 @@
     "progressLanguageUsesUserTerms": true,
     "approvalBoundaryPreservedWithThreeFieldEffect": true,
     "outputStorage": "gzip chunks with bounded cross-chunk reads",
-    "wholeOutputReloadForRangeRead": false
+    "wholeOutputReloadForRangeRead": false,
+    "githubCliMacos": "installed gh read actions use exact direct argv through the credential broker",
+    "genericGithubCliBypassOnMacos": 0,
+    "githubTokenOutputAndWriteActions": "blocked before execution"
   },
   "verification": {
-    "focused": "12/12 Terminal Core evidence and behavior checks passed; new-schema approval journey passed",
-    "fullCore": "938/938 passed",
+    "focused": "23/23 Terminal Core, approval, GitHub broker, and platform boundary checks passed",
+    "fullCore": "942/942 passed",
     "fullCoreFailure": null,
     "visibleBrowserLiveRun": false,
     "personalCredentialRun": false,
@@ -37,18 +40,24 @@
   "notYetQualified": [
     "Terra and gpt-5.5 same-purpose live A/B",
     "age or Session-lifecycle retention policy beyond compressed Run evidence",
-    "authenticated personal CLI broker registrations",
+    "authenticated CLI broker registrations beyond GitHub read operations",
     "Windows and Linux secret confinement"
   ],
   "sourceDigests": {
     "terminal-session-tool.js": "d9eacc3c23ad0d91d7a3b41ad844724511dd15a44a9b0e1e8d17c1b3b8d9cf7c",
     "exec-tool.js": "aa50d5b071fb5d688011faa5fee3c004c3877641a55d19592dfdb1331142a263",
     "console-model-factory.js": "a53c1ef4c0e76d27fc3695ca17df70af56d0c9682cbe5dc82c03c60ce2686b9e",
-    "terminal-output-store.js": "f44c46605d5661ab87504b6bbeccdc73469fbce65d666e4783ac0e43b5d94058"
+    "terminal-output-store.js": "f44c46605d5661ab87504b6bbeccdc73469fbce65d666e4783ac0e43b5d94058",
+    "github-cli-broker.js": "e03b200e0c168802bff1314d5eedf63a3e858a8024dfc8c25c4fbc1b88f93337",
+    "terminal-credential-broker.js": "2c8463766352665beff1dcc0457e0a43006fb33239fddd3afe390938bf750ab7",
+    "terminal-platform-adapter.js": "e0711f6ab3ac421ebf91e514067fc5a76042cd592e48e5f69a7bef16c2980939",
+    "start-console.mjs": "f9687e1da3390209a7929a42bbc30cc76485e6bd12aeb0fed94fa4513ba35c4e"
   },
   "testDigests": {
     "terminal-session-tool.test.js": "ce693e363fb47725b90ab4b62420a193713cd7a38d7d9c95d0497c3a43064fd3",
     "console-surface.integration.js": "c66057f7af968e48b593b26b0eb77b764cccb11726d8cc3e5f8424d612531e75",
-    "terminal-output-store.test.js": "20e6f5b5f7574cbea68bf11cf00b384bd7d1f730d98b32e105ddf325aaa661b7"
+    "terminal-output-store.test.js": "20e6f5b5f7574cbea68bf11cf00b384bd7d1f730d98b32e105ddf325aaa661b7",
+    "github-cli-broker.test.js": "71dc9dd093219a3cbbaf0b046fb730c1abf8420e8bcb94299ba10477e15ea319",
+    "terminal-platform-adapter.test.js": "920c3fdd0d624f6c2f6c45c519ad6da3564383041a1ec8dab941a294170728e1"
   }
 }

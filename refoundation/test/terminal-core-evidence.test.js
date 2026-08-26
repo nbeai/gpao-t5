@@ -16,6 +16,7 @@ test('Terminal Core 증거는 표면·effect·output 부담 감소와 남은 자
   assert.equal(evidence.comparison.effectRequiredFieldsAfter, 3);
   assert.equal(evidence.qualified.approvalBoundaryPreservedWithThreeFieldEffect, true);
   assert.equal(evidence.qualified.wholeOutputReloadForRangeRead, false);
+  assert.equal(evidence.qualified.genericGithubCliBypassOnMacos, 0);
   assert.ok(evidence.notYetQualified.includes('Terra and gpt-5.5 same-purpose live A/B'));
   assert.equal(evidence.verification.personalCredentialRun, false);
 });
@@ -27,11 +28,17 @@ test('Terminal Core 증거가 가리키는 제품과 반대시험 digest는 현�
     'exec-tool.js': 'refoundation/src/exec-tool.js',
     'console-model-factory.js': 'refoundation/src/console-model-factory.js',
     'terminal-output-store.js': 'refoundation/src/terminal-output-store.js',
+    'github-cli-broker.js': 'refoundation/src/github-cli-broker.js',
+    'terminal-credential-broker.js': 'refoundation/src/terminal-credential-broker.js',
+    'terminal-platform-adapter.js': 'refoundation/src/terminal-platform-adapter.js',
+    'start-console.mjs': 'refoundation/scripts/start-console.mjs',
   };
   const tests = {
     'terminal-session-tool.test.js': 'refoundation/test/terminal-session-tool.test.js',
     'console-surface.integration.js': 'refoundation/test/console-surface.integration.js',
     'terminal-output-store.test.js': 'refoundation/test/terminal-output-store.test.js',
+    'github-cli-broker.test.js': 'refoundation/test/github-cli-broker.test.js',
+    'terminal-platform-adapter.test.js': 'refoundation/test/terminal-platform-adapter.test.js',
   };
   for (const [name, path] of Object.entries(sources)) assert.equal(await digest(path), evidence.sourceDigests[name], path);
   for (const [name, path] of Object.entries(tests)) assert.equal(await digest(path), evidence.testDigests[name], path);
