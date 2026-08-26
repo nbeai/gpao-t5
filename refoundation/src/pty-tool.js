@@ -31,6 +31,7 @@ function ptyEnv(defaultDirectory, runtime, additions = {}) {
 export function makePtyStartTool({
   workingDirectory, workspace, computer, processRegistry, ownerId = 'default',
   yieldMs = 1000, originRunId, effectPreflight, env = {}, pathPrepend, capabilityAttribution,
+  terminalPlatformAdapter,
 } = {}) {
   const defaultDirectory = workingDirectory ?? workspace;
   if (!defaultDirectory || !isAbsolute(defaultDirectory)) throw new TypeError('absolute workingDirectory is required');
@@ -65,8 +66,17 @@ export function makePtyStartTool({
         try { capabilitiesUsed = await capabilityAttribution({ command, commandExplanation: explanation, ownerId }); }
         catch { capabilitiesUsed = []; }
       }
-      const ptyProcess = pty.spawn(runtime.program, runtime.argsFor(commandWithManagedPath(command, pathPrepend, runtime.family)), {
-        cwd, env: ptyEnv(root, runtime, env), name: 'xterm-256color',
+      const launch = terminalPlatformAdapter?.prepare ? await terminalPlatformAdapter.prepare({
+        program: runtime.program,
+        args: runtime.argsFor(commandWithManagedPath(command, pathPrepend, runtime.family)),
+        cwd, env: ptyEnv(root, runtime, env),
+      }) : {
+        program: runtime.program,
+        args: runtime.argsFor(commandWithManagedPath(command, pathPrepend, runtime.family)),
+        cwd, env: ptyEnv(root, runtime, env), confinement: null,
+      };
+      const ptyProcess = pty.spawn(launch.program, launch.args, {
+        cwd, env: launch.env, name: 'xterm-256color',
         cols: args.cols, rows: args.rows,
       });
       let result = await processRegistry.startPty({
@@ -87,6 +97,7 @@ export function makePtyStartTool({
         ? await observeDeclaredEffect(args.effect, cwd) : null;
       return {
         ...result, commandExplanation: explanation,
+        ...(launch.confinement ? { confinement: launch.confinement } : {}),
         ...(capabilitiesUsed.length ? { capabilitiesUsed: structuredClone(capabilitiesUsed) } : {}),
         effectObservation: compareEffectObservations(args.effect, effectBefore, after),
       };

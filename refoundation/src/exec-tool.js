@@ -70,6 +70,7 @@ function makeCommandTool(options = {}, { managed }) {
     capabilityAttribution,
     explainCommand,
     effectPreflight,
+    terminalPlatformAdapter,
     protectedBrowserRoots = [],
   } = options;
   const defaultDirectory = workingDirectory ?? workspace;
@@ -137,12 +138,21 @@ function makeCommandTool(options = {}, { managed }) {
       context.signal?.addEventListener('abort', onAbort, { once: true });
       try {
         const effectBefore = await observeDeclaredEffect(args.effect ?? { kind: 'observe', targets: [] }, cwd);
-        let result = await registry.start({
+        const launch = terminalPlatformAdapter?.prepare ? await terminalPlatformAdapter.prepare({
           program: runtime.program,
           args: runtime.argsFor(commandWithManagedPath(command, pathPrepend, runtime.family)),
+          cwd, env: isolatedEnv(root, env, runtime),
+        }) : {
+          program: runtime.program,
+          args: runtime.argsFor(commandWithManagedPath(command, pathPrepend, runtime.family)),
+          cwd, env: isolatedEnv(root, env, runtime), confinement: null,
+        };
+        let result = await registry.start({
+          program: launch.program,
+          args: launch.args,
           command,
           cwd,
-          env: isolatedEnv(root, env, runtime),
+          env: launch.env,
           ownerId,
           waitMs: managed ? yieldMs : null,
           spoolLimit: managed ? undefined : Number.POSITIVE_INFINITY,
@@ -167,6 +177,7 @@ function makeCommandTool(options = {}, { managed }) {
           ? null : await observeDeclaredEffect(args.effect ?? { kind: 'observe', targets: [] }, cwd);
         result = {
           ...result,
+          ...(launch.confinement ? { confinement: launch.confinement } : {}),
           ...(capabilitiesUsed.length ? { capabilitiesUsed: structuredClone(capabilitiesUsed) } : {}),
           effectObservation: compareEffectObservations(
             args.effect ?? { kind: 'observe', targets: [] }, effectBefore, effectAfter,

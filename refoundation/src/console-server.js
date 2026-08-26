@@ -314,6 +314,7 @@ export function makeConsoleServer({
   connectionPollTimeoutMs = 10 * 60_000,
   processYieldMs = 1000,
   terminalEnvironment = null,
+  terminalPlatformAdapter = null,
   documentCli = bundledDocumentCli,
   attachmentStore,
   resourceLedger: providedResourceLedger,
@@ -1081,6 +1082,7 @@ export function makeConsoleServer({
         yieldMs: processYieldMs, originRunId: run.runId, effectPreflight,
         pathPrepend: managedCliStore.bin,
         protectedBrowserRoots: [join(stateDir, 'browser-host'), browserArtifactRoot],
+        terminalPlatformAdapter,
         capabilityAttribution: ({ commandExplanation }) => managedCliStore.attributeCommand(commandExplanation),
         env: {
           T5_DOCUMENT_CLI: documentCli,

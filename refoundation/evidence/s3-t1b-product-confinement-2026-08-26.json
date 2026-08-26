@@ -1,0 +1,37 @@
+{
+  "schema": "t5.s3t1b.product-confinement-qualification.v1",
+  "recordedAt": "2026-08-26T08:39:22.004Z",
+  "sourceCommit": "bb3cc1b5a5dd7d9ea2a829708a291c32f4138cd6",
+  "status": "t5_owned_secret_confinement_wired_registered_cli_broker_open",
+  "protectedRead": {
+    "normalReadable": true,
+    "secretReadable": false,
+    "denied": true,
+    "confinement": {
+      "kind": "macos_seatbelt",
+      "qualified": true,
+      "protectedRootCount": 1,
+      "keychainCliBlocked": true
+    }
+  },
+  "ordinaryCli": {
+    "executed": true,
+    "exitCode": 0
+  },
+  "keychainCli": {
+    "executed": true,
+    "denied": true,
+    "exitCode": 127
+  },
+  "modelContextChanged": false,
+  "effectContractChanged": false,
+  "actualCredentialUsed": false,
+  "actualExternalEffect": false,
+  "remaining": [
+    "registered authenticated CLI broker is not wired",
+    "personal .ssh and third-party CLI credential roots are not default protected roots",
+    "Windows and Linux confinement remain unqualified passthrough"
+  ],
+  "nextCandidate": "registered_cli_broker_product_integration",
+  "pass": true
+}

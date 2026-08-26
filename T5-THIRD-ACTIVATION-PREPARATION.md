@@ -14,7 +14,7 @@
 ```text
 2차 Release Gate: 변경 없음
 3차 개발선: S3-A Terminal-first 측정 활성
-현재 허용 작업: S3-A 측정·판정과 S3-T0가 직접 확인한 login-shell HOME isolation 결함의 좁은 보안 수리
+현재 허용 작업: S3-A 측정·판정과 S3-T0/T1B가 직접 확인한 Terminal 환경·T5-owned secret 경계의 좁은 보안 수리
 현재 금지 작업: 측정 결과를 전제한 구조 변경과 성능 최적화
 ```
 
@@ -136,9 +136,12 @@ brokered CLI: 등록 action만 실행 · 내부 secret 사용 가능 · stdout/s
 
 첫 Seatbelt 표본은 `/var/...` secret root가 실제 `/private/var/...` identity와 달라 차단을 우회했다. secret
 root를 실행 전 `realpath`로 결속하고 결속 실패를 열린 실행으로 낮추지 않은 뒤 실제 표본이 통과했다.
-이는 candidate 자격이며 제품 완료가 아니다. cross-platform `TerminalPlatformAdapter`, symlink·hardlink,
-현재 사용자 secret policy, 실제 등록 CLI action 계약이 없으므로 generic Terminal 기본값에는 아직 배선하지
-않는다. 근거: `refoundation/evidence/s3-t1b-secret-confinement-candidate-2026-08-26.json`.
+candidate 자격 뒤 `TerminalPlatformAdapter`를 제품에 연결해 macOS generic Terminal에서 T5 credential roots의
+직접 read와 `/usr/bin/security` 실행을 차단했다. 일반 파일·일반 CLI·PTY·process는 유지한다. 개인 `.ssh`와
+third-party CLI credential roots는 broker 없이 막지 않으며 Windows·Linux는 미자격 passthrough 사실을
+receipt에 남긴다. 따라서 전체 secret confinement나 registered authenticated CLI broker 완료가 아니다.
+근거: `refoundation/evidence/s3-t1b-secret-confinement-candidate-2026-08-26.json`,
+`refoundation/evidence/s3-t1b-product-confinement-2026-08-26.json`.
 
 ## 5. S3-A 전 절대 금지선
 
