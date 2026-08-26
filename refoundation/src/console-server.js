@@ -41,6 +41,7 @@ import { makeArtifactPublicationProductAdapter,
   projectHumanArtifactReceipt } from './artifact-publication-projection.js';
 import { makeEffectForensicProductAdapter,
   projectHumanEffectForensicReceipt, projectHumanEffectRollbackReceipt } from './effect-forensic-projection.js';
+import { makeWorkHistoryProductAdapter } from './work-history-projection.js';
 import { makeWorkCompletionTool } from './work-completion-tool.js';
 import { evaluateWorkCompletion } from './work-completion-evaluator.js';
 import { makeInputSettlementScope } from './input-settlement-scope.js';
@@ -456,6 +457,8 @@ export function makeConsoleServer({
     attachmentStore: attachments, runLedger, workStore,
   });
   const effectForensics = makeEffectForensicProductAdapter({ runLedger });
+  const workHistory = makeWorkHistoryProductAdapter({ sessions, conversations, workStore, runLedger,
+    attachmentStore: attachments, resourceLedger });
   const livingLibraryRoot = join(stateDir, 'living-library');
   const userNotesRoot = join(stateDir, 'user-notes');
   const livingLibraryRegistry = new LivingLibraryRegistry({
@@ -3682,6 +3685,24 @@ export function makeConsoleServer({
         json(res, 200, await recoverSession({
           sessionId: input.sessionId, mode: input.mode, recoveryId: input.recoveryId ?? null,
         })); return;
+      }
+      if (req.method === 'GET' && url.pathname === '/work-history') {
+        const limit = Number(url.searchParams.get('limit') ?? 10);
+        const statusFilter = url.searchParams.get('status');
+        privateJson(res, 200, await workHistory.list({ query: url.searchParams.get('query') ?? '',
+          status: statusFilter || null, cursor: url.searchParams.get('cursor') || null, limit })); return;
+      }
+      const workHistoryMatch = req.method === 'GET' && url.pathname.match(/^\/work-history\/([0-9a-f]{32})$/u);
+      if (workHistoryMatch) {
+        privateJson(res, 200, await workHistory.detail(workHistoryMatch[1])); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/work-history/reopen') {
+        const input = await body(req);
+        if (!input || Object.keys(input).length !== 1 || !/^[0-9a-f]{32}$/u.test(input.historyHandle ?? '')) {
+          throw Object.assign(new Error('작업 기록 요청이 올바르지 않아요.'), { status: 400 });
+        }
+        const resolved = await workHistory.resolve(input.historyHandle);
+        privateJson(res, 200, { ok: true, sessionId: resolved.sessionId }); return;
       }
       if (req.method === 'GET' && url.pathname.startsWith('/sessions/')) {
         const session = await sessions.load(decodeURIComponent(url.pathname.slice('/sessions/'.length)));

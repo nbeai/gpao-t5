@@ -571,6 +571,14 @@
      차수는 **잘리면 안 되는 부분**이므로 `.age` 처럼 flex:none 으로 따로 세운다.
      새 색을 만들지 않고 있는 변수를 쓴다(테마 두 벌이 그대로 따라온다). */
   .sess .ord { flex:none; color:var(--faint); font-size:var(--fs-xs); font-variant-numeric:tabular-nums; }
+  .work-history { margin:0 var(--sp-3) var(--sp-3); border-top:1px solid var(--line); padding-top:var(--sp-2); }
+  .work-history > summary { cursor:pointer; color:var(--muted); font-size:var(--fs-xs); padding:var(--sp-2); }
+  .work-history-list { display:grid; gap:var(--sp-1); }
+  .work-history-item { width:100%; border:0; border-radius:var(--r-sm); padding:var(--sp-2);
+    background:transparent; color:var(--fg); text-align:left; cursor:pointer; }
+  .work-history-item:hover { background:var(--hover); }
+  .work-history-detail { padding:var(--sp-2); color:var(--muted); font-size:var(--fs-xs); line-height:1.55; }
+  .work-history-actions { display:flex; gap:var(--sp-1); margin-top:var(--sp-2); }
 
   /* 조각 E — 자동화 문. 기존 줄을 고치지 않고 맨 끝에 덧붙인다(기획서 §1). */
   .ae-notice { font-size:var(--fs-xs); color:var(--fg); background:var(--accent-subtle);
@@ -627,6 +635,11 @@
       <button id="selCancel">취소</button>
     </div>
     <div class="sessions" id="sessions"></div>
+    <details class="work-history" id="workHistory">
+      <summary>작업 기록</summary>
+      <input id="workHistoryQuery" type="search" placeholder="지난 작업 찾기" aria-label="지난 작업 찾기">
+      <div class="work-history-list" id="workHistoryList"></div>
+    </details>
     <div class="sidefoot">
       <span class="dot" title="연결됨"></span>
       <span class="spacer"></span>
@@ -3063,6 +3076,60 @@ async function loadSessions() {
     if (!fav.length || !isFolded('rest')) for (const s of rest) sessionsEl.appendChild(sessionRow(s));
   }
 }
+
+async function loadWorkHistory(cursor = null) {
+  const list = document.getElementById('workHistoryList');
+  list.replaceChildren(el('meta', '작업 기록을 불러오고 있어요.'));
+  try {
+    const query = document.getElementById('workHistoryQuery').value.trim();
+    const params = new URLSearchParams({ limit: '10', ...(query ? { query } : {}), ...(cursor ? { cursor } : {}) });
+    const response = await fetch(`/work-history?${params}`);
+    if (!response.ok) throw new Error('작업 기록을 불러오지 못했어요.');
+    const payload = await response.json(); list.replaceChildren();
+    if (!(payload.items ?? []).length) { list.appendChild(el('meta', '아직 표시할 작업 기록이 없어요.')); return; }
+    for (const item of payload.items) {
+      const row = document.createElement('div');
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'work-history-item';
+      button.appendChild(el(null, item.title));
+      button.appendChild(el('meta', `${item.status.text} · ${item.actorText} · ${item.whenText}`));
+      button.onclick = async () => {
+        row.querySelector('.work-history-detail')?.remove(); button.disabled = true;
+        try {
+          const detailResponse = await fetch(`/work-history/${encodeURIComponent(item.historyHandle)}`);
+          if (!detailResponse.ok) throw new Error('작업 기록을 다시 열지 못했어요.');
+          const detail = await detailResponse.json(); const panel = el('work-history-detail');
+          for (const line of [detail.detail?.objective, detail.detail?.finalAnswer,
+            ...detail.artifacts.items.map((artifact) => `${artifact.name} · ${artifact.availabilityText}`),
+            ...detail.effects.summaries, detail.resources.accountingText, detail.remaining.text].filter(Boolean)) {
+            panel.appendChild(el(null, line));
+          }
+          const actions = el('work-history-actions');
+          const reopen = document.createElement('button'); reopen.type = 'button'; reopen.textContent = '대화 열기';
+          reopen.onclick = async () => {
+            const opened = await fetch('/work-history/reopen', { method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ historyHandle: item.historyHandle }) }).then((value) => value.json());
+            if (opened.sessionId) await selectSession(opened.sessionId);
+          };
+          actions.appendChild(reopen);
+          panel.appendChild(actions); row.appendChild(panel);
+        } catch (error) { row.appendChild(el('work-history-detail', error?.message ?? '작업 기록을 열지 못했어요.')); }
+        finally { button.disabled = false; }
+      };
+      row.appendChild(button); list.appendChild(row);
+    }
+    if (payload.nextCursor) {
+      const more = document.createElement('button'); more.type = 'button'; more.className = 'work-history-item';
+      more.textContent = '더 보기'; more.onclick = () => loadWorkHistory(payload.nextCursor);
+      list.appendChild(more);
+    }
+  } catch (error) { list.replaceChildren(el('meta', error?.message ?? '작업 기록을 불러오지 못했어요.')); }
+}
+
+document.getElementById('workHistory').addEventListener('toggle', (event) => {
+  if (event.currentTarget.open) loadWorkHistory().catch(() => {});
+});
+document.getElementById('workHistoryQuery').addEventListener('change', () => loadWorkHistory().catch(() => {}));
 
 document.getElementById('listtabs').onclick = async (ev) => {
   const b = ev.target.closest('button[data-view]'); if (!b) return;

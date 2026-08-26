@@ -57,3 +57,16 @@ test('Effect forensic은 바뀐 것·확인 범위·rollback·unknown을 접힌 
   assert.match(renderer, /receipt\.unknowns/u);
   assert.doesNotMatch(renderer, /innerHTML|path|command|runId|toolCallId|sha256/u);
 });
+
+test('작업 기록은 sidebar에서 사용자가 펼칠 때만 읽고 opaque handle로 detail을 연다', async () => {
+  const html = await readFile(resolve(root, 'refoundation/ui/index.html'), 'utf8');
+  assert.match(html, /<details class="work-history" id="workHistory">/u);
+  assert.match(html, /if \(event\.currentTarget\.open\) loadWorkHistory/u);
+  assert.match(html, /workHistoryQuery/u);
+  assert.match(html, /payload\.nextCursor/u);
+  assert.match(html, /work-history\/\$\{encodeURIComponent\(item\.historyHandle\)\}/u);
+  const start = html.indexOf('async function loadWorkHistory');
+  const end = html.indexOf("document.getElementById('listtabs')", start);
+  const renderer = html.slice(start, end);
+  assert.doesNotMatch(renderer, /innerHTML|runId|workId|toolCallId|sha256|filePath/u);
+});
