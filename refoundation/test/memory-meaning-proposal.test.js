@@ -102,6 +102,27 @@ test('inferred·unknown valid time은 model 추측을 durable exact time으로 �
   assert.equal(inferred.claim.validTo, null);
 });
 
+test('model date·offset 의미는 runtime UTC로 정규화하고 해석 불가는 needs_valid_time이다', () => {
+  const dateOnly = deriveMemoryMeaningCandidate({
+    proposal: proposal({ validTimeMeaning: {
+      from: '2026-01-01', to: '2027-01-01', certainty: 'explicit',
+    } }), reality: reality(),
+  });
+  assert.equal(dateOnly.claim.validFrom, '2026-01-01T00:00:00.000Z');
+  const offset = deriveMemoryMeaningCandidate({
+    proposal: proposal({ validTimeMeaning: {
+      from: '2026-01-01T00:00:00+09:00', to: '2027-01-01T00:00:00+09:00', certainty: 'explicit',
+    } }), reality: reality(),
+  });
+  assert.equal(offset.claim.validFrom, '2025-12-31T15:00:00.000Z');
+  const unknown = deriveMemoryMeaningCandidate({
+    proposal: proposal({ validTimeMeaning: {
+      from: '언젠가', to: null, certainty: 'explicit',
+    } }), reality: reality(),
+  });
+  assert.deepEqual(unknown, { state: 'needs_valid_time', claim: null });
+});
+
 test('correct와 retract의 exact target은 model이 아니라 current runtime projection에서 온다', () => {
   const missing = deriveMemoryMeaningCandidate({
     proposal: proposal({ action: 'correct' }), reality: reality(),

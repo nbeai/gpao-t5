@@ -35,25 +35,23 @@ function oneOf(value, values, label) {
   if (!values.has(value)) throw new TypeError(`${label} is not supported`);
   return value;
 }
-function canonicalTime(value, label) {
+function timeMeaning(value, label) {
   if (value === null) return null;
-  if (typeof value !== 'string') throw new TypeError(`${label} must be null or canonical UTC time`);
+  return text(value, label, 128);
+}
+
+function normalizedTimeMeaning(value) {
+  if (value === null) return null;
   const parsed = new Date(value);
-  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== value) {
-    throw new TypeError(`${label} must be null or canonical UTC time`);
-  }
-  return value;
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : undefined;
 }
 
 export function validateMemoryMeaningProposal(input) {
   const value = record(input, 'MemoryMeaningProposal'); exact(value, PROPOSAL_FIELDS, 'MemoryMeaningProposal');
   const valid = record(value.validTimeMeaning, 'MemoryMeaningProposal.validTimeMeaning');
   exact(valid, TIME_FIELDS, 'MemoryMeaningProposal.validTimeMeaning');
-  const from = canonicalTime(valid.from, 'MemoryMeaningProposal.validTimeMeaning.from');
-  const to = canonicalTime(valid.to, 'MemoryMeaningProposal.validTimeMeaning.to');
-  if (from != null && to != null && from >= to) {
-    throw new TypeError('MemoryMeaningProposal valid time is reversed');
-  }
+  const from = timeMeaning(valid.from, 'MemoryMeaningProposal.validTimeMeaning.from');
+  const to = timeMeaning(valid.to, 'MemoryMeaningProposal.validTimeMeaning.to');
   return {
     action: oneOf(value.action, ACTIONS, 'MemoryMeaningProposal.action'),
     kind: oneOf(value.kind, KINDS, 'MemoryMeaningProposal.kind'),
@@ -127,6 +125,13 @@ export function deriveMemoryMeaningCandidate({ proposal: input, reality: inputRe
     sources: structuredClone(reality.sources ?? []), recordedAt: String(reality.recordedAt ?? ''), claim: null,
   };
   const explicit = proposal.validTimeMeaning.certainty === 'explicit';
+  const validFrom = explicit ? normalizedTimeMeaning(proposal.validTimeMeaning.from) : null;
+  const validTo = explicit ? normalizedTimeMeaning(proposal.validTimeMeaning.to) : null;
+  if (explicit && ((proposal.validTimeMeaning.from !== null && validFrom === undefined)
+    || (proposal.validTimeMeaning.to !== null && validTo === undefined)
+    || (validFrom != null && validTo != null && validFrom >= validTo))) {
+    return { state: 'needs_valid_time', claim: null };
+  }
   try {
     const claim = makeMemoryClaim({
       memoryId: String(reality.memoryId ?? ''),
@@ -136,8 +141,8 @@ export function deriveMemoryMeaningCandidate({ proposal: input, reality: inputRe
       scope,
       sources: structuredClone(reality.sources ?? []),
       recordedAt: String(reality.recordedAt ?? ''),
-      validFrom: explicit ? proposal.validTimeMeaning.from : null,
-      validTo: explicit ? proposal.validTimeMeaning.to : null,
+      validFrom,
+      validTo,
       subjectRevision: reality.subjectRevision,
       sourceOrder: reality.sourceOrder,
       status: 'active',

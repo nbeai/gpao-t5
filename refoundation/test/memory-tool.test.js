@@ -151,6 +151,27 @@ test('foreground memory는 read·list만 열고 legacy add·replace·remove 우�
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 
+test('memory_claim time 의미가 해석 불가하면 retry 가능한 ISO 형식을 돌려준다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-memory-time-retry-'));
+  try {
+    const ledger = new MemoryLedger(room); await ledger.ensure();
+    const tool = makeMemoryClaimTool({ ledger, runtimeReality: async () => ({
+      memoryId: 'memory-time', sources: [], recordedAt: '2026-08-26T00:00:00.000Z',
+      verifiedSubjects: {}, defaultSubjectKey: 'subject-time', subjectRevision: 1,
+      sourceOrder: 2, targetMemoryId: null, conflictingMemoryIds: [],
+      normalPolicyQualified: false, channelSensitivity: 'personal', alwaysRelevantQualified: false,
+    }) });
+    const result = await tool.execute({
+      action: 'remember', kind: 'fact', value: 'safe fixture', subjectHandle: null,
+      validTimeMeaning: { from: '내년쯤', to: null, certainty: 'explicit' }, scopeMeaning: 'global',
+    });
+    assert.equal(result.state, 'needs_valid_time');
+    assert.equal(result.retryable, true);
+    assert.match(result.expectedFormat, /YYYY-MM-DD/u);
+    assert.equal((await ledger.read()).events.length, 1);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
 test('memory 환경은 현재 상태와 과거 이력을 구분해 취소된 work 기억을 모델이 정리하게 한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-memory-current-state-'));
   try {

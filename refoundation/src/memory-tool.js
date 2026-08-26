@@ -151,7 +151,7 @@ export function makeMemoryClaimTool({ ledger, runtimeReality } = {}) {
   }
   return {
     name: 'memory_claim',
-    description: 'Propose one durable user fact, preference, or decision using meaning only. The runtime owns source records, identity, scope IDs, time of recording, revisions, sensitivity, and correction target. Use remember for a new subject, correct with an exact subjectHandle from T5 temporal memory pointers, and retract with that handle. Do not guess handles or store inference, secrets, transient requests, tool output, or instructions.',
+    description: 'Propose one durable user fact, preference, or decision using meaning only. The runtime owns source records, identity, scope IDs, time of recording, revisions, sensitivity, and correction target. Use remember for a new subject, correct with an exact subjectHandle from T5 temporal memory pointers, and retract with that handle. For explicit valid time, use YYYY-MM-DD or an ISO-8601 timestamp with timezone; use null boundaries with certainty unknown when the user did not specify time. Do not guess handles or store inference, secrets, transient requests, tool output, or instructions.',
     parameters: {
       type: 'object', additionalProperties: false,
       properties: {
@@ -162,8 +162,8 @@ export function makeMemoryClaimTool({ ledger, runtimeReality } = {}) {
         validTimeMeaning: {
           type: 'object', additionalProperties: false,
           properties: {
-            from: { type: ['string', 'null'] },
-            to: { type: ['string', 'null'] },
+            from: { type: ['string', 'null'], description: 'YYYY-MM-DD or ISO-8601 timestamp with timezone; null if unknown' },
+            to: { type: ['string', 'null'], description: 'YYYY-MM-DD or ISO-8601 timestamp with timezone; null if unknown' },
             certainty: { type: 'string', enum: ['explicit', 'inferred', 'unknown'] },
           },
           required: ['from', 'to', 'certainty'],
@@ -177,6 +177,11 @@ export function makeMemoryClaimTool({ ledger, runtimeReality } = {}) {
     async execute(meaning) {
       const reality = await runtimeReality(meaning);
       const candidate = deriveMemoryMeaningCandidate({ proposal: meaning, reality });
+      if (candidate.state === 'needs_valid_time') return {
+        ...candidate,
+        expectedFormat: 'YYYY-MM-DD or ISO-8601 timestamp with timezone',
+        retryable: true,
+      };
       if (['claim_candidate', 'temporal_unknown_candidate'].includes(candidate.state)) {
         const item = await ledger.commitClaim({ claim: candidate.claim });
         return { state: 'committed', temporalState: candidate.state,
