@@ -12,7 +12,7 @@ import { consoleInstructions, makeConsoleModelAccess } from '../src/console-mode
 import { makeStoredModelCredentialCatalog } from '../src/chatgpt-oauth-credential.js';
 import { makeTerminalHand } from '../src/exec-tool.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
-import { makeSkillTool } from '../src/skill-tool.js';
+import { makeSkillTool } from '../src/skill-runtime.js';
 import { loadSkillSnapshot } from '../src/skill-snapshot.js';
 import { renderVisualDeliverable } from '../src/visual-deliverable-renderer.js';
 
