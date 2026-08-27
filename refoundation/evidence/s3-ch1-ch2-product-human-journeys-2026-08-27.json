@@ -30,6 +30,7 @@
     "eventCountAfterPausedWrite": 4,
     "deletedEvents": 4,
     "remainingEvents": 0,
+    "naturalRollover": "A normal 24-hour helper exit preserves desiredEnabled and starts one new adapter; pause and close restart zero adapters.",
     "passed": true
   },
   "ch2": {
@@ -44,16 +45,21 @@
       "private mode showed recording paused",
       "opaque observed-app exclusion removed prior segments and raised excluded count",
       "include-all restored the policy",
-      "export returned only coarse user fields and showed an explicit exported surface",
+      "export returned all coarse user fields with complete coverage and showed that the download started without claiming delivery completion",
       "forget deleted one segment and the surface returned to zero"
     ],
     "finalSegmentCountBeforeForget": 1,
     "exportForbiddenFields": 0,
+    "exportCoverage": "complete",
+    "exportOver500Countertest": "501 stored and 501 exported",
+    "privateModeControl": "restart is hidden while private; enable cannot erase desired intent; private_off resumes exactly once",
+    "naturalRollover": "A normal 24-hour helper exit preserves desiredEnabled and starts one new adapter; pause and close restart zero adapters.",
     "deletedSegments": 1,
     "remainingSegments": 0,
     "passed": true
   },
-  "focusedRegression": "32/32 passed",
+  "postAuditRepairCommit": "289d0ae7",
+  "focusedRegression": "34/34 passed",
   "notClaimed": [
     "physical Windows CH1 or CH2 PASS",
     "screen, audio, clipboard, keystroke, window title, document content, or full URL capture",

@@ -12,6 +12,10 @@ test('CH1·CH2 실제 제품 여정은 pause·private·export·forget과 발견�
   assert.match(value.ch2.discoveredFailure, /SIGTERM/u);
   assert.match(value.ch2.countertest, /86400/u);
   assert.equal(value.ch2.exportForbiddenFields, 0);
+  assert.equal(value.ch2.exportCoverage, 'complete');
+  assert.match(value.ch2.exportOver500Countertest, /501 stored and 501 exported/u);
+  assert.match(value.ch2.privateModeControl, /desired intent/u);
+  assert.match(value.ch1.naturalRollover, /pause and close restart zero/u);
   assert.equal(value.ch2.remainingSegments, 0);
   assert.equal(value.environment.realUserFilesRead, 0);
   assert.equal(value.environment.externalWrites, 0);
