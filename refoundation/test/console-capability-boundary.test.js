@@ -46,6 +46,7 @@ test('기본 위치를 이유로 사용자가 지정한 경로의 터미널 관�
   assert.match(instructions, /exact folder.*photo by appearance.*image_candidates.*visual_candidates.*at most 12 handles.*C-number.*opaque handle.*not send the whole folder.*identify a person/i);
   assert.match(instructions, /file_reality.*locationText.*do not call exec.*rediscover.*explicitly asks.*exact absolute path.*Desktop.*Downloads.*computer scope.*inventing.*\/Users path/i);
   assert.match(instructions, /uniquely strongest.*bounded content or OCR excerpt.*every requested discriminator.*without another inspect.*repeated search.*image_candidates.*exec.*incomplete or ambiguous/i);
+  assert.match(instructions, /most recent file.*user-described kind.*one file_reality search.*modifiedAt.*Do not run.*shell walk.*sort dates.*coverage is truncated.*ambiguous/i);
   assert.match(instructions, /Refer to yourself as T5, not ChatGPT.*model provider/i);
   assert.match(instructions, /where to start saving time.*one recurring job.*one small reversible trial.*before[/]after human-time measure.*trial period.*success criterion/i);
   assert.match(instructions, /feasibility question.*multi-source workflow.*public research.*small business tool.*each required current connection.*bounded first trial.*public[/]private.*read[/]write.*excluded sensitive fields.*installation[/]hosting[/]delivery.*verify usefulness/i);
