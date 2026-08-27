@@ -3,7 +3,7 @@
   "recordedOn": "2026-08-28",
   "status": "SOURCE_REPAIRED_INSTALLER_REQUALIFICATION_REQUIRED",
   "baseSourceCommit": "96c6bda67c3a8ef21696436d7f2db9724eb2639d",
-  "repairSourceCommit": "ee576da5dc0bc2691a085495586c2fab0e7d5c3d",
+  "repairSourceCommit": "35369534657527684362da996f91acbce9cbc96f",
   "incidents": [
     {
       "kind": "unexpected_macos_app_data_prompt",
@@ -22,9 +22,8 @@
   ],
   "repairs": {
     "ordinaryFileSearchRoots": [
-      "visible top-level user folders excluding Library and hidden folders", "/Users/Shared", "/Volumes"
+      "Desktop", "Documents", "Downloads", "Movies", "Music", "Pictures", "Public", "/Users/Shared", "/Volumes"
     ],
-    "customTopLevelUserFoldersPreserved": true,
     "defaultWholeHomeRootRemoved": true,
     "protectedLibraryPackages": [
       ".photoslibrary", ".photolibrary", ".musiclibrary", ".imovielibrary", ".fcpbundle"

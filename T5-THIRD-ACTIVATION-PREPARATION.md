@@ -19,7 +19,7 @@ macOS·Windows 물리 제품 자격은 여전히 별도 후속 Gate로 남는다
 
 최초 0.3.0 설치본 실측에서 일반 파일 검색이 사용자 홈 전체를 Spotlight·직접 순회해 macOS의 다른 앱
 데이터 권한을 불필요하게 요청하고, 브라우저 콘솔을 연 직후 앱 런처가 종료돼 Dock identity가 사라지는
-결함이 확인됐다. commit `35369534`와 `ee576da5`에서 기본 파일 검색을 사용자 자료 root로 제한하고 Photos·Music·Movie
+결함이 확인됐다. commit `35369534`에서 기본 파일 검색을 사용자 자료 root로 제한하고 Photos·Music·Movie
 library package 직접 순회를 닫았으며, GPAO-T5 앱은 Dock에 상주해 재클릭 시 기존 콘솔을 열고 명시 종료 때
 Runtime을 정산하도록 교정했다. login background entry도 raw `node` 대신 GPAO-T5의 prohibited mode를 사용한다.
 source 수리와 회귀는 `refoundation/evidence/macos-search-dock-repair-2026-08-28.json`에 보존하며, 새 signed
