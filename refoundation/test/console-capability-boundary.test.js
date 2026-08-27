@@ -36,6 +36,9 @@ test('기본 위치를 이유로 사용자가 지정한 경로의 터미널 관�
   assert.match(instructions, /command family=cmd/);
   assert.match(instructions, /smallest sufficient observation/i);
   assert.match(instructions, /shortest useful answer.*conclusion.*compact next step/i);
+  assert.match(instructions, /most specific available Hand.*exec.*no smaller dedicated Hand.*file_search.*connection.*attachment/i);
+  assert.match(instructions, /exact file path is not already supplied.*file_search before any shell find.*nested below the workspace/i);
+  assert.match(instructions, /Protect personal identifiers.*do not repeat customer.*member.*patient.*employee.*account IDs.*masked labels/i);
   assert.match(instructions, /work remains.*tool is available.*do not end.*promise or preamble.*Call the tool.*same response/i);
   assert.match(instructions, /Before saying.*files.*exports.*local evidence.*absent.*exec.*bounded observation.*disconnected external service.*does not prove/i);
   assert.match(instructions, /shallow or depth-limited file listing cannot prove absence.*expand the search once.*current workspace.*file names and metadata.*do not broadly read unrelated file contents/i);
@@ -71,6 +74,7 @@ test('macOS 환경은 사용자에게 같은 파일명이 분해형일 수 있�
   });
   assert.match(instructions, /unicode normalization/i);
   assert.match(instructions, /visually identical.*different.*code points/i);
+  assert.match(instructions, /BSD find.*does not support GNU -printf.*portable -print.*separate stat/i);
 });
 
 test('가시 브라우저는 사용자가 요청한 화면 상호작용 경계에서만 열리고 일반 읽기 실패로 열리지 않는다', () => {

@@ -1,4 +1,14 @@
-export function makeConnectionTool({ doctor, startConnection, performConnection } = {}) {
+function catalogConnection(entry) {
+  return {
+    id: entry.id, label: entry.label, category: entry.category,
+    state: 'not_connected', reason: 'catalog_route_not_connected',
+    userSafeSummary: entry.userSafeSummary ?? `${entry.label}은 현재 연결되어 있지 않아요.`,
+    capabilities: entry.capabilities ?? {}, routes: entry.routes ?? [], actions: [],
+    ...(entry.privacyDefaults ? { privacyDefaults: entry.privacyDefaults } : {}),
+  };
+}
+
+export function makeConnectionTool({ doctor, startConnection, performConnection, catalog = null } = {}) {
   if (!doctor || typeof doctor.inspect !== 'function') throw new TypeError('connection doctor is required');
   return {
     name: 'connection',
@@ -14,9 +24,15 @@ export function makeConnectionTool({ doctor, startConnection, performConnection 
     },
     async execute({ action, id, actionId }) {
       const report = await doctor.inspect();
+      const catalogSnapshot = typeof catalog === 'function' ? await catalog() : null;
+      const connections = [...report.connections];
+      const currentIds = new Set(connections.map((item) => item.id));
+      for (const entry of catalogSnapshot?.entries ?? []) {
+        if (!currentIds.has(entry.id)) connections.push(catalogConnection(entry));
+      }
       if (action === 'list') return {
         state: 'listed', checkedAt: report.checkedAt,
-        userSafeSummary: report.userSafeSummary, connections: report.connections,
+        userSafeSummary: report.userSafeSummary, connections,
       };
       if (action === 'start') {
         if (typeof startConnection !== 'function') throw new Error('connection start is unavailable');
@@ -33,7 +49,7 @@ export function makeConnectionTool({ doctor, startConnection, performConnection 
         return { state: 'user_action_started', ...performed };
       }
       if (action !== 'inspect') throw new Error(`Unknown connection action: ${action}`);
-      const connection = report.connections.find((item) => item.id === String(id ?? ''));
+      const connection = connections.find((item) => item.id === String(id ?? ''));
       if (!connection) throw new Error('connection not found');
       return { state: 'inspected', checkedAt: report.checkedAt, connection };
     },

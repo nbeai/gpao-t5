@@ -78,7 +78,9 @@ export class WorkStore {
         const input = inputs.get(event.inputId); const current = works.get(event.currentWorkId);
         if (input) Object.assign(input, { transitionChoice: event.choice,
           transitionRunId: event.runId, transitionTargetHandle: event.targetHandle ?? null });
-        if (event.choice === 'steer_current' && input) input.state = 'admitted';
+        if (event.choice === 'steer_current' && input) Object.assign(input, {
+          state: 'admitted', workId: event.currentWorkId, revision: event.currentRevision,
+        });
         if (event.choice === 'followup_after_delivery' && input) Object.assign(input, {
           state: 'scheduled', disposition: 'deferred_after_delivery', schedule: 'after_current_delivery',
           workId: event.currentWorkId, baseRevision: event.currentRevision, revision: null,
@@ -110,6 +112,12 @@ export class WorkStore {
       }
       if (event.type === 'input_admission_aborted') {
         const input = inputs.get(event.inputId); if (input) input.state = 'aborted';
+      }
+      if (event.type === 'input_superseded_by_cancellation') {
+        const input = inputs.get(event.inputId); if (input) Object.assign(input, {
+          state: 'cancelled', disposition: 'superseded_by_cancel', schedule: null,
+          workId: event.workId, revision: event.revision, executionRunId: event.runId,
+        });
       }
       if (event.type === 'input_presented') {
         const input = inputs.get(event.inputId); if (input) Object.assign(input, {
@@ -379,6 +387,7 @@ export class WorkStore {
   async presentInputs({ sessionId, workId, revision, runId }) {
     const state = await this.read(); const inputs = state.inputs.filter((input) => (
       input.sessionId === sessionId && input.state === 'admitted'
+      && (!input.workId || (input.workId === workId && input.revision === revision))
     ));
     for (const input of inputs) await this.append('input_presented', {
       inputId: input.inputId, sessionId, workId, revision, runId,
@@ -583,6 +592,17 @@ export class WorkStore {
     await this.append('input_transition_committed', { inputId, sessionId, runId,
       currentWorkId, currentRevision: current.revision, choice, targetHandle,
       targetWorkId, targetRevision, currentWorkDisposition });
+    if (choice === 'cancel') {
+      for (const candidate of state.inputs.filter((item) => item.inputId !== inputId
+        && item.sessionId === sessionId && item.state === 'admitted'
+        && item.transitionChoice === 'steer_current' && item.workId === currentWorkId
+        && item.revision === current.revision)) {
+        await this.append('input_superseded_by_cancellation', {
+          inputId: candidate.inputId, runId, workId: currentWorkId, revision: current.revision,
+          cancelInputId: inputId,
+        });
+      }
+    }
     return (await this.read()).inputs.find((item) => item.inputId === inputId);
   }
   async prepareInputAdmission({ sessionId, messageId, origin = 'console', attachmentIds = [], source = {} }) {

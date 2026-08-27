@@ -1777,6 +1777,7 @@ export function makeConsoleServer({
       if(purposeHistory)offeredTools.unshift(makePurposeHistoryTool({adapter:purposeHistory}));
       offeredTools.unshift(makeConnectionTool({
         doctor: connectionDoctor,
+        catalog: () => businessConnectionCatalogPromise,
         startConnection: (id) => startConnectionForTool(id, { runId: run.runId }),
         performConnection: (id, actionId) => performConnectionAction(id, actionId, { sessionId }),
       }));

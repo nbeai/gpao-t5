@@ -40,6 +40,8 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.doesNotMatch(launcher, /bin\/gpao-t5\.mjs/u);
   const verifier = await readFile(new URL('../scripts/verify-macos-installer.mjs', import.meta.url), 'utf8');
   assert.match(verifier, /const childExit = new Promise/u);
+  assert.match(verifier, /GPAO-T5\.icns/u);
+  assert.match(verifier, /packaged application icon is not declared/u);
   assert.doesNotMatch(verifier, /child\.kill\('SIGTERM'\);\s*await new Promise\(\(resolveExit\) => child\.once/u);
   assert.match(verifier, /\^-----BEGIN \(RSA \|OPENSSH \)\?PRIVATE KEY-----\$/u);
   assert.doesNotMatch(verifier, /'-l', 'BEGIN \(RSA \)\?PRIVATE KEY/u);

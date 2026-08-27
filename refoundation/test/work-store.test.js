@@ -178,3 +178,27 @@ test('after-delivery와 independent 입력이 함께 대기해도 각 exact Work
   await store.claimExecution({ workId: exactCalendar.workId, revision: exactCalendar.revision, runId: 'calendar-run' });
   await store.claimInputExecution({ inputId: calendar.inputId, runId: 'calendar-run' });
 });
+
+test('같은 boundary의 교정 뒤 취소는 교정을 원래 Work에서 닫고 이후 새 Work에 이월하지 않는다', async () => {
+  const store = new WorkStore(await mkdtemp(join(tmpdir(), 't5-work-correction-cancel-boundary-')));
+  const sessionId = 'session-correction-cancel';
+  const work = await store.create({ sessionId, sourceMessageId: 'source-message' });
+  const correction = await store.admitInput({ sessionId, messageId: 'correction-message' });
+  await store.commitTransitionDecision({ inputId: correction.inputId, sessionId, runId: 'active-run',
+    currentWorkId: work.workId, choice: 'steer_current' });
+  const cancel = await store.admitInput({ sessionId, messageId: 'cancel-message' });
+  await store.commitTransitionDecision({ inputId: cancel.inputId, sessionId, runId: 'active-run',
+    currentWorkId: work.workId, choice: 'cancel', currentWorkDisposition: 'cancel' });
+  let state = await store.read();
+  const closedCorrection = state.inputs.find((input) => input.inputId === correction.inputId);
+  assert.equal(closedCorrection.state, 'cancelled');
+  assert.equal(closedCorrection.disposition, 'superseded_by_cancel');
+  assert.equal(closedCorrection.workId, work.workId); assert.equal(closedCorrection.revision, 1);
+  assert.equal((await store.pendingInputs(sessionId)).some((input) => input.inputId === correction.inputId), false);
+  const next = await store.create({ sessionId, sourceMessageId: 'followup-message' });
+  await store.presentInputs({ sessionId, workId: next.workId, revision: next.revision, runId: 'followup-run' });
+  state = await store.read();
+  assert.equal(state.inputs.find((input) => input.inputId === correction.inputId).state, 'cancelled');
+  assert.equal(state.events.some((event) => event.type === 'input_presented'
+    && event.inputId === correction.inputId && event.runId === 'followup-run'), false);
+});
