@@ -330,7 +330,7 @@ if [ -n "$USER_NAME" ] && [ "$USER_NAME" != "root" ]; then
   OLD_STOP="$OLD_APP/Contents/Resources/app/refoundation/scripts/stop-local-runtime.mjs"
   OLD_PORT="$USER_HOME/Library/Application Support/GPAO-T5/state/console-port.json"
   if [ -x "$OLD_NODE" ] && [ -f "$OLD_STOP" ]; then
-    sudo -u "$USER_NAME" env HOME="$USER_HOME" "$OLD_NODE" "$OLD_STOP" --port-file "$OLD_PORT" --reason product_update || exit 1
+    sudo -u "$USER_NAME" env HOME="$USER_HOME" "$OLD_NODE" "$OLD_STOP" --port-file "$OLD_PORT" --reason product_update --timeout-ms 8000 || exit 1
   elif sudo -u "$USER_NAME" /usr/bin/pgrep -x "${product.name}" >/dev/null 2>&1; then
     sudo -u "$USER_NAME" /usr/bin/osascript -e 'tell application id "${product.bundleId}" to quit' >/dev/null 2>&1 || exit 1
     for WAIT_STEP in 1 2 3 4 5; do

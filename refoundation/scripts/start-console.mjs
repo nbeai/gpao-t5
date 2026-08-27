@@ -314,27 +314,31 @@ async function boundedShutdown(work, timeoutMs = 2_500) {
 const stop = async (reason = 'runtime_signal') => {
   if (stopping) return;
   stopping = true;
+  const installerBounded = reason === 'product_update' || reason === 'product_uninstall';
+  const shutdownBudget = installerBounded
+    ? { channel: 1_000, work: 2_000, continuity: 500, resources: 1_500, server: 500 }
+    : { channel: 2_500, work: 2_500, continuity: 2_500, resources: 2_500, server: 1_000 };
   server.beginRuntimeDrain();
   server.closeWakeStreams();
   await Promise.all([
-    boundedShutdown(() => server.closeMessengers()),
-    boundedShutdown(() => server.closeAutomations()),
+    boundedShutdown(() => server.closeMessengers(), shutdownBudget.channel),
+    boundedShutdown(() => server.closeAutomations(), shutdownBudget.channel),
   ]);
-  await boundedShutdown(() => server.drainActiveWork());
-  await boundedShutdown(() => runtimeContinuityMonitor.stop());
+  await boundedShutdown(() => server.drainActiveWork(), shutdownBudget.work);
+  await boundedShutdown(() => runtimeContinuityMonitor.stop(), shutdownBudget.continuity);
   server.closeModelConnections();
   await Promise.all([
-    boundedShutdown(() => server.closeBrowsers()),
-    boundedShutdown(() => server.closeWorkspaceConnections()),
-    boundedShutdown(() => server.closeFileActivity()),
-    boundedShutdown(() => server.closeAppActivity()),
-    boundedShutdown(() => server.managedProcesses.stopAll('runtime_shutdown')),
+    boundedShutdown(() => server.closeBrowsers(), shutdownBudget.resources),
+    boundedShutdown(() => server.closeWorkspaceConnections(), shutdownBudget.resources),
+    boundedShutdown(() => server.closeFileActivity(), shutdownBudget.resources),
+    boundedShutdown(() => server.closeAppActivity(), shutdownBudget.resources),
+    boundedShutdown(() => server.managedProcesses.stopAll('runtime_shutdown'), shutdownBudget.resources),
   ]);
   await boundedShutdown(() => new Promise((resolveClose) => {
     server.close(resolveClose);
     server.closeIdleConnections?.();
     server.closeAllConnections?.();
-  }), 1_000);
+  }), shutdownBudget.server);
   await runtimeContinuity.stop({ generationId: runtimeGenerationId,
     reason: 'runtime_stop_requested' }).catch(() => {});
   await runtimeOwnership.release(runtimeLease.claim).catch(() => {});

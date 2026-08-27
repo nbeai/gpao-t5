@@ -10,5 +10,10 @@ function option(name) {
 
 const portFileValue = option('--port-file') ?? process.env.T5_REFOUNDATION_PORT_FILE;
 if (!portFileValue) throw new Error('T5 local runtime port file is required');
-const result = await stopLocalRuntime({ portFile: resolve(portFileValue), reason: option('--reason') });
+const timeoutValue = option('--timeout-ms');
+const timeoutMs = timeoutValue == null ? undefined : Number(timeoutValue);
+if (timeoutMs != null && (!Number.isInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 60_000)) {
+  throw new TypeError('local runtime stop timeout is invalid');
+}
+const result = await stopLocalRuntime({ portFile: resolve(portFileValue), reason: option('--reason'), timeoutMs });
 console.log(JSON.stringify(result));
