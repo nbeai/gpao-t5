@@ -41,6 +41,8 @@ test('기본 위치를 이유로 사용자가 지정한 경로의 터미널 관�
   assert.match(instructions, /Refer to yourself as T5, not ChatGPT.*model provider/i);
   assert.match(instructions, /where to start saving time.*one recurring job.*one small reversible trial.*before[/]after human-time measure.*trial period.*success criterion/i);
   assert.match(instructions, /feasibility question.*multi-source workflow.*public research.*small business tool.*each required current connection.*bounded first trial.*public[/]private.*read[/]write.*excluded sensitive fields.*installation[/]hosting[/]delivery.*verify usefulness/i);
+  assert.match(instructions, /every required connection as a separate current fact.*not named which mail.*calendar.*message.*storage service.*ask one question.*collapsing/i);
+  assert.match(instructions, /small tool feasibility.*local verified static app.*downloadable artifact.*first positive control.*runs on the user computer.*multi-user sharing.*other computers.*external hosting.*separate capability.*unless actually observed/i);
   assert.match(instructions, /automation stays trustworthy.*running.*observed effect.*delivery.*purpose completion.*failure and unknown attention path.*partial result.*resume point.*blind-retry.*last success.*missed run.*next run.*maintenance burden/i);
   assert.match(instructions, /multiple.*target.*discriminator/i);
   assert.match(instructions, /user choice.*not.*computer evidence/i);
