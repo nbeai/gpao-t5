@@ -16,6 +16,23 @@ const TEXT_EXTENSIONS = new Set([
   '.log', '.sql', '.sh', '.zsh', '.ps1', '.bat', '.cmd',
 ]);
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.heic', '.tif', '.tiff', '.webp']);
+const DOCUMENT_EXTENSIONS = new Set([
+  '.pdf', '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt', '.hwp', '.hwpx', '.odt', '.ods', '.odp',
+  '.md', '.txt', '.csv', '.tsv',
+]);
+const STANDARD_USER_DOCUMENT_LOCATIONS = [
+  ['downloads', 'Downloads'], ['desktop', 'Desktop'], ['documents', 'Documents'],
+];
+const DOCUMENT_KIND_ALIASES = [
+  ['report', ['report', 'reports', '보고', '보고서', '리포트']],
+  ['proposal', ['proposal', 'proposals', '제안', '제안서']],
+  ['quote', ['quote', 'quotation', 'estimate', '견적', '견적서']],
+  ['invoice', ['invoice', 'bill', '청구', '청구서']],
+  ['contract', ['contract', 'agreement', '계약', '계약서']],
+  ['presentation', ['presentation', 'slides', 'deck', '발표', '발표자료']],
+  ['spreadsheet', ['spreadsheet', 'workbook', 'sheet', '스프레드시트', '엑셀']],
+  ['receipt', ['receipt', '영수증', '증빙']],
+];
 const DEFAULT_EXCLUDED_DIRECTORY_NAMES = new Set([
   '.git', 'node_modules', '__pycache__', '.cache', '.Trash', '$RECYCLE.BIN', 'System Volume Information',
 ]);
@@ -42,6 +59,14 @@ function clueTerms(value) {
     const expanded = Number(match[1]) * multiplier; if (Number.isSafeInteger(expanded)) output.push(String(expanded));
   }
   return [...new Set(output)];
+}
+function documentKindMatches(query, filename) {
+  const queryText = compact(query); const nameText = compact(filename); const matched = [];
+  for (const [kind, aliases] of DOCUMENT_KIND_ALIASES) {
+    if (aliases.some((alias) => queryText.includes(compact(alias)))
+      && aliases.some((alias) => nameText.includes(compact(alias)))) matched.push(kind);
+  }
+  return matched;
 }
 function grams(value) {
   const text = ` ${compact(value)} `; const output = new Set();
@@ -156,9 +181,46 @@ async function walkFiles(roots, { maxFiles, deadline, excludedDirectoryNames, pr
   if (pending.length || files.length >= maxFiles || Date.now() >= deadline) truncated = true;
   return { files, visited, unreadable, truncated };
 }
+async function recentUserDocuments({ home, roots, protectedRoots, deadline, query }) {
+  const output = [];
+  for (const [locationClass, name] of STANDARD_USER_DOCUMENT_LOCATIONS) {
+    let root; try { root = await realpath(resolve(home, name)); } catch { continue; }
+    if (!roots.some((allowed) => pathInside(root, allowed))) continue;
+    const pending = [root]; const records = [];
+    while (pending.length && Date.now() < deadline) {
+      const directory = pending.shift(); if (protectedPath(directory, protectedRoots)) continue;
+      let opened; try { opened = await opendir(directory); } catch { continue; }
+      try {
+        for await (const entry of opened) {
+          if (Date.now() >= deadline) break;
+          if (entry.name.startsWith('.') || entry.isSymbolicLink()) continue;
+          const path = join(directory, entry.name);
+          if (entry.isDirectory()) {
+            if (!DEFAULT_EXCLUDED_DIRECTORY_NAMES.has(entry.name) && !protectedPath(path, protectedRoots)) pending.push(path);
+            continue;
+          }
+          if (!entry.isFile() || !DOCUMENT_EXTENSIONS.has(extname(entry.name).toLowerCase())) continue;
+          let stat; try { stat = await lstat(path); } catch { continue; }
+          if (!stat.isFile() || stat.isSymbolicLink()) continue;
+          const kindMatches = documentKindMatches(query, entry.name);
+          records.push({ record: exactRecord(path, stat, home, { recentDocument: true, kindMatches }),
+            recencyMs: Math.max(stat.birthtimeMs || 0, stat.mtimeMs || 0), locationClass, kindMatches });
+        }
+      } catch { /* another process may change a user folder during the bounded walk */ }
+    }
+    records.sort((left, right) => right.kindMatches.length - left.kindMatches.length
+      || right.recencyMs - left.recencyMs || left.record.displayName.localeCompare(right.record.displayName));
+    const quota = locationClass === 'downloads' ? 12 : 4;
+    output.push(...records.slice(0, quota).map(({ record, locationClass: observedLocation, kindMatches }) => ({
+      record, locationClass: observedLocation, kindMatches,
+    })));
+  }
+  return output;
+}
 function exactRecord(path, stat, home, evidence = {}) {
   return { path, displayName: basename(path), locationText: locationText(path, home),
-    extension: extname(path).toLowerCase(), bytes: stat.size, modifiedAt: stat.mtime.toISOString(),
+    extension: extname(path).toLowerCase(), bytes: stat.size, createdAt: stat.birthtime?.toISOString?.() ?? null,
+    modifiedAt: stat.mtime.toISOString(),
     identity: { dev: stat.dev, ino: stat.ino, size: stat.size, mtimeMs: stat.mtimeMs }, evidence };
 }
 function currentIdentity(record, stat) {
@@ -320,6 +382,10 @@ export function makeFileRealityTool({
         const exactProtectedRoots = await canonicalProtectedRoots;
         const limit = safeInteger(maxCandidates, 10, 1, 20);
         const startedAt = now(); const deadline = startedAt + 7_500;
+        const recentDocumentsPromise = (scope ?? 'computer') === 'computer'
+          ? recentUserDocuments({ home, roots, protectedRoots: exactProtectedRoots,
+            deadline: startedAt + 1_500, query: clue })
+          : Promise.resolve([]);
         const indexed = await indexSearch({ query: clue, roots, platform, limit: 500 });
         const walk = await walkFiles(roots, { maxFiles: 200_000, deadline,
           excludedDirectoryNames: DEFAULT_EXCLUDED_DIRECTORY_NAMES, protectedRoots: exactProtectedRoots });
@@ -379,7 +445,12 @@ export function makeFileRealityTool({
           extension: record.extension, bytes: record.bytes, modifiedAt: record.modifiedAt,
           evidence: record.evidence, rankScore: Number(score.toFixed(3)),
         }));
-        return { state: 'observed', scope: scope ?? 'computer', candidates,
+        const recentDocumentCandidates = (await recentDocumentsPromise).map(({ record, locationClass, kindMatches }) => ({
+          handle: remember(record), displayName: record.displayName, locationText: record.locationText,
+          extension: record.extension, bytes: record.bytes, createdAt: record.createdAt,
+          modifiedAt: record.modifiedAt, locationClass, kindMatches,
+        }));
+        return { state: 'observed', scope: scope ?? 'computer', candidates, recentDocumentCandidates,
           coverage: { roots: roots.length, unavailableRoots: rootState.unavailableRoots,
             indexedCandidates: indexedSet.size, filesystemFilesVisited: walk.files.length,
             filesystemEntriesVisited: walk.visited, unreadableDirectories: walk.unreadable,

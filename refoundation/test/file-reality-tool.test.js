@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -47,6 +47,35 @@ test('컴퓨터 scope는 위치·파일명을 몰라도 내용 단서로 workspa
       handles: [found.handle], maxCandidates: null });
     assert.match(inspected.content, /새봄상사 제안 금액 3000000원/u);
     assert.doesNotMatch(JSON.stringify(whole), /새봄상사 제안 금액/u);
+  } finally { await rm(room.root, { recursive: true, force: true }); }
+});
+
+test('한국어·영어 최신 문서 요청은 내용 없이 표준 폴더의 같은 종류 후보를 최신순으로 제공한다', async () => {
+  const room = await fixture(); const downloads = join(room.root, 'Downloads');
+  const newestReport = join(downloads, '현장지원팀_주간보고.pdf');
+  const olderReport = join(downloads, 'delivery_strategy_report.pdf');
+  const unrelated = join(downloads, '오늘메모.txt');
+  try {
+    await mkdir(downloads);
+    await Promise.all([writeFile(newestReport, 'private report body'), writeFile(olderReport, 'older report body'),
+      writeFile(unrelated, 'newest but unrelated body')]);
+    // Future mtimes make the ordering deterministic even on filesystems whose birthtime cannot be set in a fixture.
+    await utimes(olderReport, new Date('2030-08-20T00:00:00Z'), new Date('2030-08-20T00:00:00Z'));
+    await utimes(newestReport, new Date('2030-08-21T00:00:00Z'), new Date('2030-08-21T00:00:00Z'));
+    await utimes(unrelated, new Date('2030-08-22T00:00:00Z'), new Date('2030-08-22T00:00:00Z'));
+    const tool = makeFileRealityTool({ workspace: room.workspace, home: room.root,
+      platform: 'test', computerRoots: [room.root], indexSearch: async () => [] });
+    for (const query of ['latest report', '가장 최근 외부 보고서']) {
+      const result = await tool.execute({ action: 'search', query, scope: 'computer', path: null,
+        handles: null, maxCandidates: 5, placements: null, planId: null, effect: null,
+        sourceUses: null, purpose: null, unknowns: null, standardization: null });
+      assert.equal(result.recentDocumentCandidates[0].displayName, '현장지원팀_주간보고.pdf');
+      assert.deepEqual(result.recentDocumentCandidates[0].kindMatches, ['report']);
+      assert.equal(result.recentDocumentCandidates[0].locationClass, 'downloads');
+      assert.equal(result.contentIncluded, false);
+      assert.ok(result.recentDocumentCandidates.length <= 20);
+      assert.doesNotMatch(JSON.stringify(result.recentDocumentCandidates), /private report body|older report body/u);
+    }
   } finally { await rm(room.root, { recursive: true, force: true }); }
 });
 
