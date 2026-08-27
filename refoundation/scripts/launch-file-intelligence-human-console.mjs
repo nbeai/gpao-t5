@@ -3,7 +3,7 @@ import { execFile, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import sharp from 'sharp';
 
@@ -28,7 +28,8 @@ const connection = state.connections?.find((item) => item.modelId === requestedM
 if (!connection) throw new Error('requested model connection is unavailable');
 const secretStore = makePlatformSecretStore({ platform: process.platform });
 const credential = await loadReadOnlyConnectionCredential({ connection, secretStore });
-const blindPassport = process.argv.includes('--blind-passport');
+const realHomeBlind = process.argv.includes('--real-home-blind-passport');
+const blindPassport = process.argv.includes('--blind-passport') || realHomeBlind;
 const room = await mkdtemp(join(tmpdir(), 't5-file-intelligence-human-')); const syntheticHome = join(room, 'home');
 const desktop = join(syntheticHome, 'Desktop');
 const workspace = join(room, 'workspace'); const stateDir = join(room, 'state'); const runtime = join(room, 'runtime');
@@ -36,7 +37,14 @@ await Promise.all([desktop, join(syntheticHome, 'Documents'), join(syntheticHome
   .map((path) => mkdir(path, { recursive: true, mode: 0o700 })));
 
 const svg = (body) => Buffer.from(`<svg width="600" height="800" xmlns="http://www.w3.org/2000/svg"><rect width="600" height="800" fill="#eee"/>${body}</svg>`);
-if (blindPassport) {
+let realBlindRoot = null;
+if (realHomeBlind) {
+  realBlindRoot = join(homedir(), 'Documents', `업무자료-${randomUUID()}`);
+  const targetFolder = join(realBlindRoot, '보관', '받은파일', '2025', '원본');
+  await mkdir(targetFolder, { recursive: true, mode: 0o700 }); const targetName = `${randomUUID()}.png`;
+  await writeFile(join(targetFolder, targetName), await sharp(svg('<rect width="600" height="800" fill="white"/><ellipse cx="300" cy="300" rx="130" ry="170" fill="#e8b98e"/><path d="M165 260 Q300 65 435 260" fill="#222"/><path d="M100 800 Q130 520 300 520 Q470 520 500 800" fill="#333"/>')).png().toBuffer());
+  await writeFile(join(stateDir, 'blind-expected.json'), JSON.stringify({ targetName, kind: 'passport_portrait_fixture' }), { mode: 0o600 });
+} else if (blindPassport) {
   const folders = [join(syntheticHome, 'Documents', '보관', '예전자료', '받은파일'),
     join(syntheticHome, 'Downloads', '정리안됨', '메신저'), join(desktop, '임시', '사진')];
   await Promise.all(folders.map((path) => mkdir(path, { recursive: true, mode: 0o700 })));
@@ -75,26 +83,30 @@ const model = credential.kind === 'api_key'
   : makeChatGptResponsesModel({ model: credential.modelId, endpoint, fetchImpl, maxAttempts: 1, instructions,
     credentials: { async get() { return { access: credential.secret.access, accountId: credential.secret.accountId,
       expiresAt: credential.secret.expiresAt, modelId: credential.modelId }; } } });
-const computer = discoverComputerEnvironment({ userHome: syntheticHome });
-const terminalPlatformAdapter = await makeTerminalPlatformAdapter({ platform: 'darwin', protectedReadRoots: [homedir()] });
+const qualificationHome = realHomeBlind ? homedir() : syntheticHome;
+const computer = discoverComputerEnvironment({ userHome: qualificationHome });
+const terminalPlatformAdapter = await makeTerminalPlatformAdapter({ platform: 'darwin',
+  protectedReadRoots: realHomeBlind ? [dirname(connectionFile), join(homedir(), 'Library', 'Keychains'), stateDir] : [homedir()] });
 const server = makeConsoleServer({ stateDir, workspace, computerEnvironment: computer,
-  computerFileRoots: blindPassport ? [syntheticHome] : [desktop],
+  computerFileRoots: realHomeBlind ? [homedir()] : blindPassport ? [syntheticHome] : [desktop],
   restrictFileRealityToComputerRoots: true,
   fileOcrProbe: makeLocalImageOcr({ platform: 'darwin', helper }), modelFactory: () => model,
   modelStatus: () => ({ connected: true, provider: credential.provider, modelId: credential.modelId }),
   learningReviewMode: 'off', messengerCredentialStore: new MessengerCredentialStore(join(stateDir, 'messenger')),
-  terminalEnvironment: { HOME: syntheticHome, PATH: process.env.PATH ?? '/usr/bin:/bin', SHELL: '/bin/zsh', LANG: 'ko_KR.UTF-8' },
+  terminalEnvironment: { HOME: qualificationHome, PATH: process.env.PATH ?? '/usr/bin:/bin', SHELL: '/bin/zsh', LANG: 'ko_KR.UTF-8' },
   terminalPlatformAdapter,
   onError: (error) => console.error('[file-intelligence-human]', error?.message ?? error) });
 await new Promise((resolve, reject) => { server.once('error', reject); server.listen(Number(option('--port') ?? 0), '127.0.0.1', resolve); });
 const url = `http://127.0.0.1:${server.address().port}`;
 console.log(JSON.stringify({ url, model: credential.modelId, fixtureRoot: blindPassport ? '[withheld blind fixture]' : room,
-  blindPassport, realUserFilesRead: 0, externalWrites: 0,
+  blindPassport, realHomeBlind, realUserFilesMayBeRead: realHomeBlind, externalWrites: realHomeBlind ? 1 : 0,
   prompts: blindPassport ? ['내 컴퓨터에서 여권사진 찾아줘. 사람 신원은 추정하지 말고 파일만 골라줘.']
     : ['바탕화면에서 카카오로 받은 한빛상사 478만원 견적 사진 찾아줘',
       '바탕화면에서 여권사진처럼 보이는 파일 찾아줘. 사람 신원은 추정하지 말고 파일만 골라줘.'] }, null, 2));
 if (!process.argv.includes('--no-open')) spawn('open', [url], { stdio: 'ignore', detached: true }).unref();
 let stopping = false; const stop = async () => { if (stopping) return; stopping = true; server.closeWakeStreams(); server.closeModelConnections();
   await server.managedProcesses.stopAll('human_console_shutdown').catch(() => {}); await new Promise((resolve) => server.close(resolve));
-  if (!process.argv.includes('--keep-fixture')) await rm(room, { recursive: true, force: true }); process.exit(0); };
+  if (!process.argv.includes('--keep-fixture')) { await rm(room, { recursive: true, force: true });
+    if (realBlindRoot) await rm(realBlindRoot, { recursive: true, force: true }); }
+  process.exit(0); };
 process.once('SIGINT', stop); process.once('SIGTERM', stop);
