@@ -2706,11 +2706,24 @@ export function makeConsoleServer({
       } else if (session.origin?.channel === 'telegram' && result.surfaceResult?.kind === 'reply') {
         await workStore.markResultDeliveryStarted(result.runId, { provider: 'telegram', state: 'started' });
         try {
+          const artifacts = Array.isArray(result.surfaceResult.artifacts)
+            ? result.surfaceResult.artifacts : [];
+          const artifactIds = artifacts.map((artifact) => artifact?.attachmentId);
           const sent = await messenger.sendToSession({ sessionId: result.sessionId,
-            text: result.surfaceResult.reply });
-          delivery = sent.sent ? { provider: 'telegram', state: 'sent',
-            messageIds: structuredClone(sent.messageIds ?? []) }
-            : { provider: 'telegram', state: 'failed', reason: 'not_sent' };
+            text: result.surfaceResult.reply, artifactIds });
+          const messageIds = structuredClone(sent.messageIds ?? []);
+          const files = structuredClone(sent.files ?? []);
+          const filesConfirmed = files.length === artifacts.length && artifacts.every((artifact, index) => (
+            typeof files[index]?.messageId === 'string' && files[index].messageId.length > 0
+            && files[index]?.artifact?.attachmentId === artifact?.attachmentId
+            && (!artifact?.sha256 || files[index]?.artifact?.sha256 === artifact.sha256)
+          ));
+          const textConfirmed = !String(result.surfaceResult.reply ?? '').trim()
+            || messageIds.length > files.length;
+          delivery = sent.sent && filesConfirmed && textConfirmed
+            ? { provider: 'telegram', state: 'sent', messageIds, files }
+            : { provider: 'telegram', state: 'failed', reason: 'delivery_receipt_incomplete',
+              messageIds, files };
         } catch (error) {
           delivery = { provider: 'telegram', state: 'failed',
             reason: error?.code ?? 'telegram_delivery_failed' };
