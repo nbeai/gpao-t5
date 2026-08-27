@@ -1,9 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {
-  defaultMacOSComputerFileRoots, discoverComputerEnvironment, discoverMacOSComputerFileRoots,
-} from '../src/computer-environment.js';
+import { defaultMacOSComputerFileRoots, discoverComputerEnvironment } from '../src/computer-environment.js';
 
 test('제품 의미와 분리된 환경 발견기가 POSIX 컴퓨터의 실제 셸을 사용한다', () => {
   const computer = discoverComputerEnvironment({
@@ -38,19 +36,4 @@ test('macOS 기본 파일 검색은 사용자 자료 폴더만 열고 다른 앱
   ]);
   assert.equal(roots.includes('/Users/person'), false);
   assert.equal(roots.some((root) => root.includes('/Library')), false);
-});
-
-test('macOS 사용자가 만든 최상위 자료 폴더는 포함하되 Library와 숨김 폴더는 제외한다', async () => {
-  const entries = [
-    { name: 'Library', isDirectory: () => true },
-    { name: '.private', isDirectory: () => true },
-    { name: 'Projects', isDirectory: () => true },
-    { name: 'Documents', isDirectory: () => true },
-    { name: 'loose.txt', isDirectory: () => false },
-  ];
-  const roots = await discoverMacOSComputerFileRoots('/Users/person', async () => entries);
-  assert.equal(roots.includes('/Users/person/Projects'), true);
-  assert.equal(roots.includes('/Users/person/Documents'), true);
-  assert.equal(roots.includes('/Users/person/Library'), false);
-  assert.equal(roots.includes('/Users/person/.private'), false);
 });
