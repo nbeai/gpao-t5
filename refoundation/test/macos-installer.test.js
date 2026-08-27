@@ -32,12 +32,18 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.doesNotMatch(build, /set -e\nrm -rf/u);
   assert.doesNotMatch(build, /gpao-t-handoff|AuthKey_|signing-private/u);
   assert.match(launcher, /ensure-local-runtime\.mjs/u);
+  assert.match(launcher, /backgroundRuntimeMode/u);
+  assert.match(launcher, /NSApplicationActivationPolicyProhibited/u);
+  assert.match(launcher, /openConsoleWithCompletion:nil/u);
   assert.doesNotMatch(launcher, /applicationWillTerminate[\s\S]*\[self\.child terminate\]/u);
   assert.doesNotMatch(launcher, /connect-chatgpt\.mjs|startOAuth/u);
   assert.match(launcher, /applicationDidFinishLaunching[\s\S]*?\[self startConsole\]/u);
   assert.match(launcher, /T5_REFOUNDATION_MODEL_CONNECTION_FILE/u);
   assert.match(launcher, /runtime\/bin/u);
   assert.doesNotMatch(launcher, /bin\/gpao-t5\.mjs/u);
+  assert.match(build, /Contents\/MacOS\/\$\{product\.name\}/u);
+  assert.match(build, /--background-runtime/u);
+  assert.doesNotMatch(build, /<string>\/Applications\/\$\{product\.name\}\.app\/Contents\/Resources\/runtime\/bin\/node<\/string>[\s\S]*ensure-local-runtime/u);
   const verifier = await readFile(new URL('../scripts/verify-macos-installer.mjs', import.meta.url), 'utf8');
   assert.match(verifier, /const childExit = new Promise/u);
   assert.match(verifier, /GPAO-T5\.icns/u);
