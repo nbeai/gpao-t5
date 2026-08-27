@@ -15,7 +15,7 @@ async function listen(server) {
 
 async function close(server, room) {
   await new Promise((resolve) => server.close(resolve));
-  await rm(room, { recursive: true, force: true });
+  await rm(room, { recursive: true, force: true, maxRetries: 20, retryDelay: 10 });
 }
 
 test('QH-3 projection red: independent busy input과 control output은 old Work surface에서 철회된다', async () => {

@@ -109,3 +109,17 @@ test('provider 실패 Run의 execution claim을 release하면 같은 Work의 다
   await store.claimExecution({ workId: work.workId, revision: 1, runId: 'next-user-run' });
   assert.equal((await store.workForRun('next-user-run')).claimedRevision, 1);
 });
+
+test('provider 실패 전 presented 입력은 exact Run에서만 settlement retry로 돌아간다', async () => {
+  const store = new WorkStore(await mkdtemp(join(tmpdir(), 't5-work-presented-retry-')));
+  const work = await store.create({ sessionId: 'session-presented-retry', sourceMessageId: 'source-1' });
+  const prepared = await store.prepareInputAdmission({ sessionId: work.sessionId, messageId: 'message-2',
+    source: { channel: 'telegram' } });
+  await store.commitInputAdmission(prepared.inputId);
+  await store.presentInputs({ sessionId: work.sessionId, workId: work.workId, revision: work.revision, runId: 'run-failed' });
+  assert.deepEqual(await store.releasePresentedInputsForRun('foreign-run'), []);
+  const released = await store.releasePresentedInputsForRun('run-failed');
+  assert.deepEqual(released, [{ inputId: prepared.inputId, state: 'classified', schedule: 'settlement_retry' }]);
+  const queued = await store.queuedInputs(work.sessionId);
+  assert.equal(queued.length, 1);assert.equal(queued[0].workId, work.workId);assert.equal(queued[0].revision, 1);
+});

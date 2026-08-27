@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+
+import { digestAtCommit } from './helpers/git-evidence-digest.js';
 
 const evidence = JSON.parse(await readFile(new URL(
   '../evidence/s3-m5-macos-native-surface-2026-08-27.json', import.meta.url,
@@ -32,7 +33,6 @@ test('M5-3 evidence source digest는 exact source commit과 일치한다', async
   assert.equal(evidence.sourceCommit, 'cc50cfd774439b7740512d6e3d0761a4538e23e5');
   assert.match(evidence.sourceReboundReason, /verificationKind/u);
   for (const [path, expected] of Object.entries(evidence.sourceDigests)) {
-    const bytes = await readFile(new URL(`../../${path}`, import.meta.url));
-    assert.equal(createHash('sha256').update(bytes).digest('hex'), expected, path);
+    assert.equal(digestAtCommit(evidence.sourceCommit, path), expected, path);
   }
 });

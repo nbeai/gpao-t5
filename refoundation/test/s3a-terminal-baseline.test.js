@@ -24,10 +24,11 @@ test('S3-T0 봉인 fixture는 일반 파일과 당시 비밀 read 경계를 실�
   assert.doesNotMatch(JSON.stringify(result), /FIXTURE-PRIVATE-KEY|FIXTURE-CLI-TOKEN/u);
 });
 
-test('S3-T0 fixture는 현재 effect schema 개선과 output-store 없는 기준선 간극을 수치로 남긴다', async () => {
+test('S3-T0 fixture는 현재 strict effect schema와 output-store 기준선 간극을 수치로 남긴다', async () => {
   const result = await baseline();
   assert.deepEqual(result.toolSurface.execRequiredTopLevel, ['command', 'cwd', 'effect']);
-  assert.deepEqual(result.toolSurface.effectRequiredFields, ['kind', 'targets', 'confirmation']);
+  assert.deepEqual(result.toolSurface.effectRequiredFields,
+    ['kind', 'targets', 'confirmation', 'rollbackOfToolCallId']);
   assert.ok(result.toolSurface.schemaBytes > 0);
   assert.equal(result.foregroundOutput.truncated, true);
   assert.ok(result.foregroundOutput.omittedChars > 0);

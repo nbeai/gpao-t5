@@ -9,6 +9,10 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.match(build, /restrict-kordoc-bin\.mjs/u);
   assert.match(build, /node-arm64/u);
   assert.match(build, /node-x64/u);
+  assert.match(build, /buildFileActivityHelper/u);
+  assert.match(build, /t5-macos-file-activity/u);
+  assert.match(build, /CoreServices/u);
+  assert.match(build, /File activity helper is not universal/u);
   assert.match(build, /COPYRIGHT/u);
   assert.match(build, /THIRD_PARTY_NOTICES\.md/u);
   assert.match(build, /'skill-packages'/u);

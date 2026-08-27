@@ -117,6 +117,12 @@ export class WorkStore {
           baseWorkId: event.workId, baseRevision: event.revision,
         });
       }
+      if (event.type === 'input_presentation_released') {
+        const input = inputs.get(event.inputId); if (input) Object.assign(input, {
+          state: 'classified', disposition: 'unresolved', schedule: 'settlement_retry',
+          workId: event.workId, revision: event.revision, presentedRunId: null,
+        });
+      }
       if (event.type === 'input_applied_to_current_work') {
         const input = inputs.get(event.inputId); if (input) Object.assign(input, {
           state: 'executing', disposition: 'current_work', workId: event.workId,
@@ -479,8 +485,18 @@ export class WorkStore {
   async queuedInputs(sessionId) {
     const state = await this.read(); return state.inputs.filter((input) => (
       input.sessionId === sessionId && ((input.state === 'scheduled' && input.schedule === 'after_current_delivery')
-        || (input.state === 'classified' && input.schedule === 'independent_work'))
+        || (input.state === 'classified' && ['independent_work', 'settlement_retry'].includes(input.schedule)))
     ));
+  }
+  async releasePresentedInputsForRun(runId, { reason = 'run_failed_before_input_application' } = {}) {
+    const state = await this.read(); const presented = state.inputs.filter((input) => (
+      input.state === 'presented' && input.presentedRunId === runId
+    ));
+    for (const input of presented) await this.append('input_presentation_released', {
+      inputId: input.inputId, runId, workId: input.baseWorkId, revision: input.baseRevision,
+      reason: String(reason).slice(0, 160),
+    });
+    return presented.map((input) => ({ inputId: input.inputId, state: 'classified', schedule: 'settlement_retry' }));
   }
   async undecidedInputs(sessionId) {
     return (await this.read()).inputs.filter((input) => input.sessionId === sessionId

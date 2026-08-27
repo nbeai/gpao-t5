@@ -2531,6 +2531,53 @@ const SET_RENDER = {
 
       await renderReflectionReview(setBody);
 
+      const activity = mk('section', 'settings-section'); activity.id = 'fileActivitySettings';
+      const activityHead = mk('div', 'settings-section-head'); const activityTitles = document.createElement('div');
+      activityTitles.appendChild(mk('h3', null, '파일 활동 기록'));
+      activityTitles.appendChild(mk('p', null, '허용한 작업 폴더에서 파일 이름과 변화 시점 같은 metadata만 로컬에 기록해요. 파일 내용은 기록하지 않아요.'));
+      activityHead.appendChild(activityTitles); activity.appendChild(activityHead);
+      try {
+        const activityResponse = await fetch('/file-activity/state'); const activityState = await activityResponse.json();
+        const activityList = mk('div', 'settings-list'); const activityRow = mk('div', 'settings-item');
+        const activityMain = mk('div', 'settings-item-main');
+        activityMain.appendChild(mk('div', 'settings-item-title', activityState.userSafeSummary));
+        activityMain.appendChild(mk('div', 'settings-item-desc', activityState.available
+          ? `기록 ${activityState.eventCount ?? 0}건 · 저장 공간 ${activityState.storageBytes ?? 0}바이트 · 직접 지울 때까지 보관`
+          : '이 기기에서는 아직 사용할 수 없어요.'));
+        const activityActions = mk('div', 'connection-actions');
+        const act = async (path, payload) => {
+          const response = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload) });
+          if (!response.ok) throw new Error('파일 활동 기록을 바꾸지 못했어요.');
+          await SET_RENDER.memory();
+        };
+        if (activityState.available && activityState.selectable && !activityState.configured) {
+          const start = document.createElement('button'); start.className = 'connection-button';
+          start.textContent = '기록할 폴더 선택'; start.onclick = () => act('/file-activity/select', {});
+          activityActions.appendChild(start);
+        } else if (activityState.available) {
+          const toggle = document.createElement('button'); toggle.className = 'connection-button';
+          toggle.textContent = activityState.enabled ? '잠시 멈추기' : '다시 시작';
+          toggle.onclick = () => act('/file-activity/action', { action: activityState.enabled ? 'pause' : 'enable' });
+          const forgetActivity = document.createElement('button'); forgetActivity.className = 'connection-button';
+          forgetActivity.textContent = '기록 모두 지우기'; forgetActivity.onclick = () => {
+            if (confirm('허용한 폴더의 파일 활동 기록을 모두 지울까요?')) {
+              act('/file-activity/action', { action: 'forget' });
+            }
+          };
+          activityActions.append(toggle, forgetActivity);
+        }
+        activityRow.append(activityMain, activityActions); activityList.appendChild(activityRow);
+        if (activityState.available && activityState.eventCount > 0) {
+          const recentResponse = await fetch('/file-activity/history?limit=10'); const recent = await recentResponse.json();
+          const labels = { created: '생김', modified: '바뀜', moved: '이동함', deleted: '삭제됨' };
+          for (const item of recent.items ?? []) activityList.appendChild(mk('div', 'settings-item-desc',
+            `${item.pathText} · ${labels[item.kind] ?? '변화'} · ${new Date(item.occurredAt).toLocaleString()}`));
+        }
+        activity.appendChild(activityList);
+      } catch { activity.appendChild(mk('div', 'tb-empty', '파일 활동 기록 상태를 불러오지 못했어요.')); }
+      setBody.appendChild(activity);
+
       const privacy = mk('section', 'settings-section'); const head = mk('div', 'settings-section-head');
       const titles = document.createElement('div'); titles.appendChild(mk('h3', null, '개인정보와 기록'));
       titles.appendChild(mk('p', null, '기억은 출처와 함께 관리하고 과거 대화 원문은 여기 복제하지 않아요.'));

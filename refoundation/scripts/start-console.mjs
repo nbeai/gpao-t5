@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { chmod, mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { access as accessFile, chmod, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
@@ -34,6 +35,10 @@ import { makeChannelTalkConnection } from '../src/channel-talk-connection.js';
 import { makeSlackMcpConnection } from '../src/slack-mcp-connection.js';
 import { ConnectionStateStore } from '../src/connection-state-store.js';
 import { ConnectionCredentialCoordinator } from '../src/connection-credential-coordinator.js';
+import { ScopedFileActivityLedger } from '../src/scoped-file-activity-ledger.js';
+import { makeScopedFileActivityService } from '../src/scoped-file-activity-service.js';
+import { makeMacOSFSEventsAdapter } from '../src/file-activity-platform-adapters.js';
+import { makeNativeFolderSelector } from '../src/native-folder-selector.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -67,6 +72,26 @@ const terminalCredentialBroker = makeTerminalCredentialBroker({
 const portFile = process.env.T5_REFOUNDATION_PORT_FILE
   ? resolve(process.env.T5_REFOUNDATION_PORT_FILE) : null;
 await Promise.all([mkdir(stateDir, { recursive: true }), mkdir(workspace, { recursive: true })]);
+
+const fileActivityLedger = new ScopedFileActivityLedger(join(stateDir, 'file-activity'));
+const packagedFileActivityHelper = process.platform === 'darwin'
+  ? resolve(process.env.T5_FILE_ACTIVITY_HELPER ?? join(dirname(process.execPath), 't5-macos-file-activity')) : null;
+let fileActivityAdapterFactory = null;
+if (packagedFileActivityHelper) {
+  try {
+    await accessFile(packagedFileActivityHelper, constants.X_OK);
+    fileActivityAdapterFactory = async () => makeMacOSFSEventsAdapter({
+      helper: packagedFileActivityHelper, ledger: fileActivityLedger,
+      onError: (error) => console.error('[file-activity]', error?.message ?? 'collector failed'),
+    });
+  } catch {}
+}
+const fileActivityService = makeScopedFileActivityService({
+  ledger: fileActivityLedger, adapterFactory: fileActivityAdapterFactory,
+  onError: (error) => console.error('[file-activity]', error?.message ?? 'collector failed'),
+});
+const fileActivityRootSelector = makeNativeFolderSelector();
+await fileActivityService.resumeConfigured().catch(() => {});
 
 const platformSecretStore = makePlatformSecretStore({ platform: computerEnvironment.platform });
 await migrateStoredModelCredentials({ file: connectionFile, secretStore: platformSecretStore });
@@ -141,6 +166,8 @@ const server = makeConsoleServer({
   workspaceConnectionInspectors: [],
   workspaceConnectionServices,
   messengerCredentialStore,
+  fileActivityService,
+  fileActivityRootSelector,
   localConsoleToken,
   onError: (error) => console.error('[refoundation-console]', error?.message ?? error),
 });
@@ -190,6 +217,7 @@ const stop = async () => {
     boundedShutdown(() => server.closeBrowsers()),
     boundedShutdown(() => server.closeWorkspaceConnections()),
     boundedShutdown(() => server.closeAutomations()),
+    boundedShutdown(() => server.closeFileActivity()),
     boundedShutdown(() => server.managedProcesses.stopAll('runtime_shutdown')),
   ]);
   await boundedShutdown(() => new Promise((resolveClose) => {

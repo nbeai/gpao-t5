@@ -100,7 +100,7 @@ test('Telegram에서 생긴 대화에 콘솔로 이어 말하면 같은 Telegram
     assert.equal(turn.status, 200);
     const result = await turn.json();
     assert.equal(result.channelDelivery?.sent, true);
-    assert.equal(deliveries.length, 3);
+    if(deliveries.length!==3)throw new Error(JSON.stringify({deliveries,first,second,modelCalls}));
     assert.match(deliveries[1].text, /내 요청 · 콘솔에서/u);
     assert.equal(deliveries[2].chatId, '555');
   } finally {
@@ -184,7 +184,7 @@ test('Telegram 대화의 console Run은 사용자 입력을 동기화하고 선�
 
 test('provider 실패 안내도 Telegram delivery receipt로 닫히고 같은 Session 다음 발화가 모델에 도달한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-messenger-provider-failure-release-'));
-  const deliveries = []; let poll = 0; let modelCalls = 0;
+  const deliveries = []; let poll = 0; let modelCalls = 0; let transitionCalls = 0;
   const messages = ['첨부를 읽어줘', '그럼 다음 질문에 답해줘'];
   const provider = {
     id: 'telegram', inboundMode: 'long_polling',
@@ -209,7 +209,11 @@ test('provider 실패 안내도 Telegram delivery receipt로 닫히고 같은 Se
   };
   const server = makeConsoleServer({
     stateDir: room, workspace: room, messengerProviderFactory: () => provider,
-    modelFactory: () => ({ async respond() {
+    modelFactory: (context) => context.purpose === 'transition_decision' ? ({ async respond() {
+      transitionCalls += 1; return { text: '', toolCalls: [{ id: 'provider-failure-followup',
+        name: 'transition_decision', args: { choice: 'steer_current', targetHandle: null,
+          currentWorkDisposition: null } }] };
+    } }) : ({ async respond() {
       modelCalls += 1;
       if (modelCalls === 1) throw Object.assign(new Error('provider rejected input'), {
         code: 'provider_http_error',
@@ -229,18 +233,23 @@ test('provider 실패 안내도 Telegram delivery receipt로 닫히고 같은 Se
     });
     assert.equal(connected.status, 200);
     for (let attempt = 0; attempt < 100; attempt += 1) {
-      const second = await server.messengerStateStore.ingress('telegram', 2);
-      if (second?.state === 'completed') break;
+      const [first,second] = await Promise.all([server.messengerStateStore.ingress('telegram',1),
+        server.messengerStateStore.ingress('telegram', 2)]);
+      if (first?.state === 'completed' && second?.state === 'completed') break;
       await new Promise((resolveWait) => setTimeout(resolveWait, 10));
     }
     const first = await server.messengerStateStore.ingress('telegram', 1);
     const second = await server.messengerStateStore.ingress('telegram', 2);
-    assert.equal(first.state, 'adopted_unknown');
-    assert.equal(first.messageIds?.length ?? 0, 0);
+    for (let attempt = 0; attempt < 100 && deliveries.length < 3; attempt += 1) {
+      await new Promise((resolveWait) => setTimeout(resolveWait, 10));
+    }
+    assert.equal(first.state, 'completed');
+    assert.equal(first.messageIds?.length, 1);
     assert.equal(second.state, 'completed');
-    assert.equal(modelCalls, 2);
-    assert.equal(deliveries.length, 1);
-    assert.match(deliveries[0], /두 번째 요청/u);
+    assert.equal(modelCalls,2);assert.equal(transitionCalls,1);
+    assert.equal(deliveries.length, 3);
+    assert.match(deliveries[Number(first.messageIds[0]) - 701],/처리하지 못했|문제가/u);
+    assert.equal(deliveries.some((text) => /두 번째 요청/u.test(text)),true);
     const work = await server.workStore.read();
     assert.ok(work.claims.some((claim) => claim.state === 'released'));
     assert.equal(work.claims.length, 2);

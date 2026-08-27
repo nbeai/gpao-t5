@@ -352,6 +352,8 @@ export function makeConsoleServer({
   learningReviewMode = 'proposal',
   learningReviewIdleMs = 30_000,
   reflectionReviewCoordinator = null,
+  fileActivityService = null,
+  fileActivityRootSelector = null,
   onError,
 } = {}) {
   if (!stateDir || !workspace) throw new TypeError('stateDir and workspace are required');
@@ -391,6 +393,13 @@ export function makeConsoleServer({
     .some((name) => typeof reflectionReviewCoordinator[name] !== 'function')) {
     throw new TypeError('reflectionReviewCoordinator is incomplete');
   }
+  if (fileActivityService != null && ['status', 'configure', 'enable', 'pause', 'history', 'forget', 'close']
+    .some((name) => typeof fileActivityService[name] !== 'function')) {
+    throw new TypeError('fileActivityService is incomplete');
+  }
+  if (fileActivityRootSelector != null && typeof fileActivityRootSelector !== 'function') {
+    throw new TypeError('fileActivityRootSelector is invalid');
+  }
   // A browser tab can outlive this server process during development, an app restart, or a
   // computer restart. Give every process lifetime a public, non-secret identity so the page can
   // distinguish a reconnect from a connection to the same runtime.
@@ -410,6 +419,8 @@ export function makeConsoleServer({
   }
   async function scheduleNextWorkInput(sessionId) {
     let queued = (await workStore.queuedInputs(sessionId)).find((input) => !scheduledWorkInputs.has(input.inputId));
+    if (!queued) queued = (await workStore.undecidedInputs(sessionId))
+      .find((input) => !scheduledWorkInputs.has(input.inputId));
     if (!queued || running.has(sessionId)) return false;
     if (queued.state === 'scheduled') {
       const state = await workStore.read();
@@ -702,12 +713,25 @@ export function makeConsoleServer({
     const next = prior.then(operation, operation); workRealityQueues.set(sessionId, next.catch(() => {}));
     return next;
   }
-  async function computeWorkReality(sessionId) {
-    const workState = await workStore.read();
-    const sessionWorkIds = new Set(workState.works.filter((work) => work.sessionId === sessionId)
-      .map((work) => work.workId));
-    const claims = workState.claims.filter((claim) => sessionWorkIds.has(claim.workId));
-    const runs = await runLedger.list({ sessionId }); const byRun = new Map(runs.map((run) => [run.runId, run]));
+  function scopeWorkState(workState, sessionId) {
+    const works = workState.works.filter((work) => work.sessionId === sessionId);
+    const workIds = new Set(works.map((work) => work.workId));
+    const claims = workState.claims.filter((claim) => workIds.has(claim.workId));
+    const runIds = new Set(claims.map((claim) => claim.runId));
+    return { events: workState.events.filter((event) => event.sessionId === sessionId
+      || workIds.has(event.workId) || runIds.has(event.runId)), works, claims,
+    inputs: workState.inputs.filter((input) => input.sessionId === sessionId),
+    proposals: workState.proposals.filter((proposal) => workIds.has(proposal.workId) || runIds.has(proposal.runId)),
+    results: workState.results.filter((result) => result.sessionId === sessionId
+      || workIds.has(result.workId) || runIds.has(result.runId)),
+    cancellations: workState.cancellations.filter((item) => workIds.has(item.workId) || runIds.has(item.runId)) };
+  }
+  async function computeWorkReality(sessionId, snapshot = null) {
+    const allWorkState = snapshot?.workState ?? await workStore.read();
+    const workState = scopeWorkState(allWorkState, sessionId);
+    const claims = workState.claims;
+    const runs = snapshot?.runs ?? await runLedger.list({ sessionId });
+    const byRun = new Map(runs.map((run) => [run.runId, run]));
     const runningRunId = running.get(sessionId)?.runId ?? null;
     const activeWork = workState.works.filter((work) => work.sessionId === sessionId
       && work.status === 'active').at(-1)
@@ -719,9 +743,9 @@ export function makeConsoleServer({
     const run = currentClaim ? byRun.get(currentClaim.runId) : null;
     return projectWorkReality({ sessionId, workState, run });
   }
-  async function currentWorkReality(sessionId) {
+  async function currentWorkReality(sessionId, snapshot = null) {
     return serializeWorkReality(sessionId, async () => {
-      const internal = await computeWorkReality(sessionId); const previous = workRealityVersions.get(sessionId);
+      const internal = await computeWorkReality(sessionId, snapshot); const previous = workRealityVersions.get(sessionId);
       const version = previous?.generation === internal.generation ? previous.version : (previous?.version ?? 0) + 1;
       const value = { generation: internal.generation, version,
         public: { ...projectPublicWorkReality(internal), version } };
@@ -2400,6 +2424,9 @@ export function makeConsoleServer({
       const releasedClaim = await workStore.releaseExecution({
         runId: run.runId, reason: error?.code ?? 'turn_failed',
       }).catch(() => ({ released: false }));
+      await workStore.releasePresentedInputsForRun(run.runId, {
+        reason: 'run_failed_before_input_application',
+      }).catch((releaseError) => onError?.(releaseError));
       const existingResult = (await workStore.read()).results.find((item) => item.runId === run.runId);
       if (!surfacePersisted && !existingResult) {
         const failureDigest = createHash('sha256').update(JSON.stringify(failureSurface)).digest('hex');
@@ -2414,13 +2441,24 @@ export function makeConsoleServer({
         }).catch(() => {});
         let failureDelivery = { provider: 'console', state: 'persisted' };
         if (typeof options.deliverSurface === 'function') {
-          failureDelivery = { provider: 'telegram', state: 'not_sent',
-            reason: 'runtime_failure_is_not_a_user_authored_reply' };
+          await workStore.markResultDeliveryStarted(run.runId, { provider: 'telegram', state: 'started' }).catch(() => {});
+          try {
+            const delivery = await options.deliverSurface({ reply: failureSurface.reply, artifactIds: [] });
+            failureDelivery = delivery?.sent ? { provider: 'telegram', state: 'sent',
+              messageIds: structuredClone(delivery.messageIds ?? []), files: [] }
+              : { provider: 'telegram', state: 'failed', reason: 'not_sent' };
+          } catch (deliveryError) {
+            failureDelivery = { provider: 'telegram',
+              state: deliveryError?.effectUnknown ? 'unknown' : 'failed',
+              reason: deliveryError?.code ?? 'telegram_delivery_failed' };
+          }
           failureSurface.channelDelivery = {
-            provider: 'telegram', sent: false, state: failureDelivery.state,
+            provider: 'telegram', sent: failureDelivery.state === 'sent', state: failureDelivery.state,
+            ...(failureDelivery.messageIds ? { messageIds: failureDelivery.messageIds } : {}),
             ...(failureDelivery.reason ? { reason: failureDelivery.reason } : {}),
           };
-          await run.append({ type: 'channel_delivery_suppressed', stepId: 'telegram-delivery',
+          await run.append({ type: failureDelivery.state === 'sent' ? 'channel_delivery_completed'
+            : failureDelivery.state === 'unknown' ? 'channel_delivery_unknown' : 'channel_delivery_failed', stepId: 'telegram-delivery',
           payload: failureSurface.channelDelivery }).catch(() => {});
         }
         await workStore.markResultDeliveryTerminal(run.runId, failureDelivery).catch(() => {});
@@ -3657,13 +3695,20 @@ export function makeConsoleServer({
         json(res, 200, { state: 'skipped' }); return;
       }
       if (req.method === 'GET' && url.pathname === '/sessions') {
-        const listed = await sessions.list({
+        const [listed, workState, allRuns] = await Promise.all([sessions.list({
           archived: url.searchParams.get('archived') === '1',
           deleted: url.searchParams.get('deleted') === '1',
-        });
+        }), workStore.read(), runLedger.list()]);
+        const runsBySession = new Map();
+        for (const run of allRuns) {
+          if (!runsBySession.has(run.sessionId)) runsBySession.set(run.sessionId, []);
+          runsBySession.get(run.sessionId).push(run);
+        }
         json(res, 200, { sessions: await Promise.all(listed.map(async (session) => ({
           ...session, activity: sessionActivities.get(session.id),
-          workReality: (await currentWorkReality(session.id)).public,
+          workReality: (await currentWorkReality(session.id, {
+            workState, runs: runsBySession.get(session.id) ?? [],
+          })).public,
         }))) }); return;
       }
       if (req.method === 'GET' && url.pathname === '/runs') {
@@ -3714,6 +3759,53 @@ export function makeConsoleServer({
         }
         const resolved = await workHistory.resolve(input.historyHandle);
         privateJson(res, 200, { ok: true, sessionId: resolved.sessionId }); return;
+      }
+      if (req.method === 'GET' && url.pathname === '/file-activity/state') {
+        if (!fileActivityService) {
+          privateJson(res, 200, { available: false, selectable: false, configured: false, enabled: false,
+            desiredEnabled: false, rootCount: 0, eventCount: 0, storageBytes: 0,
+            retention: 'until_user_deletes', contentCapture: false, modelContextDefault: false,
+            gap: false, userSafeSummary: '이 운영체제의 파일 활동 기록은 아직 준비되지 않았어요.' }); return;
+        }
+        const state = await fileActivityService.status();
+        privateJson(res, 200, { available: state.available, selectable: Boolean(fileActivityRootSelector), configured: state.configured,
+          enabled: state.enabled, desiredEnabled: state.desiredEnabled,
+          rootCount: state.roots?.length ?? 0, eventCount: state.eventCount,
+          storageBytes: state.storageBytes, retention: state.retention,
+          contentCapture: false, modelContextDefault: false, gap: Boolean(state.gap),
+          userSafeSummary: state.userSafeSummary }); return;
+      }
+      if (req.method === 'GET' && url.pathname === '/file-activity/history') {
+        if (!fileActivityService) throw Object.assign(new Error('파일 활동 기록을 아직 사용할 수 없어요.'), { status: 503 });
+        const limit = Number(url.searchParams.get('limit') ?? 20);
+        if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+          throw Object.assign(new Error('파일 활동 기록 범위가 올바르지 않아요.'), { status: 400 });
+        }
+        privateJson(res, 200, await fileActivityService.history({ limit })); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/file-activity/select') {
+        if (!fileActivityService) throw Object.assign(new Error('파일 활동 기록을 아직 사용할 수 없어요.'), { status: 503 });
+        if (!fileActivityRootSelector) throw Object.assign(new Error('기록할 폴더를 지금 선택할 수 없어요.'), { status: 503 });
+        const input = await body(req);
+        if (!input || typeof input !== 'object' || Array.isArray(input)
+          || Object.keys(input).length !== 0) {
+          throw Object.assign(new Error('허용할 파일 활동 범위가 올바르지 않아요.'), { status: 400 });
+        }
+        const selected = await fileActivityRootSelector();
+        if (!selected) { privateJson(res, 200, { selected: false }); return; }
+        await fileActivityService.configure({ roots: [selected] });
+        privateJson(res, 200, await fileActivityService.enable()); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/file-activity/action') {
+        if (!fileActivityService) throw Object.assign(new Error('파일 활동 기록을 아직 사용할 수 없어요.'), { status: 503 });
+        const input = await body(req);
+        if (!input || typeof input !== 'object' || Array.isArray(input)
+          || Object.keys(input).length !== 1 || !['enable', 'pause', 'forget'].includes(input.action)) {
+          throw Object.assign(new Error('파일 활동 기록 동작이 올바르지 않아요.'), { status: 400 });
+        }
+        const result = input.action === 'enable' ? await fileActivityService.enable()
+          : input.action === 'pause' ? await fileActivityService.pause() : await fileActivityService.forget();
+        privateJson(res, 200, result); return;
       }
       if (req.method === 'GET' && url.pathname.startsWith('/sessions/')) {
         const session = await sessions.load(decodeURIComponent(url.pathname.slice('/sessions/'.length)));
@@ -4332,8 +4424,11 @@ export function makeConsoleServer({
         && /reflection_review_|reflection_source_|current_evidence/u.test(error?.code ?? '')) {
         error.status = error.code?.includes('not_found') ? 404 : 409;
       }
-      const responder = url.pathname.startsWith('/reflection/review/') ? privateJson : json;
-      responder(res, httpErrorStatus(error), { error: error?.message ?? '처리 중 문제가 있었어요.' });
+      const privateRoute = url.pathname.startsWith('/reflection/review/') || url.pathname.startsWith('/file-activity/');
+      const responder = privateRoute ? privateJson : json;
+      const message = url.pathname.startsWith('/file-activity/') && httpErrorStatus(error) >= 500
+        ? '파일 활동 기록을 처리하지 못했어요.' : error?.message ?? '처리 중 문제가 있었어요.';
+      responder(res, httpErrorStatus(error), { error: message });
     }
   });
   server.managedProcesses = processes;
@@ -4350,6 +4445,7 @@ export function makeConsoleServer({
   };
   server.memoryLedger = memories;
   server.reflectionReviewCoordinator = reflectionReviewCoordinator;
+  server.fileActivityService = fileActivityService;
   server.capabilityHandoffLedger = capabilityHandoffs;
   server.capabilityLifecycleLedger = capabilityLifecycle;
   server.learningCandidateStore = learningCandidates;
@@ -4382,6 +4478,7 @@ export function makeConsoleServer({
     wakeSubscribers.clear();
   };
   server.closeModelConnections = () => modelConnections?.close?.();
+  server.closeFileActivity = () => fileActivityService?.close?.();
   server.closeMessengers = () => messenger.stop();
   server.closeBrowsers = closeBrowserDrivers;
   server.closeWorkspaceConnections = async () => {
