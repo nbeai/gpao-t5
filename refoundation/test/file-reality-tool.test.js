@@ -5,8 +5,9 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 import { runAgent } from '../src/agent-loop.js';
-import { makeFileRealityTool } from '../src/file-reality-tool.js';
+import { makeCoreFileSearchTool, makeFileRealityTool } from '../src/file-reality-tool.js';
 import { FileSourceManifestStore } from '../src/file-source-manifest-store.js';
+import { FileIntelligenceIndex } from '../src/file-intelligence-index.js';
 import { deferTools, makeToolSearchTool } from '../src/tool-search.js';
 
 async function fixture() {
@@ -17,7 +18,7 @@ async function fixture() {
   const a = join(workspace, '새봄_견적서_v1.txt'); const b = join(workspace, '새봄 견적서 복사.txt');
   const c = join(workspace, '새봄-견적서-수정.txt');
   await Promise.all([
-    writeFile(target, '새봄상사 제안 금액 3000000원\n파란 표가 있는 자료\n'),
+    writeFile(target, '새봄상사 제안 금액 3000000원\n파란 표가 있는 자료\n관련 없는 내부메모 SHOULD_NOT_LEAK\n'),
     writeFile(a, '새봄상사 견적 금액 3000000원\n배송비 미확인\n'),
     writeFile(b, '새봄상사 견적 금액 3000000원\n배송비 미확인\n'),
     writeFile(c, '새봄상사 견적 금액 3200000원\n배송비 포함\n'),
@@ -41,12 +42,31 @@ test('컴퓨터 scope는 위치·파일명을 몰라도 내용 단서로 workspa
       scope: 'computer', path: null, handles: null, maxCandidates: 10 });
     const found = whole.candidates.find((item) => item.displayName === '무작위문서.txt');
     assert.ok(found); assert.equal(whole.contentIncluded, false);
+    assert.match(found.evidence.contentExcerpt, /새봄상사 제안 금액 3000000원/u);
     assert.equal(whole.candidates.some((item) => /비밀/u.test(item.displayName)), false);
     assert.equal(whole.candidates.some((item) => /injected/u.test(item.displayName)), false);
     const inspected = await tool.execute({ action: 'inspect', query: null, scope: null, path: null,
       handles: [found.handle], maxCandidates: null });
     assert.match(inspected.content, /새봄상사 제안 금액 3000000원/u);
-    assert.doesNotMatch(JSON.stringify(whole), /새봄상사 제안 금액/u);
+    assert.doesNotMatch(JSON.stringify(whole), /SHOULD_NOT_LEAK/u);
+  } finally { await rm(room.root, { recursive: true, force: true }); }
+});
+
+test('일반 사진 검색은 사진 보관함 패키지 내부를 직접 순회하거나 Spotlight 후보로 받지 않는다', async () => {
+  const room = await fixture();
+  const pictures = join(room.root, 'Pictures');
+  const library = join(pictures, 'Photos Library.photoslibrary');
+  const privatePhoto = join(library, 'originals', 'private.jpg');
+  const visiblePhoto = join(pictures, '견적사진.jpg');
+  await mkdir(join(library, 'originals'), { recursive: true });
+  await Promise.all([writeFile(privatePhoto, 'private photo'), writeFile(visiblePhoto, 'visible photo')]);
+  try {
+    const tool = makeFileRealityTool({ workspace: room.workspace, home: room.root, platform: 'darwin',
+      computerRoots: [pictures], indexSearch: async () => [privatePhoto, visiblePhoto] });
+    const found = await tool.execute({ action: 'search', query: '견적사진', scope: 'computer', path: null,
+      handles: null, maxCandidates: 10 });
+    assert.equal(found.candidates.some((item) => item.displayName === 'private.jpg'), false);
+    assert.equal(found.candidates.some((item) => item.displayName === '견적사진.jpg'), true);
   } finally { await rm(room.root, { recursive: true, force: true }); }
 });
 
@@ -190,6 +210,45 @@ test('무의미한 이미지 파일명도 bounded local OCR 단서로 후보가 
     assert.equal(found.candidates[0].evidence.ocrExcerpt, '한빛상사 견적 4,780,000');
     assert.equal(found.candidates[0].evidence.ocrMinimumConfidence, 0.95);
     assert.equal(found.contentIncluded, false); assert.ok(probes <= 12); assert.equal(found.coverage.ocrProbes, probes);
+  } finally { await rm(room.root, { recursive: true, force: true }); }
+});
+
+test('같은 generation의 두 번째 이미지 검색은 native OCR 없이 local cache를 재사용한다', async () => {
+  const room = await fixture(); const image = join(room.elsewhere, 'random-receipt.png'); await writeFile(image, 'image-fixture');
+  try {
+    let probes = 0; let currentOcrText = '한빛상사 4,780,000원';
+    const index = new FileIntelligenceIndex(join(room.root, 't5-state', 'file-index.sqlite'));
+    const tool = makeFileRealityTool({ workspace: room.workspace, home: room.root, platform: 'darwin',
+      computerRoots: [room.elsewhere], protectedRoots: [join(room.root, 't5-state')], intelligenceIndex: index,
+      indexSearch: async () => [], ocrProbe: async () => { probes += 1; return { state: 'observed', width: 600, height: 800,
+        observations: currentOcrText ? [{ text: currentOcrText, confidence: 0.96 }] : [], text: currentOcrText,
+        truncated: false, engine: 'macos-vision-local' }; } });
+    const args = { action: 'search', query: '한빛상사 478만원', scope: 'computer', path: null, handles: null,
+      maxCandidates: 5, placements: null, planId: null, effect: null, sourceUses: null, purpose: null,
+      unknowns: null, standardization: null };
+    const cold = await tool.execute(args); assert.equal(cold.candidates[0].displayName, 'random-receipt.png');
+    assert.equal(cold.coverage.ocrProbes, 1); assert.equal(cold.coverage.cacheWrites, 1);
+    const warm = await tool.execute(args); assert.equal(warm.candidates[0].displayName, 'random-receipt.png');
+    assert.equal(warm.coverage.ocrProbes, 0); assert.ok(warm.coverage.cacheHits >= 1); assert.equal(probes, 1);
+    await new Promise((resolve) => setTimeout(resolve, 5)); await writeFile(image, 'changed-image'); currentOcrText = '';
+    const changed = await tool.execute(args); assert.equal(changed.candidates.some((item) => item.displayName === 'random-receipt.png'), false);
+    assert.equal(changed.coverage.ocrProbes, 1); assert.equal(probes, 2);
+    assert.deepEqual(await index.search({ query: '한빛상사' }), []);
+  } finally { await rm(room.root, { recursive: true, force: true }); }
+});
+
+test('작은 core file_search는 full file_reality와 handle을 공유해 검색→선택 재열기를 잇는다', async () => {
+  const room = await fixture();
+  try {
+    const reality = makeFileRealityTool({ workspace: room.workspace, home: room.root, platform: 'test',
+      computerRoots: [room.root], indexSearch: async () => [room.target] });
+    const core = makeCoreFileSearchTool(reality);
+    assert.deepEqual(Object.keys(core.parameters.properties).sort(), ['action', 'handles', 'maxCandidates', 'path', 'query', 'scope']);
+    const found = await core.execute({ action: 'search', query: '새봄상사 파란 표', scope: 'computer', path: null,
+      handles: null, maxCandidates: 5 });
+    const inspected = await core.execute({ action: 'inspect', query: null, scope: null, path: null,
+      handles: [found.candidates[0].handle], maxCandidates: null });
+    assert.match(inspected.content, /새봄상사 제안 금액/u);
   } finally { await rm(room.root, { recursive: true, force: true }); }
 });
 

@@ -15,6 +15,9 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.match(build, /File activity helper is not universal/u);
   assert.match(build, /buildCoarseAppActivityHelper/u);assert.match(build,/t5-macos-coarse-app-activity/u);
   assert.match(build,/Coarse app activity helper is not universal/u);
+  assert.match(build, /buildAppIcon/u);
+  assert.match(build, /iconutil/u);
+  assert.match(build, /CFBundleIconFile<\/key><string>GPAO-T5\.icns/u);
   assert.match(build, /COPYRIGHT/u);
   assert.match(build, /THIRD_PARTY_NOTICES\.md/u);
   assert.match(build, /'skill-packages'/u);
@@ -29,22 +32,32 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.doesNotMatch(build, /set -e\nrm -rf/u);
   assert.doesNotMatch(build, /gpao-t-handoff|AuthKey_|signing-private/u);
   assert.match(launcher, /ensure-local-runtime\.mjs/u);
+  assert.match(launcher, /backgroundRuntimeMode/u);
+  assert.match(launcher, /NSApplicationActivationPolicyProhibited/u);
+  assert.match(launcher, /openConsoleWithCompletion:nil/u);
+  assert.match(launcher, /--reason"\s*,\s*@"user_full_stop/u);
+  assert.doesNotMatch(launcher, /user_quit/u);
   assert.doesNotMatch(launcher, /applicationWillTerminate[\s\S]*\[self\.child terminate\]/u);
   assert.doesNotMatch(launcher, /connect-chatgpt\.mjs|startOAuth/u);
   assert.match(launcher, /applicationDidFinishLaunching[\s\S]*?\[self startConsole\]/u);
   assert.match(launcher, /T5_REFOUNDATION_MODEL_CONNECTION_FILE/u);
   assert.match(launcher, /runtime\/bin/u);
   assert.doesNotMatch(launcher, /bin\/gpao-t5\.mjs/u);
+  assert.match(build, /Contents\/MacOS\/\$\{product\.name\}/u);
+  assert.match(build, /--background-runtime/u);
+  assert.doesNotMatch(build, /<string>\/Applications\/\$\{product\.name\}\.app\/Contents\/Resources\/runtime\/bin\/node<\/string>[\s\S]*ensure-local-runtime/u);
   const verifier = await readFile(new URL('../scripts/verify-macos-installer.mjs', import.meta.url), 'utf8');
   assert.match(verifier, /const childExit = new Promise/u);
+  assert.match(verifier, /GPAO-T5\.icns/u);
+  assert.match(verifier, /packaged application icon is not declared/u);
   assert.doesNotMatch(verifier, /child\.kill\('SIGTERM'\);\s*await new Promise\(\(resolveExit\) => child\.once/u);
   assert.match(verifier, /\^-----BEGIN \(RSA \|OPENSSH \)\?PRIVATE KEY-----\$/u);
   assert.doesNotMatch(verifier, /'-l', 'BEGIN \(RSA \)\?PRIVATE KEY/u);
 });
 
-test('2차 완성 hardening package version은 제품 version 0.2.1과 일치한다', async () => {
+test('3차 완성 package version은 제품 version 0.3.0과 일치한다', async () => {
   const packageMetadata = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
   const build = await readFile(new URL('../scripts/build-macos-installer.mjs', import.meta.url), 'utf8');
-  assert.equal(packageMetadata.version, '0.2.1');
-  assert.match(build, /version:\s*'0\.2\.1'/u);
+  assert.equal(packageMetadata.version, '0.3.0');
+  assert.match(build, /version:\s*'0\.3\.0'/u);
 });

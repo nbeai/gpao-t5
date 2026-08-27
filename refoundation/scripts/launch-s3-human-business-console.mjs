@@ -159,6 +159,7 @@ const manifest = {
   model: { provider: initialModel.provider, modelId: initialModel.modelId },
   boundaries: {
     realUserData: false, realAccounts: false, realExternalWrites: false,
+    computerFileRoots: [home, workspace], computerFileRootsRestricted: true,
     connectorServicesLoaded: 0, messengerCredentialsLoaded: 0,
     browserAutomationLoaded: false, learningReviewMode: 'off',
   },
@@ -187,6 +188,7 @@ const server = makeConsoleServer({
   modelStatus: () => access.status(),
   computerEnvironment: computer, terminalEnvironment,
   terminalPlatformAdapter, terminalCredentialBroker, webSearchProviders,
+  computerFileRoots: [home, workspace], restrictFileRealityToComputerRoots: true,
   learningReviewMode: 'off',
   messengerCredentialStore: new MessengerCredentialStore(join(stateDir, 'messenger-empty')),
   workspaceConnectionInspectors: [], workspaceConnectionServices: [],

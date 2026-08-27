@@ -144,6 +144,8 @@ test('라이브 launcher는 실제 연결을 mock하지 않고 인간 통제·�
   assert.match(launcher, /browserAutomationLoaded: false/u);
   assert.match(launcher, /legacy raw secret field/u);
   assert.match(launcher, /protectedReadRoots/u);
+  assert.match(launcher, /computerFileRoots: \[home, workspace\]/u);
+  assert.match(launcher, /restrictFileRealityToComputerRoots: true/u);
   assert.match(launcher, /process\.platform === 'darwin'[\s\S]*process\.platform === 'win32'/u);
   assert.match(launcher, /cmd\.exe[\s\S]*start/u);
   assert.doesNotMatch(launcher, /makeNotionMcpConnection|makeSlackMcpConnection|makeChannelTalkConnection/u);
@@ -172,6 +174,9 @@ test('단일 Run과 wave 요약은 인간 acceptance 미확인을 PASS로 만들
   const catalog = await loadS3HumanBusinessScenarios();
   const scenario = catalog.scenarios.find((item) => item.id === 'KHB-D01');
   assert.equal(scenario.testerInterventions.length, 1);
+  const morningBrief = catalog.scenarios.find((item) => item.id === 'KHB-D08');
+  assert.equal(morningBrief.testerInterventions.length, 1);
+  assert.match(morningBrief.testerInterventions[0], /Gmail.*Google Calendar.*카카오톡.*읽기 전용/u);
   const publicScenario = {
     id: scenario.id, title: scenario.title, business: scenario.business,
     domain: scenario.domain, environment: scenario.environment,
@@ -265,7 +270,7 @@ test('3차 핵심 정본은 기술 완료 뒤 내부 두 wave와 외부 테스�
   assert.match(third,
     /각 S3 기술 개발선의 exact 완료·회귀[\s\S]*S3-WA 읽기 전용 다중 에이전트 배선 감사[\s\S]*developer_fast_feedback[\s\S]*pre_tester_reality[\s\S]*외부 인간 테스터/u);
   assert.match(third, /S3-WA Whole-product Wiring Audit·재현 P0\/P1 close/u);
-  assert.match(third, /THIRD_COMPLETION_SOURCE_PASS_WITH_OBSERVATION/u);
+  assert.match(third, /THIRD_COMPLETION_PREINSTALL_QUALIFIED/u);
   assert.match(third, /3차 완성 범위로 동결했다/u);
   assert.match(third,
     /S3-A·T·M·UX·CA·CH·VD·PW와 종료 Gate인 S3-WA·HQ까지만[\s\S]*3차를 완료하고 종료한다/u);

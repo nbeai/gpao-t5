@@ -80,24 +80,19 @@ test('실제 콘솔은 무의미한 이미지 파일명에서 local OCR 금액·
   const workspace = join(room, 'workspace'); await Promise.all([mkdir(desktop), mkdir(workspace)]);
   const image = join(desktop, 'KakaoTalk_20260827_193010.png'); await writeFile(image, 'fixture-image');
   let call = 0; let probes = 0; const errors = [];
-  const fileArgs = (args) => ({ query: null, scope: null, path: null, handles: null, maxCandidates: null,
-    placements: null, planId: null, effect: null, sourceUses: null, purpose: null, unknowns: null,
-    standardization: null, ...args });
   const server = makeConsoleServer({ stateDir: join(room, 'state'), workspace, computerFileRoots: [desktop],
     fileIndexSearch: async () => [], fileOcrProbe: async () => { probes += 1; return { state: 'observed',
       width: 1200, height: 1600, observations: [{ text: '한빛상사 견적 금액 4,780,000원', confidence: 0.98 }],
       text: '한빛상사 견적 금액 4,780,000원', truncated: false, engine: 'macos-vision-local' }; },
     onError: (error) => errors.push(error?.stack ?? String(error)), modelFactory: () => ({ async respond(input) {
       call += 1;
-      if (call === 1) return { text: '', toolCalls: [{ id: 'find-file-hand', name: 'tool_search', args: { query: '이미지 OCR 파일 찾기' } }] };
-      if (call === 2) return { text: '', toolCalls: [{ id: 'ocr-search', name: 'file_reality', args: fileArgs({
-        action: 'search', query: '한빛상사 478만원 견적', scope: 'computer', maxCandidates: 5 }) }] };
-      if (call === 3) { const found = JSON.parse(input.messages.findLast((item) => item.role === 'tool').content).result;
+      if (call === 1) { assert.equal(input.tools.some((tool) => tool.name === 'file_search'), true);
+        return { text: '', toolCalls: [{ id: 'ocr-search', name: 'file_search', args: {
+          action: 'search', query: '한빛상사 478만원 견적', scope: 'computer', path: null,
+          handles: null, maxCandidates: 5 } }] }; }
+      if (call === 2) { const found = JSON.parse(input.messages.findLast((item) => item.role === 'tool').content).result;
         assert.equal(found.candidates[0].displayName, 'KakaoTalk_20260827_193010.png');
-        return { text: '', toolCalls: [{ id: 'ocr-inspect', name: 'file_reality', args: fileArgs({ action: 'inspect',
-          handles: [found.candidates[0].handle] }) }] }; }
-      if (call === 4) { const inspected = JSON.parse(input.messages.findLast((item) => item.role === 'tool').content).result;
-        assert.equal(inspected.ocr.engine, 'macos-vision-local'); assert.match(inspected.content, /4,780,000원/u);
+        assert.match(found.candidates[0].evidence.ocrExcerpt, /4,780,000원/u);
         return { text: '', toolCalls: [{ id: 'complete-ocr', name: 'work_completion', args: { outcome: 'achieved', inputSettlements: [] } }] }; }
       return { text: '바탕화면에서 한빛상사 478만원 견적 사진을 찾았습니다.', toolCalls: [] };
     } }) });
@@ -106,7 +101,7 @@ test('실제 콘솔은 무의미한 이미지 파일명에서 local OCR 금액·
   const response = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ sessionId: session.id, text: '바탕화면에서 카카오로 받은 한빛상사 478만원 견적 사진 찾아줘' }) });
   const result = await response.json(); assert.equal(response.status, 200, JSON.stringify({ result, errors }));
-  assert.match(result.reply, /478만원 견적 사진/u); assert.equal(probes, 2); assert.equal(errors.length, 0, errors.join('\n'));
+  assert.match(result.reply, /478만원 견적 사진/u); assert.equal(probes, 1); assert.equal(errors.length, 0, errors.join('\n'));
 });
 
 test('실제 콘솔은 바탕화면의 무의미한 파일명 사진을 bounded contact sheet로 판별한다', async (t) => {

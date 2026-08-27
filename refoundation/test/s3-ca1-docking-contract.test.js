@@ -85,6 +85,7 @@ test('CA1 사고 가족은 서비스 목록이 아니라 범용 실패 원리로
 test('제품은 능력 부족이 확인된 뒤에만 작은 Capability Reality를 열고 후보를 usable로 꾸미지 않는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-ca1-product-')); let turn = 0;
   const server = makeConsoleServer({ stateDir: join(room, 'state'), workspace: room,
+    capabilityRealityEnabled: true,
     workspaceConnectionInspectors: [{ id: 'company-api', label: '회사 API', category: 'business',
       inspect: async () => ({ state: 'needs_connection', reason: 'credential_missing',
         userSafeSummary: '연결 정보가 필요해요.', capabilities: { read: false }, routes: [] }) }],
@@ -130,6 +131,15 @@ test('CA1 evidence는 설치·custom coding·전략 Pack을 완료로 꾸미지 
   assert.equal(evidence.status, 'PASS');
   assert.equal(evidence.verification.providerCalls, 0);
   assert.ok(evidence.notClaimed.some((item) => item.includes('S3-CA2 through S3-CA4')));
-  assert.match(plan, /S3CA_CA1_COMPLETE_CA2_ACTIVE_LOCAL_POSITIVE_CONTROL/u);
+  assert.match(plan, /S3CA_DEFERRED_TO_FOURTH/u);
   assert.doesNotMatch(JSON.stringify(evidence), /\/Users\/|C:\\Users\\|sk-[A-Za-z0-9]|-----BEGIN/u);
+});
+
+test('3차 제품 entry는 CA 연구 source를 보존해도 acquisition과 Capability Reality를 열지 않는다', async () => {
+  const entry = await readFile(new URL('../scripts/start-console.mjs', import.meta.url), 'utf8');
+  const consoleSource = await readFile(new URL('../src/console-server.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(entry, /makeCapabilityAcquisitionCoordinator|LocalCapabilityPackageStore|capabilityAcquisition/u);
+  assert.match(consoleSource, /capabilityRealityEnabled = false/u);
+  assert.match(consoleSource, /if \(capabilityRealityEnabled\) offeredTools\.unshift\(makeCapabilityRealityTool/u);
+  assert.match(consoleSource, /if \(!capabilityRealityEnabled\) \{ json\(res, 404/u);
 });

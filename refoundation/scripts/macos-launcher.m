@@ -1,8 +1,12 @@
 #import <AppKit/AppKit.h>
+#include <string.h>
 
 @interface T5Launcher : NSObject <NSApplicationDelegate>
 @property(nonatomic, strong) NSTask *child;
 @property(nonatomic, strong) NSDate *lastOpen;
+@property(nonatomic) BOOL backgroundRuntimeMode;
+@property(nonatomic) BOOL primaryRegularInstance;
+@property(nonatomic) BOOL terminationInProgress;
 @end
 
 @implementation T5Launcher
@@ -27,10 +31,15 @@
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
+  if (self.backgroundRuntimeMode) {
+    [self startConsole];
+    return;
+  }
   pid_t ownPid = NSProcessInfo.processInfo.processIdentifier;
   for (NSRunningApplication *running in NSWorkspace.sharedWorkspace.runningApplications) {
     if ([running.bundleIdentifier isEqualToString:NSBundle.mainBundle.bundleIdentifier]
-      && running.processIdentifier != ownPid) {
+      && running.processIdentifier != ownPid
+      && running.activationPolicy == NSApplicationActivationPolicyRegular) {
       [running activateWithOptions:NSApplicationActivateIgnoringOtherApps];
       [self openConsoleWithCompletion:^{ [NSApp terminate:nil]; }];
       return;
@@ -42,10 +51,11 @@
   if (error) { [self fail:@"GPAO-T5를 시작하지 못했어요" error:error]; return; }
   // 연결 방법은 콘솔 설정에서 사용자가 고른다. launcher가 credential 유무만 보고
   // ChatGPT OAuth를 먼저 실행하면 API 키 사용자는 자기 방법을 선택할 수 없다.
+  self.primaryRegularInstance = YES;
   [self startConsole];
 }
 
-- (NSTask *)processForEntry:(NSString *)entry error:(NSError **)error {
+- (NSTask *)processForEntry:(NSString *)entry arguments:(NSArray<NSString *> *)arguments error:(NSError **)error {
   NSURL *node = [[[self resources] URLByAppendingPathComponent:@"runtime/bin"]
     URLByAppendingPathComponent:[self runtimeName]];
   if (![NSFileManager.defaultManager isExecutableFileAtPath:node.path]) {
@@ -56,7 +66,8 @@
   NSTask *task = [NSTask new];
   task.executableURL = node;
   task.currentDirectoryURL = [self appRoot];
-  task.arguments = @[[[self appRoot] URLByAppendingPathComponent:entry].path];
+  task.arguments = [@[[[self appRoot] URLByAppendingPathComponent:entry].path]
+    arrayByAddingObjectsFromArray:arguments ?: @[]];
   NSMutableDictionary *environment = [NSProcessInfo.processInfo.environment mutableCopy];
   environment[@"T5_REFOUNDATION_CONSOLE_STATE"] = [[self support] URLByAppendingPathComponent:@"state"].path;
   environment[@"T5_REFOUNDATION_MODEL_CONNECTION_FILE"] = [self connectionFile].path;
@@ -81,6 +92,10 @@
   return task;
 }
 
+- (NSTask *)processForEntry:(NSString *)entry error:(NSError **)error {
+  return [self processForEntry:entry arguments:@[] error:error];
+}
+
 - (void)startConsole {
   NSError *error = nil;
   NSTask *task = [self processForEntry:@"refoundation/scripts/ensure-local-runtime.mjs" error:&error];
@@ -91,16 +106,33 @@
       typeof(self) self = weakSelf;
       if (!self) return;
       if (finished.terminationStatus != 0) {
-        [self alert:@"GPAO-T5를 시작하지 못했어요"
+        if (!self.backgroundRuntimeMode) [self alert:@"GPAO-T5를 시작하지 못했어요"
           message:@"잠시 뒤 다시 열어 주세요. 계속되면 GPAO-T5.log를 확인해 주세요."];
+        self.primaryRegularInstance = NO;
         [NSApp terminate:nil];
         return;
       }
-      [self openConsoleWithCompletion:^{ [NSApp terminate:nil]; }];
+      if (self.backgroundRuntimeMode) [NSApp terminate:nil];
+      else [self openConsoleWithCompletion:nil];
     });
   };
   if (![task launchAndReturnError:&error]) { [self fail:@"GPAO-T5를 시작하지 못했어요" error:error]; return; }
   self.child = task;
+}
+
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
+  if (!self.primaryRegularInstance || self.terminationInProgress) return NSTerminateNow;
+  self.terminationInProgress = YES;
+  self.primaryRegularInstance = NO;
+  NSError *error = nil;
+  NSTask *task = [self processForEntry:@"refoundation/scripts/stop-local-runtime.mjs"
+    arguments:@[@"--port-file", self.portFile.path, @"--reason", @"user_full_stop"] error:&error];
+  if (!task) return NSTerminateNow;
+  task.terminationHandler = ^(NSTask *finished) {
+    dispatch_async(dispatch_get_main_queue(), ^{ [NSApp replyToApplicationShouldTerminate:YES]; });
+  };
+  if (![task launchAndReturnError:&error]) return NSTerminateNow;
+  return NSTerminateLater;
 }
 
 - (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)flag {
@@ -138,7 +170,8 @@
 }
 
 - (void)fail:(NSString *)title error:(NSError *)error {
-  [self alert:title message:error.localizedDescription ?: @"알 수 없는 오류"];
+  if (!self.backgroundRuntimeMode) [self alert:title message:error.localizedDescription ?: @"알 수 없는 오류"];
+  self.primaryRegularInstance = NO;
   [NSApp terminate:nil];
 }
 - (void)alert:(NSString *)title message:(NSString *)message {
@@ -152,10 +185,16 @@
 
 int main(int argc, const char *argv[]) {
   @autoreleasepool {
+    BOOL backgroundRuntimeMode = NO;
+    for (int index = 1; index < argc; index += 1) {
+      if (strcmp(argv[index], "--background-runtime") == 0) backgroundRuntimeMode = YES;
+    }
     NSApplication *application = NSApplication.sharedApplication;
     T5Launcher *delegate = [T5Launcher new];
+    delegate.backgroundRuntimeMode = backgroundRuntimeMode;
     application.delegate = delegate;
-    [application setActivationPolicy:NSApplicationActivationPolicyRegular];
+    [application setActivationPolicy:backgroundRuntimeMode
+      ? NSApplicationActivationPolicyProhibited : NSApplicationActivationPolicyRegular];
     [application run];
   }
   return 0;

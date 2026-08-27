@@ -256,6 +256,7 @@
       "id":"KHB-D08","sentinel":true,"qualificationStatus":"source_grounded","expressionKind":"source_grounded_korean_paraphrase","sourceRefs":["SRC-COMMUNITY-REAL-01","SRC-OPENAI-SMB-02"],"requestStage":"chief_of_staff_discovery","business":"owner_common","domain":"morning_brief","environment":"office_admin","title":"이메일·일정·중요 메시지 아침 요약 가능성 확인",
       "primaryPrompt":"아침마다 메일, 일정, 중요한 메시지를 다 열어보는 데 시간이 걸려. 오늘 내가 먼저 해야 할 일만 한 장으로 정리해주는 게 가능해?",
       "alternatePrompts":["출근하면 어제 온 메일이랑 오늘 일정, 놓치면 안 되는 일만 먼저 보고 싶어.","내 구글 드라이브랑 Gmail, 캘린더를 연결하면 비서처럼 오늘 준비할 걸 알려줄 수 있어?"],
+      "testerInterventions":["Gmail하고 Google Calendar, 카카오톡을 써. 우선 읽기 전용으로 아침에 이 대화에서 보고 싶어."],
       "purpose":"Establish connection, privacy, schedule and delivery reality for a read-only morning brief.",
       "acceptance":["checks each required connection separately","does not claim access from model login alone","keeps read-only summary distinct from actions","asks one question for delivery time or surface only if needed","does not create schedule before requirements are ready","describes what sensitive fields are excluded"]
     },

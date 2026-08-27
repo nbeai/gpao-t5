@@ -43,4 +43,12 @@ test('한국 사업자 catalog는 아이콘·용도·연결 준비 상태를 서
     'youtube', 'channel-talk', 'shopify', 'shopee']) {
     assert.ok(byId[id]); assert.ok(byId[id].icon); assert.ok(byId[id].description); assert.ok(byId[id].availability);
   }
+  for (const id of ['naver-smartstore', 'coupang-wing']) {
+    assert.deepEqual(byId[id].routes.map((route) => route.kind),
+      ['direct_connector', 'official_api', 'local_export']);
+    assert.ok(byId[id].routes.every((route) => Array.isArray(route.data) && Array.isArray(route.effects)));
+  }
+  for (const id of ['kakaotalk', 'google-workspace', 'slack']) {
+    assert.ok(byId[id].privacyDefaults.exclude.length > 0);
+  }
 });

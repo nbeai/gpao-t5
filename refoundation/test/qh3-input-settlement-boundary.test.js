@@ -86,7 +86,8 @@ test('QH-3 red: surface가 다루지 않은 deferred input은 executed로 승격
       await workStore.markResultSurfacePersisted(priorRunId);
       await workStore.markResultDeliveryTerminal(priorRunId, { provider: 'console', state: 'persisted' });
       const activated = await workStore.activateScheduledInput(admitted.inputId);
-      await workStore.claimInputExecution({ inputId: admitted.inputId, runId });
+      await assert.rejects(workStore.claimInputExecution({ inputId: admitted.inputId, runId }),
+        /Run claim identity mismatch/u);
       return { inputId: admitted.inputId, workId: activated.workId,
         inputRevision: activated.revision, resultRunId: runId };
     },
@@ -117,7 +118,8 @@ test('QH-3 red: foreign Work/revision input은 current result에 결속하지 �
       const forkedInput = await workStore.commitTransitionDecision({ inputId: admitted.inputId,
         sessionId: currentWork.sessionId, runId, currentWorkId: currentWork.workId,
         choice: 'new_work', currentWorkDisposition: 'pause' });
-      await workStore.claimInputExecution({ inputId: admitted.inputId, runId });
+      await assert.rejects(workStore.claimInputExecution({ inputId: admitted.inputId, runId }),
+        /Run claim identity mismatch/u);
       return { inputId: admitted.inputId, currentWorkId: currentWork.workId,
         foreignWorkId: forkedInput.workId, resultRunId: runId };
     },

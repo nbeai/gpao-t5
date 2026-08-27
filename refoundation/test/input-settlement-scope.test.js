@@ -121,6 +121,9 @@ test('unresolved·deferred·superseded는 executed 대신 재정산 가능한 �
       assert.equal(input.state, state); assert.equal(input.schedule, schedule);
       assert.equal(input.resultDigest, undefined);
       if (disposition === 'unresolved') {
+        await value.store.releaseExecution({ runId: 'run', reason: 'fixture_retry_boundary' });
+        await value.store.claimExecution({ workId: value.workId,
+          revision: value.revision, runId: 'retry-run' });
         await value.store.claimInputExecution({ inputId: value.inputId, runId: 'retry-run' });
         await value.store.recordInputSettlementDisposition({ inputId: value.inputId, runId: 'retry-run',
           workId: value.workId, revision: value.revision, disposition: 'answered' });

@@ -182,9 +182,10 @@ test('Telegram 대화의 console Run은 사용자 입력을 동기화하고 선�
   }
 });
 
-test('provider 실패 안내도 Telegram delivery receipt로 닫히고 같은 Session 다음 발화가 모델에 도달한다', async () => {
+test('provider 실패 전에 함께 제시된 Telegram 발화는 failure surface로 닫고 자동 재실행하지 않는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-messenger-provider-failure-release-'));
   const deliveries = []; let poll = 0; let modelCalls = 0; let transitionCalls = 0;
+  const errors = [];
   const messages = ['첨부를 읽어줘', '그럼 다음 질문에 답해줘'];
   const provider = {
     id: 'telegram', inboundMode: 'long_polling',
@@ -221,6 +222,7 @@ test('provider 실패 안내도 Telegram delivery receipt로 닫히고 같은 Se
       return { text: '두 번째 요청은 정상적으로 받았어요.', toolCalls: [] };
     } }),
     modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
+    onError: (error) => errors.push(error),
   });
   await new Promise((resolveListen, reject) => {
     server.once('error', reject); server.listen(0, '127.0.0.1', resolveListen);
@@ -240,19 +242,22 @@ test('provider 실패 안내도 Telegram delivery receipt로 닫히고 같은 Se
     }
     const first = await server.messengerStateStore.ingress('telegram', 1);
     const second = await server.messengerStateStore.ingress('telegram', 2);
-    for (let attempt = 0; attempt < 100 && deliveries.length < 3; attempt += 1) {
+    for (let attempt = 0; attempt < 100 && deliveries.length < 2; attempt += 1) {
       await new Promise((resolveWait) => setTimeout(resolveWait, 10));
     }
     assert.equal(first.state, 'completed');
     assert.equal(first.messageIds?.length, 1);
     assert.equal(second.state, 'completed');
-    assert.equal(modelCalls,2);assert.equal(transitionCalls,1);
-    assert.equal(deliveries.length, 3);
-    assert.match(deliveries[Number(first.messageIds[0]) - 701],/처리하지 못했|문제가/u);
-    assert.equal(deliveries.some((text) => /두 번째 요청/u.test(text)),true);
+    assert.equal(modelCalls,1, errors.map((error) => error?.stack ?? error).join('\n'));
+    assert.equal(transitionCalls,1);
+    assert.equal(deliveries.length, 2);
+    assert.match(deliveries[Number(first.messageIds[0]) - 701],/응답을 만드는 단계에서 중단/u);
     const work = await server.workStore.read();
     assert.ok(work.claims.some((claim) => claim.state === 'released'));
-    assert.equal(work.claims.length, 2);
+    assert.equal(work.claims.length, 1);
+    assert.equal(work.inputs[0].state, 'executed');
+    assert.equal(work.events.filter((event) => event.type === 'input_execution_claimed'
+      || event.type === 'input_failure_surface_claimed').length, 1);
   } finally {
     await server.closeMessengers();
     await new Promise((resolveClose) => server.close(resolveClose));

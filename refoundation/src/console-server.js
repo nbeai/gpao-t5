@@ -47,9 +47,10 @@ import { makeEffectForensicProductAdapter,
 import { makeWorkHistoryProductAdapter } from './work-history-projection.js';
 import { makePurposeBoundedHistoryAdapter } from './purpose-bounded-history.js';
 import { makePurposeHistoryTool } from './purpose-history-tool.js';
-import { makeFileRealityTool } from './file-reality-tool.js';
+import { makeCoreFileSearchTool, makeFileRealityTool } from './file-reality-tool.js';
 import { FileSourceManifestStore } from './file-source-manifest-store.js';
 import { makeLocalImageOcr } from './local-image-ocr.js';
+import { FileIntelligenceIndex } from './file-intelligence-index.js';
 import { makeWorkCompletionTool } from './work-completion-tool.js';
 import { evaluateWorkCompletion } from './work-completion-evaluator.js';
 import { makeInputSettlementScope } from './input-settlement-scope.js';
@@ -370,6 +371,7 @@ export function makeConsoleServer({
   fileIndexSearch = null,
   fileOcrProbe = null,
   restrictFileRealityToComputerRoots = false,
+  capabilityRealityEnabled = false,
   capabilityAcquisition = null,
   documentCli = bundledDocumentCli,
   attachmentStore,
@@ -377,7 +379,7 @@ export function makeConsoleServer({
   modelConnections,
   messengerProviderFactory,
   localConsoleToken,
-  learningReviewMode = 'proposal',
+  learningReviewMode = 'off',
   learningReviewIdleMs = 30_000,
   reflectionReviewCoordinator = null,
   fileActivityService = null,
@@ -465,6 +467,8 @@ export function makeConsoleServer({
       if (!confirmedDeferredDelivery(queued, state)) return false;
       queued = await workStore.activateScheduledInput(queued.inputId);
     }
+    if (queued.state === 'admitted') queued = await workStore.attachAdmittedInputToCurrentWork(queued.inputId);
+    if (queued.state === 'classified') queued = await workStore.activateExactInputWork(queued.inputId);
     const conversation = await conversations.read(sessionId); const entry = conversation.entries
       .find((candidate) => candidate.messageId === queued.messageId);
     if (!entry?.message?.content) return false;
@@ -474,7 +478,8 @@ export function makeConsoleServer({
       executeTurn(sessionId, entry.message.content, () => {}, {
         trigger: telegramSource ? 'messenger_followup' : 'work_followup',
         attachmentIds: queued.attachmentIds,
-        admittedInput: { inputId: queued.inputId, messageId: queued.messageId },
+        admittedInput: { inputId: queued.inputId, messageId: queued.messageId,
+          ...(queued.workId ? { workId: queued.workId, revision: queued.revision } : {}) },
         ...(telegramSource ? {
           metadata: {
             provider: 'telegram', chatId: queued.source?.chatId ?? null,
@@ -503,6 +508,7 @@ export function makeConsoleServer({
   const authority = new AuthorityStore(join(stateDir, 'authority'));
   const attachments = attachmentStore ?? new AttachmentStore(join(stateDir, 'attachments'));
   const fileSourceManifests = new FileSourceManifestStore(join(stateDir, 'file-source-manifests'));
+  const fileIntelligenceIndex = new FileIntelligenceIndex(join(stateDir, 'file-intelligence', 'index.sqlite'));
   const artifactPublications = makeArtifactPublicationProductAdapter({
     attachmentStore: attachments, runLedger, workStore,
   });
@@ -1167,9 +1173,18 @@ export function makeConsoleServer({
     });
     let canonicalConversation = await conversations.read(sessionId);
     if (options.admittedInput) {
+      const inputBoundary = canonicalConversation.entries.findIndex((entry) => (
+        entry.messageId === options.admittedInput.messageId
+      ));
+      if (inputBoundary < 0) throw new Error('admitted input conversation boundary is unavailable');
+      const visibleEntries = canonicalConversation.entries.slice(0, inputBoundary);
+      const visibleMessageIds = new Set(visibleEntries.map((entry) => entry.messageId));
       canonicalConversation = {
         ...canonicalConversation,
-        entries: canonicalConversation.entries.filter((entry) => entry.messageId !== options.admittedInput.messageId),
+        entries: visibleEntries,
+        checkpoints: canonicalConversation.checkpoints.filter((checkpoint) => (
+          visibleMessageIds.has(checkpoint.coversThroughMessageId)
+        )),
       };
       canonicalConversation.messages = canonicalConversation.entries.map((entry) => structuredClone(entry.message));
     }
@@ -1405,7 +1420,13 @@ export function makeConsoleServer({
       }
       let activeWork = null;
       if (!options.observationOnly) {
-        activeWork = await workStore.activeForSession(sessionId);
+        if (options.admittedInput?.workId) {
+          const state = await workStore.read(); activeWork = state.works.find((work) => (
+            work.workId === options.admittedInput.workId && work.revision === options.admittedInput.revision
+              && work.status === 'active'
+          )) ?? null;
+          if (!activeWork) throw new Error('admitted input exact Work is not active');
+        } else activeWork = await workStore.activeForSession(sessionId);
         if (!activeWork) activeWork = await workStore.create({
           sessionId, sourceMessageId: `${run.runId}:user`,
         });
@@ -1457,13 +1478,15 @@ export function makeConsoleServer({
       const skillSnapshot = mergeSkillSnapshots([bundledSkillSnapshot, managedSkillSnapshot]);
       const capabilitySnapshot = await capabilityCatalogPromise;
       const offeredTools = [...terminal.tools];
-      offeredTools.unshift(makeFileRealityTool({ workspace, home: computer.userHome, platform: computer.platform,
+      const fileRealityTool = makeFileRealityTool({ workspace, home: computer.userHome, platform: computer.platform,
         computerRoots: computerFileRoots ?? [homedir()], protectedRoots: [...protectedFileRoots, stateDir],
         organizationRoot: join(stateDir, 'file-organization'), sourceManifestStore: fileSourceManifests, sessionId,
         ocrProbe: localImageOcr,
+        intelligenceIndex: fileIntelligenceIndex,
         enforceComputerRoots: restrictFileRealityToComputerRoots,
-        ...(fileIndexSearch ? { indexSearch: fileIndexSearch } : {}) }));
-      offeredTools.unshift(makeCapabilityRealityTool({ observer: capabilityReality }));
+        ...(fileIndexSearch ? { indexSearch: fileIndexSearch } : {}) });
+      offeredTools.unshift(fileRealityTool, makeCoreFileSearchTool(fileRealityTool));
+      if (capabilityRealityEnabled) offeredTools.unshift(makeCapabilityRealityTool({ observer: capabilityReality }));
       if (capabilityAcquisition) offeredTools.unshift(makeCapabilityPackageAdminTool({
         coordinator: capabilityAcquisition,
         authorizeEffect: (args, context) => effectPreflight({
@@ -1754,10 +1777,12 @@ export function makeConsoleServer({
       if(purposeHistory)offeredTools.unshift(makePurposeHistoryTool({adapter:purposeHistory}));
       offeredTools.unshift(makeConnectionTool({
         doctor: connectionDoctor,
+        catalog: () => businessConnectionCatalogPromise,
         startConnection: (id) => startConnectionForTool(id, { runId: run.runId }),
         performConnection: (id, actionId) => performConnectionAction(id, actionId, { sessionId }),
       }));
       const coreToolNames = [
+        'file_search',
         'connection', 'native_computer', 'memory', 'memory_claim', 'memory_control', 'skill',
         ...(options.trigger === 'automation' ? [] : ['work_completion']),
         ...(pendingLearningTrials.length ? ['learning_trial'] : []),
@@ -2448,11 +2473,32 @@ export function makeConsoleServer({
           surfaceResult: cancelled.surfaceResult, channelDelivery: cancelled.channelDelivery,
         };
       }
+      const failedRun = await runLedger.read(run.runId).catch(() => ({ events: [] }));
+      const failedEvents = failedRun.events ?? [];
+      const toolStarted = failedEvents.filter((event) => event.type === 'tool_started').length;
+      const completedToolEvents = failedEvents.filter((event) => event.type === 'tool_completed');
+      const completedReceipts = completedToolEvents.map((event) => event.payload?.receipt).filter(Boolean);
+      const effectUnknown = completedReceipts.some((receipt) => receipt.outcome === 'unknown'
+        || receipt.result?.effectUnknown === true) || toolStarted > completedToolEvents.length;
+      const effectChanged = completedReceipts.some((receipt) => (
+        receipt.result?.effectObservation?.changed === true
+      ));
+      const modelStarted = failedEvents.some((event) => event.type === 'model_started');
+      const modelCompleted = failedEvents.some((event) => event.type === 'model_completed');
       const connection = await Promise.resolve().then(() => status()).catch(() => null);
-      const failure = userSafeTurnFailure(error, connection);
+      const failure = userSafeTurnFailure(error, connection, {
+        requestPreserved: true,
+        modelState: modelCompleted ? 'completed' : modelStarted ? 'response_failed' : 'not_started',
+        toolStarted, toolCompleted: completedToolEvents.length,
+        evidenceState: completedToolEvents.length ? 'partial' : 'none',
+        evidenceCount: completedToolEvents.length,
+        effectState: effectUnknown ? 'unknown' : effectChanged ? 'changed'
+          : toolStarted ? 'unchanged' : 'none',
+        resultState: 'none', deliveryState: 'not_started',
+      });
       const failureSurface = {
         kind: 'error', reply: failure.text, nextSafeAction: failure.nextSafeAction,
-        failureCode: failure.code, runId: run.runId,
+        failureCode: failure.code, failure: failure.envelope, runId: run.runId,
       };
       const pendingOutputs = await attachments.pendingProducedOutputs({
         sessionId, producerRunId: run.runId,
@@ -2475,21 +2521,40 @@ export function makeConsoleServer({
         session, currentUserText: text, currentResult: failureSurface, evidence: recoveryEvidence,
       });
       if (recovery) failureSurface.recovery = { ...recovery, recoveryId: run.runId };
-      const existingResult = (await workStore.read()).results.find((item) => item.runId === run.runId);
-      const releasedClaim = existingResult ? { released: false } : await workStore.releaseExecution({
-        runId: run.runId, reason: error?.code ?? 'turn_failed',
-      }).catch(() => ({ released: false }));
-      if (!existingResult) await workStore.releasePresentedInputsForRun(run.runId, {
-        reason: 'run_failed_before_input_application',
-      }).catch((releaseError) => onError?.(releaseError));
+      let failureState = await workStore.read();
+      const existingResult = failureState.results.find((item) => item.runId === run.runId);
+      if (!existingResult) {
+        await workStore.claimPresentedInputsForFailure(run.runId);
+        failureState = await workStore.read();
+      }
+      const activeClaim = failureState.claims.find((item) => item.runId === run.runId && item.state === 'active');
       if (!surfacePersisted && !existingResult) {
         const failureDigest = createHash('sha256').update(JSON.stringify(failureSurface)).digest('hex');
+        for (const input of await workStore.executingInputsForRun(run.runId)) {
+          const exact = activeClaim && input.workId === activeClaim.workId && input.revision === activeClaim.revision;
+          await workStore.recordInputSettlementDisposition({ inputId: input.inputId, runId: run.runId,
+            workId: activeClaim?.workId ?? null, revision: activeClaim?.revision ?? null,
+            disposition: exact ? 'answered' : 'unresolved',
+            reason: exact ? 'runtime_failure_surface' : 'runtime_failure_identity_mismatch' }).catch(
+            (settlementError) => onError?.(settlementError));
+          if (exact) await workStore.prepareInputCompletion({ inputId: input.inputId, runId: run.runId,
+            resultPointer: `work-result:${run.runId}`, resultDigest: failureDigest });
+        }
         await workStore.recordResultReady({ runId: run.runId, sessionId,
-          workId: releasedClaim.workId ?? null, revision: releasedClaim.revision ?? null,
+          workId: activeClaim?.workId ?? null, revision: activeClaim?.revision ?? null,
           objectiveOutcome: 'unresolved', resultDigest: failureDigest, surfaceResult: failureSurface }).catch(() => {});
+        await conversations.appendMessage({ sessionId, messageId: `${run.runId}:assistant:failure`,
+          runId: run.runId, message: { role: 'assistant', content: failureSurface.reply } }).catch(
+          (conversationError) => onError?.(conversationError));
         await sessions.append(sessionId, { role: 'assistant', result: failureSurface }).catch(() => {});
         surfacePersisted = true;
         await workStore.markResultSurfacePersisted(run.runId).catch(() => {});
+        const failureSurfaceReceipt = { surface: 'console_session', sessionId,
+          runId: run.runId, resultDigest: failureDigest };
+        for (const input of await workStore.pendingSurfaceInputsForRun(run.runId)) {
+          await workStore.commitInputExecuted({ inputId: input.inputId,
+            runId: run.runId, surfaceReceipt: failureSurfaceReceipt });
+        }
         await run.append({
           type: 'surface_persisted', payload: { role: 'assistant', kind: 'error' },
         }).catch(() => {});
@@ -2518,6 +2583,13 @@ export function makeConsoleServer({
         await workStore.markResultDeliveryTerminal(run.runId, failureDelivery).catch(() => {});
         await run.append({ type: 'delivery_terminal', stepId: 'result-delivery',
           payload: failureDelivery }).catch(() => {});
+      }
+      if (!existingResult) {
+        await workStore.releasePresentedInputsForRun(run.runId, {
+          reason: 'run_failed_before_input_application',
+        }).catch((releaseError) => onError?.(releaseError));
+        await workStore.releaseExecution({ runId: run.runId,
+          reason: error?.code ?? 'turn_failed' }).catch(() => ({ released: false }));
       }
       if (!runFinished) {
         await run.finish('failed', { error: error?.message ?? String(error) }).catch(() => {});
@@ -4531,6 +4603,7 @@ export function makeConsoleServer({
         })) }); return;
       }
       if (req.method === 'GET' && url.pathname === '/capabilities/reality') {
+        if (!capabilityRealityEnabled) { json(res, 404, { error: '이 기능은 현재 제품 범위에 없어요.' }); return; }
         privateJson(res, 200, await capabilityReality.inspect()); return;
       }
       const connectionIcon = req.method === 'GET' && url.pathname.match(/^\/connection-icons\/([a-z0-9-]+\.svg)$/u);
