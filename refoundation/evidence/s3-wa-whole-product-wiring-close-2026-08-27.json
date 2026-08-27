@@ -1,0 +1,41 @@
+{
+  "schema": "t5.s3wa.whole-product-wiring-close.v1",
+  "recordedOn": "2026-08-27",
+  "status": "PASS_WITH_OBSERVATION",
+  "auditMethod": "read-only multi-agent call-graph audit, reproduced P0/P1 countertests, sequential bounded repairs, post-fix independent re-audit",
+  "lanes": {
+    "executionSettlementDelivery": { "postFixP0": 0, "postFixP1": 0, "focused": "81/81 passed" },
+    "memoryContextConnection": { "postFixP0": 0, "postFixP1": 0, "focusedUnit": "52/52 passed", "isolatedConsole": "17/17 passed" },
+    "securityPlatformRelease": { "postFixP0": 0, "postFixP1": 0, "focused": "44 passed, 0 failed, 2 physical-Windows skipped" }
+  },
+  "repairCommits": [
+    "07f09dc3", "289d0ae7", "4ede7099", "0655ee59", "c27a09ad", "cb6ea8a3",
+    "11dd8537", "b09b2977", "5e9f3e41", "9bb6c0b7"
+  ],
+  "repairedFailureFamilies": [
+    "macOS app collector final segment loss and natural rollover",
+    "private-mode intent loss, incomplete export, and settings failure opacity",
+    "Telegram artifact recovery, adopted ingress, ACK unknown, singleton polling, and cross-process result publication",
+    "model credential removal commit ordering",
+    "Work settlement before recoverable result publication",
+    "checkpoint memory provenance bypass, expired restore, foreign-channel projection, and OAuth URL context leak",
+    "collector degraded intent, target-only app exclusion, and WorkHistory fact projection",
+    "dirty-source release signing and reproducibility",
+    "Windows product environment, package entry, launcher, native helpers, and explicit host wiring"
+  ],
+  "wholeProductRegression": {
+    "core": { "failed": 0, "skipped": 1 },
+    "integration": { "passed": 171, "failed": 0, "skipped": 2 },
+    "mutation": { "killed": 2, "survived": 0 },
+    "liveProviderSmoke": { "models": ["gpt-5.6-terra", "gpt-5.5"], "providerRequests": 2, "passed": true, "externalWrites": 0 },
+    "legacyImports": 0
+  },
+  "observations": [
+    "Windows code-ready candidate is complete, but physical Windows package, signed install, x64/ARM64 execution, Terminal confinement, CH/UI, Explorer/Search/ACL, and two-model human qualification remain external receipts.",
+    "CH3 query-selection windows are process-memory bounded; restart safely requires a new local search and cannot reopen stale history.",
+    "M6 adaptive activation and S3-CA capability acquisition remain next-cycle scope and are not active product behavior.",
+    "Current macOS source is signing/notary ready, but this evidence does not claim that the current source package was built, notarized, installed, or released."
+  ],
+  "completionSentence": "3차 기술 완료 기준에서 실제 제품 진입점부터 사용자 surface까지 감사했고, 재현된 P0/P1은 반대시험과 순차 수리로 닫혔다. post-fix 세 감사 lane의 재현 P0/P1은 0이며 전체 제품 회귀와 실제 두 모델 smoke가 통과했다.",
+  "passed": true
+}
