@@ -1,16 +1,39 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID, scrypt as rawScrypt } from 'node:crypto';
-import { constants } from 'node:fs';
-import { chmod, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { createDecipheriv, createHash, randomUUID, scrypt as rawScrypt } from 'node:crypto';
+import { constants, createReadStream } from 'node:fs';
+import { chmod, copyFile, lstat, mkdir, mkdtemp, open, readFile, readdir, rename, rm, stat, statfs, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
+import { createInterface } from 'node:readline';
+import { streamFileFacts } from './stream-file-facts.js';
+import { isWholeStateBundleV2, materializeWholeStateBundleV2,
+  writeWholeStateBundleV2 } from './whole-state-bundle-v2.js';
 
 const scrypt = promisify(rawScrypt);
 const MAGIC = Buffer.from('T5WB001\n', 'ascii');
 const MAX_HEADER_BYTES = 4_096;
-const MAX_PAYLOAD_BYTES = 256 * 1024 * 1024;
+const LEGACY_V1_MAX_PAYLOAD_BYTES = 256 * 1024 * 1024;
 
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
+async function capturePortableAttachmentLedger(source, target) {
+  const output = await open(target, 'wx', 0o600);
+  const input = createReadStream(source); const lines = createInterface({ input, crlfDelay: Infinity });
+  try {
+    for await (const line of lines) {
+      if (!line) continue; const event = JSON.parse(line); const record = event.payload?.record;
+      if (record) {
+        const leaf = String(record.objectRelativePath ?? record.storedPath ?? '').replaceAll('\\', '/').split('/').at(-1);
+        const relativeObject = record.objectRelativePath ?? `objects/${record.sha256}/${leaf}`;
+        if (!/^objects\/[0-9a-f]{64}\/content(?:\.[A-Za-z0-9]{1,16})?$/u.test(relativeObject)
+          || !relativeObject.startsWith(`objects/${record.sha256}/`)) throw new Error('attachment ledger object identity is invalid');
+        record.objectRelativePath = relativeObject; delete record.storedPath;
+        if (record.sourcePath) { delete record.sourcePath; record.sourceAvailability = 'reconnect_required'; }
+      }
+      await output.write(`${JSON.stringify(event)}\n`);
+    }
+    await output.sync();
+  } finally { await output.close(); input.destroy(); }
+}
 function safeRelative(value) {
   const path = String(value ?? '').replaceAll('\\', '/');
   if (!path || isAbsolute(path) || path.startsWith('../') || path.includes('/../') || path.includes('\0')) {
@@ -28,9 +51,9 @@ async function deriveKey(password, salt) {
 }
 
 export async function stageWholeStateGeneration({ registry, stagingParent = tmpdir(), generationId = randomUUID(),
-  createdAt = new Date().toISOString(), afterSourceManifest = null } = {}) {
+  createdAt = new Date().toISOString(), afterSourceManifest = null, manifest: providedManifest = null } = {}) {
   if (!registry?.stateRoot || typeof registry.manifest !== 'function') throw new TypeError('whole-state registry is required');
-  const manifest = await registry.manifest({ generationId, createdAt });
+  const manifest = providedManifest ?? await registry.manifest({ generationId, createdAt });
   await afterSourceManifest?.(manifest);
   const root = await mkdtemp(join(stagingParent, 't5-whole-state-generation-'));
   try {
@@ -40,17 +63,31 @@ export async function stageWholeStateGeneration({ registry, stagingParent = tmpd
       const source = resolve(registry.stateRoot, file.path); const target = resolve(payloadRoot, file.path);
       if (!inside(registry.stateRoot, source) || !inside(payloadRoot, target)) throw new Error('whole-state staging path escaped root');
       await mkdir(dirname(target), { recursive: true, mode: 0o700 });
-      await copyFile(source, target, constants.COPYFILE_EXCL); await chmod(target, 0o600);
-      const [sourceAfter, copied] = await Promise.all([readFile(source), readFile(target)]);
-      if (sourceAfter.length !== file.bytes || sha256(sourceAfter) !== file.sha256
-        || copied.length !== file.bytes || sha256(copied) !== file.sha256) {
-        throw Object.assign(new Error('whole-state source changed during staging'), { code: 'T5_BACKUP_SOURCE_CHANGED' });
+      if (component.capture === 'sqlite_online') {
+        const { backup: sqliteBackup, DatabaseSync } = await import('node:sqlite');
+        const database = new DatabaseSync(source, { readOnly: true });
+        try { await sqliteBackup(database, target); } finally { database.close(); }
+        const copied = await streamFileFacts(target); file.bytes = copied.bytes; file.sha256 = copied.sha256;
+        file.capture = 'sqlite_online';
+      } else if (component.capture === 'attachment_portable') {
+        await capturePortableAttachmentLedger(source, target);
+        const copied = await streamFileFacts(target); file.bytes = copied.bytes; file.sha256 = copied.sha256;
+        file.capture = 'attachment_portable';
+      } else {
+        await copyFile(source, target, constants.COPYFILE_EXCL);
+        const [sourceAfter, copied] = await Promise.all([streamFileFacts(source), streamFileFacts(target)]);
+        if (sourceAfter.bytes !== file.bytes || sourceAfter.sha256 !== file.sha256
+          || copied.bytes !== file.bytes || copied.sha256 !== file.sha256) {
+          throw Object.assign(new Error('whole-state source changed during staging'), { code: 'T5_BACKUP_SOURCE_CHANGED' });
+        }
       }
+      await chmod(target, 0o600);
     }
     for (const component of manifest.components) for (const file of component.files) {
       if (file.state === 'unavailable' || file.state === 'excluded_large') continue;
-      const sourceAfterGeneration = await readFile(resolve(registry.stateRoot, file.path));
-      if (sourceAfterGeneration.length !== file.bytes || sha256(sourceAfterGeneration) !== file.sha256) {
+      if (component.capture !== 'file') continue;
+      const sourceAfterGeneration = await streamFileFacts(resolve(registry.stateRoot, file.path));
+      if (sourceAfterGeneration.bytes !== file.bytes || sourceAfterGeneration.sha256 !== file.sha256) {
         throw Object.assign(new Error('whole-state source changed before generation closed'), {
           code: 'T5_BACKUP_SOURCE_CHANGED',
         });
@@ -61,44 +98,40 @@ export async function stageWholeStateGeneration({ registry, stagingParent = tmpd
   } catch (error) { await rm(root, { recursive: true, force: true }); throw error; }
 }
 
-async function payloadFromStage(stage) {
-  const files = [];
-  for (const component of stage.manifest.components) for (const file of component.files) {
-    if (file.state === 'unavailable' || file.state === 'excluded_large') continue;
-    const bytes = await readFile(resolve(stage.payloadRoot, file.path));
-    files.push({ path: file.path, bytes: file.bytes, sha256: file.sha256, data: bytes.toString('base64') });
-  }
-  const payload = Buffer.from(JSON.stringify({ manifest: stage.manifest, files }), 'utf8');
-  if (payload.length > MAX_PAYLOAD_BYTES) throw Object.assign(new Error('whole-state encrypted payload is too large'), {
-    code: 'T5_BACKUP_PAYLOAD_TOO_LARGE',
-  });
-  return payload;
+export async function createWholeStateBundle({ registry, outputFile, password, stagingParent, generationId,
+  createdAt = new Date().toISOString(), afterSourceManifest, onProgress = null } = {}) {
+  if (!outputFile) throw new TypeError('whole-state output file is required');
+  const parent = stagingParent ?? tmpdir(); const manifest = await registry.manifest({ generationId: generationId ?? randomUUID(), createdAt });
+  await assertWholeStateDiskCapacity({ manifest, stagingParent: parent, outputFile,
+    sourceRoot: registry.stateRoot });
+  const stage = await stageWholeStateGeneration({ registry, stagingParent: parent, manifest, afterSourceManifest });
+  try { return await writeWholeStateBundleV2({ stage, outputFile, password, onProgress }); }
+  finally { await rm(stage.root, { recursive: true, force: true }); }
 }
 
-export async function createWholeStateBundle({ registry, outputFile, password, stagingParent, generationId,
-  createdAt, afterSourceManifest } = {}) {
-  if (!outputFile) throw new TypeError('whole-state output file is required');
-  const stage = await stageWholeStateGeneration({ registry, stagingParent, generationId, createdAt, afterSourceManifest });
-  const salt = randomBytes(16); const iv = randomBytes(12); let key;
-  try {
-    const plaintext = await payloadFromStage(stage); key = await deriveKey(password, salt);
-    const cipher = createCipheriv('aes-256-gcm', key, iv);
-    const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]); const tag = cipher.getAuthTag();
-    const header = Buffer.from(JSON.stringify({ schema: 't5.whole-state-encrypted.v1',
-      kdf: { name: 'scrypt', N: 16_384, r: 8, p: 1, salt: salt.toString('base64') },
-      cipher: { name: 'aes-256-gcm', iv: iv.toString('base64'), tagBytes: tag.length } }), 'utf8');
-    if (header.length > MAX_HEADER_BYTES) throw new Error('whole-state bundle header is too large');
-    const length = Buffer.alloc(4); length.writeUInt32BE(header.length);
-    const body = Buffer.concat([MAGIC, length, header, ciphertext, tag]);
-    await mkdir(dirname(resolve(outputFile)), { recursive: true, mode: 0o700 });
-    const temporary = `${resolve(outputFile)}.${process.pid}.${randomUUID()}.tmp`;
-    await writeFile(temporary, body, { mode: 0o600 }); await chmod(temporary, 0o600);
-    await rename(temporary, resolve(outputFile));
-    return { schema: 't5.whole-state-backup-receipt.v1', generationId: stage.manifest.generationId,
-      components: stage.manifest.components.length, bytes: body.length, sha256: sha256(body), encrypted: true,
-      excludedFiles: stage.manifest.components.flatMap((component) => component.files)
-        .filter((file) => file.state === 'excluded_large').length };
-  } finally { key?.fill(0); await rm(stage.root, { recursive: true, force: true }); }
+export async function assertWholeStateDiskCapacity({ manifest, stagingParent, outputFile, sourceRoot = null } = {}) {
+  let sourceBytes = manifest.components.flatMap((component) => component.files)
+    .filter((file) => !file.state).reduce((sum, file) => sum + Number(file.bytes ?? 0), 0);
+  if (sourceRoot) for (const component of manifest.components.filter((item) => item.capture === 'sqlite_online')) {
+    for (const file of component.files.filter((item) => !item.state)) {
+      const walBytes = await lstat(`${resolve(sourceRoot, file.path)}-wal`).then((value) => value.size).catch(() => 0);
+      sourceBytes += walBytes;
+    }
+  }
+  const outputParent = dirname(resolve(outputFile)); await mkdir(outputParent, { recursive: true, mode: 0o700 });
+  const [stageFs, outputFs, stageInfo, outputInfo] = await Promise.all([
+    statfs(stagingParent), statfs(outputParent), lstat(stagingParent), lstat(outputParent),
+  ]);
+  const available = (value) => Number(value.bavail) * Number(value.bsize);
+  const reserve = 64 * 1024 * 1024; const sameDevice = stageInfo.dev === outputInfo.dev;
+  if (sameDevice ? available(stageFs) < (sourceBytes * 2) + reserve
+    : available(stageFs) < sourceBytes + reserve || available(outputFs) < sourceBytes + reserve) {
+    throw Object.assign(new Error('whole-state backup needs more free disk space'), {
+      code: 'T5_BACKUP_DISK_SPACE_INSUFFICIENT', requiredBytes: sameDevice
+        ? (sourceBytes * 2) + reserve : sourceBytes + reserve,
+    });
+  }
+  return { sourceBytes, sameDevice };
 }
 
 async function decryptBundle(bundleFile, password) {
@@ -125,7 +158,7 @@ async function decryptBundle(bundleFile, password) {
   try {
     key = await deriveKey(password, salt); const decipher = createDecipheriv('aes-256-gcm', key, iv); decipher.setAuthTag(tag);
     const plaintext = Buffer.concat([decipher.update(body.subarray(cipherStart, body.length - 16)), decipher.final()]);
-    if (plaintext.length > MAX_PAYLOAD_BYTES) throw new Error('whole-state payload is too large');
+    if (plaintext.length > LEGACY_V1_MAX_PAYLOAD_BYTES) throw new Error('whole-state payload is too large');
     return JSON.parse(plaintext.toString('utf8'));
   } catch {
     throw Object.assign(new Error('whole-state backup password or integrity check failed'), {
@@ -134,7 +167,7 @@ async function decryptBundle(bundleFile, password) {
   } finally { key?.fill(0); }
 }
 
-function validateManifest(manifest, files) {
+function validateManifest(manifest, files = null) {
   if (manifest?.schema !== 't5.whole-state-generation-manifest.v1' || !Array.isArray(manifest.components)) {
     throw Object.assign(new Error('whole-state manifest is invalid'), { code: 'T5_BACKUP_MANIFEST_INVALID' });
   }
@@ -152,7 +185,7 @@ function validateManifest(manifest, files) {
     const target = components.get(dependency);
     if (!target || target.restoreOrder >= component.restoreOrder) throw new Error('whole-state relationship manifest is invalid');
   }
-  if (!Array.isArray(files) || files.length !== expectedFiles.size) throw new Error('whole-state payload file count is invalid');
+  if (files != null && (!Array.isArray(files) || files.length !== expectedFiles.size)) throw new Error('whole-state payload file count is invalid');
   return expectedFiles;
 }
 
@@ -179,7 +212,8 @@ export async function wholeStateTreeDigest(rootInput) {
       if (info.isSymbolicLink()) throw new Error('prepared restore contains a symbolic link');
       if (info.isDirectory()) await walk(exact);
       else if (info.isFile() && info.nlink === 1) {
-        const bytes = await readFile(exact); facts.push(`${relative(root, exact).replaceAll('\\', '/')}:${bytes.length}:${sha256(bytes)}`);
+        const streamed = await streamFileFacts(exact);
+        facts.push(`${relative(root, exact).replaceAll('\\', '/')}:${streamed.bytes}:${streamed.sha256}`);
       } else throw new Error('prepared restore contains an unsafe file');
     }
   }
@@ -192,16 +226,18 @@ export async function activatePreparedWholeStateRestore({ preparedStateRoot, des
   if (dirname(prepared) !== dirname(destination) || prepared === destination) throw new Error('prepared restore must be a sibling state root');
   if (await wholeStateTreeDigest(prepared) !== expectedStateDigest) throw Object.assign(
     new Error('prepared restore changed before activation'), { code: 'T5_RESTORE_PREPARED_CHANGED' });
-  const rollback = `${destination}.rollback.${randomUUID()}`; let hadDestination = false;
+  const rollback = `${destination}.rollback.${randomUUID()}`; let hadDestination = false; let activated = false;
   try {
     try { await stat(destination); hadDestination = true; await rename(destination, rollback); }
     catch (error) { if (error?.code !== 'ENOENT') throw error; }
-    await rename(prepared, destination);
+    await rename(prepared, destination); activated = true;
+    const parentHandle = await open(dirname(destination), 'r');
+    try { await parentHandle.sync(); } finally { await parentHandle.close(); }
     return { activated: true, stateDigest: expectedStateDigest,
       previousStatePreserved: hadDestination, previousStateName: hadDestination ? basename(rollback) : null };
   } catch (error) {
+    if (activated) await rm(destination, { recursive: true, force: true }).catch(() => {});
     if (hadDestination) {
-      await rm(destination, { recursive: true, force: true }).catch(() => {});
       await rename(rollback, destination).catch(() => {});
     }
     throw error;
@@ -211,17 +247,23 @@ export async function activatePreparedWholeStateRestore({ preparedStateRoot, des
 export async function restoreWholeStateBundle({ bundleFile, password, destinationStateRoot,
   validateRelationships = async () => true } = {}) {
   const destination = resolve(destinationStateRoot); const parent = dirname(destination);
-  const payload = await decryptBundle(bundleFile, password);
   await mkdir(parent, { recursive: true, mode: 0o700 });
-  const isolated = await materializeIsolated(payload, parent);
-  try { await validateRelationships({ root: isolated, manifest: payload.manifest }); }
+  let isolated; let manifest;
+  if (await isWholeStateBundleV2(bundleFile)) {
+    const materialized = await materializeWholeStateBundleV2({ bundleFile, password, parent,
+      validateManifest }); isolated = materialized.root; manifest = materialized.manifest;
+  } else {
+    const payload = await decryptBundle(bundleFile, password); manifest = payload.manifest;
+    isolated = await materializeIsolated(payload, parent);
+  }
+  try { await validateRelationships({ root: isolated, manifest }); }
   catch (error) { await rm(isolated, { recursive: true, force: true }); throw error; }
   const stateDigest = await wholeStateTreeDigest(isolated);
   await activatePreparedWholeStateRestore({ preparedStateRoot: isolated, destinationStateRoot: destination,
     expectedStateDigest: stateDigest });
-  return { restored: true, generationId: payload.manifest.generationId,
-    components: payload.manifest.components.length, secretsRequired: true, externalEffectsRetried: 0,
-    unavailableFiles: payload.manifest.components.flatMap((component) => component.files)
+  return { restored: true, generationId: manifest.generationId,
+    components: manifest.components.length, secretsRequired: true, externalEffectsRetried: 0,
+    unavailableFiles: manifest.components.flatMap((component) => component.files)
       .filter((file) => ['excluded_large', 'unavailable'].includes(file.state)).length,
     stateDigest };
 }

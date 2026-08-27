@@ -1,9 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { createReadStream } from 'node:fs';
 import { chmod, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir, tmpdir } from 'node:os';
+import { pipeline } from 'node:stream/promises';
 
 import { runAgent } from './agent-loop.js';
 import { ConsoleSessionStore } from './console-session-store.js';
@@ -247,7 +249,11 @@ async function body(req, limit = 1024 * 1024) {
     text += chunk;
     if (text.length > limit) throw new Error('request body too large');
   }
-  return text ? JSON.parse(text) : {};
+  if (!text) return {};
+  if (String(req.headers['content-type'] ?? '').split(';', 1)[0].trim() === 'application/x-www-form-urlencoded') {
+    return Object.fromEntries(new URLSearchParams(text));
+  }
+  return JSON.parse(text);
 }
 
 function historyFrom(session) {
@@ -3566,13 +3572,12 @@ export function makeConsoleServer({
             password: input.password, stagingParent: room,
           }));
           input.password = '';
-          const bytes = await readFile(output);
           res.writeHead(200, { 'content-type': 'application/vnd.gpao-t5.backup',
             'content-disposition': 'attachment; filename="T5-whole-state.t5backup"',
-            'content-length': bytes.length, 'cache-control': 'no-store',
+            'content-length': receipt.bytes, 'cache-control': 'no-store',
             'x-t5-backup-generation': receipt.generationId,
             'x-t5-backup-excluded-files': receipt.excludedFiles });
-          res.end(bytes);
+          await pipeline(createReadStream(output), res).catch((error) => onError?.(error));
         } finally { input.password = ''; await rm(room, { recursive: true, force: true }); }
         return;
       }
@@ -3583,7 +3588,7 @@ export function makeConsoleServer({
         let bytes = 0;
         try {
           for await (const chunk of req) {
-            bytes += chunk.length; if (bytes > 300 * 1024 * 1024) throw Object.assign(new Error('백업 파일이 너무 커요.'), { status: 413 });
+            bytes += chunk.length;
             await handle.write(chunk);
           }
         } catch (error) { await handle.close().catch(() => {}); await rm(file, { force: true }); throw error; }

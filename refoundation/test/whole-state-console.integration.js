@@ -52,7 +52,7 @@ test('설정의 전체 백업은 runtime maintenance에서 암호화 download를
 test('설정은 전체 백업 범위·secret 제외·암호 분실 책임을 일반 사용자 문장으로 보여준다', async () => {
   const ui = await readFile(new URL('../ui/index.html', import.meta.url), 'utf8');
   assert.match(ui, /T5 전체 백업/u); assert.match(ui, /비밀값은 포함하지 않아요/u);
-  assert.match(ui, /암호를 잊으면 백업을 복원할 수 없어요/u); assert.match(ui, /T5-whole-state\.t5backup/u);
+  assert.match(ui, /암호를 잊으면 백업을 복원할 수 없어요/u); assert.match(ui, /form\.action = '\/backup\/create'/u);
   assert.match(ui, /전체 백업 복원/u); assert.match(ui, /지금 상태는 되돌릴 사본으로 보존/u);
 });
 

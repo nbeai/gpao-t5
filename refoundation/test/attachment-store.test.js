@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { lstat, mkdir, mkdtemp, readFile, realpath, symlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -49,6 +49,23 @@ test('같은 bytes는 content-addressed object를 공유하지만 Attachment ide
   assert.equal(one.storedPath, two.storedPath);
   await assert.rejects(() => store.get({ sessionId: SESSION_B, attachmentId: one.attachmentId }), /not found/i);
   assert.equal((await store.list({ sessionId: SESSION_A })).length, 2);
+});
+
+test('기존 absolute storedPath ledger도 현재 Attachment root의 portable object identity로 재결속한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-attachment-portable-')); const sourceRoot = join(room, 'source');
+  const destinationRoot = join(room, 'destination'); const source = new AttachmentStore(sourceRoot);
+  try {
+    const record = await source.receive({ sessionId: SESSION_A, originalName: 'portable.txt', bytes: Buffer.from('portable') });
+    const ledger = join(sourceRoot, 'ledger.jsonl'); const events = (await readFile(ledger, 'utf8')).split('\n').filter(Boolean).map(JSON.parse);
+    const persisted = events.find((event) => event.payload?.record)?.payload.record;
+    persisted.storedPath = record.storedPath; delete persisted.objectRelativePath;
+    await writeFile(ledger, `${events.map((event) => JSON.stringify(event)).join('\n')}\n`);
+    await rename(sourceRoot, destinationRoot);
+    const reopened = await new AttachmentStore(destinationRoot).readContent({ sessionId: SESSION_A,
+      attachmentId: record.attachmentId });
+    assert.equal(reopened.bytes.toString('utf8'), 'portable');
+    assert.equal(reopened.record.storedPath.startsWith(destinationRoot), true);
+  } finally { await rm(room, { recursive: true, force: true }); }
 });
 
 test('첨부는 Message·Run에 append-only로 연결되고 재시작 뒤 복원된다', async () => {

@@ -1,6 +1,6 @@
-import { createHash } from 'node:crypto';
-import { lstat, readFile } from 'node:fs/promises';
+import { lstat } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { streamFileFacts } from './stream-file-facts.js';
 
 const ID = /^[a-z][a-z0-9-]{1,63}$/u;
 const FORBIDDEN_SECRET_LEAVES = new Set([
@@ -31,7 +31,7 @@ export class WholeStateComponentRegistry {
     this.stateRoot = resolve(stateRoot); this.components = new Map(); this.paths = new Set();
   }
   register({ id, files, required = true, restoreOrder, relationships = [],
-    maxFileBytes = null, maxTotalBytes = null, allowLargeExclusion = false } = {}) {
+    maxFileBytes = null, maxTotalBytes = null, allowLargeExclusion = false, capture = 'file' } = {}) {
     const componentId = String(id ?? '');
     if (!ID.test(componentId) || this.components.has(componentId)) throw new TypeError('whole-state component id is invalid');
     if (!Array.isArray(files) || (required === true && !files.length)) throw new TypeError('whole-state component files are required');
@@ -47,9 +47,10 @@ export class WholeStateComponentRegistry {
     if (!Array.isArray(relationships) || relationships.some((item) => !ID.test(String(item)))) {
       throw new TypeError('whole-state relationships are invalid');
     }
+    if (!['file', 'sqlite_online', 'attachment_portable'].includes(capture)) throw new TypeError('whole-state capture kind is invalid');
     const component = { id: componentId, files: paths, required: required === true,
       restoreOrder, relationships: [...new Set(relationships.map(String))].sort(),
-      maxFileBytes, maxTotalBytes, allowLargeExclusion: allowLargeExclusion === true };
+      maxFileBytes, maxTotalBytes, allowLargeExclusion: allowLargeExclusion === true, capture };
     this.components.set(componentId, component); paths.forEach((path) => this.paths.add(path));
     return structuredClone(component);
   }
@@ -76,18 +77,17 @@ export class WholeStateComponentRegistry {
         try {
           const metadata = await lstat(exact);
           if (!metadata.isFile() || metadata.nlink !== 1) throw new Error('whole-state component file is not an exact regular file');
-          const bytes = await readFile(exact);
-          if ((component.maxFileBytes != null && bytes.length > component.maxFileBytes)
-            || (component.maxTotalBytes != null && includedBytes + bytes.length > component.maxTotalBytes)) {
+          if ((component.maxFileBytes != null && metadata.size > component.maxFileBytes)
+            || (component.maxTotalBytes != null && includedBytes + metadata.size > component.maxTotalBytes)) {
             if (!component.allowLargeExclusion) throw Object.assign(new Error('whole-state component file is too large'), {
               code: 'T5_BACKUP_COMPONENT_FILE_TOO_LARGE', componentId: component.id,
             });
-            excluded += 1; files.push({ path, state: 'excluded_large', bytes: bytes.length,
-              sha256: createHash('sha256').update(bytes).digest('hex') }); continue;
+            const facts = await streamFileFacts(exact);
+            excluded += 1; files.push({ path, state: 'excluded_large', bytes: facts.bytes,
+              sha256: facts.sha256 }); continue;
           }
-          includedBytes += bytes.length;
-          files.push({ path, bytes: bytes.length,
-            sha256: createHash('sha256').update(bytes).digest('hex') });
+          const facts = await streamFileFacts(exact); includedBytes += facts.bytes;
+          files.push({ path, bytes: facts.bytes, sha256: facts.sha256 });
         } catch (error) {
           if (error?.code !== 'ENOENT') throw error;
           missing += 1; files.push({ path, state: 'unavailable' });
@@ -97,7 +97,8 @@ export class WholeStateComponentRegistry {
         code: 'T5_BACKUP_REQUIRED_COMPONENT_UNAVAILABLE', componentId: component.id,
       });
       components.push({ id: component.id, restoreOrder: component.restoreOrder,
-        relationships: component.relationships, state: missing === files.length ? 'unavailable'
+        relationships: component.relationships, capture: component.capture,
+        state: missing === files.length ? 'unavailable'
           : excluded === files.length ? 'excluded_large' : missing || excluded ? 'partial' : 'included', files });
     }
     return { schema: 't5.whole-state-generation-manifest.v1', generationId: String(generationId),

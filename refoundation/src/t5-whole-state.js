@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { lstat, readdir } from 'node:fs/promises';
 import { basename, join, relative, resolve } from 'node:path';
 
@@ -38,28 +39,23 @@ export async function makeT5WholeStateRegistry(stateRoot) {
   add('runs', await regularFiles(stateRoot, 'runs', { include: (path) => path.endsWith('.jsonl') }), 40, ['sessions', 'work']);
   add('memory', ['memory/memory.jsonl'], 50, ['sessions']);
   add('automation', ['automation/state.json'], 60, ['sessions', 'work']);
-  add('attachments', ['attachments/ledger.jsonl'], 70, ['sessions', 'work', 'runs']);
-  add('artifact-objects', await regularFiles(stateRoot, 'attachments/objects'), 71, ['attachments'], false,
-    { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 96 * 1024 * 1024, allowLargeExclusion: true });
+  add('attachments', ['attachments/ledger.jsonl'], 70, ['sessions', 'work', 'runs'], false,
+    { capture: 'attachment_portable' });
+  add('artifact-objects', await regularFiles(stateRoot, 'attachments/objects'), 71, ['attachments']);
   add('capability-handoffs', ['capability-handoffs/capability-handoffs.jsonl'], 80, ['sessions', 'runs']);
   add('capability-lifecycle', ['capability-lifecycle/events.jsonl'], 90, ['work', 'runs']);
   add('resources', ['resources/events.jsonl'], 100, ['runs']);
   add('authority', await regularFiles(stateRoot, 'authority', { include: (path) => path.endsWith('.jsonl') }), 110, ['sessions', 'runs']);
   add('connections', await regularFiles(stateRoot, 'connections', {
-    include: (path) => basename(path).startsWith('connection-state.sqlite'),
-  }), 120);
+    include: (path) => basename(path) === 'connection-state.sqlite',
+  }), 120, [], false, { capture: 'sqlite_online' });
   add('messenger', ['messenger/messenger-runtime.json'], 130, ['sessions', 'work']);
-  add('terminal-outputs', await regularFiles(stateRoot, 'terminal-outputs'), 140, ['sessions', 'runs'], false,
-    { maxTotalBytes: 32 * 1024 * 1024, allowLargeExclusion: true });
-  add('managed-skills', await regularFiles(stateRoot, 'managed-skills'), 150, ['capability-lifecycle'], false,
-    { maxTotalBytes: 16 * 1024 * 1024, allowLargeExclusion: true });
-  add('file-activity', await regularFiles(stateRoot, 'file-activity'), 160, [], false,
-    { maxTotalBytes: 16 * 1024 * 1024, allowLargeExclusion: true });
-  add('app-activity', await regularFiles(stateRoot, 'app-activity'), 170, [], false,
-    { maxTotalBytes: 16 * 1024 * 1024, allowLargeExclusion: true });
+  add('terminal-outputs', await regularFiles(stateRoot, 'terminal-outputs'), 140, ['sessions', 'runs']);
+  add('managed-skills', await regularFiles(stateRoot, 'managed-skills'), 150, ['capability-lifecycle']);
+  add('file-activity', await regularFiles(stateRoot, 'file-activity'), 160);
+  add('app-activity', await regularFiles(stateRoot, 'app-activity'), 170);
   add('runtime-continuity', ['runtime-continuity/events.json'], 180);
-  add('user-notes', await regularFiles(stateRoot, 'user-notes'), 190, [], false,
-    { maxTotalBytes: 32 * 1024 * 1024, allowLargeExclusion: true });
+  add('user-notes', await regularFiles(stateRoot, 'user-notes'), 190);
   return registry;
 }
 
@@ -92,6 +88,15 @@ export async function validateT5WholeStateRelationships({ root, manifest } = {})
     }
   }
   if (included(manifest, 'memory')) await new MemoryLedger(join(root, 'memory')).read();
+  if (included(manifest, 'connections')) {
+    const { DatabaseSync } = await import('node:sqlite');
+    const database = new DatabaseSync(join(root, 'connections', 'connection-state.sqlite'), { readOnly: true });
+    try {
+      if (database.prepare('PRAGMA quick_check').get().quick_check !== 'ok') {
+        throw new Error('restored Connection SQLite integrity check failed');
+      }
+    } finally { database.close(); }
+  }
   if (included(manifest, 'messenger')) {
     const messenger = new MessengerStateStore(join(root, 'messenger')); await messenger.read();
     for (const binding of await messenger.listBindings()) {
@@ -115,6 +120,13 @@ export async function validateT5WholeStateRelationships({ root, manifest } = {})
     for (const event of events) {
       if (event.sessionId && !sessionIds.has(event.sessionId)) throw new Error('restored Artifact has no Session');
       if (event.runId && !runIds.has(event.runId)) throw new Error('restored Artifact has no Run');
+    }
+    for (const sessionId of sessionIds) for (const record of await attachments.list({ sessionId })) {
+      const reopened = await attachments.readContent({ sessionId, attachmentId: record.attachmentId });
+      if (reopened.bytes.length !== record.bytes
+        || createHash('sha256').update(reopened.bytes).digest('hex') !== record.sha256) {
+        throw new Error('restored Artifact object does not match its portable identity');
+      }
     }
   }
   const unavailableArtifacts = manifest.components.find((component) => component.id === 'artifact-objects')

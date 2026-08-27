@@ -6,7 +6,9 @@ import test from 'node:test';
 
 import { AttachmentStore } from '../src/attachment-store.js';
 import { AutomationStore } from '../src/automation-store.js';
+import { renderAttachmentPreview } from '../src/artifact-preview.js';
 import { ConsoleSessionStore } from '../src/console-session-store.js';
+import { makeConsoleServer } from '../src/console-server.js';
 import { ConversationLedger } from '../src/conversation-ledger.js';
 import { RunLedger } from '../src/run-ledger.js';
 import { createWholeStateBundle, restoreWholeStateBundle } from '../src/whole-state-bundle.js';
@@ -29,8 +31,9 @@ async function mixedState(state) {
     requirements: { requiredTools: [], requiredEffect: 'observe', requireResultUrl: false },
     delivery: { kind: 'origin_session' }, workBinding: { workId: work.workId, revision: 1 } });
   const attachments = new AttachmentStore(join(state, 'attachments'));
-  const artifact = await attachments.receive({ sessionId: session.id, originalName: 'report.txt',
-    bytes: Buffer.from('quarterly report'), direction: 'output' });
+  const artifact = await attachments.receive({ sessionId: session.id, originalName: 'report.html',
+    bytes: Buffer.from('<!doctype html><p>quarterly report</p>'), direction: 'output',
+    sourcePath: '/old-computer/private/report.html' });
   await attachments.link({ sessionId: session.id, attachmentIds: [artifact.attachmentId],
     messageId: 'message-1', runId: run.runId });
   await mkdir(join(state, 'messenger'), { recursive: true });
@@ -52,6 +55,7 @@ test('T5 전체 registry는 혼합 canonical 관계를 암호화 이동하고 se
     const destination = join(room, 'destination');
     const restored = await restoreWholeStateBundle({ bundleFile: bundle, password: 'portable private state',
       destinationStateRoot: destination, validateRelationships: validateT5WholeStateRelationships });
+    await rm(source, { recursive: true, force: true });
     assert.equal(restored.externalEffectsRetried, 0); assert.equal(restored.secretsRequired, true);
     const sessions = await new ConsoleSessionStore(destination).read();
     assert.ok(sessions.sessions.some((item) => item.id === identities.session.id));
@@ -59,9 +63,37 @@ test('T5 전체 registry는 혼합 canonical 관계를 암호화 이동하고 se
     assert.ok(work.works.some((item) => item.workId === identities.work.workId));
     const automation = await new AutomationStore(join(destination, 'automation', 'state.json')).read();
     assert.ok(automation.jobs.some((item) => item.id === identities.job.id));
-    assert.equal(await readFile(join(destination, 'attachments', 'objects', identities.artifact.sha256,
-      'content.txt'), 'utf8'), 'quarterly report');
+    const restoredAttachmentStore = new AttachmentStore(join(destination, 'attachments'));
+    const restoredAttachmentList = await restoredAttachmentStore.list({ sessionId: identities.session.id });
+    assert.ok(restoredAttachmentList.some((item) => item.attachmentId === identities.artifact.attachmentId),
+      JSON.stringify({ expected: identities.artifact.attachmentId,
+        actual: restoredAttachmentList.map((item) => item.attachmentId),
+        ledger: await readFile(join(destination, 'attachments', 'ledger.jsonl'), 'utf8') }));
+    const artifact = await restoredAttachmentStore.readContent({
+      sessionId: identities.session.id, attachmentId: identities.artifact.attachmentId });
+    assert.match(artifact.bytes.toString('utf8'), /quarterly report/u);
+    assert.equal(artifact.record.storedPath.startsWith(join(destination, 'attachments', 'objects')), true);
+    assert.match((await renderAttachmentPreview(artifact)).body, /quarterly report/u);
     await assert.rejects(() => readFile(join(destination, 'messenger', 'messenger-credentials.json')), { code: 'ENOENT' });
+    let sentDocument = null;
+    const provider = { id: 'telegram', inboundMode: 'long_polling',
+      async validate() { return { id: 'bot', username: 'bot' }; },
+      async sendDocument(value) { sentDocument = value; return { sent: true, messageId: 'file-1', file: {}, artifact: {} }; },
+      async sendReply() { return { sent: true, messageId: 'text-1', messageIds: ['text-1'] }; },
+      async poll({ signal } = {}) { if (signal?.aborted) return []; await new Promise((resolve) => signal?.addEventListener('abort', resolve, { once: true })); return []; } };
+    const server = makeConsoleServer({ stateDir: destination, workspace: room,
+      messengerProviderFactory: () => provider,
+      modelFactory: () => ({ async respond() { throw new Error('model must not run'); } }) });
+    try {
+      await server.messengerGateway.connect({ provider: 'telegram', token: 'fixture-token' });
+      await server.messengerStateStore.bind('telegram', '555', identities.session.id);
+      await server.messengerGateway.sendToSession({ sessionId: identities.session.id, text: '복원 파일',
+        artifactIds: [identities.artifact.attachmentId] });
+      assert.match(Buffer.from(sentDocument.artifact.bytes).toString('utf8'), /quarterly report/u);
+    } finally { await server.closeAutomations(); await server.closeMessengers(); }
+    const portableLedger = await readFile(join(destination, 'attachments', 'ledger.jsonl'), 'utf8');
+    assert.doesNotMatch(portableLedger, /"(?:storedPath|sourcePath)"|old-computer/u);
+    assert.match(portableLedger, /"objectRelativePath"|"sourceAvailability":"reconnect_required"/u);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 

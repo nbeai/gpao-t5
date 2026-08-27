@@ -179,7 +179,17 @@ export class AttachmentStore {
     const records = new Map();
     for (const event of events) {
       if (event.type === 'received' || event.type === 'output_registered') {
-        records.set(event.payload.record.attachmentId, { ...clone(event.payload.record), links: [] });
+        const persisted = clone(event.payload.record);
+        const legacyLeaf = persisted.storedPath ? basename(persisted.storedPath) : null;
+        const objectRelativePath = String(persisted.objectRelativePath
+          ?? (legacyLeaf ? `objects/${persisted.sha256}/${legacyLeaf}` : ''));
+        if (!/^objects\/[0-9a-f]{64}\/content(?:\.[A-Za-z0-9]{1,16})?$/u.test(objectRelativePath)
+          || !objectRelativePath.startsWith(`objects/${persisted.sha256}/`)) {
+          throw new Error('attachment object identity is invalid');
+        }
+        delete persisted.storedPath;
+        records.set(persisted.attachmentId, { ...persisted, objectRelativePath,
+          storedPath: resolve(this.directory, objectRelativePath), links: [] });
       } else if (event.type === 'linked') {
         for (const attachmentId of event.payload.attachmentIds) {
           const record = records.get(attachmentId);
@@ -380,7 +390,8 @@ export class AttachmentStore {
         mimeType: detected.mimeType, kind: detected.kind,
         ...(detected.encoding ? { encoding: detected.encoding } : {}),
         ...(detected.encodingEvidence ? { encodingEvidence: detected.encodingEvidence } : {}),
-        bytes: total, sha256: digest, storedPath: await realpath(storedPath),
+        bytes: total, sha256: digest,
+        objectRelativePath: relative(this.directory, storedPath).split(sep).join('/'),
         createdAt: new Date().toISOString(),
         ...(direction === 'output' ? {
           artifactFamilyId: revision?.artifactFamilyId ?? attachmentId,
@@ -391,7 +402,8 @@ export class AttachmentStore {
         ...(providerIdentity ? { providerIdentity: clone(providerIdentity) } : {}),
       };
       await this.append(record.direction === 'output' ? 'output_registered' : 'received', { record });
-      return { ...clone(record), ...publicRecord(record) };
+      const liveRecord = { ...clone(record), storedPath: resolve(this.directory, record.objectRelativePath) };
+      return { ...liveRecord, ...publicRecord(liveRecord) };
     });
   }
 
@@ -506,7 +518,7 @@ export class AttachmentStore {
 
   async prepareForUpload({ sessionId, attachmentId } = {}) {
     const { record, bytes } = await this.readContent({ sessionId, attachmentId });
-    if (record.direction !== 'input' || !record.sourcePath || !record.links?.some((link) => link.runId)) {
+    if (record.direction !== 'input' || !record.links?.some((link) => link.runId)) {
       throw new Error('managed browser download artifact not found');
     }
     const sha256 = createHash('sha256').update(bytes).digest('hex');
