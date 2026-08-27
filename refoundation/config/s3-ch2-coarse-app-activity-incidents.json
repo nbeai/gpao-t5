@@ -1,0 +1,26 @@
+{
+  "schema": "t5.s3ch2.coarse-app-activity-incidents.v1",
+  "gate": "S3-CH2",
+  "userCompletion": "사용자는 허용한 앱의 foreground identity, coarse duration, AFK만 로컬에서 보고 pause, private, include/exclude, export, delete를 통제한다.",
+  "referencePrinciples": [
+    {"source":"Apple NSWorkspace.frontmostApplication","adopt":"frontmost app that receives key events","reject":"window or document title capture"},
+    {"source":"Microsoft GetForegroundWindow/GetLastInputInfo","adopt":"replaceable foreground and idle adapters","reject":"window text, browser history, or other user sessions"},
+    {"source":"ActivityWatch buckets/events/heartbeats","adopt":"merge adjacent identical coarse events and expose deletion/export","reject":"raw title, URL, category, productivity, persona, or provider Context defaults"}
+  ],
+  "failureFamilies": [
+    {"id":"CH2-F01","name":"default-on-surveillance","oracle":"fresh install collector calls 0 until explicit folder/app activity enable"},
+    {"id":"CH2-F02","name":"title-url-content-capture","oracle":"window title, document title, URL, chat/mail text, clipboard, key input stored 0"},
+    {"id":"CH2-F03","name":"foreground-identity-forgery","oracle":"unknown or inaccessible foreground process stays unknown and is not guessed from title"},
+    {"id":"CH2-F04","name":"heartbeat-storage-storm","oracle":"adjacent same app+AFK heartbeats coalesce into bounded duration segments"},
+    {"id":"CH2-F05","name":"afk-time-lie","oracle":"idle observer unavailable or clock gap remains unknown, never active duration"},
+    {"id":"CH2-F06","name":"work-causality-overclaim","oracle":"time overlap alone never creates T5 Work/Run binding; only runtime exact receipt may bind"},
+    {"id":"CH2-F07","name":"persona-productivity-inference","oracle":"app duration creates Memory, preference, occupation, performance, or success claim 0"},
+    {"id":"CH2-F08","name":"include-exclude-race","oracle":"excluded/private app never enters a segment and policy generation changes fence stale samples"},
+    {"id":"CH2-F09","name":"pause-private-delete-false","oracle":"pause/private stop collection; delete physically removes segments and restart query is 0"},
+    {"id":"CH2-F10","name":"other-user-remote-private-browser","oracle":"other OS users, remote desktop, private/incognito state are outside qualified coverage and never inferred"},
+    {"id":"CH2-F11","name":"collector-foreground-interference","oracle":"off/on same-purpose semantic, tool, Context, and foreground store operations remain exact"},
+    {"id":"CH2-F12","name":"windows-interface-false-pass","oracle":"Windows API schema may be implemented without claiming physical Windows collection before S3-PW"}
+  ],
+  "nonGoals": ["window title","document title","full URL","browser history","chat or mail title/body","clipboard","keystrokes","screen or audio","Memory or persona promotion","productivity scoring","CH3 relevance intelligence"],
+  "liveAccountsOrSecrets": 0
+}
