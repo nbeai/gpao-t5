@@ -1,6 +1,6 @@
 # T5 3차α — Local Ownership & Persistent Intelligence
 
-상태: `ALPHA0_COMPLETE · ALPHA1_COMPLETE · ALPHA2_COMPLETE · ALPHA3_COMPLETE · ALPHA4_CAPABILITY_BROKER_NEXT · SOURCE_SCOPE_FROZEN`
+상태: `ALPHA0_COMPLETE · ALPHA1_COMPLETE · ALPHA2_REQUALIFIED_STREAMING_V2 · ALPHA3_COMPLETE · ALPHA4_CAPABILITY_BROKER_NEXT · SOURCE_SCOPE_FROZEN`
 기준 source: `5e9d10a11453df24fe77a896d59d891c423da621`
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN`
 
@@ -214,3 +214,9 @@ Runtime stop 뒤 atomic activation·재기동, rollback, effect non-retry와 설
 `refoundation/evidence/alpha3-transmission-context-completion-2026-08-27.json`에서 전체로 통과했다. 다음 한 작업은
 α4 Existing Capability Broker다. 로컬 동기화 파일·인증 CLI·공식 원격 연결·OS native capability를 사용자 목적에서
 조합하되 credential·authority·execution·effect Receipt를 합치지 않는 현재 미달 fixture부터 고정한다.
+
+α3 종료 뒤 외부 source audit에서 α2 v1의 Base64 JSON·256MiB payload·32/96MiB Artifact 제한과 absolute
+`storedPath` cross-root 결함을 재현했다. 기존 `alpha2-whole-state-completion-2026-08-27.json` 판정은 superseded다.
+portable Artifact identity, legacy ledger 재결속, raw gzip entry streaming AES-GCM v2, fixed full-backup cap 0,
+SQLite online snapshot과 v1 restore compatibility는
+`refoundation/evidence/alpha2-streaming-requalification-2026-08-27.json`에서 다시 자격했다. α4는 이 교정 뒤에만 연다.

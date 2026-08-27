@@ -1,0 +1,59 @@
+{
+  "schema": "t5.alpha2.streaming-requalification.v1",
+  "recordedOn": "2026-08-27",
+  "triggerSourceCommit": "418eca60",
+  "repairCommit": "719d9ec0",
+  "officialPlan": "T5-THIRD-ALPHA.md",
+  "status": "PASS",
+  "reproducedFailures": [
+    "After restoring to a different state root and deleting the source root, AttachmentStore.readContent followed the persisted old absolute storedPath and failed with ENOENT.",
+    "The v1 generator Base64-encoded every staged file into one JSON Buffer and rejected encrypted plaintext above 256MiB.",
+    "The full registry excluded a normally accepted 80MiB Artifact because of a 32MiB per-file and 96MiB cumulative Artifact policy.",
+    "Connection SQLite was registered with live main, WAL and SHM files instead of one SQLite-native snapshot.",
+    "The settings download response re-read the completed archive into one Buffer and restore upload rejected files above 300MiB."
+  ],
+  "qualifiedRepairs": [
+    "New Attachment events persist objectRelativePath under the content-addressed objects root and derive storedPath from the current AttachmentStore root at read time.",
+    "Legacy absolute storedPath records are interpreted as portable object identities without requiring the old root.",
+    "Backup capture rewrites legacy Attachment records to objectRelativePath, removes storedPath and sourcePath, and records reconnect_required for external provenance.",
+    "Cross-root restore with the source root deleted passed AttachmentStore.readContent, HTML preview and Telegram sendDocument using the restored exact bytes.",
+    "Full backup now writes T5WB002: encrypted manifest plus raw gzip file frames through incremental AES-256-GCM with backpressure; v1 generation is removed and v1 restore remains supported.",
+    "The product full registry has no fixed whole-backup, Artifact-file or Artifact-cumulative inclusion limit.",
+    "A 260MiB raw sparse state completed streaming encrypted creation and restore without the legacy 256MiB/Base64 boundary.",
+    "A normally accepted 80MiB Artifact was included with excludedFiles zero and reopened from the restored root.",
+    "File hashes, staging verification and final state tree digest use streaming reads rather than whole-file Buffer reads.",
+    "Backup and restore preflight available disk, remove failed partial files, refuse output overwrite, fsync file and parent directory, and abort stalled streams.",
+    "Connection SQLite uses node:sqlite online backup into the generation; WAL and SHM are omitted and the restored snapshot passes quick_check.",
+    "Settings download streams the archive to the browser's native download response and restore upload streams to disk without a fixed 300MiB limit."
+  ],
+  "verification": {
+    "focused": { "tests": 28, "passed": 28, "failed": 0 },
+    "dailyCheck": { "tests": 1553, "passed": 1552, "failed": 0, "skipped": 1 },
+    "fullCi": {
+      "unit": { "passed": 1552, "failed": 0, "skipped": 1 },
+      "integration": { "passed": 183, "failed": 0, "skipped": 2 },
+      "mutation": { "killed": 2, "survived": 0 }
+    },
+    "modelCalls": 0,
+    "externalEffects": 0
+  },
+  "format": {
+    "currentWriter": "t5.whole-state-encrypted.v2",
+    "legacyReader": "t5.whole-state-encrypted.v1",
+    "compression": "gzip per raw file entry",
+    "encryption": "AES-256-GCM over the framed stream",
+    "kdf": "scrypt",
+    "fixedFullBackupPayloadLimit": null,
+    "fixedArtifactFileLimit": null,
+    "fixedArtifactCumulativeLimit": null
+  },
+  "notClaimed": [
+    "Execution or physical migration qualification on a separate macOS machine",
+    "Physical Windows migration qualification",
+    "Provider or external-service copy migration",
+    "Credential plaintext migration",
+    "Alpha4 through Alpha6 completion",
+    "3차Alpha completion"
+  ],
+  "next": "Open Alpha4 only after preserving this portable object and streaming backup boundary as a positive control."
+}
