@@ -16,7 +16,7 @@ test('registered CLI는 exact foreground action만 direct argv로 실행하고 s
     id: 'fixture-account', executable: 'fixture-cli', program: cli,
     actions: [{ id: 'whoami', matches: (args) => args.length === 1 && args[0] === 'whoami',
       prepare: () => ({ args: [], env: { BROKER_TOKEN: secret }, sensitiveValues: [secret] }) }],
-  }] });
+  }], generalTerminalIsolationQualified: true });
   try {
     const tool = makeExecTool({ workspace: room, pathPrepend: bin, terminalCredentialBroker: broker });
     const result = await tool.execute({ command: 'fixture-cli whoami', cwd: null,

@@ -22,8 +22,13 @@ import { resolveConsoleWorkspace } from '../src/console-config.js';
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
 import { resolveTerminalShellEnvironment } from '../src/terminal-shell-environment.js';
 import { makeTerminalPlatformAdapter } from '../src/terminal-platform-adapter.js';
-import { findExecutable, makeGitHubCliRegistration } from '../src/github-cli-broker.js';
+import {
+  findExecutable, githubCliCredentialRoots, makeGitHubCliRegistration,
+} from '../src/github-cli-broker.js';
 import { makeTerminalCredentialBroker } from '../src/terminal-credential-broker.js';
+import { makeRegisteredCliConnectionInspector } from '../src/existing-capability-inspectors.js';
+import { makeLocalSyncCapability } from '../src/local-sync-capability.js';
+import { makeNativeComputerInspector } from '../src/native-computer-tool.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 import {
   MessengerPlatformCredentialStore, migrateMessengerCredentials,
@@ -70,11 +75,17 @@ const terminalEnvironment = await resolveTerminalShellEnvironment({
 const connectionFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
   ?? windowsProduct?.connectionFile ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
 const githubCli = await findExecutable('gh', terminalEnvironment.PATH ?? '');
+const localSyncCapability = makeLocalSyncCapability({
+  platform: computerEnvironment.platform, home: homedir(), env: process.env,
+});
 const terminalPlatformAdapter = await makeTerminalPlatformAdapter({
   platform: computerEnvironment.platform,
   protectedReadRoots: [
     dirname(connectionFile),
     join(stateDir, 'connections'),
+    ...githubCliCredentialRoots({
+      platform: computerEnvironment.platform, home: homedir(), env: process.env,
+    }),
     ...(computerEnvironment.platform === 'darwin' ? [
       join(homedir(), 'Library', 'Keychains'),
       join(homedir(), 'Library', 'Application Support', 'GPAO-T5', 'credentials'),
@@ -85,7 +96,15 @@ const terminalPlatformAdapter = await makeTerminalPlatformAdapter({
 });
 const terminalCredentialBroker = makeTerminalCredentialBroker({
   registrations: githubCli ? [makeGitHubCliRegistration(githubCli)] : [],
+  generalTerminalIsolationQualified: terminalPlatformAdapter.qualified === true,
 });
+const existingCapabilityInspectors = [
+  localSyncCapability,
+  makeNativeComputerInspector({ platform: computerEnvironment.platform }),
+  ...(githubCli ? [makeRegisteredCliConnectionInspector({
+    broker: terminalCredentialBroker, capabilityId: 'github-cli-read', label: 'GitHub CLI',
+  })] : []),
+];
 const portFileValue = option('--port-file') ?? process.env.T5_REFOUNDATION_PORT_FILE;
 const portFile = portFileValue ? resolve(portFileValue) : null;
 await Promise.all([mkdir(stateDir, { recursive: true }), mkdir(workspace, { recursive: true })]);
@@ -216,11 +235,12 @@ const server = makeConsoleServer({
   terminalEnvironment,
   terminalPlatformAdapter,
   terminalCredentialBroker,
+  workspaceConnectionInspectors: existingCapabilityInspectors,
+  terminalCapabilityAttribution: (facts) => localSyncCapability.attributeCommand(facts),
   processRegistry,
   webSearchProviders,
   webReadOptions: { urlResolvers: [naverReadableUrlResolver] },
   videoTextFetchImpl: globalThis.fetch,
-  workspaceConnectionInspectors: [],
   workspaceConnectionServices,
   messengerCredentialStore,
   fileActivityService,

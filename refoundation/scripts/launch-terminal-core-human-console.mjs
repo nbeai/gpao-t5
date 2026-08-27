@@ -12,7 +12,9 @@ import {
 import { resolveTerminalShellEnvironment } from '../src/terminal-shell-environment.js';
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
 import { makeTerminalPlatformAdapter } from '../src/terminal-platform-adapter.js';
-import { findExecutable, makeGitHubCliRegistration } from '../src/github-cli-broker.js';
+import {
+  findExecutable, githubCliCredentialRoots, makeGitHubCliRegistration,
+} from '../src/github-cli-broker.js';
 import { makeTerminalCredentialBroker } from '../src/terminal-credential-broker.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 import { makeConsoleServer } from '../src/console-server.js';
@@ -57,6 +59,13 @@ const selectedCredential = await makeStoredModelCredentialCatalog({
 const access = makeConsoleModelAccess({ connectionFile, stateDir, secretStore });
 const initialModel = await access.status();
 if (!initialModel.connected) throw new Error('verified T5 model connection is required');
+const terminalPlatformAdapter = await makeTerminalPlatformAdapter({
+  platform: computer.platform,
+  protectedReadRoots: [dirname(connectionFile), join(stateDir, 'connections'),
+    join(homedir(), 'Library', 'Keychains'),
+    ...githubCliCredentialRoots({ platform: computer.platform, home: homedir(), env: process.env })],
+  protectedExecutableNames: githubCli ? ['gh'] : [],
+});
 const server = makeConsoleServer({
   stateDir, workspace, computerEnvironment: computer, terminalEnvironment,
   modelFactory: (context) => access.model(context), modelStatus: () => access.status(),
@@ -64,14 +73,10 @@ const server = makeConsoleServer({
   learningReviewMode: 'off',
   // This local file store is intentionally empty: real Telegram credentials are never opened here.
   messengerCredentialStore: new MessengerCredentialStore(join(stateDir, 'messenger-credentials')),
-  terminalPlatformAdapter: await makeTerminalPlatformAdapter({
-    platform: computer.platform,
-    protectedReadRoots: [dirname(connectionFile), join(stateDir, 'connections'),
-      join(homedir(), 'Library', 'Keychains')],
-    protectedExecutableNames: githubCli ? ['gh'] : [],
-  }),
+  terminalPlatformAdapter,
   terminalCredentialBroker: makeTerminalCredentialBroker({
     registrations: githubCli ? [makeGitHubCliRegistration(githubCli)] : [],
+    generalTerminalIsolationQualified: terminalPlatformAdapter.qualified === true,
   }),
   onError: (error) => console.error('[terminal-human-console]', error?.message ?? error),
 });

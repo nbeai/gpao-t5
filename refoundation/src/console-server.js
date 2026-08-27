@@ -13,6 +13,7 @@ import { makeTerminalHand } from './exec-tool.js';
 import { TerminalOutputStore } from './terminal-output-store.js';
 import { discoverComputerEnvironment, publicComputerFacts } from './computer-environment.js';
 import { makePathRevealer } from './path-revealer.js';
+import { makeNativeComputerTool } from './native-computer-tool.js';
 import { sanitizeTerminalPath } from './console-config.js';
 import { ManagedProcessRegistry } from './managed-process.js';
 import { RunLedger } from './run-ledger.js';
@@ -106,6 +107,7 @@ import {
 } from './conversation-recovery.js';
 import { makeConnectionDoctor } from './connection-truth.js';
 import { makeConnectionTool } from './connection-tool.js';
+import { wrapRemoteConnectionTool } from './existing-capability-inspectors.js';
 import { CapabilityHandoffLedger } from './capability-handoff-ledger.js';
 import { makeCapabilityHandoffCoordinator } from './capability-handoff-coordinator.js';
 import { loadCapabilityCatalog, makeCapabilityCatalogTool } from './capability-catalog.js';
@@ -357,6 +359,7 @@ export function makeConsoleServer({
   terminalEnvironment = null,
   terminalPlatformAdapter = null,
   terminalCredentialBroker = null,
+  terminalCapabilityAttribution = null,
   documentCli = bundledDocumentCli,
   attachmentStore,
   resourceLedger: providedResourceLedger,
@@ -1420,7 +1423,11 @@ export function makeConsoleServer({
         terminalPlatformAdapter,
         terminalCredentialBroker,
         terminalOutputStore: terminalOutputs,
-        capabilityAttribution: ({ commandExplanation }) => managedCliStore.attributeCommand(commandExplanation),
+        capabilityAttribution: async (facts) => [
+          ...await managedCliStore.attributeCommand(facts.commandExplanation),
+          ...(typeof terminalCapabilityAttribution === 'function'
+            ? await terminalCapabilityAttribution(facts) : []),
+        ],
         env: {
           T5_DOCUMENT_CLI: documentCli,
           ...(terminalEnvironment ?? {}),
@@ -1437,6 +1444,8 @@ export function makeConsoleServer({
       const skillSnapshot = mergeSkillSnapshots([bundledSkillSnapshot, managedSkillSnapshot]);
       const capabilitySnapshot = await capabilityCatalogPromise;
       const offeredTools = [...terminal.tools];
+      const nativeComputer = makeNativeComputerTool({ revealPath: reveal, platform: computer.platform });
+      if (nativeComputer) offeredTools.unshift(nativeComputer);
       if (!options.observationOnly && options.trigger !== 'automation') {
         offeredTools.unshift(makeWorkCompletionTool({ store: workStore, runId: run.runId,
           inputSettlementScope }));
@@ -1641,7 +1650,9 @@ export function makeConsoleServer({
             (!options.trigger || options.trigger === 'user') && requestContainsExactPath(text, candidate)
           ),
         });
-        if (workspaceTool) offeredTools.unshift(workspaceTool);
+        if (workspaceTool) offeredTools.unshift(wrapRemoteConnectionTool({
+          tool: workspaceTool, service,
+        }));
       }
       offeredTools.unshift(makeMemoryTool({
         ledger: memories,
@@ -1720,7 +1731,7 @@ export function makeConsoleServer({
         performConnection: (id, actionId) => performConnectionAction(id, actionId, { sessionId }),
       }));
       const coreToolNames = [
-        'connection', 'memory', 'memory_claim', 'memory_control', 'skill',
+        'connection', 'native_computer', 'memory', 'memory_claim', 'memory_control', 'skill',
         ...(options.trigger === 'automation' ? [] : ['work_completion']),
         ...(pendingLearningTrials.length ? ['learning_trial'] : []),
         // Public-web search, exact URL reading, and bounded multi-source research are
@@ -1747,7 +1758,7 @@ export function makeConsoleServer({
       }).map((tool) => ({
         ...tool, informationFamily: informationFamily(tool.name),
         informationAlwaysVisible: tool.informationAlwaysVisible === true
-          || ['exec', 'attachment', 'connection', 'web_read'].includes(tool.name)
+          || ['exec', 'attachment', 'connection', 'web_read', 'native_computer'].includes(tool.name)
           || (projection.historicalRecallRequired && tool.name === 'session_search'),
       }));
       // Rendered-page interaction is not a generally discoverable shortcut. It is promoted

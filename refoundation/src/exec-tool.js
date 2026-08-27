@@ -7,6 +7,7 @@ import { compareEffectObservations, observeDeclaredEffect } from './effect-obser
 import { makePtyStartTool } from './pty-tool.js';
 import { commandWithManagedPath } from './managed-command-path.js';
 import { redactBrokeredTerminalResult } from './terminal-credential-broker.js';
+import { settleCapabilityUse } from './capability-use-receipt.js';
 import { makeTerminalOutputTool } from './terminal-output-store.js';
 import { makeTerminalSessionTool } from './terminal-session-tool.js';
 
@@ -183,11 +184,20 @@ function makeCommandTool(options = {}, { managed }) {
       let commandExplanation;
       try { commandExplanation = await explain(command); }
       catch (error) { commandExplanation = { ok: false, error: error?.message ?? String(error) }; }
-      let capabilitiesUsed = [];
+      let attributedCapabilities = [];
       if (typeof capabilityAttribution === 'function') {
-        try { capabilitiesUsed = await capabilityAttribution({ command, commandExplanation, ownerId }); }
-        catch { capabilitiesUsed = []; }
+        try { attributedCapabilities = await capabilityAttribution({
+          command, commandExplanation, ownerId, cwd, declaredEffect,
+        }); }
+        catch { attributedCapabilities = []; }
       }
+      const capabilityAdmissions = attributedCapabilities
+        .map((item) => item?.capabilityAdmission).filter(Boolean);
+      const capabilitiesUsed = attributedCapabilities.map((item) => {
+        if (!item || typeof item !== 'object') return item;
+        const { capabilityAdmission: _internalAdmission, ...publicAttribution } = item;
+        return publicAttribution;
+      });
 
       const onAbort = () => { registry.stopOwner(ownerId, 'aborted').catch(() => {}); };
       context.signal?.addEventListener('abort', onAbort, { once: true });
@@ -199,7 +209,8 @@ function makeCommandTool(options = {}, { managed }) {
           args: runtime.argsFor(commandWithManagedPath(command, pathPrepend, runtime.family)),
           cwd, env: isolatedEnv(root, env, runtime), confinement: null,
         };
-        const brokered = terminalCredentialBroker?.prepare?.({ commandExplanation, managed }) ?? { matched: false };
+        const brokered = await terminalCredentialBroker?.prepare?.({ commandExplanation, managed })
+          ?? { matched: false };
         if (brokered.matched && !brokered.allowed) {
           throw Object.assign(new Error(brokered.reason), { code: 'T5_REGISTERED_CLI_ACTION_REQUIRED' });
         }
@@ -249,6 +260,9 @@ function makeCommandTool(options = {}, { managed }) {
             declaredEffect, effectBefore, effectAfter,
           ),
         };
+        if (capabilityAdmissions.length) result.capabilityReceipts = capabilityAdmissions.map((admission) => (
+          settleCapabilityUse({ admission, result, effectObservation: result.effectObservation })
+        ));
         const observationBoundary = launch.assess?.(result);
         if (observationBoundary?.blocked) result = {
           ...result,
@@ -260,7 +274,15 @@ function makeCommandTool(options = {}, { managed }) {
         };
         if (brokered.allowed) result = {
           ...redactBrokeredTerminalResult(result, brokered.launch.sensitiveValues),
-          credentialBroker: brokered.receipt,
+          credentialBroker: {
+            kind: 'registered_cli', capabilityId: brokered.capabilityAdmission.capabilityId,
+            action: brokered.capabilityAdmission.action,
+          },
+          capabilityReceipts: [
+            ...(result.capabilityReceipts ?? []),
+            settleCapabilityUse({ admission: brokered.capabilityAdmission, result,
+              effectObservation: result.effectObservation }),
+          ],
         };
         if (!managed && result.state !== 'running' && result.state !== 'stop_requested') {
           if (result.truncated && terminalOutputStore && options.originRunId) {

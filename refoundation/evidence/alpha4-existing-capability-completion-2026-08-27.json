@@ -1,0 +1,71 @@
+{
+  "schema": "t5.alpha4.existing-capability-completion.v1",
+  "recordedOn": "2026-08-27",
+  "baselineSourceCommit": "7e99c5e325d25ca210783b0e5290ec6f4208c25e",
+  "officialPlan": "T5-THIRD-ALPHA.md",
+  "status": "PASS",
+  "completionSentence": "사용자는 이미 설치·로그인한 앱·CLI·OS 능력을 다시 설정하지 않고 사용하며, T5는 비밀값을 모델과 일반 Terminal에 노출하지 않고 현재 계정·권한·실행 결과를 확인한다.",
+  "closingPrinciple": "등록된 능력만 등록된 행동으로 실행하고, 비밀은 그 능력의 소유 경계를 떠나지 않으며, T5는 계정·권한·실행·효과를 각각 관측해 남긴다.",
+  "comparatorSourceAudit": [
+    {
+      "system": "OpenClaw",
+      "commit": "52750a2a655d8ffee53233dcb921e0bb8f863843",
+      "adopted": ["observed GitHub account identity", "typed OS capability commands", "credential-owner and destination separation"],
+      "rejected": ["broad authenticated shell as the capability contract"]
+    },
+    {
+      "system": "Hermes",
+      "commit": "74ec63fe18fec174299af2371febd122e6dd5c42",
+      "adopted": ["fail-closed scoped credential facts", "borrowed credential values excluded from durable state"],
+      "rejected": ["extracting raw tokens from another CLI or application credential file", "model-authored OS shell skill as the native boundary"]
+    },
+    {
+      "system": "Codex",
+      "commit": "6c59264b14b963d45d1005e7a8b1de87d4b054e2",
+      "adopted": ["credential value remains opaque until its bounded execution destination"],
+      "rejected": ["destination binding without an exact capability action registry"]
+    },
+    {
+      "system": "Claude Code",
+      "commit": null,
+      "sourceAvailability": "main implementation source unavailable; official product documentation inspected",
+      "adopted": ["structured integration before visual fallback"],
+      "rejected": ["documentation-only behavior as a source implementation oracle"]
+    }
+  ],
+  "qualifiedKinds": [
+    "local_file",
+    "authenticated_cli",
+    "remote_connection",
+    "os_native"
+  ],
+  "qualified": [
+    "One capability-use receipt schema keeps credential ownership, observed authority, actual execution and effect observation as separate facts for all four capability kinds.",
+    "The existing GitHub CLI registration remains direct-argv and read-only, rejects token display, writes, GraphQL, absolute API URLs and foreign hosts, and now observes the current account plus reported scopes without returning raw credential material.",
+    "GitHub CLI credential directories and Keychain access are denied to the general macOS Terminal while the exact registered CLI action can use the CLI-owned login.",
+    "Detected Dropbox, Google Drive, OneDrive and iCloud roots are represented only as current local filesystem reality; remote account and synchronization success remain unobserved.",
+    "Existing official remote connection tools retain their own secure credential and execution path while emitting the same separated capability receipt facts.",
+    "Finder, Windows Explorer or the platform file manager is invoked through one fixed direct-argv reveal action without a shell string or credential.",
+    "One product journey combines a local synchronized file, an already-authenticated GitHub CLI, an official remote connection and the native file manager without asking the user to select internal tools.",
+    "A platform without qualified general-Terminal isolation does not advertise or execute an authenticated CLI broker; Windows stays explicitly unqualified until its physical isolation implementation exists."
+  ],
+  "verification": {
+    "alpha4AndRelatedFocused": { "tests": 46, "passed": 46, "failed": 0 },
+    "dailyCheck": { "tests": 1564, "passed": 1563, "failed": 0, "skipped": 1 },
+    "productIntegration": { "tests": 185, "passed": 183, "failed": 0, "skipped": 2 },
+    "mutation": { "killed": 2, "survived": 0 },
+    "modelCalls": 0,
+    "externalEffects": 0,
+    "personalAccountCredentialTests": 0
+  },
+  "notClaimed": [
+    "Support for every installed application or CLI",
+    "Physical Windows authenticated-CLI isolation or account qualification",
+    "Automated use of a real personal GitHub, sync-provider or remote-workspace account",
+    "Observation of remote synchronization success from a local sync folder",
+    "Actual Calendar or Reminders EventKit writes",
+    "Alpha5 or Alpha6 completion",
+    "Third Alpha completion"
+  ],
+  "next": "Open Alpha5 with transport, health, credential and required-capability failure continuity over canonical T5 state, without quality-based automatic provider cycling."
+}

@@ -13,7 +13,9 @@ import { makeConsoleServer } from '../src/console-server.js';
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
 import { resolveTerminalShellEnvironment } from '../src/terminal-shell-environment.js';
 import { makeTerminalPlatformAdapter } from '../src/terminal-platform-adapter.js';
-import { findExecutable, makeGitHubCliRegistration } from '../src/github-cli-broker.js';
+import {
+  findExecutable, githubCliCredentialRoots, makeGitHubCliRegistration,
+} from '../src/github-cli-broker.js';
 import { makeTerminalCredentialBroker } from '../src/terminal-credential-broker.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 import { MessengerCredentialStore } from '../src/messenger-credential-store.js';
@@ -129,11 +131,13 @@ const terminalPlatformAdapter = await makeTerminalPlatformAdapter({
   protectedReadRoots: [
     dirname(connectionFile), control, join(stateDir, 'connections'),
     join(homedir(), 'Library', 'Keychains'),
+    ...githubCliCredentialRoots({ platform: computer.platform, home: homedir(), env: process.env }),
   ],
   protectedExecutableNames: githubCli ? ['gh'] : [],
 });
 const terminalCredentialBroker = makeTerminalCredentialBroker({
   registrations: githubCli ? [makeGitHubCliRegistration(githubCli)] : [],
+  generalTerminalIsolationQualified: terminalPlatformAdapter.qualified === true,
 });
 const webSearchProviders = [
   makeStoredOpenAIWebSearchProvider({ credentialCatalog }),

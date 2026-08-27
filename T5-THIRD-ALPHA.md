@@ -1,6 +1,6 @@
 # T5 3차α — Local Ownership & Persistent Intelligence
 
-상태: `ALPHA0_COMPLETE · ALPHA1_COMPLETE · ALPHA2_REQUALIFIED_STREAMING_V2 · ALPHA3_COMPLETE · ALPHA4_CAPABILITY_BROKER_NEXT · SOURCE_SCOPE_FROZEN`
+상태: `ALPHA0_COMPLETE · ALPHA1_COMPLETE · ALPHA2_REQUALIFIED_STREAMING_V2 · ALPHA3_COMPLETE · ALPHA4_COMPLETE · ALPHA5_MODEL_CONTINUITY_NEXT · SOURCE_SCOPE_FROZEN`
 기준 source: `5e9d10a11453df24fe77a896d59d891c423da621`
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN`
 
@@ -220,3 +220,11 @@ Runtime stop 뒤 atomic activation·재기동, rollback, effect non-retry와 설
 portable Artifact identity, legacy ledger 재결속, raw gzip entry streaming AES-GCM v2, fixed full-backup cap 0,
 SQLite online snapshot과 v1 restore compatibility는
 `refoundation/evidence/alpha2-streaming-requalification-2026-08-27.json`에서 다시 자격했다. α4는 이 교정 뒤에만 연다.
+
+α4 Existing Capability Broker는 `refoundation/evidence/alpha4-existing-capability-completion-2026-08-27.json`에서
+전체로 통과했다. 로컬 동기화 파일은 원격 연결로 꾸미지 않고 현재 파일 reality로만 사용하며, 기존 GitHub CLI는
+현재 account·scope를 관측한 exact read action만 direct argv로 실행한다. 공식 원격 연결은 기존 secure credential
+경계를 유지하고, Finder·Explorer는 fixed OS action으로 사용한다. 네 종류는 한 사용자 목적에서 조합되지만
+credential·authority·execution·effect 사실은 `t5.capability-use-receipt.v1`에서 분리된다. 일반 Terminal 격리가
+자격되지 않은 Windows에서는 authenticated CLI broker를 열지 않는다. 다음 한 작업은 α5 Model Continuity &
+Transport Fallback이다.
