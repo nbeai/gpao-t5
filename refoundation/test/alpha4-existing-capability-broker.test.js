@@ -168,8 +168,11 @@ test('한 사용자 목적에서 local file·기존 GitHub 로그인·공식 원
         args: { action: 'list', id: null, actionId: null } }] };
       if (turn === 2) {
         const listed = JSON.parse(input.messages.at(-1).content).result.connections;
-        assert.deepEqual(new Set(listed.map((item) => item.id)),
-          new Set(['model', 'telegram', 't5-browser', 'local-sync-files', 'native-file-manager', 'github-cli-read', 'notion']));
+        const byId = new Map(listed.map((item) => [item.id, item]));
+        for (const id of ['model', 'telegram', 't5-browser', 'local-sync-files',
+          'native-file-manager', 'github-cli-read', 'notion']) assert.ok(byId.has(id));
+        assert.equal(byId.get('notion').state, 'connected');
+        assert.equal(byId.get('coupang-wing').state, 'not_connected');
         return { text: '', toolCalls: [{ id: 'local', name: 'exec', args: {
           command: `cat ${JSON.stringify(brief)}`, cwd: null, effect: observe,
         } }] };
