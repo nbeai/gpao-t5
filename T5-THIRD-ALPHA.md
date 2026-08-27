@@ -1,6 +1,6 @@
 # T5 3차α — Local Ownership & Persistent Intelligence
 
-상태: `ALPHA0_COMPLETE · ALPHA1_COMPLETE · ALPHA2_WHOLE_STATE_BACKUP_NEXT · SOURCE_SCOPE_FROZEN`
+상태: `ALPHA0_COMPLETE · ALPHA1_COMPLETE · ALPHA2_FAILURE_FIXTURE_FROZEN · ALPHA2_SNAPSHOT_BOUNDARY_NEXT · SOURCE_SCOPE_FROZEN`
 기준 source: `5e9d10a11453df24fe77a896d59d891c423da621`
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN`
 
@@ -199,6 +199,8 @@ UI 종료와 다른 명시적 `T5 완전히 끄기`는 실행 중 Work의 `inter
 설치·update·uninstall drain, successor 인계, sleep gap, crash·재부팅, login bootstrap, 잠금 화면 generic 알림까지
 `refoundation/evidence/alpha1-resident-runtime-completion-2026-08-27.json`에서 α1 전체로 통과했다.
 
-다음 한 작업은 α2 Whole-State Backup & Migration의 실제 실패 fixture를 고정하는 것이다. 기존 Memory export나
-개별 Activity export를 전체 백업으로 승격하지 않고 Conversation·Memory·Work·Automation·History·Artifact·
-Capability 관계를 한 stable snapshot으로 묶을 최소 경계부터 연다.
+α2 Whole-State Backup & Migration의 실제 실패와 사고 가족은
+`refoundation/evidence/alpha2-whole-state-baseline-2026-08-27.json` 및
+`refoundation/config/alpha2-whole-state-incidents.json`에 고정했다. 기존 Memory export나 개별 Activity export를
+전체 백업으로 승격하지 않는다. 다음 한 작업은 Conversation·Memory·Work·Automation·History·Artifact·Capability
+관계를 같은 stable snapshot generation으로 묶되 secret·cache·외부 사본을 포함하지 않는 component registry다.

@@ -1,0 +1,28 @@
+{
+  "schema": "t5.alpha2.whole-state-incidents.v1",
+  "userCompletionSentence": "사용자는 T5 전체 상태를 암호화 백업해 다른 컴퓨터의 격리 상태에 복원하고, 비밀과 외부 계정만 다시 연결한 뒤 미완료 Work를 외부 효과 중복 없이 이어간다.",
+  "positiveControls": [
+    "Alpha1 can close Work admission and drain the one runtime before snapshot.",
+    "Conversation, Memory, Work, Run, Automation, Attachment and Capability stores already validate their own canonical formats.",
+    "Memory portable export already excludes local absolute file paths and never-store values."
+  ],
+  "incidents": [
+    { "id": "A2-STABLE-GENERATION", "oracle": "all canonical component heads belong to one drained snapshot generation" },
+    { "id": "A2-RELATIONSHIP-GRAPH", "oracle": "Session, Message, Work, Run, Automation and Artifact references resolve before activation" },
+    { "id": "A2-SECRET-EXCLUSION", "oracle": "secret plaintext and platform credential material occurrences equal zero" },
+    { "id": "A2-ARTIFACT-COVERAGE", "oracle": "included, excluded_large and unavailable Artifact states are explicit and digest-bound" },
+    { "id": "A2-ENCRYPTION", "oracle": "wrong password reveals no manifest content and changes no destination state" },
+    { "id": "A2-CORRUPTION", "oracle": "partial, changed or version-incompatible bundle changes no destination state" },
+    { "id": "A2-ISOLATED-RESTORE", "oracle": "restore validates in a new sibling root before one atomic activation" },
+    { "id": "A2-EXTERNAL-EFFECT", "oracle": "restored unknown or dispatched effects are never blind retried" },
+    { "id": "A2-CROSS-PLATFORM", "oracle": "portable manifest contains no source absolute path or OS-specific authority claim" },
+    { "id": "A2-DELETE-SCOPE", "oracle": "local deletion never claims provider, external-service or separate-backup deletion" }
+  ],
+  "notGoals": [
+    "cloud sync or T5 account backend",
+    "copying Keychain, DPAPI or OAuth secret plaintext",
+    "calling a folder copy a relationship-verified backup",
+    "activating restore before every component and reference validates",
+    "physical macOS or Windows migration qualification before the post-alpha platform gates"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schema": "t5.alpha2.whole-state-baseline.v1",
+  "recordedOn": "2026-08-27",
+  "sourceCommit": "ab18a6ec",
+  "status": "ACTUAL_FAILURE_CONFIRMED",
+  "existingPositiveControl": "Memory portable export preserves Memory claims and tombstones without local absolute paths.",
+  "measuredFailure": "A mixed canonical fixture containing one Session, Conversation, Work, Memory, Automation and Artifact cannot be represented or restored by the existing Memory-only export.",
+  "missingRelationships": [
+    "Session to Conversation messages",
+    "Session to Work",
+    "Automation to Session and source Work",
+    "Artifact to Session, Message and Run",
+    "Run and external-effect settlement continuity",
+    "Capability state and reconnect-required truth"
+  ],
+  "productBehaviorChanged": false,
+  "modelCalls": 0,
+  "externalEffects": 0,
+  "next": "Build a drained component registry and secret-free generation manifest before copying or encrypting payload bytes."
+}
