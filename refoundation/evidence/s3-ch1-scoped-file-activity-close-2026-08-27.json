@@ -1,0 +1,100 @@
+{
+  "schema": "t5.s3ch1.scoped-file-activity-close.v1",
+  "recordedAt": "2026-08-27T10:18:00+09:00",
+  "status": "PASS_WITH_OBSERVATION",
+  "implementationCommit": "5583cf1b1aaa31cba0124b4be2c6fc8aae6b5db3",
+  "userCapability": {
+    "defaultOff": true,
+    "explicitFolderSelection": true,
+    "pause": true,
+    "physicalForget": true,
+    "storageAndRetentionVisible": true,
+    "contentCapture": false,
+    "modelContextDefault": false
+  },
+  "macOSActual": {
+    "source": "FSEvents file-events helper in an isolated exact root",
+    "activityCount": 5,
+    "projectedCount": 5,
+    "kindsObserved": ["created", "deleted", "moved"],
+    "actorUnknownOnly": true,
+    "metadataOnly": true,
+    "contentCanaryStored": false,
+    "contentCanaryProjected": false,
+    "rawRootProjected": false,
+    "cursorPresent": true,
+    "journalGap": null,
+    "storageBytes": 4172,
+    "errors": 0,
+    "passed": true
+  },
+  "foregroundNonInterference": {
+    "design": "ABBA_off_on_on_off",
+    "filesPerSample": 300,
+    "operationsPerSample": 600,
+    "semanticDigestAgreement": true,
+    "fileCountAgreement": true,
+    "operationCountAgreement": true,
+    "offMedianWallMs": 34.8320625,
+    "onMedianWallMs": 41.367542,
+    "wallDeltaMs": 6.5354795,
+    "offMedianParentCpuMs": 38.9885,
+    "onMedianParentCpuMs": 42.4565,
+    "collectorEvents": 602,
+    "contentCanaryStored": false,
+    "collectorChildCpuQualified": false,
+    "passed": true
+  },
+  "productIntegration": {
+    "settingsOnly": true,
+    "normalOverviewOrMemoryCollectorReads": 0,
+    "normalTurnAdditionalModelCalls": 0,
+    "normalTurnModelContextBytes": 0,
+    "strictProviderSchemaRegression": "2/2",
+    "focusedCHProductAndLifecycle": "39/39",
+    "latestWholeProductBeforeIsolatedBatching": "1418/1418 at 7cf89a9b",
+    "actualLiveConsole": {
+      "model": "gpt-5.5",
+      "telegramOwnerBound": true,
+      "singleConsoleExactReplies": 1,
+      "sessionListBeforeMs": ">15000 timeout",
+      "sessionListAfterMs": 261.18,
+      "internalPathOrSecretInTelegramReply": 0
+    }
+  },
+  "platformBoundary": {
+    "macOSNativeActual": "PASS",
+    "windowsNormalizerAndAdapterInterface": "implemented",
+    "windowsNativeHelperActual": "deferred to S3-PW physical Windows qualification",
+    "windowsPassClaimed": false
+  },
+  "observations": [
+    "The first unbatched 300-file sample added 74.87ms median wall; bounded adapter batching and one fsync per ledger batch reduced the final observed delta to 6.54ms.",
+    "Three stale isolated qualification consoles initially polled the same Telegram bot and produced four replies; they were terminated before the single-console actual result. Product-wide singleton ownership remains a wiring-audit observation.",
+    "The macOS settings surface and native picker opening were observed in the live console; the final native picker selection was not used as the collector truth because the isolated FSEvents runner owns the exact root qualification."
+  ],
+  "qualificationCost": {
+    "modelCalls": 0,
+    "providerRequests": 0,
+    "externalBusinessWrites": 0,
+    "temporaryLocalFiles": 1200
+  },
+  "sourceDigests": {
+    "refoundation/src/scoped-file-activity-ledger.js": "fe7cd9e25869bca19f8f9f489759f5d2d2f6726a12f23aac642b6b997811a71b",
+    "refoundation/src/file-activity-platform-adapters.js": "5dbde0b0ce35aef19b3a7ca1e7308bfaefaf7fed28ebe9db043708af8eedeb5e",
+    "refoundation/src/scoped-file-activity-service.js": "2c0c4996421f758f8a4e4a71d405947e5a2ab7c90f7e2a62ad4bac6d3d06bedf",
+    "refoundation/src/console-server.js": "9fca79c24e3960467e7e2b64a9671a0a4a0a690615593170f381d76a11039651",
+    "refoundation/ui/index.html": "9a3592b592a258f4c278d805bbb78e5e159dcd20011cf918edf8f35c4542b61a",
+    "refoundation/scripts/run-ch1-macos-fsevents-qualification.mjs": "1f4fd5136c14225969e88426697e131db396267992ef28411bad8e6ca977eac4",
+    "refoundation/scripts/run-ch1-noninterference-qualification.mjs": "40a1c31e278e96bc2ab0bf8799850dda65061b535c6fd4a4586e7ebd18d1fc97"
+  },
+  "officialReleaseGateChanged": false,
+  "passed": true,
+  "notClaimed": [
+    "physical Windows CH1 PASS",
+    "screen, audio, clipboard, keylog, file content, or full URL capture",
+    "raw activity is Memory or persona evidence",
+    "collector child CPU is measured",
+    "S3-CH2, S3-CH3, S3-WA, or S3-HQ completion"
+  ]
+}
