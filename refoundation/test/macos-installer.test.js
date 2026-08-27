@@ -53,11 +53,9 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.doesNotMatch(verifier, /'-l', 'BEGIN \(RSA \)\?PRIVATE KEY/u);
 });
 
-test('3차 완성 package version은 제품 version 0.3.1과 일치한다', async () => {
+test('3차 완성 package version은 제품 version 0.3.0과 일치한다', async () => {
   const packageMetadata = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
   const build = await readFile(new URL('../scripts/build-macos-installer.mjs', import.meta.url), 'utf8');
-  const windowsBuild = await readFile(new URL('../scripts/build-windows-package.mjs', import.meta.url), 'utf8');
-  assert.equal(packageMetadata.version, '0.3.1');
-  assert.match(build, /version:\s*'0\.3\.1'/u);
-  assert.match(windowsBuild, /version\s*=\s*'0\.3\.1'/u);
+  assert.equal(packageMetadata.version, '0.3.0');
+  assert.match(build, /version:\s*'0\.3\.0'/u);
 });

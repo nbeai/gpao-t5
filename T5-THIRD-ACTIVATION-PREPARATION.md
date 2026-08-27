@@ -9,7 +9,7 @@
 macOS·Windows 물리 제품 자격은 여전히 별도 후속 Gate로 남는다.
 
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN`
-3차 설치 후보: `0.3.1 · S3-CA/M6 비활성 · macOS signed/notarized package 자격 대기 · Windows physical qualification 대기`
+3차 설치 후보: `0.3.0 · S3-CA/M6 비활성 · macOS signed/notarized package 자격 대기 · Windows physical qualification 대기`
 
 2026-08-28 설치 전 재자격은 `refoundation/evidence/third-completion-preinstall-qualification-2026-08-28.json`에
 보존한다. 실제 한국 사업자 인간 시나리오 16개는 최초 실패를 숨기지 않고 결함 가족을 수리한 뒤 모두
