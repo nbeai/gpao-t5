@@ -1,0 +1,18 @@
+{
+  "schema":"t5.s3ch3.purpose-bounded-history-close.v1","recordedAt":"2026-08-27T11:45:00+09:00","status":"PASS_WITH_OBSERVATION",
+  "implementationCommit":"2bf60f4f057a930a125e03fd61911a7f600e5884",
+  "productContract":{"localMetadataFilter":true,"candidateLimit":8,"opaqueQueryWindow":true,"selectionLimit":3,"exactSelectedReopen":true,"changedOrMissingFailsClosed":true,"rawHistorySent":false,"currentCorrectionPriority":true,"writes":0,"externalEffects":0},
+  "privacy":{"candidateSnippet":0,"absolutePath":0,"rawSessionWorkRunRecordId":0,"appId":0,"hashOrSecretLabel":0,"memoryPersonaWrites":0,"normalUserHistoryReadsInQualification":0},
+  "deterministicProduct":{"searchThenReopen":true,"purposeHistoryCoreWhenCH1CH2Available":true,"sessionSearchDeferred":true,"CH1EventCountUnchanged":true,"CH2SegmentCountUnchanged":true,"focusedTests":"11/11","strictProviderSchema":"2/2"},
+  "liveModels":{"failedAttemptsPreserved":[
+    {"attempt":1,"state":"aborted_after_2_minutes","providerRequests":null,"tokens":null,"reason":"runner had no request timeout"},
+    {"attempt":2,"state":"failed","providerRequests":10,"knownTokens":79231,"reason":"both models repeatedly selected core session_search while purpose_history was deferred"}],
+    "structuralCorrection":"replace core session_search with purpose_history when CH1 and CH2 are available; keep exact transcript search deferred",
+    "final":{"providerRequests":9,"knownTokens":71081,"models":[
+      {"model":"gpt-5.6-terra","httpStatus":200,"providerRequests":5,"knownTokens":39772,"purposeHistoryCalls":3,"mentionsFile":true,"mentionsApp":true,"privateLeak":false,"passed":true},
+      {"model":"gpt-5.5","httpStatus":200,"providerRequests":4,"knownTokens":31309,"purposeHistoryCalls":2,"mentionsFile":true,"mentionsApp":true,"privateLeak":false,"passed":true}],"passed":true},
+    "totalKnownQualificationTokensIncludingFailedAttempt":150312,"firstTimeoutTokensUnknown":true},
+  "qualificationBoundary":{"externalWrites":0,"credentialWrites":0,"realUserHistoryReads":0,"syntheticIsolatedCH1CH2Records":2,"providerRequestTimeoutSeconds":30,"modelCallMaximumPerJourney":5},
+  "sourceDigests":{"refoundation/src/purpose-bounded-history.js":"e4afd5244de5159655ccf53519066f141bfefd18602116e915efc8ac45692861","refoundation/src/purpose-history-tool.js":"90501d414c392624530aa72c3533b9acc7c2cdef3eabc8d89dd7ba2b94bd50e4","refoundation/src/console-server.js":"9279d05d2c1e6fbd2115a28ed2573286229ff8e4a38e78bdde0d44c2554e66e6","refoundation/scripts/run-ch3-live-purpose-history-qualification.mjs":"5bfab65f7820166bfc908dc99c9c02e46ed2bcd1c2663fdf70625a9ca400eaf3","refoundation/test/purpose-history-product.integration.js":"388f02574680ec889bc6866c4c623d11907ac531f6ecf202c6c8fc2ecda70ac5"},
+  "officialReleaseGateChanged":false,"passed":true,"notClaimed":["same Work execution resume","external artifact redelivery","raw history is Memory, persona, preference, or occupation evidence","whole-history embedding or new FTS store","physical Windows CH3 PASS","S3-CA, S3-WA, or S3-HQ completion"]
+}
