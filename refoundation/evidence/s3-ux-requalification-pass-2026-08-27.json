@@ -1,0 +1,107 @@
+{
+  "schema": "t5.s3ux.requalification-pass.v1",
+  "recordedAt": "2026-08-27T09:30:00+09:00",
+  "status": "PASS_WITH_OBSERVATION",
+  "implementationCommit": "b67f20ce443dae54b4533d0031a5963b48d90d80",
+  "schemaRepairCommit": "c55eefc06b100b08cdd46202bea20c11d84f4823",
+  "supersedes": "s3-ux-requalification-required-2026-08-27.json",
+  "fullToolProviderSmoke": {
+    "models": ["gpt-5.6-terra", "gpt-5.5"],
+    "providerRequests": 2,
+    "toolsPerRequest": 13,
+    "toolSetDigestAgreement": true,
+    "toolSetDigest": "cdf6cdc2ff2c6ce8c666affd1ce0accc52f6f54910612223069a11e2f9381950",
+    "http200": "2/2",
+    "runCompleted": "2/2",
+    "internalPathOrSecretInReply": 0,
+    "passed": true
+  },
+  "meaningfulMilestone": {
+    "source": "first actual foreground process stdout or stderr delta",
+    "storedPayload": ["toolCallId", "tool", "stream", "deltaChars", "totalChars", "state"],
+    "rawOutputStoredInMilestone": false,
+    "modelContextBytesAdded": 0,
+    "eventsPerToolCall": 1,
+    "deterministicProductTest": "PASS",
+    "actualKHBText": "컴퓨터 작업에서 새 진행 내용을 확인했어요."
+  },
+  "managedChildCancellation": {
+    "actualProcessTreeTest": "PASS",
+    "wallMs": 652.621708,
+    "childState": "stopped",
+    "runState": "cancelled",
+    "claimReleased": true,
+    "sameWorkNextRevisionClaimable": true,
+    "lateChildEffect": 0
+  },
+  "khbH01": {
+    "model": "gpt-5.5",
+    "failedProductAttemptsPreserved": 6,
+    "separateTransitionDiagnosticCalls": 1,
+    "failureFamiliesBeforePass": [
+      "degraded milestone was initially mistaken for meaningful progress",
+      "foreground exec had no mid-tool canonical output event",
+      "runner required the recovery claim to remain at R2 after correction advanced the same Work to R3"
+    ],
+    "final": {
+      "meaningfulMilestone": true,
+      "correctionAdmitted": true,
+      "correctionQueuedVisibleMs": 7,
+      "cancelWallMs": 180,
+      "cancelTerminal": true,
+      "childrenTerminal": true,
+      "claimReleased": true,
+      "surfacePersisted": true,
+      "unexpectedCreatedFiles": 0,
+      "changedFiles": 0,
+      "sameWorkNextRevisionClaimable": true,
+      "correctionTransitionChoice": "steer_current",
+      "correctionDisposition": "current_work",
+      "cancellationRevision": 1,
+      "cancellationNextRevision": 2,
+      "correctionSettlementRevision": 3,
+      "sameWorkRecoveryQualified": true,
+      "followupRunStarted": true,
+      "followupToolStarts": 2,
+      "followupReplayedProcess": false,
+      "refreshProjectionExact": true,
+      "internalPathIdOrSecretInSurface": false,
+      "followupHumanReview": "PASS: it stated that files and calculations were not yet observed, no report was created, the one listing attempt failed, and no files changed"
+    },
+    "passed": true
+  },
+  "focusedVerification": {
+    "testsPassed": 75,
+    "testsFailed": 0,
+    "includes": [
+      "provider strict schemas",
+      "AgentLoop",
+      "exec and terminal session",
+      "managed process tree",
+      "Work Reality and process output publication",
+      "Console and Telegram progress",
+      "actual managed child cancel"
+    ]
+  },
+  "qualificationCost": {
+    "fullToolProviderRequests": 2,
+    "khbProductAttempts": 7,
+    "transitionDiagnosticRequests": 1,
+    "knownTokens": null,
+    "dollarCost": null,
+    "reason": "the product console runs did not persist provider usage totals; unknown is not zero"
+  },
+  "writes": {
+    "externalBusinessWrites": 0,
+    "realUserData": false,
+    "credentialWritesClaimed": 0
+  },
+  "officialReleaseGateChanged": false,
+  "notClaimed": [
+    "physical Windows UI qualification",
+    "provider retention zero",
+    "all UX observations removed",
+    "S3-WA or S3-HQ completion"
+  ],
+  "passed": true
+}
