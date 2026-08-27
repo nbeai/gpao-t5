@@ -17,7 +17,7 @@ async function listen(server) {
   return `http://127.0.0.1:${server.address().port}`;
 }
 
-test('한 콘솔 Run의 checkpoint·memory flush·주 모델은 fetch 전 reserve되고 한 번씩 commit된다', async () => {
+test('한 콘솔 Run의 checkpoint·주 모델은 reserve·commit되고 안전하지 않은 memory flush는 호출 없이 skip된다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-resource-integration-'));
   const stateDir = join(room, 'state'); const workspace = join(room, 'workspace');
   await mkdir(workspace, { recursive: true });
@@ -76,8 +76,9 @@ test('한 콘솔 Run의 checkpoint·memory flush·주 모델은 fetch 전 reserv
     const purposes = resources.filter((event) => event.type === 'ScopeCreated')
       .map((event) => event.payload.purpose).filter(Boolean);
     assert.ok(purposes.includes('conversation_checkpoint'));
-    assert.ok(purposes.includes('memory_flush'));
+    assert.equal(purposes.includes('memory_flush'), false);
     assert.ok(purposes.includes('main'));
+    assert.ok(run.events.some((event) => event.type === 'memory_flush_skipped'));
     assert.equal(resources.some((event) => event.type === 'ControlActionRecorded'), false);
     assert.equal(JSON.stringify((await conversation.read(session.id)).messages).includes('resourceScope'), false);
   } finally {
