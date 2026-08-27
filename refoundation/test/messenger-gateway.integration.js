@@ -280,6 +280,56 @@ test('두 gateway가 같은 상태를 열어도 polling owner 하나만 update�
   }
 });
 
+test('polling owner takeover는 ACK 뒤 남은 adopted ingress를 재수신 없이 정산하고 자동 재실행하지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-adopted-takeover-'));
+  const credentials = new MessengerCredentialStore(room);
+  const state = new MessengerStateStore(room);
+  await credentials.setVerified('telegram', {
+    token: TOKEN, bot: { id: '77', username: 'owner_fixture_bot' },
+  });
+  for (const updateId of [30, 31]) {
+    await state.receiveIngress('telegram', updateId, {
+      provider: 'telegram', messageId: String(updateId), chatId: '42', threadId: null,
+      userId: '42', username: 'owner', text: `채택 ${updateId}`, isDirectMessage: true,
+    });
+    await state.markIngress('telegram', updateId, 'adopted', {
+      sessionId: `session-${updateId}`, adoptedAt: Date.now(),
+    });
+  }
+  await state.saveOffset('telegram', 32);
+  let executions = 0;
+  const gateway = makeMessengerGateway({
+    credentialStore: credentials, stateStore: state,
+    providerFactory: () => ({
+      id: 'telegram', inboundMode: 'long_polling',
+      async validate() { return { id: '77', username: 'owner_fixture_bot' }; },
+      async poll({ signal } = {}) {
+        await new Promise((resolve) => {
+          const timer = setTimeout(resolve, 100); timer.unref?.();
+          signal?.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true });
+        });
+        return [];
+      },
+    }),
+    createSession: async () => 'must-not-create', authorizeInbound: async () => true,
+    onInbound: async () => { executions += 1; return 'must-not-run'; },
+    resolveAdoptedIngress: async (ingress) => ingress.messageId === '30' ? {
+      state: 'completed', messageIds: ['exact-message-30'], files: [],
+    } : null,
+  });
+  try {
+    assert.equal((await gateway.start()).started, true);
+    const exact = await state.ingress('telegram', 30);
+    const absent = await state.ingress('telegram', 31);
+    assert.equal(exact.state, 'completed');
+    assert.deepEqual(exact.messageIds, ['exact-message-30']);
+    assert.equal(absent.state, 'adopted_unknown');
+    assert.equal(absent.reason, 'runtime_restarted_after_adoption');
+    assert.equal(await state.offset('telegram'), 32);
+    assert.equal(executions, 0);
+  } finally { await gateway.stop(); }
+});
+
 test('poll 뒤 owner fence를 잃은 runtime은 update state와 사용자 작업을 시작하지 않는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-messenger-owner-fence-'));
   const credentials = new MessengerCredentialStore(room);

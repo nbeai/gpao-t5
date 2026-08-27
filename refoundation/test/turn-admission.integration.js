@@ -321,6 +321,59 @@ test('result ready 뒤 surface crash는 모델·도구 재실행 없이 exact �
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 
+test('achieved 제안은 result ready와 surface delivery 뒤에만 Work terminal이 되고 crash 뒤 exact 정산된다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-result-ready-settlement-recovery-'));
+  const stateDir = join(room, 'state'); const workspace = join(room, 'workspace'); await mkdir(workspace);
+  let modelCalls = 0;
+  const modelFactory = fixtureFactory(async () => {
+    modelCalls += 1;
+    if (modelCalls === 1) return { text: '', toolCalls: [{
+      id: 'completion-before-crash', name: 'work_completion',
+      args: { outcome: 'achieved', inputSettlements: [] },
+    }] };
+    if (modelCalls === 2) return { text: '정확한 완료 결과 842', toolCalls: [] };
+    throw new Error('recovery must not rerun the model');
+  });
+  const firstServer = makeConsoleServer({ stateDir, workspace, modelFactory });
+  await new Promise((resolve, reject) => {
+    firstServer.once('error', reject); firstServer.listen(0, '127.0.0.1', resolve);
+  });
+  const firstBase = `http://127.0.0.1:${firstServer.address().port}`;
+  const session = await fetch(`${firstBase}/sessions`, { method: 'POST' }).then((response) => response.json());
+  const originalAppend = firstServer.sessionStore.append.bind(firstServer.sessionStore); let injected = false;
+  firstServer.sessionStore.append = async (sessionId, entry) => {
+    if (!injected && entry?.role === 'assistant') {
+      injected = true; throw new Error('injected surface persistence crash');
+    }
+    return originalAppend(sessionId, entry);
+  };
+  const failed = await fetch(`${firstBase}/turn`, { method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sessionId: session.id, text: '정확한 완료 결과를 만들어줘' }) });
+  assert.equal(failed.status, 500);
+  let state = await firstServer.workStore.read();
+  assert.equal(state.results.at(-1).state, 'pending_surface');
+  assert.equal(state.results.at(-1).objectiveOutcome, 'achieved');
+  assert.equal(state.works[0].status, 'active');
+  assert.equal(state.events.some((event) => event.type === 'work_settled'), false);
+  assert.equal(state.claims.at(-1).state, 'active');
+  await new Promise((resolve) => firstServer.close(resolve));
+
+  const secondServer = makeConsoleServer({ stateDir, workspace, modelFactory });
+  try {
+    await secondServer.recoverResultPublications();
+    const recovered = await secondServer.sessionStore.load(session.id);
+    assert.equal(recovered.transcript.filter((entry) => entry.role === 'assistant').length, 1);
+    assert.equal(recovered.transcript.find((entry) => entry.role === 'assistant').result.reply,
+      '정확한 완료 결과 842');
+    state = await secondServer.workStore.read();
+    assert.equal(state.results.at(-1).state, 'delivery_terminal');
+    assert.equal(state.works[0].status, 'completed');
+    assert.equal(state.events.filter((event) => event.type === 'work_settled').length, 1);
+    assert.equal(modelCalls, 2);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
 test('외부 delivery dispatch 뒤 crash는 재시작에서 blind resend 없이 unknown terminal로 닫힌다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-delivery-unknown-recovery-')); const stateDir = join(room, 'state');
   const workspace = join(room, 'workspace'); await mkdir(workspace);
@@ -557,7 +610,7 @@ test('followup input은 surface 전 pending이고 exact surface receipt 뒤에�
     await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true }); }
 });
 
-test('현재 Telegram delivery가 failed이면 after-delivery input을 다음 Run으로 조기 활성화하지 않는다', async () => {
+test('현재 Telegram delivery ACK가 unknown이면 after-delivery input을 다음 Run으로 조기 활성화하지 않는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-deferred-after-failed-delivery-'));
   const stateDir = join(room, 'state'); const workspace = join(room, 'workspace'); await mkdir(workspace);
   const sessions = new ConsoleSessionStore(stateDir);
@@ -592,7 +645,7 @@ test('현재 Telegram delivery가 failed이면 after-delivery input을 다음 Ru
     release(); await stream; await new Promise((resolve) => setTimeout(resolve, 100));
     const state = await server.workStore.read();
     const input = state.inputs.find((item) => item.inputId === admitted.inputId);
-    assert.equal(state.results[0].delivery.state, 'failed');
+    assert.equal(state.results[0].delivery.state, 'unknown');
     assert.equal(input.state, 'scheduled');
     assert.equal(input.baseRevision, 1);
     assert.equal(input.deferredByRunId, state.results[0].runId);

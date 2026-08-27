@@ -80,3 +80,57 @@ test('Telegram result recovery는 저장된 exact artifact를 한 번 보내고 
     await rm(room, { recursive: true, force: true });
   }
 });
+
+test('Telegram result recovery의 ACK 불명확 오류는 unknown으로 보존하고 blind retry하지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-telegram-result-recovery-unknown-'));
+  const workspace = join(room, 'workspace'); await mkdir(workspace);
+  let sendCalls = 0;
+  const provider = {
+    id: 'telegram', inboundMode: 'long_polling',
+    async validate() { return { id: 'fixture-bot', username: 'fixture_bot' }; },
+    async poll({ signal } = {}) {
+      await new Promise((resolve) => {
+        const timer = setTimeout(resolve, 100); timer.unref?.();
+        signal?.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true });
+      });
+      return [];
+    },
+    async sendReply() {
+      sendCalls += 1;
+      throw Object.assign(new Error('Telegram acknowledgement lost'), {
+        code: 'telegram_delivery_unknown', effectUnknown: true, retrySafe: false,
+      });
+    },
+  };
+  const modelFactory = () => ({ async respond() { throw new Error('recovery must not rerun the model'); } });
+  const first = makeConsoleServer({ stateDir: room, workspace,
+    messengerProviderFactory: () => provider, modelFactory });
+  let second;
+  try {
+    await first.recoverResultPublications();
+    const session = await first.sessionStore.create({ origin: { channel: 'telegram', chatId: '555' } });
+    await first.messengerGateway.connect({ provider: 'telegram', token: 'fixture-token' });
+    await first.messengerStateStore.bind('telegram', '555', session.id);
+    const runId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const surfaceResult = { kind: 'reply', reply: 'ACK를 확인할 수 없는 복구 결과', runId };
+    const resultDigest = createHash('sha256').update(JSON.stringify(surfaceResult)).digest('hex');
+    await first.workStore.recordResultReady({ runId, sessionId: session.id,
+      objectiveOutcome: 'achieved', resultDigest, surfaceResult });
+
+    second = makeConsoleServer({ stateDir: room, workspace,
+      messengerProviderFactory: () => provider, modelFactory });
+    await second.recoverResultPublications();
+    let result = (await second.workStore.read()).results[0];
+    assert.equal(result.state, 'delivery_terminal');
+    assert.equal(result.delivery.state, 'unknown');
+    assert.equal(result.delivery.retrySafe, false);
+    assert.equal(sendCalls, 1);
+    await second.recoverResultPublications();
+    result = (await second.workStore.read()).results[0];
+    assert.equal(result.delivery.state, 'unknown');
+    assert.equal(sendCalls, 1, 'unknown external delivery must not be retried after terminal recovery');
+  } finally {
+    await first.closeMessengers(); await second?.closeMessengers();
+    await rm(room, { recursive: true, force: true });
+  }
+});

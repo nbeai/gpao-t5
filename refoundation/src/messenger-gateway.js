@@ -205,6 +205,13 @@ export class MessengerStateStore {
     return structuredClone((await this.read()).ingress[ingressKey(provider, updateId)] ?? null);
   }
 
+  async listIngress(provider, { state: expectedState = null } = {}) {
+    return Object.values((await this.read()).ingress).filter((entry) => (
+      entry.provider === provider && (expectedState == null || entry.state === expectedState)
+    )).sort((left, right) => Number(left.updateId) - Number(right.updateId))
+      .map((entry) => structuredClone(entry));
+  }
+
   async receiveIngress(provider, updateId, message = {}) {
     return this.serialize(async () => {
       const state = await this.read();
@@ -406,13 +413,14 @@ export function makeMessengerGateway({
   createSession,
   authorizeInbound,
   onInbound,
+  resolveAdoptedIngress = async () => null,
   attachmentStore = null,
   log = () => {},
   retryDelayMs = 1_000,
 } = {}) {
   if (!credentialStore || !stateStore) throw new TypeError('messenger credential and state stores are required');
   if (typeof createSession !== 'function' || typeof authorizeInbound !== 'function'
-    || typeof onInbound !== 'function') {
+    || typeof onInbound !== 'function' || typeof resolveAdoptedIngress !== 'function') {
     throw new TypeError('messenger authorization, session factory, and inbound handler are required');
   }
   let running = false;
@@ -425,6 +433,28 @@ export function makeMessengerGateway({
 
   function supported(provider) {
     if (!AVAILABLE_PROVIDERS.includes(provider)) throw new Error(`unsupported messenger provider: ${provider}`);
+  }
+
+  async function reconcileAdoptedIngress(provider, claim) {
+    const adopted = await stateStore.listIngress(provider, { state: 'adopted' });
+    for (const ingress of adopted) {
+      await pollingOwnership.assert(provider, claim);
+      const exact = await resolveAdoptedIngress(structuredClone(ingress));
+      await pollingOwnership.assert(provider, claim);
+      if (exact?.state === 'completed') {
+        await stateStore.markIngress(provider, ingress.updateId, 'completed', {
+          sessionId: ingress.sessionId ?? null, completedAt: Date.now(), recovered: true,
+          messageIds: structuredClone(exact.messageIds ?? []),
+          files: structuredClone(exact.files ?? []),
+        });
+      } else {
+        await stateStore.markIngress(provider, ingress.updateId, 'adopted_unknown', {
+          sessionId: ingress.sessionId ?? null, failedAt: Date.now(),
+          reason: exact?.reason ?? 'runtime_restarted_after_adoption',
+        });
+      }
+    }
+    return adopted.length;
   }
 
   async function providerFromStore(provider) {
@@ -752,6 +782,7 @@ export function makeMessengerGateway({
       ownershipClaim = ownership.claim;
       try {
         await loaded.provider.validate();
+        await reconcileAdoptedIngress(provider, ownership.claim);
       } catch (error) {
         await pollingOwnership.release(provider, ownershipClaim).catch(() => {});
         ownershipClaim = null;

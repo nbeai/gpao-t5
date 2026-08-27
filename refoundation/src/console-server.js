@@ -535,6 +535,7 @@ export function makeConsoleServer({
     const state = await workStore.read(); const released = [];
     for (const claim of state.claims.filter((item) => item.state === 'active')) {
       if (state.cancellations.some((item) => item.runId === claim.runId)) continue;
+      if (state.results.some((item) => item.runId === claim.runId)) continue;
       const run = await runLedger.read(claim.runId).catch(() => null);
       if (!run || !['failed', 'cancelled', 'interrupted'].includes(run.status)) continue;
       const settled = state.events.find((event) => event.type === 'work_settled' && event.runId === claim.runId);
@@ -2197,6 +2198,7 @@ export function makeConsoleServer({
       });
       if (recovery) surfaceResult.recovery = { ...recovery, recoveryId: run.runId };
       const settledWork = await workStore.workForRun(run.runId); let objectiveOutcome = 'unresolved';
+      let pendingWorkSettlement = null;
       let proposal = await workStore.proposalForRun(run.runId);
       if (settledWork && settledWork.revision === settledWork.claimedRevision
         && settledWork.status === 'active') {
@@ -2225,12 +2227,11 @@ export function makeConsoleServer({
           blockers: evaluation.blockers });
         const unresolved = evaluation.verifiedOutcome !== 'achieved';
         objectiveOutcome = unresolved ? 'unresolved' : 'achieved';
-        await workStore.settle({ workId: settledWork.workId, revision: settledWork.revision,
-          outcome: unresolved ? 'unresolved' : 'achieved', runId: run.runId });
-        await run.append({ type: unresolved ? 'work_unresolved' : 'work_settled', stepId: 'work-settlement',
-          payload: { workId: settledWork.workId, revision: settledWork.revision,
-            outcome: unresolved ? 'unresolved' : 'achieved',
-            blockerDigest: evaluation.blockerDigest, blockers: evaluation.blockers } });
+        pendingWorkSettlement = {
+          workId: settledWork.workId, revision: settledWork.revision,
+          proposedOutcome: unresolved ? 'unresolved' : 'achieved',
+          blockerDigest: evaluation.blockerDigest, blockers: evaluation.blockers,
+        };
       }
       const resultWorkId = settledWork?.workId ?? null;
       const resultRevision = settledWork?.claimedRevision ?? null;
@@ -2326,19 +2327,38 @@ export function makeConsoleServer({
             files: structuredClone(delivery.files ?? []) }
             : { provider: 'telegram', state: 'failed', reason: 'not_sent' };
         } catch (error) {
-          deliveryTerminal = { provider: 'telegram', state: 'failed',
-            reason: error?.code ?? 'telegram_delivery_failed' };
+          deliveryTerminal = {
+            provider: 'telegram', state: error?.effectUnknown ? 'unknown' : 'failed',
+            reason: error?.code ?? 'telegram_delivery_failed', retrySafe: error?.retrySafe !== false,
+          };
         }
         surfaceResult.channelDelivery = { provider: 'telegram', sent: deliveryTerminal.state === 'sent',
+          state: deliveryTerminal.state,
           ...(deliveryTerminal.messageIds ? { messageIds: deliveryTerminal.messageIds } : {}),
           ...(deliveryTerminal.files ? { files: deliveryTerminal.files } : {}),
           ...(deliveryTerminal.reason ? { reason: deliveryTerminal.reason } : {}) };
         await run.append({ type: deliveryTerminal.state === 'sent'
-          ? 'channel_delivery_completed' : 'channel_delivery_failed', stepId: 'telegram-delivery',
+          ? 'channel_delivery_completed' : deliveryTerminal.state === 'unknown'
+            ? 'channel_delivery_unknown' : 'channel_delivery_failed', stepId: 'telegram-delivery',
         payload: surfaceResult.channelDelivery });
       }
       await workStore.markResultDeliveryTerminal(run.runId, deliveryTerminal);
       await run.append({ type: 'delivery_terminal', stepId: 'result-delivery', payload: deliveryTerminal });
+      if (pendingWorkSettlement) {
+        const deliverySucceeded = ['persisted', 'sent', 'succeeded', 'not_requested']
+          .includes(deliveryTerminal.state);
+        const outcome = pendingWorkSettlement.proposedOutcome === 'achieved' && deliverySucceeded
+          ? 'achieved' : 'unresolved';
+        await workStore.settle({ workId: pendingWorkSettlement.workId,
+          revision: pendingWorkSettlement.revision, outcome, runId: run.runId });
+        await run.append({ type: outcome === 'achieved' ? 'work_settled' : 'work_unresolved',
+          stepId: 'work-settlement', payload: {
+            workId: pendingWorkSettlement.workId, revision: pendingWorkSettlement.revision,
+            outcome, blockerDigest: pendingWorkSettlement.blockerDigest,
+            blockers: pendingWorkSettlement.blockers,
+            deliveryState: deliveryTerminal.state,
+          } });
+      }
       await run.finish('completed', { modelTurns: result.modelTurns, receiptCount: result.receipts.length });
       runFinished = true;
       resourceRunStatus = 'completed';
@@ -2438,13 +2458,13 @@ export function makeConsoleServer({
         session, currentUserText: text, currentResult: failureSurface, evidence: recoveryEvidence,
       });
       if (recovery) failureSurface.recovery = { ...recovery, recoveryId: run.runId };
-      const releasedClaim = await workStore.releaseExecution({
+      const existingResult = (await workStore.read()).results.find((item) => item.runId === run.runId);
+      const releasedClaim = existingResult ? { released: false } : await workStore.releaseExecution({
         runId: run.runId, reason: error?.code ?? 'turn_failed',
       }).catch(() => ({ released: false }));
-      await workStore.releasePresentedInputsForRun(run.runId, {
+      if (!existingResult) await workStore.releasePresentedInputsForRun(run.runId, {
         reason: 'run_failed_before_input_application',
       }).catch((releaseError) => onError?.(releaseError));
-      const existingResult = (await workStore.read()).results.find((item) => item.runId === run.runId);
       if (!surfacePersisted && !existingResult) {
         const failureDigest = createHash('sha256').update(JSON.stringify(failureSurface)).digest('hex');
         await workStore.recordResultReady({ runId: run.runId, sessionId,
@@ -2594,6 +2614,22 @@ export function makeConsoleServer({
       const ownership = await messengerState.claimFirstOwner(message.provider, message);
       return ownership.allowed;
     },
+    resolveAdoptedIngress: async (ingress) => {
+      await resultPublicationRecovery;
+      const runs = await runLedger.list({ sessionId: ingress.sessionId });
+      const exactRun = runs.find((candidate) => (
+        ['messenger', 'messenger_followup'].includes(candidate.metadata?.trigger)
+        && String(candidate.metadata?.sourceMessageId ?? '') === String(ingress.messageId ?? '')
+      ));
+      if (!exactRun) return { state: 'unknown', reason: 'runtime_restarted_after_adoption' };
+      const result = (await workStore.read()).results.find((item) => item.runId === exactRun.runId);
+      if (result?.state === 'delivery_terminal' && result.delivery?.state === 'sent') return {
+        state: 'completed', messageIds: structuredClone(result.delivery.messageIds ?? []),
+        files: structuredClone(result.delivery.files ?? []),
+      };
+      return { state: 'unknown', reason: result?.delivery?.state === 'unknown'
+        ? 'telegram_delivery_acknowledgement_unknown' : 'runtime_restarted_after_adoption' };
+    },
     onInbound: async (message, { progress, deliver, signal } = {}) => {
       const notify = (type, payload) => {
         if (type === 'work_reality') {
@@ -2669,9 +2705,33 @@ export function makeConsoleServer({
       onError?.(error); return null;
     }
   }
+  async function settlePublishedWorkResult(result) {
+    if (!result?.workId || !Number.isSafeInteger(result.revision)
+      || !['achieved', 'unresolved'].includes(result.objectiveOutcome)
+      || result.state !== 'delivery_terminal') return null;
+    const state = await workStore.read();
+    const existing = state.events.find((event) => (
+      event.type === 'work_settled' && event.runId === result.runId
+    ));
+    if (existing) return existing;
+    const work = state.works.find((item) => item.workId === result.workId);
+    const claim = state.claims.find((item) => item.runId === result.runId && item.state === 'active');
+    if (!work || work.status !== 'active' || work.revision !== result.revision
+      || !claim || claim.workId !== result.workId || claim.revision !== result.revision) return null;
+    const deliverySucceeded = ['persisted', 'sent', 'succeeded', 'not_requested']
+      .includes(result.delivery?.state);
+    const outcome = result.objectiveOutcome === 'achieved' && deliverySucceeded
+      ? 'achieved' : 'unresolved';
+    return workStore.settle({ workId: result.workId, revision: result.revision,
+      outcome, runId: result.runId });
+  }
   async function recoverResultPublications() {
     const recovered = [];
-    for (let result of (await workStore.read()).results.filter((item) => item.state !== 'delivery_terminal')) {
+    for (let result of (await workStore.read()).results) {
+      if (result.state === 'delivery_terminal') {
+        await settlePublishedWorkResult(result);
+        continue;
+      }
       const session = await sessions.load(result.sessionId);
       if (!session) continue;
       if (result.state === 'pending_surface') {
@@ -2725,14 +2785,17 @@ export function makeConsoleServer({
             : { provider: 'telegram', state: 'failed', reason: 'delivery_receipt_incomplete',
               messageIds, files };
         } catch (error) {
-          delivery = { provider: 'telegram', state: 'failed',
-            reason: error?.code ?? 'telegram_delivery_failed' };
+          delivery = {
+            provider: 'telegram', state: error?.effectUnknown ? 'unknown' : 'failed',
+            reason: error?.code ?? 'telegram_delivery_failed', retrySafe: error?.retrySafe !== false,
+          };
         }
       } else delivery = { provider: 'console', state: 'persisted' };
-      await workStore.markResultDeliveryTerminal(result.runId, delivery);
+      result = await workStore.markResultDeliveryTerminal(result.runId, delivery);
       await runLedger.appendRecoveredSurface(result.runId, 'delivery_terminal', {
         ...delivery, recovered: true,
       }).catch((error) => onError?.(error));
+      await settlePublishedWorkResult(result);
       recovered.push({ runId: result.runId, delivery: delivery.state });
     }
     return recovered;
