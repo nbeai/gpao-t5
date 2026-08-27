@@ -1,0 +1,41 @@
+{
+  "schema": "t5.s3ch3.product-journey-requalification.v1",
+  "recordedOn": "2026-08-27",
+  "status": "PASS_WITH_OBSERVATION",
+  "reusedLiveEvidence": "refoundation/evidence/s3-ch3-purpose-bounded-history-close-2026-08-27.json",
+  "liveModels": ["gpt-5.6-terra", "gpt-5.5"],
+  "successfulProviderRequests": 9,
+  "successfulKnownTokens": 71081,
+  "actualProductPath": {
+    "consoleKernel": "makeConsoleServer executeTurn",
+    "directQualificationTransport": "/turn",
+    "uiTransport": "/turn/stream-start then /turn/stream",
+    "sharedExecutionKernel": true,
+    "localCandidateLimit": 8,
+    "modelSelectionLimit": 3,
+    "exactSelectedReopen": true,
+    "rawHistorySent": false,
+    "realUserHistoryReads": 0,
+    "externalWrites": 0
+  },
+  "currentHeadFocusedRegression": "14/14 passed",
+  "independentAudit": {
+    "p0": 0,
+    "p1": 0,
+    "additionalLiveProviderRequired": false,
+    "reason": "The existing live runner and UI stream route share the same executeTurn kernel and purpose_history tool. Repeating provider calls would not close a distinct product boundary."
+  },
+  "restartBoundary": {
+    "querySelectionWindow": "process memory, 10 minutes",
+    "afterRestart": "stale selection cannot reopen; the user purpose requires a new bounded search",
+    "falseSuccess": false
+  },
+  "completionSentence": "격리된 허용 기록에서 사용자가 평소 말로 과거 Work·파일·앱을 찾으면, T5는 로컬에서 최대 8개의 비식별 후보만 만들고 모델이 선택한 최대 3개의 exact source만 다시 확인한다. 기록이 바뀌거나 재시작으로 선택 창이 사라지면 stale 결과를 만들지 않고 다시 검색한다.",
+  "notClaimed": [
+    "real user history was used for qualification",
+    "same Work execution resume",
+    "external artifact redelivery",
+    "physical Windows CH3 PASS"
+  ],
+  "passed": true
+}
