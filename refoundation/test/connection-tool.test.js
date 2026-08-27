@@ -22,6 +22,8 @@ test('모델은 사용자의 표현을 규칙으로 분류하지 않고 연결 �
   const tool = makeConnectionTool({ doctor: { async inspect() { inspected += 1; return report; } } });
   assert.equal(tool.name, 'connection');
   assert.match(tool.description, /connect|link|연결|account data/i);
+  assert.match(tool.description, /routes.*data.*effects.*read-only local export.*account-changing API effects/i);
+  assert.match(tool.description, /privacyDefaults.*fields excluded by default/i);
   const listed = await tool.execute({ action: 'list', id: null, actionId: null });
   assert.equal(listed.state, 'listed');
   assert.equal(listed.connections[0].id, 'google-workspace');
