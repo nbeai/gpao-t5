@@ -1,0 +1,46 @@
+{
+  "schema": "t5.file-reality-search-foundation.v1",
+  "recordedOn": "2026-08-27",
+  "sourceCommit": "34b3dcddd49c5d9cd67320d60c2542113098c836",
+  "status": "PASS",
+  "completionSentence": "사용자가 파일 이름과 위치를 정확히 기억하지 못해도, T5는 사용자가 지정한 컴퓨터·작업공간·폴더 범위에서 이름·위치·내용 단서로 실제 후보를 찾고 선택한 파일만 다시 열며, 중복과 버전 근거를 최종본 판단과 분리한다.",
+  "qualified": [
+    "The file capability is deferred and adds no schema to the default model context before tool_search selects it.",
+    "Computer, workspace and exact-path scopes are explicit; injected index results outside the selected roots and protected credential roots are excluded.",
+    "Search returns bounded metadata and opaque handles without raw file content; exact inspect revalidates file identity before content is opened.",
+    "Text probes use bounded byte reads rather than loading an entire large file into memory.",
+    "Exact byte duplicates, filename similarity, bounded text similarity, size delta and modification time remain separate evidence; the runtime does not declare a final version.",
+    "A changed file invalidates its prior handle instead of reopening stale content.",
+    "The filesystem walk is bounded by files and wall time and reports roots, visited entries, unreadable directories, content probes and truncation."
+  ],
+  "actualReadOnlySample": {
+    "scope": "current T5 repository",
+    "query": "model continuity",
+    "platformIndexUsed": false,
+    "filesystemEntriesVisited": 4505,
+    "filesystemFilesVisited": 3893,
+    "contentProbes": 2016,
+    "elapsedMs": 1370,
+    "firstCandidate": "model-continuity.js",
+    "candidateContentIncluded": false
+  },
+  "verification": {
+    "focusedAfterFinalBounds": { "tests": 31, "passed": 31, "failed": 0 },
+    "dailyCheck": { "tests": 1591, "passed": 1590, "failed": 0, "skipped": 1 },
+    "productIntegration": { "tests": 186, "passed": 184, "failed": 0, "skipped": 2 },
+    "providerCalls": 0,
+    "externalEffects": 0,
+    "userFileWrites": 0
+  },
+  "notClaimed": [
+    "Perfect semantic recall for every file type and every vague clue",
+    "OCR or visual similarity search",
+    "Durable whole-computer content indexing owned by T5",
+    "Past Work and Conversation evidence merged into the same ranking",
+    "Automatic final-version selection, deletion, moving, renaming or organization",
+    "Physical Windows Search qualification or enumeration of every Windows volume",
+    "Million-file performance qualification",
+    "Completion of the broader general-affairs file intelligence development line"
+  ],
+  "next": "Add a preview-first organization plan and reversible apply contract that uses these exact file handles and duplicate/version evidence without moving or deleting user files during discovery."
+}
