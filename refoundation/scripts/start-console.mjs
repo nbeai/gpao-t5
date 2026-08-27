@@ -4,7 +4,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { access as accessFile, chmod, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, parse, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { makeConsoleModelAccess } from '../src/console-model-factory.js';
@@ -82,20 +82,24 @@ const githubCli = await findExecutable('gh', terminalEnvironment.PATH ?? '');
 const localSyncCapability = makeLocalSyncCapability({
   platform: computerEnvironment.platform, home: homedir(), env: process.env,
 });
+const protectedTerminalReadRoots = [
+  dirname(connectionFile),
+  join(stateDir, 'connections'),
+  ...githubCliCredentialRoots({
+    platform: computerEnvironment.platform, home: homedir(), env: process.env,
+  }),
+  ...(computerEnvironment.platform === 'darwin' ? [
+    join(homedir(), 'Library', 'Keychains'),
+    join(homedir(), 'Library', 'Application Support', 'GPAO-T5', 'credentials'),
+  ] : []),
+  ...(windowsProduct ? [windowsProduct.credentialDirectory] : []),
+];
+const computerFileRoots = computerEnvironment.platform === 'darwin'
+  ? [homedir(), '/Users/Shared', '/Volumes']
+  : [parse(homedir()).root];
 const terminalPlatformAdapter = await makeTerminalPlatformAdapter({
   platform: computerEnvironment.platform,
-  protectedReadRoots: [
-    dirname(connectionFile),
-    join(stateDir, 'connections'),
-    ...githubCliCredentialRoots({
-      platform: computerEnvironment.platform, home: homedir(), env: process.env,
-    }),
-    ...(computerEnvironment.platform === 'darwin' ? [
-      join(homedir(), 'Library', 'Keychains'),
-      join(homedir(), 'Library', 'Application Support', 'GPAO-T5', 'credentials'),
-    ] : []),
-    ...(windowsProduct ? [windowsProduct.credentialDirectory] : []),
-  ],
+  protectedReadRoots: protectedTerminalReadRoots,
   protectedExecutableNames: githubCli ? ['gh'] : [],
 });
 const terminalCredentialBroker = makeTerminalCredentialBroker({
@@ -245,6 +249,8 @@ const server = makeConsoleServer({
   terminalCredentialBroker,
   workspaceConnectionInspectors: existingCapabilityInspectors,
   terminalCapabilityAttribution: (facts) => localSyncCapability.attributeCommand(facts),
+  computerFileRoots,
+  protectedFileRoots: protectedTerminalReadRoots,
   capabilityAcquisition,
   processRegistry,
   webSearchProviders,

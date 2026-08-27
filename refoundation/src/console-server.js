@@ -47,6 +47,7 @@ import { makeEffectForensicProductAdapter,
 import { makeWorkHistoryProductAdapter } from './work-history-projection.js';
 import { makePurposeBoundedHistoryAdapter } from './purpose-bounded-history.js';
 import { makePurposeHistoryTool } from './purpose-history-tool.js';
+import { makeFileRealityTool } from './file-reality-tool.js';
 import { makeWorkCompletionTool } from './work-completion-tool.js';
 import { evaluateWorkCompletion } from './work-completion-evaluator.js';
 import { makeInputSettlementScope } from './input-settlement-scope.js';
@@ -362,6 +363,9 @@ export function makeConsoleServer({
   terminalPlatformAdapter = null,
   terminalCredentialBroker = null,
   terminalCapabilityAttribution = null,
+  computerFileRoots = null,
+  protectedFileRoots = [],
+  fileIndexSearch = null,
   capabilityAcquisition = null,
   documentCli = bundledDocumentCli,
   attachmentStore,
@@ -1447,6 +1451,9 @@ export function makeConsoleServer({
       const skillSnapshot = mergeSkillSnapshots([bundledSkillSnapshot, managedSkillSnapshot]);
       const capabilitySnapshot = await capabilityCatalogPromise;
       const offeredTools = [...terminal.tools];
+      offeredTools.unshift(makeFileRealityTool({ workspace, home: homedir(), platform: computer.platform,
+        computerRoots: computerFileRoots ?? [homedir()], protectedRoots: protectedFileRoots,
+        ...(fileIndexSearch ? { indexSearch: fileIndexSearch } : {}) }));
       offeredTools.unshift(makeCapabilityRealityTool({ observer: capabilityReality }));
       if (capabilityAcquisition) offeredTools.unshift(makeCapabilityPackageAdminTool({
         coordinator: capabilityAcquisition,
