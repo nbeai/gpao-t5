@@ -1,0 +1,41 @@
+{
+  "schema": "t5.file-reconciliation-foundation.v1",
+  "recordedOn": "2026-08-27",
+  "sourceCommit": "36a2a1f27e1596178a1caf03da2c812db9c27e19",
+  "status": "PASS",
+  "completionSentence": "사용자는 실제로 선택한 여러 원본을 용도·미확인 사항과 함께 결과 Artifact에 결속하고, CSV·TSV의 서로 다른 열 이름을 표준 열로 취합할 때 전체 행이 원본 매핑과 정확히 일치한 결과만 받을 수 있다.",
+  "qualified": [
+    "file_reality binds only exact selected handles into a private runtime-owned source manifest.",
+    "The public model surface receives source names, usage and unknowns but no absolute source paths or stored hashes.",
+    "attachment register_output revalidates every source identity and full SHA-256 before registering the result Artifact.",
+    "A changed, missing, foreign-session or malformed source manifest blocks Artifact registration.",
+    "UTF-8, UTF-16 and supported Korean legacy CSV or TSV inputs can use exact per-source column mappings into ordered output columns.",
+    "Append-row reconciliation compares the complete ordered output header and every row, not only totals or a preview sample.",
+    "The bounded verifier fails closed above 16 MiB per table or 100,000 data rows instead of claiming complete reconciliation.",
+    "Session re-entry shows a human receipt with verified source count, standardized column count and reconciled row count."
+  ],
+  "actualProductJourney": {
+    "sources": 2,
+    "sourceSchemas": ["month,amount", "period,sales"],
+    "outputSchema": "월,매출",
+    "reconciledRows": 2,
+    "unresolvedFactPreserved": "9월 자료 미수신",
+    "externalEffects": 0
+  },
+  "verification": {
+    "focused": { "tests": 46, "passed": 46, "failed": 0 },
+    "dailyCheck": { "tests": 1598, "passed": 1597, "failed": 0, "skipped": 1 },
+    "productIntegration": { "tests": 188, "passed": 186, "failed": 0, "skipped": 2 },
+    "transientObservation": "The first daily wave stalled in the pre-existing runtime-full-stop test. That test passed alone 3/3 and the complete daily wave then passed without a product change.",
+    "providerCalls": 0,
+    "externalEffects": 0
+  },
+  "notClaimed": [
+    "Arbitrary semantic reconciliation for every document format",
+    "Derived business calculations that are not independently covered by the existing XLSX Artifact Quality formula contract",
+    "Unbounded or streaming tabular reconciliation beyond the stated verifier boundary",
+    "Automatic duplicate-key resolution or final-version selection",
+    "Physical Windows qualification or million-file performance qualification"
+  ],
+  "next": "Run large-scale search and reconciliation performance anchors, one macOS live human journey, and the deferred Windows same-contract qualification without widening the source or mutation surface."
+}
