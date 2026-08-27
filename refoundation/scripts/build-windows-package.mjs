@@ -11,7 +11,7 @@ import { makeWindowsIconIco, windowsPeArchitecture, WINDOWS_INSTALL_SCRIPT, WIND
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..', '..');
-const version = '0.3.0';
+const version = '0.3.1';
 const option = (name) => { const index = process.argv.indexOf(name); return index < 0 ? null : process.argv[index + 1]; };
 const architecture = option('--architecture') ?? process.arch;
 const run = (program, args, options = {}) => execFileSync(program, args, { encoding: 'utf8', ...options });
