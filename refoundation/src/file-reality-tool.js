@@ -151,6 +151,9 @@ export function makeFileRealityTool({
 } = {}) {
   if (!workspace || !home) throw new TypeError('file reality workspace and home are required');
   const handles = new Map();
+  const canonicalProtectedRoots = Promise.all(protectedRoots.map(async (item) => {
+    try { return await realpath(resolve(item)); } catch { return resolve(item); }
+  }));
   const rootsFor = async (scope, path) => {
     const selected = scope ?? 'computer';
     const raw = selected === 'workspace' ? [workspace]
@@ -176,7 +179,11 @@ export function makeFileRealityTool({
   const reopen = async (handle) => {
     const record = handles.get(String(handle ?? '')); if (!record) throw new Error('file candidate handle is unavailable');
     const stat = await lstat(record.path);
-    if (!currentIdentity(record, stat)) throw Object.assign(new Error('file candidate changed after search'), { code: 'T5_FILE_CHANGED' });
+    if (!currentIdentity(record, stat)) {
+      const mismatch = { dev: stat.dev !== record.identity.dev, ino: stat.ino !== record.identity.ino,
+        size: stat.size !== record.identity.size, mtime: stat.mtimeMs !== record.identity.mtimeMs };
+      throw Object.assign(new Error('file candidate changed after search'), { code: 'T5_FILE_CHANGED', mismatch });
+    }
     return { record, stat };
   };
   return {
@@ -200,18 +207,22 @@ export function makeFileRealityTool({
       if (action === 'search') {
         const clue = String(query ?? '').trim(); if (clue.length < 2) throw new TypeError('file search clues are required');
         const rootState = await rootsFor(scope, path); const roots = rootState.roots;
+        const exactProtectedRoots = await canonicalProtectedRoots;
         const limit = safeInteger(maxCandidates, 10, 1, 20);
         const startedAt = now(); const deadline = startedAt + 7_500;
         const indexed = await indexSearch({ query: clue, roots, platform, limit: 500 });
         const walk = await walkFiles(roots, { maxFiles: 200_000, deadline,
-          excludedDirectoryNames: DEFAULT_EXCLUDED_DIRECTORY_NAMES, protectedRoots });
-        const indexedSet = new Set(indexed.map((item) => resolve(item))
-          .filter((candidate) => roots.some((root) => pathInside(candidate, root))));
+          excludedDirectoryNames: DEFAULT_EXCLUDED_DIRECTORY_NAMES, protectedRoots: exactProtectedRoots });
+        const indexedSet = new Set();
+        for (const item of indexed) {
+          let candidate; try { candidate = await realpath(resolve(item)); } catch { continue; }
+          if (roots.some((root) => pathInside(candidate, root))) indexedSet.add(candidate);
+        }
         const paths = [...new Set([...indexedSet, ...walk.files])];
         const ranked = []; let contentProbes = 0;
         for (const candidate of paths) {
           if (now() >= deadline && !indexedSet.has(resolve(candidate))) break;
-          if (protectedPath(candidate, protectedRoots)) continue;
+          if (protectedPath(candidate, exactProtectedRoots)) continue;
           let stat; try { stat = await lstat(candidate); } catch { continue; }
           if (!stat.isFile() || stat.isSymbolicLink()) continue;
           const lexical = lexicalEvidence(clue, basename(candidate), locationText(candidate, home));

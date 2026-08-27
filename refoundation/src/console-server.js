@@ -1452,7 +1452,7 @@ export function makeConsoleServer({
       const capabilitySnapshot = await capabilityCatalogPromise;
       const offeredTools = [...terminal.tools];
       offeredTools.unshift(makeFileRealityTool({ workspace, home: homedir(), platform: computer.platform,
-        computerRoots: computerFileRoots ?? [homedir()], protectedRoots: protectedFileRoots,
+        computerRoots: computerFileRoots ?? [homedir()], protectedRoots: [...protectedFileRoots, stateDir],
         ...(fileIndexSearch ? { indexSearch: fileIndexSearch } : {}) }));
       offeredTools.unshift(makeCapabilityRealityTool({ observer: capabilityReality }));
       if (capabilityAcquisition) offeredTools.unshift(makeCapabilityPackageAdminTool({
