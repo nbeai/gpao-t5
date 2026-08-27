@@ -17,7 +17,7 @@ test('Alpha5·6와 최종 네 사용자 여정이 모두 닫힌 뒤에만 3차α
   assert.equal(repair.status, 'PASS'); assert.equal(final.repairCommit, repair.repairCommit);
   assert.deepEqual(Object.keys(final.finalUserJourneys), ['LF-H01', 'LF-H02', 'LF-H03', 'LF-H04']);
   assert.match(plan, /ALPHA5_REQUALIFIED_EXACT_TRANSITION · ALPHA6_REQUALIFIED_OWNED_DELETION · THIRD_ALPHA_SOURCE_REQUALIFIED/u);
-  assert.match(plan, /S3_CA_CA1_COMPLETE_CA2_NEXT/u);
+  assert.match(plan, /S3_CA_CA1_COMPLETE_CA2_ACTIVE_LOCAL_POSITIVE_CONTROL/u);
   assert.match(plan, /MACOS_WINDOWS_PRODUCT_QUALIFICATION_DEFERRED/u);
 });
 

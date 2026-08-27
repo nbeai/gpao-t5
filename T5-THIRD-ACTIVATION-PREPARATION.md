@@ -1,6 +1,6 @@
 # T5 3차 고도화 — 활성화 전 준비 정본
 
-상태: `THIRD_COMPLETION_SOURCE_PASS_WITH_OBSERVATION · MACOS_QUALIFIED · WINDOWS_CODE_READY_EXTERNAL_QUALIFICATION_PENDING · S3M_ADAPTIVE_DEFERRED · S3CA_CA1_COMPLETE_CA2_NEXT`
+상태: `THIRD_COMPLETION_SOURCE_PASS_WITH_OBSERVATION · MACOS_QUALIFIED · WINDOWS_CODE_READY_EXTERNAL_QUALIFICATION_PENDING · S3M_ADAPTIVE_DEFERRED · S3CA_CA1_COMPLETE_CA2_ACTIVE_LOCAL_POSITIVE_CONTROL`
 
 3차 source와 3차α source 개발은 종료됐다. 오너는 2026-08-27 별도 macOS·Windows 제품 자격에 앞서
 S3-CA를 `도킹센터` 사용자 경험으로 현재 개통했다. 이것은 새 Docking Core를 만드는 결정이 아니라 기존
@@ -76,7 +76,7 @@ Release package 완료 조건을 대신하지도 않는다. Release 작업과 S3
 | S3-T | 모델과 Terminal의 환경·process·PTY·출력 recall·플랫폼 실행 | `PASS WITH OBSERVATION` · 완료 |
 | S3-M | Life Continuity·Memory Stewardship·내부 Reflection/Principle/Skill | M0~M5 Memory Core 완료 · M6 기반은 default off · actual Principle/Skill은 다음 차수 |
 | S3-UX | Work Reality·교정/취소/복구·인간용 Receipt·Artifact/Effect 안심 | `PASS WITH OBSERVATION` · full-product 재자격 완료 |
-| S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | `ACTIVE` · CA1 완료 · CA2 개발자 명시 설치 next |
+| S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | `ACTIVE` · CA1 완료 · CA2 local package positive control 진행 |
 | S3-CH | Local Computer History·과거 Work/파일/앱 provenance | CH-0~3 제품 인간 여정 완료 · Windows physical은 PW external batch |
 | S3-PW | Windows installer·app shell·공통 제품 자격 | code-ready 완료 · physical Windows external qualification 대기 |
 | S3-VD | Visual Deliverable Core·출력 표면 선택·렌더 관측·교정·브랜드 파라미터 | Core `PASS WITH OBSERVATION` · Windows/편집형 PPTX/브랜드 인간 패널은 PW·HQ 자격 대기 |
@@ -789,7 +789,10 @@ macOS+Windows 종합 Release 완료는 physical Windows 사용자·설치·보�
 
 S3-CA1은 `refoundation/evidence/s3-ca1-docking-reality-completion-2026-08-27.json`에서 완료됐다. Dock Knowledge와
 Machine Manifest, 획득·계정 연결·운영 lifecycle 세 축, gap 뒤에만 열리는 작은 Capability Reality가 제품에
-결속됐다. 현재 다음 작업은 CA2 개발자 명시 설치 positive control이며 custom coding·전략 서비스 Pack은 아직 열지 않는다.
+결속됐다. CA2의 첫 local package positive control은 같은 Machine Manifest와 T5 관리 store에서
+inspect→inactive install→enable/disable→새 generation→rollback→uninstall을 통과했다. 현재 다음 작업은 이
+coordinator를 개발자 명시 표면에 연결하고 Git exact ref·registry·remote/local MCP source adapter를 같은 계약으로
+확장하는 것이다. custom coding·전략 서비스 Pack은 아직 열지 않는다.
 
 ## 11. S3-CH — Local Computer History 등록 계약
 

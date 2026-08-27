@@ -130,6 +130,6 @@ test('CA1 evidence는 설치·custom coding·전략 Pack을 완료로 꾸미지 
   assert.equal(evidence.status, 'PASS');
   assert.equal(evidence.verification.providerCalls, 0);
   assert.ok(evidence.notClaimed.some((item) => item.includes('S3-CA2 through S3-CA4')));
-  assert.match(plan, /S3CA_CA1_COMPLETE_CA2_NEXT/u);
+  assert.match(plan, /S3CA_CA1_COMPLETE_CA2_ACTIVE_LOCAL_POSITIVE_CONTROL/u);
   assert.doesNotMatch(JSON.stringify(evidence), /\/Users\/|C:\\Users\\|sk-[A-Za-z0-9]|-----BEGIN/u);
 });
