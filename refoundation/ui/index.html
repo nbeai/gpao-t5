@@ -4586,15 +4586,39 @@ text.addEventListener('paste', (event) => {
   event.preventDefault();
   renderChatSecretBoundary();
 });
-// 한글·일본어·중국어는 **조합 중**에 Enter 가 온다(조합 확정 Enter). 그때 보내면 확정되지 않은
-// 마지막 글자가 입력칸에 남아 다음 말 앞에 붙는다 — "단어 끝 글자가 자동으로 입력된다"의 정체다.
-// 문장에 띄어쓰기가 있으면 이미 조합이 끝나 있어 증상이 안 보였다(오너 실사용 지적).
-text.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter' || e.shiftKey) return;
-  if (e.isComposing || e.keyCode === 229) return; // 조합 확정용 Enter — 보내지 않는다
-  e.preventDefault();
-  submit();
-});
+// Enter는 전송, Shift+Enter는 줄바꿈이다. 한글·일본어·중국어 IME는 마지막 글자를 조합 중인
+// 상태로 둔 채 Enter keydown을 보내기도 한다. 그 Enter를 단순히 무시하면 브라우저가 줄바꿈을
+// 넣고 사용자는 전송을 위해 Enter를 한 번 더 눌러야 한다. 조합 Enter의 기본 줄바꿈은 막되,
+// compositionend 뒤 같은 Enter 의도를 정확히 한 번 전송으로 이어간다.
+function installChatEnterBehavior(input, submitMessage) {
+  let compositionActive = false;
+  let submitAfterComposition = false;
+  const finishCompositionSubmit = () => {
+    if (!submitAfterComposition) return;
+    submitAfterComposition = false;
+    queueMicrotask(() => submitMessage());
+  };
+  input.addEventListener('compositionstart', () => { compositionActive = true; });
+  input.addEventListener('compositionend', () => {
+    compositionActive = false;
+    finishCompositionSubmit();
+  });
+  input.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' || event.shiftKey) return;
+    event.preventDefault();
+    if (event.isComposing || event.keyCode === 229 || compositionActive) {
+      submitAfterComposition = true;
+      return;
+    }
+    submitAfterComposition = false;
+    submitMessage();
+  });
+  input.addEventListener('keyup', (event) => {
+    if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
+    finishCompositionSubmit();
+  });
+}
+installChatEnterBehavior(text, submit);
 
 // ── 첫 실행 온보딩 (P-ONB-2) ── 새 화면을 만들지 않는다. 모델 연결 패널을 펼쳐 두고
 //   "무엇을 얻는지" 언어로 한 줄 안내 + 건너뛰기. 서버가 needed 를 판정한다(URL 쿼리 아님).
