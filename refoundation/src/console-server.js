@@ -50,6 +50,7 @@ import { makePurposeHistoryTool } from './purpose-history-tool.js';
 import { makeFileRealityTool } from './file-reality-tool.js';
 import { FileSourceManifestStore } from './file-source-manifest-store.js';
 import { makeLocalImageOcr } from './local-image-ocr.js';
+import { FileIntelligenceIndex } from './file-intelligence-index.js';
 import { makeWorkCompletionTool } from './work-completion-tool.js';
 import { evaluateWorkCompletion } from './work-completion-evaluator.js';
 import { makeInputSettlementScope } from './input-settlement-scope.js';
@@ -503,6 +504,7 @@ export function makeConsoleServer({
   const authority = new AuthorityStore(join(stateDir, 'authority'));
   const attachments = attachmentStore ?? new AttachmentStore(join(stateDir, 'attachments'));
   const fileSourceManifests = new FileSourceManifestStore(join(stateDir, 'file-source-manifests'));
+  const fileIntelligenceIndex = new FileIntelligenceIndex(join(stateDir, 'file-intelligence', 'index.sqlite'));
   const artifactPublications = makeArtifactPublicationProductAdapter({
     attachmentStore: attachments, runLedger, workStore,
   });
@@ -1461,6 +1463,7 @@ export function makeConsoleServer({
         computerRoots: computerFileRoots ?? [homedir()], protectedRoots: [...protectedFileRoots, stateDir],
         organizationRoot: join(stateDir, 'file-organization'), sourceManifestStore: fileSourceManifests, sessionId,
         ocrProbe: localImageOcr,
+        intelligenceIndex: fileIntelligenceIndex,
         enforceComputerRoots: restrictFileRealityToComputerRoots,
         ...(fileIndexSearch ? { indexSearch: fileIndexSearch } : {}) }));
       offeredTools.unshift(makeCapabilityRealityTool({ observer: capabilityReality }));

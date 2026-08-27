@@ -61,7 +61,10 @@ function lexicalEvidence(query, name, location) {
 function contentEvidence(query, content) {
   const queryWords = clueTerms(query).filter((item) => item.length >= 2); const text = normalize(content);
   const matched = queryWords.filter((item) => compact(text).includes(compact(item)));
-  return { matched, score: matched.length * 5 };
+  const excerpt = String(content ?? '').split(/\r?\n/gu).filter((line) => matched.some(
+    (term) => compact(line).includes(compact(term)),
+  )).slice(0, 3).join(' · ').slice(0, 240) || null;
+  return { matched, score: matched.length * 5, excerpt };
 }
 function ocrEvidence(query, observed) {
   const evidence = contentEvidence(query, observed?.text ?? '');
@@ -182,6 +185,8 @@ export function makeFileRealityTool({
   ocrProbe = null,
   contactSheetBuilder = buildLocalImageContactSheet,
   enforceComputerRoots = false,
+  intelligenceIndex = null,
+  ocrEngineKey = 'macos-vision-local:v1',
   now = Date.now,
 } = {}) {
   if (!workspace || !home) throw new TypeError('file reality workspace and home are required');
@@ -314,7 +319,22 @@ export function makeFileRealityTool({
         const exactProtectedRoots = await canonicalProtectedRoots;
         const limit = safeInteger(maxCandidates, 10, 1, 20);
         const startedAt = now(); const deadline = startedAt + 7_500;
-        const indexed = await indexSearch({ query: clue, roots, platform, limit: 500 });
+        let cacheHits = 0; let cacheWrites = 0; let cacheDegraded = false;
+        let cachedRows = [];
+        if (intelligenceIndex) try { cachedRows = await intelligenceIndex.search({ query: clue, limit: 500 }); }
+        catch { cacheDegraded = true; }
+        const cachedIndexed = [];
+        for (const row of cachedRows) {
+          let exact; let stat;
+          try { exact = await realpath(resolve(row.path)); stat = await lstat(exact); } catch {
+            await intelligenceIndex?.deletePath(row.path).catch(() => {}); continue;
+          }
+          const sameGeneration = stat.isFile() && !stat.isSymbolicLink() && stat.dev === row.dev && stat.ino === row.ino
+            && stat.size === row.size && stat.mtimeMs === row.mtimeMs;
+          if (!sameGeneration) { await intelligenceIndex?.deletePath(row.path).catch(() => {}); continue; }
+          if (roots.some((root) => pathInside(exact, root))) cachedIndexed.push(exact);
+        }
+        const indexed = [...cachedIndexed, ...await indexSearch({ query: clue, roots, platform, limit: 500 })];
         const walk = await walkFiles(roots, { maxFiles: 200_000, deadline,
           excludedDirectoryNames: DEFAULT_EXCLUDED_DIRECTORY_NAMES, protectedRoots: exactProtectedRoots });
         const indexedSet = new Set();
@@ -329,6 +349,7 @@ export function makeFileRealityTool({
           if (protectedPath(candidate, exactProtectedRoots)) continue;
           let stat; try { stat = await lstat(candidate); } catch { continue; }
           if (!stat.isFile() || stat.isSymbolicLink()) continue;
+          const record = exactRecord(candidate, stat, home);
           const lexical = lexicalEvidence(clue, basename(candidate), locationText(candidate, home));
           if (IMAGE_EXTENSIONS.has(extname(candidate).toLowerCase())) imagePool.push({ candidate, stat, lexical,
             indexed: indexedSet.has(resolve(candidate)) });
@@ -336,22 +357,45 @@ export function makeFileRealityTool({
           if (indexedSet.has(resolve(candidate)) || lexical.score > 1
             || (contentProbes < 2_000 && TEXT_EXTENSIONS.has(extname(candidate).toLowerCase()))) {
             contentProbes += 1;
-            const observed = await boundedText(candidate).catch(() => null);
+            let observed = null; let contentCached = false;
+            if (intelligenceIndex && TEXT_EXTENSIONS.has(record.extension)) try {
+              const cached = await intelligenceIndex.lookup({ path: candidate, fileIdentity: record.identity,
+                observationKind: 'text-prefix', engine: 'bounded-text:v1' });
+              if (cached) { observed = cached.text; contentCached = true; cacheHits += 1; }
+            } catch { cacheDegraded = true; }
+            if (observed == null) observed = await boundedText(candidate).catch(() => null);
             if (observed) content = contentEvidence(clue, observed);
+            if (observed && content.score > 0 && intelligenceIndex && !contentCached) try {
+              await intelligenceIndex.record({ path: candidate, fileIdentity: record.identity,
+                displayName: record.displayName, locationText: record.locationText, extension: record.extension,
+                observationKind: 'text-prefix', engine: 'bounded-text:v1', text: observed }); cacheWrites += 1;
+            } catch { cacheDegraded = true; }
           }
           const score = lexical.score + content.score + (indexedSet.has(resolve(candidate)) ? 10 : 0);
           if (score <= 0) continue;
-          ranked.push({ record: exactRecord(candidate, stat, home, { indexed: indexedSet.has(resolve(candidate)),
+          ranked.push({ record: { ...record, evidence: { indexed: indexedSet.has(resolve(candidate)),
             matchedNameTerms: lexical.matchedName, matchedLocationTerms: lexical.matchedPath,
-            matchedContentTerms: content.matched, nameSimilarity: Number(lexical.nameSimilarity.toFixed(3)) }), score });
+            matchedContentTerms: content.matched, contentExcerpt: content.excerpt,
+            nameSimilarity: Number(lexical.nameSimilarity.toFixed(3)) } }, score });
         }
         if (typeof ocrProbe === 'function') {
           imagePool.sort((left, right) => Number(right.indexed) - Number(left.indexed)
             || right.lexical.score - left.lexical.score || right.stat.mtimeMs - left.stat.mtimeMs);
           for (const image of imagePool.slice(0, 12)) {
-            const remaining = deadline - now(); if (remaining < 100) break; ocrProbes += 1;
-            const observed = await ocrProbe(image.candidate, { timeoutMs: Math.min(1_500, remaining) });
+            const remaining = deadline - now(); if (remaining < 100) break;
+            const imageRecord = exactRecord(image.candidate, image.stat, home); let observed = null;
+            if (intelligenceIndex) try { const cached = await intelligenceIndex.lookup({ path: image.candidate,
+              fileIdentity: imageRecord.identity, observationKind: 'ocr', engine: ocrEngineKey });
+              if (cached) { observed = { state: 'observed', text: cached.text, observations: cached.observations,
+                engine: 'macos-vision-local', truncated: false, cached: true }; cacheHits += 1; } } catch { cacheDegraded = true; }
+            if (!observed) { ocrProbes += 1; observed = await ocrProbe(image.candidate, { timeoutMs: Math.min(1_500, remaining) }); }
             if (observed?.state !== 'observed') continue;
+            if (intelligenceIndex && observed.state === 'observed' && !observed.cached) try {
+              await intelligenceIndex.record({ path: image.candidate, fileIdentity: imageRecord.identity,
+                displayName: imageRecord.displayName, locationText: imageRecord.locationText, extension: imageRecord.extension,
+                observationKind: 'ocr', engine: ocrEngineKey, text: observed.text, observations: observed.observations });
+              cacheWrites += 1;
+            } catch { cacheDegraded = true; }
             const evidence = ocrEvidence(clue, observed); if (evidence.score <= 0) continue;
             const existing = ranked.find((item) => item.record.path === image.candidate);
             if (existing) { existing.score += evidence.score; existing.record.evidence.matchedOcrTerms = evidence.matched;
@@ -377,17 +421,37 @@ export function makeFileRealityTool({
           coverage: { roots: roots.length, unavailableRoots: rootState.unavailableRoots,
             indexedCandidates: indexedSet.size, filesystemFilesVisited: walk.files.length,
             filesystemEntriesVisited: walk.visited, unreadableDirectories: walk.unreadable,
-            contentProbes, ocrProbes, truncated: walk.truncated || now() >= deadline, elapsedMs: Math.max(0, now() - startedAt) },
+            contentProbes, ocrProbes, cacheHits, cacheWrites, cacheDegraded,
+            truncated: walk.truncated || now() >= deadline, elapsedMs: Math.max(0, now() - startedAt) },
           contentIncluded: false };
       }
       if (action === 'inspect') {
         if (!Array.isArray(requestedHandles) || requestedHandles.length !== 1) throw new TypeError('one file handle is required');
         const { record } = await reopen(requestedHandles[0]); const sha256 = await streamSha256(record.path);
-        let content = await boundedText(record.path, 96 * 1024).catch(() => null);
+        const contentKind = TEXT_EXTENSIONS.has(record.extension) ? 'text-prefix'
+          : ['.pdf', '.xlsx', '.xlsm', '.xltx'].includes(record.extension) ? 'document-text' : null;
+        const contentEngine = contentKind === 'text-prefix' ? 'bounded-text:v1' : 'document-inspector:v1';
+        let content = null; let contentCached = false;
+        if (contentKind && intelligenceIndex) try { const cached = await intelligenceIndex.lookup({ path: record.path,
+          fileIdentity: record.identity, observationKind: contentKind, engine: contentEngine });
+          if (cached) { content = cached.text; contentCached = true; } } catch { /* direct observation remains available */ }
+        if (content == null) content = await boundedText(record.path, 96 * 1024).catch(() => null);
         if (content == null) content = await documentText(record.path);
+        if (content != null && contentKind && intelligenceIndex && !contentCached) await intelligenceIndex.record({
+          path: record.path, fileIdentity: record.identity, displayName: record.displayName, locationText: record.locationText,
+          extension: record.extension, observationKind: contentKind, engine: contentEngine, text: content }).catch(() => {});
         let ocr = null;
         if (content == null && typeof ocrProbe === 'function' && IMAGE_EXTENSIONS.has(record.extension)) {
-          ocr = await ocrProbe(record.path, { timeoutMs: 5_000 }); if (ocr?.state === 'observed') content = ocr.text;
+          if (intelligenceIndex) try { const cached = await intelligenceIndex.lookup({ path: record.path,
+            fileIdentity: record.identity, observationKind: 'ocr', engine: ocrEngineKey });
+            if (cached) ocr = { state: 'observed', text: cached.text, observations: cached.observations,
+              engine: 'macos-vision-local', truncated: false, cached: true }; } catch { /* direct OCR remains available */ }
+          if (!ocr) ocr = await ocrProbe(record.path, { timeoutMs: 5_000 });
+          if (ocr?.state === 'observed') { content = ocr.text;
+            if (intelligenceIndex && !ocr.cached) await intelligenceIndex.record({ path: record.path,
+              fileIdentity: record.identity, displayName: record.displayName, locationText: record.locationText,
+              extension: record.extension, observationKind: 'ocr', engine: ocrEngineKey,
+              text: ocr.text, observations: ocr.observations }).catch(() => {}); }
         }
         return { state: 'observed', file: { handle: requestedHandles[0], displayName: record.displayName,
           locationText: record.locationText, extension: record.extension, bytes: record.bytes,
