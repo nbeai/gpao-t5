@@ -42,6 +42,8 @@ import { makeArtifactPublicationProductAdapter,
 import { makeEffectForensicProductAdapter,
   projectHumanEffectForensicReceipt, projectHumanEffectRollbackReceipt } from './effect-forensic-projection.js';
 import { makeWorkHistoryProductAdapter } from './work-history-projection.js';
+import { makePurposeBoundedHistoryAdapter } from './purpose-bounded-history.js';
+import { makePurposeHistoryTool } from './purpose-history-tool.js';
 import { makeWorkCompletionTool } from './work-completion-tool.js';
 import { evaluateWorkCompletion } from './work-completion-evaluator.js';
 import { makeInputSettlementScope } from './input-settlement-scope.js';
@@ -473,6 +475,9 @@ export function makeConsoleServer({
   const effectForensics = makeEffectForensicProductAdapter({ runLedger });
   const workHistory = makeWorkHistoryProductAdapter({ sessions, conversations, workStore, runLedger,
     attachmentStore: attachments, resourceLedger });
+  const purposeHistory = fileActivityService && appActivityService ? makePurposeBoundedHistoryAdapter({
+    workHistory, fileActivityService, appActivityService,
+  }) : null;
   const livingLibraryRoot = join(stateDir, 'living-library');
   const userNotesRoot = join(stateDir, 'user-notes');
   const livingLibraryRegistry = new LivingLibraryRegistry({
@@ -1740,6 +1745,7 @@ export function makeConsoleServer({
       offeredTools.unshift(makeSessionSearchTool({
         ledger: conversations, sessions, workStore, runLedger, currentSessionId: sessionId,
       }));
+      if(purposeHistory)offeredTools.unshift(makePurposeHistoryTool({adapter:purposeHistory}));
       offeredTools.unshift(makeConnectionTool({
         doctor: connectionDoctor, startConnection: startConnectionForTool,
         performConnection: (id, actionId) => performConnectionAction(id, actionId, { sessionId }),
