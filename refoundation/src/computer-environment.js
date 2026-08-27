@@ -1,5 +1,4 @@
 import { arch, homedir } from 'node:os';
-import { join } from 'node:path';
 
 function commandName(program) {
   return String(program).split(/[\\/]/).at(-1).toLowerCase();
@@ -49,10 +48,4 @@ export function publicComputerFacts(computer) {
     commandFamily: computer.commandRuntime.family,
     commandProgram: computer.commandRuntime.program,
   };
-}
-
-export function defaultMacOSComputerFileRoots(userHome = homedir()) {
-  return [
-    'Desktop', 'Documents', 'Downloads', 'Movies', 'Music', 'Pictures', 'Public',
-  ].map((name) => join(userHome, name)).concat(['/Users/Shared', '/Volumes']);
 }

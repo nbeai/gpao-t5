@@ -52,24 +52,6 @@ test('컴퓨터 scope는 위치·파일명을 몰라도 내용 단서로 workspa
   } finally { await rm(room.root, { recursive: true, force: true }); }
 });
 
-test('일반 사진 검색은 사진 보관함 패키지 내부를 직접 순회하거나 Spotlight 후보로 받지 않는다', async () => {
-  const room = await fixture();
-  const pictures = join(room.root, 'Pictures');
-  const library = join(pictures, 'Photos Library.photoslibrary');
-  const privatePhoto = join(library, 'originals', 'private.jpg');
-  const visiblePhoto = join(pictures, '견적사진.jpg');
-  await mkdir(join(library, 'originals'), { recursive: true });
-  await Promise.all([writeFile(privatePhoto, 'private photo'), writeFile(visiblePhoto, 'visible photo')]);
-  try {
-    const tool = makeFileRealityTool({ workspace: room.workspace, home: room.root, platform: 'darwin',
-      computerRoots: [pictures], indexSearch: async () => [privatePhoto, visiblePhoto] });
-    const found = await tool.execute({ action: 'search', query: '견적사진', scope: 'computer', path: null,
-      handles: null, maxCandidates: 10 });
-    assert.equal(found.candidates.some((item) => item.displayName === 'private.jpg'), false);
-    assert.equal(found.candidates.some((item) => item.displayName === '견적사진.jpg'), true);
-  } finally { await rm(room.root, { recursive: true, force: true }); }
-});
-
 test('중복·버전 비교는 exact bytes와 유사도 근거만 주고 최종본을 파일명으로 결정하지 않는다', async () => {
   const room = await fixture();
   try {

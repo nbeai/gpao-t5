@@ -357,8 +357,9 @@ if [ -n "$USER_NAME" ] && [ "$USER_NAME" != "root" ]; then
 <plist version="1.0"><dict>
 <key>Label</key><string>${product.bundleId}.runtime</string>
 <key>ProgramArguments</key><array>
-<string>/Applications/${product.name}.app/Contents/MacOS/${product.name}</string>
-<string>--background-runtime</string>
+<string>/Applications/${product.name}.app/Contents/Resources/runtime/bin/node</string>
+<string>/Applications/${product.name}.app/Contents/Resources/app/refoundation/scripts/ensure-local-runtime.mjs</string>
+<string>--port-file</string><string>$USER_HOME/Library/Application Support/GPAO-T5/state/console-port.json</string>
 </array>
 <key>RunAtLoad</key><true/><key>ProcessType</key><string>Background</string>
 </dict></plist>

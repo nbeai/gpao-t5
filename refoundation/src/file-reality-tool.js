@@ -22,10 +22,6 @@ const DEFAULT_EXCLUDED_DIRECTORY_NAMES = new Set([
 const DEFAULT_PROTECTED_DIRECTORY_NAMES = new Set([
   '.ssh', '.gnupg', '.aws', '.azure', 'Keychains',
 ]);
-const DEFAULT_PROTECTED_DIRECTORY_SUFFIXES = [
-  '.photoslibrary', '.photolibrary', '.musiclibrary', '.imovielibrary', '.fcpbundle',
-];
-const DEFAULT_DIRECT_WALK_ONLY_ROOT_NAMES = new Set(['Pictures', 'Music', 'Movies']);
 
 function normalize(value) {
   return String(value ?? '').normalize('NFKC').toLocaleLowerCase().replace(/[\s._\-()[\]{}]+/gu, ' ').trim();
@@ -92,8 +88,7 @@ function locationText(path, home) {
 function protectedPath(path, protectedRoots) {
   const exact = resolve(path);
   if (protectedRoots.some((root) => pathInside(exact, root))) return true;
-  return exact.split(sep).some((part) => DEFAULT_PROTECTED_DIRECTORY_NAMES.has(part)
-    || DEFAULT_PROTECTED_DIRECTORY_SUFFIXES.some((suffix) => part.toLocaleLowerCase().endsWith(suffix)));
+  return exact.split(sep).some((part) => DEFAULT_PROTECTED_DIRECTORY_NAMES.has(part));
 }
 async function streamSha256(path) {
   const hash = createHash('sha256');
@@ -125,7 +120,6 @@ async function defaultIndexSearch({ query, roots, platform, limit }) {
   if (platform !== 'darwin') return [];
   const found = [];
   for (const root of roots) {
-    if (DEFAULT_DIRECT_WALK_ONLY_ROOT_NAMES.has(basename(resolve(root)))) continue;
     try {
       const { stdout } = await runFile('/usr/bin/mdfind', ['-0', '-onlyin', root, query], {
         timeout: 8_000, maxBuffer: 8 * 1024 * 1024, encoding: 'buffer',
