@@ -1,13 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { once } from 'node:events';
 import { mkdtemp, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { MessengerCredentialStore } from '../src/messenger-credential-store.js';
-import { makeMessengerGateway, MessengerStateStore } from '../src/messenger-gateway.js';
+import {
+  makeMessengerGateway, MessengerPollingOwnership, MessengerStateStore,
+} from '../src/messenger-gateway.js';
 import { makeTelegramMessengerProvider } from '../src/telegram-messenger-provider.js';
 import { AttachmentStore } from '../src/attachment-store.js';
 
@@ -139,6 +143,188 @@ function update(id, { chatId = 555, userId = 42, text = '안녕', threadId = nul
     },
   };
 }
+
+async function firstJsonLine(stream) {
+  let buffered = '';
+  for await (const chunk of stream) {
+    buffered += chunk.toString('utf8');
+    const newline = buffered.indexOf('\n');
+    if (newline >= 0) return JSON.parse(buffered.slice(0, newline));
+  }
+  throw new Error('child ownership process closed without a claim');
+}
+
+test('Telegram polling owner는 다른 프로세스를 막고 죽은 PID만 exact token fencing으로 인계한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-process-owner-'));
+  const moduleUrl = new URL('../src/messenger-gateway.js', import.meta.url).href;
+  const childSource = `
+    const { MessengerPollingOwnership } = await import(process.env.T5_MESSENGER_MODULE);
+    const owner = new MessengerPollingOwnership(process.env.T5_MESSENGER_ROOM);
+    const acquired = await owner.acquire('telegram');
+    process.stdout.write(JSON.stringify(acquired) + '\\n');
+    setInterval(() => {}, 1000);
+  `;
+  const child = spawn(process.execPath, ['--input-type=module', '--eval', childSource], {
+    env: { ...process.env, T5_MESSENGER_MODULE: moduleUrl, T5_MESSENGER_ROOM: room },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let killed = false;
+  try {
+    const childOwner = await firstJsonLine(child.stdout);
+    assert.equal(childOwner.claimed, true);
+    assert.notEqual(childOwner.claim.ownerToken, '');
+
+    const contender = new MessengerPollingOwnership(room);
+    const blocked = await contender.acquire('telegram');
+    assert.deepEqual({ claimed: blocked.claimed, reason: blocked.reason }, {
+      claimed: false, reason: 'polling_owner_active',
+    });
+    assert.equal(await contender.release('telegram', childOwner.claim), false,
+      'a different live process cannot release the owner even with a copied record');
+
+    child.kill('SIGKILL');
+    killed = true;
+    await once(child, 'exit');
+    const takeover = await contender.acquire('telegram');
+    assert.equal(takeover.claimed, true);
+    assert.equal(await contender.release('telegram', childOwner.claim), false,
+      'stale process token must not release the successor');
+    await assert.rejects(
+      () => contender.assert('telegram', childOwner.claim),
+      (error) => error.code === 'messenger_polling_ownership_lost',
+    );
+    assert.equal(await contender.assert('telegram', takeover.claim), true);
+    assert.equal(await contender.release('telegram', takeover.claim), true);
+  } finally {
+    if (!killed) {
+      child.kill('SIGKILL');
+      await once(child, 'exit').catch(() => {});
+    }
+  }
+});
+
+test('두 gateway가 같은 상태를 열어도 polling owner 하나만 update를 exact-once 처리한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-runtime-owner-'));
+  const credentials = new MessengerCredentialStore(room);
+  const updates = [];
+  let polls = 0;
+  const providerFactory = () => ({
+    id: 'telegram', inboundMode: 'long_polling',
+    async validate() { return { id: '77', username: 'owner_fixture_bot' }; },
+    async poll({ offset, signal } = {}) {
+      polls += 1;
+      await new Promise((resolve) => {
+        const timer = setTimeout(resolve, 5);
+        timer.unref?.();
+        signal?.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true });
+      });
+      return updates.filter((entry) => entry.updateId >= Number(offset ?? 0));
+    },
+    startTyping() { return { stop() {} }; },
+    async sendReply() { return { messageIds: ['sent'] }; },
+  });
+  await credentials.setVerified('telegram', {
+    token: TOKEN, bot: { id: '77', username: 'owner_fixture_bot' },
+  });
+  let handled = 0;
+  const gateway = () => makeMessengerGateway({
+    credentialStore: new MessengerCredentialStore(room),
+    stateStore: new MessengerStateStore(room), providerFactory,
+    createSession: async () => 'singleton-session', authorizeInbound: async () => true,
+    onInbound: async () => { handled += 1; return '처리됨'; }, retryDelayMs: 1,
+  });
+  const owner = gateway();
+  const contender = gateway();
+  try {
+    assert.equal((await owner.start()).started, true);
+    const blocked = await contender.start();
+    assert.deepEqual({ started: blocked.started, reason: blocked.reason, needsAttention: blocked.needsAttention }, {
+      started: false, reason: 'polling_owner_active', needsAttention: true,
+    });
+    assert.deepEqual((await contender.status()).lastError && {
+      code: (await contender.status()).lastError.code,
+      needsAttention: (await contender.status()).lastError.needsAttention,
+    }, { code: 'messenger_polling_owner_active', needsAttention: true });
+
+    updates.push({ updateId: 10, message: {
+      provider: 'telegram', messageId: '10', chatId: '42', threadId: null,
+      userId: '42', username: 'owner', text: '한 번만', isDirectMessage: true,
+    } });
+    let firstIngress = null;
+    for (let count = 0; count < 200; count += 1) {
+      firstIngress = await new MessengerStateStore(room).ingress('telegram', 10);
+      if (handled === 1 && firstIngress?.state === 'completed') break;
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+    assert.equal(handled, 1);
+    assert.equal(firstIngress?.state, 'completed');
+    assert.equal((await new MessengerStateStore(room).offset('telegram')), 11);
+
+    await owner.stop();
+    assert.equal((await contender.start()).started, true, 'released owner permits safe takeover');
+    updates.push({ updateId: 11, message: {
+      provider: 'telegram', messageId: '11', chatId: '42', threadId: null,
+      userId: '42', username: 'owner', text: '다음 한 번', isDirectMessage: true,
+    } });
+    let secondIngress = null;
+    for (let count = 0; count < 200; count += 1) {
+      secondIngress = await new MessengerStateStore(room).ingress('telegram', 11);
+      if (handled === 2 && secondIngress?.state === 'completed') break;
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+    assert.equal(handled, 2);
+    assert.equal(secondIngress?.state, 'completed');
+    assert.ok(polls > 0);
+  } finally {
+    await Promise.allSettled([owner.stop(), contender.stop()]);
+  }
+});
+
+test('poll 뒤 owner fence를 잃은 runtime은 update state와 사용자 작업을 시작하지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-messenger-owner-fence-'));
+  const credentials = new MessengerCredentialStore(room);
+  await credentials.setVerified('telegram', {
+    token: TOKEN, bot: { id: '77', username: 'owner_fixture_bot' },
+  });
+  let assertions = 0;
+  const claim = { pid: process.pid, ownerToken: 'fence-fixture' };
+  const pollingOwnership = {
+    async acquire() { return { claimed: true, claim }; },
+    async assert() {
+      assertions += 1;
+      if (assertions >= 2) throw Object.assign(new Error('lost'), {
+        code: 'messenger_polling_ownership_lost',
+      });
+      return true;
+    },
+    async release() { return true; },
+  };
+  let handled = 0;
+  const gateway = makeMessengerGateway({
+    credentialStore: credentials, stateStore: new MessengerStateStore(room), pollingOwnership,
+    providerFactory: () => ({
+      id: 'telegram', inboundMode: 'long_polling',
+      async validate() { return { id: '77', username: 'owner_fixture_bot' }; },
+      async poll() { return [{ updateId: 20, message: {
+        provider: 'telegram', messageId: '20', chatId: '42', threadId: null,
+        userId: '42', username: 'owner', text: '처리되면 안 됨', isDirectMessage: true,
+      } }]; },
+    }),
+    createSession: async () => 'never', authorizeInbound: async () => true,
+    onInbound: async () => { handled += 1; return 'never'; }, retryDelayMs: 1,
+  });
+  await gateway.start();
+  for (let count = 0; count < 100 && (await gateway.status()).running; count += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 2));
+  }
+  const status = await gateway.status();
+  assert.deepEqual(status.lastError && {
+    code: status.lastError.code, needsAttention: status.lastError.needsAttention,
+  }, { code: 'messenger_polling_ownership_lost', needsAttention: true });
+  assert.equal(handled, 0);
+  assert.equal(await new MessengerStateStore(room).ingress('telegram', 20), null);
+  await gateway.stop();
+});
 
 test('검증되지 않은 봇 토큰은 저장하지 않고 공개 상태·오류에 비밀을 내보내지 않는다', async () => {
   const fixture = await telegramFixture();

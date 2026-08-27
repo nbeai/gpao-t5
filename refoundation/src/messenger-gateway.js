@@ -1,4 +1,5 @@
-import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { chmod, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { makeTelegramMessengerProvider } from './telegram-messenger-provider.js';
@@ -13,6 +14,142 @@ const numericUserId = (value) => {
 };
 const conversationId = (message) => message.threadId == null
   ? message.chatId : `${message.chatId}:topic:${message.threadId}`;
+
+function processIsAlive(pid) {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code === 'EPERM';
+  }
+}
+
+function pollingOwnerError(code, message) {
+  return Object.assign(new Error(message), { code });
+}
+
+/**
+ * A durable, process-wide owner for a provider's long-poll stream.
+ *
+ * The directory claim is the atomic mutex. The record inside it is the fence:
+ * only the exact PID + random owner token may use or release the claim. A dead
+ * PID can be moved aside and replaced; a live PID is never evicted by timeout.
+ */
+export class MessengerPollingOwnership {
+  constructor(directory, {
+    pid = process.pid,
+    tokenFactory = randomUUID,
+    isProcessAlive = processIsAlive,
+  } = {}) {
+    if (!directory) throw new TypeError('messenger polling ownership directory is required');
+    this.directory = directory;
+    this.pid = Number(pid);
+    this.tokenFactory = tokenFactory;
+    this.isProcessAlive = isProcessAlive;
+  }
+
+  paths(provider) {
+    if (!AVAILABLE_PROVIDERS.includes(provider)) throw new Error(`unsupported messenger provider: ${provider}`);
+    const lockDirectory = join(this.directory, `messenger-${provider}-polling.owner`);
+    return { lockDirectory, recordFile: join(lockDirectory, 'owner.json') };
+  }
+
+  async read(provider) {
+    const { recordFile } = this.paths(provider);
+    try {
+      const record = JSON.parse(await readFile(recordFile, 'utf8'));
+      if (record?.version !== 1 || record.provider !== provider
+        || !Number.isSafeInteger(record.pid) || record.pid <= 0
+        || typeof record.ownerToken !== 'string' || !record.ownerToken) return null;
+      return record;
+    } catch (error) {
+      if (error?.code === 'ENOENT' || error instanceof SyntaxError) return null;
+      throw error;
+    }
+  }
+
+  async acquire(provider) {
+    const { lockDirectory, recordFile } = this.paths(provider);
+    await mkdir(this.directory, { recursive: true, mode: 0o700 });
+    await chmod(this.directory, 0o700);
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const ownerToken = String(this.tokenFactory());
+      let created = false;
+      try {
+        await mkdir(lockDirectory, { mode: 0o700 });
+        created = true;
+        const claim = {
+          version: 1, provider, pid: this.pid, ownerToken, acquiredAt: Date.now(),
+        };
+        await writeFile(recordFile, JSON.stringify(claim), { encoding: 'utf8', mode: 0o600 });
+        await chmod(recordFile, 0o600);
+        return { claimed: true, claim };
+      } catch (error) {
+        if (error?.code !== 'EEXIST') {
+          // Do not leave an owner-shaped directory behind when initial record
+          // persistence fails before this process has a usable fence.
+          if (created) await rm(lockDirectory, { recursive: true, force: true }).catch(() => {});
+          throw error;
+        }
+      }
+
+      const existing = await this.read(provider);
+      if (existing && this.isProcessAlive(existing.pid)) {
+        return {
+          claimed: false,
+          reason: 'polling_owner_active',
+          owner: { pid: existing.pid, acquiredAt: existing.acquiredAt ?? null },
+        };
+      }
+
+      // mkdir -> owner.json has a deliberately tiny construction window. A
+      // recent record-less directory is treated as live instead of being stolen.
+      if (!existing) {
+        const ageMs = await stat(lockDirectory).then((entry) => Date.now() - entry.mtimeMs).catch(() => null);
+        if (ageMs != null && ageMs < 1_000) {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          continue;
+        }
+      }
+
+      const stale = `${lockDirectory}.stale.${this.pid}.${ownerToken}`;
+      try {
+        await rename(lockDirectory, stale);
+      } catch (error) {
+        if (error?.code === 'ENOENT') continue;
+        throw error;
+      }
+      await rm(stale, { recursive: true, force: true });
+    }
+    throw pollingOwnerError('messenger_polling_owner_contended', 'messenger polling ownership remained contended');
+  }
+
+  async assert(provider, claim) {
+    const current = await this.read(provider);
+    if (claim?.pid !== this.pid || !current
+      || current.pid !== claim.pid || current.ownerToken !== claim?.ownerToken) {
+      throw pollingOwnerError('messenger_polling_ownership_lost', 'messenger polling ownership was lost');
+    }
+    return true;
+  }
+
+  async release(provider, claim) {
+    const { lockDirectory } = this.paths(provider);
+    if (claim?.pid !== this.pid) return false;
+    const current = await this.read(provider);
+    if (!current || current.pid !== claim?.pid || current.ownerToken !== claim?.ownerToken) return false;
+    const released = `${lockDirectory}.released.${this.pid}.${String(this.tokenFactory())}`;
+    try {
+      await rename(lockDirectory, released);
+    } catch (error) {
+      if (error?.code === 'ENOENT') return false;
+      throw error;
+    }
+    await rm(released, { recursive: true, force: true });
+    return true;
+  }
+}
 
 export class MessengerStateStore {
   constructor(directory) {
@@ -263,6 +400,8 @@ function defaultProviderFactory({ provider, token }) {
 export function makeMessengerGateway({
   credentialStore,
   stateStore,
+  pollingOwnership = stateStore?.directory
+    ? new MessengerPollingOwnership(stateStore.directory) : null,
   providerFactory = defaultProviderFactory,
   createSession,
   authorizeInbound,
@@ -282,6 +421,7 @@ export function makeMessengerGateway({
   let stopController = null;
   let loopPromise = null;
   let lastError = null;
+  let ownershipClaim = null;
 
   function supported(provider) {
     if (!AVAILABLE_PROVIDERS.includes(provider)) throw new Error(`unsupported messenger provider: ${provider}`);
@@ -297,49 +437,62 @@ export function makeMessengerGateway({
     };
   }
 
-  async function sessionFor(message) {
+  async function sessionFor(message, assertFence = async () => {}) {
     const scopedChatId = conversationId(message);
     const existing = await stateStore.session(message.provider, scopedChatId);
     if (existing) return existing;
+    await assertFence();
     const created = await createSession({
       origin: { provider: message.provider, chatId: scopedChatId },
     });
     const id = typeof created === 'string' ? created : created?.id;
     if (!id) throw new Error('messenger_session_creation_failed');
+    await assertFence();
     return stateStore.bind(message.provider, scopedChatId, id);
   }
 
-  async function pollOnce({ provider = 'telegram', signal, detachInbound = false } = {}) {
+  async function pollOnce({
+    provider = 'telegram', signal, detachInbound = false, ownerClaim = null,
+  } = {}) {
+    const assertFence = ownerClaim
+      ? () => pollingOwnership.assert(provider, ownerClaim) : async () => true;
+    const mutateState = async (operation) => {
+      await assertFence();
+      return operation();
+    };
     const active = activeProvider?.id === provider;
     const runtime = active ? activeProvider : (await providerFromStore(provider)).provider;
     if (!active) await runtime.validate({ signal });
     const offset = await stateStore.offset(provider);
+    await assertFence();
     const updates = await runtime.poll({ offset, signal });
+    await assertFence();
     let received = 0;
     let accepted = 0;
     let replied = 0;
     let nextOffset = offset;
     for (const update of updates) {
+      await assertFence();
       const updateId = Number(update.updateId ?? 0);
       const acknowledgedOffset = Math.max(nextOffset, updateId + 1);
       if (!update.message) {
-        nextOffset = await stateStore.saveOffset(provider, acknowledgedOffset);
+        nextOffset = await mutateState(() => stateStore.saveOffset(provider, acknowledgedOffset));
         continue;
       }
       received += 1;
-      const ingress = await stateStore.receiveIngress(provider, updateId, update.message);
+      const ingress = await mutateState(() => stateStore.receiveIngress(provider, updateId, update.message));
       if (INGRESS_TERMINAL.has(ingress.state)) {
-        nextOffset = await stateStore.saveOffset(provider, acknowledgedOffset);
+        nextOffset = await mutateState(() => stateStore.saveOffset(provider, acknowledgedOffset));
         continue;
       }
       // A process can crash after marking adoption but before recording the final result. Re-running the
       // user's turn could repeat an external effect, so close it as unknown and let conversation recovery
       // expose the truth instead of replaying the message.
       if (ingress.state === 'adopted') {
-        await stateStore.markIngress(provider, updateId, 'adopted_unknown', {
+        await mutateState(() => stateStore.markIngress(provider, updateId, 'adopted_unknown', {
           sessionId: ingress.sessionId ?? null, reason: 'runtime_restarted_after_adoption',
-        });
-        nextOffset = await stateStore.saveOffset(provider, acknowledgedOffset);
+        }));
+        nextOffset = await mutateState(() => stateStore.saveOffset(provider, acknowledgedOffset));
         continue;
       }
 
@@ -350,13 +503,15 @@ export function makeMessengerGateway({
       let typing = { stop() {} };
       try {
         if (!await authorizeInbound(structuredClone(update.message))) {
-          await stateStore.markIngress(provider, updateId, 'rejected', { reason: 'sender_not_allowed' });
+          await mutateState(() => stateStore.markIngress(provider, updateId, 'rejected', {
+            reason: 'sender_not_allowed',
+          }));
           log('messenger_inbound_rejected', { provider });
-          nextOffset = await stateStore.saveOffset(provider, acknowledgedOffset);
+          nextOffset = await mutateState(() => stateStore.saveOffset(provider, acknowledgedOffset));
           continue;
         }
         accepted += 1;
-        sessionId = await sessionFor(update.message);
+        sessionId = await sessionFor(update.message, assertFence);
         const attachmentIds = [];
         const attachmentIssues = [];
         for (const descriptor of update.message.attachments ?? []) {
@@ -383,9 +538,9 @@ export function makeMessengerGateway({
             });
           }
         }
-        await stateStore.markIngress(provider, updateId, 'adopted', {
+        await mutateState(() => stateStore.markIngress(provider, updateId, 'adopted', {
           sessionId, adoptedAt: Date.now(), attachmentIds, attachmentIssues,
-        });
+        }));
         adopted = true;
         typing = runtime.startTyping?.({
           chatId: update.message.chatId, threadId: update.message.threadId,
@@ -404,6 +559,7 @@ export function makeMessengerGateway({
               });
             }
             const artifact = await attachmentStore.readContent({ sessionId, attachmentId });
+            await assertFence();
             const sent = await runtime.sendDocument({
               chatId: update.message.chatId, threadId: update.message.threadId,
               artifact, signal,
@@ -412,6 +568,7 @@ export function makeMessengerGateway({
             files.push(sent);
           }
           if (String(text ?? '').trim()) {
+            await assertFence();
             const textDelivery = artifactIds.length || !progress
               ? await runtime.sendReply({
                 chatId: update.message.chatId, threadId: update.message.threadId, text, signal,
@@ -421,6 +578,7 @@ export function makeMessengerGateway({
           ownedDelivery = { sent: true, provider, chatId: update.message.chatId, messageIds, files };
           return structuredClone(ownedDelivery);
         };
+        await assertFence();
         const inbound = onInbound({
           ...update.message, sessionId, attachmentIds, attachmentIssues,
         }, {
@@ -432,29 +590,29 @@ export function makeMessengerGateway({
             const text = typeof reply === 'string' ? reply : reply?.text;
             let delivery = ownedDelivery ?? reply?.delivery ?? null;
             if (!delivery && String(text ?? '').trim()) delivery = await deliver({ text });
-            await stateStore.markIngress(provider, updateId, 'completed', {
+            await mutateState(() => stateStore.markIngress(provider, updateId, 'completed', {
               sessionId, completedAt: Date.now(),
               messageIds: structuredClone(delivery?.messageIds ?? []),
               files: structuredClone(delivery?.files ?? []),
-            });
+            }));
           }).catch(async (error) => {
             const failureDelivery = error?.surfaceResult?.channelDelivery;
             if (failureDelivery?.sent === true && (failureDelivery.messageIds ?? []).length > 0) {
-              await stateStore.markIngress(provider, updateId, 'completed', {
+              await mutateState(() => stateStore.markIngress(provider, updateId, 'completed', {
                 sessionId, completedAt: Date.now(), failedTurn: true,
                 messageIds: structuredClone(failureDelivery.messageIds),
                 files: structuredClone(failureDelivery.files ?? []),
-              }).catch(() => {});
+              })).catch(() => {});
               return;
             }
             await progress?.discard?.().catch(() => {});
-            await stateStore.markIngress(provider, updateId, 'adopted_unknown', {
+            await mutateState(() => stateStore.markIngress(provider, updateId, 'adopted_unknown', {
               sessionId, reason: String(error?.code ?? error?.message ?? 'unknown').slice(0, 160),
               failedAt: Date.now(),
-            }).catch(() => {});
+            })).catch(() => {});
           }).finally(() => { taskTyping.stop(); backgroundInboundTasks.delete(task); });
           backgroundInboundTasks.add(task);
-          nextOffset = await stateStore.saveOffset(provider, acknowledgedOffset);
+          nextOffset = await mutateState(() => stateStore.saveOffset(provider, acknowledgedOffset));
           typing = null;
           continue;
         }
@@ -465,12 +623,12 @@ export function makeMessengerGateway({
         if (delivery?.sent) {
           replied += 1;
         }
-        await stateStore.markIngress(provider, updateId, 'completed', {
+        await mutateState(() => stateStore.markIngress(provider, updateId, 'completed', {
           sessionId, completedAt: Date.now(),
           messageIds: structuredClone(delivery?.messageIds ?? []),
           files: structuredClone(delivery?.files ?? []),
-        });
-        nextOffset = await stateStore.saveOffset(provider, acknowledgedOffset);
+        }));
+        nextOffset = await mutateState(() => stateStore.saveOffset(provider, acknowledgedOffset));
       } catch (error) {
         const code = error?.code ?? error?.message ?? 'unknown';
         log('messenger_inbound_failed', { provider, code });
@@ -479,22 +637,22 @@ export function makeMessengerGateway({
           if (failure?.channelDelivery?.sent === true
             && (failure.channelDelivery.messageIds ?? []).length > 0) {
             replied += 1;
-            await stateStore.markIngress(provider, updateId, 'completed', {
+            await mutateState(() => stateStore.markIngress(provider, updateId, 'completed', {
               sessionId, completedAt: Date.now(), failedTurn: true,
               messageIds: structuredClone(failure.channelDelivery.messageIds),
               files: structuredClone(failure.channelDelivery.files ?? []),
-            });
-            nextOffset = await stateStore.saveOffset(provider, acknowledgedOffset);
+            }));
+            nextOffset = await mutateState(() => stateStore.saveOffset(provider, acknowledgedOffset));
             continue;
           }
           await progress?.discard?.().catch(() => {});
-          await stateStore.markIngress(provider, updateId, 'adopted_unknown', {
+          await mutateState(() => stateStore.markIngress(provider, updateId, 'adopted_unknown', {
             sessionId, reason: String(code).slice(0, 160), failedAt: Date.now(),
-          });
-          nextOffset = await stateStore.saveOffset(provider, acknowledgedOffset);
+          }));
+          nextOffset = await mutateState(() => stateStore.saveOffset(provider, acknowledgedOffset));
           continue;
         }
-        const failed = await stateStore.noteIngressFailure(provider, updateId, code);
+        const failed = await mutateState(() => stateStore.noteIngressFailure(provider, updateId, code));
         throw Object.assign(new Error('messenger inbound failed before adoption'), {
           code: failed.attempts >= 3
             ? 'messenger_inbound_needs_attention' : 'messenger_inbound_pre_adoption_failed',
@@ -582,7 +740,23 @@ export function makeMessengerGateway({
       supported(provider);
       if (running) return { started: true, reason: 'already_running', provider };
       const loaded = await providerFromStore(provider);
-      await loaded.provider.validate();
+      const ownership = await pollingOwnership.acquire(provider);
+      if (!ownership.claimed) {
+        lastError = {
+          code: 'messenger_polling_owner_active', at: Date.now(), needsAttention: true,
+        };
+        return {
+          started: false, provider, reason: ownership.reason, needsAttention: true,
+        };
+      }
+      ownershipClaim = ownership.claim;
+      try {
+        await loaded.provider.validate();
+      } catch (error) {
+        await pollingOwnership.release(provider, ownershipClaim).catch(() => {});
+        ownershipClaim = null;
+        throw error;
+      }
       lastError = null;
       activeProvider = loaded.provider;
       stopController = new AbortController();
@@ -590,12 +764,16 @@ export function makeMessengerGateway({
       loopPromise = (async () => {
         while (running) {
           try {
-            await pollOnce({ provider, signal: stopController.signal, detachInbound: true });
+            await pollOnce({
+              provider, signal: stopController.signal, detachInbound: true,
+              ownerClaim: ownership.claim,
+            });
           } catch (error) {
             if (!running || stopController.signal.aborted || error?.code === 'telegram_poll_stopped') break;
             lastError = {
               code: error?.code ?? 'unknown', at: Date.now(),
-              needsAttention: error?.code === 'messenger_inbound_needs_attention',
+              needsAttention: ['messenger_inbound_needs_attention',
+                'messenger_polling_ownership_lost'].includes(error?.code),
             };
             log('messenger_poll_failed', { provider, code: error?.code ?? 'unknown' });
             if (lastError.needsAttention) break;
@@ -605,8 +783,18 @@ export function makeMessengerGateway({
             });
           }
         }
-      })().finally(() => {
+      })().finally(async () => {
         running = false;
+        stopController?.abort();
+        while (backgroundInboundTasks.size) {
+          await Promise.allSettled([...backgroundInboundTasks]);
+        }
+        await pollingOwnership.release(provider, ownership.claim).catch((error) => {
+          log('messenger_polling_owner_release_failed', {
+            provider, code: error?.code ?? 'unknown',
+          });
+        });
+        if (ownershipClaim?.ownerToken === ownership.claim.ownerToken) ownershipClaim = null;
         activeProvider = null;
       });
       return { started: true, provider, inboundMode: activeProvider.inboundMode };
@@ -622,6 +810,7 @@ export function makeMessengerGateway({
       stopController = null;
       loopPromise = null;
       activeProvider = null;
+      ownershipClaim = null;
       return { stopped: true };
     },
 
