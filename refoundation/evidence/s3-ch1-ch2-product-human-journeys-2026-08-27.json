@@ -1,0 +1,65 @@
+{
+  "schema": "t5.s3ch12.product-human-journeys.v1",
+  "recordedOn": "2026-08-27",
+  "status": "PASS_WITH_OBSERVATION",
+  "environment": {
+    "platform": "darwin",
+    "isolatedState": true,
+    "isolatedWorkspace": true,
+    "isolatedFileRoot": true,
+    "realUserFilesRead": 0,
+    "modelCalls": 0,
+    "providerRequests": 0,
+    "externalWrites": 0
+  },
+  "ch1": {
+    "surface": "actual current settings page and current console server",
+    "collector": "actual macOS FSEvents native helper",
+    "journey": [
+      "memory and privacy settings opened",
+      "record folder action selected an exact isolated root",
+      "collector changed from off to recording",
+      "create, modify, and rename produced four visible metadata events",
+      "pause changed the surface to paused",
+      "a new file after pause left the visible count at four",
+      "forget deleted four events and the surface returned to zero"
+    ],
+    "contentCanaryStored": false,
+    "contentCanaryProjected": false,
+    "eventCountBeforePause": 4,
+    "eventCountAfterPausedWrite": 4,
+    "deletedEvents": 4,
+    "remainingEvents": 0,
+    "passed": true
+  },
+  "ch2": {
+    "surface": "actual current settings page and current console server",
+    "collector": "actual macOS NSWorkspace and AFK native helper",
+    "discoveredFailure": "The finite qualification helper emitted its final segment on natural exit, but the long-running product helper lost its current stable segment when pause sent SIGTERM.",
+    "repair": "SIGTERM and SIGINT now request a graceful loop exit; the helper emits the exact final stable segment before process completion.",
+    "countertest": "ch2-macos-sigterm.integration.js compiles the real helper, runs the 86400-second product shape, sends SIGTERM, and requires ready plus one closed segment with the closed field set.",
+    "journey": [
+      "app activity started from the settings page",
+      "pause after a stable foreground app persisted one closed segment",
+      "private mode showed recording paused",
+      "opaque observed-app exclusion removed prior segments and raised excluded count",
+      "include-all restored the policy",
+      "export returned only coarse user fields and showed an explicit exported surface",
+      "forget deleted one segment and the surface returned to zero"
+    ],
+    "finalSegmentCountBeforeForget": 1,
+    "exportForbiddenFields": 0,
+    "deletedSegments": 1,
+    "remainingSegments": 0,
+    "passed": true
+  },
+  "focusedRegression": "32/32 passed",
+  "notClaimed": [
+    "physical Windows CH1 or CH2 PASS",
+    "screen, audio, clipboard, keystroke, window title, document content, or full URL capture",
+    "actual native picker final selection in this journey; prior live evidence observed the picker and this journey uses the same server action with an isolated deterministic root selector",
+    "raw activity is Memory, persona, occupation, or preference evidence",
+    "S3-WA or S3-HQ completion"
+  ],
+  "passed": true
+}

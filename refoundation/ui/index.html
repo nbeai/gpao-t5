@@ -2602,9 +2602,12 @@ const SET_RENDER = {
           const privateApp = document.createElement('button'); privateApp.className = 'connection-button'; privateApp.textContent = appState.privateMode ? 'private mode 끝내기' : 'private mode';
           privateApp.onclick = () => appAct('/app-activity/action', { action: appState.privateMode ? 'private_off' : 'private_on' });
           const exportApp = document.createElement('button'); exportApp.className = 'connection-button'; exportApp.textContent = '내보내기'; exportApp.onclick = async () => {
-            const response = await fetch('/app-activity/export'); if (!response.ok) return; const value = await response.json();
-            const href = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' })); const link = document.createElement('a');
-            link.href = href; link.download = 't5-app-activity.json'; link.click(); URL.revokeObjectURL(href);
+            exportApp.disabled = true; exportApp.textContent = '내보내는 중…';
+            try { const response = await fetch('/app-activity/export'); if (!response.ok) throw new Error('export unavailable'); const value = await response.json();
+              const href = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' })); const link = document.createElement('a');
+              link.href = href; link.download = 't5-app-activity.json'; link.click(); URL.revokeObjectURL(href); exportApp.textContent = '내보냈어요';
+            } catch { exportApp.textContent = '내보내지 못했어요'; }
+            setTimeout(() => { exportApp.disabled = false; exportApp.textContent = '내보내기'; }, 1500);
           };
           const forgetApp = document.createElement('button'); forgetApp.className = 'connection-button'; forgetApp.textContent = '기록 모두 지우기';
           forgetApp.onclick = () => { if (confirm('앱 활동 기록을 모두 지울까요?')) appAct('/app-activity/action', { action: 'forget' }); };

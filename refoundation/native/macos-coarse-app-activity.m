@@ -1,10 +1,14 @@
 #import <AppKit/AppKit.h>
 #import <CoreGraphics/CoreGraphics.h>
 #include <math.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+static volatile sig_atomic_t stop_requested=0;
+static void request_stop(int signal_number){(void)signal_number;stop_requested=1;}
 
 static void json_string(const char *value){putchar('"');for(const unsigned char *p=(const unsigned char *)value;*p;p++){
   if(*p=='"'||*p=='\\'){putchar('\\');putchar(*p);}else if(*p<0x20)printf("\\u%04x",*p);else putchar(*p);}putchar('"');}
@@ -25,10 +29,11 @@ int main(int argc,char **argv){double seconds=3.0,interval=0.25,afkThreshold=300
   else if(!strcmp(argv[i],"--interval")&&i+1<argc){interval=strtod(argv[i+1],NULL);i+=2;}
   else if(!strcmp(argv[i],"--afk-seconds")&&i+1<argc){afkThreshold=strtod(argv[i+1],NULL);i+=2;}else return 64;}
   if(seconds<=0||seconds>86400||interval<0.1||interval>60||afkThreshold<5||afkThreshold>86400)return 64;
+  signal(SIGTERM,request_stop);signal(SIGINT,request_stop);
   @autoreleasepool{printf("{\"kind\":\"ready\"}\n");fflush(stdout);NSRunningApplication *app=NSWorkspace.sharedWorkspace.frontmostApplication;
     NSString *identity=app_identity(app),*label=app_label(app);char currentAfk[16];strcpy(currentAfk,afk_state(afkThreshold));
     long long start=epoch_ms(),deadline=start+(long long)llround(seconds*1000.0);unsigned long long sequence=0;
-    while(epoch_ms()<deadline){usleep((useconds_t)llround(interval*1000000.0));@autoreleasepool{NSRunningApplication *next=NSWorkspace.sharedWorkspace.frontmostApplication;
+    while(!stop_requested&&epoch_ms()<deadline){usleep((useconds_t)llround(interval*1000000.0));@autoreleasepool{NSRunningApplication *next=NSWorkspace.sharedWorkspace.frontmostApplication;
       NSString *nextIdentity=app_identity(next),*nextLabel=app_label(next);const char *nextAfk=afk_state(afkThreshold);long long now=epoch_ms();
       if(![identity isEqualToString:nextIdentity]||strcmp(currentAfk,nextAfk)){emit_segment(identity,label,currentAfk,start,now,++sequence);
         identity=[nextIdentity copy];label=[nextLabel copy];strncpy(currentAfk,nextAfk,sizeof(currentAfk)-1);currentAfk[sizeof(currentAfk)-1]='\0';start=now;}}}
