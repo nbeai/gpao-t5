@@ -1,0 +1,32 @@
+{
+  "schema": "t5.third-alpha.source-completion.v1",
+  "recordedOn": "2026-08-27",
+  "status": "PASS",
+  "completedStages": ["alpha0", "alpha1", "alpha2-streaming-v2", "alpha3", "alpha4", "alpha5", "alpha6"],
+  "finalUserJourneys": {
+    "LF-H01": "UI-independent resident runtime, drain, sleep-gap and restart recovery remain qualified in the full regression.",
+    "LF-H02": "A 500-page local document selects and reopens the exact late-page evidence while transmission truth records selected excerpts.",
+    "LF-H03": "An existing authenticated CLI executes once, the primary model transport fails, and an allowed fallback completes from canonical ToolReceipt state without reexecution.",
+    "LF-H04": "Encrypted whole-state streaming backup, cross-root restore and resident activation remain qualified without credential or blind-effect migration."
+  },
+  "comparison": {
+    "method": "pinned OpenClaw, Hermes and Codex source audit plus T5 product countertests; closed-source products used only as documented surface references",
+    "t5ObservedAdvantage": "T5 binds both credential destination and exact capability action while keeping canonical user state, transmission receipts, backup and deletion ownership local. The inspected broad-shell comparator paths do not provide this complete action-bound local ownership contract.",
+    "numericRuntimeBenchmarkClaimed": false
+  },
+  "verification": {
+    "dailyCheck": { "tests": 1570, "passed": 1569, "failed": 0, "skipped": 1 },
+    "finalAuthenticatedCliContinuityScenario": { "tests": 1, "passed": 1, "failed": 0 },
+    "productIntegration": { "tests": 185, "passed": 183, "failed": 0, "skipped": 2 },
+    "mutation": { "killed": 2, "survived": 0 },
+    "realProviderCallsForAlpha5And6": 0,
+    "externalEffectsForAlpha5And6": 0
+  },
+  "notClaimed": [
+    "macOS installed-product qualification",
+    "Windows installed-product qualification",
+    "signed and notarized current-source release",
+    "numeric speed or cost superiority over every comparator"
+  ],
+  "next": "Begin separate macOS product and installation qualification, then Windows product and installation qualification."
+}

@@ -10,6 +10,7 @@ import {
 } from './chatgpt-oauth-credential.js';
 import { makePromptDumper } from './prompt-dump.js';
 import { interactionCore } from './interaction-core.js';
+import { makeModelContinuity } from './model-continuity.js';
 
 export function consoleInstructions(workspace, computer = {}, { interactionCoreMode = 'v5' } = {}) {
   const core = interactionCore(interactionCoreMode);
@@ -108,7 +109,9 @@ export function makeConsoleModelAccess({
 
   return {
     async status() {
-      const connections = await catalog.list();
+      const [connections, continuityPolicy] = await Promise.all([
+        catalog.list(), catalog.continuityPolicy(),
+      ]);
       const active = connections.find((connection) => connection.active) ?? connections[0] ?? null;
       return {
         connected: Boolean(active),
@@ -117,49 +120,57 @@ export function makeConsoleModelAccess({
         activeId: active?.id ?? null,
         connections,
         capabilityManifest: active?.capabilityManifest ?? null,
+        continuityPolicy,
       };
     },
     async model({ sessionId, workspace, computer, instructionsOverride }) {
-      const selected = await catalog.select();
       const dumpRoot = join(stateDir, 'diagnostics', sessionId, `${Date.now()}`);
       const diagnostics = process.env.T5_REFOUNDATION_PROMPT_DUMP === '1';
       const instructions = typeof instructionsOverride === 'string'
         ? instructionsOverride : consoleInstructions(workspace, computer);
-      if (selected.kind === 'chatgpt_oauth') {
-        const responseDumper = diagnostics ? makePromptDumper({ directory: join(dumpRoot, 'response') }) : null;
-        return Object.assign(makeChatGptResponsesModel({
-          credentials: makeStoredChatGptCredentialSource({ file: connectionFile, fetchImpl, secretStore }),
-          model: selected.modelId,
-          instructions,
-          fetchImpl,
-          ...(diagnostics ? {
-            dump: makePromptDumper({ directory: join(dumpRoot, 'prompt') }),
-            observeResponse: ({ status, raw }) => responseDumper({
-              body: { raw }, meta: { provider: 'chatgpt_oauth', status },
-            }),
-          } : {}),
-        }), { capabilities: selected.capabilityManifest });
-      }
-      const base = String(selected.baseUrl ?? 'https://api.openai.com/v1').replace(/\/$/, '');
-      const common = {
-        apiKey: selected.apiKey, model: selected.modelId, instructions, fetchImpl,
-        ...(diagnostics ? { dump: makePromptDumper({
-          directory: join(dumpRoot, 'prompt'), sensitiveValues: [selected.apiKey],
-        }) } : {}),
+      const makeSelected = async (connectionId, slot) => {
+        const selected = await catalog.select(connectionId);
+        const candidateDump = join(dumpRoot, `connection-${slot}`);
+        if (selected.kind === 'chatgpt_oauth') {
+          const responseDumper = diagnostics ? makePromptDumper({ directory: join(candidateDump, 'response') }) : null;
+          return Object.assign(makeChatGptResponsesModel({
+            credentials: makeStoredChatGptCredentialSource({ file: connectionFile, fetchImpl, secretStore }),
+            model: selected.modelId, instructions, fetchImpl,
+            ...(diagnostics ? {
+              dump: makePromptDumper({ directory: join(candidateDump, 'prompt') }),
+              observeResponse: ({ status, raw }) => responseDumper({
+                body: { raw }, meta: { provider: 'chatgpt_oauth', status },
+              }),
+            } : {}),
+          }), { capabilities: selected.capabilityManifest });
+        }
+        const base = String(selected.baseUrl ?? 'https://api.openai.com/v1').replace(/\/$/, '');
+        const common = {
+          apiKey: selected.apiKey, model: selected.modelId, instructions, fetchImpl,
+          ...(diagnostics ? { dump: makePromptDumper({
+            directory: join(candidateDump, 'prompt'), sensitiveValues: [selected.apiKey],
+          }) } : {}),
+        };
+        if (selected.provider === 'openai') return Object.assign(
+          makeOpenAIResponsesModel({ ...common, endpoint: `${base}/responses` }), { capabilities: selected.capabilityManifest });
+        if (selected.provider === 'anthropic') return Object.assign(
+          makeAnthropicMessagesModel({ ...common, endpoint: `${base}/v1/messages` }), { capabilities: selected.capabilityManifest });
+        if (selected.provider === 'gemini') return Object.assign(
+          makeGeminiGenerateContentModel({ ...common, baseUrl: base }), { capabilities: selected.capabilityManifest });
+        if (selected.provider === 'upstage') return Object.assign(
+          makeUpstageChatCompletionsModel({ ...common, endpoint: `${base}/chat/completions` }), { capabilities: selected.capabilityManifest });
+        throw new Error(`Unsupported API provider: ${selected.provider}`);
       };
-      if (selected.provider === 'openai') {
-        return Object.assign(makeOpenAIResponsesModel({ ...common, endpoint: `${base}/responses` }), { capabilities: selected.capabilityManifest });
-      }
-      if (selected.provider === 'anthropic') {
-        return Object.assign(makeAnthropicMessagesModel({ ...common, endpoint: `${base}/v1/messages` }), { capabilities: selected.capabilityManifest });
-      }
-      if (selected.provider === 'gemini') {
-        return Object.assign(makeGeminiGenerateContentModel({ ...common, baseUrl: base }), { capabilities: selected.capabilityManifest });
-      }
-      if (selected.provider === 'upstage') {
-        return Object.assign(makeUpstageChatCompletionsModel({ ...common, endpoint: `${base}/chat/completions` }), { capabilities: selected.capabilityManifest });
-      }
-      throw new Error(`Unsupported API provider: ${selected.provider}`);
+      const [connections, policy] = await Promise.all([catalog.list(), catalog.continuityPolicy()]);
+      const active = connections.find((item) => item.active) ?? connections[0];
+      if (!active) throw new Error('No stored model connection is available');
+      const allowed = policy.enabled ? policy.allowedConnectionIds : [];
+      const ordered = [active, ...allowed.map((id) => connections.find((item) => item.id === id))
+        .filter((item) => item && item.id !== active.id)];
+      if (ordered.length === 1) return makeSelected(active.id, 0);
+      return makeModelContinuity({ connections: ordered.map((item, index) => ({
+        ...item, create: () => makeSelected(item.id, index),
+      })) });
     },
   };
 }

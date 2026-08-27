@@ -1,0 +1,31 @@
+{
+  "schema": "t5.alpha5.model-continuity-completion.v1",
+  "recordedOn": "2026-08-27",
+  "baselineSourceCommit": "e3e99ba3",
+  "status": "PASS",
+  "completionSentence": "주 모델 transport가 실패해도 허용된 다른 모델이 같은 Work를 이어가며, 부분 답을 최종 답으로 저장하거나 이미 실행한 Tool·외부 효과를 반복하지 않는다.",
+  "qualified": [
+    "Fallback is disabled by default and uses only connection ids explicitly allowed by the user policy.",
+    "Only transport, provider health, credential and required-capability failures admit another model; quality, invalid tool arguments, HTTP 400 and user cancellation do not.",
+    "The next model receives canonical T5 messages and ToolReceipts, never a provider raw transcript.",
+    "A successful exact Tool call requested again immediately after fallback is returned as not_executed before dispatch.",
+    "An already-authenticated GitHub CLI read followed by primary-model transport failure completes through the fallback model with one CLI execution.",
+    "A partial or failed provider response is not published as the final user answer.",
+    "Every transition is durably recorded as t5.model-continuity-receipt.v1 and projected without credentials."
+  ],
+  "verification": {
+    "focused": { "tests": 20, "passed": 20, "failed": 0 },
+    "dailyCheck": { "tests": 1570, "passed": 1569, "failed": 0, "skipped": 1 },
+    "finalAuthenticatedCliContinuityScenario": { "tests": 1, "passed": 1, "failed": 0 },
+    "productIntegration": { "tests": 185, "passed": 183, "failed": 0, "skipped": 2 },
+    "mutation": { "killed": 2, "survived": 0 },
+    "realProviderCalls": 0,
+    "externalEffects": 0
+  },
+  "notClaimed": [
+    "Automatic cycling for answer quality",
+    "Fallback to a connection the user did not allow",
+    "Live outage qualification for every provider pair",
+    "Physical Windows provider qualification"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "schema": "t5.alpha6.local-ownership-completion.v1",
+  "recordedOn": "2026-08-27",
+  "baselineSourceCommit": "e3e99ba3",
+  "status": "PASS",
+  "completionSentence": "사용자는 자신의 T5 자료가 어디에 있고 무엇이 기록되며 어떤 정보가 어느 모델·외부 서비스로 나갔는지 이해하고, T5 전체를 멈추고 백업하고 옮기고 지울 수 있다.",
+  "qualified": [
+    "One local ownership surface shows UI-independent runtime truth, local conversation-memory-work-automation counts, current model and continuity policy, recent transmission categories, connections, activity recording, backup and deletion scope.",
+    "The surface contains no canonical ids, local absolute paths, wire digests, credential values or provider raw transcript.",
+    "Unknown provider retention and training behavior remains explicitly unknown rather than inferred from local execution.",
+    "Encrypted whole-state backup and isolated restore remain the existing product actions on the same settings page.",
+    "Local full delete requires two user confirmations and an exact server acknowledgement that external-service copies and separate backup files remain.",
+    "Deletion drains the resident runtime, releases ownership and removes only the configured local T5 state root."
+  ],
+  "verification": {
+    "focused": { "tests": 19, "passed": 19, "failed": 0 },
+    "dailyCheck": { "tests": 1570, "passed": 1569, "failed": 0, "skipped": 1 },
+    "productIntegration": { "tests": 185, "passed": 183, "failed": 0, "skipped": 2 },
+    "mutation": { "killed": 2, "survived": 0 },
+    "externalDeletes": 0
+  },
+  "notClaimed": [
+    "Deletion of provider or external-service copies",
+    "Deletion of backup files stored separately by the user",
+    "Knowledge of provider-side retention, training or deletion policy",
+    "Physical installed-product delete qualification on macOS or Windows"
+  ]
+}

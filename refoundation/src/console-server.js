@@ -1973,6 +1973,10 @@ export function makeConsoleServer({
           } else if (event.type === 'model_transmission') {
             await run.append({ type: 'model_transmission_attempted', stepId: `model-wire-${event.turn}`,
               payload: { turn: event.turn, transmissionReceipt: event.transmissionReceipt } });
+          } else if (event.type === 'model_continuity') {
+            await run.append({ type: 'model_continuity_transition', stepId: `model-continuity-${event.turn}`,
+              payload: { turn: event.turn, receipt: event.receipt } });
+            publishProgress('trace_status', '모델 연결을 바꿔 같은 작업을 이어가고 있어요.', 'model');
           } else if (event.type === 'information_projection') {
             await run.append({
               type: 'information_projection',
@@ -3570,6 +3574,83 @@ export function makeConsoleServer({
         items.sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
         privateJson(res, 200, { items: items.slice(0, limit), contentIncluded: false }); return;
       }
+      if (req.method === 'GET' && url.pathname === '/ownership') {
+        const [modelState, connectionReport, memoryState, workState, sessionList,
+          fileActivity, appActivity] = await Promise.all([
+          status(), connectionDoctor.inspect(), memories.read(), workStore.read(), sessions.list(),
+          fileActivityService?.status?.().catch(() => null) ?? null,
+          appActivityService?.status?.().catch(() => null) ?? null,
+        ]);
+        let recentTransmission = null; let recentContinuity = null;
+        for (const run of await runLedger.list()) {
+          for (const event of run.events) {
+            if (event.type === 'model_transmission_attempted' && event.payload?.transmissionReceipt) {
+              const projected = projectTransmissionReceipt(event.payload.transmissionReceipt);
+              if (!recentTransmission || event.recordedAt > recentTransmission.recordedAt) {
+                recentTransmission = { recordedAt: event.recordedAt, ...projected };
+              }
+            }
+            if (event.type === 'model_continuity_transition' && event.payload?.receipt) {
+              const receipt = event.payload.receipt;
+              if (!recentContinuity || event.recordedAt > recentContinuity.recordedAt) recentContinuity = {
+                recordedAt: event.recordedAt,
+                from: { provider: receipt.from?.provider ?? 'unknown', modelId: receipt.from?.modelId ?? 'unknown' },
+                to: { provider: receipt.to?.provider ?? 'unknown', modelId: receipt.to?.modelId ?? 'unknown' },
+                reason: receipt.reason,
+                canonicalStateUsed: receipt.stateSource === 'canonical_t5_messages_and_tool_receipts',
+                priorEffectsReexecutionAuthorized: receipt.priorToolEffectsReexecutionAuthorized === true,
+              };
+            }
+          }
+        }
+        privateJson(res, 200, {
+          schema: 't5.local-ownership-surface.v1',
+          runtime: { state: runtimeAcceptingWork ? 'running' : 'stopping', uiIndependent: true,
+            computerMustBeAwake: true, userSafeSummary: 'T5의 본체와 기록은 이 컴퓨터에서 작동해요.' },
+          localState: {
+            conversations: sessionList.length, memories: memoryState.claims?.length ?? memoryState.items?.length ?? 0,
+            works: workState.works?.length ?? 0, automations: (await automationStore.publicList()).jobs?.length ?? 0,
+            storedOnThisComputer: true,
+          },
+          model: {
+            provider: modelState.provider, modelId: modelState.modelId,
+            continuityPolicy: modelState.continuityPolicy ?? { enabled: false, allowedConnectionIds: [] },
+            providerRetentionAndTraining: 'external_provider_policy_not_observed',
+            recentContinuity,
+          },
+          transmission: { recent: recentTransmission, contentIncludedInThisSurface: false },
+          connections: connectionReport.connections.map((item) => ({
+            label: item.label, category: item.category, state: item.state,
+            userSafeSummary: item.userSafeSummary,
+          })),
+          activity: {
+            files: fileActivity ? { enabled: fileActivity.enabled === true, userSafeSummary: fileActivity.userSafeSummary } : null,
+            apps: appActivity ? { enabled: appActivity.enabled === true, privateMode: appActivity.privateMode === true,
+              userSafeSummary: appActivity.userSafeSummary } : null,
+          },
+          backup: { available: true, encrypted: true, secretValuesExcluded: true,
+            externalServiceCopiesIncluded: false },
+          deletion: {
+            localManagedStateOnly: true, externalServiceCopiesDeleted: false,
+            separateBackupFilesDeleted: false, userConfirmationRequired: true,
+          },
+        }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/ownership/delete-local') {
+        const input = await body(req);
+        if (input.confirm !== true || input.externalCopiesRemain !== true || input.backupsRemain !== true
+          || Object.keys(input).some((key) => !['confirm', 'externalCopiesRemain', 'backupsRemain'].includes(key))) {
+          json(res, 400, { error: '이 컴퓨터의 T5 자료 삭제 범위를 다시 확인해 주세요.' }); return;
+        }
+        if (typeof requestRuntimeStop !== 'function') {
+          json(res, 503, { error: '이 실행 방식에서는 전체 삭제를 사용할 수 없어요.' }); return;
+        }
+        runtimeAcceptingWork = false;
+        json(res, 202, { accepted: true,
+          userSafeSummary: '이 컴퓨터의 T5 관리 자료를 지우고 T5를 완전히 꺼요. 외부 서비스 사본과 별도 백업 파일은 지우지 않아요.' });
+        setTimeout(() => Promise.resolve(requestRuntimeStop('user_delete_local_state')).catch((error) => onError?.(error)), 0);
+        return;
+      }
       if (req.method === 'POST' && url.pathname === '/backup/create') {
         const input = await body(req);
         if (Object.keys(input).length !== 1 || typeof input.password !== 'string') {
@@ -3888,11 +3969,25 @@ export function makeConsoleServer({
             unofficial: item.kind === 'chatgpt_oauth',
           })),
           activeId: connection.activeId ?? null, roleBindings: {},
+          continuityPolicy: connection.continuityPolicy ?? { enabled: false, allowedConnectionIds: [] },
         }); return;
       }
       if (req.method === 'GET' && url.pathname === '/model/providers') {
         if (!modelConnections) { json(res, 503, { error: '모델 연결 설정을 준비하지 못했어요.' }); return; }
         json(res, 200, modelConnections.providers()); return;
+      }
+      if (req.method === 'GET' && url.pathname === '/model/continuity') {
+        if (!modelConnections?.continuityPolicy) { json(res, 503, { error: '모델 이어가기 설정을 준비하지 못했어요.' }); return; }
+        json(res, 200, await modelConnections.continuityPolicy()); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/model/continuity') {
+        if (!modelConnections?.setContinuityPolicy) { json(res, 503, { error: '모델 이어가기 설정을 준비하지 못했어요.' }); return; }
+        const input = await body(req);
+        if (Object.keys(input).some((key) => !['enabled', 'allowedConnectionIds'].includes(key))
+          || !Array.isArray(input.allowedConnectionIds)) {
+          json(res, 400, { error: '모델 이어가기 범위가 올바르지 않아요.' }); return;
+        }
+        json(res, 200, await modelConnections.setContinuityPolicy(input)); return;
       }
       if (req.method === 'POST' && url.pathname === '/model/connect') {
         if (!modelConnections) { json(res, 503, { error: '모델 연결 설정을 준비하지 못했어요.' }); return; }

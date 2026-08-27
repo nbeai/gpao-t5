@@ -1,6 +1,6 @@
 # T5 3차α — Local Ownership & Persistent Intelligence
 
-상태: `ALPHA0_COMPLETE · ALPHA1_COMPLETE · ALPHA2_REQUALIFIED_STREAMING_V2 · ALPHA3_COMPLETE · ALPHA4_COMPLETE · ALPHA5_MODEL_CONTINUITY_NEXT · SOURCE_SCOPE_FROZEN`
+상태: `ALPHA0_COMPLETE · ALPHA1_COMPLETE · ALPHA2_REQUALIFIED_STREAMING_V2 · ALPHA3_COMPLETE · ALPHA4_COMPLETE · ALPHA5_COMPLETE · ALPHA6_COMPLETE · THIRD_ALPHA_SOURCE_COMPLETE · MACOS_PRODUCT_QUALIFICATION_NEXT · SOURCE_SCOPE_FROZEN`
 기준 source: `5e9d10a11453df24fe77a896d59d891c423da621`
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN`
 
@@ -228,3 +228,19 @@ SQLite online snapshot과 v1 restore compatibility는
 credential·authority·execution·effect 사실은 `t5.capability-use-receipt.v1`에서 분리된다. 일반 Terminal 격리가
 자격되지 않은 Windows에서는 authenticated CLI broker를 열지 않는다. 다음 한 작업은 α5 Model Continuity &
 Transport Fallback이다.
+
+α5 Model Continuity & Transport Fallback은
+`refoundation/evidence/alpha5-model-continuity-completion-2026-08-27.json`에서 통과했다. 사용자 정책에 명시된
+연결만 transport·health·credential·required capability 장애에 admission하며, 새 모델은 provider raw transcript가
+아니라 canonical T5 message·ToolReceipt를 읽는다. fallback 직후 이미 성공한 exact Tool 호출은 실행 전에
+`already_executed_before_model_fallback`으로 닫히며 품질·형식 오류와 사용자 취소는 자동 순회 사유가 아니다.
+
+α6 Local Ownership UX는 `refoundation/evidence/alpha6-local-ownership-completion-2026-08-27.json`에서 통과했다.
+기존 설정에 `내 T5와 자료` 표면을 추가해 상주 Runtime, 로컬 대화·기억·작업·자동화, 현재 모델·최근 전송·전환,
+외부 연결, 활동 기록, 암호화 백업·복원과 삭제 범위를 일반 사용자 문장으로 모았다. 전체 삭제는 두 번 확인한 뒤
+이 컴퓨터의 T5 관리 state만 drain·owner release 뒤 제거하며 provider·외부 서비스 사본과 별도 backup 삭제를
+주장하지 않는다.
+
+α1~6의 최종 LF-H01~04 결속과 비교 source audit는
+`refoundation/evidence/third-alpha-source-completion-2026-08-27.json`에서 닫혔다. 3차α source는 완료됐으며 다음
+개발선은 이 문서가 분리한 macOS 제품·설치 자격, 그다음 Windows 제품·설치 자격이다.

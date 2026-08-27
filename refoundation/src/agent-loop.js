@@ -27,6 +27,7 @@ function normalizeResponse(response) {
     usage: response?.usage ?? null,
     contextReceipt: response?.contextReceipt ?? null,
     transmissionReceipt: response?.transmissionReceipt ?? null,
+    continuityReceipt: response?.continuityReceipt ?? null,
   };
 }
 
@@ -38,7 +39,21 @@ function requestedCall(call) {
   };
 }
 
+function stableValue(value) {
+  if (Array.isArray(value)) return value.map(stableValue);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stableValue(value[key])]));
+}
+
+function duplicateAfterContinuity(response, receipts, requested) {
+  if (!response.continuityReceipt) return false;
+  const signature = JSON.stringify([requested.name, stableValue(requested.args)]);
+  return receipts.some((receipt) => receipt.outcome === 'succeeded' && receipt.actualCall
+    && JSON.stringify([receipt.actualCall.name, stableValue(receipt.actualCall.args)]) === signature);
+}
+
 function modelBlockedReason(reason) {
+  if (reason === 'model_continuity_duplicate_tool') return 'already_executed_before_model_fallback';
   if (reason === 'unknown_effect_reexecution') return 'effect_unknown_requires_observation';
   if (reason === 'observed_hand_globally_unavailable') return 'hand_observed_globally_unavailable';
   if (reason === 'verified_runaway_after_model_recovery') return 'no_new_evidence_after_selected_recovery';
@@ -426,6 +441,11 @@ export async function runAgent({
       ...(response.usage ? { usage: structuredClone(response.usage) } : {}),
       ...(response.contextReceipt ? { contextReceipt: structuredClone(response.contextReceipt) } : {}),
       ...(response.transmissionReceipt ? { transmissionReceipt: structuredClone(response.transmissionReceipt) } : {}),
+      ...(response.continuityReceipt ? { continuityReceipt: structuredClone(response.continuityReceipt) } : {}),
+    });
+    if (response.continuityReceipt) await onEvent?.({
+      type: 'model_continuity', turn: modelTurns,
+      receipt: structuredClone(response.continuityReceipt),
     });
     const reportedTokens = Number(response.usage?.total_tokens);
     if (Number.isFinite(reportedTokens) && reportedTokens > 0) providerTokens += reportedTokens;
@@ -442,6 +462,7 @@ export async function runAgent({
         usage: structuredClone(response.usage),
         contextReceipt: structuredClone(response.contextReceipt),
         ...(response.transmissionReceipt ? { transmissionReceipt: structuredClone(response.transmissionReceipt) } : {}),
+        ...(response.continuityReceipt ? { continuityReceipt: structuredClone(response.continuityReceipt) } : {}),
       },
     });
     if (providerBudgetExceeded) {
@@ -563,7 +584,9 @@ export async function runAgent({
           throw error;
         }
         return { call, requested, tool: registry.get(requested.name),
-          control: forcedRunBlock ?? intervention.inspect(call) };
+          control: duplicateAfterContinuity(response, receipts, requested)
+            ? { action: 'block', reason: 'model_continuity_duplicate_tool' }
+            : forcedRunBlock ?? intervention.inspect(call) };
       });
       const executable = prepared.filter((item) => item.control.action === 'execute');
       if (!executable.length && prepared.some((item) => item.control.action === 'stop')) {
@@ -638,7 +661,9 @@ export async function runAgent({
           error.reason = 'run_resource_budget_exceeded';
           error.resource = 'tool_calls'; error.used = toolCalls; error.limit = maxToolCalls; throw error;
         }
-        const control = forcedRunBlock ?? intervention.inspect(call);
+        const control = duplicateAfterContinuity(response, receipts, requested)
+          ? { action: 'block', reason: 'model_continuity_duplicate_tool' }
+          : forcedRunBlock ?? intervention.inspect(call);
         if (control.action === 'stop') {
           await onEvent?.({ type: 'resource_intervention', turn: modelTurns,
             action: 'run_stopped', reason: control.reason, tool: requested.name,

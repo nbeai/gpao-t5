@@ -365,6 +365,26 @@ export function makeStoredModelCredentialCatalog({
       await saveState(file, state);
       return { activeId: id };
     },
+    async continuityPolicy() {
+      const state = await readState(file);
+      const ids = new Set((state?.connections ?? []).map((connection) => connection.id));
+      const configured = state?.continuityPolicy;
+      return {
+        enabled: configured?.enabled === true,
+        allowedConnectionIds: [...new Set((configured?.allowedConnectionIds ?? [])
+          .map(String).filter((id) => ids.has(id)))],
+      };
+    },
+    async setContinuityPolicy({ enabled = false, allowedConnectionIds = [] } = {}) {
+      const state = await readState(file);
+      if (!state?.connections) throw new ModelConnectionError('No model connections are available');
+      const ids = new Set(state.connections.map((connection) => connection.id));
+      const allowed = [...new Set(allowedConnectionIds.map(String))];
+      if (allowed.some((id) => !ids.has(id))) throw new ModelConnectionError('Fallback connection not found');
+      state.continuityPolicy = { enabled: enabled === true, allowedConnectionIds: allowed };
+      await saveState(file, state);
+      return structuredClone(state.continuityPolicy);
+    },
     async remove(id) {
       const state = await readState(file);
       if (!state?.connections) throw new ModelConnectionError('Model connection not found');
@@ -375,6 +395,11 @@ export function makeStoredModelCredentialCatalog({
         ...state,
         connections: next,
         activeId: state.activeId === id ? next[0]?.id ?? null : state.activeId,
+        continuityPolicy: state.continuityPolicy ? {
+          ...state.continuityPolicy,
+          allowedConnectionIds: (state.continuityPolicy.allowedConnectionIds ?? [])
+            .filter((candidate) => candidate !== id),
+        } : undefined,
       };
       // The public connection state is the owner of the secret reference. Commit its removal
       // first so a disk/rename failure cannot leave live metadata pointing at an already-deleted

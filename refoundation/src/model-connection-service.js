@@ -32,6 +32,8 @@ export function makeModelConnectionService({
   return {
     providers: modelConnectionProviders,
     list: () => catalog.list(),
+    continuityPolicy: () => catalog.continuityPolicy(),
+    setContinuityPolicy: (input) => catalog.setContinuityPolicy(input),
     activate: (id) => catalog.activate(id),
     remove: (id) => catalog.remove(id),
     async disconnect(id) {

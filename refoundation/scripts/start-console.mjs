@@ -304,7 +304,7 @@ async function boundedShutdown(work, timeoutMs = 2_500) {
   ]).finally(() => clearTimeout(timer));
 }
 
-const stop = async () => {
+const stop = async (reason = 'runtime_signal') => {
   if (stopping) return;
   stopping = true;
   server.beginRuntimeDrain();
@@ -332,6 +332,7 @@ const stop = async () => {
     reason: 'runtime_stop_requested' }).catch(() => {});
   await runtimeOwnership.release(runtimeLease.claim).catch(() => {});
   if (portFile) await rm(portFile, { force: true }).catch(() => {});
+  if (reason === 'user_delete_local_state') await rm(stateDir, { recursive: true, force: true });
   process.exit(0);
 };
 resolveRuntimeStopRequest(stop);
