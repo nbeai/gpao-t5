@@ -1,6 +1,6 @@
 # T5 3차α — Local Ownership & Persistent Intelligence
 
-상태: `ALPHA0_COMPLETE · ALPHA1_COMPLETE · ALPHA2_FAILURE_FIXTURE_FROZEN · ALPHA2_SNAPSHOT_BOUNDARY_NEXT · SOURCE_SCOPE_FROZEN`
+상태: `ALPHA0_COMPLETE · ALPHA1_COMPLETE · ALPHA2_FAILURE_FIXTURE_FROZEN · ALPHA2_COMPONENT_REGISTRY_PASS · ALPHA2_SNAPSHOT_COPY_NEXT · SOURCE_SCOPE_FROZEN`
 기준 source: `5e9d10a11453df24fe77a896d59d891c423da621`
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN`
 
@@ -204,3 +204,6 @@ UI 종료와 다른 명시적 `T5 완전히 끄기`는 실행 중 Work의 `inter
 `refoundation/config/alpha2-whole-state-incidents.json`에 고정했다. 기존 Memory export나 개별 Activity export를
 전체 백업으로 승격하지 않는다. 다음 한 작업은 Conversation·Memory·Work·Automation·History·Artifact·Capability
 관계를 같은 stable snapshot generation으로 묶되 secret·cache·외부 사본을 포함하지 않는 component registry다.
+그 registry의 portable path·digest·restore order·secret path 차단은
+`refoundation/evidence/alpha2-component-registry-2026-08-27.json`에서 통과했다. 다음 한 작업은 등록 component의
+exact bytes를 staging generation에 복사하고 복사 후 hash가 manifest와 일치할 때만 암호화 입력으로 닫는 것이다.

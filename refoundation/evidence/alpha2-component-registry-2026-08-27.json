@@ -1,0 +1,23 @@
+{
+  "schema": "t5.alpha2.component-registry.v1",
+  "recordedOn": "2026-08-27",
+  "sourceCommit": "c94639ab",
+  "status": "PASS_PARTIAL_GATE",
+  "qualified": [
+    "portable relative component paths only",
+    "exact regular single-link file size and SHA-256 facts",
+    "required missing component fails before payload copy",
+    "registered earlier restore dependencies only",
+    "known credential-bearing file paths rejected",
+    "absolute source root omitted from manifest"
+  ],
+  "verification": { "tests": 5, "passed": 5, "failed": 0 },
+  "notCompleted": [
+    "payload staging copy and copy-after-read verification",
+    "encryption and wrong-password boundary",
+    "isolated restore relationship validation and activation",
+    "whole-state backup UI",
+    "Alpha2 completion"
+  ],
+  "next": "Copy registered exact bytes into an isolated generation staging root and reject any read-copy hash drift before encryption."
+}
