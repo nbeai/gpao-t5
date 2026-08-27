@@ -44,6 +44,9 @@ import { makeCoarseAppActivityService } from '../src/coarse-app-activity-service
 import { makeMacOSCoarseAppAdapter, makeWindowsCoarseAppAdapter } from '../src/coarse-app-activity-platform-adapters.js';
 import { ManagedProcessRegistry } from '../src/managed-process.js';
 import { resolveWindowsProductEnvironment } from '../src/windows-product-environment.js';
+import { LocalRuntimeOwnership } from '../src/durable-process-ownership.js';
+import { RuntimeContinuityLedger, makeRuntimeContinuityMonitor } from '../src/runtime-continuity.js';
+import { makeLocalNotificationService, makeMacOSNotificationAdapter } from '../src/local-notification.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -83,6 +86,14 @@ const terminalCredentialBroker = makeTerminalCredentialBroker({
 const portFileValue = option('--port-file') ?? process.env.T5_REFOUNDATION_PORT_FILE;
 const portFile = portFileValue ? resolve(portFileValue) : null;
 await Promise.all([mkdir(stateDir, { recursive: true }), mkdir(workspace, { recursive: true })]);
+const runtimeOwnership = new LocalRuntimeOwnership(join(stateDir, 'ownership'));
+const runtimeLease = await runtimeOwnership.acquire();
+if (!runtimeLease.claimed) throw Object.assign(new Error('T5 local runtime is already running'), {
+  code: 'T5_RUNTIME_OWNER_ACTIVE', owner: runtimeLease.owner,
+});
+const runtimeGenerationId = randomUUID();
+const runtimeContinuity = new RuntimeContinuityLedger(join(stateDir, 'runtime-continuity'));
+await runtimeContinuity.start({ generationId: runtimeGenerationId });
 
 const fileActivityLedger = new ScopedFileActivityLedger(join(stateDir, 'file-activity'));
 const packagedFileActivityHelper = process.platform === 'darwin'
@@ -188,6 +199,10 @@ if (slackConnection) workspaceConnectionServices.push(slackConnection);
 const localConsoleToken = randomBytes(32).toString('base64url');
 const processRegistry = new ManagedProcessRegistry({ platform: computerEnvironment.platform,
   windowsJobHost: windowsProduct?.jobCredentialHost ?? null });
+const localNotifications = makeLocalNotificationService({ deliver: process.platform === 'darwin'
+  ? makeMacOSNotificationAdapter({ spawnProcess: spawn }) : null });
+let resolveRuntimeStopRequest;
+const runtimeStopReady = new Promise((resolveStop) => { resolveRuntimeStopRequest = resolveStop; });
 const server = makeConsoleServer({
   stateDir,
   workspace,
@@ -209,6 +224,9 @@ const server = makeConsoleServer({
   fileActivityRootSelector,
   appActivityService,
   localConsoleToken,
+  runtimeOwnerToken: runtimeLease.claim.ownerToken,
+  requestRuntimeStop: async (reason) => (await runtimeStopReady)(reason),
+  notifyUser: (kind) => localNotifications.notify(kind),
   onError: (error) => console.error('[refoundation-console]', error?.message ?? error),
 });
 await new Promise((resolveListen, reject) => {
@@ -229,6 +247,11 @@ if (portFile) {
 console.log(`T5 재창립 콘솔 준비됨 → ${url}`);
 console.log(`작업 공간 → ${workspace}`);
 await server.startAutomations();
+const runtimeContinuityMonitor = makeRuntimeContinuityMonitor({ ledger: runtimeContinuity,
+  generationId: runtimeGenerationId, onGap: async () => {
+    await server.resumeQueuedWork();
+    await server.recoverAutomationPublications();
+  } });
 
 if (!process.argv.includes('--no-open')) {
   const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
@@ -250,13 +273,18 @@ async function boundedShutdown(work, timeoutMs = 2_500) {
 const stop = async () => {
   if (stopping) return;
   stopping = true;
+  server.beginRuntimeDrain();
   server.closeWakeStreams();
-  server.closeModelConnections();
   await Promise.all([
     boundedShutdown(() => server.closeMessengers()),
+    boundedShutdown(() => server.closeAutomations()),
+  ]);
+  await boundedShutdown(() => server.drainActiveWork());
+  await boundedShutdown(() => runtimeContinuityMonitor.stop());
+  server.closeModelConnections();
+  await Promise.all([
     boundedShutdown(() => server.closeBrowsers()),
     boundedShutdown(() => server.closeWorkspaceConnections()),
-    boundedShutdown(() => server.closeAutomations()),
     boundedShutdown(() => server.closeFileActivity()),
     boundedShutdown(() => server.closeAppActivity()),
     boundedShutdown(() => server.managedProcesses.stopAll('runtime_shutdown')),
@@ -266,8 +294,12 @@ const stop = async () => {
     server.closeIdleConnections?.();
     server.closeAllConnections?.();
   }), 1_000);
+  await runtimeContinuity.stop({ generationId: runtimeGenerationId,
+    reason: 'runtime_stop_requested' }).catch(() => {});
+  await runtimeOwnership.release(runtimeLease.claim).catch(() => {});
   if (portFile) await rm(portFile, { force: true }).catch(() => {});
   process.exit(0);
 };
+resolveRuntimeStopRequest(stop);
 process.once('SIGINT', stop);
 process.once('SIGTERM', stop);

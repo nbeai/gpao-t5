@@ -1,0 +1,47 @@
+{
+  "schema": "t5.alpha1.runtime-owner-foundation.v1",
+  "recordedOn": "2026-08-27",
+  "baselineSourceCommit": "5e9d10a11453df24fe77a896d59d891c423da621",
+  "officialPlan": "T5-THIRD-ALPHA.md",
+  "status": "PASS_PARTIAL_GATE",
+  "userBehaviorEnabled": "One product entry now admits exactly one local runtime for a canonical state directory and binds its generation token to the existing Automation owner.",
+  "boundariesChanged": [
+    "A durable platform-neutral PID plus random-token fence now owns the local runtime process.",
+    "The existing Telegram polling owner delegates to the same ownership principle without changing its persisted provider marker shape.",
+    "The admitted private runtime owner token binds the existing Automation owner while the public console runtime instance identity remains a separate non-secret value."
+  ],
+  "preservedPositiveControls": [
+    "Two contenders cannot own one canonical runtime state concurrently.",
+    "A dead PID can be taken over while the displaced token can no longer assert or release ownership.",
+    "A live pre-update Telegram provider marker remains authoritative to the post-refactor contender.",
+    "Telegram adopted ingress and external delivery exact-once recovery tests remain passing."
+  ],
+  "verification": {
+    "command": "node --test refoundation/test/local-runtime-ownership.test.js refoundation/test/messenger-gateway.integration.js refoundation/test/automation-owner.test.js refoundation/test/alpha1-resident-runtime-incidents.test.js",
+    "tests": 33,
+    "passed": 33,
+    "failed": 0,
+    "dailyCheck": {
+      "command": "npm run refoundation:check",
+      "tests": 1509,
+      "passed": 1508,
+      "failed": 0,
+      "skipped": 1
+    },
+    "postVisibilitySeparationTargeted": {
+      "command": "node --test refoundation/test/local-runtime-ownership.test.js refoundation/test/automation-owner.test.js",
+      "tests": 5,
+      "passed": 5,
+      "failed": 0
+    },
+    "modelCalls": 0,
+    "externalEffects": 0
+  },
+  "notCompleted": [
+    "UI process and packaged application lifecycle are still coupled to the child runtime on macOS.",
+    "Explicit full stop, service-manager restart, update drain, sleep/wake and reboot product journeys are not implemented or qualified.",
+    "No macOS or Windows native service installation or physical platform qualification was attempted.",
+    "Alpha1 and 3차Alpha are not complete."
+  ],
+  "next": "Separate UI attachment from runtime lifecycle through the platform-neutral lifecycle contract and macOS adapter, preserving one runtime owner and current canonical stores."
+}

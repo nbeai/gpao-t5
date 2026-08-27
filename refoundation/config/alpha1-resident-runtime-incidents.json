@@ -1,0 +1,102 @@
+{
+  "schema": "t5.alpha1.resident-runtime-incidents.v1",
+  "baselineSourceCommit": "5e9d10a11453df24fe77a896d59d891c423da621",
+  "userCompletionSentence": "UI를 닫아도 실행은 계속되고, sleep·재부팅 뒤에는 중단 사실과 정확한 상태를 복원해 안전하게 재개한다.",
+  "positiveControls": [
+    "local console server remains healthy when an HTTP UI client disconnects",
+    "Work, Automation, Telegram, collector, process wake and restart recovery already have independent canonical state",
+    "Telegram polling and result publication already use cross-process owner fencing"
+  ],
+  "adoptedReferencePrinciples": [
+    {
+      "source": "Hermes gateway service documentation",
+      "url": "https://hermes-agent.nousresearch.com/docs/reference/cli-commands",
+      "principle": "A headless gateway is owned by launchd or systemd and UI clients attach without owning its lifecycle."
+    },
+    {
+      "source": "Hermes gateway update documentation",
+      "url": "https://hermes-agent.nousresearch.com/docs/getting-started/updating",
+      "principle": "A service manager owns restart after update and update flow preserves a recoverable pre-update state."
+    }
+  ],
+  "notAdopted": [
+    "multiple user-configured agent profiles as the default product model",
+    "VPS, relay or remote runtime as an Alpha1 completion dependency",
+    "OS-specific service commands inside the product core",
+    "a second Work, Automation, Channel or collector state store"
+  ],
+  "incidents": [
+    {
+      "id": "A1-UI-OWNER",
+      "family": "ui_runtime_lifecycle",
+      "counterexample": "Closing or crashing every UI client must not terminate or duplicate the single local runtime.",
+      "oracle": "runtimeOwner=1, workStatePreserved=true, uiClients=0..n"
+    },
+    {
+      "id": "A1-APP-QUIT",
+      "family": "explicit_runtime_stop",
+      "counterexample": "Closing a window and explicitly choosing T5 fully off must remain different user actions.",
+      "oracle": "windowCloseDoesNotStop=true, explicitStopSettlesThenStops=true"
+    },
+    {
+      "id": "A1-OWNER-RACE",
+      "family": "cross_process_singleton",
+      "counterexample": "Two launch attempts must not create two Automation schedulers, Telegram pollers, collectors or result publishers.",
+      "oracle": "runtimeOwner=1, subordinateOwnersBoundToRuntimeGeneration=true"
+    },
+    {
+      "id": "A1-UPDATE-DRAIN",
+      "family": "runtime_update",
+      "counterexample": "An update between admission and effect settlement must not lose input or replay an external effect.",
+      "oracle": "admissionLoss=0, externalEffectDuplicates=0, successorReadsCanonicalState=true"
+    },
+    {
+      "id": "A1-CRASH-BEFORE-EFFECT",
+      "family": "crash_recovery",
+      "counterexample": "A crash before dispatch must remain not executed and allow exact safe resume.",
+      "oracle": "effectState=not_executed, resumeEligible=true"
+    },
+    {
+      "id": "A1-CRASH-AFTER-EFFECT",
+      "family": "crash_recovery",
+      "counterexample": "A crash after dispatch but before acknowledgement must become unknown and must not blind retry.",
+      "oracle": "effectState=unknown, blindRetry=0"
+    },
+    {
+      "id": "A1-SLEEP-WAKE",
+      "family": "power_transition",
+      "counterexample": "Sleep time must not be recorded as active execution and wake must reconcile overdue work from canonical time.",
+      "oracle": "sleepExecutionClaims=0, wakeReconciliation=true"
+    },
+    {
+      "id": "A1-REBOOT",
+      "family": "power_transition",
+      "counterexample": "Reboot must restore pending, interrupted and unknown as different states without invented success.",
+      "oracle": "falseSuccess=0, stateKindsPreserved=true"
+    },
+    {
+      "id": "A1-NOTIFICATION-PRIVACY",
+      "family": "native_notification",
+      "counterexample": "A locked-screen notification must not include user content, file names, counterparties, amounts or secrets by default.",
+      "oracle": "sensitivePayloadFields=0, exactWorkReopenAvailable=true"
+    },
+    {
+      "id": "A1-OFFLINE",
+      "family": "network_transition",
+      "counterexample": "Provider or channel outage must preserve local work and must not claim remote completion.",
+      "oracle": "localStatePreserved=true, remoteFalseCompletion=0"
+    },
+    {
+      "id": "A1-PLATFORM-INTERFACE",
+      "family": "platform_boundary",
+      "counterexample": "The core lifecycle contract must not encode launchd, systemd, Task Scheduler, POSIX signals or Windows handles as product meaning.",
+      "oracle": "corePlatformTerms=0, adapterFactsExplicit=true"
+    },
+    {
+      "id": "A1-STATE-DUPLICATION",
+      "family": "canonical_ownership",
+      "counterexample": "Resident Runtime must reuse current canonical stores instead of copying Work, Automation, Channel or collector truth into a daemon database.",
+      "oracle": "newCanonicalStores=0, existingStoreHeadsBound=true"
+    }
+  ]
+}

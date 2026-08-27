@@ -1,0 +1,64 @@
+{
+  "schema": "t5.alpha0.local-ownership-baseline.v1",
+  "recordedOn": "2026-08-27",
+  "baselineSourceCommit": "5e9d10a11453df24fe77a896d59d891c423da621",
+  "officialPlan": "T5-THIRD-ALPHA.md",
+  "status": "PASS",
+  "productBehaviorChanged": false,
+  "modelCalls": 0,
+  "externalWrites": 0,
+  "assessments": [
+    {
+      "id": "resident_runtime",
+      "state": "partial",
+      "measurement": "An actual local console remains healthy after its UI HTTP client disconnects; the packaged macOS applicationWillTerminate path explicitly terminates the child runtime.",
+      "alreadyEstablished": ["Automation, Telegram, collectors, managed process wake, restart recovery exist", "closing only the browser UI does not define canonical work loss"],
+      "missing": ["UI and runtime product lifecycle are not explicitly separated", "app termination ends the child runtime", "sleep, wake, update, and login-start ownership are not one qualified product journey"],
+      "firstCountertest": "close UI, retain one runtime owner, then restart and recover exact pending work without duplicate channel or effect"
+    },
+    {
+      "id": "transmission_truth_context",
+      "state": "partial",
+      "measurement": "A deterministic 500-page PDF is locally bounded to the first 20 pages with 480 omitted, so the whole document is not supplied by default; a purpose sentinel on page 421 is not found, proving purpose-selective late-page recall is still missing.",
+      "alreadyEstablished": ["A2 Information Control, ContextReceipt, RecordRef, memory pointers, CH3 and terminal output recall exist"],
+      "missing": ["actual serialized provider request has no user-facing transmission category receipt", "500-page purpose-selective document behavior is unmeasured", "not-sent scope cannot yet be reported as exact or unknown"],
+      "firstCountertest": "fixed large document purpose with exact answer and source oracle, measuring serialized provider categories and coverage"
+    },
+    {
+      "id": "existing_capability_broker",
+      "state": "partial",
+      "alreadyEstablished": ["GitHub CLI broker, terminal credential broker, Connection Truth, Notion and Remote MCP boundaries exist"],
+      "missing": ["registered authenticated CLI coverage is narrow", "local sync folder, OS capability, local CLI and remote connection do not share one user-purpose handoff", "unregistered credential reuse remains unavailable by design"],
+      "firstCountertest": "one already-authenticated registered CLI completes a real read purpose without credential exposure or re-login"
+    },
+    {
+      "id": "whole_state_backup_migration",
+      "state": "actual_failure",
+      "alreadyEstablished": ["Memory portable export, app activity export, append-only ledgers and artifact identities exist"],
+      "missing": ["no stable snapshot across Conversation, Work, Memory, Automation, History, Artifact and Capability", "no encrypted whole-state bundle", "no isolated relationship-verified restore and activation"],
+      "firstCountertest": "restartable mixed-state fixture cannot be moved to a fresh isolated HOME with secret-free exact continuity"
+    },
+    {
+      "id": "model_continuity_fallback",
+      "state": "actual_failure",
+      "alreadyEstablished": ["multiple model adapters, manual model switching and canonical model-change receipt exist"],
+      "missing": ["no automatic admission to an allowed fallback on transport failure", "partial stream finalization boundary is absent", "post-tool fallback exact non-reexecution is unqualified"],
+      "firstCountertest": "primary fails after one local tool effect and fallback finishes from canonical state with tool executions unchanged"
+    },
+    {
+      "id": "local_ownership_ux",
+      "state": "partial",
+      "alreadyEstablished": ["memory, connection, activity, Work, Effect and Artifact surfaces exist"],
+      "missing": ["no unified runtime ownership state", "no transmission truth surface", "no whole backup and restore surface", "delete scope does not yet summarize local, backup and external copies together"],
+      "firstCountertest": "a nontechnical user identifies local state, provider transmission, external copies and backup coverage without internal terms"
+    }
+  ],
+  "summary": {
+    "alreadyEstablished": 0,
+    "partial": 4,
+    "actualFailure": 2,
+    "unmeasured": 0,
+    "alphaComplete": true
+  },
+  "next": "Open Alpha1 by freezing resident-runtime ownership, lifecycle, update, sleep/wake and notification incident families before product wiring."
+}

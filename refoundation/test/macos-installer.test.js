@@ -22,13 +22,14 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.match(build, /PACKAGE_SOURCE_PATHS/u);
   assert.match(build, /'status', '--porcelain', '--', ...PACKAGE_SOURCE_PATHS/u);
   assert.match(build, /sourceScope: 'packaged-inputs'/u);
-  assert.match(build, /pkg-scripts[\s\S]*preinstall[\s\S]*tell application id/u);
+  assert.match(build, /pkg-scripts[\s\S]*preinstall[\s\S]*stop-local-runtime\.mjs[\s\S]*product_update/u);
   assert.match(build, /do shell script[\s\S]*with administrator privileges/u);
   assert.match(build, /pkgutil --forget/u);
   assert.doesNotMatch(build, /ADMIN_COMMAND=/u);
   assert.doesNotMatch(build, /set -e\nrm -rf/u);
   assert.doesNotMatch(build, /gpao-t-handoff|AuthKey_|signing-private/u);
-  assert.match(launcher, /start-console\.mjs/u);
+  assert.match(launcher, /ensure-local-runtime\.mjs/u);
+  assert.doesNotMatch(launcher, /applicationWillTerminate[\s\S]*\[self\.child terminate\]/u);
   assert.doesNotMatch(launcher, /connect-chatgpt\.mjs|startOAuth/u);
   assert.match(launcher, /applicationDidFinishLaunching[\s\S]*?\[self startConsole\]/u);
   assert.match(launcher, /T5_REFOUNDATION_MODEL_CONNECTION_FILE/u);

@@ -1,0 +1,45 @@
+{
+  "schema": "t5.alpha1.ui-runtime-lifecycle.v1",
+  "recordedOn": "2026-08-27",
+  "baselineSourceCommit": "5e9d10a11453df24fe77a896d59d891c423da621",
+  "officialPlan": "T5-THIRD-ALPHA.md",
+  "status": "PASS_PARTIAL_GATE",
+  "userBehaviorEnabled": "Closing the UI or the native bootstrap no longer terminates the one local runtime, and opening T5 again attaches to that same healthy runtime.",
+  "productFlowObserved": {
+    "environment": "isolated HOME, state and workspace with loopback only",
+    "bootstrapExited": true,
+    "runtimeRemainedHealthy": true,
+    "secondAttachUsedSamePid": true,
+    "modelCalls": 0,
+    "externalEffects": 0
+  },
+  "boundariesChanged": [
+    "A platform-neutral health observation, one-start request and attach contract now decides runtime attachment from facts only.",
+    "The bootstrap starts the console as a detached process and exits only after exact local health is observed.",
+    "The macOS launcher no longer owns or terminates the runtime child.",
+    "The Windows launcher uses the same attach entry and reopens the healthy console after bootstrap completion.",
+    "macOS and Windows package recipes include both the attach entry and canonical console entry."
+  ],
+  "verification": {
+    "focused": {
+      "tests": 47,
+      "passed": 47,
+      "failed": 0
+    },
+    "dailyCheck": {
+      "command": "npm run refoundation:check",
+      "tests": 1513,
+      "passed": 1512,
+      "failed": 0,
+      "skipped": 1
+    }
+  },
+  "notCompleted": [
+    "The explicit full-stop user action is not yet distinct and qualified.",
+    "Installer update and uninstall do not yet drain and stop the resident runtime.",
+    "Sleep, wake, reboot and login-start recovery are not yet qualified.",
+    "No signed package, notarization or physical Windows qualification was attempted.",
+    "Alpha1 and 3차Alpha are not complete."
+  ],
+  "next": "Add an explicit bounded full-stop and bind update and uninstall to canonical drain without making UI close a stop signal."
+}

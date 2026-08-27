@@ -1,0 +1,45 @@
+{
+  "schema": "t5.alpha1.resident-runtime-completion.v1",
+  "recordedOn": "2026-08-27",
+  "baselineSourceCommit": "5e9d10a11453df24fe77a896d59d891c423da621",
+  "officialPlan": "T5-THIRD-ALPHA.md",
+  "status": "PASS",
+  "completionSentence": "UI를 닫아도 실행은 계속되고, sleep·재부팅 뒤에는 중단 사실과 정확한 상태를 복원해 안전하게 재개한다.",
+  "qualified": [
+    "One private token-fenced runtime owns one canonical state while UI clients attach zero to many.",
+    "Closing UI and native bootstrap does not stop runtime; explicit full stop drains active Work as interrupted_resumable and releases PID, port and owner.",
+    "Update and uninstall refuse replacement when exact runtime drain fails; successor reopens the same canonical state without force kill.",
+    "A wall-clock sleep gap never claims execution and reopens queued Work and Automation publication reconciliation.",
+    "Crash or reboot without a clean stop is recorded as interrupted with no execution claimed during downtime.",
+    "macOS LaunchAgent and Windows Startup bootstrap the common headless attach entry once at login without owning product meaning in core.",
+    "Automation notifications use fixed generic copy with zero content, file name, counterparty, amount or secret fields.",
+    "Telegram polling, Automation occurrence and result delivery retain their existing exact owner and non-replay controls."
+  ],
+  "verification": {
+    "alpha1Focused": { "tests": 70, "passed": 70, "failed": 0 },
+    "dailyCheck": { "tests": 1526, "passed": 1525, "failed": 0, "skipped": 1 },
+    "fullCi": {
+      "unit": { "passed": 1525, "failed": 0, "skipped": 1 },
+      "integration": { "passed": 172, "failed": 0, "skipped": 2 },
+      "mutation": { "killed": 2, "survived": 0 }
+    },
+    "postCiLegacyUpgradeCompatibility": { "tests": 5, "passed": 5, "failed": 0 },
+    "modelCallsForAlpha1Qualification": 0,
+    "externalEffectsForAlpha1Qualification": 0
+  },
+  "platformBoundary": {
+    "commonSourceComplete": true,
+    "macOSPhysicalProductQualification": "deferred_to_post_alpha_platform_gate",
+    "windowsPhysicalProductQualification": "deferred_to_post_macos_platform_gate",
+    "windowsCiSkips": 2
+  },
+  "notClaimed": [
+    "Execution while the computer is asleep or powered off",
+    "24-hour remote execution",
+    "Signed or notarized macOS package qualification for this source",
+    "Physical Windows install, update, rollback or login-start qualification",
+    "Alpha2 through Alpha6 completion",
+    "3차Alpha completion"
+  ],
+  "next": "Open Alpha2 with one mixed canonical-state fixture that cannot yet be exported and restored as a secret-free relationship-verified snapshot."
+}

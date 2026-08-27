@@ -2,6 +2,9 @@
 
 상태: `THIRD_COMPLETION_SOURCE_PASS_WITH_OBSERVATION · MACOS_QUALIFIED · WINDOWS_CODE_READY_EXTERNAL_QUALIFICATION_PENDING · S3M_ADAPTIVE_DEFERRED · S3CA_DEFERRED_NEXT_CYCLE`
 
+3차 source 개발은 종료됐다. 다음 현재 개발선은 `T5-THIRD-ALPHA.md`가 담당하며, 오너 결정에 따라
+3차α source를 먼저 완료한 뒤 별도 macOS 제품·설치 자격과 Windows 제품·설치 자격을 순서대로 진행한다.
+
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN`
 
 현재 공식 Release Gate와 2차 완성의 진행 정본은 계속 `T5-SECOND-COMPLETION.md`가 담당한다. 이 문서는

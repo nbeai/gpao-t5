@@ -2670,6 +2670,25 @@ const SET_RENDER = {
   },
   async about() {
     setBody.replaceChildren();
+    const runtime = mk('div', 'tb-card');
+    runtime.appendChild(mk('div', 'tb-name', '이 컴퓨터의 T5'));
+    runtime.appendChild(mk('div', 'tb-hint', '화면을 닫아도 맡긴 작업과 자동화·메신저는 이 컴퓨터에서 계속돼요.'));
+    const stop = document.createElement('button'); stop.className = 'connection-button';
+    stop.textContent = 'T5 완전히 끄기';
+    const stopState = mk('div', 'tb-hint', '완전히 끄면 다시 T5 앱을 열 때까지 자동화와 메신저도 멈춰요.');
+    stop.onclick = async () => {
+      if (!confirm('T5를 완전히 끌까요? 진행 중인 작업은 안전하게 멈춘 상태로 보존해요.')) return;
+      stop.disabled = true; stop.textContent = '정리하고 끄는 중…';
+      const result = await endpointJson('/runtime/stop', { method: 'POST',
+        headers: { 'content-type': 'application/json' }, body: JSON.stringify({ confirm: true }) });
+      if (result.ok) {
+        stopState.textContent = 'T5를 완전히 끄고 있어요. 다시 사용하려면 T5 앱을 열어 주세요.';
+      } else {
+        stop.disabled = false; stop.textContent = 'T5 완전히 끄기';
+        stopState.textContent = endpointError(result, '지금은 완전히 끄지 못했어요.');
+      }
+    };
+    runtime.append(stop, stopState); setBody.appendChild(runtime);
     const box = mk('div', 'tb-card');
     box.appendChild(mk('div', 'tb-name', 'T5를 만든 이유'));
     box.appendChild(mk('div', 'tb-hint', '이 글은 T5의 창립 선언문이며 기능이나 행동 규칙을 바꾸지 않아요.'));

@@ -79,7 +79,7 @@ async function copyRuntimeApp(target) {
     });
   }
   for (const script of [
-    'start-console.mjs', 'connect-chatgpt.mjs', 'prepare-node-pty.mjs', 'restrict-kordoc-bin.mjs',
+    'start-console.mjs', 'ensure-local-runtime.mjs', 'stop-local-runtime.mjs', 'connect-chatgpt.mjs', 'prepare-node-pty.mjs', 'restrict-kordoc-bin.mjs',
   ]) {
     await copyFile(join(repo, 'refoundation', 'scripts', script), join(refoundation, 'scripts', script));
   }
@@ -255,10 +255,19 @@ esac
     const uninstall = join(resources, 'GPAO-T5 제거.command');
     await writeFile(uninstall, `#!/bin/sh
 set -u
-if /usr/bin/pgrep -x "${product.name}" >/dev/null 2>&1; then
-  /usr/bin/osascript -e 'tell application id "${product.bundleId}" to quit' >/dev/null 2>&1 || true
-  /bin/sleep 1
+APP="/Applications/${product.name}.app"
+NODE="$APP/Contents/Resources/runtime/bin/node"
+STOP="$APP/Contents/Resources/app/refoundation/scripts/stop-local-runtime.mjs"
+PORT="$HOME/Library/Application Support/GPAO-T5/state/console-port.json"
+if [ -x "$NODE" ] && [ -f "$STOP" ]; then
+  "$NODE" "$STOP" --port-file "$PORT" --reason product_uninstall || {
+    echo "실행 중인 GPAO-T5를 안전하게 정리하지 못해 앱을 지우지 않았습니다."
+    exit 1
+  }
 fi
+LAUNCH_AGENT="$HOME/Library/LaunchAgents/${product.bundleId}.runtime.plist"
+/bin/launchctl bootout "gui/$(id -u)" "$LAUNCH_AGENT" >/dev/null 2>&1 || true
+/bin/rm -f -- "$LAUNCH_AGENT"
 if /usr/bin/osascript -e 'do shell script "/bin/rm -rf -- /Applications/${product.name}.app || exit $?; /usr/sbin/pkgutil --forget ${product.bundleId} >/dev/null 2>&1 || true" with administrator privileges'; then
   echo "GPAO-T5 앱을 제거했습니다. 대화와 기억은 그대로 두었습니다."
 else
@@ -290,9 +299,20 @@ read -r _
     await writeFile(join(scripts, 'preinstall'), `#!/bin/sh
 USER_NAME=$(stat -f %Su /dev/console)
 if [ -n "$USER_NAME" ] && [ "$USER_NAME" != "root" ]; then
-  if sudo -u "$USER_NAME" /usr/bin/pgrep -x "${product.name}" >/dev/null 2>&1; then
-    sudo -u "$USER_NAME" /usr/bin/osascript -e 'tell application id "${product.bundleId}" to quit' >/dev/null 2>&1 || true
-    /bin/sleep 1
+  USER_HOME=$(dscl . -read "/Users/$USER_NAME" NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+  OLD_APP="/Applications/${product.name}.app"
+  OLD_NODE="$OLD_APP/Contents/Resources/runtime/bin/node"
+  OLD_STOP="$OLD_APP/Contents/Resources/app/refoundation/scripts/stop-local-runtime.mjs"
+  OLD_PORT="$USER_HOME/Library/Application Support/GPAO-T5/state/console-port.json"
+  if [ -x "$OLD_NODE" ] && [ -f "$OLD_STOP" ]; then
+    sudo -u "$USER_NAME" env HOME="$USER_HOME" "$OLD_NODE" "$OLD_STOP" --port-file "$OLD_PORT" --reason product_update || exit 1
+  elif sudo -u "$USER_NAME" /usr/bin/pgrep -x "${product.name}" >/dev/null 2>&1; then
+    sudo -u "$USER_NAME" /usr/bin/osascript -e 'tell application id "${product.bundleId}" to quit' >/dev/null 2>&1 || exit 1
+    for WAIT_STEP in 1 2 3 4 5; do
+      sudo -u "$USER_NAME" /usr/bin/pgrep -x "${product.name}" >/dev/null 2>&1 || break
+      /bin/sleep 1
+    done
+    sudo -u "$USER_NAME" /usr/bin/pgrep -x "${product.name}" >/dev/null 2>&1 && exit 1
   fi
 fi
 exit 0
@@ -301,6 +321,28 @@ exit 0
     await writeFile(join(scripts, 'postinstall'), `#!/bin/sh
 USER_NAME=$(stat -f %Su /dev/console)
 if [ -n "$USER_NAME" ] && [ "$USER_NAME" != "root" ]; then
+  USER_ID=$(id -u "$USER_NAME")
+  USER_HOME=$(dscl . -read "/Users/$USER_NAME" NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+  LAUNCH_DIR="$USER_HOME/Library/LaunchAgents"
+  PLIST="$LAUNCH_DIR/${product.bundleId}.runtime.plist"
+  mkdir -p "$LAUNCH_DIR"
+  cat > "$PLIST" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>${product.bundleId}.runtime</string>
+<key>ProgramArguments</key><array>
+<string>/Applications/${product.name}.app/Contents/Resources/runtime/bin/node</string>
+<string>/Applications/${product.name}.app/Contents/Resources/app/refoundation/scripts/ensure-local-runtime.mjs</string>
+<string>--port-file</string><string>$USER_HOME/Library/Application Support/GPAO-T5/state/console-port.json</string>
+</array>
+<key>RunAtLoad</key><true/><key>ProcessType</key><string>Background</string>
+</dict></plist>
+EOF
+  chmod 600 "$PLIST"
+  chown "$USER_NAME" "$PLIST" "$LAUNCH_DIR"
+  sudo -u "$USER_NAME" /bin/launchctl bootout "gui/$USER_ID" "$PLIST" >/dev/null 2>&1 || true
+  sudo -u "$USER_NAME" /bin/launchctl bootstrap "gui/$USER_ID" "$PLIST" || exit 1
   sudo -u "$USER_NAME" /usr/bin/open -a "/Applications/${product.name}.app" >/dev/null 2>&1 || true
 fi
 exit 0

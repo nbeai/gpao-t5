@@ -1,5 +1,4 @@
 #import <AppKit/AppKit.h>
-#import <signal.h>
 
 @interface T5Launcher : NSObject <NSApplicationDelegate>
 @property(nonatomic, strong) NSTask *child;
@@ -83,11 +82,9 @@
 }
 
 - (void)startConsole {
-  [NSFileManager.defaultManager removeItemAtURL:[self portFile] error:nil];
   NSError *error = nil;
-  NSTask *task = [self processForEntry:@"refoundation/scripts/start-console.mjs" error:&error];
+  NSTask *task = [self processForEntry:@"refoundation/scripts/ensure-local-runtime.mjs" error:&error];
   if (!task) { [self fail:@"GPAO-T5를 시작하지 못했어요" error:error]; return; }
-  task.arguments = [task.arguments arrayByAddingObjectsFromArray:@[@"--port", @"0", @"--no-open"]];
   __weak typeof(self) weakSelf = self;
   task.terminationHandler = ^(NSTask *finished) {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -96,13 +93,14 @@
       if (finished.terminationStatus != 0) {
         [self alert:@"GPAO-T5를 시작하지 못했어요"
           message:@"잠시 뒤 다시 열어 주세요. 계속되면 GPAO-T5.log를 확인해 주세요."];
+        [NSApp terminate:nil];
+        return;
       }
-      [NSApp terminate:nil];
+      [self openConsoleWithCompletion:^{ [NSApp terminate:nil]; }];
     });
   };
   if (![task launchAndReturnError:&error]) { [self fail:@"GPAO-T5를 시작하지 못했어요" error:error]; return; }
   self.child = task;
-  [self openConsoleWithCompletion:nil];
 }
 
 - (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)flag {
@@ -137,14 +135,6 @@
       if (completion) completion();
     });
   });
-}
-
-- (void)applicationWillTerminate:(NSNotification *)notification {
-  if (!self.child.running) return;
-  [self.child terminate];
-  NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:3];
-  while (self.child.running && [deadline timeIntervalSinceNow] > 0) usleep(50000);
-  if (self.child.running) kill(self.child.processIdentifier, SIGKILL);
 }
 
 - (void)fail:(NSString *)title error:(NSError *)error {

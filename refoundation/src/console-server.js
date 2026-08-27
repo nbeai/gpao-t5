@@ -342,6 +342,8 @@ export function makeConsoleServer({
   connectionPollTimeoutMs = 10 * 60_000,
   processYieldMs = 1000,
   runtimeNow = () => new Date(),
+  runtimeInstanceId: providedRuntimeInstanceId = randomUUID(),
+  runtimeOwnerToken = providedRuntimeInstanceId,
   workStoreMakeId = randomUUID,
   terminalEnvironment = null,
   terminalPlatformAdapter = null,
@@ -358,6 +360,8 @@ export function makeConsoleServer({
   fileActivityService = null,
   fileActivityRootSelector = null,
   appActivityService = null,
+  requestRuntimeStop = null,
+  notifyUser = null,
   onError,
 } = {}) {
   if (!stateDir || !workspace) throw new TypeError('stateDir and workspace are required');
@@ -409,7 +413,8 @@ export function makeConsoleServer({
   // A browser tab can outlive this server process during development, an app restart, or a
   // computer restart. Give every process lifetime a public, non-secret identity so the page can
   // distinguish a reconnect from a connection to the same runtime.
-  const runtimeInstanceId = randomUUID();
+  const runtimeInstanceId = String(providedRuntimeInstanceId ?? '');
+  if (!/^[0-9a-f-]{36}$/iu.test(runtimeInstanceId)) throw new TypeError('runtimeInstanceId is invalid');
   const sessions = new ConsoleSessionStore(stateDir);
   const conversations = new ConversationLedger(join(stateDir, 'conversations'));
   const workStore = new WorkStore(join(stateDir, 'work'), {
@@ -577,7 +582,10 @@ export function makeConsoleServer({
   }
   const admissionRecovery = recoverPreparedAdmissions().catch((error) => { onError?.(error); return []; });
   const computer = computerEnvironment ?? discoverComputerEnvironment({ userHome: workspace });
-  const automationOwner = makeLocalAutomationOwner({ runtimeId: runtimeInstanceId });
+  if (typeof runtimeOwnerToken !== 'string' || !runtimeOwnerToken) {
+    throw new TypeError('runtimeOwnerToken is invalid');
+  }
+  const automationOwner = makeLocalAutomationOwner({ runtimeId: runtimeOwnerToken });
   const computerFacts = publicComputerFacts(computer);
   const processes = processRegistry ?? new ManagedProcessRegistry({ platform: computer.platform });
   const workCancellation = new WorkCancellationCoordinator({
@@ -651,6 +659,7 @@ export function makeConsoleServer({
   });
   const pendingStreams = new Map();
   const running = new Map();
+  let runtimeAcceptingWork = true;
   const automationAuthorityBySession = new Map();
   const pendingProcessWakes = new Map();
   const wakeSubscribers = new Set();
@@ -1060,6 +1069,9 @@ export function makeConsoleServer({
   }
 
   async function executeTurn(sessionId, text, emit = () => {}, options = {}) {
+    if (!runtimeAcceptingWork) throw Object.assign(new Error('T5가 완전히 꺼지는 중이에요.'), {
+      code: 'runtime_draining', status: 503,
+    });
     if (running.has(sessionId)) throw Object.assign(new Error('session already running'), { status: 409 });
     const session = await sessions.load(sessionId);
     if (!session) throw Object.assign(new Error('session not found'), { status: 404 });
@@ -2967,6 +2979,8 @@ export function makeConsoleServer({
             } });
         }
       }
+      await notifyUser?.(objective.achieved ? 'automation_completed' : 'automation_needs_attention')
+        .catch((error) => onError?.(error));
       return {
         runId: completed.runId, deliveryStatus,
         surfaceStatus: reply ? 'persisted' : 'none',
@@ -3965,6 +3979,26 @@ export function makeConsoleServer({
           userSafeSummary: terminal.receipt.userSafeSummary, surfacePersisted: true,
           nextSafeAction: terminal.receipt.nextSafeAction }); return;
       }
+      if (req.method === 'POST' && url.pathname === '/runtime/stop') {
+        const input = await body(req);
+        const stopReason = input.reason ?? 'user_full_stop';
+        if (input.confirm !== true || !['user_full_stop', 'product_update', 'product_uninstall'].includes(stopReason)
+          || Object.keys(input).some((field) => !['confirm', 'reason'].includes(field))) {
+          json(res, 400, { ok: false, error: 'T5 전체 종료 확인이 필요해요.' }); return;
+        }
+        if (typeof requestRuntimeStop !== 'function') {
+          json(res, 503, { ok: false, error: '이 실행 방식에서는 T5 전체 종료를 사용할 수 없어요.' }); return;
+        }
+        if (pendingStreams.size > 0) {
+          json(res, 409, { ok: false,
+            error: '막 시작한 요청이 있어 아직 끄지 않았어요. 잠시 뒤 다시 눌러 주세요.' }); return;
+        }
+        runtimeAcceptingWork = false;
+        json(res, 202, { ok: true, stopping: true,
+          userSafeSummary: 'T5가 진행 중인 상태를 정리한 뒤 완전히 꺼져요.' });
+        setTimeout(() => Promise.resolve(requestRuntimeStop(stopReason)).catch((error) => onError?.(error)), 0);
+        return;
+      }
       if (req.method === 'POST' && url.pathname === '/turn/stream-start') {
         const input = await body(req);
         if (!input.sessionId || !String(input.text ?? '').trim()) {
@@ -4571,6 +4605,21 @@ export function makeConsoleServer({
   server.startAutomations = startAutomationScheduler;
   server.closeAutomations = stopAutomationScheduler;
   server.runtimeInstanceId = runtimeInstanceId;
+  server.beginRuntimeDrain = () => { runtimeAcceptingWork = false; return { acceptingWork: false }; };
+  server.drainActiveWork = async () => {
+    const entries = [...running.entries()];
+    const settled = await Promise.allSettled(entries.map(async ([sessionId, entry]) => {
+      if (!entry.admission) entry.admission = await workCancellation.admit({
+        sessionId, runId: entry.runId, disposition: 'interrupted_resumable',
+      });
+      if (!entry.childSettlementReceipt) entry.childSettlementReceipt = await workCancellation.requestStop({
+        admission: entry.admission, controller: entry.controller,
+      });
+      return entry.cancelTerminal;
+    }));
+    return { requested: entries.length, settled: settled.filter((item) => item.status === 'fulfilled').length,
+      failed: settled.filter((item) => item.status === 'rejected').length };
+  };
   server.unsubscribeTerminalWake = unsubscribeTerminal;
   server.closeWakeStreams = () => {
     unsubscribeTerminal();

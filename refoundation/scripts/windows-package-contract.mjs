@@ -19,7 +19,13 @@ foreach ($File in $Manifest.files) {
   if ($Actual -ne $File.sha256) { throw ('Changed payload file: ' + $File.role) }
 }
 try {
-  Get-Process -Name 'GPAO-T5' -ErrorAction SilentlyContinue | Stop-Process -Force
+  $OldNode = Join-Path $InstallRoot 'bin\node.exe'
+  $OldStop = Join-Path $InstallRoot 'app\refoundation\scripts\stop-local-runtime.mjs'
+  $PortFile = Join-Path $env:LOCALAPPDATA 'GPAO-T5\state\console-port.json'
+  if ((Test-Path -LiteralPath $OldNode -PathType Leaf) -and (Test-Path -LiteralPath $OldStop -PathType Leaf)) {
+    & $OldNode $OldStop --port-file $PortFile --reason product_update
+    if ($LASTEXITCODE -ne 0) { throw 'The running GPAO-T5 runtime could not be drained' }
+  }
   if (Test-Path -LiteralPath $InstallRoot) { Move-Item -LiteralPath $InstallRoot -Destination $Rollback }
   Move-Item -LiteralPath $Incoming -Destination $InstallRoot
   $StartMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
@@ -30,6 +36,15 @@ try {
   $Shortcut.WorkingDirectory = $InstallRoot
   $Shortcut.IconLocation = (Join-Path $InstallRoot 'GPAO-T5.ico')
   $Shortcut.Save()
+  $Startup = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup'
+  New-Item -ItemType Directory -Force -Path $Startup | Out-Null
+  $RuntimeShortcut = $Shell.CreateShortcut((Join-Path $Startup 'GPAO-T5 Runtime.lnk'))
+  $RuntimeShortcut.TargetPath = Join-Path $InstallRoot 'bin\node.exe'
+  $RuntimeShortcut.Arguments = ('"' + (Join-Path $InstallRoot 'app\refoundation\scripts\ensure-local-runtime.mjs') + '" --product-root "' + $InstallRoot + '" --port-file "' + (Join-Path $env:LOCALAPPDATA 'GPAO-T5\state\console-port.json') + '"')
+  $RuntimeShortcut.WorkingDirectory = $InstallRoot
+  $RuntimeShortcut.WindowStyle = 7
+  $RuntimeShortcut.Save()
+  Start-Process -FilePath (Join-Path $InstallRoot 'bin\GPAO-T5.exe')
   if (Test-Path -LiteralPath $Rollback) { Remove-Item -LiteralPath $Rollback -Recurse -Force }
 } catch {
   if (Test-Path -LiteralPath $InstallRoot) { Remove-Item -LiteralPath $InstallRoot -Recurse -Force }
@@ -44,9 +59,17 @@ export const WINDOWS_UNINSTALL_SCRIPT = String.raw`param(
   [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA 'Programs\GPAO-T5')
 )
 $ErrorActionPreference = 'Stop'
-Get-Process -Name 'GPAO-T5' -ErrorAction SilentlyContinue | Stop-Process -Force
+$Node = Join-Path $InstallRoot 'bin\node.exe'
+$Stop = Join-Path $InstallRoot 'app\refoundation\scripts\stop-local-runtime.mjs'
+$PortFile = Join-Path $env:LOCALAPPDATA 'GPAO-T5\state\console-port.json'
+if ((Test-Path -LiteralPath $Node -PathType Leaf) -and (Test-Path -LiteralPath $Stop -PathType Leaf)) {
+  & $Node $Stop --port-file $PortFile --reason product_uninstall
+  if ($LASTEXITCODE -ne 0) { throw 'The running GPAO-T5 runtime could not be drained' }
+}
 $Shortcut = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\GPAO-T5.lnk'
 if (Test-Path -LiteralPath $Shortcut) { Remove-Item -LiteralPath $Shortcut -Force }
+$RuntimeShortcut = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup\GPAO-T5 Runtime.lnk'
+if (Test-Path -LiteralPath $RuntimeShortcut) { Remove-Item -LiteralPath $RuntimeShortcut -Force }
 if (Test-Path -LiteralPath $InstallRoot) { Remove-Item -LiteralPath $InstallRoot -Recurse -Force }
 Write-Host 'GPAO-T5 앱을 제거했습니다. 대화와 기억은 그대로 두었습니다.'
 `;

@@ -49,14 +49,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR command, int s
   wcscpy_s(bin, MAX_PATH, launcher); if (!parent_directory(bin)) return 125;
   wcscpy_s(root, MAX_PATH, bin); if (!parent_directory(root)) return 125;
   if (swprintf_s(node, MAX_PATH, L"%ls\\bin\\node.exe", root) < 0) return 125;
-  if (swprintf_s(entry, MAX_PATH, L"%ls\\app\\refoundation\\scripts\\start-console.mjs", root) < 0) return 125;
+  if (swprintf_s(entry, MAX_PATH, L"%ls\\app\\refoundation\\scripts\\ensure-local-runtime.mjs", root) < 0) return 125;
   wchar_t line[4 * MAX_PATH];
-  if (swprintf_s(line, 4 * MAX_PATH, L"\"%ls\" \"%ls\" --product-root \"%ls\" --port 0 --port-file \"%ls\"", node, entry, root, portFile) < 0) return 125;
+  if (swprintf_s(line, 4 * MAX_PATH, L"\"%ls\" \"%ls\" --product-root \"%ls\" --port-file \"%ls\"", node, entry, root, portFile) < 0) return 125;
   STARTUPINFOW startup; PROCESS_INFORMATION process;
   ZeroMemory(&startup, sizeof(startup)); ZeroMemory(&process, sizeof(process)); startup.cb = sizeof(startup);
   if (!CreateProcessW(node, line, NULL, NULL, FALSE, CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW,
       NULL, root, &startup, &process)) { CloseHandle(singleton); return 125; }
   CloseHandle(process.hThread); WaitForSingleObject(process.hProcess, INFINITE);
   DWORD exitCode = 125; GetExitCodeProcess(process.hProcess, &exitCode); CloseHandle(process.hProcess);
+  if (exitCode == 0) open_existing_console(portFile);
   ReleaseMutex(singleton); CloseHandle(singleton); return (int)exitCode;
 }

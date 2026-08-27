@@ -1,0 +1,39 @@
+{
+  "schema": "t5.alpha1.explicit-full-stop.v1",
+  "recordedOn": "2026-08-27",
+  "baselineSourceCommit": "5e9d10a11453df24fe77a896d59d891c423da621",
+  "officialPlan": "T5-THIRD-ALPHA.md",
+  "status": "PASS_PARTIAL_GATE",
+  "userBehaviorEnabled": "The user can explicitly turn T5 fully off, separately from closing its UI, and reopening the app starts the preserved local state again.",
+  "observed": [
+    "A missing explicit confirmation does not request runtime stop.",
+    "Full stop closes new Work admission before draining active Work.",
+    "An active model Work is settled through the existing interrupted_resumable cancellation ledger instead of being called completed or failed.",
+    "The detached product runtime exits and removes its exact port fact and runtime owner.",
+    "The settings surface explains that Automation and Messenger stop until T5 is opened again."
+  ],
+  "verification": {
+    "focused": {
+      "tests": 5,
+      "passed": 5,
+      "failed": 0
+    },
+    "dailyCheck": {
+      "command": "npm run refoundation:check",
+      "tests": 1516,
+      "passed": 1515,
+      "failed": 0,
+      "skipped": 1
+    },
+    "modelCalls": 0,
+    "externalEffects": 0
+  },
+  "notCompleted": [
+    "Installer update and uninstall are not yet attached to the runtime drain contract.",
+    "Runtime replacement during update and successor admission are not yet qualified.",
+    "Sleep, wake, reboot and login-start recovery are not yet qualified.",
+    "No signed package, notarization or physical Windows qualification was attempted.",
+    "Alpha1 and 3차Alpha are not complete."
+  ],
+  "next": "Bind update and uninstall to explicit runtime drain and prove successor admission reads canonical state without duplicate external effects."
+}

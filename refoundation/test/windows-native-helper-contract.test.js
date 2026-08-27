@@ -24,5 +24,8 @@ test('Windows folder picker와 launcher는 password shell이나 broad command �
   assert.match(picker,/FOS_PICKFOLDERS/u);assert.match(picker,/FOS_FORCEFILESYSTEM/u);
   assert.match(launcher,/CreateProcessW/u);assert.match(launcher,/--product-root/u);assert.match(launcher,/CreateMutexW/u);
   assert.match(launcher,/--port-file/u);assert.match(launcher,/127\.0\.0\.1/u);
+  assert.match(launcher,/ensure-local-runtime\.mjs/u);
+  const attach=await readFile(new URL('../scripts/ensure-local-runtime.mjs',import.meta.url),'utf8');
+  assert.match(attach,/\['--port-file', portFile\]|'--port-file', portFile/u);
   assert.doesNotMatch(`${picker}\n${launcher}`,/powershell|cmd\.exe/u);
 });
