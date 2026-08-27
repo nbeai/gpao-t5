@@ -7,6 +7,43 @@ private let maximumOCRCharacters = 8_192
 private let maximumPageWidth: CGFloat = 2_048
 private let maximumPageHeight: CGFloat = 4_096
 
+private struct OCRBox: Codable { let x: Double; let y: Double; let width: Double; let height: Double }
+private struct OCRItem: Codable { let text: String; let confidence: Float; let box: OCRBox }
+private struct OCRReceipt: Codable {
+    let schema: String; let width: Int; let height: Int; let observations: [OCRItem]
+    let truncated: Bool; let recognitionLanguages: [String]
+}
+
+private func recognizeImage(_ url: URL) -> Never {
+    guard let image = NSImage(contentsOf: url),
+          let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+          cgImage.width > 0, cgImage.height > 0,
+          cgImage.width <= 12_000, cgImage.height <= 12_000 else {
+        fputs("image OCR failed: unsupported image\n", stderr); exit(65)
+    }
+    let request = VNRecognizeTextRequest()
+    request.recognitionLevel = .accurate
+    request.recognitionLanguages = ["ko-KR", "en-US"]
+    request.usesLanguageCorrection = false
+    do { try VNImageRequestHandler(cgImage: cgImage).perform([request]) }
+    catch { fputs("image OCR failed: \(error.localizedDescription)\n", stderr); exit(66) }
+    let all = (request.results ?? []).compactMap { observation -> OCRItem? in
+        guard let candidate = observation.topCandidates(1).first else { return nil }
+        let box = observation.boundingBox
+        return OCRItem(text: String(candidate.string.prefix(1_000)), confidence: candidate.confidence,
+                       box: OCRBox(x: box.origin.x, y: box.origin.y, width: box.width, height: box.height))
+    }.sorted { left, right in
+        if abs(left.box.y - right.box.y) > 0.01 { return left.box.y > right.box.y }
+        return left.box.x < right.box.x
+    }
+    let limit = 200; let items = Array(all.prefix(limit))
+    let receipt = OCRReceipt(schema: "t5.local-image-ocr.v1", width: cgImage.width, height: cgImage.height,
+                             observations: items, truncated: all.count > limit,
+                             recognitionLanguages: ["ko-KR", "en-US"])
+    do { FileHandle.standardOutput.write(try JSONEncoder().encode(receipt)); FileHandle.standardOutput.write(Data([0x0a])); exit(0) }
+    catch { fputs("image OCR failed: receipt encoding\n", stderr); exit(67) }
+}
+
 private struct PageReceipt: Codable {
     let width: Int
     let height: Int
@@ -253,6 +290,10 @@ private final class LocalOnlyDelegate: NSObject, WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         fail(error.localizedDescription, code: 2)
     }
+}
+
+if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--ocr-image" {
+    recognizeImage(URL(fileURLWithPath: CommandLine.arguments[2]).standardizedFileURL)
 }
 
 guard CommandLine.arguments.count == 3 else {

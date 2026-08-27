@@ -14,6 +14,7 @@ const TEXT_EXTENSIONS = new Set([
   '.c', '.h', '.cpp', '.hpp', '.swift', '.kt', '.kts', '.yaml', '.yml', '.toml', '.ini',
   '.log', '.sql', '.sh', '.zsh', '.ps1', '.bat', '.cmd',
 ]);
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.heic', '.tif', '.tiff', '.webp']);
 const DEFAULT_EXCLUDED_DIRECTORY_NAMES = new Set([
   '.git', 'node_modules', '__pycache__', '.cache', '.Trash', '$RECYCLE.BIN', 'System Volume Information',
 ]);
@@ -25,8 +26,18 @@ function normalize(value) {
   return String(value ?? '').normalize('NFKC').toLocaleLowerCase().replace(/[\s._\-()[\]{}]+/gu, ' ').trim();
 }
 
-function compact(value) { return normalize(value).replace(/\s+/gu, ''); }
+function compact(value) { return normalize(value).replace(/[^\p{L}\p{N}]/gu, ''); }
 function words(value) { return normalize(value).match(/[\p{L}\p{N}]+/gu) ?? []; }
+function clueTerms(value) {
+  const text = normalize(value).replaceAll(',', ''); const output = words(text);
+  const units = [{ pattern: /(\d+(?:\.\d+)?)\s*억\s*원?/gu, multiplier: 100_000_000 },
+    { pattern: /(\d+(?:\.\d+)?)\s*만\s*원?/gu, multiplier: 10_000 },
+    { pattern: /(\d+(?:\.\d+)?)\s*천\s*원/gu, multiplier: 1_000 }];
+  for (const { pattern, multiplier } of units) for (const match of text.matchAll(pattern)) {
+    const expanded = Number(match[1]) * multiplier; if (Number.isSafeInteger(expanded)) output.push(String(expanded));
+  }
+  return [...new Set(output)];
+}
 function grams(value) {
   const text = ` ${compact(value)} `; const output = new Set();
   if (text.length <= 3) { if (text.trim()) output.add(text.trim()); return output; }
@@ -39,7 +50,7 @@ function dice(left, right) {
   return (2 * shared) / (a.size + b.size);
 }
 function lexicalEvidence(query, name, location) {
-  const queryWords = words(query); const nameText = normalize(name); const pathText = normalize(location);
+  const queryWords = clueTerms(query); const nameText = normalize(name); const pathText = normalize(location);
   const matchedName = queryWords.filter((item) => compact(nameText).includes(compact(item)));
   const matchedPath = queryWords.filter((item) => !matchedName.includes(item) && compact(pathText).includes(compact(item)));
   const nameSimilarity = dice(query, nameText); const pathSimilarity = dice(query, pathText);
@@ -47,7 +58,7 @@ function lexicalEvidence(query, name, location) {
     score: matchedName.length * 7 + matchedPath.length * 2 + nameSimilarity * 8 + pathSimilarity * 2 };
 }
 function contentEvidence(query, content) {
-  const queryWords = words(query).filter((item) => item.length >= 2); const text = normalize(content);
+  const queryWords = clueTerms(query).filter((item) => item.length >= 2); const text = normalize(content);
   const matched = queryWords.filter((item) => compact(text).includes(compact(item)));
   return { matched, score: matched.length * 5 };
 }
@@ -159,6 +170,7 @@ export function makeFileRealityTool({
   sourceManifestStore = null,
   sessionId = null,
   indexSearch = defaultIndexSearch,
+  ocrProbe = null,
   now = Date.now,
 } = {}) {
   if (!workspace || !home) throw new TypeError('file reality workspace and home are required');
@@ -222,6 +234,7 @@ export function makeFileRealityTool({
       'find local file whole computer vague name content duplicate latest version',
       '컴퓨터 전체 파일 찾기 이름 위치 모름 내용 단서 중복 최종본 버전',
       '다운로드 문서 엑셀 계약서 견적서 어디 뒀는지 기억 안남',
+      '로컬 이미지 OCR 스캔 사진 영수증 송장 견적 금액 업체명으로 파일 찾기',
     ],
     relatedTools: ['attachment'],
     parameters: { type: 'object', additionalProperties: false, properties: {
@@ -271,13 +284,15 @@ export function makeFileRealityTool({
           if (roots.some((root) => pathInside(candidate, root))) indexedSet.add(candidate);
         }
         const paths = [...new Set([...indexedSet, ...walk.files])];
-        const ranked = []; let contentProbes = 0;
+        const ranked = []; const imagePool = []; let contentProbes = 0; let ocrProbes = 0;
         for (const candidate of paths) {
           if (now() >= deadline && !indexedSet.has(resolve(candidate))) break;
           if (protectedPath(candidate, exactProtectedRoots)) continue;
           let stat; try { stat = await lstat(candidate); } catch { continue; }
           if (!stat.isFile() || stat.isSymbolicLink()) continue;
           const lexical = lexicalEvidence(clue, basename(candidate), locationText(candidate, home));
+          if (IMAGE_EXTENSIONS.has(extname(candidate).toLowerCase())) imagePool.push({ candidate, stat, lexical,
+            indexed: indexedSet.has(resolve(candidate)) });
           let content = { matched: [], score: 0 };
           if (indexedSet.has(resolve(candidate)) || lexical.score > 1
             || (contentProbes < 2_000 && TEXT_EXTENSIONS.has(extname(candidate).toLowerCase()))) {
@@ -291,6 +306,23 @@ export function makeFileRealityTool({
             matchedNameTerms: lexical.matchedName, matchedLocationTerms: lexical.matchedPath,
             matchedContentTerms: content.matched, nameSimilarity: Number(lexical.nameSimilarity.toFixed(3)) }), score });
         }
+        if (typeof ocrProbe === 'function') {
+          imagePool.sort((left, right) => Number(right.indexed) - Number(left.indexed)
+            || right.lexical.score - left.lexical.score || right.stat.mtimeMs - left.stat.mtimeMs);
+          for (const image of imagePool.slice(0, 12)) {
+            const remaining = deadline - now(); if (remaining < 100) break; ocrProbes += 1;
+            const observed = await ocrProbe(image.candidate, { timeoutMs: Math.min(1_500, remaining) });
+            if (observed?.state !== 'observed') continue;
+            const evidence = contentEvidence(clue, observed.text); if (evidence.score <= 0) continue;
+            const existing = ranked.find((item) => item.record.path === image.candidate);
+            if (existing) { existing.score += evidence.score; existing.record.evidence.matchedOcrTerms = evidence.matched; }
+            else ranked.push({ record: exactRecord(image.candidate, image.stat, home, { indexed: image.indexed,
+              matchedNameTerms: image.lexical.matchedName, matchedLocationTerms: image.lexical.matchedPath,
+              matchedContentTerms: [], matchedOcrTerms: evidence.matched,
+              nameSimilarity: Number(image.lexical.nameSimilarity.toFixed(3)) }),
+            score: image.lexical.score + evidence.score + (image.indexed ? 10 : 0) });
+          }
+        }
         ranked.sort((left, right) => right.score - left.score
           || right.record.modifiedAt.localeCompare(left.record.modifiedAt)
           || left.record.displayName.localeCompare(right.record.displayName));
@@ -303,7 +335,7 @@ export function makeFileRealityTool({
           coverage: { roots: roots.length, unavailableRoots: rootState.unavailableRoots,
             indexedCandidates: indexedSet.size, filesystemFilesVisited: walk.files.length,
             filesystemEntriesVisited: walk.visited, unreadableDirectories: walk.unreadable,
-            contentProbes, truncated: walk.truncated || now() >= deadline, elapsedMs: Math.max(0, now() - startedAt) },
+            contentProbes, ocrProbes, truncated: walk.truncated || now() >= deadline, elapsedMs: Math.max(0, now() - startedAt) },
           contentIncluded: false };
       }
       if (action === 'inspect') {
@@ -311,10 +343,16 @@ export function makeFileRealityTool({
         const { record } = await reopen(requestedHandles[0]); const sha256 = await streamSha256(record.path);
         let content = await boundedText(record.path, 96 * 1024).catch(() => null);
         if (content == null) content = await documentText(record.path);
+        let ocr = null;
+        if (content == null && typeof ocrProbe === 'function' && IMAGE_EXTENSIONS.has(record.extension)) {
+          ocr = await ocrProbe(record.path, { timeoutMs: 5_000 }); if (ocr?.state === 'observed') content = ocr.text;
+        }
         return { state: 'observed', file: { handle: requestedHandles[0], displayName: record.displayName,
           locationText: record.locationText, extension: record.extension, bytes: record.bytes,
           modifiedAt: record.modifiedAt, sha256 },
-        content: content == null ? null : content.slice(0, 48_000), contentTruncated: content != null && content.length > 48_000 };
+        content: content == null ? null : content.slice(0, 48_000), contentTruncated: content != null && content.length > 48_000,
+        ocr: ocr?.state === 'observed' ? { engine: ocr.engine, width: ocr.width, height: ocr.height,
+          observationCount: ocr.observations.length, truncated: ocr.truncated } : null };
       }
       if (action === 'compare') {
         if (!Array.isArray(requestedHandles) || requestedHandles.length < 2) throw new TypeError('two or more file handles are required');

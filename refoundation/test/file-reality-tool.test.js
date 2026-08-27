@@ -159,6 +159,23 @@ test('선택한 exact handle만 runtime-owned 취합 원본 manifest로 결속�
   } finally { await rm(room.root, { recursive: true, force: true }); }
 });
 
+test('무의미한 이미지 파일명도 bounded local OCR 단서로 후보가 된다', async () => {
+  const room = await fixture(); const image = join(room.elsewhere, 'KakaoTalk_20260827_142233.png'); await writeFile(image, 'image-fixture');
+  try {
+    let probes = 0; const tool = makeFileRealityTool({ workspace: room.workspace, home: room.root,
+      platform: 'darwin', computerRoots: [room.root], indexSearch: async () => [],
+      ocrProbe: async (path) => { probes += 1; return path.endsWith('KakaoTalk_20260827_142233.png') ? { state: 'observed', width: 600, height: 800,
+        observations: [{ text: '한빛상사 견적 4,780,000', confidence: 0.95 }], text: '한빛상사 견적 4,780,000',
+        truncated: false, engine: 'macos-vision-local' } : { state: 'observed', observations: [], text: '' }; } });
+    const found = await tool.execute({ action: 'search', query: '한빛상사 478만원', scope: 'computer', path: null,
+      handles: null, maxCandidates: 5, placements: null, planId: null, effect: null, sourceUses: null,
+      purpose: null, unknowns: null, standardization: null });
+    assert.equal(found.candidates[0].displayName, 'KakaoTalk_20260827_142233.png');
+    assert.deepEqual(found.candidates[0].evidence.matchedOcrTerms.sort(), ['4780000', '한빛상사'].sort());
+    assert.equal(found.contentIncluded, false); assert.ok(probes <= 12); assert.equal(found.coverage.ocrProbes, probes);
+  } finally { await rm(room.root, { recursive: true, force: true }); }
+});
+
 test('on-demand tool search 뒤 파일 후보→exact reopen을 한 Run에서 사용한다', async () => {
   const room = await fixture();
   try {

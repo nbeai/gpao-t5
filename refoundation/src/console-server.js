@@ -49,6 +49,7 @@ import { makePurposeBoundedHistoryAdapter } from './purpose-bounded-history.js';
 import { makePurposeHistoryTool } from './purpose-history-tool.js';
 import { makeFileRealityTool } from './file-reality-tool.js';
 import { FileSourceManifestStore } from './file-source-manifest-store.js';
+import { makeLocalImageOcr } from './local-image-ocr.js';
 import { makeWorkCompletionTool } from './work-completion-tool.js';
 import { evaluateWorkCompletion } from './work-completion-evaluator.js';
 import { makeInputSettlementScope } from './input-settlement-scope.js';
@@ -367,6 +368,7 @@ export function makeConsoleServer({
   computerFileRoots = null,
   protectedFileRoots = [],
   fileIndexSearch = null,
+  fileOcrProbe = null,
   capabilityAcquisition = null,
   documentCli = bundledDocumentCli,
   attachmentStore,
@@ -604,6 +606,7 @@ export function makeConsoleServer({
   }
   const admissionRecovery = recoverPreparedAdmissions().catch((error) => { onError?.(error); return []; });
   const computer = computerEnvironment ?? discoverComputerEnvironment({ userHome: workspace });
+  const localImageOcr = fileOcrProbe ?? makeLocalImageOcr({ platform: computer.platform });
   if (typeof runtimeOwnerToken !== 'string' || !runtimeOwnerToken) {
     throw new TypeError('runtimeOwnerToken is invalid');
   }
@@ -1456,6 +1459,7 @@ export function makeConsoleServer({
       offeredTools.unshift(makeFileRealityTool({ workspace, home: homedir(), platform: computer.platform,
         computerRoots: computerFileRoots ?? [homedir()], protectedRoots: [...protectedFileRoots, stateDir],
         organizationRoot: join(stateDir, 'file-organization'), sourceManifestStore: fileSourceManifests, sessionId,
+        ocrProbe: localImageOcr,
         ...(fileIndexSearch ? { indexSearch: fileIndexSearch } : {}) }));
       offeredTools.unshift(makeCapabilityRealityTool({ observer: capabilityReality }));
       if (capabilityAcquisition) offeredTools.unshift(makeCapabilityPackageAdminTool({

@@ -24,6 +24,13 @@ test('native helper OCR은 expected marker를 입력받지 않고 bounded text�
   assert.doesNotMatch(source, /expectedMarker|glyphMarker/u);
 });
 
+test('같은 local native helper의 image OCR은 한국어·영어와 bounded 좌표 receipt만 낸다', () => {
+  assert.match(source, /--ocr-image/u); assert.match(source, /t5\.local-image-ocr\.v1/u);
+  assert.match(source, /recognitionLanguages = \["ko-KR", "en-US"\]/u);
+  assert.match(source, /let limit = 200/u); assert.match(source, /candidate\.confidence/u);
+  assert.match(source, /observation\.boundingBox/u); assert.match(source, /cgImage\.width <= 12_000/u);
+});
+
 test('macOS package build는 arm64·x86_64 helper를 universal runtime binary로 포함한다', () => {
   assert.match(build, /arm64-apple-macos13\.0/u);
   assert.match(build, /x86_64-apple-macos13\.0/u);
