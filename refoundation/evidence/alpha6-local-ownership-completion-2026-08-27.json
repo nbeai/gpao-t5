@@ -3,6 +3,8 @@
   "recordedOn": "2026-08-27",
   "baselineSourceCommit": "e3e99ba3",
   "status": "PASS",
+  "requalifiedBy": "alpha56-truth-requalification-2026-08-27.json",
+  "originalQualificationSuperseded": true,
   "completionSentence": "사용자는 자신의 T5 자료가 어디에 있고 무엇이 기록되며 어떤 정보가 어느 모델·외부 서비스로 나갔는지 이해하고, T5 전체를 멈추고 백업하고 옮기고 지울 수 있다.",
   "qualified": [
     "One local ownership surface shows UI-independent runtime truth, local conversation-memory-work-automation counts, current model and continuity policy, recent transmission categories, connections, activity recording, backup and deletion scope.",
@@ -10,7 +12,7 @@
     "Unknown provider retention and training behavior remains explicitly unknown rather than inferred from local execution.",
     "Encrypted whole-state backup and isolated restore remain the existing product actions on the same settings page.",
     "Local full delete requires two user confirmations and an exact server acknowledgement that external-service copies and separate backup files remain.",
-    "Deletion drains the resident runtime, releases ownership and removes only the configured local T5 state root."
+    "Deletion drains the resident runtime, releases ownership, clears T5-owned model, messenger and workspace-connection credentials, then removes model metadata and the canonical local state root."
   ],
   "verification": {
     "focused": { "tests": 19, "passed": 19, "failed": 0 },

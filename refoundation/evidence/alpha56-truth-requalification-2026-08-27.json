@@ -1,0 +1,36 @@
+{
+  "schema": "t5.alpha56.truth-requalification.v1",
+  "recordedOn": "2026-08-27",
+  "triggerCommit": "fa28774082ddb83013680aaf4fd73cf27a23eea2",
+  "repairCommit": "ffb4fb23",
+  "status": "PASS",
+  "reproducedFailures": [
+    "One real primary-to-fallback transition was returned again as a new continuityReceipt on every later successful fallback response.",
+    "The local-delete path removed only stateDir while model-connection metadata and T5-owned Keychain or DPAPI credentials were outside that directory.",
+    "The Alpha6 product test asserted only a stop reason and never observed filesystem deletion or preserved user files."
+  ],
+  "qualifiedRepairs": [
+    "Persistent fallback guard state is separate from newly emitted transition receipts; one transition followed by multiple fallback responses records exactly one transition event.",
+    "Exact successful Tool-call replay protection remains active for the rest of the fallback Run without inventing new transition events.",
+    "Local deletion inventories and disconnects T5-owned workspace connections, Telegram credentials and every stored model connection before removing model metadata and canonical state.",
+    "A credential-owner failure prevents canonical state and model metadata removal, so partial cleanup is not returned as a completed deletion receipt.",
+    "A separate child process removed exact T5-owned state and model metadata while preserving an external user file and separately saved backup."
+  ],
+  "verification": {
+    "repairFocused": { "passed": 14, "failed": 0 },
+    "affectedRegression": { "passed": 70, "failed": 0 },
+    "dailyCheck": { "passed": 1575, "failed": 0, "skipped": 1 },
+    "productIntegration": { "passed": 184, "failed": 0, "skipped": 2 },
+    "mutation": { "killed": 2, "survived": 0 },
+    "realProviderCalls": 0,
+    "realPlatformKeychainDeletion": 0,
+    "externalEffects": 0
+  },
+  "notClaimed": [
+    "Live provider outage qualification",
+    "Physical installed-product deletion on macOS or Windows",
+    "Deletion of provider-side or external-service copies",
+    "Deletion of user workspaces or separately downloaded backups",
+    "Semantic equivalence detection for different Tool names or argument payloads"
+  ]
+}

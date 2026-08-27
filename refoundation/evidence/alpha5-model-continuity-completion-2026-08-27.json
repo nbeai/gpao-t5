@@ -3,6 +3,8 @@
   "recordedOn": "2026-08-27",
   "baselineSourceCommit": "e3e99ba3",
   "status": "PASS",
+  "requalifiedBy": "alpha56-truth-requalification-2026-08-27.json",
+  "originalQualificationSuperseded": true,
   "completionSentence": "주 모델 transport가 실패해도 허용된 다른 모델이 같은 Work를 이어가며, 부분 답을 최종 답으로 저장하거나 이미 실행한 Tool·외부 효과를 반복하지 않는다.",
   "qualified": [
     "Fallback is disabled by default and uses only connection ids explicitly allowed by the user policy.",
@@ -11,7 +13,8 @@
     "A successful exact Tool call requested again immediately after fallback is returned as not_executed before dispatch.",
     "An already-authenticated GitHub CLI read followed by primary-model transport failure completes through the fallback model with one CLI execution.",
     "A partial or failed provider response is not published as the final user answer.",
-    "Every transition is durably recorded as t5.model-continuity-receipt.v1 and projected without credentials."
+    "Every transition is durably recorded as t5.model-continuity-receipt.v1 and projected without credentials.",
+    "A real transition event is emitted once while the fallback guard remains active across later model responses."
   ],
   "verification": {
     "focused": { "tests": 20, "passed": 20, "failed": 0 },

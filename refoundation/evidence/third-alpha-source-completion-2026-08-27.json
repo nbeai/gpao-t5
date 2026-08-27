@@ -2,6 +2,8 @@
   "schema": "t5.third-alpha.source-completion.v1",
   "recordedOn": "2026-08-27",
   "status": "PASS",
+  "requalificationEvidence": "alpha56-truth-requalification-2026-08-27.json",
+  "repairCommit": "ffb4fb23",
   "completedStages": ["alpha0", "alpha1", "alpha2-streaming-v2", "alpha3", "alpha4", "alpha5", "alpha6"],
   "finalUserJourneys": {
     "LF-H01": "UI-independent resident runtime, drain, sleep-gap and restart recovery remain qualified in the full regression.",
@@ -15,9 +17,9 @@
     "numericRuntimeBenchmarkClaimed": false
   },
   "verification": {
-    "dailyCheck": { "tests": 1570, "passed": 1569, "failed": 0, "skipped": 1 },
+    "dailyCheck": { "tests": 1576, "passed": 1575, "failed": 0, "skipped": 1 },
     "finalAuthenticatedCliContinuityScenario": { "tests": 1, "passed": 1, "failed": 0 },
-    "productIntegration": { "tests": 185, "passed": 183, "failed": 0, "skipped": 2 },
+    "productIntegration": { "tests": 186, "passed": 184, "failed": 0, "skipped": 2 },
     "mutation": { "killed": 2, "survived": 0 },
     "realProviderCallsForAlpha5And6": 0,
     "externalEffectsForAlpha5And6": 0

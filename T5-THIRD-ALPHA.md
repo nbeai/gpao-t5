@@ -1,6 +1,6 @@
 # T5 3차α — Local Ownership & Persistent Intelligence
 
-상태: `ALPHA0_COMPLETE · ALPHA1_COMPLETE · ALPHA2_REQUALIFIED_STREAMING_V2 · ALPHA3_COMPLETE · ALPHA4_COMPLETE · ALPHA5_COMPLETE · ALPHA6_COMPLETE · THIRD_ALPHA_SOURCE_COMPLETE · MACOS_PRODUCT_QUALIFICATION_NEXT · SOURCE_SCOPE_FROZEN`
+상태: `ALPHA0_COMPLETE · ALPHA1_COMPLETE · ALPHA2_REQUALIFIED_STREAMING_V2 · ALPHA3_COMPLETE · ALPHA4_COMPLETE · ALPHA5_REQUALIFIED_EXACT_TRANSITION · ALPHA6_REQUALIFIED_OWNED_DELETION · THIRD_ALPHA_SOURCE_REQUALIFIED · MACOS_PRODUCT_QUALIFICATION_NEXT · SOURCE_SCOPE_FROZEN`
 기준 source: `5e9d10a11453df24fe77a896d59d891c423da621`
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN`
 
@@ -240,6 +240,14 @@ Transport Fallback이다.
 외부 연결, 활동 기록, 암호화 백업·복원과 삭제 범위를 일반 사용자 문장으로 모았다. 전체 삭제는 두 번 확인한 뒤
 이 컴퓨터의 T5 관리 state만 drain·owner release 뒤 제거하며 provider·외부 서비스 사본과 별도 backup 삭제를
 주장하지 않는다.
+
+α5·α6 최초 완료 commit `fa287740` 뒤 source 재감사에서 한 실제 모델 전환이 후속 fallback 응답마다 새 전환
+Receipt로 반복되는 결함과, 전체 삭제가 canonical `stateDir` 밖의 모델 연결 metadata·T5 소유 자격을 남기는
+결함을 재현했다. commit `ffb4fb23`에서 지속 fallback guard와 일회 transition event를 분리하고, 모델·메신저·
+workspace connection credential owner를 exact disconnect한 뒤에만 model metadata와 local state를 지우는 삭제
+inventory를 세웠다. credential cleanup 실패 시 state를 완료 삭제로 승격하지 않으며 사용자 파일·별도 backup·
+외부 서비스 사본은 그대로 둔다. 결정적 child-process 종단과 전체 회귀는
+`refoundation/evidence/alpha56-truth-requalification-2026-08-27.json`에서 재자격했다.
 
 α1~6의 최종 LF-H01~04 결속과 비교 source audit는
 `refoundation/evidence/third-alpha-source-completion-2026-08-27.json`에서 닫혔다. 3차α source는 완료됐으며 다음
