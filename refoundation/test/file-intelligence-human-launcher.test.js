@@ -12,6 +12,13 @@ test('파일 지능 인간 콘솔은 합성 fixture·읽기 전용 모델·빈 m
   assert.match(source, /사람 신원은 추정하지 말고/u); assert.match(source, /makeLocalImageOcr/u);
   assert.match(source, /restrictFileRealityToComputerRoots: true/u);
   assert.match(source, /protectedReadRoots: \[homedir\(\)\]/u);
-  assert.match(source, /terminalEnvironment: \{ HOME: room/u);
+  assert.match(source, /terminalEnvironment: \{ HOME: syntheticHome/u);
   assert.doesNotMatch(source, /migrateStoredModelCredentials|MessengerCredentialStore\([^)]*homedir/u);
+});
+
+test('blind 여권사진 fixture는 정답을 보호 상태에만 두고 콘솔 출력에서 위치를 숨긴다', () => {
+  assert.match(source, /--blind-passport/u); assert.match(source, /blind-expected\.json/u);
+  assert.match(source, /fixtureRoot: blindPassport \? '\[withheld blind fixture\]'/u);
+  assert.match(source, /computerFileRoots: blindPassport \? \[syntheticHome\]/u);
+  assert.match(source, /passport_portrait_fixture/u);
 });
