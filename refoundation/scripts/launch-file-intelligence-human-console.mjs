@@ -3,7 +3,7 @@ import { execFile, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 import sharp from 'sharp';
 
@@ -86,20 +86,20 @@ const model = credential.kind === 'api_key'
 const qualificationHome = realHomeBlind ? homedir() : syntheticHome;
 const computer = discoverComputerEnvironment({ userHome: qualificationHome });
 const terminalPlatformAdapter = await makeTerminalPlatformAdapter({ platform: 'darwin',
-  protectedReadRoots: realHomeBlind ? [dirname(connectionFile), join(homedir(), 'Library', 'Keychains'), stateDir] : [homedir()] });
+  protectedReadRoots: [homedir()] });
 const server = makeConsoleServer({ stateDir, workspace, computerEnvironment: computer,
-  computerFileRoots: realHomeBlind ? [homedir()] : blindPassport ? [syntheticHome] : [desktop],
+  computerFileRoots: realHomeBlind ? [realBlindRoot] : blindPassport ? [syntheticHome] : [desktop],
   restrictFileRealityToComputerRoots: true,
   fileOcrProbe: makeLocalImageOcr({ platform: 'darwin', helper }), modelFactory: () => model,
   modelStatus: () => ({ connected: true, provider: credential.provider, modelId: credential.modelId }),
   learningReviewMode: 'off', messengerCredentialStore: new MessengerCredentialStore(join(stateDir, 'messenger')),
-  terminalEnvironment: { HOME: qualificationHome, PATH: process.env.PATH ?? '/usr/bin:/bin', SHELL: '/bin/zsh', LANG: 'ko_KR.UTF-8' },
+  terminalEnvironment: { HOME: syntheticHome, PATH: process.env.PATH ?? '/usr/bin:/bin', SHELL: '/bin/zsh', LANG: 'ko_KR.UTF-8' },
   terminalPlatformAdapter,
   onError: (error) => console.error('[file-intelligence-human]', error?.message ?? error) });
 await new Promise((resolve, reject) => { server.once('error', reject); server.listen(Number(option('--port') ?? 0), '127.0.0.1', resolve); });
 const url = `http://127.0.0.1:${server.address().port}`;
 console.log(JSON.stringify({ url, model: credential.modelId, fixtureRoot: blindPassport ? '[withheld blind fixture]' : room,
-  blindPassport, realHomeBlind, realUserFilesMayBeRead: realHomeBlind, externalWrites: realHomeBlind ? 1 : 0,
+  blindPassport, realHomeBlind, realUserFilesMayBeRead: false, externalWrites: realHomeBlind ? 1 : 0,
   prompts: blindPassport ? ['내 컴퓨터에서 여권사진 찾아줘. 사람 신원은 추정하지 말고 파일만 골라줘.']
     : ['바탕화면에서 카카오로 받은 한빛상사 478만원 견적 사진 찾아줘',
       '바탕화면에서 여권사진처럼 보이는 파일 찾아줘. 사람 신원은 추정하지 말고 파일만 골라줘.'] }, null, 2));
