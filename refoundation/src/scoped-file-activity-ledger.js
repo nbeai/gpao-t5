@@ -234,6 +234,8 @@ export function normalizeMacOSFSEvent(input = {}) {
 }
 
 export function normalizeWindowsUSNRecord(input = {}) {
+  if (input.gap === true) return { gap: true,
+    reason: String(input.reason ?? 'usn_journal_gap'), cursor: String(input.usn ?? 0) };
   const reasons = new Set(input.reasons ?? []);
   const kind = reasons.has('file_create') ? 'created' : reasons.has('file_delete') ? 'deleted'
     : reasons.has('rename_old_name') || reasons.has('rename_new_name') ? 'moved'

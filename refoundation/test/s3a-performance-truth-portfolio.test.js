@@ -92,9 +92,12 @@ test('S3-A 준비는 공식 Gate·제품 진실·observer 비개입을 유지한
     readFile(new URL('T5-THIRD-ACTIVATION-PREPARATION.md', root), 'utf8'),
     readFile(new URL('docs/03-verification/T5-S3-A-PERFORMANCE-TRUTH-WORK-ORDER-2026-08-26-ko.md', root), 'utf8'),
   ]);
-  const gate = 'SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER';
-  assert.ok(current.includes(gate));
-  assert.ok(preparation.includes(gate));
+  const historicalGate = 'SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER';
+  const currentGate = 'SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN';
+  assert.equal(value.officialReleaseGate, historicalGate);
+  assert.ok(workOrder.includes(historicalGate));
+  assert.ok(current.includes(currentGate));
+  assert.ok(preparation.includes(currentGate));
   assert.equal(value.privacy.realExternalWrites, false);
   assert.equal(value.absoluteInvariants.instrumentationInModelContextOrUserSurface, 0);
   assert.match(workOrder, /완전 교차 행렬과 목적별 동일 표본 수는 금지/u);

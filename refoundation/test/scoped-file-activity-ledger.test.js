@@ -115,4 +115,7 @@ test('macOS gap flags와 Windows USN reasons는 같은 metadata truth로 정규�
     reasons: ['rename_new_name'], volume: 'V', fileId: 'F', reparse: 'junction', availability: 'available' }), {
     kind: 'moved', path: 'C:\\Work\\a', occurredAt: T1, sourceEventId: '9',
     identity: { volume: 'V', fileId: 'F', reparse: 'junction' }, availability: 'available' });
+  assert.deepEqual(normalizeWindowsUSNRecord({ gap: true, usn: '10', reason: 'usn_cursor_outside_journal' }), {
+    gap: true, cursor: '10', reason: 'usn_cursor_outside_journal',
+  });
 });

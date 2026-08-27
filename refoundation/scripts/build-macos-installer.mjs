@@ -8,6 +8,11 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  assertDeveloperIdentities, loadReleaseConfiguration, runtimeMaterial, signingConfiguration,
+} from './macos-release-configuration.mjs';
+import { assertReleaseSourcePolicy } from './macos-release-source-boundary.mjs';
+
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..', '..');
 const product = {
@@ -41,12 +46,6 @@ async function walk(root) {
     else if (entry.isFile()) output.push(path);
   }
   return output;
-}
-
-function required(name) {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is required`);
-  return resolve(value);
 }
 
 async function verifiedNode(tarball, expectedName, shasums, destination) {
@@ -174,9 +173,17 @@ async function signMachO(app, identity, keychain, entitlements, nodePaths) {
 
 async function main() {
   if (process.platform !== 'darwin') throw new Error('macOS is required');
-  const armTar = required('T5_NODE_ARM64_TARBALL');
-  const x64Tar = required('T5_NODE_X64_TARBALL');
-  const sumsPath = required('T5_NODE_SHASUMS');
+  const { config } = await loadReleaseConfiguration();
+  const armTar = runtimeMaterial('T5_NODE_ARM64_TARBALL', config?.runtime?.arm64Tarball);
+  const x64Tar = runtimeMaterial('T5_NODE_X64_TARBALL', config?.runtime?.x64Tarball);
+  const sumsPath = runtimeMaterial('T5_NODE_SHASUMS', config?.runtime?.shasums);
+  const signing = signingConfiguration(config, { unsigned: process.env.T5_UNSIGNED_PACKAGE === '1' });
+  const sourcePolicy = assertReleaseSourcePolicy({
+    sourceCommit: run('git', ['rev-parse', 'HEAD'], { cwd: repo }).trim(),
+    sourceDirty: packageSourceDirty(),
+    signing: signing.applicationIdentity ? 'developer-id' : 'unsigned',
+  });
+  if (signing.applicationIdentity) assertDeveloperIdentities(signing);
   const shasums = await readFile(sumsPath, 'utf8');
   const work = await mkdtemp(join(tmpdir(), 't5-refoundation-pkg-'));
   const root = join(work, 'root');
@@ -263,12 +270,9 @@ read -r _
     await chmod(uninstall, 0o755);
     run('xattr', ['-cr', app]);
 
-    const appIdentity = process.env.T5_SIGN_APP;
-    const installerIdentity = process.env.T5_SIGN_INSTALLER;
-    const keychain = process.env.T5_SIGN_KEYCHAIN;
-    if (Boolean(appIdentity) !== Boolean(installerIdentity)) {
-      throw new Error('application and installer signing identities must be provided together');
-    }
+    const appIdentity = signing.applicationIdentity;
+    const installerIdentity = signing.installerIdentity;
+    const keychain = signing.keychain;
     if (appIdentity) {
       const entitlements = join(work, 'node.entitlements.plist');
       await writeFile(entitlements, `<?xml version="1.0" encoding="UTF-8"?>
@@ -322,8 +326,9 @@ exit 0
     const manifest = {
       schema: 't5.macos-team-installer.v1', product: product.name, version: product.version,
       bundleId: product.bundleId, architectures: ['arm64', 'x86_64'], port: product.port,
-      sourceCommit: run('git', ['rev-parse', 'HEAD'], { cwd: repo }).trim(),
-      sourceDirty: packageSourceDirty(), sourceScope: 'packaged-inputs',
+      sourceCommit: sourcePolicy.sourceCommit,
+      sourceDirty: sourcePolicy.sourceDirty, sourceScope: 'packaged-inputs',
+      developmentOnly: sourcePolicy.developmentOnly, releaseEligible: sourcePolicy.releaseEligible,
       node: { version: 'v24.14.0', officialArchiveSha256: nodeHashes },
       signing: appIdentity ? 'developer-id' : 'unsigned', notarized: false, stapled: false,
       package: { path: output, bytes: (await stat(output)).size, sha256: await sha256(output) },

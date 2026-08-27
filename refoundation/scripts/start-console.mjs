@@ -37,11 +37,13 @@ import { ConnectionStateStore } from '../src/connection-state-store.js';
 import { ConnectionCredentialCoordinator } from '../src/connection-credential-coordinator.js';
 import { ScopedFileActivityLedger } from '../src/scoped-file-activity-ledger.js';
 import { makeScopedFileActivityService } from '../src/scoped-file-activity-service.js';
-import { makeMacOSFSEventsAdapter } from '../src/file-activity-platform-adapters.js';
+import { makeMacOSFSEventsAdapter, makeWindowsUSNAdapter } from '../src/file-activity-platform-adapters.js';
 import { makeNativeFolderSelector } from '../src/native-folder-selector.js';
 import { CoarseAppActivityLedger } from '../src/coarse-app-activity-ledger.js';
 import { makeCoarseAppActivityService } from '../src/coarse-app-activity-service.js';
-import { makeMacOSCoarseAppAdapter } from '../src/coarse-app-activity-platform-adapters.js';
+import { makeMacOSCoarseAppAdapter, makeWindowsCoarseAppAdapter } from '../src/coarse-app-activity-platform-adapters.js';
+import { ManagedProcessRegistry } from '../src/managed-process.js';
+import { resolveWindowsProductEnvironment } from '../src/windows-product-environment.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -49,68 +51,85 @@ function option(name) {
 }
 
 const port = Number(option('--port') ?? process.env.T5_REFOUNDATION_CONSOLE_PORT ?? 4174);
-const stateDir = resolve(process.env.T5_REFOUNDATION_CONSOLE_STATE
-  ?? join(homedir(), '.local', 'state', 'gpao-t5', 'refoundation-console'));
-const workspace = resolveConsoleWorkspace(process.env, homedir());
 const computerEnvironment = discoverComputerEnvironment({ userHome: homedir() });
+const windowsProduct = computerEnvironment.platform === 'win32'
+  ? await resolveWindowsProductEnvironment({ productRoot: option('--product-root') }) : null;
+const stateDir = resolve(process.env.T5_REFOUNDATION_CONSOLE_STATE
+  ?? windowsProduct?.stateDir ?? join(homedir(), '.local', 'state', 'gpao-t5', 'refoundation-console'));
+const workspace = process.env.T5_REFOUNDATION_WORKSPACE
+  ? resolveConsoleWorkspace(process.env, homedir()) : (windowsProduct?.workspace ?? resolveConsoleWorkspace(process.env, homedir()));
 const terminalEnvironment = await resolveTerminalShellEnvironment({
   computer: computerEnvironment, home: homedir(),
 });
 const connectionFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
-  ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
+  ?? windowsProduct?.connectionFile ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
 const githubCli = await findExecutable('gh', terminalEnvironment.PATH ?? '');
 const terminalPlatformAdapter = await makeTerminalPlatformAdapter({
   platform: computerEnvironment.platform,
   protectedReadRoots: [
     dirname(connectionFile),
     join(stateDir, 'connections'),
-    join(homedir(), 'Library', 'Keychains'),
-    join(homedir(), 'Library', 'Application Support', 'GPAO-T5', 'credentials'),
+    ...(computerEnvironment.platform === 'darwin' ? [
+      join(homedir(), 'Library', 'Keychains'),
+      join(homedir(), 'Library', 'Application Support', 'GPAO-T5', 'credentials'),
+    ] : []),
+    ...(windowsProduct ? [windowsProduct.credentialDirectory] : []),
   ],
   protectedExecutableNames: githubCli ? ['gh'] : [],
 });
 const terminalCredentialBroker = makeTerminalCredentialBroker({
   registrations: githubCli ? [makeGitHubCliRegistration(githubCli)] : [],
 });
-const portFile = process.env.T5_REFOUNDATION_PORT_FILE
-  ? resolve(process.env.T5_REFOUNDATION_PORT_FILE) : null;
+const portFileValue = option('--port-file') ?? process.env.T5_REFOUNDATION_PORT_FILE;
+const portFile = portFileValue ? resolve(portFileValue) : null;
 await Promise.all([mkdir(stateDir, { recursive: true }), mkdir(workspace, { recursive: true })]);
 
 const fileActivityLedger = new ScopedFileActivityLedger(join(stateDir, 'file-activity'));
 const packagedFileActivityHelper = process.platform === 'darwin'
-  ? resolve(process.env.T5_FILE_ACTIVITY_HELPER ?? join(dirname(process.execPath), 't5-macos-file-activity')) : null;
+  ? resolve(process.env.T5_FILE_ACTIVITY_HELPER ?? join(dirname(process.execPath), 't5-macos-file-activity'))
+  : windowsProduct?.fileActivityHelper ?? null;
 let fileActivityAdapterFactory = null;
 if (packagedFileActivityHelper) {
   try {
     await accessFile(packagedFileActivityHelper, constants.X_OK);
-    fileActivityAdapterFactory = async () => makeMacOSFSEventsAdapter({
+    fileActivityAdapterFactory = async () => (process.platform === 'darwin' ? makeMacOSFSEventsAdapter({
       helper: packagedFileActivityHelper, ledger: fileActivityLedger,
       onError: (error) => console.error('[file-activity]', error?.message ?? 'collector failed'),
-    });
+    }) : makeWindowsUSNAdapter({
+      helper: packagedFileActivityHelper, ledger: fileActivityLedger,
+      onError: (error) => console.error('[file-activity]', error?.message ?? 'collector failed'),
+    }));
   } catch {}
 }
 const fileActivityService = makeScopedFileActivityService({
   ledger: fileActivityLedger, adapterFactory: fileActivityAdapterFactory,
   onError: (error) => console.error('[file-activity]', error?.message ?? 'collector failed'),
 });
-const fileActivityRootSelector = makeNativeFolderSelector();
+const fileActivityRootSelector = makeNativeFolderSelector({ windowsHelper: windowsProduct?.folderPickerHelper ?? null });
 await fileActivityService.resumeConfigured().catch(() => {});
 
 const appActivityLedger = new CoarseAppActivityLedger(join(stateDir, 'app-activity'));
 const packagedAppActivityHelper = process.platform === 'darwin'
-  ? resolve(process.env.T5_APP_ACTIVITY_HELPER ?? join(dirname(process.execPath), 't5-macos-coarse-app-activity')) : null;
+  ? resolve(process.env.T5_APP_ACTIVITY_HELPER ?? join(dirname(process.execPath), 't5-macos-coarse-app-activity'))
+  : windowsProduct?.appActivityHelper ?? null;
 let appActivityAdapterFactory = null;
 if (packagedAppActivityHelper) {
-  try { await accessFile(packagedAppActivityHelper, constants.X_OK); appActivityAdapterFactory = async () => makeMacOSCoarseAppAdapter({
-    helper: packagedAppActivityHelper, ledger: appActivityLedger,
-    onError: (error) => console.error('[app-activity]', error?.message ?? 'collector failed'),
-  }); } catch {}
+    try { await accessFile(packagedAppActivityHelper, constants.X_OK); appActivityAdapterFactory = async () => (process.platform === 'darwin' ? makeMacOSCoarseAppAdapter({
+      helper: packagedAppActivityHelper, ledger: appActivityLedger,
+      onError: (error) => console.error('[app-activity]', error?.message ?? 'collector failed'),
+    }) : makeWindowsCoarseAppAdapter({
+      helper: packagedAppActivityHelper, ledger: appActivityLedger,
+      onError: (error) => console.error('[app-activity]', error?.message ?? 'collector failed'),
+    })); } catch {}
 }
 const appActivityService = makeCoarseAppActivityService({ ledger: appActivityLedger, adapterFactory: appActivityAdapterFactory,
   onError: (error) => console.error('[app-activity]', error?.message ?? 'collector failed') });
 await appActivityService.resumeConfigured().catch(() => {});
 
-const platformSecretStore = makePlatformSecretStore({ platform: computerEnvironment.platform });
+const platformSecretStore = makePlatformSecretStore({ platform: computerEnvironment.platform,
+  windows: windowsProduct ? {
+    directory: windowsProduct.credentialDirectory, program: windowsProduct.jobCredentialHost,
+  } : {} });
 await migrateStoredModelCredentials({ file: connectionFile, secretStore: platformSecretStore });
 const access = makeConsoleModelAccess({ connectionFile, stateDir, secretStore: platformSecretStore });
 const modelConnections = makeModelConnectionService({
@@ -167,6 +186,8 @@ const slackConnection = slackClientId && slackPublicSearchPolicy ? makeSlackMcpC
 const workspaceConnectionServices = [notionConnection, linearConnection, channelTalkConnection];
 if (slackConnection) workspaceConnectionServices.push(slackConnection);
 const localConsoleToken = randomBytes(32).toString('base64url');
+const processRegistry = new ManagedProcessRegistry({ platform: computerEnvironment.platform,
+  windowsJobHost: windowsProduct?.jobCredentialHost ?? null });
 const server = makeConsoleServer({
   stateDir,
   workspace,
@@ -177,6 +198,7 @@ const server = makeConsoleServer({
   terminalEnvironment,
   terminalPlatformAdapter,
   terminalCredentialBroker,
+  processRegistry,
   webSearchProviders,
   webReadOptions: { urlResolvers: [naverReadableUrlResolver] },
   videoTextFetchImpl: globalThis.fetch,

@@ -1,9 +1,9 @@
 # T5 Second Completion — Current Development Source
 
-상태: `SECOND_COMPLETION_COMPLETE_RELEASE_HARDENING_SOURCE_COMPLETE`
-현재 Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER`
+상태: `SECOND_COMPLETION_COMPLETE_RELEASE_CREDENTIAL_READY`
+현재 Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN`
 기준 source: `83fe8863`
-배포 상태: `legacy-free 0.2.1 payload verified · Developer ID private signing identity unavailable`
+배포 상태: `legacy-free 0.2.1 unsigned payload verified · Developer ID identities and notary profile ready · current source signed package pending`
 
 이 문서는 T5 2차 완성의 유일한 현재 작업 계획이다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은
 `AGENTS.md`, 1차 완성의 역사·실패 원본·과거 Gate는 `T5-REFOUNDATION.md`가 담당한다.
@@ -21,10 +21,13 @@
 - 현재 제품 CI는 core 889/889, product integration 142/142, 핵심 mutation 2/2 killed다. 가시
   Browser-live와 실제 개인 계정·외부 쓰기는 실행하지 않았다.
 - 0.2.1 universal unsigned package의 isolated payload·Node·console·로컬 보안·legacy root 0 검증은
-  통과했다. 현재 Keychain에 Developer ID private identity가 없어 서명·공증·staple은 수행하지 않았으며,
-  이 unsigned package를 사용자 배포 완료로 승격하지 않는다.
+  통과했다. 2026-08-27 login Keychain에서 Developer ID Application·Installer 두 identity와
+  `gpao-t-notary` 자격·Accepted history를 실제 재확인했고, 검증된 arm64·x64 Node release material도
+  로컬 release configuration에 결속했다. 현재 source의 새 signed package 제작·공증·staple은 아직 실행하지
+  않았으므로 기존 unsigned package를 사용자 배포 완료로 승격하지 않는다.
 
 근거: `refoundation/evidence/release-0.2.1-isolation-hardening-2026-08-26.json`
+서명 준비 근거: `refoundation/evidence/release-signing-readiness-2026-08-27.json`
 
 ## 현재 Quality Hardening 정산
 
@@ -47,8 +50,8 @@
 | 최신 P0 이후 전체 인간 회귀 | 추가 전체 재실행을 요구하지 않는다. 새 코어 884/884·제품 통합 141/141·실제 Terra 사무직/프리랜서 6/6을 최종 자격으로 채택한다. |
 | package 잠금 | 해제. 다음 한 작업은 설치 package·상태 보존·서명·공증·rollback 자격이다. |
 
-현재 Release blocker는 소스 기능 개발이 아니라 아직 실행하지 않은 package 제작·새 설치 smoke·서명·공증
-절차뿐이다. 위에서 수용·보류한 세 경계를 package 작업 중 다시 개발하지 않는다.
+서명 자격 부재는 더 이상 Release blocker가 아니다. 남은 Release 작업은 현재 source의 signed package 제작,
+공증·staple, 새 설치·상태 보존·rollback smoke다. 위에서 수용·보류한 세 경계를 package 작업 중 다시 개발하지 않는다.
 
 ## 1. 기준선과 목적
 

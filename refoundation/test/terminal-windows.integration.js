@@ -7,6 +7,7 @@ import test from 'node:test';
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
 import { makeExecTool, makeProcessControlTool, makeProcessStartTool } from '../src/exec-tool.js';
 import { makePtyStartTool } from '../src/pty-tool.js';
+import { ManagedProcessRegistry } from '../src/managed-process.js';
 
 const effect = { kind: 'observe', targets: [], confirmation: 'not_applicable' };
 const ps = (value) => `'${String(value).replaceAll("'", "''")}'`;
@@ -23,7 +24,9 @@ test('Windows runner는 PowerShell·Job Object tree cancel·ConPTY를 실제 자
   await writeFile(childScript, "import{writeFile}from'node:fs/promises';setTimeout(async()=>{await writeFile(process.argv[2],'late');process.exit(0)},1200);\n");
   await writeFile(parentScript, "import{spawn}from'node:child_process';spawn(process.execPath,[process.argv[2],process.argv[3]],{stdio:'ignore'});setInterval(()=>{},1000);\n");
   await writeFile(ttyScript, "if(!process.stdin.isTTY){process.exit(42)}process.stdout.write('READY>');process.stdin.once('data',v=>{console.log('VALUE='+v.toString().trim());process.exit(0)});\n");
-  const exec = makeExecTool({ workspace: root, computer });
+  const processRegistry = new ManagedProcessRegistry({ platform: 'win32',
+    windowsJobHost: process.env.T5_WINDOWS_JOB_HOST });
+  const exec = makeExecTool({ workspace: root, computer, processRegistry });
   try {
     const observed = await exec.execute({ command: "Write-Output 'WINDOWS-OBSERVED-42'", cwd: null, effect });
     assert.equal(observed.exitCode, 0); assert.match(observed.stdout, /WINDOWS-OBSERVED-42/u);

@@ -75,6 +75,11 @@
     "refoundation:qualify:attachments": "node refoundation/scripts/run-attachment-qualification.mjs",
     "refoundation:qualify:restart-hygiene": "node refoundation/scripts/run-incomplete-tool-restart-qualification.mjs",
     "refoundation:package:macos": "node refoundation/scripts/build-macos-installer.mjs",
+    "refoundation:package:windows": "node refoundation/scripts/build-windows-package.mjs",
+    "refoundation:release:configure": "node refoundation/scripts/configure-macos-release.mjs",
+    "refoundation:release:preflight": "node refoundation/scripts/check-macos-release-readiness.mjs",
+    "refoundation:notarize:macos": "node refoundation/scripts/notarize-macos-installer.mjs",
+    "refoundation:release:macos": "node refoundation/scripts/release-macos-installer.mjs",
     "refoundation:verify:macos": "node refoundation/scripts/verify-macos-installer.mjs",
     "preview:isolated": "T5_REFOUNDATION_CONSOLE_STATE=/tmp/t5-preview-state T5_REFOUNDATION_WORKSPACE=/tmp/t5-preview-home node refoundation/scripts/start-console.mjs"
   }

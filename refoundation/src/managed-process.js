@@ -64,7 +64,7 @@ export class ManagedProcessRegistry {
     spoolLimit = DEFAULT_SPOOL_LIMIT,
     stopGraceMs = 1000,
     killGraceMs = 2000,
-    windowsJobHost = process.env.T5_WINDOWS_JOB_HOST ?? null,
+    windowsJobHost = null,
   } = {}) {
     this.platform = platform;
     this.spawnProcess = spawnProcess;

@@ -26,7 +26,7 @@ test('실제 Windows runner는 CurrentUser DPAPI로 암호화·재개방한다',
   if (process.platform !== 'win32') return context.skip('Windows DPAPI qualification');
   const room = await mkdtemp(join(tmpdir(), 't5-windows-dpapi-live-'));
   try {
-    const store = makeWindowsDpapiSecretStore({ directory: room });
+    const store = makeWindowsDpapiSecretStore({ directory: room, program: process.env.T5_WINDOWS_JOB_HOST });
     await store.set('live-secret', { token: 'WINDOWS-DPAPI-4821' });
     assert.deepEqual(await store.get('live-secret'), { token: 'WINDOWS-DPAPI-4821' });
     assert.doesNotMatch(await readFile(join(room, 'live-secret.dpapi'), 'utf8'), /WINDOWS-DPAPI-4821/u);

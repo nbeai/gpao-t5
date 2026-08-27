@@ -2,7 +2,7 @@
 
 상태: `S3A_PASS_WITH_OBSERVATION · S3_SCOPE_FROZEN · S3T_PASS_WITH_OBSERVATION · S3M_MEMORY_CORE_COMPLETE_ADAPTIVE_DEFERRED · S3UX_REQUALIFIED_PASS_WITH_OBSERVATION · S3CA_DEFERRED_NEXT_CYCLE · S3CH0_3_CORE_COMPLETE_PRODUCT_JOURNEYS_ACTIVE · S3VD_CORE_PASS_WITH_OBSERVATION · OPTIMIZATION LOCKED`
 
-현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER`
+현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN`
 
 현재 공식 Release Gate와 2차 완성의 진행 정본은 계속 `T5-SECOND-COMPLETION.md`가 담당한다. 이 문서는
 그 Release 상태는 변경하지 않는다. 오너는 2026-08-26 S3-A 측정선을 활성화하고 Terminal-first 고도화를
@@ -48,9 +48,9 @@ collector를 얹지 않는다. 이 문서는 측정·반대시험·판정의 범
 현재 금지 작업: 측정 결과를 전제한 구조 변경·성능 최적화, S3-UX/CA/VD 제품 hot path 선구현, UX/CH-0 전 CH-1 collector 선행, screen/audio/content capture, 여러 큰 개발선 동시 개통, 새 3차 개발선·기능 범위 추가
 ```
 
-서명 identity 부재라는 Release 외부 blocker를 3차 소스 변경으로 해결한 것처럼 기록하지 않는다. 반대로
-S3-A 준비가 Release package의 서명·공증 완료 조건을 대신하지도 않는다. Release 작업과 S3-A는 서로 다른
-scope·evidence·판정을 유지한다.
+2026-08-27 Keychain과 Apple notary history에서 서명·공증 자격은 준비 완료로 재확인했다. 이것은 자격 부재를
+해소한 것이지 현재 source의 signed package 제작·공증·staple 완료를 뜻하지 않는다. 반대로 S3-A 준비가
+Release package 완료 조건을 대신하지도 않는다. Release 작업과 S3-A는 서로 다른 scope·evidence·판정을 유지한다.
 
 ### 현재 개발선 등록부
 
@@ -203,7 +203,7 @@ Capability 부재처럼 제품 범위 판단이 필요한 관측은 원인과 �
 ## 3. 작업 시작 일곱 줄
 
 1. **제품 약속**: 평소 말로 요청하면 T5가 실제 현실을 사용해 목적을 끝낸다.
-2. **현재 Gate**: 2차 완성 완료, 0.2.1 unsigned package 자격 완료, signing external blocker다.
+2. **현재 Gate**: 2차 완성 완료, 0.2.1 unsigned package 자격 완료, signing/notary ready이며 현재 source release는 미실행이다.
 3. **Gate 사용자 완료 문장**: 현재 상황·기억·능력·권한·자원을 정확히 구성해 적은 왕복과 작은 Context로
    목적을 유지하고, 실행·효과·전달·결과를 확인한 뒤에만 완료한다.
 4. **이미 선 실제 증거**: resident WorkStore replay 제거, ResourceLedger와 ContextReceipt, Run·effect·surface

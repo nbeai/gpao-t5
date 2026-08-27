@@ -11,7 +11,7 @@ function safeName(value) {
   return name;
 }
 
-function trustedHost(program = process.env.T5_WINDOWS_JOB_HOST) {
+function trustedHost(program) {
   if (!program || !win32.isAbsolute(program)) throw new Error('trusted Windows credential host is unavailable');
   return program;
 }
@@ -50,11 +50,15 @@ function runNativeDpapi(program, action, input) {
 export function makeWindowsDpapiSecretStore({
   directory = process.env.LOCALAPPDATA
     ? resolve(process.env.LOCALAPPDATA, 'GPAO-T5', 'credentials') : null,
-  program = process.platform === 'win32' ? trustedHost() : null,
-  protect = (plain) => runNativeDpapi(program, '--dpapi-protect', plain),
-  unprotect = (cipher) => runNativeDpapi(program, '--dpapi-unprotect', cipher),
+  program = null,
+  protect = null,
+  unprotect = null,
 } = {}) {
   if (!directory) throw new Error('Windows credential directory is unavailable');
+  if ((protect == null) !== (unprotect == null)) throw new Error('Windows credential codec is incomplete');
+  const nativeProgram = protect == null ? trustedHost(program) : null;
+  const protectValue = protect ?? ((plain) => runNativeDpapi(nativeProgram, '--dpapi-protect', plain));
+  const unprotectValue = unprotect ?? ((cipher) => runNativeDpapi(nativeProgram, '--dpapi-unprotect', cipher));
   const root = resolve(directory);
   const pathFor = (name) => resolve(root, `${safeName(name)}.dpapi`);
   return {
@@ -65,7 +69,7 @@ export function makeWindowsDpapiSecretStore({
       if (!/^[A-Za-z0-9+/=]+$/u.test(cipher) || cipher.length > MAX_SECRET_BYTES * 2) {
         throw new Error('Windows DPAPI credential is invalid');
       }
-      const plain = await unprotect(cipher);
+      const plain = await unprotectValue(cipher);
       try { return JSON.parse(plain); }
       catch { throw new Error('Windows DPAPI credential is invalid'); }
     },
@@ -78,7 +82,7 @@ export function makeWindowsDpapiSecretStore({
       const target = pathFor(name);
       try { if ((await lstat(target)).isSymbolicLink()) throw new Error('credential path is a symlink'); }
       catch (error) { if (error?.code !== 'ENOENT') throw error; }
-      const cipher = String(await protect(serialized)).trim();
+      const cipher = String(await protectValue(serialized)).trim();
       if (!/^[A-Za-z0-9+/=]+$/u.test(cipher) || cipher.length > MAX_SECRET_BYTES * 2) {
         throw new Error('Windows DPAPI operation failed');
       }

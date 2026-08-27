@@ -1,0 +1,50 @@
+{
+  "schema": "t5.release-signing-readiness.v1",
+  "recordedAt": "2026-08-27T12:47:57+09:00",
+  "sourceAtObservation": "c5ef7878063850ee1d00978fee5c1aabaaa55bf0",
+  "status": "READY",
+  "passed": true,
+  "developerId": {
+    "teamId": "5WC35NK3LA",
+    "application": {
+      "commonName": "Developer ID Application: Project Beai Co.,Ltd (5WC35NK3LA)",
+      "sha1": "227D900FF1DDA43684DA9E555BD9D96452180338",
+      "validUntil": "2031-07-21T02:30:40Z",
+      "privateKeyMatched": true,
+      "keychainIdentityValid": true
+    },
+    "installer": {
+      "commonName": "Developer ID Installer: Project Beai Co.,Ltd (5WC35NK3LA)",
+      "sha1": "29857E6B5B6E5CE875B9B4B24FCE8032553599EB",
+      "validUntil": "2031-07-21T02:27:06Z",
+      "privateKeyMatched": true,
+      "keychainIdentityValid": true
+    },
+    "certificateChainInstalled": true
+  },
+  "notary": {
+    "keychainProfile": "gpao-t-notary",
+    "credentialsValidated": true,
+    "acceptedSubmissionHistoryObserved": true,
+    "latestAcceptedPackageObserved": "GPAO-T5-0.2.2-universal.pkg"
+  },
+  "runtime": {
+    "nodeVersion": "v24.14.0",
+    "arm64ArchiveOfficialChecksumMatched": true,
+    "x64ArchiveOfficialChecksumMatched": true,
+    "localReleaseConfigurationStoredOutsideSourceTree": true
+  },
+  "sourceBoundary": {
+    "privateKeysCopiedIntoRepository": false,
+    "releaseConfigurationCopiedIntoRepository": false,
+    "buildDefaultsToDeveloperIdSigning": true,
+    "unsignedBuildRequiresExplicitOptIn": true,
+    "singleReleaseCommandIncludesPreflightBuildVerifyNotarizeStapleReverify": true
+  },
+  "notClaimed": [
+    "the latest accepted package was built from the current source commit",
+    "a current-source signed package has been built",
+    "a current-source package has been notarized or stapled",
+    "fresh install, state preservation, or rollback qualification is complete"
+  ]
+}
