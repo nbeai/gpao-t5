@@ -402,6 +402,8 @@ export function makeAttachmentTool({
         const sourceProvenance = args.sourceManifestId
           ? await sourceManifestStore?.verify({ sessionId, manifestId: args.sourceManifestId }) : null;
         if (args.sourceManifestId && !sourceProvenance) throw new Error('source manifest capability is unavailable');
+        const sourceReconciliation = args.sourceManifestId
+          ? await sourceManifestStore.verifyOutput({ sessionId, manifestId: args.sourceManifestId, outputPath: filePath }) : null;
         if (!produced && typeof authorizeOutputPath === 'function' && !authorizeOutputPath(filePath)) {
           throw new Error('output path is not authorized by the current request or run');
         }
@@ -438,6 +440,7 @@ export function makeAttachmentTool({
         return {
           state: 'registered', effect: 'local_change', artifact,
           ...(sourceProvenance ? { sourceProvenance } : {}),
+          ...(sourceReconciliation?.state === 'verified' ? { sourceReconciliation } : {}),
           ...(produced ? { outputHandle: produced.outputHandle, producerRunId: produced.producerRunId } : {}),
           ...(executableQualification.applicable ? { executableQualification } : {}),
           ...(qualityQualification.applicable ? { qualityQualification } : {}),

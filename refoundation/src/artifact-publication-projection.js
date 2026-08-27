@@ -64,6 +64,9 @@ function human(publication) {
   if (publication.sourceProvenance?.verified === true) confirmed.push(
     `결과에 사용한 원본 ${publication.sourceProvenance.sourceCount}개가 바뀌지 않았는지 다시 확인했어요.`,
   );
+  if (publication.sourceProvenance?.reconciliation?.verified === true) confirmed.push(
+    `표준 열 ${publication.sourceProvenance.reconciliation.columnCount}개와 전체 ${publication.sourceProvenance.reconciliation.rowCount}행을 원본과 다시 맞췄어요.`,
+  );
   const unknowns = [];
   if (!publication.storage.exactReadback) unknowns.push('저장된 파일을 다시 여는 확인은 아직 하지 않았어요.');
   unknowns.push('화면에서 실제로 열리는지는 아직 확인하지 않았어요.');
@@ -151,6 +154,11 @@ export function makeArtifactPublicationProductAdapter({ attachmentStore, runLedg
           verified: true, sourceCount: receipt.result.sourceProvenance.sources?.length ?? 0,
           purpose: String(receipt.result.sourceProvenance.purpose ?? '').slice(0, 500),
           unknowns: (receipt.result.sourceProvenance.unknowns ?? []).map(String).slice(0, 20),
+          reconciliation: receipt.result?.sourceReconciliation?.state === 'verified' ? {
+            verified: true, mode: receipt.result.sourceReconciliation.mode,
+            rowCount: receipt.result.sourceReconciliation.rowCount,
+            columnCount: receipt.result.sourceReconciliation.outputColumns?.length ?? 0,
+          } : { verified: false, mode: null, rowCount: null, columnCount: null },
         } : { verified: false, sourceCount: 0, purpose: null, unknowns: [] },
         temporary: { userWorkspaceCopiesCreated: classification === 'existing_file'
           && receipt.result?.publication?.managedCopy === true
