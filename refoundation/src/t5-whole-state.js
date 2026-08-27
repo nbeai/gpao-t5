@@ -52,6 +52,7 @@ export async function makeT5WholeStateRegistry(stateRoot) {
   add('messenger', ['messenger/messenger-runtime.json'], 130, ['sessions', 'work']);
   add('terminal-outputs', await regularFiles(stateRoot, 'terminal-outputs'), 140, ['sessions', 'runs']);
   add('managed-skills', await regularFiles(stateRoot, 'managed-skills'), 150, ['capability-lifecycle']);
+  add('capability-packages', await regularFiles(stateRoot, 'capability-packages'), 155, ['capability-lifecycle']);
   add('file-activity', await regularFiles(stateRoot, 'file-activity'), 160);
   add('app-activity', await regularFiles(stateRoot, 'app-activity'), 170);
   add('runtime-continuity', ['runtime-continuity/events.json'], 180);

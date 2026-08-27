@@ -108,6 +108,7 @@ import {
 import { makeConnectionDoctor } from './connection-truth.js';
 import { makeConnectionTool } from './connection-tool.js';
 import { makeCapabilityRealityObserver, makeCapabilityRealityTool } from './capability-reality.js';
+import { makeCapabilityPackageAdminTool } from './capability-acquisition-coordinator.js';
 import { wrapRemoteConnectionTool } from './existing-capability-inspectors.js';
 import { CapabilityHandoffLedger } from './capability-handoff-ledger.js';
 import { makeCapabilityHandoffCoordinator } from './capability-handoff-coordinator.js';
@@ -361,6 +362,7 @@ export function makeConsoleServer({
   terminalPlatformAdapter = null,
   terminalCredentialBroker = null,
   terminalCapabilityAttribution = null,
+  capabilityAcquisition = null,
   documentCli = bundledDocumentCli,
   attachmentStore,
   resourceLedger: providedResourceLedger,
@@ -1446,6 +1448,12 @@ export function makeConsoleServer({
       const capabilitySnapshot = await capabilityCatalogPromise;
       const offeredTools = [...terminal.tools];
       offeredTools.unshift(makeCapabilityRealityTool({ observer: capabilityReality }));
+      if (capabilityAcquisition) offeredTools.unshift(makeCapabilityPackageAdminTool({
+        coordinator: capabilityAcquisition,
+        authorizeEffect: (args, context) => effectPreflight({
+          toolName: 'capability_package_admin', args, ownerId: sessionId, context,
+        }),
+      }));
       const nativeComputer = makeNativeComputerTool({ revealPath: reveal, platform: computer.platform });
       if (nativeComputer) offeredTools.unshift(nativeComputer);
       if (!options.observationOnly && options.trigger !== 'automation') {
