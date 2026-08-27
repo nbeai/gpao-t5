@@ -2643,6 +2643,12 @@ export function makeConsoleServer({
     },
     log: (...values) => onError?.(new Error(values.map(String).join(' '))),
   });
+  async function recoverResultPublications() {
+    const lease = await messenger.withPollingOwnership('telegram', ({ assertFence }) => (
+      recoverResultPublicationsOwned(assertFence)
+    ));
+    return lease.owned ? lease.value : [];
+  }
   async function mirrorConsoleInputToBoundMessenger(session, text, attachmentIds = []) {
     if (session?.origin?.channel !== 'telegram') return null;
     try {
@@ -2675,9 +2681,10 @@ export function makeConsoleServer({
     return workStore.settle({ workId: result.workId, revision: result.revision,
       outcome, runId: result.runId });
   }
-  async function recoverResultPublications() {
+  async function recoverResultPublicationsOwned(assertFence = async () => true) {
     const recovered = [];
     for (let result of (await workStore.read()).results) {
+      await assertFence();
       if (result.state === 'delivery_terminal') {
         await settlePublishedWorkResult(result);
         continue;
@@ -2690,6 +2697,7 @@ export function makeConsoleServer({
           && createHash('sha256').update(JSON.stringify(entry.result)).digest('hex') === result.resultDigest);
         if (!exists) await sessions.append(result.sessionId, {
           role: 'assistant', runId: result.runId, result: result.surfaceResult });
+        await assertFence();
         result = await workStore.markResultSurfacePersisted(result.runId);
         await runLedger.appendRecoveredSurface(result.runId, 'surface_persisted', {
           role: 'assistant', recovered: true,
@@ -2699,6 +2707,7 @@ export function makeConsoleServer({
         item.runId === result.runId && item.state === 'terminal' && item.surfacePersisted !== true
       ));
       if (cancellation && result.surfaceResult?.kind === 'cancelled') {
+        await assertFence();
         await workStore.markCancellationSurfacePersisted({ requestId: cancellation.requestId,
           runId: result.runId, nextRevision: cancellation.nextRevision,
           resultDigest: result.resultDigest });
@@ -2706,6 +2715,7 @@ export function makeConsoleServer({
       const surfaceReceipt = { surface: 'console_session', sessionId: result.sessionId,
         runId: result.runId, resultDigest: result.resultDigest, recovered: true };
       for (const input of await workStore.pendingSurfaceInputsForRun(result.runId)) {
+        await assertFence();
         await workStore.commitInputExecuted({ inputId: input.inputId,
           runId: result.runId, surfaceReceipt });
       }
@@ -2714,13 +2724,16 @@ export function makeConsoleServer({
         delivery = { provider: result.delivery?.provider ?? 'unknown', state: 'unknown',
           reason: 'runtime_restarted_after_delivery_dispatch' };
       } else if (session.origin?.channel === 'telegram' && result.surfaceResult?.kind === 'reply') {
+        await assertFence();
         await workStore.markResultDeliveryStarted(result.runId, { provider: 'telegram', state: 'started' });
         try {
           const artifacts = Array.isArray(result.surfaceResult.artifacts)
             ? result.surfaceResult.artifacts : [];
           const artifactIds = artifacts.map((artifact) => artifact?.attachmentId);
+          await assertFence();
           const sent = await messenger.sendToSession({ sessionId: result.sessionId,
             text: result.surfaceResult.reply, artifactIds });
+          await assertFence();
           const messageIds = structuredClone(sent.messageIds ?? []);
           const files = structuredClone(sent.files ?? []);
           const filesConfirmed = files.length === artifacts.length && artifacts.every((artifact, index) => (
@@ -2741,6 +2754,7 @@ export function makeConsoleServer({
           };
         }
       } else delivery = { provider: 'console', state: 'persisted' };
+      await assertFence();
       result = await workStore.markResultDeliveryTerminal(result.runId, delivery);
       await runLedger.appendRecoveredSurface(result.runId, 'delivery_terminal', {
         ...delivery, recovered: true,
@@ -2750,10 +2764,12 @@ export function makeConsoleServer({
     }
     return recovered;
   }
-  async function recoverCancellationPublications() {
+  async function recoverCancellationPublicationsOwned(assertFence = async () => true) {
+    await assertFence();
     const recovered = await workCancellation.reconcileAfterRestart();
     const results = [];
     for (const item of recovered) {
+      await assertFence();
       const session = await sessions.load(item.admission.sessionId);
       const telegram = session?.origin?.channel === 'telegram';
       const persisted = await persistCancellationSurface({ admission: item.admission,
@@ -2762,6 +2778,7 @@ export function makeConsoleServer({
           sessionId: item.admission.sessionId, text: reply, artifactIds,
         }) : null });
       results.push({ requestId: item.admission.requestId, resultDigest: persisted.resultDigest });
+      await assertFence();
     }
     return results;
   }
@@ -3259,8 +3276,9 @@ export function makeConsoleServer({
       cancelEndpoint: `/connections/${service.id}/cancel`,
     };
   }
-  queueMicrotask(async () => {
+  const messengerStartup = Promise.resolve().then(async () => {
     try {
+      await resultPublicationRecovery;
       for (const binding of await messengerState.listBindings()) {
         await sessions.setOrigin(binding.sessionId, {
           channel: binding.provider, chatId: binding.chatId,
@@ -3331,10 +3349,14 @@ export function makeConsoleServer({
     onError: (error) => onError?.(error),
   });
   resultPublicationRecovery = (async () => {
-    await recoverCancellationPublications();
-    const recovered = await recoverResultPublications();
-    await capabilityCoordinator.recover();
-    return recovered;
+    const lease = await messenger.withPollingOwnership('telegram', async ({ assertFence }) => {
+      await recoverCancellationPublicationsOwned(assertFence);
+      const recovered = await recoverResultPublicationsOwned(assertFence);
+      await assertFence();
+      await capabilityCoordinator.recover();
+      return recovered;
+    });
+    return lease.owned ? lease.value : [];
   })().catch((error) => {
     onError?.(error); return [];
   });
@@ -4558,7 +4580,7 @@ export function makeConsoleServer({
   server.closeModelConnections = () => modelConnections?.close?.();
   server.closeFileActivity = () => fileActivityService?.close?.();
   server.closeAppActivity = () => appActivityService?.close?.();
-  server.closeMessengers = () => messenger.stop();
+  server.closeMessengers = async () => { await messengerStartup; return messenger.stop(); };
   server.closeBrowsers = closeBrowserDrivers;
   server.closeWorkspaceConnections = async () => {
     await learningReviewer?.close();

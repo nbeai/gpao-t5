@@ -430,6 +430,7 @@ export function makeMessengerGateway({
   let loopPromise = null;
   let lastError = null;
   let ownershipClaim = null;
+  let ownershipProvider = null;
 
   function supported(provider) {
     if (!AVAILABLE_PROVIDERS.includes(provider)) throw new Error(`unsupported messenger provider: ${provider}`);
@@ -455,6 +456,34 @@ export function makeMessengerGateway({
       }
     }
     return adopted.length;
+  }
+
+  async function withPollingOwnership(provider, operation) {
+    supported(provider);
+    if (typeof operation !== 'function') throw new TypeError('messenger ownership operation is required');
+    if (ownershipClaim && ownershipProvider === provider) {
+      await pollingOwnership.assert(provider, ownershipClaim);
+      return { owned: true, borrowed: true,
+        value: await operation({ claim: ownershipClaim,
+          assertFence: () => pollingOwnership.assert(provider, ownershipClaim) }) };
+    }
+    const ownership = await pollingOwnership.acquire(provider);
+    if (!ownership.claimed) return { owned: false, reason: ownership.reason, value: null };
+    ownershipClaim = ownership.claim; ownershipProvider = provider;
+    try {
+      return { owned: true, borrowed: false,
+        value: await operation({ claim: ownership.claim,
+          assertFence: () => pollingOwnership.assert(provider, ownership.claim) }) };
+    } finally {
+      await pollingOwnership.release(provider, ownership.claim).catch((error) => {
+        log('messenger_polling_owner_release_failed', {
+          provider, code: error?.code ?? 'unknown',
+        });
+      });
+      if (ownershipClaim?.ownerToken === ownership.claim.ownerToken) {
+        ownershipClaim = null; ownershipProvider = null;
+      }
+    }
   }
 
   async function providerFromStore(provider) {
@@ -711,6 +740,8 @@ export function makeMessengerGateway({
 
     pollOnce,
 
+    withPollingOwnership,
+
     async sendToSession({ sessionId, text, artifactIds = [], signal } = {}) {
       if (!sessionId || (!String(text ?? '').trim() && !artifactIds.length)) {
         throw new TypeError('messenger session and text or artifacts are required');
@@ -780,12 +811,13 @@ export function makeMessengerGateway({
         };
       }
       ownershipClaim = ownership.claim;
+      ownershipProvider = provider;
       try {
         await loaded.provider.validate();
         await reconcileAdoptedIngress(provider, ownership.claim);
       } catch (error) {
         await pollingOwnership.release(provider, ownershipClaim).catch(() => {});
-        ownershipClaim = null;
+        ownershipClaim = null; ownershipProvider = null;
         throw error;
       }
       lastError = null;
@@ -826,6 +858,7 @@ export function makeMessengerGateway({
           });
         });
         if (ownershipClaim?.ownerToken === ownership.claim.ownerToken) ownershipClaim = null;
+        if (!ownershipClaim) ownershipProvider = null;
         activeProvider = null;
       });
       return { started: true, provider, inboundMode: activeProvider.inboundMode };
@@ -842,6 +875,7 @@ export function makeMessengerGateway({
       loopPromise = null;
       activeProvider = null;
       ownershipClaim = null;
+      ownershipProvider = null;
       return { stopped: true };
     },
 
