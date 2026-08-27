@@ -342,6 +342,8 @@ export function makeConsoleServer({
   connectionPollIntervalMs = 2_000,
   connectionPollTimeoutMs = 10 * 60_000,
   processYieldMs = 1000,
+  runtimeNow = () => new Date(),
+  workStoreMakeId = randomUUID,
   terminalEnvironment = null,
   terminalPlatformAdapter = null,
   terminalCredentialBroker = null,
@@ -411,7 +413,10 @@ export function makeConsoleServer({
   const runtimeInstanceId = randomUUID();
   const sessions = new ConsoleSessionStore(stateDir);
   const conversations = new ConversationLedger(join(stateDir, 'conversations'));
-  const workStore = new WorkStore(join(stateDir, 'work'));
+  const workStore = new WorkStore(join(stateDir, 'work'), {
+    makeId: workStoreMakeId,
+    now: () => runtimeNow().toISOString(),
+  });
   const scheduledWorkInputs = new Set();
   function confirmedDeferredDelivery(input, state) {
     const result = input.deferredByRunId
@@ -1800,7 +1805,10 @@ export function makeConsoleServer({
           },
         } : {},
       }));
-      const localNow = new Date();
+      const localNow = runtimeNow();
+      if (!(localNow instanceof Date) || !Number.isFinite(localNow.getTime())) {
+        throw new TypeError('runtimeNow must return a valid Date');
+      }
       const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
       const localTimeContext = [
         '[T5 CURRENT LOCAL TIME — observed now, not conversation history]',

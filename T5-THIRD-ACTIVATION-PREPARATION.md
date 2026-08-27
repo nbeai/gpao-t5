@@ -1,6 +1,6 @@
 # T5 3차 고도화 — 활성화 전 준비 정본
 
-상태: `S3A_PASS_WITH_OBSERVATION · S3_SCOPE_FROZEN · S3T_PASS_WITH_OBSERVATION · S3M_PASS_WITH_OBSERVATION · S3UX_REQUALIFIED_PASS_WITH_OBSERVATION · S3CA1_ACTIVE_SEQUENCED · S3CH0_3_COMPLETE · S3VD_CORE_PASS_WITH_OBSERVATION · OPTIMIZATION LOCKED`
+상태: `S3A_PASS_WITH_OBSERVATION · S3_SCOPE_FROZEN · S3T_PASS_WITH_OBSERVATION · S3M_MEMORY_CORE_COMPLETE_ADAPTIVE_DEFERRED · S3UX_REQUALIFIED_PASS_WITH_OBSERVATION · S3CA_DEFERRED_NEXT_CYCLE · S3CH0_3_CORE_COMPLETE_PRODUCT_JOURNEYS_ACTIVE · S3VD_CORE_PASS_WITH_OBSERVATION · OPTIMIZATION LOCKED`
 
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER`
 
@@ -20,11 +20,14 @@ KHB-H01을 다시 통과해 `PASS WITH OBSERVATION`으로 재자격했다. CH-1�
 duration·AFK·사용자 통제·Context0을 닫았고 title·URL·content 수집은 열지 않았다. CH-3는 commit `2bf60f4f`와
 evidence `s3-ch3-purpose-bounded-history-close-2026-08-27.json`에서 local bounded 후보→model relevance→선택 source
 exact reopen을 두 실제 모델로 닫았다. failed live attempts와 총 known qualification 150,312 tokens를 보존하며
-same Work 실행 재개는 주장하지 않는다. 다음 활성 Gate는 오너가 이미 연 CA-1이다.
-S3-A는 evidence `s3-a-performance-truth-close-2026-08-27.json`에서
-`PASS WITH OBSERVATION`으로 닫았다.
-오너는 S3-CH와 S3-CA 구현을 함께 승인했지만 hot path를 동시에 열지 않으며, CH-1→2→3을 순차 자격한 뒤
-CA-1→2→3→4를 순차 자격한다. 2.0 설치본 실제 사용자가 확인한 장기 작업의 불안·
+same Work 실행 재개는 주장하지 않는다. CA-1은 오너의 3차 종료 결정에 따라 다음 차수로 이관했다.
+S3-A의 결정적 계측은 evidence `s3-a-performance-truth-close-2026-08-27.json`에 보존했고, 누락됐던
+Terra·gpt-5.5 O0/O2 actual pair는 evidence `s3-a-live-observer-pairs-2026-08-27.json`에서 동일 provider
+request body·tool surface·effective route와 Context·답 오염 0을 확인해 `PASS WITH OBSERVATION`으로 재자격했다.
+오너는 2026-08-27 3차 종료 결정에서
+M0~M5 Memory Core를 3차 설치본 범위로 확정하고 M6 adaptive activation·내부 Skill 자동 승격은 다음 차수로
+넘겼다. CH-1→2→3 구현과 격리 qualification은 보존하되 각 제품 인간 여정 전에는 전체 Gate 완료로 부르지
+않는다. CA-1→4는 현재 3차 종료를 더 넓히지 않고 다음 차수로 이관한다. 2.0 설치본 실제 사용자가 확인한 장기 작업의 불안·
 교정·결과 전달·효과 사고 가족은 S3-UX 연구 입력과 기존 S3-A coverage에 비식별로 등록하되, 진행 중인 S3-M
 문서·source·시험은 이 반영에서 변경하지 않는다. Local Computer History는 CH-0 T5 Work History만 S3-UX에
 결속하고 파일·앱·목적별 검색 CH-1~3은 3차의 후속 개발 순서로 확정하되 현재 진행 중인 M·UX보다 먼저
@@ -40,8 +43,8 @@ collector를 얹지 않는다. 이 문서는 측정·반대시험·판정의 범
 
 ```text
 2차 Release Gate: 변경 없음
-3차 개발선: S3-A 완료 · S3-T 완료 · S3-M 완료(default off) · S3-UX 재자격 완료 · CH-0~3 완료 · S3-CA1 활성 · S3-CA2→4 순차 대기 · S3-VD Core 완료 · S3-PW 대기
-현재 허용 작업: S3-CA1→2→3→4 exact 순차 구현·자격
+3차 개발선: S3-A 완료 · S3-T 완료 · S3-M Memory Core 완료/Adaptive Learning 다음 차수 · S3-UX 재자격 완료 · CH-0~3 Core 완료/제품 인간 여정 진행 · S3-CA1→4 다음 차수 · S3-VD Core 완료 · S3-PW 최소 플랫폼 자격 대기
+현재 허용 작업: CH1~3 제품 인간 여정, 현재 HEAD 회귀, S3-PW 최소 자격, S3-WA, S3-HQ 종료 작업
 현재 금지 작업: 측정 결과를 전제한 구조 변경·성능 최적화, S3-UX/CA/VD 제품 hot path 선구현, UX/CH-0 전 CH-1 collector 선행, screen/audio/content capture, 여러 큰 개발선 동시 개통, 새 3차 개발선·기능 범위 추가
 ```
 
@@ -56,12 +59,12 @@ scope·evidence·판정을 유지한다.
 
 | 개발선 | 소유 책임 | 현재 상태 |
 |---|---|---|
-| S3-A | 실제 사용자 목적의 phase·critical path·observer effect | `PASS WITH OBSERVATION` · 완료 |
+| S3-A | 실제 사용자 목적의 phase·critical path·observer effect | `PASS WITH OBSERVATION` · Terra/gpt-5.5 O0/O2 actual pair 완료 |
 | S3-T | 모델과 Terminal의 환경·process·PTY·출력 recall·플랫폼 실행 | `PASS WITH OBSERVATION` · 완료 |
-| S3-M | Life Continuity·Memory Stewardship·내부 Reflection/Principle/Skill | `PASS WITH OBSERVATION` · default off · 완료 evidence `80dc0305` |
+| S3-M | Life Continuity·Memory Stewardship·내부 Reflection/Principle/Skill | M0~M5 Memory Core 완료 · M6 기반은 default off · actual Principle/Skill은 다음 차수 |
 | S3-UX | Work Reality·교정/취소/복구·인간용 Receipt·Artifact/Effect 안심 | `PASS WITH OBSERVATION` · full-product 재자격 완료 |
-| S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | CA-1 활성 · CA-2→4 순차 대기 |
-| S3-CH | Local Computer History·과거 Work/파일/앱 provenance | CH-0~3 `PASS WITH OBSERVATION` · 완료 |
+| S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | 다음 차수 이관 · 3차 구현 중단 |
+| S3-CH | Local Computer History·과거 Work/파일/앱 provenance | CH-0~3 Core·격리 자격 완료 · CH1~3 실제 제품 인간 여정 진행 |
 | S3-PW | Windows installer·app shell·공통 제품 자격 | 대기 |
 | S3-VD | Visual Deliverable Core·출력 표면 선택·렌더 관측·교정·브랜드 파라미터 | Core `PASS WITH OBSERVATION` · Windows/편집형 PPTX/브랜드 인간 패널은 PW·HQ 자격 대기 |
 | S3-WA | Whole-product Wiring Audit·3차 부품의 실제 제품 배선·단일 진실·복구 경계 | 3차 기술 개발 완료 뒤 읽기 전용 감사 대기 |
@@ -756,10 +759,10 @@ S3-M6는 CA capability의 usage outcome pointer를 Reflection Evidence로 참고
 ```text
 S3-A Performance Truth
 AND S3-T Terminal exact close
-AND S3-M Life Continuity
+AND S3-M Memory Core M0~M5
 AND S3-UX Work Visibility, Control & Outcome Reassurance including CH-0 T5 Work History
-AND S3-CH Local Computer History CH-0~3
-AND S3-CA Capability Reality & Safe Acquisition
+AND S3-CH Local Computer History CH-0~3 제품 인간 여정
+AND S3-CA는 다음 차수로 이관되고 3차 제품 행동·Context 변화 0
 AND S3-VD Visual Deliverable Core
 AND S3-PW가 필요한 Windows 공통 자격
 AND S3-WA Whole-product Wiring Audit·재현 P0/P1 close

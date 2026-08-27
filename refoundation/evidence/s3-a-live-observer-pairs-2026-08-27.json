@@ -1,0 +1,84 @@
+{
+  "schema": "t5.s3a.live-observer-pairs.v1",
+  "recordedOn": "2026-08-27",
+  "purpose": "Close the missing actual Terra and gpt-5.5 O0/O2 non-intervention pairs without changing product routing.",
+  "controls": {
+    "sameWorkspaceWithinPair": true,
+    "sameFixedRuntimeClockWithinPair": true,
+    "sameDeterministicWorkIdentityWithinPair": true,
+    "fullCurrentConsoleToolSurface": true,
+    "externalWrites": 0,
+    "credentialWrites": 0
+  },
+  "models": [
+    {
+      "model": "gpt-5.6-terra",
+      "o0": {
+        "providerRequests": 1,
+        "requestBodyDigest": "255a63fd4330cd97901ad0980754e07b6fec9355ef539110db321e145601adba",
+        "requestBytes": 44698,
+        "toolSurfaceDigest": "c2ac719a4648d38b7df027721a16cccc590a52c6cf25617079ea76c2ac777397",
+        "toolCount": 13,
+        "observerFieldsInBody": false,
+        "observerSpanCount": 0,
+        "effectiveToolRoute": [],
+        "replyChars": 7,
+        "runStatus": "completed"
+      },
+      "o2": {
+        "providerRequests": 1,
+        "requestBodyDigest": "255a63fd4330cd97901ad0980754e07b6fec9355ef539110db321e145601adba",
+        "requestBytes": 44698,
+        "toolSurfaceDigest": "c2ac719a4648d38b7df027721a16cccc590a52c6cf25617079ea76c2ac777397",
+        "toolCount": 13,
+        "observerFieldsInBody": false,
+        "observerSpanCount": 1,
+        "effectiveToolRoute": [],
+        "replyChars": 7,
+        "runStatus": "completed"
+      },
+      "pairedRequestBodyEqual": true,
+      "pairedToolSurfaceEqual": true,
+      "pairedRequestBytesEqual": true,
+      "pairedEffectiveRouteEqual": true,
+      "passed": true
+    },
+    {
+      "model": "gpt-5.5",
+      "o0": {
+        "providerRequests": 1,
+        "requestBodyDigest": "dafcb3136b7e3ba0f5f9da0335a0edf554cb60a27a9318bf20c9829604045499",
+        "requestBytes": 44771,
+        "toolSurfaceDigest": "c2ac719a4648d38b7df027721a16cccc590a52c6cf25617079ea76c2ac777397",
+        "toolCount": 13,
+        "observerFieldsInBody": false,
+        "observerSpanCount": 0,
+        "effectiveToolRoute": [],
+        "replyChars": 7,
+        "runStatus": "completed"
+      },
+      "o2": {
+        "providerRequests": 1,
+        "requestBodyDigest": "dafcb3136b7e3ba0f5f9da0335a0edf554cb60a27a9318bf20c9829604045499",
+        "requestBytes": 44771,
+        "toolSurfaceDigest": "c2ac719a4648d38b7df027721a16cccc590a52c6cf25617079ea76c2ac777397",
+        "toolCount": 13,
+        "observerFieldsInBody": false,
+        "observerSpanCount": 1,
+        "effectiveToolRoute": [],
+        "replyChars": 7,
+        "runStatus": "completed"
+      },
+      "pairedRequestBodyEqual": true,
+      "pairedToolSurfaceEqual": true,
+      "pairedRequestBytesEqual": true,
+      "pairedEffectiveRouteEqual": true,
+      "passed": true
+    }
+  ],
+  "successfulQualificationProviderRequests": 4,
+  "qualificationDevelopmentProviderRequestsKnown": 21,
+  "qualificationDevelopmentObservation": "Early attempts exposed an over-broad observer-identity oracle, uncontrolled Work UUIDs, and stochastic optional work_completion proposals. The final pair fixes only measurement controls. An optional work_completion proposal is recorded separately from the effective user tool route.",
+  "result": "PASS_WITH_OBSERVATION",
+  "passed": true
+}
