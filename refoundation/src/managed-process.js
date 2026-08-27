@@ -146,7 +146,7 @@ export class ManagedProcessRegistry {
 
   async start({
     program, args = [], cwd, env, ownerId, waitMs = 1000, command = null,
-    spoolLimit = this.spoolLimit, metadata = {},
+    spoolLimit = this.spoolLimit, metadata = {}, onActivity = null,
   }) {
     if (!program || !cwd || !ownerId) throw new TypeError('program, cwd, and ownerId are required');
     if (this.platform === 'win32' && !this.windowsJobHost) {
@@ -181,10 +181,14 @@ export class ManagedProcessRegistry {
     child.stderr?.setEncoding('utf8');
     child.stdout?.on('data', (chunk) => {
       record.stdout.append(chunk);
+      if (typeof onActivity === 'function') Promise.resolve(onActivity({ stream: 'stdout',
+        deltaChars: String(chunk).length, totalChars: record.stdout.total, state: record.state })).catch(() => {});
       this.#notifyActivity(record);
     });
     child.stderr?.on('data', (chunk) => {
       record.stderr.append(chunk);
+      if (typeof onActivity === 'function') Promise.resolve(onActivity({ stream: 'stderr',
+        deltaChars: String(chunk).length, totalChars: record.stderr.total, state: record.state })).catch(() => {});
       this.#notifyActivity(record);
     });
     child.once('error', (error) => {
@@ -206,7 +210,8 @@ export class ManagedProcessRegistry {
     return this.#snapshot(record);
   }
 
-  async startPty({ ptyProcess, command, cwd, ownerId, waitMs = 1000, metadata = {}, spoolLimit = this.spoolLimit }) {
+  async startPty({ ptyProcess, command, cwd, ownerId, waitMs = 1000, metadata = {},
+    spoolLimit = this.spoolLimit, onActivity = null }) {
     if (!ptyProcess || !cwd || !ownerId) throw new TypeError('ptyProcess, cwd, and ownerId are required');
     const id = randomUUID();
     const child = {
@@ -228,6 +233,8 @@ export class ManagedProcessRegistry {
     this.records.set(id, record);
     ptyProcess.onData((chunk) => {
       record.stdout.append(chunk);
+      if (typeof onActivity === 'function') Promise.resolve(onActivity({ stream: 'stdout',
+        deltaChars: String(chunk).length, totalChars: record.stdout.total, state: record.state })).catch(() => {});
       this.#notifyActivity(record);
     });
     ptyProcess.onExit(({ exitCode, signal }) => {

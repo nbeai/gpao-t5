@@ -119,7 +119,8 @@ function historyMessage(message) {
   return null;
 }
 
-async function executeCall(call, tools, signal, activeTools, priorReceipts = [], resourceRun = null) {
+async function executeCall(call, tools, signal, activeTools, priorReceipts = [], resourceRun = null,
+  onToolActivity = null) {
   const requested = requestedCall(call);
   const tool = tools.get(requested.name);
   if (!tool) {
@@ -154,6 +155,9 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [],
   const toolContext = {
     signal, priorReceipts: structuredClone(priorReceipts), resourceRun,
     toolCallId: requested.id,
+    onActivity: typeof onToolActivity === 'function' ? (facts) => onToolActivity({
+      toolCallId: requested.id, name: requested.name, ...facts,
+    }) : null,
   };
   if (typeof tool.preflight === 'function') {
     try {
@@ -254,6 +258,7 @@ export async function runAgent({
   takeAdmittedWorkInputs = null,
   applyAdmittedWorkInputs = null,
   onEvent,
+  onToolActivity = null,
 }) {
   if (typeof request !== 'string' || !request.trim()) throw new TypeError('request is required');
   if (!model || typeof model.respond !== 'function') throw new TypeError('model.respond is required');
@@ -598,7 +603,8 @@ export async function runAgent({
         }
         const waveResults = await Promise.all(reserved.map(async (item) => {
           const toolResourceStartedAt = Date.now();
-          const receipt = await executeCall(item.call, registry, signal, activeTools, receipts, resourceRun);
+          const receipt = await executeCall(item.call, registry, signal, activeTools, receipts, resourceRun,
+            onToolActivity);
           return { ...item, receipt, toolResourceStartedAt,
             toolResourceWallMs: Math.max(0, Date.now() - toolResourceStartedAt) };
         }));
@@ -648,7 +654,8 @@ export async function runAgent({
         } else {
           await onEvent?.({ type: 'tool_start', turn: modelTurns, toolCallId: requested.id,
             name: requested.name, args: structuredClone(requested.args) });
-          receipt = await executeCall(call, registry, signal, activeTools, receipts, resourceRun);
+          receipt = await executeCall(call, registry, signal, activeTools, receipts, resourceRun,
+            onToolActivity);
           toolResourceWallMs = Math.max(0, Date.now() - toolResourceStartedAt);
         }
       }

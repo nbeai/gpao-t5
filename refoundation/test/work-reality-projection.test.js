@@ -32,6 +32,17 @@ test('heartbeat는 미정산 model·tool·장기 process 현실을 starting으�
   assert.equal(project(process).state, 'process_working');
 });
 
+test('장기 process는 새 output delta가 실제 있을 때만 meaningful milestone을 만든다', () => {
+  const observed = base(); observed.run.events.push(event(2, 'tool_completed', { payload: { receipt: {
+    outcome: 'succeeded', actualCall: { name: 'terminal_session', args: { action: 'poll' } },
+    result: { processId: 'process-safe', state: 'running', stdout: 'STEP 1/15\n', stderr: '' },
+  } } })); assert.equal(project(observed).lastMilestone.kind, 'process_progress_observed');
+  const empty = base(); empty.run.events.push(event(2, 'tool_completed', { payload: { receipt: {
+    outcome: 'succeeded', actualCall: { name: 'terminal_session', args: { action: 'poll' } },
+    result: { processId: 'process-safe', state: 'running', stdout: '', stderr: '' },
+  } } })); assert.equal(project(empty).lastMilestone, null);
+});
+
 test('exact source observation이 있는 succeeded receipt만 evidence milestone이다', () => {
   const input = base(); input.run.events.push(event(2, 'tool_completed', { payload: { receipt: {
     outcome: 'succeeded', requestedCall: { args: { effect: { kind: 'observe' } } },
@@ -54,6 +65,24 @@ test('known changed effect만 effect_confirmed이고 unknown은 degraded·unknow
     outcome: 'unknown', result: { effectUnknown: true },
   } } })); const result = project(unknown); assert.equal(result.lastMilestone.kind, 'degraded');
   assert.equal(result.state, 'unknown_effect');
+});
+
+test('EffectObservation v2 receipt와 terminal·file receipt만 grounded milestone을 만든다', () => {
+  const effect = base(); effect.run.events.push(event(2, 'tool_completed', { payload: { receipt: {
+    outcome: 'succeeded', actualCall: { name: 'exec', args: { effect: { kind: 'local_change' } } },
+    result: { effectUnknown: false, effectObservation: { schema: 't5.effect-observation.v2',
+      changed: true, receiptDigest: 'd'.repeat(64) } },
+  } } })); assert.equal(project(effect).lastMilestone.kind, 'effect_confirmed');
+  const computer = base(); computer.run.events.push(event(2, 'tool_completed', { payload: { receipt: {
+    outcome: 'succeeded', actualCall: { name: 'exec', args: {} }, result: { state: 'completed', exitCode: 0 },
+  } } })); assert.equal(project(computer).lastMilestone.kind, 'computer_step_completed');
+  const file = base(); file.run.events.push(event(2, 'tool_completed', { payload: { receipt: {
+    outcome: 'succeeded', actualCall: { name: 'attachment', args: { action: 'inspect' } },
+    result: { state: 'observed', trust: 'untrusted_external', observation: { kind: 'text' } },
+  } } })); assert.equal(project(file).lastMilestone.kind, 'file_observed');
+  const arbitrary = base(); arbitrary.run.events.push(event(2, 'tool_completed', { payload: { receipt: {
+    outcome: 'succeeded', actualCall: { name: 'foreign_tool', args: {} }, result: { state: 'completed' },
+  } } })); assert.equal(project(arbitrary).lastMilestone, null);
 });
 
 test('output_produced만 artifact milestone을 만들고 raw artifact identity는 public에 없다', () => {

@@ -87,6 +87,7 @@ export function makePtyStartTool({
           declaredEffect: structuredClone(args.effect), effectBefore, effectCwd: cwd,
           ...(capabilitiesUsed.length ? { capabilitiesUsed: structuredClone(capabilitiesUsed) } : {}),
         },
+        onActivity: context.onActivity,
       });
       if (context.signal?.aborted && result.state === 'running') {
         result = await processRegistry.stop({ processId: result.processId, ownerId, reason: 'aborted', cursor: result.cursor });

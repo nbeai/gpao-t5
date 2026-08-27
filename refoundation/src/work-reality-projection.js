@@ -64,6 +64,8 @@ function exactSource(result) { const source = result?.source; return source?.ava
   && /^[a-f0-9]{64}$/u.test(source?.observedSha256 ?? ''); }
 function milestoneForRun(event) {
   if (event.type === 'resource_accounting_degraded' || event.type === 'run_failed') return 'degraded';
+  if (event.type === 'process_output_observed' && event.payload?.deltaChars > 0
+    && ['stdout', 'stderr'].includes(event.payload?.stream)) return 'process_progress_observed';
   if (event.type === 'output_produced' && event.payload?.verified === true
     && event.payload?.reopened === true && Number.isSafeInteger(event.payload?.bytes)
     && /^[a-f0-9]{64}$/u.test(event.payload?.sha256 ?? '')) return 'artifact_created';
@@ -72,12 +74,28 @@ function milestoneForRun(event) {
   if (receipt?.outcome === 'unknown' || receipt?.result?.effectUnknown === true
     || receipt?.outcome === 'failed') return 'degraded';
   if (receipt?.outcome !== 'succeeded') return null;
+  const toolName = receipt?.actualCall?.name ?? receipt?.requestedCall?.name ?? null;
   const effect = effectKind(receipt);
   if (effect && !['observe', 'none'].includes(effect)
     && receipt.result?.effectUnknown !== true
     && receipt.result?.effectObservation?.changed === true
-    && /^[a-f0-9]{64}$/u.test(receipt.result?.effectObservation?.observationDigest ?? '')) {
+    && (/^[a-f0-9]{64}$/u.test(receipt.result?.effectObservation?.observationDigest ?? '')
+      || (receipt.result?.effectObservation?.schema === 't5.effect-observation.v2'
+        && /^[a-f0-9]{64}$/u.test(receipt.result.effectObservation.receiptDigest ?? '')))) {
     return 'effect_confirmed';
+  }
+  if (toolName === 'attachment' && receipt.result?.state === 'observed'
+    && receipt.result?.observation && receipt.result?.trust === 'untrusted_external') return 'file_observed';
+  if (toolName === 'attachment' && receipt.result?.state === 'registered'
+    && receipt.result?.artifact?.originalName && Number.isSafeInteger(receipt.result.artifact.bytes)
+    && /^[a-f0-9]{64}$/u.test(receipt.result.artifact.sha256 ?? '')) return 'artifact_registered';
+  if (toolName === 'exec' && receipt.result?.exitCode === 0
+    && !['running', 'stop_requested'].includes(receipt.result?.state)) return 'computer_step_completed';
+  if (toolName === 'terminal_session' && receipt.result?.state === 'completed'
+    && receipt.result?.exitCode === 0) return 'computer_step_completed';
+  if (toolName === 'terminal_session' && receipt.result?.state === 'running'
+    && (String(receipt.result?.stdout ?? '').length > 0 || String(receipt.result?.stderr ?? '').length > 0)) {
+    return 'process_progress_observed';
   }
   return exactSource(receipt.result) ? 'evidence_observed' : null;
 }
@@ -242,6 +260,9 @@ const STATE_TEXT = Object.freeze({ idle: '진행 중인 작업이 없어요.', s
   unknown_effect: '외부 변화 여부를 아직 확인하지 못했어요.' });
 const MILESTONE_TEXT = Object.freeze({ evidence_observed: '필요한 근거를 확인했어요.',
   effect_confirmed: '요청한 변경을 확인했어요.', artifact_created: '검증된 결과 파일을 만들었어요.',
+  computer_step_completed: '컴퓨터에서 확인 작업 한 단계를 마쳤어요.', file_observed: '파일 내용을 확인했어요.',
+  artifact_registered: '결과 파일을 준비했어요.',
+  process_progress_observed: '컴퓨터 작업에서 새 진행 내용을 확인했어요.',
   result_verified: '결과가 요청과 맞는지 확인했어요.', result_incomplete: '아직 끝내지 못한 부분을 확인했어요.',
   result_visible: '결과를 화면에 준비했어요.', delivery_succeeded: '결과 전달을 확인했어요.',
   delivery_failed: '결과를 전달하지 못했어요.', delivery_unknown: '결과 전달 여부를 확인하지 못했어요.',

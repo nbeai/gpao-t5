@@ -1778,6 +1778,7 @@ export function makeConsoleServer({
       const runtimeContexts = [localTimeContext, browserRuntimeContext, options.runtimeContext]
         .filter(Boolean).join('\n\n');
       const agentRequest = `${modelRequest}\n\n${runtimeContexts}`;
+      const observedToolActivity = new Set();
       const result = await runAgent({
         request: agentRequest,
         requestAttachments: imageInputs,
@@ -1796,6 +1797,16 @@ export function makeConsoleServer({
         focusToolSurface: informationControl === 'research-first-v1',
         resourceSituationMode,
         activeOptimizationMode,
+        onToolActivity: async ({ toolCallId, name, stream, deltaChars, totalChars, state }) => {
+          if (observedToolActivity.has(toolCallId) || !['stdout', 'stderr'].includes(stream)
+            || !Number.isSafeInteger(deltaChars) || deltaChars < 1
+            || !Number.isSafeInteger(totalChars) || totalChars < deltaChars) return;
+          observedToolActivity.add(toolCallId);
+          await run.append({ type: 'process_output_observed', stepId: `process-output-${toolCallId}`,
+            payload: { toolCallId, tool: name, stream, deltaChars, totalChars,
+              state: ['running', 'completed', 'failed', 'stopped'].includes(state) ? state : 'unknown' } });
+          await publishWorkReality(sessionId, emit).catch((error) => onError?.(error));
+        },
         runtimeContextProvider: async () => workspaceRuntimeContextBlock({
           absoluteRoot: resolve(workspace), writableRoots: [resolve(workspace)],
           activeOutputOperations: await executableOutputOperations.activeProjection({

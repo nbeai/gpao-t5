@@ -229,6 +229,7 @@ function makeCommandTool(options = {}, { managed }) {
             effectCwd: cwd,
             ...(capabilitiesUsed.length ? { capabilitiesUsed: structuredClone(capabilitiesUsed) } : {}),
           },
+          onActivity: context.onActivity,
         });
         if (context.signal?.aborted && (result.state === 'running' || result.state === 'stop_requested')) {
           result = await registry.stop({
