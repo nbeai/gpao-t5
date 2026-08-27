@@ -1,0 +1,53 @@
+{
+  "schema": "t5.file-discovery-restoration-qualification.v1",
+  "sourceCommit": "80e9efd5",
+  "historicalSuccess": {
+    "evidence": "refoundation/evidence/file-intelligence-live-performance-baseline-2026-08-27.json",
+    "productSourceCommit": "6d211dad",
+    "recordingCommit": "c55d213e"
+  },
+  "restoration": {
+    "preservedCompletedThirdGenerationSource": true,
+    "removedCompactCoreFileSearch": true,
+    "removedGenerationBoundFileCache": true,
+    "restoredTerminalFallback": true,
+    "addedContentFreeRecentDocumentCandidates": true,
+    "fixedPayloadContents": false,
+    "maxRecentCandidates": 20,
+    "standardLocations": ["downloads", "desktop", "documents"]
+  },
+  "actualQualification": {
+    "purpose": "latest_received_document",
+    "realUserFilesReadOnly": true,
+    "externalWrites": 0,
+    "models": [
+      {
+        "modelId": "gpt-5.6-terra",
+        "passed": true,
+        "usedFileReality": true,
+        "usedExec": false,
+        "selectionDigest": "92f8c9e7b1c942db0e731f767d7a1e884c995000abfb0435d44240ca63ee3339",
+        "provenanceUncertaintyPreserved": true
+      },
+      {
+        "modelId": "gpt-5.5",
+        "passed": true,
+        "usedFileReality": true,
+        "usedExec": false,
+        "selectionDigest": "92f8c9e7b1c942db0e731f767d7a1e884c995000abfb0435d44240ca63ee3339",
+        "provenanceUncertaintyPreserved": true
+      }
+    ]
+  },
+  "verification": {
+    "focused": { "passed": 21, "failed": 0 },
+    "daily": { "passed": 1623, "failed": 0, "skipped": 1 },
+    "integration": { "passed": 192, "failed": 0, "skipped": 2 },
+    "mutation": { "killed": 2, "survived": 0 }
+  },
+  "notClaimed": [
+    "installer_created",
+    "windows_physical_qualification",
+    "external_sender_identity_proven"
+  ]
+}
