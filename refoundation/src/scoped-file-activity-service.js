@@ -39,8 +39,19 @@ export function makeScopedFileActivityService({ ledger, adapterFactory = null, o
       adapter = null; runtimeRunning = false;
       if (!stopping) {
         const state = await ledger.status();
-        if (state.enabled) await ledger.setEnabled({ enabled: false, recordedAt: new Date().toISOString() });
-        if (result?.state === 'failed') reportError(new Error('file_activity_collector_failed'));
+        if (result?.state === 'stopped' && state.enabled) {
+          queueMicrotask(() => { serialize(async () => {
+            if (stopping || generation !== currentGeneration || adapter) return;
+            const latest = await ledger.status(); if (!latest.enabled) return;
+            try { await startRuntime(); } catch (error) {
+              await ledger.setEnabled({ enabled: false, recordedAt: new Date().toISOString() }).catch(() => {});
+              reportError(error);
+            }
+          }).catch(reportError); });
+        } else {
+          if (state.enabled) await ledger.setEnabled({ enabled: false, recordedAt: new Date().toISOString() });
+          reportError(new Error('file_activity_collector_failed'));
+        }
       }
     }).catch(async (error) => {
       if (adapter === current && currentGeneration === generation) {

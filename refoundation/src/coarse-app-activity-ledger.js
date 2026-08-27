@@ -70,6 +70,7 @@ export class CoarseAppActivityLedger{
     await atomicJson(this.stateFile,next);return{accepted:accepted.length,state:accepted.length?'recorded':'duplicate'};});}
   async query({limit=100}={}){const state=await this.readState();const count=Math.min(500,Math.max(1,Number(limit)||100));
     return(await this.readSegments(state)).slice(-count).reverse().map(publicSegment);}
+  async exportAll(){const state=await this.readState();return(await this.readSegments(state)).slice().reverse().map(publicSegment);}
   async excludeObservedApp({appHandle:requested,recordedAt}={}){if(!/^[a-f0-9]{32}$/u.test(requested??''))throw new TypeError('opaque app handle is required');
     return this.serialize(async()=>{const state=await this.readState();const segments=await this.readSegments(state);const matches=[...new Set(segments
       .filter((item)=>appHandle(item.appId)===requested).map((item)=>item.appId))];if(matches.length!==1)throw new Error('observed app handle is unavailable');

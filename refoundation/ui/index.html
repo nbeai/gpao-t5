@@ -2280,6 +2280,8 @@ async function renderReflectionReview(target) {
   }
 }
 
+let fileActivityActionNotice = null;
+let appActivityActionNotice = null;
 const SET_RENDER = {
   async model() {
     setBody.replaceChildren();
@@ -2546,9 +2548,11 @@ const SET_RENDER = {
           : '이 기기에서는 아직 사용할 수 없어요.'));
         const activityActions = mk('div', 'connection-actions');
         const act = async (path, payload) => {
-          const response = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(payload) });
-          if (!response.ok) throw new Error('파일 활동 기록을 바꾸지 못했어요.');
+          try { const response = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(payload) });
+            if (!response.ok) throw new Error('파일 활동 기록을 바꾸지 못했어요.');
+            fileActivityActionNotice = null;
+          } catch { fileActivityActionNotice = '파일 활동 기록을 바꾸지 못했어요. 현재 상태를 다시 확인했어요.'; }
           await SET_RENDER.memory();
         };
         if (activityState.available && activityState.selectable && !activityState.configured) {
@@ -2568,6 +2572,8 @@ const SET_RENDER = {
           activityActions.append(toggle, forgetActivity);
         }
         activityRow.append(activityMain, activityActions); activityList.appendChild(activityRow);
+        if (fileActivityActionNotice) { const notice = mk('div', 'settings-item-desc', fileActivityActionNotice);
+          notice.setAttribute('role', 'status'); activityList.appendChild(notice); }
         if (activityState.available && activityState.eventCount > 0) {
           const recentResponse = await fetch('/file-activity/history?limit=10'); const recent = await recentResponse.json();
           const labels = { created: '생김', modified: '바뀜', moved: '이동함', deleted: '삭제됨' };
@@ -2591,8 +2597,9 @@ const SET_RENDER = {
           ? `기록 ${appState.segmentCount ?? 0}건 · 저장 공간 ${appState.storageBytes ?? 0}바이트 · 제외한 앱 ${appState.excludedCount ?? 0}개`
           : '이 기기에서는 아직 사용할 수 없어요.'));
         const appActions = mk('div', 'connection-actions');
-        const appAct = async (path, payload) => { const response = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(payload) }); if (!response.ok) throw new Error('앱 활동 기록을 바꾸지 못했어요.'); await SET_RENDER.memory(); };
+        const appAct = async (path, payload) => { try { const response = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload) }); if (!response.ok) throw new Error('앱 활동 기록을 바꾸지 못했어요.'); appActivityActionNotice = null;
+          } catch { appActivityActionNotice = '앱 활동 기록을 바꾸지 못했어요. 현재 상태를 다시 확인했어요.'; } await SET_RENDER.memory(); };
         if (appState.available && !appState.configured) {
           const startApp = document.createElement('button'); startApp.className = 'connection-button'; startApp.textContent = '앱 활동 기록 시작';
           startApp.onclick = () => appAct('/app-activity/configure', {}); appActions.appendChild(startApp);
@@ -2605,17 +2612,21 @@ const SET_RENDER = {
             exportApp.disabled = true; exportApp.textContent = '내보내는 중…';
             try { const response = await fetch('/app-activity/export'); if (!response.ok) throw new Error('export unavailable'); const value = await response.json();
               const href = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' })); const link = document.createElement('a');
-              link.href = href; link.download = 't5-app-activity.json'; link.click(); URL.revokeObjectURL(href); exportApp.textContent = '내보냈어요';
-            } catch { exportApp.textContent = '내보내지 못했어요'; }
+              link.href = href; link.download = 't5-app-activity.json'; link.click(); setTimeout(() => URL.revokeObjectURL(href), 0);
+              exportApp.textContent = '다운로드를 시작했어요'; appActivityActionNotice = null;
+            } catch { exportApp.textContent = '내보내지 못했어요'; appActivityActionNotice = '앱 활동 기록을 내보내지 못했어요. 현재 기록은 그대로 있어요.'; }
             setTimeout(() => { exportApp.disabled = false; exportApp.textContent = '내보내기'; }, 1500);
           };
           const forgetApp = document.createElement('button'); forgetApp.className = 'connection-button'; forgetApp.textContent = '기록 모두 지우기';
           forgetApp.onclick = () => { if (confirm('앱 활동 기록을 모두 지울까요?')) appAct('/app-activity/action', { action: 'forget' }); };
-          appActions.append(toggleApp, privateApp, exportApp, forgetApp);
+          if (!appState.privateMode) appActions.appendChild(toggleApp);
+          appActions.append(privateApp, exportApp, forgetApp);
           if ((appState.excludedCount ?? 0) > 0) { const includeAll = document.createElement('button'); includeAll.className = 'connection-button';
             includeAll.textContent = '모든 앱 다시 포함'; includeAll.onclick = () => appAct('/app-activity/action', { action: 'include_all' }); appActions.appendChild(includeAll); }
         }
         appRow.append(appMain, appActions); appList.appendChild(appRow);
+        if (appActivityActionNotice) { const notice = mk('div', 'settings-item-desc', appActivityActionNotice);
+          notice.setAttribute('role', 'status'); appList.appendChild(notice); }
         if (appState.available && appState.segmentCount > 0) { const recentResponse = await fetch('/app-activity/history?limit=10'); const recent = await recentResponse.json();
           for (const item of recent.items ?? []) { const row = mk('div', 'settings-item'); const main = mk('div', 'settings-item-main');
             main.appendChild(mk('div', 'settings-item-title', item.appLabel)); main.appendChild(mk('div', 'settings-item-desc',

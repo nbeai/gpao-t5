@@ -14,6 +14,8 @@ function controlledAdapter() {
     async stop() { calls.stops += 1; settle({ state: 'stopped' }); return { state: 'stopped' }; },
     async wait() { return completion; } } };
 }
+async function waitFor(predicate) { for (let index=0;index<100;index+=1) { if (predicate()) return; await new Promise((resolve)=>setTimeout(resolve,2)); }
+  throw new Error('condition timeout'); }
 
 test('service는 adapter 없음과 collector failure를 enabled로 꾸미지 않는다', async () => {
   const room=await mkdtemp(join(tmpdir(),'t5-ch1-service-'));const root=join(room,'root');await mkdir(root);
@@ -46,10 +48,21 @@ test('프로세스 재시작은 durable 선택만 재개하고 close는 사용�
   const service1=makeScopedFileActivityService({ledger,adapterFactory:async()=>first.adapter});
   await service1.configure({roots:[root],recordedAt:'2026-08-27T00:02:00.000Z'});
   await service1.enable({recordedAt:'2026-08-27T00:02:01.000Z'});await service1.close();
-  assert.equal((await ledger.status()).enabled,true);
+  await new Promise((resolve)=>setTimeout(resolve,10));assert.equal(first.calls.starts,1);assert.equal((await ledger.status()).enabled,true);
   const second=controlledAdapter();const service2=makeScopedFileActivityService({ledger,adapterFactory:async()=>second.adapter});
   assert.equal((await service2.resumeConfigured()).enabled,true);assert.equal(second.calls.starts,1);
   await service2.pause({recordedAt:'2026-08-27T00:02:02.000Z'});
+});
+
+test('자연 collector 종료는 exact rollover하고 사용자 pause 뒤에는 다시 시작하지 않는다', async () => {
+  const room=await mkdtemp(join(tmpdir(),'t5-ch1-service-rollover-'));const root=join(room,'root');await mkdir(root);
+  const ledger=new ScopedFileActivityLedger(join(room,'state'));const instances=[];
+  const service=makeScopedFileActivityService({ledger,adapterFactory:async()=>{const instance=controlledAdapter();instances.push(instance);return instance.adapter;}});
+  await service.configure({roots:[root],recordedAt:'2026-08-27T00:02:10.000Z'});
+  await service.enable({recordedAt:'2026-08-27T00:02:11.000Z'});instances[0].settle({state:'stopped'});await waitFor(()=>instances.length===2);
+  assert.equal((await service.status()).desiredEnabled,true);assert.equal((await service.status()).enabled,true);
+  await service.pause({recordedAt:'2026-08-27T00:02:12.000Z'});await new Promise((resolve)=>setTimeout(resolve,10));
+  assert.equal(instances.length,2);assert.equal(instances[1].calls.stops,1);assert.equal((await service.status()).desiredEnabled,false);
 });
 
 test('전체 삭제는 collector를 먼저 멈추고 물리 event를 0으로 만든다', async () => {
