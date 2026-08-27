@@ -86,8 +86,8 @@ test('종료 때 응답하지 않는 브라우저도 짧게 중단하고 서버 
 
 test('제품 실행기는 외부 연결과 열린 HTTP 연결이 멈춰도 종료 전체를 제한한다', async () => {
   const source = await readFile(new URL('../scripts/start-console.mjs', import.meta.url), 'utf8');
-  assert.match(source, /boundedShutdown\(\(\) => server\.closeMessengers\(\)\)/u);
-  assert.match(source, /boundedShutdown\(\(\) => server\.closeWorkspaceConnections\(\)\)/u);
+  assert.match(source, /boundedShutdown\(\(\) => server\.closeMessengers\(\), shutdownBudget\.channel\)/u);
+  assert.match(source, /boundedShutdown\(\(\) => server\.closeWorkspaceConnections\(\), shutdownBudget\.resources\)/u);
   assert.match(source, /server\.closeAllConnections\?\.\(\)/u);
   assert.match(source, /if \(stopping\) return/u);
 });
