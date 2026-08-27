@@ -466,6 +466,8 @@ export function makeConsoleServer({
       if (!confirmedDeferredDelivery(queued, state)) return false;
       queued = await workStore.activateScheduledInput(queued.inputId);
     }
+    if (queued.state === 'admitted') queued = await workStore.attachAdmittedInputToCurrentWork(queued.inputId);
+    if (queued.state === 'classified') queued = await workStore.activateExactInputWork(queued.inputId);
     const conversation = await conversations.read(sessionId); const entry = conversation.entries
       .find((candidate) => candidate.messageId === queued.messageId);
     if (!entry?.message?.content) return false;
@@ -475,7 +477,8 @@ export function makeConsoleServer({
       executeTurn(sessionId, entry.message.content, () => {}, {
         trigger: telegramSource ? 'messenger_followup' : 'work_followup',
         attachmentIds: queued.attachmentIds,
-        admittedInput: { inputId: queued.inputId, messageId: queued.messageId },
+        admittedInput: { inputId: queued.inputId, messageId: queued.messageId,
+          ...(queued.workId ? { workId: queued.workId, revision: queued.revision } : {}) },
         ...(telegramSource ? {
           metadata: {
             provider: 'telegram', chatId: queued.source?.chatId ?? null,
@@ -1169,9 +1172,18 @@ export function makeConsoleServer({
     });
     let canonicalConversation = await conversations.read(sessionId);
     if (options.admittedInput) {
+      const inputBoundary = canonicalConversation.entries.findIndex((entry) => (
+        entry.messageId === options.admittedInput.messageId
+      ));
+      if (inputBoundary < 0) throw new Error('admitted input conversation boundary is unavailable');
+      const visibleEntries = canonicalConversation.entries.slice(0, inputBoundary);
+      const visibleMessageIds = new Set(visibleEntries.map((entry) => entry.messageId));
       canonicalConversation = {
         ...canonicalConversation,
-        entries: canonicalConversation.entries.filter((entry) => entry.messageId !== options.admittedInput.messageId),
+        entries: visibleEntries,
+        checkpoints: canonicalConversation.checkpoints.filter((checkpoint) => (
+          visibleMessageIds.has(checkpoint.coversThroughMessageId)
+        )),
       };
       canonicalConversation.messages = canonicalConversation.entries.map((entry) => structuredClone(entry.message));
     }
@@ -1407,7 +1419,13 @@ export function makeConsoleServer({
       }
       let activeWork = null;
       if (!options.observationOnly) {
-        activeWork = await workStore.activeForSession(sessionId);
+        if (options.admittedInput?.workId) {
+          const state = await workStore.read(); activeWork = state.works.find((work) => (
+            work.workId === options.admittedInput.workId && work.revision === options.admittedInput.revision
+              && work.status === 'active'
+          )) ?? null;
+          if (!activeWork) throw new Error('admitted input exact Work is not active');
+        } else activeWork = await workStore.activeForSession(sessionId);
         if (!activeWork) activeWork = await workStore.create({
           sessionId, sourceMessageId: `${run.runId}:user`,
         });
@@ -2453,11 +2471,32 @@ export function makeConsoleServer({
           surfaceResult: cancelled.surfaceResult, channelDelivery: cancelled.channelDelivery,
         };
       }
+      const failedRun = await runLedger.read(run.runId).catch(() => ({ events: [] }));
+      const failedEvents = failedRun.events ?? [];
+      const toolStarted = failedEvents.filter((event) => event.type === 'tool_started').length;
+      const completedToolEvents = failedEvents.filter((event) => event.type === 'tool_completed');
+      const completedReceipts = completedToolEvents.map((event) => event.payload?.receipt).filter(Boolean);
+      const effectUnknown = completedReceipts.some((receipt) => receipt.outcome === 'unknown'
+        || receipt.result?.effectUnknown === true) || toolStarted > completedToolEvents.length;
+      const effectChanged = completedReceipts.some((receipt) => (
+        receipt.result?.effectObservation?.changed === true
+      ));
+      const modelStarted = failedEvents.some((event) => event.type === 'model_started');
+      const modelCompleted = failedEvents.some((event) => event.type === 'model_completed');
       const connection = await Promise.resolve().then(() => status()).catch(() => null);
-      const failure = userSafeTurnFailure(error, connection);
+      const failure = userSafeTurnFailure(error, connection, {
+        requestPreserved: true,
+        modelState: modelCompleted ? 'completed' : modelStarted ? 'response_failed' : 'not_started',
+        toolStarted, toolCompleted: completedToolEvents.length,
+        evidenceState: completedToolEvents.length ? 'partial' : 'none',
+        evidenceCount: completedToolEvents.length,
+        effectState: effectUnknown ? 'unknown' : effectChanged ? 'changed'
+          : toolStarted ? 'unchanged' : 'none',
+        resultState: 'none', deliveryState: 'not_started',
+      });
       const failureSurface = {
         kind: 'error', reply: failure.text, nextSafeAction: failure.nextSafeAction,
-        failureCode: failure.code, runId: run.runId,
+        failureCode: failure.code, failure: failure.envelope, runId: run.runId,
       };
       const pendingOutputs = await attachments.pendingProducedOutputs({
         sessionId, producerRunId: run.runId,
@@ -2480,21 +2519,40 @@ export function makeConsoleServer({
         session, currentUserText: text, currentResult: failureSurface, evidence: recoveryEvidence,
       });
       if (recovery) failureSurface.recovery = { ...recovery, recoveryId: run.runId };
-      const existingResult = (await workStore.read()).results.find((item) => item.runId === run.runId);
-      const releasedClaim = existingResult ? { released: false } : await workStore.releaseExecution({
-        runId: run.runId, reason: error?.code ?? 'turn_failed',
-      }).catch(() => ({ released: false }));
-      if (!existingResult) await workStore.releasePresentedInputsForRun(run.runId, {
-        reason: 'run_failed_before_input_application',
-      }).catch((releaseError) => onError?.(releaseError));
+      let failureState = await workStore.read();
+      const existingResult = failureState.results.find((item) => item.runId === run.runId);
+      if (!existingResult) {
+        await workStore.claimPresentedInputsForFailure(run.runId);
+        failureState = await workStore.read();
+      }
+      const activeClaim = failureState.claims.find((item) => item.runId === run.runId && item.state === 'active');
       if (!surfacePersisted && !existingResult) {
         const failureDigest = createHash('sha256').update(JSON.stringify(failureSurface)).digest('hex');
+        for (const input of await workStore.executingInputsForRun(run.runId)) {
+          const exact = activeClaim && input.workId === activeClaim.workId && input.revision === activeClaim.revision;
+          await workStore.recordInputSettlementDisposition({ inputId: input.inputId, runId: run.runId,
+            workId: activeClaim?.workId ?? null, revision: activeClaim?.revision ?? null,
+            disposition: exact ? 'answered' : 'unresolved',
+            reason: exact ? 'runtime_failure_surface' : 'runtime_failure_identity_mismatch' }).catch(
+            (settlementError) => onError?.(settlementError));
+          if (exact) await workStore.prepareInputCompletion({ inputId: input.inputId, runId: run.runId,
+            resultPointer: `work-result:${run.runId}`, resultDigest: failureDigest });
+        }
         await workStore.recordResultReady({ runId: run.runId, sessionId,
-          workId: releasedClaim.workId ?? null, revision: releasedClaim.revision ?? null,
+          workId: activeClaim?.workId ?? null, revision: activeClaim?.revision ?? null,
           objectiveOutcome: 'unresolved', resultDigest: failureDigest, surfaceResult: failureSurface }).catch(() => {});
+        await conversations.appendMessage({ sessionId, messageId: `${run.runId}:assistant:failure`,
+          runId: run.runId, message: { role: 'assistant', content: failureSurface.reply } }).catch(
+          (conversationError) => onError?.(conversationError));
         await sessions.append(sessionId, { role: 'assistant', result: failureSurface }).catch(() => {});
         surfacePersisted = true;
         await workStore.markResultSurfacePersisted(run.runId).catch(() => {});
+        const failureSurfaceReceipt = { surface: 'console_session', sessionId,
+          runId: run.runId, resultDigest: failureDigest };
+        for (const input of await workStore.pendingSurfaceInputsForRun(run.runId)) {
+          await workStore.commitInputExecuted({ inputId: input.inputId,
+            runId: run.runId, surfaceReceipt: failureSurfaceReceipt });
+        }
         await run.append({
           type: 'surface_persisted', payload: { role: 'assistant', kind: 'error' },
         }).catch(() => {});
@@ -2523,6 +2581,13 @@ export function makeConsoleServer({
         await workStore.markResultDeliveryTerminal(run.runId, failureDelivery).catch(() => {});
         await run.append({ type: 'delivery_terminal', stepId: 'result-delivery',
           payload: failureDelivery }).catch(() => {});
+      }
+      if (!existingResult) {
+        await workStore.releasePresentedInputsForRun(run.runId, {
+          reason: 'run_failed_before_input_application',
+        }).catch((releaseError) => onError?.(releaseError));
+        await workStore.releaseExecution({ runId: run.runId,
+          reason: error?.code ?? 'turn_failed' }).catch(() => ({ released: false }));
       }
       if (!runFinished) {
         await run.finish('failed', { error: error?.message ?? String(error) }).catch(() => {});

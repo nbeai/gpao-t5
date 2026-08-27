@@ -556,7 +556,12 @@ test('모델 호출 실패는 run_failed 원문과 다시 볼 사용자용 실�
     const session = await fetch(`${base}/sessions/${created.id}`).then((item) => item.json());
     assert.equal(session.transcript.length, 2);
     assert.equal(session.transcript[1].result.kind, 'error');
-    assert.match(session.transcript[1].result.reply, /요청을 처리하는 중/u);
+    assert.match(session.transcript[1].result.reply, /응답을 만드는 단계에서 중단/u);
+    assert.equal(session.transcript[1].result.failure.failure.stage, 'model_response');
+    assert.equal(session.transcript[1].result.failure.recovery.automaticRetryAllowed, false);
+    const conversation = await server.conversationLedger.read(created.id);
+    assert.equal(conversation.messages.filter((message) => message.role === 'assistant'
+      && /응답을 만드는 단계에서 중단/u.test(message.content)).length, 1);
     assert.doesNotMatch(JSON.stringify(session.transcript[1]), /provider exploded/u);
   } finally {
     await new Promise((resolve) => server.close(resolve));

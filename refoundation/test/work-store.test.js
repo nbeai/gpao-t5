@@ -123,3 +123,58 @@ test('provider 실패 전 presented 입력은 exact Run에서만 settlement retr
   const queued = await store.queuedInputs(work.sessionId);
   assert.equal(queued.length, 1);assert.equal(queued[0].workId, work.workId);assert.equal(queued[0].revision, 1);
 });
+
+test('provider 실패 surface가 답하는 presented 입력은 exact claim으로 전환되어 재시도 대기열에 남지 않는다', async () => {
+  const store = new WorkStore(await mkdtemp(join(tmpdir(), 't5-work-presented-failure-surface-')));
+  const work = await store.create({ sessionId: 'session-failure-surface', sourceMessageId: 'source-1' });
+  const admitted = await store.admitInput({ sessionId: 'session-failure-surface', messageId: 'message-2' });
+  await store.claimExecution({ workId: work.workId, revision: work.revision, runId: 'failed-run' });
+  await store.presentInputs({ sessionId: 'session-failure-surface', workId: work.workId,
+    revision: work.revision, runId: 'failed-run' });
+  const claimed = await store.claimPresentedInputsForFailure('failed-run');
+  assert.deepEqual(claimed.map((input) => input.inputId), [admitted.inputId]);
+  const state = await store.read(); const input = state.inputs.find((item) => item.inputId === admitted.inputId);
+  assert.equal(input.state, 'executing'); assert.equal(input.workId, work.workId);
+  assert.deepEqual(await store.releasePresentedInputsForRun('failed-run'), []);
+  assert.equal((await store.queuedInputs('session-failure-surface')).length, 0);
+});
+
+test('Run 종료 경계에 남은 평범한 입력은 분류기 없이 현재 Work R+1에 exact 결속된다', async () => {
+  const store = new WorkStore(await mkdtemp(join(tmpdir(), 't5-work-boundary-current-default-')));
+  const work = await store.create({ sessionId: 'session-boundary', sourceMessageId: 'source-1' });
+  const admitted = await store.admitInput({ sessionId: 'session-boundary', messageId: 'message-2' });
+  const attached = await store.attachAdmittedInputToCurrentWork(admitted.inputId);
+  assert.equal(attached.workId, work.workId); assert.equal(attached.revision, 2);
+  assert.equal(attached.disposition, 'current_work'); assert.equal(attached.state, 'classified');
+  const state = await store.read(); const input = state.inputs.find((item) => item.inputId === admitted.inputId);
+  assert.equal(input.transitionChoice, undefined); assert.equal(input.workId, work.workId);
+  assert.equal(state.works[0].revision, 2);
+});
+
+test('after-delivery와 independent 입력이 함께 대기해도 각 exact Work만 순서대로 claim한다', async () => {
+  let nextId = 0;
+  const store = new WorkStore(await mkdtemp(join(tmpdir(), 't5-work-exact-input-order-')),
+    { makeId: () => `exact-input-order-${nextId += 1}` });
+  const sessionId = 'session-order';
+  const current = await store.create({ sessionId, sourceMessageId: 'current-message' });
+  const weather = await store.admitInput({ sessionId, messageId: 'weather-message' });
+  await store.commitTransitionDecision({ inputId: weather.inputId, sessionId,
+    runId: 'current-run', currentWorkId: current.workId, choice: 'followup_after_delivery' });
+  const calendar = await store.admitInput({ sessionId, messageId: 'calendar-message' });
+  await store.commitTransitionDecision({ inputId: calendar.inputId, sessionId,
+    runId: 'current-run', currentWorkId: current.workId, choice: 'new_work', currentWorkDisposition: 'pause' });
+  const initial = await store.read(); const calendarInput = initial.inputs.find((item) => item.inputId === calendar.inputId);
+  const activatedWeather = await store.activateScheduledInput(weather.inputId);
+  const exactWeather = await store.activateExactInputWork(activatedWeather.inputId);
+  assert.equal(exactWeather.workId, current.workId); assert.equal(exactWeather.revision, 2);
+  await store.claimExecution({ workId: exactWeather.workId, revision: exactWeather.revision, runId: 'weather-run' });
+  await store.claimInputExecution({ inputId: weather.inputId, runId: 'weather-run' });
+  await store.releaseExecution({ runId: 'weather-run', reason: 'fixture_terminal' });
+  const exactCalendar = await store.activateExactInputWork(calendarInput.inputId);
+  assert.equal(exactCalendar.workId, calendarInput.workId); assert.equal(exactCalendar.revision, 1);
+  const state = await store.read();
+  assert.equal(state.works.find((item) => item.workId === current.workId).status, 'paused');
+  assert.equal(state.works.find((item) => item.workId === calendarInput.workId).status, 'active');
+  await store.claimExecution({ workId: exactCalendar.workId, revision: exactCalendar.revision, runId: 'calendar-run' });
+  await store.claimInputExecution({ inputId: calendar.inputId, runId: 'calendar-run' });
+});

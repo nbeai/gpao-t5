@@ -166,6 +166,15 @@ export class WorkStore {
             schedule: event.schedule ?? legacy?.[1], workId: event.workId, revision: event.revision });
         const work = works.get(event.workId); if (work) work.revision = event.revision;
       }
+      if (event.type === 'input_attached_to_current_work') {
+        const input = inputs.get(event.inputId); if (input) Object.assign(input, {
+          state: 'classified', disposition: 'current_work', schedule: 'current_work',
+          workId: event.workId, revision: event.revision,
+        });
+        const work = works.get(event.workId); if (work) {
+          work.revision = event.revision; work.status = 'active';
+        }
+      }
       if (event.type === 'input_scheduled_after_delivery') {
         const input = inputs.get(event.inputId); if (input) Object.assign(input, {
           state: 'scheduled', meaning: event.meaning, schedule: 'after_current_delivery',
@@ -186,6 +195,13 @@ export class WorkStore {
           { state: 'executing', executionRunId: event.runId,
             settlementDisposition: null, settlementWorkId: null, settlementRevision: null,
             settlementReason: null });
+      }
+      if (event.type === 'input_failure_surface_claimed') {
+        const input = inputs.get(event.inputId); if (input) Object.assign(input, {
+          state: 'executing', workId: event.workId, revision: event.revision,
+          executionRunId: event.runId, settlementDisposition: null,
+          settlementWorkId: null, settlementRevision: null, settlementReason: null,
+        });
       }
       if (event.type === 'input_executed') {
         const input = inputs.get(event.inputId); if (input) Object.assign(input, {
@@ -488,6 +504,28 @@ export class WorkStore {
         || (input.state === 'classified' && ['independent_work', 'settlement_retry'].includes(input.schedule)))
     ));
   }
+  async activateExactInputWork(inputId) {
+    return this.serialize(async () => {
+      const state = await this.read(); const input = state.inputs.find((item) => item.inputId === String(inputId));
+      if (!input || input.state !== 'classified' || !input.workId || !Number.isInteger(input.revision)) {
+        throw new Error('queued input work identity is unavailable');
+      }
+      const target = state.works.find((work) => work.workId === input.workId);
+      if (!target || target.revision !== input.revision || ['completed', 'cancelled'].includes(target.status)) {
+        throw new Error('queued input work identity is stale');
+      }
+      for (const work of state.works.filter((item) => item.sessionId === input.sessionId
+        && item.status === 'active' && item.workId !== target.workId)) {
+        await this.appendUnlocked('work_status_changed', { workId: work.workId, revision: work.revision,
+          status: 'paused', reason: 'exact_input_work_activation', inputId: input.inputId });
+      }
+      if (target.status !== 'active') await this.appendUnlocked('work_status_changed', {
+        workId: target.workId, revision: target.revision, status: 'active',
+        reason: 'exact_input_work_activation', inputId: input.inputId,
+      });
+      return { ...input, workId: target.workId, revision: target.revision };
+    });
+  }
   async releasePresentedInputsForRun(runId, { reason = 'run_failed_before_input_application' } = {}) {
     const state = await this.read(); const presented = state.inputs.filter((input) => (
       input.state === 'presented' && input.presentedRunId === runId
@@ -501,6 +539,23 @@ export class WorkStore {
   async undecidedInputs(sessionId) {
     return (await this.read()).inputs.filter((input) => input.sessionId === sessionId
       && input.state === 'admitted' && !input.transitionChoice);
+  }
+  async attachAdmittedInputToCurrentWork(inputId) {
+    return this.serialize(async () => {
+      const state = await this.read(); const input = state.inputs.find((item) => item.inputId === String(inputId));
+      if (!input || input.state !== 'admitted' || input.transitionChoice) {
+        throw new Error('admitted input is not available for current Work');
+      }
+      const current = state.works.filter((work) => work.sessionId === input.sessionId
+        && work.status === 'active').at(-1);
+      if (!current) throw new Error('active Work is unavailable for admitted input');
+      const revision = current.revision + 1;
+      await this.appendUnlocked('input_attached_to_current_work', {
+        inputId: input.inputId, workId: current.workId, baseRevision: current.revision, revision,
+      });
+      return { ...input, state: 'classified', disposition: 'current_work', schedule: 'current_work',
+        workId: current.workId, revision };
+    });
   }
   async commitTransitionDecision({ inputId, sessionId, runId, currentWorkId, choice,
     target = null, targetHandle = null, currentWorkDisposition = null } = {}) {
@@ -769,7 +824,30 @@ export class WorkStore {
   async claimInputExecution({ inputId, runId }) {
     const state = await this.read(); const input = state.inputs.find((item) => item.inputId === inputId);
     if (!input || input.state !== 'classified') throw new Error('work input is not queued');
+    const claim = state.claims.find((item) => item.runId === runId && item.state === 'active');
+    if (!claim || claim.workId !== input.workId || claim.revision !== input.revision) {
+      throw new Error('work input and Run claim identity mismatch');
+    }
     await this.append('input_execution_claimed', { inputId, runId }); return { inputId, runId };
+  }
+  async claimPresentedInputsForFailure(runId) {
+    return this.serialize(async () => {
+      const state = await this.read();
+      const claim = state.claims.find((item) => item.runId === runId && item.state === 'active');
+      if (!claim) return [];
+      const presented = state.inputs.filter((input) => input.state === 'presented'
+        && input.presentedRunId === runId);
+      for (const input of presented) {
+        if (input.baseWorkId !== claim.workId || input.baseRevision !== claim.revision) {
+          throw new Error('presented input and Run claim identity mismatch');
+        }
+        await this.appendUnlocked('input_failure_surface_claimed', {
+          inputId: input.inputId, runId, workId: claim.workId, revision: claim.revision,
+        });
+      }
+      return presented.map((input) => ({ inputId: input.inputId, runId,
+        workId: claim.workId, revision: claim.revision, state: 'executing' }));
+    });
   }
   async completeInputExecution({ inputId, runId }) {
     throw new Error('completeInputExecution requires pending-surface prepare and commit');
