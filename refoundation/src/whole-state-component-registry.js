@@ -31,7 +31,7 @@ export class WholeStateComponentRegistry {
     this.stateRoot = resolve(stateRoot); this.components = new Map(); this.paths = new Set();
   }
   register({ id, files, required = true, restoreOrder, relationships = [],
-    maxFileBytes = null, allowLargeExclusion = false } = {}) {
+    maxFileBytes = null, maxTotalBytes = null, allowLargeExclusion = false } = {}) {
     const componentId = String(id ?? '');
     if (!ID.test(componentId) || this.components.has(componentId)) throw new TypeError('whole-state component id is invalid');
     if (!Array.isArray(files) || (required === true && !files.length)) throw new TypeError('whole-state component files are required');
@@ -41,12 +41,15 @@ export class WholeStateComponentRegistry {
     if (maxFileBytes != null && (!Number.isSafeInteger(maxFileBytes) || maxFileBytes < 1)) {
       throw new TypeError('whole-state component file limit is invalid');
     }
+    if (maxTotalBytes != null && (!Number.isSafeInteger(maxTotalBytes) || maxTotalBytes < 1)) {
+      throw new TypeError('whole-state component total limit is invalid');
+    }
     if (!Array.isArray(relationships) || relationships.some((item) => !ID.test(String(item)))) {
       throw new TypeError('whole-state relationships are invalid');
     }
     const component = { id: componentId, files: paths, required: required === true,
       restoreOrder, relationships: [...new Set(relationships.map(String))].sort(),
-      maxFileBytes, allowLargeExclusion: allowLargeExclusion === true };
+      maxFileBytes, maxTotalBytes, allowLargeExclusion: allowLargeExclusion === true };
     this.components.set(componentId, component); paths.forEach((path) => this.paths.add(path));
     return structuredClone(component);
   }
@@ -66,7 +69,7 @@ export class WholeStateComponentRegistry {
     }
     const components = [];
     for (const component of [...this.components.values()].sort((a, b) => a.restoreOrder - b.restoreOrder)) {
-      const files = []; let missing = 0; let excluded = 0;
+      const files = []; let missing = 0; let excluded = 0; let includedBytes = 0;
       for (const path of component.files) {
         const exact = resolve(this.stateRoot, path);
         if (!inside(this.stateRoot, exact)) throw new Error('whole-state component escaped state root');
@@ -74,13 +77,15 @@ export class WholeStateComponentRegistry {
           const metadata = await lstat(exact);
           if (!metadata.isFile() || metadata.nlink !== 1) throw new Error('whole-state component file is not an exact regular file');
           const bytes = await readFile(exact);
-          if (component.maxFileBytes != null && bytes.length > component.maxFileBytes) {
+          if ((component.maxFileBytes != null && bytes.length > component.maxFileBytes)
+            || (component.maxTotalBytes != null && includedBytes + bytes.length > component.maxTotalBytes)) {
             if (!component.allowLargeExclusion) throw Object.assign(new Error('whole-state component file is too large'), {
               code: 'T5_BACKUP_COMPONENT_FILE_TOO_LARGE', componentId: component.id,
             });
             excluded += 1; files.push({ path, state: 'excluded_large', bytes: bytes.length,
               sha256: createHash('sha256').update(bytes).digest('hex') }); continue;
           }
+          includedBytes += bytes.length;
           files.push({ path, bytes: bytes.length,
             sha256: createHash('sha256').update(bytes).digest('hex') });
         } catch (error) {

@@ -67,3 +67,17 @@ test('명시적으로 허용한 큰 Artifact만 digest와 excluded_large 사실�
     assert.match(manifest.components[0].files[0].sha256, /^[0-9a-f]{64}$/u);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
+
+test('작은 Artifact가 많이 쌓여도 누적 예산 밖 파일은 개별 excluded_large로 기록한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-whole-state-total-'));
+  try {
+    await writeFile(join(room, 'a.bin'), Buffer.alloc(10, 1)); await writeFile(join(room, 'b.bin'), Buffer.alloc(10, 2));
+    const registry = new WholeStateComponentRegistry(room);
+    registry.register({ id: 'artifact-objects', files: ['a.bin', 'b.bin'], restoreOrder: 10,
+      maxTotalBytes: 15, allowLargeExclusion: true, required: false });
+    const manifest = await registry.manifest({ generationId: '88888888-8888-4888-8888-888888888888',
+      createdAt: '2026-08-27T00:00:00.000Z' });
+    assert.equal(manifest.components[0].state, 'partial');
+    assert.equal(manifest.components[0].files.filter((file) => file.state === 'excluded_large').length, 1);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});

@@ -40,7 +40,7 @@ export async function makeT5WholeStateRegistry(stateRoot) {
   add('automation', ['automation/state.json'], 60, ['sessions', 'work']);
   add('attachments', ['attachments/ledger.jsonl'], 70, ['sessions', 'work', 'runs']);
   add('artifact-objects', await regularFiles(stateRoot, 'attachments/objects'), 71, ['attachments'], false,
-    { maxFileBytes: 32 * 1024 * 1024, allowLargeExclusion: true });
+    { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 96 * 1024 * 1024, allowLargeExclusion: true });
   add('capability-handoffs', ['capability-handoffs/capability-handoffs.jsonl'], 80, ['sessions', 'runs']);
   add('capability-lifecycle', ['capability-lifecycle/events.jsonl'], 90, ['work', 'runs']);
   add('resources', ['resources/events.jsonl'], 100, ['runs']);
@@ -49,12 +49,17 @@ export async function makeT5WholeStateRegistry(stateRoot) {
     include: (path) => basename(path).startsWith('connection-state.sqlite'),
   }), 120);
   add('messenger', ['messenger/messenger-runtime.json'], 130, ['sessions', 'work']);
-  add('terminal-outputs', await regularFiles(stateRoot, 'terminal-outputs'), 140, ['sessions', 'runs']);
-  add('managed-skills', await regularFiles(stateRoot, 'managed-skills'), 150, ['capability-lifecycle']);
-  add('file-activity', await regularFiles(stateRoot, 'file-activity'), 160);
-  add('app-activity', await regularFiles(stateRoot, 'app-activity'), 170);
+  add('terminal-outputs', await regularFiles(stateRoot, 'terminal-outputs'), 140, ['sessions', 'runs'], false,
+    { maxTotalBytes: 32 * 1024 * 1024, allowLargeExclusion: true });
+  add('managed-skills', await regularFiles(stateRoot, 'managed-skills'), 150, ['capability-lifecycle'], false,
+    { maxTotalBytes: 16 * 1024 * 1024, allowLargeExclusion: true });
+  add('file-activity', await regularFiles(stateRoot, 'file-activity'), 160, [], false,
+    { maxTotalBytes: 16 * 1024 * 1024, allowLargeExclusion: true });
+  add('app-activity', await regularFiles(stateRoot, 'app-activity'), 170, [], false,
+    { maxTotalBytes: 16 * 1024 * 1024, allowLargeExclusion: true });
   add('runtime-continuity', ['runtime-continuity/events.json'], 180);
-  add('user-notes', await regularFiles(stateRoot, 'user-notes'), 190);
+  add('user-notes', await regularFiles(stateRoot, 'user-notes'), 190, [], false,
+    { maxTotalBytes: 32 * 1024 * 1024, allowLargeExclusion: true });
   return registry;
 }
 

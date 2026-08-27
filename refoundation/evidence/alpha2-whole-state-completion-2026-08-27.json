@@ -1,0 +1,55 @@
+{
+  "schema": "t5.alpha2.whole-state-completion.v1",
+  "recordedOn": "2026-08-27",
+  "baselineSourceCommit": "c94639ab",
+  "officialPlan": "T5-THIRD-ALPHA.md",
+  "status": "PASS",
+  "completionSentence": "사용자는 T5 전체 상태를 암호화 백업해 다른 컴퓨터의 격리 상태에 복원하고, 비밀과 외부 계정만 다시 연결한 뒤 미완료 Work를 외부 효과 중복 없이 이어간다.",
+  "qualified": [
+    "Idle Runtime maintenance closes new admission without silently cancelling active Work.",
+    "Session, Conversation, Work, Run, Memory, Automation, Artifact, Capability, Connection metadata, Messenger runtime, Terminal output, Activity, Runtime continuity and user-note components share one generation manifest.",
+    "Every included file is a portable relative exact regular file with size and SHA-256 verified before and after staging copy and once again before generation close.",
+    "The generation manifest and payload are encrypted together with scrypt and AES-256-GCM; wrong password exposes no manifest content.",
+    "Platform credential plaintext, model connection secrets and Messenger credentials are not registered or restored.",
+    "Large or cumulatively oversized non-core payload files retain bytes and digest as excluded_large and become explicitly unavailable after restore.",
+    "Wrong password, partial bundle, ciphertext change, unsupported version and relationship failure change zero destination bytes.",
+    "Restore materializes into an isolated sibling, validates component order and T5 Session-Work-Run-Automation-Artifact-Messenger relationships, then schedules activation only after Runtime stop.",
+    "A real resident Runtime atomically activated the prepared state, restarted on the restored state and preserved the replaced state as a rollback sibling.",
+    "A restored dispatch_claimed external delivery becomes unknown with blind sends equal to zero.",
+    "Settings provides encrypted whole-backup download, backup upload, password validation, restore restart and rollback without exposing internal paths.",
+    "Restore and rollback state that provider copies, external-service copies and separate backup files are not changed or deleted."
+  ],
+  "verification": {
+    "alpha2FocusedPostFinalBoundary": { "tests": 18, "passed": 18, "failed": 0 },
+    "dailyCheck": { "tests": 1539, "passed": 1538, "failed": 0, "skipped": 1 },
+    "fullCi": {
+      "unit": { "passed": 1538, "failed": 0, "skipped": 1 },
+      "integration": { "passed": 178, "failed": 0, "skipped": 2 },
+      "mutation": { "killed": 2, "survived": 0 }
+    },
+    "modelCallsForAlpha2Qualification": 0,
+    "externalEffectsForAlpha2Qualification": 0
+  },
+  "portableBoundary": {
+    "encryptedPayloadMaximumBytes": 268435456,
+    "singleArtifactIncludeMaximumBytes": 33554432,
+    "artifactObjectCumulativeIncludeMaximumBytes": 100663296,
+    "credentialsRestored": 0,
+    "externalEffectsRetried": 0
+  },
+  "platformBoundary": {
+    "commonSourceComplete": true,
+    "macOSPhysicalMigrationQualification": "deferred_to_post_alpha_platform_gate",
+    "windowsPhysicalMigrationQualification": "deferred_to_post_macos_platform_gate",
+    "windowsCiSkips": 2
+  },
+  "notClaimed": [
+    "Copying Keychain, DPAPI, OAuth or Messenger secret plaintext",
+    "Availability of excluded_large artifacts after restore",
+    "Deletion of provider, external-service or separately stored backup copies",
+    "Physical cross-device macOS or Windows migration qualification",
+    "Alpha3 through Alpha6 completion",
+    "3차Alpha completion"
+  ],
+  "next": "Open Alpha3-A at the actual serialized provider request boundary and produce transmission-category receipts from wire facts."
+}

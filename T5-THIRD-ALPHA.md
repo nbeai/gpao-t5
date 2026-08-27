@@ -1,6 +1,6 @@
 # T5 3차α — Local Ownership & Persistent Intelligence
 
-상태: `ALPHA0_COMPLETE · ALPHA1_COMPLETE · ALPHA2_FAILURE_FIXTURE_FROZEN · ALPHA2_COMPONENT_REGISTRY_PASS · ALPHA2_SNAPSHOT_COPY_NEXT · SOURCE_SCOPE_FROZEN`
+상태: `ALPHA0_COMPLETE · ALPHA1_COMPLETE · ALPHA2_COMPLETE · ALPHA3_TRANSMISSION_TRUTH_NEXT · SOURCE_SCOPE_FROZEN`
 기준 source: `5e9d10a11453df24fe77a896d59d891c423da621`
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN`
 
@@ -206,4 +206,9 @@ UI 종료와 다른 명시적 `T5 완전히 끄기`는 실행 중 Work의 `inter
 관계를 같은 stable snapshot generation으로 묶되 secret·cache·외부 사본을 포함하지 않는 component registry다.
 그 registry의 portable path·digest·restore order·secret path 차단은
 `refoundation/evidence/alpha2-component-registry-2026-08-27.json`에서 통과했다. 다음 한 작업은 등록 component의
-exact bytes를 staging generation에 복사하고 복사 후 hash가 manifest와 일치할 때만 암호화 입력으로 닫는 것이다.
+exact bytes staging, encrypted bundle, wrong-password·corruption 무변경, relationship-verified isolated restore,
+Runtime stop 뒤 atomic activation·재기동, rollback, effect non-retry와 설정 UX까지
+`refoundation/evidence/alpha2-whole-state-completion-2026-08-27.json`에서 α2 전체로 통과했다.
+
+다음 한 작업은 α3-A Transmission Truth다. 실제 provider 직전 serialized body에서 범주 Receipt를 만들고, 현재
+ContextReceipt나 의도된 prompt를 실제 전송 진실로 승격하지 않는 wire counterexample부터 고정한다.
