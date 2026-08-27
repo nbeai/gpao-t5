@@ -600,22 +600,3 @@ export function makeFileRealityTool({
     },
   };
 }
-
-export function makeCoreFileSearchTool(fileRealityTool) {
-  if (!fileRealityTool || typeof fileRealityTool.execute !== 'function') throw new TypeError('file reality tool is required');
-  const nulls = { placements: null, planId: null, effect: null, sourceUses: null, purpose: null,
-    unknowns: null, standardization: null };
-  return {
-    name: 'file_search',
-    description: 'Find real local files by approximate name, path, text, OCR words, dates, amounts, people, projects, or file kind. Use search first and inspect only one selected handle when bounded candidate evidence is incomplete. image_candidates lists recent image metadata for one requested scope but does not send pixels; use the on-demand file_reality visual_candidates only when appearance must be judged.',
-    parameters: { type: 'object', additionalProperties: false, properties: {
-      action: { type: 'string', enum: ['search', 'inspect', 'image_candidates'] },
-      query: { type: ['string', 'null'], maxLength: 500 },
-      scope: { type: ['string', 'null'], enum: ['computer', 'workspace', 'path', null] },
-      path: { type: ['string', 'null'], maxLength: 4096 },
-      handles: { type: ['array', 'null'], maxItems: 12, items: { type: 'string', maxLength: 64 } },
-      maxCandidates: { type: ['integer', 'null'], minimum: 1, maximum: 20 },
-    }, required: ['action', 'query', 'scope', 'path', 'handles', 'maxCandidates'] },
-    execute(args = {}) { return fileRealityTool.execute({ ...nulls, ...args }); },
-  };
-}

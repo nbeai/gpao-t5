@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 import { runAgent } from '../src/agent-loop.js';
-import { makeCoreFileSearchTool, makeFileRealityTool } from '../src/file-reality-tool.js';
+import { makeFileRealityTool } from '../src/file-reality-tool.js';
 import { FileSourceManifestStore } from '../src/file-source-manifest-store.js';
 import { FileIntelligenceIndex } from '../src/file-intelligence-index.js';
 import { deferTools, makeToolSearchTool } from '../src/tool-search.js';
@@ -234,21 +234,6 @@ test('같은 generation의 두 번째 이미지 검색은 native OCR 없이 loca
     const changed = await tool.execute(args); assert.equal(changed.candidates.some((item) => item.displayName === 'random-receipt.png'), false);
     assert.equal(changed.coverage.ocrProbes, 1); assert.equal(probes, 2);
     assert.deepEqual(await index.search({ query: '한빛상사' }), []);
-  } finally { await rm(room.root, { recursive: true, force: true }); }
-});
-
-test('작은 core file_search는 full file_reality와 handle을 공유해 검색→선택 재열기를 잇는다', async () => {
-  const room = await fixture();
-  try {
-    const reality = makeFileRealityTool({ workspace: room.workspace, home: room.root, platform: 'test',
-      computerRoots: [room.root], indexSearch: async () => [room.target] });
-    const core = makeCoreFileSearchTool(reality);
-    assert.deepEqual(Object.keys(core.parameters.properties).sort(), ['action', 'handles', 'maxCandidates', 'path', 'query', 'scope']);
-    const found = await core.execute({ action: 'search', query: '새봄상사 파란 표', scope: 'computer', path: null,
-      handles: null, maxCandidates: 5 });
-    const inspected = await core.execute({ action: 'inspect', query: null, scope: null, path: null,
-      handles: [found.candidates[0].handle], maxCandidates: null });
-    assert.match(inspected.content, /새봄상사 제안 금액/u);
   } finally { await rm(room.root, { recursive: true, force: true }); }
 });
 

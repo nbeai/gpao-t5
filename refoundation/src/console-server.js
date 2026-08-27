@@ -47,7 +47,7 @@ import { makeEffectForensicProductAdapter,
 import { makeWorkHistoryProductAdapter } from './work-history-projection.js';
 import { makePurposeBoundedHistoryAdapter } from './purpose-bounded-history.js';
 import { makePurposeHistoryTool } from './purpose-history-tool.js';
-import { makeCoreFileSearchTool, makeFileRealityTool } from './file-reality-tool.js';
+import { makeFileRealityTool } from './file-reality-tool.js';
 import { FileSourceManifestStore } from './file-source-manifest-store.js';
 import { makeLocalImageOcr } from './local-image-ocr.js';
 import { FileIntelligenceIndex } from './file-intelligence-index.js';
@@ -1478,14 +1478,13 @@ export function makeConsoleServer({
       const skillSnapshot = mergeSkillSnapshots([bundledSkillSnapshot, managedSkillSnapshot]);
       const capabilitySnapshot = await capabilityCatalogPromise;
       const offeredTools = [...terminal.tools];
-      const fileRealityTool = makeFileRealityTool({ workspace, home: computer.userHome, platform: computer.platform,
+      offeredTools.unshift(makeFileRealityTool({ workspace, home: computer.userHome, platform: computer.platform,
         computerRoots: computerFileRoots ?? [homedir()], protectedRoots: [...protectedFileRoots, stateDir],
         organizationRoot: join(stateDir, 'file-organization'), sourceManifestStore: fileSourceManifests, sessionId,
         ocrProbe: localImageOcr,
         intelligenceIndex: fileIntelligenceIndex,
         enforceComputerRoots: restrictFileRealityToComputerRoots,
-        ...(fileIndexSearch ? { indexSearch: fileIndexSearch } : {}) });
-      offeredTools.unshift(fileRealityTool, makeCoreFileSearchTool(fileRealityTool));
+        ...(fileIndexSearch ? { indexSearch: fileIndexSearch } : {}) }));
       if (capabilityRealityEnabled) offeredTools.unshift(makeCapabilityRealityTool({ observer: capabilityReality }));
       if (capabilityAcquisition) offeredTools.unshift(makeCapabilityPackageAdminTool({
         coordinator: capabilityAcquisition,
@@ -1782,7 +1781,6 @@ export function makeConsoleServer({
         performConnection: (id, actionId) => performConnectionAction(id, actionId, { sessionId }),
       }));
       const coreToolNames = [
-        'file_search',
         'connection', 'native_computer', 'memory', 'memory_claim', 'memory_control', 'skill',
         ...(options.trigger === 'automation' ? [] : ['work_completion']),
         ...(pendingLearningTrials.length ? ['learning_trial'] : []),
