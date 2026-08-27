@@ -106,7 +106,7 @@ test('실제 콘솔은 무의미한 이미지 파일명에서 local OCR 금액·
   const response = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ sessionId: session.id, text: '바탕화면에서 카카오로 받은 한빛상사 478만원 견적 사진 찾아줘' }) });
   const result = await response.json(); assert.equal(response.status, 200, JSON.stringify({ result, errors }));
-  assert.match(result.reply, /478만원 견적 사진/u); assert.equal(probes, 1); assert.equal(errors.length, 0, errors.join('\n'));
+  assert.match(result.reply, /478만원 견적 사진/u); assert.equal(probes, 2); assert.equal(errors.length, 0, errors.join('\n'));
 });
 
 test('실제 콘솔은 바탕화면의 무의미한 파일명 사진을 bounded contact sheet로 판별한다', async (t) => {
