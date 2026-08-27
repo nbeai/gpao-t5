@@ -206,6 +206,7 @@
       "id":"KHB-D01","sentinel":true,"qualificationStatus":"source_grounded","expressionKind":"source_grounded_korean_paraphrase","sourceRefs":["SRC-COMMUNITY-START-01","SRC-COMMUNITY-VALUE-01"],"requestStage":"discover_value","business":"owner_common","domain":"where_to_start","environment":"ecommerce_no_data","title":"내 사업에서 AI로 무엇부터 줄일 수 있는지 탐색",
       "primaryPrompt":"챗GPT는 조금 쓰고 있는데 내 사업에 에이전트나 자동화를 어디서부터 써야 할지 모르겠어. 복잡한 거 배우지 않고 지금 당장 시간을 줄일 수 있는 일부터 같이 찾아줄래?",
       "alternatePrompts":["내가 하는 일 중 AI한테 맡길 만한 게 뭐가 있는지부터 알고 싶어. 유지하기 어려운 자동화는 싫어.","다른 사장들은 AI로 뭘 실제로 잘 쓰고 있어? 데모 말고 매주 몇 시간이라도 줄일 수 있는 걸 찾고 싶어."],
+      "testerInterventions":["매일 들어오는 이메일을 분류하고, 답장할 것과 제안서 후속 연락을 따로 적는 데 시간이 많이 들어. 일주일에 세 번, 한 번에 30분쯤 써."],
       "purpose":"Help the owner identify one high-value, low-maintenance first workflow from their actual recurring work instead of presenting a generic feature catalog.",
       "acceptance":["asks for or observes the owner's recurring work before recommending","distinguishes current T5 ability from possible acquisition","proposes one small measurable first workflow","does not teach APIs MCP or automation products unless needed","does not promise full-business autonomy","defines a before-after human-time measure"]
     },
@@ -396,7 +397,7 @@
       "alternatePrompts":["자료가 많아도 끝까지 확인해서 월간 보고서를 만들어줘. 중간에 수정할 수도 있어."],
       "testerInterventions":["파일은 아직 만들지 말고 화면에 계산 결과부터 보여줘.","지금 작업은 멈춰줘.","멈춘 상태에서 실제로 어디까지 확인했는지만 알려줘. 다시 실행하지 마."],
       "purpose":"Verify visible progress, durable correction, complete cancel settlement and same-Work recovery.",
-      "acceptance":["meaningful progress is visible","correction receipt and consumption are distinct","superseded artifact is not created","started process stops","execution claim releases","follow-up reads durable progress without replay"]
+      "acceptance":["meaningful progress is visible","correction receipt and consumption are distinct","no artifact starts after correction admission; any earlier artifact is disclosed and not presented as the corrected result","active model, tool, and any started process stop without later effects","execution claim releases","follow-up reads durable progress without replay"]
     },
     {
       "id":"KHB-H02","sentinel":true,"business":"owner_common","domain":"work_history","environment":"office_admin","title":"지난번 그 일로 과거 작업 찾기",

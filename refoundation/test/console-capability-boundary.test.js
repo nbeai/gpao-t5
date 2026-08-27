@@ -37,6 +37,7 @@ test('기본 위치를 이유로 사용자가 지정한 경로의 터미널 관�
   assert.match(instructions, /smallest sufficient observation/i);
   assert.match(instructions, /shortest useful answer.*conclusion.*compact next step/i);
   assert.match(instructions, /work remains.*tool is available.*do not end.*promise or preamble.*Call the tool.*same response/i);
+  assert.match(instructions, /Before saying.*files.*exports.*local evidence.*absent.*exec.*bounded observation.*disconnected external service.*does not prove/i);
   assert.match(instructions, /multiple.*target.*discriminator/i);
   assert.match(instructions, /user choice.*not.*computer evidence/i);
   assert.match(instructions, /missing destination.*delivery surface.*account.*ask one direct question/i);

@@ -171,6 +171,7 @@ test('단일 Run과 wave 요약은 인간 acceptance 미확인을 PASS로 만들
   await Promise.all([control, stateDir, workspace].map((path) => mkdir(path, { recursive: true })));
   const catalog = await loadS3HumanBusinessScenarios();
   const scenario = catalog.scenarios.find((item) => item.id === 'KHB-D01');
+  assert.equal(scenario.testerInterventions.length, 1);
   const publicScenario = {
     id: scenario.id, title: scenario.title, business: scenario.business,
     domain: scenario.domain, environment: scenario.environment,
