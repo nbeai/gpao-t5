@@ -82,7 +82,7 @@ export async function stopLocalRuntime({
   timeoutMs = 15_000,
   pollMs = 100,
 } = {}) {
-  if (!['user_full_stop', 'product_update', 'product_uninstall'].includes(reason)) {
+  if (!['product_update', 'product_uninstall'].includes(reason)) {
     throw new TypeError('local runtime stop reason is invalid');
   }
   const current = await observeLocalRuntime({ portFile, fetcher });
