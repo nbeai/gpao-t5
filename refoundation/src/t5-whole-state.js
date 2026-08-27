@@ -4,6 +4,9 @@ import { basename, join, relative, resolve } from 'node:path';
 import { AttachmentStore } from './attachment-store.js';
 import { AutomationStore } from './automation-store.js';
 import { ConsoleSessionStore } from './console-session-store.js';
+import { ConversationLedger } from './conversation-ledger.js';
+import { MemoryLedger } from './memory-ledger.js';
+import { MessengerStateStore } from './messenger-gateway.js';
 import { RunLedger } from './run-ledger.js';
 import { WorkStore } from './work-store.js';
 import { WholeStateComponentRegistry } from './whole-state-component-registry.js';
@@ -62,15 +65,32 @@ function included(manifest, id) {
 export async function validateT5WholeStateRelationships({ root, manifest } = {}) {
   const sessions = included(manifest, 'sessions') ? await new ConsoleSessionStore(root).read() : { sessions: [] };
   const sessionIds = new Set(sessions.sessions.map((session) => session.id));
+  if (included(manifest, 'conversations')) {
+    const conversations = new ConversationLedger(join(root, 'conversations'));
+    for (const file of manifest.components.find((component) => component.id === 'conversations').files) {
+      if (file.state) continue; const sessionId = basename(file.path, '.jsonl');
+      if (!sessionIds.has(sessionId)) throw new Error('restored Conversation has no Session');
+      await conversations.read(sessionId);
+    }
+  }
   const work = included(manifest, 'work') ? await new WorkStore(join(root, 'work')).read()
     : { works: [], inputs: [], results: [], claims: [], cancellations: [] };
   const workIds = new Set(work.works.map((item) => item.workId));
   for (const item of work.works) if (!sessionIds.has(item.sessionId)) throw new Error('restored Work has no Session');
+  for (const item of work.inputs) if (!sessionIds.has(item.sessionId)) throw new Error('restored Work input has no Session');
+  let automationState = null;
   if (included(manifest, 'automation')) {
-    const automation = await new AutomationStore(join(root, 'automation', 'state.json')).read();
-    for (const job of automation.jobs) {
+    automationState = await new AutomationStore(join(root, 'automation', 'state.json')).read();
+    for (const job of automationState.jobs) {
       if (!sessionIds.has(job.sessionId)) throw new Error('restored Automation has no Session');
       if (job.sourceWorkId && !workIds.has(job.sourceWorkId)) throw new Error('restored Automation has no source Work');
+    }
+  }
+  if (included(manifest, 'memory')) await new MemoryLedger(join(root, 'memory')).read();
+  if (included(manifest, 'messenger')) {
+    const messenger = new MessengerStateStore(join(root, 'messenger')); await messenger.read();
+    for (const binding of await messenger.listBindings()) {
+      if (!sessionIds.has(binding.sessionId)) throw new Error('restored Messenger binding has no Session');
     }
   }
   const runIds = new Set();
@@ -81,13 +101,20 @@ export async function validateT5WholeStateRelationships({ root, manifest } = {})
       if (!sessionIds.has(run.sessionId)) throw new Error('restored Run has no Session'); runIds.add(runId);
     }
   }
+  for (const occurrence of automationState?.runs ?? []) {
+    if (occurrence.sourceRunId && !runIds.has(occurrence.sourceRunId)) throw new Error('restored Automation result has no Run');
+    if (occurrence.executionWorkId && !workIds.has(occurrence.executionWorkId)) throw new Error('restored Automation result has no Work');
+  }
   if (included(manifest, 'attachments')) {
     const attachments = new AttachmentStore(join(root, 'attachments')); const events = await attachments.events();
     for (const event of events) {
       if (event.sessionId && !sessionIds.has(event.sessionId)) throw new Error('restored Artifact has no Session');
-      if (event.runId && runIds.size && !runIds.has(event.runId)) throw new Error('restored Artifact has no Run');
+      if (event.runId && !runIds.has(event.runId)) throw new Error('restored Artifact has no Run');
     }
   }
+  const unavailableArtifacts = manifest.components.find((component) => component.id === 'artifact-objects')
+    ?.files.filter((file) => file.state === 'excluded_large').length ?? 0;
   return { valid: true, sessions: sessionIds.size, works: workIds.size, runs: runIds.size,
+    unavailableArtifacts,
     externalEffectsRetried: 0, credentialsRestored: 0 };
 }

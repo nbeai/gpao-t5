@@ -2657,6 +2657,85 @@ const SET_RENDER = {
       head.append(titles, library); privacy.append(head,
         mk('div', 'settings-item-desc', `현재 ${(st.counts?.current ?? 0) + (st.legacy?.length ?? 0)}건 · 지난 기록 ${st.counts?.history ?? 0}건 · 기억은 언제든 잊게 할 수 있어요.`));
       setBody.appendChild(privacy);
+
+      const backup = mk('section', 'settings-section'); const backupHead = mk('div', 'settings-section-head');
+      const backupTitles = document.createElement('div'); backupTitles.appendChild(mk('h3', null, 'T5 전체 백업'));
+      backupTitles.appendChild(mk('p', null, '대화·기억·작업·자동화·결과물을 암호화 파일 하나로 받아요. 모델과 외부 서비스 비밀값은 포함하지 않아요.'));
+      backupHead.appendChild(backupTitles); backup.appendChild(backupHead);
+      const backupCard = mk('div', 'tb-card'); const backupFields = mk('div', 'connection-fields');
+      const passwordLabel = document.createElement('label'); passwordLabel.textContent = '백업 암호';
+      const backupPassword = document.createElement('input'); backupPassword.type = 'password'; backupPassword.autocomplete = 'new-password';
+      const confirmLabel = document.createElement('label'); confirmLabel.textContent = '암호 다시 입력';
+      const backupConfirm = document.createElement('input'); backupConfirm.type = 'password'; backupConfirm.autocomplete = 'new-password';
+      passwordLabel.appendChild(backupPassword); confirmLabel.appendChild(backupConfirm); backupFields.append(passwordLabel, confirmLabel);
+      const backupAction = document.createElement('button'); backupAction.className = 'connection-button primary'; backupAction.textContent = '전체 백업 파일 받기';
+      const backupState = mk('div', 'settings-item-desc', '암호를 잊으면 백업을 복원할 수 없어요. 비밀값과 외부 계정은 새 컴퓨터에서 다시 연결해요.');
+      backupAction.onclick = async () => {
+        if (backupPassword.value.length < 10 || backupPassword.value !== backupConfirm.value) {
+          backupState.textContent = '10자 이상의 같은 암호를 두 번 입력해 주세요.'; return;
+        }
+        backupAction.disabled = true; backupAction.textContent = '안전하게 묶는 중…';
+        try {
+          const response = await fetch('/backup/create', { method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ password: backupPassword.value }) });
+          backupPassword.value = ''; backupConfirm.value = '';
+          if (!response.ok) { const error = await response.json().catch(() => ({})); throw new Error(error.error ?? 'backup failed'); }
+          const href = URL.createObjectURL(await response.blob()); const link = document.createElement('a');
+          link.href = href; link.download = 'T5-whole-state.t5backup'; link.click(); setTimeout(() => URL.revokeObjectURL(href), 0);
+          const excluded = Number(response.headers.get('x-t5-backup-excluded-files') ?? 0);
+          backupState.textContent = excluded > 0
+            ? `암호화된 전체 백업 파일을 받았어요. 큰 결과 파일 ${excluded}개는 포함하지 않았고 복원 뒤 사용할 수 없다고 표시돼요.`
+            : '암호화된 전체 백업 파일을 받았어요.';
+        } catch (error) { backupState.textContent = error?.message ?? '전체 백업을 만들지 못했어요. 현재 자료는 그대로예요.'; }
+        finally { backupPassword.value = ''; backupConfirm.value = ''; backupAction.disabled = false; backupAction.textContent = '전체 백업 파일 받기'; }
+      };
+      backupCard.append(backupFields, backupAction, backupState); backup.appendChild(backupCard); setBody.appendChild(backup);
+
+      const restore = mk('section', 'settings-section'); const restoreHead = mk('div', 'settings-section-head');
+      const restoreTitles = document.createElement('div'); restoreTitles.appendChild(mk('h3', null, '전체 백업 복원'));
+      restoreTitles.appendChild(mk('p', null, '다른 컴퓨터에서 만든 T5 백업을 검증한 뒤 현재 상태와 바꿔요. 지금 상태는 되돌릴 사본으로 보존해요.'));
+      restoreHead.appendChild(restoreTitles); restore.appendChild(restoreHead);
+      const restoreCard = mk('div', 'tb-card'); const restoreFile = document.createElement('input'); restoreFile.type = 'file';
+      restoreFile.accept = '.t5backup,application/vnd.gpao-t5.backup';
+      const restorePassword = document.createElement('input'); restorePassword.type = 'password'; restorePassword.autocomplete = 'current-password';
+      restorePassword.placeholder = '백업 암호';
+      const restoreAction = document.createElement('button'); restoreAction.className = 'connection-button'; restoreAction.textContent = '검증하고 복원';
+      const restoreState = mk('div', 'settings-item-desc', '복원 뒤 모델과 외부 서비스 비밀값은 다시 연결해야 해요.');
+      restoreAction.onclick = async () => {
+        const file = restoreFile.files?.[0];
+        if (!file || restorePassword.value.length < 10) { restoreState.textContent = '백업 파일과 10자 이상의 백업 암호를 확인해 주세요.'; return; }
+        if (!confirm('이 백업으로 T5 상태를 바꿀까요? 지금 상태는 되돌릴 사본으로 보존해요.')) return;
+        restoreAction.disabled = true; restoreAction.textContent = '백업을 검증하는 중…';
+        try {
+          const uploaded = await fetch('/backup/restore/upload', { method: 'POST',
+            headers: { 'content-type': 'application/vnd.gpao-t5.backup' }, body: file });
+          const upload = await uploaded.json().catch(() => ({})); if (!uploaded.ok) throw new Error(upload.error ?? '백업 파일을 받지 못했어요.');
+          const activated = await fetch('/backup/restore/activate', { method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ restoreId: upload.restoreId, password: restorePassword.value }) });
+          restorePassword.value = '';
+          const result = await activated.json().catch(() => ({})); if (!activated.ok) throw new Error(result.error ?? '백업을 복원하지 못했어요.');
+          restoreState.textContent = '백업 검증을 마쳤어요. T5가 복원 상태로 다시 시작돼요. 화면이 닫히면 T5 앱을 다시 열어 주세요.';
+          restoreAction.textContent = '다시 시작하는 중…';
+        } catch (error) {
+          restorePassword.value = ''; restoreAction.disabled = false; restoreAction.textContent = '검증하고 복원';
+          restoreState.textContent = error?.message ?? '백업을 복원하지 못했어요. 현재 상태는 그대로예요.';
+        }
+      };
+      restoreCard.append(restoreFile, restorePassword, restoreAction, restoreState); restore.appendChild(restoreCard); setBody.appendChild(restore);
+      const rollbackStatus = await fetch('/backup/restore/status').then((response) => response.json()).catch(() => null);
+      if (rollbackStatus?.previousStateAvailable) {
+        const rollback = document.createElement('button'); rollback.className = 'connection-button'; rollback.textContent = '복원 전 상태로 되돌리기';
+        rollback.onclick = async () => {
+          if (!confirm('복원하기 전 T5 상태로 되돌릴까요? 현재 복원 상태도 다시 되돌릴 사본으로 보존해요.')) return;
+          rollback.disabled = true; rollback.textContent = '이전 상태를 확인하는 중…';
+          const response = await fetch('/backup/restore/rollback', { method: 'POST' });
+          const result = await response.json().catch(() => ({}));
+          if (response.ok) restoreState.textContent = '복원 전 상태로 다시 시작해요. 화면이 닫히면 T5 앱을 다시 열어 주세요.';
+          else { rollback.disabled = false; rollback.textContent = '복원 전 상태로 되돌리기'; restoreState.textContent = result.error ?? '이전 상태로 되돌리지 못했어요.'; }
+        };
+        restoreCard.appendChild(rollback);
+      }
+      restoreCard.appendChild(mk('div', 'settings-item-desc', '복원과 되돌리기는 이 컴퓨터의 T5 상태만 바꿔요. 모델 제공자·외부 서비스·별도 백업 사본은 바꾸거나 지웠다고 주장하지 않아요.'));
     } catch { setBody.appendChild(mk('div', 'tb-empty', '기억 상태를 불러오지 못했어요.')); }
   },
   async looks() {

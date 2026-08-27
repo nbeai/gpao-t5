@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID, scrypt as rawScrypt } from 'node:crypto';
 import { constants } from 'node:fs';
-import { chmod, copyFile, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { chmod, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
 
@@ -47,6 +47,15 @@ export async function stageWholeStateGeneration({ registry, stagingParent = tmpd
         throw Object.assign(new Error('whole-state source changed during staging'), { code: 'T5_BACKUP_SOURCE_CHANGED' });
       }
     }
+    for (const component of manifest.components) for (const file of component.files) {
+      if (file.state === 'unavailable' || file.state === 'excluded_large') continue;
+      const sourceAfterGeneration = await readFile(resolve(registry.stateRoot, file.path));
+      if (sourceAfterGeneration.length !== file.bytes || sha256(sourceAfterGeneration) !== file.sha256) {
+        throw Object.assign(new Error('whole-state source changed before generation closed'), {
+          code: 'T5_BACKUP_SOURCE_CHANGED',
+        });
+      }
+    }
     await writeFile(join(root, 'manifest.json'), `${JSON.stringify(manifest)}\n`, { mode: 0o600 });
     return { root, payloadRoot, manifest };
   } catch (error) { await rm(root, { recursive: true, force: true }); throw error; }
@@ -86,7 +95,9 @@ export async function createWholeStateBundle({ registry, outputFile, password, s
     await writeFile(temporary, body, { mode: 0o600 }); await chmod(temporary, 0o600);
     await rename(temporary, resolve(outputFile));
     return { schema: 't5.whole-state-backup-receipt.v1', generationId: stage.manifest.generationId,
-      components: stage.manifest.components.length, bytes: body.length, sha256: sha256(body), encrypted: true };
+      components: stage.manifest.components.length, bytes: body.length, sha256: sha256(body), encrypted: true,
+      excludedFiles: stage.manifest.components.flatMap((component) => component.files)
+        .filter((file) => file.state === 'excluded_large').length };
   } finally { key?.fill(0); await rm(stage.root, { recursive: true, force: true }); }
 }
 
@@ -103,6 +114,7 @@ async function decryptBundle(bundleFile, password) {
   try { header = JSON.parse(body.subarray(MAGIC.length + 4, MAGIC.length + 4 + headerBytes).toString('utf8')); }
   catch { throw Object.assign(new Error('whole-state bundle is invalid'), { code: 'T5_BACKUP_INVALID' }); }
   if (header?.schema !== 't5.whole-state-encrypted.v1' || header.kdf?.name !== 'scrypt'
+    || header.kdf.N !== 16_384 || header.kdf.r !== 8 || header.kdf.p !== 1
     || header.cipher?.name !== 'aes-256-gcm' || header.cipher.tagBytes !== 16) {
     throw Object.assign(new Error('whole-state bundle version is unsupported'), { code: 'T5_BACKUP_VERSION_UNSUPPORTED' });
   }
@@ -159,6 +171,43 @@ async function materializeIsolated(payload, parent) {
   } catch (error) { await rm(root, { recursive: true, force: true }); throw error; }
 }
 
+export async function wholeStateTreeDigest(rootInput) {
+  const root = resolve(rootInput); const facts = [];
+  async function walk(directory) {
+    for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
+      const exact = join(directory, entry.name); const info = await lstat(exact);
+      if (info.isSymbolicLink()) throw new Error('prepared restore contains a symbolic link');
+      if (info.isDirectory()) await walk(exact);
+      else if (info.isFile() && info.nlink === 1) {
+        const bytes = await readFile(exact); facts.push(`${relative(root, exact).replaceAll('\\', '/')}:${bytes.length}:${sha256(bytes)}`);
+      } else throw new Error('prepared restore contains an unsafe file');
+    }
+  }
+  await walk(root); return sha256(Buffer.from(facts.join('\n'), 'utf8'));
+}
+
+export async function activatePreparedWholeStateRestore({ preparedStateRoot, destinationStateRoot,
+  expectedStateDigest } = {}) {
+  const prepared = resolve(preparedStateRoot); const destination = resolve(destinationStateRoot);
+  if (dirname(prepared) !== dirname(destination) || prepared === destination) throw new Error('prepared restore must be a sibling state root');
+  if (await wholeStateTreeDigest(prepared) !== expectedStateDigest) throw Object.assign(
+    new Error('prepared restore changed before activation'), { code: 'T5_RESTORE_PREPARED_CHANGED' });
+  const rollback = `${destination}.rollback.${randomUUID()}`; let hadDestination = false;
+  try {
+    try { await stat(destination); hadDestination = true; await rename(destination, rollback); }
+    catch (error) { if (error?.code !== 'ENOENT') throw error; }
+    await rename(prepared, destination);
+    return { activated: true, stateDigest: expectedStateDigest,
+      previousStatePreserved: hadDestination, previousStateName: hadDestination ? basename(rollback) : null };
+  } catch (error) {
+    if (hadDestination) {
+      await rm(destination, { recursive: true, force: true }).catch(() => {});
+      await rename(rollback, destination).catch(() => {});
+    }
+    throw error;
+  }
+}
+
 export async function restoreWholeStateBundle({ bundleFile, password, destinationStateRoot,
   validateRelationships = async () => true } = {}) {
   const destination = resolve(destinationStateRoot); const parent = dirname(destination);
@@ -167,20 +216,12 @@ export async function restoreWholeStateBundle({ bundleFile, password, destinatio
   const isolated = await materializeIsolated(payload, parent);
   try { await validateRelationships({ root: isolated, manifest: payload.manifest }); }
   catch (error) { await rm(isolated, { recursive: true, force: true }); throw error; }
-  const rollback = `${destination}.rollback.${randomUUID()}`; let hadDestination = false;
-  try {
-    try { await stat(destination); hadDestination = true; await rename(destination, rollback); }
-    catch (error) { if (error?.code !== 'ENOENT') throw error; }
-    await rename(isolated, destination);
-    if (hadDestination) await rm(rollback, { recursive: true, force: true });
-    return { restored: true, generationId: payload.manifest.generationId,
-      components: payload.manifest.components.length, secretsRequired: true, externalEffectsRetried: 0 };
-  } catch (error) {
-    await rm(isolated, { recursive: true, force: true }).catch(() => {});
-    if (hadDestination) {
-      await rm(destination, { recursive: true, force: true }).catch(() => {});
-      await rename(rollback, destination).catch(() => {});
-    }
-    throw error;
-  }
+  const stateDigest = await wholeStateTreeDigest(isolated);
+  await activatePreparedWholeStateRestore({ preparedStateRoot: isolated, destinationStateRoot: destination,
+    expectedStateDigest: stateDigest });
+  return { restored: true, generationId: payload.manifest.generationId,
+    components: payload.manifest.components.length, secretsRequired: true, externalEffectsRetried: 0,
+    unavailableFiles: payload.manifest.components.flatMap((component) => component.files)
+      .filter((file) => ['excluded_large', 'unavailable'].includes(file.state)).length,
+    stateDigest };
 }

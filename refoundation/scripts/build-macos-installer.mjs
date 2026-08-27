@@ -79,7 +79,7 @@ async function copyRuntimeApp(target) {
     });
   }
   for (const script of [
-    'start-console.mjs', 'ensure-local-runtime.mjs', 'stop-local-runtime.mjs', 'connect-chatgpt.mjs', 'prepare-node-pty.mjs', 'restrict-kordoc-bin.mjs',
+    'start-console.mjs', 'ensure-local-runtime.mjs', 'stop-local-runtime.mjs', 'activate-whole-state-restore.mjs', 'connect-chatgpt.mjs', 'prepare-node-pty.mjs', 'restrict-kordoc-bin.mjs',
   ]) {
     await copyFile(join(repo, 'refoundation', 'scripts', script), join(refoundation, 'scripts', script));
   }

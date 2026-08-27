@@ -51,3 +51,19 @@ test('restore 관계는 등록된 앞선 component만 가리켜야 한다', asyn
       createdAt: '2026-08-27T00:00:00.000Z' }), /relationship/u);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
+
+test('명시적으로 허용한 큰 Artifact만 digest와 excluded_large 사실을 남기고 payload에서 빠진다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-whole-state-large-'));
+  try {
+    await writeFile(join(room, 'large.bin'), Buffer.alloc(32, 7));
+    const registry = new WholeStateComponentRegistry(room);
+    registry.register({ id: 'artifact-objects', files: ['large.bin'], restoreOrder: 10,
+      maxFileBytes: 16, allowLargeExclusion: true, required: false });
+    const manifest = await registry.manifest({ generationId: '66666666-6666-4666-8666-666666666666',
+      createdAt: '2026-08-27T00:00:00.000Z' });
+    assert.equal(manifest.components[0].state, 'excluded_large');
+    assert.equal(manifest.components[0].files[0].state, 'excluded_large');
+    assert.equal(manifest.components[0].files[0].bytes, 32);
+    assert.match(manifest.components[0].files[0].sha256, /^[0-9a-f]{64}$/u);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});

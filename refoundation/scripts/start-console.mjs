@@ -5,6 +5,7 @@ import { constants } from 'node:fs';
 import { access as accessFile, chmod, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { makeConsoleModelAccess } from '../src/console-model-factory.js';
 import { makeModelConnectionService } from '../src/model-connection-service.js';
@@ -52,6 +53,8 @@ function option(name) {
   const index = process.argv.indexOf(name);
   return index >= 0 ? process.argv[index + 1] : undefined;
 }
+
+const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 
 const port = Number(option('--port') ?? process.env.T5_REFOUNDATION_CONSOLE_PORT ?? 4174);
 const computerEnvironment = discoverComputerEnvironment({ userHome: homedir() });
@@ -227,6 +230,17 @@ const server = makeConsoleServer({
   runtimeOwnerToken: runtimeLease.claim.ownerToken,
   requestRuntimeStop: async (reason) => (await runtimeStopReady)(reason),
   notifyUser: (kind) => localNotifications.notify(kind),
+  scheduleWholeStateActivation: async ({ preparedStateRoot, stateDigest }) => {
+    if (!portFile) throw new Error('T5 restore activation requires a port file');
+    const args = [resolve(scriptDirectory, 'activate-whole-state-restore.mjs'),
+      '--prepared-state', preparedStateRoot, '--destination-state', stateDir,
+      '--state-digest', stateDigest, '--port-file', portFile];
+    const productRoot = option('--product-root'); if (productRoot) args.push('--product-root', resolve(productRoot));
+    const child = spawn(process.execPath, args, { cwd: resolve(scriptDirectory, '..', '..'),
+      env: process.env, detached: true, stdio: 'ignore', windowsHide: true });
+    await new Promise((resolveSpawn, rejectSpawn) => { child.once('spawn', resolveSpawn); child.once('error', rejectSpawn); });
+    child.unref(); return true;
+  },
   onError: (error) => console.error('[refoundation-console]', error?.message ?? error),
 });
 await new Promise((resolveListen, reject) => {

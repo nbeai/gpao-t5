@@ -1,9 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { readFile, realpath } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 
 import { runAgent } from './agent-loop.js';
 import { ConsoleSessionStore } from './console-session-store.js';
@@ -122,6 +122,8 @@ import { qualifyLearningComparison } from './learning-qualification.js';
 import { runLearningEvaluation } from './learning-evaluator.js';
 import { deferTools, makeToolSearchTool } from './tool-search.js';
 import { makeLocalConsoleGuard } from './local-console-guard.js';
+import { createWholeStateBundle, restoreWholeStateBundle, wholeStateTreeDigest } from './whole-state-bundle.js';
+import { makeT5WholeStateRegistry, validateT5WholeStateRelationships } from './t5-whole-state.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, '..', '..');
@@ -362,6 +364,7 @@ export function makeConsoleServer({
   appActivityService = null,
   requestRuntimeStop = null,
   notifyUser = null,
+  scheduleWholeStateActivation = null,
   onError,
 } = {}) {
   if (!stateDir || !workspace) throw new TypeError('stateDir and workspace are required');
@@ -660,10 +663,12 @@ export function makeConsoleServer({
   const pendingStreams = new Map();
   const running = new Map();
   let runtimeAcceptingWork = true;
+  let runtimeMaintenance = false;
   const automationAuthorityBySession = new Map();
   const pendingProcessWakes = new Map();
   const wakeSubscribers = new Set();
   const measurementRuns = new Map();
+  const restoreUploads = new Map();
   const sessionActivities = new SessionActivityStore();
   const workRealityVersions = new Map();
   const workRealityPublished = new Map();
@@ -3304,6 +3309,38 @@ export function makeConsoleServer({
     }
   });
 
+  async function withWholeStateMaintenance(work) {
+    if (runtimeMaintenance) throw Object.assign(new Error('T5 전체 상태 작업이 이미 진행 중이에요.'), { status: 409 });
+    runtimeMaintenance = true; runtimeAcceptingWork = false; let servicesStopped = false;
+    try {
+      if (running.size > 0 || pendingStreams.size > 0) throw Object.assign(
+        new Error('진행 중인 작업이 끝난 뒤 전체 백업을 다시 시작해 주세요.'), { status: 409 });
+      await Promise.all([messengerStartup.then(() => messenger.stop()), stopAutomationScheduler()]);
+      servicesStopped = true;
+      await server.drainActiveWork();
+      await Promise.all([fileActivityService?.close?.(), appActivityService?.close?.()]);
+      return await work();
+    } finally {
+      if (servicesStopped) {
+        await Promise.all([
+          fileActivityService?.resumeConfigured?.(), appActivityService?.resumeConfigured?.(),
+          messenger.start().catch((error) => { if (error?.message !== 'messenger_not_connected') onError?.(error); }),
+        ]).catch((error) => onError?.(error));
+        await startAutomationScheduler().catch((error) => onError?.(error));
+      }
+      runtimeAcceptingWork = true; runtimeMaintenance = false;
+    }
+  }
+
+  async function latestRestoreRollback() {
+    const parent = dirname(stateDir); const prefix = `${basename(stateDir)}.rollback.`; const candidates = [];
+    for (const name of await readdir(parent).catch(() => [])) {
+      if (!name.startsWith(prefix)) continue; const exact = join(parent, name); const info = await lstat(exact).catch(() => null);
+      if (info?.isDirectory() && !info.isSymbolicLink()) candidates.push({ exact, modifiedAt: info.mtimeMs });
+    }
+    return candidates.sort((a, b) => b.modifiedAt - a.modifiedAt)[0] ?? null;
+  }
+
   function broadcastEvent(type, payload) {
     for (const response of wakeSubscribers) {
       response.write(`event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`);
@@ -3451,6 +3488,9 @@ export function makeConsoleServer({
       await admissionRecovery;
       await failedWorkClaimRecovery;
       await resultPublicationRecovery;
+      if (runtimeMaintenance && req.method !== 'GET') {
+        json(res, 503, { error: 'T5 전체 상태를 안전하게 묶는 중이에요. 잠시 뒤 다시 시도해 주세요.' }); return;
+      }
       if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html'
         || url.pathname === '/settings' || /^\/settings\/[a-z0-9-]+$/u.test(url.pathname))) {
         const source = await readFile(resolve(uiRoot, 'index.html'), 'utf8');
@@ -3485,6 +3525,84 @@ export function makeConsoleServer({
           kind: 'founder_manifesto', title: '도구와 목적', affectsRuntime: false,
           markdown: await readFile(founderManifestoPath, 'utf8'),
         });
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/backup/create') {
+        const input = await body(req);
+        if (Object.keys(input).length !== 1 || typeof input.password !== 'string') {
+          json(res, 400, { error: '백업 암호가 필요해요.' }); return;
+        }
+        const room = await mkdtemp(join(tmpdir(), 't5-whole-state-download-'));
+        try {
+          const output = join(room, 'T5-whole-state.t5backup');
+          const receipt = await withWholeStateMaintenance(async () => createWholeStateBundle({
+            registry: await makeT5WholeStateRegistry(stateDir), outputFile: output,
+            password: input.password, stagingParent: room,
+          }));
+          input.password = '';
+          const bytes = await readFile(output);
+          res.writeHead(200, { 'content-type': 'application/vnd.gpao-t5.backup',
+            'content-disposition': 'attachment; filename="T5-whole-state.t5backup"',
+            'content-length': bytes.length, 'cache-control': 'no-store',
+            'x-t5-backup-generation': receipt.generationId,
+            'x-t5-backup-excluded-files': receipt.excludedFiles });
+          res.end(bytes);
+        } finally { input.password = ''; await rm(room, { recursive: true, force: true }); }
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/backup/restore/upload') {
+        const restoreId = randomUUID(); const directory = join(stateDir, 'restore-inbox');
+        await mkdir(directory, { recursive: true, mode: 0o700 }); await chmod(directory, 0o700);
+        const file = join(directory, `${restoreId}.t5backup`); const handle = await open(file, 'wx', 0o600);
+        let bytes = 0;
+        try {
+          for await (const chunk of req) {
+            bytes += chunk.length; if (bytes > 300 * 1024 * 1024) throw Object.assign(new Error('백업 파일이 너무 커요.'), { status: 413 });
+            await handle.write(chunk);
+          }
+        } catch (error) { await handle.close().catch(() => {}); await rm(file, { force: true }); throw error; }
+        await handle.close(); await chmod(file, 0o600);
+        restoreUploads.set(restoreId, { file, bytes, createdAt: Date.now() });
+        json(res, 201, { restoreId, bytes }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/backup/restore/activate') {
+        const input = await body(req); const upload = restoreUploads.get(String(input.restoreId ?? ''));
+        if (!upload || typeof input.password !== 'string' || Object.keys(input).some((key) => !['restoreId', 'password'].includes(key))) {
+          json(res, 400, { error: '복원 파일과 암호가 필요해요.' }); return;
+        }
+        if (typeof scheduleWholeStateActivation !== 'function' || typeof requestRuntimeStop !== 'function') {
+          json(res, 503, { error: '이 실행 방식에서는 전체 복원을 사용할 수 없어요.' }); return;
+        }
+        const incoming = join(dirname(stateDir), `.t5-restore-incoming-${input.restoreId}`);
+        await rm(incoming, { recursive: true, force: true });
+        const prepared = await restoreWholeStateBundle({ bundleFile: upload.file, password: input.password,
+          destinationStateRoot: incoming, validateRelationships: validateT5WholeStateRelationships });
+        input.password = '';
+        await scheduleWholeStateActivation({ preparedStateRoot: incoming, stateDigest: prepared.stateDigest });
+        restoreUploads.delete(String(input.restoreId)); await rm(upload.file, { force: true });
+        json(res, 202, { ok: true, restarting: true,
+          userSafeSummary: '백업을 검증했어요. T5를 안전하게 다시 시작해 복원 상태로 바꿔요.' });
+        setTimeout(() => Promise.resolve(requestRuntimeStop('product_restore')).catch((error) => onError?.(error)), 0);
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/backup/restore/status') {
+        json(res, 200, { previousStateAvailable: Boolean(await latestRestoreRollback()),
+          externalCopiesChanged: false }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/backup/restore/rollback') {
+        const previous = await latestRestoreRollback();
+        if (!previous) { json(res, 404, { error: '되돌릴 이전 T5 상태가 없어요.' }); return; }
+        if (typeof scheduleWholeStateActivation !== 'function' || typeof requestRuntimeStop !== 'function') {
+          json(res, 503, { error: '이 실행 방식에서는 이전 상태로 되돌릴 수 없어요.' }); return;
+        }
+        const registry = await makeT5WholeStateRegistry(previous.exact); const manifest = await registry.manifest({
+          generationId: randomUUID(), createdAt: new Date().toISOString() });
+        await validateT5WholeStateRelationships({ root: previous.exact, manifest });
+        await scheduleWholeStateActivation({ preparedStateRoot: previous.exact,
+          stateDigest: await wholeStateTreeDigest(previous.exact) });
+        json(res, 202, { ok: true, restarting: true,
+          userSafeSummary: '복원 전 T5 상태를 확인했어요. 이전 상태로 다시 시작해요.' });
+        setTimeout(() => Promise.resolve(requestRuntimeStop('product_restore')).catch((error) => onError?.(error)), 0);
         return;
       }
       if (req.method === 'POST' && url.pathname === '/attachments') {
@@ -3982,7 +4100,7 @@ export function makeConsoleServer({
       if (req.method === 'POST' && url.pathname === '/runtime/stop') {
         const input = await body(req);
         const stopReason = input.reason ?? 'user_full_stop';
-        if (input.confirm !== true || !['user_full_stop', 'product_update', 'product_uninstall'].includes(stopReason)
+        if (input.confirm !== true || !['user_full_stop', 'product_update', 'product_uninstall', 'product_restore'].includes(stopReason)
           || Object.keys(input).some((field) => !['confirm', 'reason'].includes(field))) {
           json(res, 400, { ok: false, error: 'T5 전체 종료 확인이 필요해요.' }); return;
         }

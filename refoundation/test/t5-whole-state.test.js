@@ -78,3 +78,40 @@ test('T5 relationship validator는 foreign Work Session을 activation 전에 거
     await assert.rejects(() => validateT5WholeStateRelationships({ root: source, manifest }), /no Session/u);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
+
+test('restore된 delivery dispatch_claimed는 새 Runtime에서 unknown으로 닫히며 blind send를 만들지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-whole-effect-'));
+  try {
+    const source = join(room, 'source'); await mkdir(source); const sessions = new ConsoleSessionStore(source);
+    const session = await sessions.create(); const runs = new RunLedger(join(source, 'runs'));
+    const sourceRun = await runs.start({ sessionId: session.id, request: '외부 전달' }); await sourceRun.finish('completed');
+    const store = new AutomationStore(join(source, 'automation', 'state.json'));
+    const job = await store.create({ name: '외부 전달', prompt: '결과를 전달한다', sessionId: session.id,
+      scheduleKind: 'at', schedule: '2099-01-01T00:00:00.000Z', timezone: 'UTC',
+      requirements: { requiredTools: [], requiredEffect: 'external_send', requireResultUrl: false },
+      delivery: { kind: 'telegram', sessionId: session.id } });
+    const [{ run, claim }] = await store.claimDue({ jobId: job.id, force: true,
+      owner: { runtimeId: 'old-runtime', generation: 1 } });
+    await store.markRunning(job.id, run.id, claim);
+    await store.prepareResult({ jobId: job.id, runId: run.id, claim, sourceRunId: sourceRun.runId,
+      objectiveStatus: 'achieved', resultPointer: `work-result:${sourceRun.runId}`, resultDigest: 'a'.repeat(64) });
+    await store.markSurfacePersisted({ jobId: job.id, runId: run.id, claim,
+      surfaceReceipt: { sessionId: session.id, runId: sourceRun.runId, resultDigest: 'a'.repeat(64) } });
+    await store.claimDelivery({ jobId: job.id, runId: run.id, claim, deliveryId: 'delivery-before-crash', provider: 'telegram' });
+    const registry = await makeT5WholeStateRegistry(source); const bundle = join(room, 'effect.t5backup');
+    await createWholeStateBundle({ registry, outputFile: bundle, password: 'effect continuity password', stagingParent: room,
+      generationId: '77777777-7777-4777-8777-777777777777', createdAt: '2026-08-27T00:00:00.000Z' });
+    const restoredRoot = join(room, 'restored'); await restoreWholeStateBundle({ bundleFile: bundle,
+      password: 'effect continuity password', destinationStateRoot: restoredRoot,
+      validateRelationships: validateT5WholeStateRelationships });
+    const restored = new AutomationStore(join(restoredRoot, 'automation', 'state.json'));
+    const recovered = await restored.claimRecoverablePublications({ owner: { runtimeId: 'new-runtime', generation: 1 },
+      inspectOwner: async () => 'definitely_dead' });
+    assert.equal(recovered.length, 1); let sends = 0;
+    const adopted = recovered[0];
+    await restored.settleDelivery({ jobId: job.id, runId: run.id, claim: adopted.claim,
+      deliveryId: adopted.run.deliveryClaim.deliveryId, status: 'unknown', receipt: { state: 'acknowledgement_unknown' } });
+    assert.equal(sends, 0);
+    assert.equal((await restored.read()).runs.find((item) => item.id === run.id).deliveryStatus, 'unknown');
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
