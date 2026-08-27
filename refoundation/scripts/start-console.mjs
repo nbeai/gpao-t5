@@ -19,7 +19,7 @@ import { makeNaverSearchProvider } from '../src/naver-search-provider.js';
 import { naverReadableUrlResolver } from '../src/naver-readable-url.js';
 import { makeConsoleServer } from '../src/console-server.js';
 import { resolveConsoleWorkspace } from '../src/console-config.js';
-import { discoverComputerEnvironment } from '../src/computer-environment.js';
+import { defaultMacOSComputerFileRoots, discoverComputerEnvironment } from '../src/computer-environment.js';
 import { resolveTerminalShellEnvironment } from '../src/terminal-shell-environment.js';
 import { makeTerminalPlatformAdapter } from '../src/terminal-platform-adapter.js';
 import {
@@ -92,7 +92,7 @@ const protectedTerminalReadRoots = [
   ...(windowsProduct ? [windowsProduct.credentialDirectory] : []),
 ];
 const computerFileRoots = computerEnvironment.platform === 'darwin'
-  ? [homedir(), '/Users/Shared', '/Volumes']
+  ? defaultMacOSComputerFileRoots(homedir())
   : [parse(homedir()).root];
 const terminalPlatformAdapter = await makeTerminalPlatformAdapter({
   platform: computerEnvironment.platform,
