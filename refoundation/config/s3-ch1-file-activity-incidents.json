@@ -1,0 +1,120 @@
+{
+  "schema": "t5.s3ch1.scoped-file-activity-incidents.v1",
+  "status": "CH1_INCIDENTS_FROZEN_PRODUCT_UNTOUCHED",
+  "userCompletion": "The user can explicitly allow a work folder and later find metadata changes without T5 recording file contents, screens, secrets, or invented causes.",
+  "platforms": {
+    "productTargets": ["macOS", "Windows"],
+    "macOSBoundary": "FSEvents persistent event IDs plus an explicit metadata snapshot when exact item changes are needed",
+    "windowsBoundary": "NTFS/ReFS USN journal identity and reason records; Windows VM qualification required",
+    "linux": "not a product target",
+    "wsl": "negative-control evidence only"
+  },
+  "officialSources": [
+    "https://developer.apple.com/library/archive/documentation/Darwin/Conceptual/FSEvents_ProgGuide/UsingtheFSEventsFramework/UsingtheFSEventsFramework.html",
+    "https://developer.apple.com/library/archive/documentation/Darwin/Conceptual/FSEvents_ProgGuide/FileSystemEventSecurity/FileSystemEventSecurity.html",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-read_usn_journal_data_v0",
+    "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/d2a2b53e-bf78-4ef3-90c7-21b918fab304"
+  ],
+  "invariants": {
+    "defaultEnabled": false,
+    "contentCapture": false,
+    "screenCapture": false,
+    "clipboardCapture": false,
+    "keystrokeCapture": false,
+    "secretCapture": false,
+    "modelContextDefaultBytes": 0,
+    "actorInferenceFromJournal": false,
+    "foregroundWorkFailureOnCollectorFailure": false,
+    "hiddenRetentionOrQuota": false
+  },
+  "failureFamilies": [
+    {
+      "id": "CH1-F01",
+      "family": "default_on_or_scope_expansion",
+      "fixture": "No configured root, then one explicitly allowed root and one sibling root.",
+      "oracle": ["collector starts 0 before explicit enable", "sibling events stored 0", "recursive scope does not escape through aliases"]
+    },
+    {
+      "id": "CH1-F02",
+      "family": "path_and_content_privacy",
+      "fixture": "Files whose name, content, xattr and adjacent secret contain distinct canaries.",
+      "oracle": ["content excerpt hash xattr secret values stored 0", "public surface exposes bounded relative label only", "raw provider context bytes 0"]
+    },
+    {
+      "id": "CH1-F03",
+      "family": "actor_and_cause_invention",
+      "fixture": "One T5 receipt-bound write and one human/system-unattributed write.",
+      "oracle": ["T5 actor only with exact Work Run Effect relation", "journal-only actor unknown", "reason remains unknown"]
+    },
+    {
+      "id": "CH1-F04",
+      "family": "rename_move_identity_loss",
+      "fixture": "Rename in one directory, move across allowed subdirectories, delete after move.",
+      "oracle": ["old and new records are not merged without stable identity", "availability is exact or unknown", "no invented source path"]
+    },
+    {
+      "id": "CH1-F05",
+      "family": "journal_gap_wrap_drop_or_volume_change",
+      "fixture": "FSEvents MustScanSubDirs UserDropped KernelDropped EventIdsWrapped and USN journal ID change.",
+      "oracle": ["gap is explicit", "cached snapshot is invalidated", "absence of event is not no change"]
+    },
+    {
+      "id": "CH1-F06",
+      "family": "cursor_replay_duplicate_or_out_of_order",
+      "fixture": "Same cursor replay, same event ID with multiple paths, older cursor, restart resume.",
+      "oracle": ["exact duplicate publication 0", "same ID distinct item loss 0", "older journal generation rejected"]
+    },
+    {
+      "id": "CH1-F07",
+      "family": "symlink_hardlink_reparse_scope_escape",
+      "fixture": "Allowed root contains symlink, hardlink and Windows junction to outside.",
+      "oracle": ["outside content read 0", "metadata scope escape 0", "reparse identity remains explicit"]
+    },
+    {
+      "id": "CH1-F08",
+      "family": "false_opened_event",
+      "fixture": "Metadata change events without an OS-qualified open receipt.",
+      "oracle": ["opened_when_observable count 0", "mtime or USN close is not user open", "Finder Explorer openability not claimed"]
+    },
+    {
+      "id": "CH1-F09",
+      "family": "collector_failure_blocks_foreground",
+      "fixture": "Collector startup, write, cursor and shutdown failures paired with one foreground Work.",
+      "oracle": ["foreground semantic digest unchanged", "model tool calls unchanged", "collector unavailable shown separately"]
+    },
+    {
+      "id": "CH1-F10",
+      "family": "unbounded_event_storm_and_cost",
+      "fixture": "Repeated metadata heartbeat and 10k-event burst inside one allowed tree.",
+      "oracle": ["bounded batch", "duplicate coalescing", "foreground wall CPU IO paired delta measured", "no fixed silent loss quota"]
+    },
+    {
+      "id": "CH1-F11",
+      "family": "delete_export_retention_falsehood",
+      "fixture": "Pause, export, delete all, crash between deletion and receipt, restart probe.",
+      "oracle": ["stored count and bytes visible", "deleted derived index 0", "unknown external backup separated", "hidden retention 0"]
+    },
+    {
+      "id": "CH1-F12",
+      "family": "windows_structural_claimed_as_native_pass",
+      "fixture": "GitHub Windows runner records plus a Linux WSL passthrough counterexample.",
+      "oracle": ["USN and NTFS identity structural qualification separate", "physical VM remains required", "WSL evidence cannot produce Windows PASS"]
+    }
+  ],
+  "minimumJourneys": [
+    "macOS allowed-root create modify rename move delete and journal resume",
+    "collector off/on foreground paired noninterference",
+    "pause delete restart and exact absence",
+    "Windows structural USN record normalization",
+    "Windows VM native journal and Explorer boundary deferred but not waived"
+  ],
+  "nonGoals": [
+    "screen audio OCR clipboard keylogging",
+    "file content or excerpt collection",
+    "app activity CH2",
+    "purpose relevance CH3",
+    "Memory persona or Reflection promotion",
+    "SQLite product migration",
+    "Linux product support"
+  ]
+}
