@@ -11,7 +11,7 @@ import { RunLedger } from '../src/run-ledger.js';
 import { WorkStore } from '../src/work-store.js';
 
 const SESSION = '11111111-1111-4111-8111-111111111111';
-async function fixture({ existing = true } = {}) {
+async function fixture({ existing = true, sourceProvenance = null } = {}) {
   const room = await mkdtemp(join(tmpdir(), 't5-artifact-publication-')); const workspace = join(room, 'workspace');
   await mkdir(workspace); const file = join(workspace, '결과.xlsx'); await writeFile(file, 'exact-bytes');
   const attachments = new AttachmentStore(join(room, 'attachments'));
@@ -21,7 +21,8 @@ async function fixture({ existing = true } = {}) {
   await work.claimExecution({ workId: current.workId, revision: current.revision, runId: writer.runId });
   const tool = makeAttachmentTool({ store: attachments, sessionId: SESSION, workspace, runId: writer.runId,
     authorizeExistingFilePath: () => true, authorizeOutputPath: () => true });
-  const result = await tool.execute({ action: existing ? 'register_existing_file' : 'register_output', filePath: file });
+  let result = await tool.execute({ action: existing ? 'register_existing_file' : 'register_output', filePath: file });
+  if (sourceProvenance) result = { ...result, sourceProvenance };
   await writer.append({ type: 'tool_completed', payload: { receipt: { outcome: 'succeeded',
     requestedCall: { name: 'attachment', args: { action: existing ? 'register_existing_file' : 'register_output',
       filePath: file } }, result } } });
@@ -48,6 +49,17 @@ test('outputHandle 없는 직접 register_output은 generated로 승격하지 �
   const publication = await adapter.materialize({ sessionId: SESSION, runId: f.writer.runId,
     attachmentId: f.result.artifact.attachmentId });
   assert.equal(publication.classification, 'authorized_workspace_output');
+});
+
+test('runtime 검증 원본은 Artifact 인간 영수증에서 개수만 안전하게 확인된다', async () => {
+  const f = await fixture({ existing: false, sourceProvenance: { state: 'verified', purpose: '분기 취합',
+    unknowns: ['8월 미수신'], sources: [{ displayName: '7월.csv', usage: '7월 매출', bytes: 10 }] } });
+  const adapter = makeArtifactPublicationProductAdapter({ attachmentStore: f.attachments, runLedger: f.runs, workStore: f.work });
+  const publication = await adapter.materialize({ sessionId: SESSION, runId: f.writer.runId,
+    attachmentId: f.result.artifact.attachmentId });
+  assert.equal(publication.sourceProvenance.sourceCount, 1);
+  assert.match(projectHumanArtifactReceipt(publication).confirmed.join(' '), /원본 1개.*다시 확인/u);
+  assert.doesNotMatch(JSON.stringify(projectHumanArtifactReceipt(publication)), /7월\.csv|8월 미수신/u);
 });
 
 test('schema 문자열이나 plain store clone으로 사람용 완료 문구를 만들 수 없다', () => {

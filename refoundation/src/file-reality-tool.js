@@ -156,6 +156,8 @@ export function makeFileRealityTool({
   computerRoots = [home],
   protectedRoots = [],
   organizationRoot = null,
+  sourceManifestStore = null,
+  sessionId = null,
   indexSearch = defaultIndexSearch,
   now = Date.now,
 } = {}) {
@@ -223,7 +225,7 @@ export function makeFileRealityTool({
     ],
     relatedTools: ['attachment'],
     parameters: { type: 'object', additionalProperties: false, properties: {
-      action: { type: 'string', enum: ['search', 'inspect', 'compare', 'plan', 'apply', 'rollback'] },
+      action: { type: 'string', enum: ['search', 'inspect', 'compare', 'plan', 'apply', 'rollback', 'bind_sources'] },
       query: { type: ['string', 'null'], maxLength: 500 },
       scope: { type: ['string', 'null'], enum: ['computer', 'workspace', 'path', null] },
       path: { type: ['string', 'null'], maxLength: 4096 },
@@ -236,13 +238,18 @@ export function makeFileRealityTool({
       effect: { type: ['object', 'null'], additionalProperties: false, properties: {
         kind: { type: 'string', enum: ['local_change'] }, reversible: { type: 'boolean' }, backupAvailable: { type: 'boolean' },
       }, required: ['kind', 'reversible', 'backupAvailable'] },
-    }, required: ['action', 'query', 'scope', 'path', 'handles', 'maxCandidates', 'placements', 'planId', 'effect'] },
+      sourceUses: { type: ['array', 'null'], maxItems: 12, items: { type: 'object', additionalProperties: false,
+        properties: { handle: { type: 'string', maxLength: 64 }, usage: { type: 'string', maxLength: 500 } }, required: ['handle', 'usage'] } },
+      purpose: { type: ['string', 'null'], maxLength: 500 },
+      unknowns: { type: ['array', 'null'], maxItems: 20, items: { type: 'string', maxLength: 500 } },
+    }, required: ['action', 'query', 'scope', 'path', 'handles', 'maxCandidates', 'placements', 'planId', 'effect', 'sourceUses', 'purpose', 'unknowns'] },
     async preflight(args) {
       if (!['apply', 'rollback'].includes(args?.action)) return { allowed: true };
       return organizationEffect(args.effect) ? { allowed: true }
         : { allowed: false, outcome: 'not_executed', result: { state: 'reversible_local_change_required' } };
     },
-    async execute({ action, query, scope, path, handles: requestedHandles, maxCandidates, placements, planId, effect } = {}) {
+    async execute({ action, query, scope, path, handles: requestedHandles, maxCandidates, placements, planId, effect,
+      sourceUses, purpose, unknowns } = {}) {
       if (action === 'search') {
         const clue = String(query ?? '').trim(); if (clue.length < 2) throw new TypeError('file search clues are required');
         const rootState = await rootsFor(scope, path); const roots = rootState.roots;
@@ -407,6 +414,13 @@ export function makeFileRealityTool({
         for (const operation of moved) { await rename(operation.target, operation.source); operation.state = 'rolled_back'; await savePlan(plan); }
         plan.state = 'rolled_back'; plan.rolledBackAt = new Date(now()).toISOString(); await savePlan(plan);
         return { state: 'rolled_back', planId: plan.planId, filesRestored: moved.length };
+      }
+      if (action === 'bind_sources') {
+        if (!sourceManifestStore || !sessionId) throw new Error('source manifest capability is unavailable');
+        if (!Array.isArray(sourceUses) || sourceUses.length < 1) throw new TypeError('one or more source uses are required');
+        const sources = [];
+        for (const item of sourceUses) { const { record } = await reopen(item.handle); sources.push({ ...record, usage: item.usage }); }
+        return { state: 'bound', ...(await sourceManifestStore.create({ sessionId, purpose, unknowns: unknowns ?? [], sources })) };
       }
       throw new TypeError('file reality action is invalid');
     },

@@ -6,6 +6,7 @@ import test from 'node:test';
 
 import { runAgent } from '../src/agent-loop.js';
 import { makeFileRealityTool } from '../src/file-reality-tool.js';
+import { FileSourceManifestStore } from '../src/file-source-manifest-store.js';
 import { deferTools, makeToolSearchTool } from '../src/tool-search.js';
 
 async function fixture() {
@@ -134,6 +135,27 @@ test('ready plan만 원자 이동하고 exact plan rollback이 원래 위치를 
       maxCandidates: null, placements: null, planId: plan.planId, effect });
     assert.equal(restored.filesRestored, 1); assert.match(await readFile(room.c, 'utf8'), /3200000/u);
     await assert.rejects(stat(join(destination, '새봄-견적서-수정.txt')), { code: 'ENOENT' });
+  } finally { await rm(room.root, { recursive: true, force: true }); }
+});
+
+test('선택한 exact handle만 runtime-owned 취합 원본 manifest로 결속한다', async () => {
+  const room = await fixture();
+  try {
+    const manifests = new FileSourceManifestStore(join(room.root, 't5-state', 'source-manifests'));
+    const tool = makeFileRealityTool({ workspace: room.workspace, home: room.root, platform: 'test',
+      computerRoots: [room.root], protectedRoots: [join(room.root, 't5-state')], sourceManifestStore: manifests,
+      sessionId: '11111111-1111-4111-8111-111111111111', indexSearch: async () => [room.a, room.c] });
+    const found = await tool.execute({ action: 'search', query: '새봄 견적', scope: 'workspace', path: null,
+      handles: null, maxCandidates: 10, placements: null, planId: null, effect: null, sourceUses: null,
+      purpose: null, unknowns: null });
+    const first = found.candidates.find((item) => item.displayName === '새봄_견적서_v1.txt');
+    const bound = await tool.execute({ action: 'bind_sources', query: null, scope: null, path: null,
+      handles: null, maxCandidates: null, placements: null, planId: null, effect: null,
+      sourceUses: [{ handle: first.handle, usage: '기존 견적 금액 원문' }],
+      purpose: '수정 견적서 작성', unknowns: ['배송비 확정 전'] });
+    assert.equal(bound.state, 'bound'); assert.equal(bound.sources.length, 1);
+    assert.deepEqual(bound.unknowns, ['배송비 확정 전']);
+    assert.doesNotMatch(JSON.stringify(bound), new RegExp(room.a.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'));
   } finally { await rm(room.root, { recursive: true, force: true }); }
 });
 

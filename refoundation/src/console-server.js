@@ -48,6 +48,7 @@ import { makeWorkHistoryProductAdapter } from './work-history-projection.js';
 import { makePurposeBoundedHistoryAdapter } from './purpose-bounded-history.js';
 import { makePurposeHistoryTool } from './purpose-history-tool.js';
 import { makeFileRealityTool } from './file-reality-tool.js';
+import { FileSourceManifestStore } from './file-source-manifest-store.js';
 import { makeWorkCompletionTool } from './work-completion-tool.js';
 import { evaluateWorkCompletion } from './work-completion-evaluator.js';
 import { makeInputSettlementScope } from './input-settlement-scope.js';
@@ -498,6 +499,7 @@ export function makeConsoleServer({
   const learningAdvances = new Set();
   const authority = new AuthorityStore(join(stateDir, 'authority'));
   const attachments = attachmentStore ?? new AttachmentStore(join(stateDir, 'attachments'));
+  const fileSourceManifests = new FileSourceManifestStore(join(stateDir, 'file-source-manifests'));
   const artifactPublications = makeArtifactPublicationProductAdapter({
     attachmentStore: attachments, runLedger, workStore,
   });
@@ -1453,7 +1455,7 @@ export function makeConsoleServer({
       const offeredTools = [...terminal.tools];
       offeredTools.unshift(makeFileRealityTool({ workspace, home: homedir(), platform: computer.platform,
         computerRoots: computerFileRoots ?? [homedir()], protectedRoots: [...protectedFileRoots, stateDir],
-        organizationRoot: join(stateDir, 'file-organization'),
+        organizationRoot: join(stateDir, 'file-organization'), sourceManifestStore: fileSourceManifests, sessionId,
         ...(fileIndexSearch ? { indexSearch: fileIndexSearch } : {}) }));
       offeredTools.unshift(makeCapabilityRealityTool({ observer: capabilityReality }));
       if (capabilityAcquisition) offeredTools.unshift(makeCapabilityPackageAdminTool({
@@ -1471,6 +1473,7 @@ export function makeConsoleServer({
       let visualObservationCount = 0;
       offeredTools.unshift(makeAttachmentTool({
         store: attachments, sessionId, workspace, runId: run.runId,
+        sourceManifestStore: fileSourceManifests,
         executableOperationStore: executableOutputOperations,
         withdrawPendingApproval: (pendingId) => authority.withdraw(pendingId, {
           sessionId, reason: 'superseded_by_operation_success',

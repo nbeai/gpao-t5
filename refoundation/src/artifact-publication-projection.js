@@ -61,6 +61,9 @@ function human(publication) {
             ? '허용된 작업공간의 결과 파일을 준비했어요.' : '파일의 출처는 추가 확인이 필요해요.';
   const confirmed = publication.storage.exactReadback
     ? ['저장된 파일의 크기·내용·형식을 다시 확인했어요.'] : [];
+  if (publication.sourceProvenance?.verified === true) confirmed.push(
+    `결과에 사용한 원본 ${publication.sourceProvenance.sourceCount}개가 바뀌지 않았는지 다시 확인했어요.`,
+  );
   const unknowns = [];
   if (!publication.storage.exactReadback) unknowns.push('저장된 파일을 다시 여는 확인은 아직 하지 않았어요.');
   unknowns.push('화면에서 실제로 열리는지는 아직 확인하지 않았어요.');
@@ -144,6 +147,11 @@ export function makeArtifactPublicationProductAdapter({ attachmentStore, runLedg
           surfacePersisted: ['surface_persisted', 'delivery_started', 'delivery_terminal'].includes(result.state),
           delivery: deliveryState(result) },
         verification: { structural: 'unmeasured', visual: 'unmeasured', content: 'unmeasured', openability: 'unmeasured' },
+        sourceProvenance: receipt.result?.sourceProvenance?.state === 'verified' ? {
+          verified: true, sourceCount: receipt.result.sourceProvenance.sources?.length ?? 0,
+          purpose: String(receipt.result.sourceProvenance.purpose ?? '').slice(0, 500),
+          unknowns: (receipt.result.sourceProvenance.unknowns ?? []).map(String).slice(0, 20),
+        } : { verified: false, sourceCount: 0, purpose: null, unknowns: [] },
         temporary: { userWorkspaceCopiesCreated: classification === 'existing_file'
           && receipt.result?.publication?.managedCopy === true
           ? receipt.result.publication.userWorkspaceCopiesCreated : null, cleanup: 'unknown' },
