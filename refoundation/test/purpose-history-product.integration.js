@@ -12,15 +12,14 @@ test('실제 console은 purpose_history를 on-demand 열고 bounded 후보 뒤 �
     segments:[{segmentId:'app-1',appId:'com.apple.Numbers',appLabel:'Numbers',startedAt:'2026-08-27T00:00:02.000Z',endedAt:'2026-08-27T00:00:06.000Z',durationMs:4000,afk:'active',workBinding:null}]});
   const fileService=makeScopedFileActivityService({ledger:files});const appService=makeCoarseAppActivityService({ledger:apps});let turn=0;const visible=[];const errors=[];
   const server=makeConsoleServer({stateDir:join(room,'state'),workspace:scope,fileActivityService:fileService,appActivityService:appService,onError:(error)=>errors.push(error?.stack??String(error)),modelFactory:()=>({async respond(input){
-    turn+=1;visible.push(input.tools.map((tool)=>tool.name));if(turn===1)return{text:'',toolCalls:[{id:'find-tool',name:'tool_search',args:{query:'past work file app history previous'}}]};
-    if(turn===2)return{text:'',toolCalls:[{id:'search-history',name:'purpose_history',args:{action:'search',query:'견적서 Numbers',limit:8,queryHandle:null,handles:[]}}]};
-    if(turn===3){const receipt=JSON.parse(input.messages.findLast((item)=>item.role==='tool').content).result;const handles=receipt.candidates.map((item)=>item.handle);
+    turn+=1;visible.push(input.tools.map((tool)=>tool.name));if(turn===1)return{text:'',toolCalls:[{id:'search-history',name:'purpose_history',args:{action:'search',query:'견적서 Numbers',limit:8,queryHandle:null,handles:[]}}]};
+    if(turn===2){const receipt=JSON.parse(input.messages.findLast((item)=>item.role==='tool').content).result;const handles=receipt.candidates.map((item)=>item.handle);
       return{text:'',toolCalls:[{id:'reopen-history',name:'purpose_history',args:{action:'reopen',query:null,limit:null,queryHandle:receipt.queryHandle,handles}}]};}
     const reopened=input.messages.findLast((item)=>item.role==='tool').content;assert.match(reopened,/견적서\.xlsx/u);assert.match(reopened,/Numbers/u);
     assert.doesNotMatch(reopened,/com\.apple\.Numbers|scope\/|app-1|sourceEventId/u);return{text:'견적서 파일 기록과 Numbers 사용 기록을 확인했어요.',toolCalls:[]};}})});
   t.after(async()=>{await fileService.close();await appService.close();await new Promise((resolve)=>server.close(resolve));});const base=await listen(server);
   const session=await fetch(`${base}/sessions`,{method:'POST'}).then((response)=>response.json());const response=await fetch(`${base}/turn`,{method:'POST',headers:{'content-type':'application/json'},
     body:JSON.stringify({sessionId:session.id,text:'지난번 견적서와 사용한 앱 기록을 찾아줘'})});const result=await response.json();assert.equal(response.status,200,JSON.stringify({result,errors}));
-  assert.match(result.reply,/견적서 파일 기록/u);assert.equal(visible[0].includes('purpose_history'),false);assert.equal(visible[1].includes('purpose_history'),true);
+  assert.match(result.reply,/견적서 파일 기록/u);assert.equal(visible[0].includes('purpose_history'),true);assert.equal(visible[0].includes('session_search'),false);
   assert.equal((await files.status()).eventCount,1);assert.equal((await apps.status()).segmentCount,1);
 });

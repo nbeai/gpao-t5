@@ -1766,7 +1766,7 @@ export function makeConsoleServer({
         'visual_reference',
         // 과거 대화 회상은 기억의 부가 기능이 아니라 지속적인 개인 조력자의 기본 문맥 손이다.
         // 실제 모델이 tool_search로 정확히 발견하고도 사용 전 진행 문장으로 끝난 반례 때문에 기본에 둔다.
-        'session_search',
+        ...(purposeHistory ? ['purpose_history'] : ['session_search']),
         // 결과물은 주변 기능이 아니라 대화와 같은 Human Experience다. 사용자가 파일·HTML·문서·표를
         // 요청한 뒤에야 tool_search로 찾게 하면, 실제 파일을 만들고도 경로만 말하는 회귀가 생긴다.
         'attachment',
