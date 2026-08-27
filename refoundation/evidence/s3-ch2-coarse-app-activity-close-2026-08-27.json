@@ -1,0 +1,29 @@
+{
+  "schema":"t5.s3ch2.coarse-app-activity-close.v1",
+  "recordedAt":"2026-08-27T10:55:00+09:00",
+  "status":"PASS_WITH_OBSERVATION",
+  "implementationCommit":"54da285d6263cef7d2d314614f4f47058dce9f02",
+  "userCapability":{"defaultOff":true,"foregroundAppIdentity":true,"coarseDuration":true,"afk":true,"pause":true,"privateMode":true,
+    "observedAppExclude":true,"includeAll":true,"export":true,"physicalForget":true},
+  "privacy":{"windowTitleStored":0,"documentTitleStored":0,"urlStored":0,"contentStored":0,"clipboardStored":0,"keystrokesStored":0,
+    "memoryOrPersonaPromotion":0,"modelContextDefault":false},
+  "macOSActual":{"design":"ABBA_off_on_on_off","samples":4,"iterationsPerSample":25000,"actualSegments":2,
+    "appLabel":"ChatGPT","activities":["사용 중"],"semanticDigestAgreement":true,"offMedianWallMs":17.641854,
+    "onMedianWallMs":19.598896,"wallDeltaMs":1.957042,"forbiddenStored":false,"forbiddenProjected":false,"passed":true},
+  "productIntegration":{"settingsOnly":true,"normalOverviewOrMemoryCollectorReads":0,"normalTurnAdditionalModelCalls":0,
+    "normalTurnModelContextBytes":0,"focusedTests":"16/16","strictProviderSchemaRegression":"2/2"},
+  "platformBoundary":{"macOSNativeActual":"PASS","windowsAdapterInterface":"implemented","windowsPhysicalActual":"deferred to S3-PW",
+    "windowsPassClaimed":false},
+  "qualificationCost":{"modelCalls":0,"providerRequests":0,"externalWrites":0,"temporaryLocalSegments":2},
+  "sourceDigests":{
+    "refoundation/src/coarse-app-activity-ledger.js":"ca6dc990dcdcf53ff016278bcbd36f4e4add1ff5fc1fea375b44dbaf33b92fe2",
+    "refoundation/src/coarse-app-activity-platform-adapters.js":"e43a15674d8c63e6916a96c7a9ee2dccedb1e546604e84525f168167dbb54baa",
+    "refoundation/src/coarse-app-activity-service.js":"5c8329587ab6d40efff396f1004d8bc65f89e99c9b7eb2891491e737eb71a2b2",
+    "refoundation/src/console-server.js":"0d38628e6d62c9bfb0680a289a73309fad609eb6a9e79aea3763ab7a54354256",
+    "refoundation/ui/index.html":"3290a23ca9f61657e9c82a522595938b54db7b363de84ba2b541b6817b7bc38d",
+    "refoundation/scripts/run-ch2-macos-coarse-app-qualification.mjs":"bc4f5cb9bbd85827e1384d8f2b5f39e17cdf7ead523d03b00a923216b60a0408"
+  },
+  "officialReleaseGateChanged":false,"passed":true,
+  "notClaimed":["physical Windows CH2 PASS","window/document title or URL history","other OS user or remote desktop coverage",
+    "private browsing detection","app duration means productivity, preference, occupation, or Work success","S3-CH3, S3-WA, or S3-HQ completion"]
+}

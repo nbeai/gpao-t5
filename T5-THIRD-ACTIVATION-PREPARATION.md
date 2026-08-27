@@ -1,6 +1,6 @@
 # T5 3차 고도화 — 활성화 전 준비 정본
 
-상태: `S3A_PASS_WITH_OBSERVATION · S3_SCOPE_FROZEN · S3T_PASS_WITH_OBSERVATION · S3M_PASS_WITH_OBSERVATION · S3UX_REQUALIFIED_PASS_WITH_OBSERVATION · S3CA_OWNER_OPENED_SEQUENCED · S3CH0_1_COMPLETE_CH2_ACTIVE · S3VD_CORE_PASS_WITH_OBSERVATION · OPTIMIZATION LOCKED`
+상태: `S3A_PASS_WITH_OBSERVATION · S3_SCOPE_FROZEN · S3T_PASS_WITH_OBSERVATION · S3M_PASS_WITH_OBSERVATION · S3UX_REQUALIFIED_PASS_WITH_OBSERVATION · S3CA_OWNER_OPENED_SEQUENCED · S3CH0_2_COMPLETE_CH3_ACTIVE · S3VD_CORE_PASS_WITH_OBSERVATION · OPTIMIZATION LOCKED`
 
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER`
 
@@ -15,7 +15,9 @@ commit `c55eefc0`에서 schema 결함을 수리하고, commit `b67f20ce`와 evid
 `s3-ux-requalification-pass-2026-08-27.json`에서 full-tool provider smoke·meaningful milestone·managed child cancel·
 KHB-H01을 다시 통과해 `PASS WITH OBSERVATION`으로 재자격했다. CH-1은 commit `5583cf1b`와 evidence
 `s3-ch1-scoped-file-activity-close-2026-08-27.json`에서 actual macOS metadata·설정 전용 통제·foreground
-비개입을 `PASS WITH OBSERVATION`으로 닫았으며 physical Windows actual은 S3-PW에 남겼다. 다음 활성 Gate는 CH-2다.
+비개입을 `PASS WITH OBSERVATION`으로 닫았으며 physical Windows actual은 S3-PW에 남겼다. CH-2는 commit
+`54da285d`와 evidence `s3-ch2-coarse-app-activity-close-2026-08-27.json`에서 foreground app identity·coarse
+duration·AFK·사용자 통제·Context0을 닫았고 title·URL·content 수집은 열지 않았다. 다음 활성 Gate는 CH-3다.
 S3-A는 evidence `s3-a-performance-truth-close-2026-08-27.json`에서
 `PASS WITH OBSERVATION`으로 닫았다.
 오너는 S3-CH와 S3-CA 구현을 함께 승인했지만 hot path를 동시에 열지 않으며, CH-1→2→3을 순차 자격한 뒤
@@ -35,8 +37,8 @@ collector를 얹지 않는다. 이 문서는 측정·반대시험·판정의 범
 
 ```text
 2차 Release Gate: 변경 없음
-3차 개발선: S3-A 완료 · S3-T 완료 · S3-M 완료(default off) · S3-UX 재자격 완료 · CH-0~1 완료 · S3-CH2 활성 · S3-CH3 순차 대기 · S3-CA 오너 개통/CH3 뒤 CA1 활성 예정 · S3-VD Core 완료 · S3-PW 대기
-현재 허용 작업: S3-CH2→3 exact 순차 구현·자격, 뒤이은 S3-CA1→2→3→4 exact 순차 구현·자격
+3차 개발선: S3-A 완료 · S3-T 완료 · S3-M 완료(default off) · S3-UX 재자격 완료 · CH-0~2 완료 · S3-CH3 활성 · S3-CA 오너 개통/CH3 뒤 CA1 활성 예정 · S3-VD Core 완료 · S3-PW 대기
+현재 허용 작업: S3-CH3 exact 구현·자격, 뒤이은 S3-CA1→2→3→4 exact 순차 구현·자격
 현재 금지 작업: 측정 결과를 전제한 구조 변경·성능 최적화, S3-UX/CA/VD 제품 hot path 선구현, UX/CH-0 전 CH-1 collector 선행, screen/audio/content capture, 여러 큰 개발선 동시 개통, 새 3차 개발선·기능 범위 추가
 ```
 
@@ -56,7 +58,7 @@ scope·evidence·판정을 유지한다.
 | S3-M | Life Continuity·Memory Stewardship·내부 Reflection/Principle/Skill | `PASS WITH OBSERVATION` · default off · 완료 evidence `80dc0305` |
 | S3-UX | Work Reality·교정/취소/복구·인간용 Receipt·Artifact/Effect 안심 | `PASS WITH OBSERVATION` · full-product 재자격 완료 |
 | S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | 오너 개통 · CH-3 뒤 CA-1→4 순차 구현 대기 |
-| S3-CH | Local Computer History·과거 Work/파일/앱 provenance | CH-0~1 완료 · CH-2 활성 · CH-3 순차 대기 |
+| S3-CH | Local Computer History·과거 Work/파일/앱 provenance | CH-0~2 완료 · CH-3 활성 |
 | S3-PW | Windows installer·app shell·공통 제품 자격 | 대기 |
 | S3-VD | Visual Deliverable Core·출력 표면 선택·렌더 관측·교정·브랜드 파라미터 | Core `PASS WITH OBSERVATION` · Windows/편집형 PPTX/브랜드 인간 패널은 PW·HQ 자격 대기 |
 | S3-WA | Whole-product Wiring Audit·3차 부품의 실제 제품 배선·단일 진실·복구 경계 | 3차 기술 개발 완료 뒤 읽기 전용 감사 대기 |
