@@ -39,6 +39,7 @@ test('기본 위치를 이유로 사용자가 지정한 경로의 터미널 관�
   assert.match(instructions, /work remains.*tool is available.*do not end.*promise or preamble.*Call the tool.*same response/i);
   assert.match(instructions, /Before saying.*files.*exports.*local evidence.*absent.*exec.*bounded observation.*disconnected external service.*does not prove/i);
   assert.match(instructions, /shallow or depth-limited file listing cannot prove absence.*expand the search once.*current workspace.*file names and metadata.*do not broadly read unrelated file contents/i);
+  assert.match(instructions, /file organization.*never move.*rename.*overwrite.*delete during discovery.*file reality plan.*source.*destination.*already-there.*collision.*not authorization.*filenames alone.*final version/i);
   assert.match(instructions, /Refer to yourself as T5, not ChatGPT.*model provider/i);
   assert.match(instructions, /where to start saving time.*one recurring job.*one small reversible trial.*before[/]after human-time measure.*trial period.*success criterion/i);
   assert.match(instructions, /feasibility question.*multi-source workflow.*public research.*small business tool.*each required current connection.*bounded first trial.*public[/]private.*read[/]write.*excluded sensitive fields.*installation[/]hosting[/]delivery.*verify usefulness/i);

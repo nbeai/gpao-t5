@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -77,6 +77,33 @@ test('검색 뒤 파일이 바뀌면 opaque handle은 오래된 내용을 다시
     await new Promise((resolve) => setTimeout(resolve, 5)); await writeFile(room.target, 'changed');
     await assert.rejects(() => tool.execute({ action: 'inspect', query: null, scope: null, path: null,
       handles: [found.candidates[0].handle], maxCandidates: null }), { code: 'T5_FILE_CHANGED' });
+  } finally { await rm(room.root, { recursive: true, force: true }); }
+});
+
+test('정리 plan은 목적지 충돌을 먼저 보여주고 어떤 파일도 바꾸지 않는다', async () => {
+  const room = await fixture();
+  try {
+    const ready = join(room.root, '분류완료'); const collision = join(room.root, '충돌폴더');
+    await Promise.all([mkdir(ready), mkdir(collision)]);
+    await writeFile(join(collision, '새봄_견적서_v1.txt'), '이미 존재하는 다른 파일');
+    const tool = makeFileRealityTool({ workspace: room.workspace, home: room.root,
+      platform: 'test', computerRoots: [room.root], protectedRoots: [room.protectedRoot],
+      indexSearch: async () => [room.a, room.c] });
+    const found = await tool.execute({ action: 'search', query: '새봄 견적', scope: 'workspace', path: null,
+      handles: null, maxCandidates: 10, placements: null });
+    const first = found.candidates.find((item) => item.displayName === '새봄_견적서_v1.txt');
+    const revised = found.candidates.find((item) => item.displayName === '새봄-견적서-수정.txt');
+    const plan = await tool.execute({ action: 'plan', query: null, scope: null, path: null, handles: null,
+      maxCandidates: null, placements: [
+        { handle: first.handle, destinationDirectory: collision },
+        { handle: revised.handle, destinationDirectory: ready },
+      ] });
+    assert.equal(plan.readyToApply, false); assert.equal(plan.filesChanged, 0);
+    assert.deepEqual(plan.changes.map((item) => item.state), ['collision', 'ready']);
+    assert.match(plan.note, /no file was moved/u);
+    assert.match(await readFile(room.a, 'utf8'), /3000000/u);
+    assert.match(await readFile(room.c, 'utf8'), /3200000/u);
+    await assert.rejects(stat(join(ready, '새봄-견적서-수정.txt')), { code: 'ENOENT' });
   } finally { await rm(room.root, { recursive: true, force: true }); }
 });
 

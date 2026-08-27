@@ -188,7 +188,7 @@ export function makeFileRealityTool({
   };
   return {
     name: 'file_reality',
-    description: 'Find real local files when the user remembers only approximate names, contents, dates, amounts, people, projects, or prior context; search either the whole requested computer scope, the current workspace, or one exact folder. Return bounded opaque candidates and evidence without sending the whole filesystem or file contents to the model. Inspect selected candidates and compare exact duplicates or possible versions without declaring a final version from the filename alone.',
+    description: 'Find real local files when the user remembers only approximate names, contents, dates, amounts, people, projects, or prior context; search either the whole requested computer scope, the current workspace, or one exact folder. Return bounded opaque candidates and evidence without sending the whole filesystem or file contents to the model. Inspect selected candidates, compare exact duplicates or possible versions, and preview an exact organization plan with collision facts before any file is changed. Never declare a final version from the filename alone.',
     searchTerms: [
       'find local file whole computer vague name content duplicate latest version',
       '컴퓨터 전체 파일 찾기 이름 위치 모름 내용 단서 중복 최종본 버전',
@@ -196,14 +196,17 @@ export function makeFileRealityTool({
     ],
     relatedTools: ['attachment'],
     parameters: { type: 'object', additionalProperties: false, properties: {
-      action: { type: 'string', enum: ['search', 'inspect', 'compare'] },
+      action: { type: 'string', enum: ['search', 'inspect', 'compare', 'plan'] },
       query: { type: ['string', 'null'], maxLength: 500 },
       scope: { type: ['string', 'null'], enum: ['computer', 'workspace', 'path', null] },
       path: { type: ['string', 'null'], maxLength: 4096 },
       handles: { type: ['array', 'null'], maxItems: 12, items: { type: 'string', maxLength: 64 } },
       maxCandidates: { type: ['integer', 'null'], minimum: 1, maximum: 20 },
-    }, required: ['action', 'query', 'scope', 'path', 'handles', 'maxCandidates'] },
-    async execute({ action, query, scope, path, handles: requestedHandles, maxCandidates } = {}) {
+      placements: { type: ['array', 'null'], maxItems: 12, items: { type: 'object', additionalProperties: false,
+        properties: { handle: { type: 'string', maxLength: 64 }, destinationDirectory: { type: 'string', maxLength: 4096 } },
+        required: ['handle', 'destinationDirectory'] } },
+    }, required: ['action', 'query', 'scope', 'path', 'handles', 'maxCandidates', 'placements'] },
+    async execute({ action, query, scope, path, handles: requestedHandles, maxCandidates, placements } = {}) {
       if (action === 'search') {
         const clue = String(query ?? '').trim(); if (clue.length < 2) throw new TypeError('file search clues are required');
         const rootState = await rootsFor(scope, path); const roots = rootState.roots;
@@ -287,6 +290,32 @@ export function makeFileRealityTool({
           displayName: record.displayName, locationText: record.locationText, bytes: record.bytes,
           modifiedAt: record.modifiedAt, sha256 })), comparisons,
         finalVersionSelected: false, finalVersionReason: 'user purpose and file history are required' };
+      }
+      if (action === 'plan') {
+        if (!Array.isArray(placements) || placements.length < 1) throw new TypeError('one or more file placements are required');
+        const roots = (await rootsFor('computer')).roots; const exactProtectedRoots = await canonicalProtectedRoots;
+        const seenSources = new Set(); const seenTargets = new Set(); const changes = [];
+        for (const placement of placements) {
+          const { record, stat } = await reopen(placement.handle);
+          if (seenSources.has(record.path)) throw new TypeError('a file can appear only once in an organization plan');
+          seenSources.add(record.path);
+          const destination = await realpath(resolve(placement.destinationDirectory));
+          const destinationStat = await lstat(destination);
+          if (!destinationStat.isDirectory() || destinationStat.isSymbolicLink()
+            || protectedPath(destination, exactProtectedRoots)
+            || !roots.some((root) => pathInside(destination, root))) throw new Error('organization destination is unavailable');
+          const target = join(destination, record.displayName);
+          if (seenTargets.has(target)) throw new TypeError('organization plan has duplicate destinations');
+          seenTargets.add(target);
+          let targetStat = null; try { targetStat = await lstat(target); } catch (error) { if (error?.code !== 'ENOENT') throw error; }
+          const alreadyThere = resolve(record.path) === resolve(target);
+          const collision = targetStat != null && !alreadyThere;
+          changes.push({ handle: placement.handle, displayName: record.displayName,
+            from: record.locationText, to: locationText(target, home), bytes: stat.size,
+            state: alreadyThere ? 'already_there' : collision ? 'collision' : 'ready' });
+        }
+        return { state: 'planned', changes, readyToApply: changes.every((item) => item.state !== 'collision'),
+          filesChanged: 0, note: 'preview only; no file was moved, renamed, overwritten, or deleted' };
       }
       throw new TypeError('file reality action is invalid');
     },
