@@ -167,7 +167,8 @@ test('현재 Work에 제시된 교정 중 provider 실패도 한 failure surface
     assert.equal(state.events.filter((event) => event.type === 'input_failure_surface_claimed'
       && event.inputId === admitted.inputId).length, 1);
   } finally {
-    release?.(); await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true });
+    release?.(); await server.closeWorkspaceConnections(); await server.closeMessengers();
+    await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true });
   }
 });
 
@@ -209,7 +210,8 @@ test('현재 결과 선 delivery가 명시된 extension만 exact 새 Run으로 �
     assert.equal(state.events.filter((event) => event.type === 'input_execution_claimed'
       && event.inputId === input.inputId).length, 1);
   } finally {
-    release?.(); await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true });
+    release?.(); await server.closeWorkspaceConnections(); await server.closeMessengers();
+    await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true });
   }
 });
 
@@ -327,7 +329,8 @@ test('after-delivery와 independent 입력이 함께 들어와도 각 exact Work
     assert.ok(replies.some((text) => text.includes('후속 확인 결과')), JSON.stringify(replies));
     assert.ok(replies.some((text) => text.includes('독립 작업 결과')), JSON.stringify(replies));
   } finally {
-    release?.(); await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true });
+    release?.(); await server.closeWorkspaceConnections(); await server.closeMessengers();
+    await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true });
   }
 });
 

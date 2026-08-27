@@ -71,3 +71,18 @@ test('대화 입력은 Enter 한 번으로 전송하고 Shift+Enter만 줄바꿈
   await new Promise((resolveMicrotask) => queueMicrotask(resolveMicrotask));
   assert.equal(submits, 3, 'keyup fallback closes IME variants without compositionend');
 });
+
+test('IME의 연속 submit callback은 서버 admission 전 단일-flight로 합치고 null 시각을 epoch로 오인하지 않는다', async () => {
+  const html = await readFile(consoleHtml, 'utf8');
+  const submitSource = html.slice(html.indexOf('let submitAdmissionInFlight'),
+    html.indexOf('function renderRecovery'));
+  assert.match(submitSource, /if \(submitAdmissionInFlight\) return;/u);
+  assert.ok(submitSource.indexOf('submitAdmissionInFlight = true')
+    < submitSource.indexOf('await startTurn('));
+  assert.ok(submitSource.indexOf("text.value = ''; text.style.height = 'auto'")
+    < submitSource.lastIndexOf('submitAdmissionInFlight = false'));
+  assert.match(submitSource, /catch \(error\) \{\s*submitAdmissionInFlight = false;/u);
+  assert.match(html, /startedAt != null && Number\.isFinite\(Number\(startedAt\)\)/u);
+  assert.match(html, /startedAt > 1_000_000_000_000/u);
+  assert.doesNotMatch(html, /if \(Number\.isFinite\(Number\(startedAt\)\)\) trace\.dataset/u);
+});

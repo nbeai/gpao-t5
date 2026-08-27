@@ -29,9 +29,6 @@ import { makeTerminalCredentialBroker } from '../src/terminal-credential-broker.
 import { makeRegisteredCliConnectionInspector } from '../src/existing-capability-inspectors.js';
 import { makeLocalSyncCapability } from '../src/local-sync-capability.js';
 import { makeNativeComputerInspector } from '../src/native-computer-tool.js';
-import { LocalCapabilityPackageStore } from '../src/local-capability-package-store.js';
-import { makeCapabilityAcquisitionCoordinator, makeGitExactRefResolver,
-  makeLocalDirectoryResolver } from '../src/capability-acquisition-coordinator.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 import {
   MessengerPlatformCredentialStore, migrateMessengerCredentials,
@@ -113,10 +110,6 @@ const existingCapabilityInspectors = [
     broker: terminalCredentialBroker, capabilityId: 'github-cli-read', label: 'GitHub CLI',
   })] : []),
 ];
-const capabilityAcquisition = makeCapabilityAcquisitionCoordinator({
-  store: new LocalCapabilityPackageStore(join(stateDir, 'capability-packages')),
-  resolvers: { local_directory: makeLocalDirectoryResolver(), git_exact_ref: makeGitExactRefResolver() },
-});
 const portFileValue = option('--port-file') ?? process.env.T5_REFOUNDATION_PORT_FILE;
 const portFile = portFileValue ? resolve(portFileValue) : null;
 await Promise.all([mkdir(stateDir, { recursive: true }), mkdir(workspace, { recursive: true })]);
@@ -251,7 +244,6 @@ const server = makeConsoleServer({
   terminalCapabilityAttribution: (facts) => localSyncCapability.attributeCommand(facts),
   computerFileRoots,
   protectedFileRoots: protectedTerminalReadRoots,
-  capabilityAcquisition,
   processRegistry,
   webSearchProviders,
   webReadOptions: { urlResolvers: [naverReadableUrlResolver] },

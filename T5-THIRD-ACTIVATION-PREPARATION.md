@@ -1,13 +1,15 @@
 # T5 3차 고도화 — 활성화 전 준비 정본
 
-상태: `THIRD_COMPLETION_SOURCE_PASS_WITH_OBSERVATION · MACOS_QUALIFIED · WINDOWS_CODE_READY_EXTERNAL_QUALIFICATION_PENDING · S3M_ADAPTIVE_DEFERRED · S3CA_CA1_COMPLETE_CA2_ACTIVE_LOCAL_POSITIVE_CONTROL`
+상태: `THIRD_COMPLETION_SOURCE_PASS_WITH_OBSERVATION · MACOS_QUALIFIED · WINDOWS_CODE_READY_EXTERNAL_QUALIFICATION_PENDING · S3M_ADAPTIVE_DEFERRED · S3CA_DEFERRED_TO_FOURTH`
 
-3차 source와 3차α source 개발은 종료됐다. 오너는 2026-08-27 별도 macOS·Windows 제품 자격에 앞서
-S3-CA를 `도킹센터` 사용자 경험으로 현재 개통했다. 이것은 새 Docking Core를 만드는 결정이 아니라 기존
-Capability Reality·Catalog·Handoff·Lifecycle·Connection Truth·α4 Broker를 같은 acquisition 경로로 완성하는
-결정이다. macOS·Windows 물리 제품 자격은 여전히 별도 후속 Gate로 남는다.
+3차 source와 3차α source 개발은 종료됐다. 오너는 2026-08-28 S3-CA 전체를 4차로 이관했다.
+3차에는 α4의 기존 인증 CLI·로컬 동기화 파일·공식 원격 연결·OS 능력 조합만 보존하고, 새 외부 확장을
+획득·설치·활성화하는 Capability Reality·Package Admin·qualification·lifecycle은 제품 진입점과 모델 Context에서
+개통하지 않는다. CA1·CA2 연구 source와 반대시험은 4차 시작점으로 휴면 보존하며 3차 완료 근거로 합산하지 않는다.
+macOS·Windows 물리 제품 자격은 여전히 별도 후속 Gate로 남는다.
 
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN`
+3차 설치 후보: `0.3.0 · S3-CA/M6 비활성 · macOS signed/notarized package 자격 대기 · Windows physical qualification 대기`
 
 현재 공식 Release Gate와 2차 완성의 진행 정본은 계속 `T5-SECOND-COMPLETION.md`가 담당한다. 이 문서는
 그 Release 상태는 변경하지 않는다. 오너는 2026-08-26 S3-A 측정선을 활성화하고 Terminal-first 고도화를
@@ -57,8 +59,8 @@ Windows는 installer·launcher·LOCALAPPDATA·DPAPI/Job host·CH helper code-rea
 ```text
 2차 Release Gate: 변경 없음
 3차 개발선: S3-A·T·M0~5·UX·CH0~3·VD·WA·HQ 완료 · S3-CA와 M6 adaptive 다음 차수 · Windows code-ready/외부 자격 대기
-현재 허용 작업: S3-CA1 Capability Reality·Knowledge/Manifest 계약부터 CA2→3→4 순차 개발
-현재 금지 작업: 별도 Docking Core·Store·Receipt·상시 Agent, 서비스별 Runtime 정책, 모델 임의 설치, screen/audio/content capture, S3-M6 병행 개통, macOS·Windows 물리 자격의 S3-CA 성공 합산
+현재 허용 작업: 3차 전체 제품 점검·재현 P0/P1 수리·macOS 설치 후보 자격
+현재 금지 작업: S3-CA1→4 제품 개통, 별도 Docking Core·Store·Receipt·상시 Agent, 서비스별 Runtime 정책, 모델 임의 설치, screen/audio/content capture, S3-M6 병행 개통, macOS·Windows 물리 자격의 S3-CA 성공 합산
 ```
 
 2026-08-27 Keychain과 Apple notary history에서 서명·공증 자격은 준비 완료로 재확인했다. 이것은 자격 부재를
@@ -76,7 +78,7 @@ Release package 완료 조건을 대신하지도 않는다. Release 작업과 S3
 | S3-T | 모델과 Terminal의 환경·process·PTY·출력 recall·플랫폼 실행 | `PASS WITH OBSERVATION` · 완료 |
 | S3-M | Life Continuity·Memory Stewardship·내부 Reflection/Principle/Skill | M0~M5 Memory Core 완료 · M6 기반은 default off · actual Principle/Skill은 다음 차수 |
 | S3-UX | Work Reality·교정/취소/복구·인간용 Receipt·Artifact/Effect 안심 | `PASS WITH OBSERVATION` · full-product 재자격 완료 |
-| S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | `ACTIVE` · CA1 완료 · CA2 local package positive control 진행 |
+| S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | `DEFERRED TO FOURTH` · 연구 source/test만 휴면 보존 · 3차 제품 entry/Context 0 |
 | S3-CH | Local Computer History·과거 Work/파일/앱 provenance | CH-0~3 제품 인간 여정 완료 · Windows physical은 PW external batch |
 | S3-PW | Windows installer·app shell·공통 제품 자격 | code-ready 완료 · physical Windows external qualification 대기 |
 | S3-VD | Visual Deliverable Core·출력 표면 선택·렌더 관측·교정·브랜드 파라미터 | Core `PASS WITH OBSERVATION` · Windows/편집형 PPTX/브랜드 인간 패널은 PW·HQ 자격 대기 |
@@ -787,12 +789,11 @@ AND Windows code-ready with physical Windows qualification explicitly pending
 
 macOS+Windows 종합 Release 완료는 physical Windows 사용자·설치·보안 receipt가 추가된 뒤에만 별도로 선언한다.
 
-S3-CA1은 `refoundation/evidence/s3-ca1-docking-reality-completion-2026-08-27.json`에서 완료됐다. Dock Knowledge와
-Machine Manifest, 획득·계정 연결·운영 lifecycle 세 축, gap 뒤에만 열리는 작은 Capability Reality가 제품에
-결속됐다. CA2의 첫 local package positive control은 같은 Machine Manifest와 T5 관리 store에서
-inspect→inactive install→enable/disable→새 generation→rollback→uninstall을 통과했다. 현재 다음 작업은 이
-coordinator를 개발자 명시 표면에 연결하고 Git exact ref·registry·remote/local MCP source adapter를 같은 계약으로
-확장하는 것이다. custom coding·전략 서비스 Pack은 아직 열지 않는다.
+S3-CA1 연구와 CA2 local positive control은
+`refoundation/evidence/s3-ca1-docking-reality-completion-2026-08-27.json` 및 해당 source/test에 보존한다.
+이는 4차의 출발 증거일 뿐 3차 제품 기능이 아니다. 3차 제품 entry는 acquisition coordinator를 만들지 않고,
+`capability_reality`·`capability_package_admin`을 모델이나 사용자 API에 열지 않는다. Git exact ref·registry·
+remote/local MCP source adapter, custom coding·전략 서비스 Pack은 모두 4차 오너 개통 전까지 시작하지 않는다.
 
 ## 11. S3-CH — Local Computer History 등록 계약
 

@@ -16,7 +16,7 @@ import { assertReleaseSourcePolicy } from './macos-release-source-boundary.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..', '..');
 const product = {
-  name: 'GPAO-T5', bundleId: 'kr.co.gpao.t5', version: '0.2.1', port: 4174,
+  name: 'GPAO-T5', bundleId: 'kr.co.gpao.t5', version: '0.3.0', port: 4174,
 };
 const PACKAGE_SOURCE_PATHS = [
   'refoundation',
@@ -154,6 +154,29 @@ async function buildCoarseAppActivityHelper(work, runtimeBin) {
   if (architectures.join(',') !== 'arm64,x86_64') throw new Error('Coarse app activity helper is not universal');
 }
 
+async function buildAppIcon(work, resources) {
+  const html = await readFile(join(repo, 'refoundation', 'ui', 'index.html'), 'utf8');
+  const encoded = /<link rel="icon" type="image\/png" href="data:image\/png;base64,([A-Za-z0-9+/=]+)">/u
+    .exec(html)?.[1];
+  if (!encoded) throw new Error('GPAO-T5 product icon is missing');
+  const source = join(work, 'GPAO-T5-icon.png');
+  const bytes = Buffer.from(encoded, 'base64');
+  if (bytes.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') throw new Error('GPAO-T5 product icon is invalid');
+  await writeFile(source, bytes);
+  const iconset = join(work, 'GPAO-T5.iconset');
+  await mkdir(iconset);
+  for (const [name, size] of [
+    ['icon_16x16.png', 16], ['icon_16x16@2x.png', 32],
+    ['icon_32x32.png', 32], ['icon_32x32@2x.png', 64],
+    ['icon_128x128.png', 128], ['icon_128x128@2x.png', 256],
+    ['icon_256x256.png', 256], ['icon_256x256@2x.png', 512],
+    ['icon_512x512.png', 512], ['icon_512x512@2x.png', 1024],
+  ]) run('sips', ['-z', String(size), String(size), source, '--out', join(iconset, name)]);
+  const destination = join(resources, 'GPAO-T5.icns');
+  run('iconutil', ['-c', 'icns', iconset, '-o', destination]);
+  return destination;
+}
+
 async function signMachO(app, identity, keychain, entitlements, nodePaths) {
   const keychainArgs = keychain ? ['--keychain', keychain] : [];
   const sign = (path, extra = []) => run('codesign', [
@@ -199,6 +222,7 @@ async function main() {
     await buildMemorySpotlightHelper(work, runtimeBin);
     await buildFileActivityHelper(work, runtimeBin);
     await buildCoarseAppActivityHelper(work, runtimeBin);
+    await buildAppIcon(work, resources);
 
     const armNode = join(runtimeBin, 'node-arm64');
     const x64Node = join(runtimeBin, 'node-x64');
@@ -242,6 +266,7 @@ esac
 <key>CFBundleName</key><string>${product.name}</string>
 <key>CFBundleDisplayName</key><string>${product.name}</string>
 <key>CFBundleExecutable</key><string>${product.name}</string>
+<key>CFBundleIconFile</key><string>GPAO-T5.icns</string>
 <key>CFBundleShortVersionString</key><string>${product.version}</string>
 <key>CFBundleVersion</key><string>${product.version}</string>
 <key>CFBundlePackageType</key><string>APPL</string>

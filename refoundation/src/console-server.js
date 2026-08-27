@@ -371,6 +371,7 @@ export function makeConsoleServer({
   fileIndexSearch = null,
   fileOcrProbe = null,
   restrictFileRealityToComputerRoots = false,
+  capabilityRealityEnabled = false,
   capabilityAcquisition = null,
   documentCli = bundledDocumentCli,
   attachmentStore,
@@ -378,7 +379,7 @@ export function makeConsoleServer({
   modelConnections,
   messengerProviderFactory,
   localConsoleToken,
-  learningReviewMode = 'proposal',
+  learningReviewMode = 'off',
   learningReviewIdleMs = 30_000,
   reflectionReviewCoordinator = null,
   fileActivityService = null,
@@ -1485,7 +1486,7 @@ export function makeConsoleServer({
         enforceComputerRoots: restrictFileRealityToComputerRoots,
         ...(fileIndexSearch ? { indexSearch: fileIndexSearch } : {}) });
       offeredTools.unshift(fileRealityTool, makeCoreFileSearchTool(fileRealityTool));
-      offeredTools.unshift(makeCapabilityRealityTool({ observer: capabilityReality }));
+      if (capabilityRealityEnabled) offeredTools.unshift(makeCapabilityRealityTool({ observer: capabilityReality }));
       if (capabilityAcquisition) offeredTools.unshift(makeCapabilityPackageAdminTool({
         coordinator: capabilityAcquisition,
         authorizeEffect: (args, context) => effectPreflight({
@@ -4601,6 +4602,7 @@ export function makeConsoleServer({
         })) }); return;
       }
       if (req.method === 'GET' && url.pathname === '/capabilities/reality') {
+        if (!capabilityRealityEnabled) { json(res, 404, { error: '이 기능은 현재 제품 범위에 없어요.' }); return; }
         privateJson(res, 200, await capabilityReality.inspect()); return;
       }
       const connectionIcon = req.method === 'GET' && url.pathname.match(/^\/connection-icons\/([a-z0-9-]+\.svg)$/u);

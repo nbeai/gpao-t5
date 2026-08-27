@@ -15,6 +15,9 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.match(build, /File activity helper is not universal/u);
   assert.match(build, /buildCoarseAppActivityHelper/u);assert.match(build,/t5-macos-coarse-app-activity/u);
   assert.match(build,/Coarse app activity helper is not universal/u);
+  assert.match(build, /buildAppIcon/u);
+  assert.match(build, /iconutil/u);
+  assert.match(build, /CFBundleIconFile<\/key><string>GPAO-T5\.icns/u);
   assert.match(build, /COPYRIGHT/u);
   assert.match(build, /THIRD_PARTY_NOTICES\.md/u);
   assert.match(build, /'skill-packages'/u);
@@ -42,9 +45,9 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.doesNotMatch(verifier, /'-l', 'BEGIN \(RSA \)\?PRIVATE KEY/u);
 });
 
-test('2차 완성 hardening package version은 제품 version 0.2.1과 일치한다', async () => {
+test('3차 완성 package version은 제품 version 0.3.0과 일치한다', async () => {
   const packageMetadata = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
   const build = await readFile(new URL('../scripts/build-macos-installer.mjs', import.meta.url), 'utf8');
-  assert.equal(packageMetadata.version, '0.2.1');
-  assert.match(build, /version:\s*'0\.2\.1'/u);
+  assert.equal(packageMetadata.version, '0.3.0');
+  assert.match(build, /version:\s*'0\.3\.0'/u);
 });
