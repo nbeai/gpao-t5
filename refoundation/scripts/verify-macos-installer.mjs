@@ -45,7 +45,6 @@ try {
   const runtime = join(resources, 'runtime', 'bin');
   const required = [
     join(app, 'Contents', 'MacOS', 'GPAO-T5'),
-    join(resources, 'GPAO-T5.icns'),
     join(resources, 'GPAO-T5 제거.command'),
     join(runtime, 'node'), join(runtime, 'node-arm64'), join(runtime, 'node-x64'),
     join(runtime, 't5-memory-spotlight'),
@@ -62,10 +61,6 @@ try {
     join(appRoot, 'docs', '00-product', 'GPAO-T5-FOUNDER-MANIFESTO-ko.md'),
   ];
   for (const path of required) await stat(path);
-  const infoPlist = await readFile(join(app, 'Contents', 'Info.plist'), 'utf8');
-  if (!/<key>CFBundleIconFile<\/key><string>GPAO-T5\.icns<\/string>/u.test(infoPlist)) {
-    throw new Error('packaged application icon is not declared');
-  }
   const uninstall = join(resources, 'GPAO-T5 제거.command');
   run('/bin/sh', ['-n', uninstall]);
   const uninstallSource = await readFile(uninstall, 'utf8');

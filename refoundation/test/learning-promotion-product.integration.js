@@ -9,8 +9,7 @@ import { makeConsoleServer } from '../src/console-server.js';
 test('baseline→proposal→near-miss→trial replay→field promotion→regression rollback을 관통한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-learning-promotion-')); const errors = [];
   const server = makeConsoleServer({ stateDir: join(room, 'state'), workspace: room,
-    learningReviewMode: 'proposal', learningReviewIdleMs: 0,
-    onError: (error) => errors.push(error), modelFactory: ({ purpose }) => {
+    learningReviewIdleMs: 0, onError: (error) => errors.push(error), modelFactory: ({ purpose }) => {
       let turn = 0; let mode = null;
       return { async respond(input) {
         turn += 1; const last = input.messages.at(-1);

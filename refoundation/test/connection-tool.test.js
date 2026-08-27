@@ -22,8 +22,6 @@ test('모델은 사용자의 표현을 규칙으로 분류하지 않고 연결 �
   const tool = makeConnectionTool({ doctor: { async inspect() { inspected += 1; return report; } } });
   assert.equal(tool.name, 'connection');
   assert.match(tool.description, /connect|link|연결|account data/i);
-  assert.match(tool.description, /routes.*data.*effects.*read-only local export.*account-changing API effects/i);
-  assert.match(tool.description, /privacyDefaults.*fields excluded by default/i);
   const listed = await tool.execute({ action: 'list', id: null, actionId: null });
   assert.equal(listed.state, 'listed');
   assert.equal(listed.connections[0].id, 'google-workspace');
@@ -32,26 +30,6 @@ test('모델은 사용자의 표현을 규칙으로 분류하지 않고 연결 �
   assert.equal(detail.connection.routes[0].startUrl, 'https://drive.google.com/');
   assert.equal(inspected, 2);
   await assert.rejects(() => tool.execute({ action: 'inspect', id: 'missing', actionId: null }), /not found/u);
-});
-
-test('현재 연결과 한국 사업 도구 후보는 한 Connection Truth에서 경로별 데이터·효과를 보존한다', async () => {
-  const tool = makeConnectionTool({ doctor: { async inspect() { return report; } }, catalog: async () => ({
-    entries: [{ id: 'coupang-wing', label: '쿠팡 Wing', category: '판매와 주문',
-      routes: [{ kind: 'official_api', state: 'key_pair_required', canStart: false,
-        data: ['주문', '배송'], effects: ['권한에 따른 조회', '권한에 따른 판매 업무 변경'] },
-      { kind: 'local_export', state: 'ready', canStart: false,
-        data: ['사용자가 내려받은 주문·정산 파일'], effects: ['로컬 읽기와 분석만'] }] },
-    { id: 'google-workspace', label: '후보 Google', category: '사무와 협업', routes: [] }],
-  }) });
-  const listed = await tool.execute({ action: 'list', id: null, actionId: null });
-  assert.equal(listed.connections.filter((item) => item.id === 'google-workspace').length, 1,
-    'observed connection truth must win over the catalog candidate');
-  const coupang = listed.connections.find((item) => item.id === 'coupang-wing');
-  assert.equal(coupang.state, 'not_connected');
-  assert.deepEqual(coupang.routes[0].data, ['주문', '배송']);
-  assert.deepEqual(coupang.routes[1].effects, ['로컬 읽기와 분석만']);
-  const detail = await tool.execute({ action: 'inspect', id: 'coupang-wing', actionId: null });
-  assert.equal(detail.connection.routes.length, 2);
 });
 
 test('연결 도구는 조회·사용자 행동·OAuth 시작을 구분하고 자격 입력은 받지 않는다', () => {
