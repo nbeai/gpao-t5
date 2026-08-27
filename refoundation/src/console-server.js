@@ -107,6 +107,7 @@ import {
 } from './conversation-recovery.js';
 import { makeConnectionDoctor } from './connection-truth.js';
 import { makeConnectionTool } from './connection-tool.js';
+import { makeCapabilityRealityObserver, makeCapabilityRealityTool } from './capability-reality.js';
 import { wrapRemoteConnectionTool } from './existing-capability-inspectors.js';
 import { CapabilityHandoffLedger } from './capability-handoff-ledger.js';
 import { makeCapabilityHandoffCoordinator } from './capability-handoff-coordinator.js';
@@ -1444,6 +1445,7 @@ export function makeConsoleServer({
       const skillSnapshot = mergeSkillSnapshots([bundledSkillSnapshot, managedSkillSnapshot]);
       const capabilitySnapshot = await capabilityCatalogPromise;
       const offeredTools = [...terminal.tools];
+      offeredTools.unshift(makeCapabilityRealityTool({ observer: capabilityReality }));
       const nativeComputer = makeNativeComputerTool({ revealPath: reveal, platform: computer.platform });
       if (nativeComputer) offeredTools.unshift(nativeComputer);
       if (!options.observationOnly && options.trigger !== 'automation') {
@@ -2916,6 +2918,9 @@ export function makeConsoleServer({
     })),
     ...workspaceConnectionInspectors,
   ] });
+  const capabilityReality = makeCapabilityRealityObserver({
+    connectionDoctor, catalogSnapshot: capabilityCatalogPromise,
+  });
   automationScheduler = new AutomationScheduler({
     store: automationStore,
     owner: automationOwner.owner, inspectOwner: automationOwner.inspect,
@@ -4499,6 +4504,9 @@ export function makeConsoleServer({
           canStart: current.get(entry.id)?.actions?.some((action) => ['oauth', 'credentials', 'user_action'].includes(action.kind))
             ?? entry.canStart,
         })) }); return;
+      }
+      if (req.method === 'GET' && url.pathname === '/capabilities/reality') {
+        privateJson(res, 200, await capabilityReality.inspect()); return;
       }
       const connectionIcon = req.method === 'GET' && url.pathname.match(/^\/connection-icons\/([a-z0-9-]+\.svg)$/u);
       if (connectionIcon) {

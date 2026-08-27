@@ -1,0 +1,41 @@
+{
+  "schema": "t5.s3-ca1.docking-reality-completion.v1",
+  "recordedOn": "2026-08-27",
+  "baselineSourceCommit": "4eed97f6",
+  "status": "PASS",
+  "ownerDecision": "Open S3-CA now as the Docking Center product experience without creating a parallel Core, Store, Receipt or permanent Agent.",
+  "completionSentence": "T5는 현재 연결·설치·권한·실측과 아직 준비되지 않은 후보를 작은 Capability Reality에서 구분하고, 모델 판단용 Dock Knowledge와 Runtime 집행용 Machine Manifest를 분리하며, 획득·계정 연결·운영 lifecycle을 한 success로 합치지 않는다.",
+  "comparatorSourceAudit": [
+    { "system": "OpenClaw", "commit": "52750a2a655d8ffee53233dcb921e0bb8f863843", "observed": "bounded manifest loading, source-root checks and activation contracts, but a broad plugin runtime surface" },
+    { "system": "Hermes", "commit": "74ec63fe18fec174299af2371febd122e6dd5c42", "observed": "plugin manifest and scanner separation, but pass/warn/fail classification and in-process Python plugin execution" },
+    { "system": "Codex", "commit": "6c59264b14b963d45d1005e7a8b1de87d4b054e2", "observed": "resource-locator manifest mapping and interface metadata separated from host resolution" }
+  ],
+  "qualified": [
+    "The existing S3-CA source of truth is active; no new Docking plan document or canonical ledger was created.",
+    "Dock Knowledge contains bounded model-facing summary, constraints and exact official source facts but has no executable authority.",
+    "Machine Manifest independently binds immutable source, publisher, digest, license, platform, separate-process entrypoint, auth owner, scopes, exact action hosts and effects, closed input schemas, dependency digests, isolation, declarative lifecycle and qualification probe.",
+    "A single trust level, arbitrary lifecycle hooks, in-process extension execution, credential-bearing documentation URLs and open action schemas fail closed.",
+    "Acquisition, account connection and operational lifecycle remain three independent axes; the small derived reality never replaces them.",
+    "Current connected, needs-auth, degraded and preparable candidates are projected together without upgrading catalog candidates to usable_now.",
+    "Capability Reality is absent from the normal model tool surface and opens through tool_search only after the model identifies a capability gap.",
+    "The runtime does not branch on service names or select the method."
+  ],
+  "verification": {
+    "focused": { "tests": 8, "passed": 8, "failed": 0 },
+    "daily": { "tests": 1582, "passed": 1581, "failed": 0, "skipped": 1 },
+    "integration": { "tests": 186, "passed": 184, "failed": 0, "skipped": 2 },
+    "mutation": { "killed": 2, "survived": 0 },
+    "providerCalls": 0,
+    "externalEffects": 0
+  },
+  "notClaimed": [
+    "Developer installation from local, Git, registry or remote MCP source",
+    "Secret Input or real account qualification",
+    "Isolated build and custom adapter coding",
+    "Natural-language acquisition and exact Work resume",
+    "Strategic Naver, Google or Coupang Docking Packs",
+    "S3-CA2 through S3-CA4 completion",
+    "macOS or Windows installed-product qualification"
+  ],
+  "next": "S3-CA2 Developer Extension Surface: one explicit local package positive control through inspect, quarantine, install-inactive, enable/disable, update, uninstall and rollback using the CA1 contract."
+}

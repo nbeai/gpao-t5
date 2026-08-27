@@ -1,0 +1,15 @@
+{
+  "schema": "t5.s3-ca1.docking-incidents.v1",
+  "incidents": [
+    { "id": "degraded-is-not-absent", "failure": "A present capability with a failed route is reported as entirely missing." },
+    { "id": "install-record-is-not-usable", "failure": "An install record is treated as current account-ready execution." },
+    { "id": "knowledge-is-not-authority", "failure": "Documentation text becomes an executable action without a Machine Manifest." },
+    { "id": "official-is-not-safe", "failure": "Official publisher identity becomes an automatic safety or suitability decision." },
+    { "id": "state-axis-collapse", "failure": "Package qualification, account authentication and active lifecycle collapse into one success value." },
+    { "id": "mutable-source-reuse", "failure": "A changed source reuses a prior qualification generation." },
+    { "id": "credential-host-drift", "failure": "A credential can leave the manifest-declared host set." },
+    { "id": "in-process-extension", "failure": "External JavaScript or Python lifecycle code loads into the signed Core process." },
+    { "id": "rollback-unknown", "failure": "A candidate activates without declarative remove and rollback facts." },
+    { "id": "service-name-policy", "failure": "Runtime selects or blocks a method from a service name instead of mechanical facts." }
+  ]
+}

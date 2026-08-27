@@ -1,9 +1,11 @@
 # T5 3차 고도화 — 활성화 전 준비 정본
 
-상태: `THIRD_COMPLETION_SOURCE_PASS_WITH_OBSERVATION · MACOS_QUALIFIED · WINDOWS_CODE_READY_EXTERNAL_QUALIFICATION_PENDING · S3M_ADAPTIVE_DEFERRED · S3CA_DEFERRED_NEXT_CYCLE`
+상태: `THIRD_COMPLETION_SOURCE_PASS_WITH_OBSERVATION · MACOS_QUALIFIED · WINDOWS_CODE_READY_EXTERNAL_QUALIFICATION_PENDING · S3M_ADAPTIVE_DEFERRED · S3CA_CA1_COMPLETE_CA2_NEXT`
 
-3차 source 개발은 종료됐다. 다음 현재 개발선은 `T5-THIRD-ALPHA.md`가 담당하며, 오너 결정에 따라
-3차α source를 먼저 완료한 뒤 별도 macOS 제품·설치 자격과 Windows 제품·설치 자격을 순서대로 진행한다.
+3차 source와 3차α source 개발은 종료됐다. 오너는 2026-08-27 별도 macOS·Windows 제품 자격에 앞서
+S3-CA를 `도킹센터` 사용자 경험으로 현재 개통했다. 이것은 새 Docking Core를 만드는 결정이 아니라 기존
+Capability Reality·Catalog·Handoff·Lifecycle·Connection Truth·α4 Broker를 같은 acquisition 경로로 완성하는
+결정이다. macOS·Windows 물리 제품 자격은 여전히 별도 후속 Gate로 남는다.
 
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN`
 
@@ -55,8 +57,8 @@ Windows는 installer·launcher·LOCALAPPDATA·DPAPI/Job host·CH helper code-rea
 ```text
 2차 Release Gate: 변경 없음
 3차 개발선: S3-A·T·M0~5·UX·CH0~3·VD·WA·HQ 완료 · S3-CA와 M6 adaptive 다음 차수 · Windows code-ready/외부 자격 대기
-현재 허용 작업: 현재 source macOS package·공증·설치 smoke 또는 별도 물리 Windows 자격 batch; 3차 기능·Prompt 추가 개발은 종료
-현재 금지 작업: 측정 결과를 전제한 구조 변경·성능 최적화, S3-UX/CA/VD 제품 hot path 선구현, UX/CH-0 전 CH-1 collector 선행, screen/audio/content capture, 여러 큰 개발선 동시 개통, 새 3차 개발선·기능 범위 추가
+현재 허용 작업: S3-CA1 Capability Reality·Knowledge/Manifest 계약부터 CA2→3→4 순차 개발
+현재 금지 작업: 별도 Docking Core·Store·Receipt·상시 Agent, 서비스별 Runtime 정책, 모델 임의 설치, screen/audio/content capture, S3-M6 병행 개통, macOS·Windows 물리 자격의 S3-CA 성공 합산
 ```
 
 2026-08-27 Keychain과 Apple notary history에서 서명·공증 자격은 준비 완료로 재확인했다. 이것은 자격 부재를
@@ -74,7 +76,7 @@ Release package 완료 조건을 대신하지도 않는다. Release 작업과 S3
 | S3-T | 모델과 Terminal의 환경·process·PTY·출력 recall·플랫폼 실행 | `PASS WITH OBSERVATION` · 완료 |
 | S3-M | Life Continuity·Memory Stewardship·내부 Reflection/Principle/Skill | M0~M5 Memory Core 완료 · M6 기반은 default off · actual Principle/Skill은 다음 차수 |
 | S3-UX | Work Reality·교정/취소/복구·인간용 Receipt·Artifact/Effect 안심 | `PASS WITH OBSERVATION` · full-product 재자격 완료 |
-| S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | 다음 차수 이관 · 3차 구현 중단 |
+| S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | `ACTIVE` · CA1 완료 · CA2 개발자 명시 설치 next |
 | S3-CH | Local Computer History·과거 Work/파일/앱 provenance | CH-0~3 제품 인간 여정 완료 · Windows physical은 PW external batch |
 | S3-PW | Windows installer·app shell·공통 제품 자격 | code-ready 완료 · physical Windows external qualification 대기 |
 | S3-VD | Visual Deliverable Core·출력 표면 선택·렌더 관측·교정·브랜드 파라미터 | Core `PASS WITH OBSERVATION` · Windows/편집형 PPTX/브랜드 인간 패널은 PW·HQ 자격 대기 |
@@ -785,8 +787,9 @@ AND Windows code-ready with physical Windows qualification explicitly pending
 
 macOS+Windows 종합 Release 완료는 physical Windows 사용자·설치·보안 receipt가 추가된 뒤에만 별도로 선언한다.
 
-S3-CA의 다음 작업은 제품 코드가 아니라, 현재 능력으로 끝나는 positive control 하나와 미등록 외부 능력이
-필요한 실제 사용자 실패 하나의 목적·원본·종료점·비목표를 고정하는 것이다.
+S3-CA1은 `refoundation/evidence/s3-ca1-docking-reality-completion-2026-08-27.json`에서 완료됐다. Dock Knowledge와
+Machine Manifest, 획득·계정 연결·운영 lifecycle 세 축, gap 뒤에만 열리는 작은 Capability Reality가 제품에
+결속됐다. 현재 다음 작업은 CA2 개발자 명시 설치 positive control이며 custom coding·전략 서비스 Pack은 아직 열지 않는다.
 
 ## 11. S3-CH — Local Computer History 등록 계약
 
