@@ -9,7 +9,8 @@ const evidence = JSON.parse(await readFile(new URL(
 test('macOS 설치 경험 수리는 일반 파일 검색과 앱 데이터 접근을 분리한다', () => {
   assert.equal(evidence.status, 'SOURCE_REPAIRED_INSTALLER_REQUALIFICATION_REQUIRED');
   assert.equal(evidence.repairs.defaultWholeHomeRootRemoved, true);
-  assert.equal(evidence.repairs.ordinaryFileSearchRoots.includes('Library'), false);
+  assert.equal(evidence.repairs.customTopLevelUserFoldersPreserved, true);
+  assert.match(evidence.repairs.ordinaryFileSearchRoots[0], /excluding Library/u);
   assert.equal(evidence.repairs.protectedLibraryPackages.includes('.photoslibrary'), true);
 });
 
