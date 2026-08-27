@@ -53,6 +53,7 @@ import { resolveWindowsProductEnvironment } from '../src/windows-product-environ
 import { LocalRuntimeOwnership } from '../src/durable-process-ownership.js';
 import { RuntimeContinuityLedger, makeRuntimeContinuityMonitor } from '../src/runtime-continuity.js';
 import { makeLocalNotificationService, makeMacOSNotificationAdapter } from '../src/local-notification.js';
+import { deleteT5OwnedLocalData } from '../src/local-data-deletion.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -332,8 +333,17 @@ const stop = async (reason = 'runtime_signal') => {
     reason: 'runtime_stop_requested' }).catch(() => {});
   await runtimeOwnership.release(runtimeLease.claim).catch(() => {});
   if (portFile) await rm(portFile, { force: true }).catch(() => {});
-  if (reason === 'user_delete_local_state') await rm(stateDir, { recursive: true, force: true });
-  process.exit(0);
+  let exitCode = 0;
+  if (reason === 'user_delete_local_state') {
+    try {
+      await deleteT5OwnedLocalData({ stateDir, connectionFile, modelConnections,
+        messengerCredentialStore, workspaceConnectionServices });
+    } catch (error) {
+      exitCode = 1;
+      console.error('[local-data-deletion]', error?.message ?? 'T5 local data deletion failed');
+    }
+  }
+  process.exit(exitCode);
 };
 resolveRuntimeStopRequest(stop);
 process.once('SIGINT', stop);

@@ -51,6 +51,28 @@ test('transport 장애 뒤 canonical ToolReceipt로 전환하고 이미 성공�
   assert.equal(transition.receipt.priorToolEffectsReexecutionAuthorized, false);
 });
 
+test('한 번의 실제 모델 전환은 후속 fallback 응답마다 새 transition Receipt로 반복되지 않는다', async () => {
+  let primaryCalls = 0; let fallbackCalls = 0;
+  const model = makeModelContinuity({ connections: [{
+    id: 'primary', provider: 'openai', modelId: 'gpt-primary', capabilityManifest: manifest('openai'),
+    create: async () => ({ async respond() { primaryCalls += 1;
+      throw Object.assign(new Error('network offline'), { code: 'network_error' }); } }),
+  }, {
+    id: 'fallback', provider: 'anthropic', modelId: 'claude-fallback', capabilityManifest: manifest('anthropic'),
+    create: async () => ({ async respond() { fallbackCalls += 1;
+      return { text: `fallback-${fallbackCalls}`, toolCalls: [] }; } }),
+  }] });
+  const first = await model.respond({ messages: [], tools: [] });
+  const second = await model.respond({ messages: [], tools: [] });
+  assert.equal(first.continuityReceipts.length, 1);
+  assert.equal(first.continuityReceipt.reason, 'transport_failure');
+  assert.equal(first.continuityGuardActive, true);
+  assert.equal(second.continuityReceipt, undefined);
+  assert.deepEqual(second.continuityReceipts, undefined);
+  assert.equal(second.continuityGuardActive, true);
+  assert.equal(primaryCalls, 1); assert.equal(fallbackCalls, 2);
+});
+
 test('필수 이미지 능력이 없는 주 모델은 호출하지 않고 허용된 다음 모델로 admission한다', async () => {
   let primaryCalls = 0; let fallbackCalls = 0;
   const model = makeModelContinuity({ connections: [{

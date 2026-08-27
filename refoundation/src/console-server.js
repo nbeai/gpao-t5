@@ -1974,7 +1974,8 @@ export function makeConsoleServer({
             await run.append({ type: 'model_transmission_attempted', stepId: `model-wire-${event.turn}`,
               payload: { turn: event.turn, transmissionReceipt: event.transmissionReceipt } });
           } else if (event.type === 'model_continuity') {
-            await run.append({ type: 'model_continuity_transition', stepId: `model-continuity-${event.turn}`,
+            await run.append({ type: 'model_continuity_transition',
+              stepId: `model-continuity-${event.turn}-${event.transitionIndex ?? 0}`,
               payload: { turn: event.turn, receipt: event.receipt } });
             publishProgress('trace_status', '모델 연결을 바꿔 같은 작업을 이어가고 있어요.', 'model');
           } else if (event.type === 'information_projection') {

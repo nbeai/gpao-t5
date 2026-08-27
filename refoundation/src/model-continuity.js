@@ -56,7 +56,7 @@ function receipt(from, to, reason, required) {
 export function makeModelContinuity({ connections = [] } = {}) {
   const candidates = connections.map(connection);
   if (!candidates.length) throw new TypeError('model continuity requires at least one connection');
-  let activeIndex = 0; let activeModel = null; let latestReceipt = null;
+  let activeIndex = 0; let activeModel = null; let activeReceipt = null;
   const modelAt = async (index) => {
     if (index === activeIndex && activeModel) return activeModel;
     const created = await candidates[index].create();
@@ -70,34 +70,43 @@ export function makeModelContinuity({ connections = [] } = {}) {
     id: candidates[0].modelId,
     capabilities: candidates[0].capabilityManifest,
     async respond(input = {}) {
-      const required = requirements(input); const tried = new Set();
+      const required = requirements(input); const tried = new Set(); const transitionReceipts = [];
       let index = activeIndex;
       if (!capabilityState(candidates[index], required).admitted) {
         tried.add(index); const next = nextCandidate(tried, required);
         if (next < 0) throw Object.assign(new Error('No allowed model has the required capability'), {
           reason: 'required_model_capability_unavailable', requiredCapabilities: required,
         });
-        latestReceipt = receipt(candidates[index], candidates[next], 'required_capability_absent', required);
+        activeReceipt = receipt(candidates[index], candidates[next], 'required_capability_absent', required);
+        transitionReceipts.push(activeReceipt);
         index = next; activeModel = null;
       }
       for (;;) {
         tried.add(index);
         try {
           const model = await modelAt(index);
-          const continuityContext = latestReceipt ? [
+          const continuityContext = activeReceipt ? [
             input.runtimeContext,
             '[T5 MODEL CONTINUITY — runtime fact]',
             'Continue from the canonical T5 messages and ToolReceipts below.',
             'Do not repeat a prior successful Tool call or external effect.',
-            `transition=${latestReceipt.from.provider}:${latestReceipt.from.modelId}->${latestReceipt.to.provider}:${latestReceipt.to.modelId}`,
+            `transition=${activeReceipt.from.provider}:${activeReceipt.from.modelId}->${activeReceipt.to.provider}:${activeReceipt.to.modelId}`,
           ].filter(Boolean).join('\n') : input.runtimeContext;
           const response = await model.respond({ ...input, ...(continuityContext ? { runtimeContext: continuityContext } : {}) });
-          return { ...response, ...(latestReceipt ? { continuityReceipt: latestReceipt } : {}) };
+          return {
+            ...response,
+            continuityGuardActive: Boolean(activeReceipt),
+            ...(transitionReceipts.length ? {
+              continuityReceipts: transitionReceipts,
+              continuityReceipt: transitionReceipts.at(-1),
+            } : {}),
+          };
         } catch (error) {
           if (input.signal?.aborted) throw error;
           const reason = modelContinuityFailure(error); if (!reason) throw error;
           const next = nextCandidate(tried, required); if (next < 0) throw error;
-          latestReceipt = receipt(candidates[index], candidates[next], reason, required);
+          activeReceipt = receipt(candidates[index], candidates[next], reason, required);
+          transitionReceipts.push(activeReceipt);
           index = next; activeModel = null;
         }
       }

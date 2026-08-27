@@ -73,5 +73,5 @@ test('소유권 UX는 기술 원장 대신 내 자료 위치·전송·백업·�
   assert.match(ui, /외부 서비스 사본과 별도로 보관한 백업 파일은 지우지 않아요/u);
   assert.match(ui, /답 품질 때문에 모델을 자동 순회하지 않아요/u);
   assert.match(ui, /\/ownership\/delete-local/u);
-  assert.match(launcher, /reason === 'user_delete_local_state'[\s\S]*rm\(stateDir/u);
+  assert.match(launcher, /reason === 'user_delete_local_state'[\s\S]*deleteT5OwnedLocalData/u);
 });

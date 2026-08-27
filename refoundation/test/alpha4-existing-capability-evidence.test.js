@@ -13,7 +13,7 @@ test('Alpha4 close는 네 능력 종류와 분리된 credential·authority·exec
   assert.deepEqual(evidence.qualifiedKinds,
     ['local_file', 'authenticated_cli', 'remote_connection', 'os_native']);
   assert.match(evidence.closingPrinciple, /등록된 능력만 등록된 행동/u);
-  assert.match(plan, /ALPHA4_COMPLETE · ALPHA5_MODEL_CONTINUITY_NEXT/u);
+  assert.match(plan, /ALPHA4_COMPLETE · ALPHA5_COMPLETE/u);
   assert.match(plan, /t5\.capability-use-receipt\.v1/u);
 });
 

@@ -28,6 +28,9 @@ function normalizeResponse(response) {
     contextReceipt: response?.contextReceipt ?? null,
     transmissionReceipt: response?.transmissionReceipt ?? null,
     continuityReceipt: response?.continuityReceipt ?? null,
+    continuityReceipts: Array.isArray(response?.continuityReceipts)
+      ? response.continuityReceipts : response?.continuityReceipt ? [response.continuityReceipt] : [],
+    continuityGuardActive: response?.continuityGuardActive === true || Boolean(response?.continuityReceipt),
   };
 }
 
@@ -46,7 +49,7 @@ function stableValue(value) {
 }
 
 function duplicateAfterContinuity(response, receipts, requested) {
-  if (!response.continuityReceipt) return false;
+  if (!response.continuityGuardActive) return false;
   const signature = JSON.stringify([requested.name, stableValue(requested.args)]);
   return receipts.some((receipt) => receipt.outcome === 'succeeded' && receipt.actualCall
     && JSON.stringify([receipt.actualCall.name, stableValue(receipt.actualCall.args)]) === signature);
@@ -443,10 +446,10 @@ export async function runAgent({
       ...(response.transmissionReceipt ? { transmissionReceipt: structuredClone(response.transmissionReceipt) } : {}),
       ...(response.continuityReceipt ? { continuityReceipt: structuredClone(response.continuityReceipt) } : {}),
     });
-    if (response.continuityReceipt) await onEvent?.({
-      type: 'model_continuity', turn: modelTurns,
-      receipt: structuredClone(response.continuityReceipt),
-    });
+    for (const [transitionIndex, continuityReceipt] of response.continuityReceipts.entries()) {
+      await onEvent?.({ type: 'model_continuity', turn: modelTurns, transitionIndex,
+        receipt: structuredClone(continuityReceipt) });
+    }
     const reportedTokens = Number(response.usage?.total_tokens);
     if (Number.isFinite(reportedTokens) && reportedTokens > 0) providerTokens += reportedTokens;
     lastTurnToolCalls = response.toolCalls.length;
@@ -463,6 +466,9 @@ export async function runAgent({
         contextReceipt: structuredClone(response.contextReceipt),
         ...(response.transmissionReceipt ? { transmissionReceipt: structuredClone(response.transmissionReceipt) } : {}),
         ...(response.continuityReceipt ? { continuityReceipt: structuredClone(response.continuityReceipt) } : {}),
+        ...(response.continuityReceipts.length ? {
+          continuityReceipts: structuredClone(response.continuityReceipts),
+        } : {}),
       },
     });
     if (providerBudgetExceeded) {
