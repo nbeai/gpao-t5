@@ -1,0 +1,46 @@
+{
+  "schema": "t5.file-intelligence-platform-qualification.v1",
+  "recordedOn": "2026-08-27",
+  "sourceCommit": "53078d44ebbfee82ef425d0a033f922114fe3a68",
+  "status": "PASS_WITH_EXTERNAL_QUALIFICATION_PENDING",
+  "completionSentence": "T5는 macOS에서 로컬 OCR로 무의미한 파일명의 이미지 속 한국어·영문·금액을 찾고, 글자가 없는 사진은 지정 폴더의 최대 12개 후보만 contact sheet로 시각 판별하며, 전체 원본 폴더나 이미지 bytes를 Run 영수증에 남기지 않는다.",
+  "qualified": [
+    "The existing universal macOS native helper performs Vision accurate OCR locally with Korean and English hints, no language correction, at most 200 observations and bounded coordinates.",
+    "An actual compiled macOS Vision run recovered 한빛상사 and 견적 금액 4,780,000원 from locally rendered pixels.",
+    "Korean amount clues such as 478만원 are expanded into numeric candidate evidence and match OCR text such as 4,780,000원 without making a semantic business claim.",
+    "Search OCR examines at most 12 metadata-selected image candidates under the remaining 7.5-second search boundary; exact selected inspection has a separate five-second boundary.",
+    "Appearance-only requests use image_candidates for one user-named folder and visual_candidates for at most 12 exact handles.",
+    "The contact sheet maps C1 through C12 to opaque handles, reaches only the next model call and is removed from ToolReceipt and Run event payloads.",
+    "A 20,001-file isolated sample visited all 20,101 entries in 907ms, returned the random-name indexed target first, exposed five candidates and sent no file content.",
+    "Non-macOS OCR stays explicitly unavailable; the cross-platform metadata, text fallback and Sharp contact-sheet contracts remain source-compatible."
+  ],
+  "actualMacOcr": {
+    "engine": "Vision VNRecognizeTextRequest",
+    "image": { "width": 1224, "height": 1584 },
+    "observed": ["한빛상사", "견적 금액 4,780,000원"],
+    "externalTransmission": false
+  },
+  "performanceSample": {
+    "fixtureFiles": 20001,
+    "filesystemEntriesVisited": 20101,
+    "elapsedMs": 907,
+    "candidateCount": 5,
+    "contentIncluded": false
+  },
+  "verification": {
+    "ocrVisualFocused": { "tests": 45, "passed": 45, "failed": 0 },
+    "dailyCheck": { "tests": 1604, "passed": 1603, "failed": 0, "skipped": 1 },
+    "productIntegration": { "tests": 190, "passed": 188, "failed": 0, "skipped": 2 },
+    "providerCalls": 0,
+    "externalEffects": 0
+  },
+  "notClaimed": [
+    "A live Terra or gpt-5.5 human journey identifying a real passport photograph",
+    "Recognition of personal identity beyond the visible file-selection purpose",
+    "Perfect OCR recall or semantic truth from OCR confidence",
+    "A million-file physical performance qualification",
+    "Windows native OCR or physical Windows Search qualification",
+    "Automatic transmission of an entire photo folder to any model provider"
+  ],
+  "next": "Run one owner-controlled macOS live console journey with non-sensitive fixture photos, then execute the same metadata/contact-sheet contract and a native OCR adapter on physical Windows when that environment is available."
+}
