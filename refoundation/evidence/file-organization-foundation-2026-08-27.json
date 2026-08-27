@@ -1,0 +1,32 @@
+{
+  "schema": "t5.file-organization-foundation.v1",
+  "recordedOn": "2026-08-27",
+  "sourceCommit": "b0e8f1942f60991274f8dd9be79d52fccfc7a212",
+  "status": "PASS",
+  "completionSentence": "사용자는 찾은 파일의 정리 결과를 변경 전에 확인하고, 충돌 없는 동일 저장장치 이동만 실행하며, T5는 중간 crash를 실제 파일 identity로 재조정하고 exact plan으로 원래 위치를 복원한다.",
+  "qualified": [
+    "Discovery and planning move, rename, overwrite and delete zero user files.",
+    "A preview shows bounded source, destination, already-there, collision and unsupported cross-volume facts.",
+    "Any destination collision blocks every move before the first filesystem change.",
+    "Apply requires a reversible backed-up local-change declaration and revalidates source identity, empty destination and same-volume atomic rename.",
+    "The durable plan records each completed move; restart reconciliation recognizes a moved inode without replaying the rename.",
+    "Rollback revalidates the moved file and empty original location before restoring it with the exact durable plan.",
+    "T5 internal state, credential roots and canonical path aliases remain outside the candidate and destination surfaces."
+  ],
+  "verification": {
+    "focused": { "tests": 18, "passed": 18, "failed": 0 },
+    "dailyCheck": { "tests": 1593, "passed": 1592, "failed": 0, "skipped": 1 },
+    "productIntegration": { "tests": 187, "passed": 185, "failed": 0, "skipped": 2 },
+    "providerCalls": 0,
+    "externalEffects": 0
+  },
+  "notClaimed": [
+    "Overwrite, delete, hard-link, symlink or automatic final-version selection",
+    "Cross-volume move or copy-and-delete recovery",
+    "Automatic folder taxonomy inferred without user purpose",
+    "Physical Windows file organization qualification",
+    "Large batch performance beyond the bounded 12-file plan",
+    "Document reconciliation, standardization or new deliverable creation"
+  ],
+  "next": "Bind selected source files, calculations and generated deliverables in one provenance receipt before opening document reconciliation and standardization."
+}
