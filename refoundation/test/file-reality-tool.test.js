@@ -81,6 +81,21 @@ test('검색 뒤 파일이 바뀌면 opaque handle은 오래된 내용을 다시
   } finally { await rm(room.root, { recursive: true, force: true }); }
 });
 
+test('격리 자격에서는 path scope도 qualified computer root 밖으로 나가지 않는다', async () => {
+  const room = await fixture();
+  try {
+    const tool = makeFileRealityTool({ workspace: room.workspace, home: room.root, platform: 'test',
+      computerRoots: [room.elsewhere], enforceComputerRoots: true, indexSearch: async () => [] });
+    await assert.rejects(tool.execute({ action: 'search', query: '새봄', scope: 'path', path: room.workspace,
+      handles: null, maxCandidates: 5, placements: null, planId: null, effect: null, sourceUses: null,
+      purpose: null, unknowns: null, standardization: null }), /outside the qualified computer scope/u);
+    const allowed = await tool.execute({ action: 'search', query: '파란 표', scope: 'path', path: room.elsewhere,
+      handles: null, maxCandidates: 5, placements: null, planId: null, effect: null, sourceUses: null,
+      purpose: null, unknowns: null, standardization: null });
+    assert.equal(allowed.candidates[0].displayName, '무작위문서.txt');
+  } finally { await rm(room.root, { recursive: true, force: true }); }
+});
+
 test('정리 plan은 목적지 충돌을 먼저 보여주고 어떤 파일도 바꾸지 않는다', async () => {
   const room = await fixture();
   try {
@@ -172,6 +187,8 @@ test('무의미한 이미지 파일명도 bounded local OCR 단서로 후보가 
       purpose: null, unknowns: null, standardization: null });
     assert.equal(found.candidates[0].displayName, 'KakaoTalk_20260827_142233.png');
     assert.deepEqual(found.candidates[0].evidence.matchedOcrTerms.sort(), ['4780000', '한빛상사'].sort());
+    assert.equal(found.candidates[0].evidence.ocrExcerpt, '한빛상사 견적 4,780,000');
+    assert.equal(found.candidates[0].evidence.ocrMinimumConfidence, 0.95);
     assert.equal(found.contentIncluded, false); assert.ok(probes <= 12); assert.equal(found.coverage.ocrProbes, probes);
   } finally { await rm(room.root, { recursive: true, force: true }); }
 });

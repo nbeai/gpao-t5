@@ -369,6 +369,7 @@ export function makeConsoleServer({
   protectedFileRoots = [],
   fileIndexSearch = null,
   fileOcrProbe = null,
+  restrictFileRealityToComputerRoots = false,
   capabilityAcquisition = null,
   documentCli = bundledDocumentCli,
   attachmentStore,
@@ -1456,10 +1457,11 @@ export function makeConsoleServer({
       const skillSnapshot = mergeSkillSnapshots([bundledSkillSnapshot, managedSkillSnapshot]);
       const capabilitySnapshot = await capabilityCatalogPromise;
       const offeredTools = [...terminal.tools];
-      offeredTools.unshift(makeFileRealityTool({ workspace, home: homedir(), platform: computer.platform,
+      offeredTools.unshift(makeFileRealityTool({ workspace, home: computer.userHome, platform: computer.platform,
         computerRoots: computerFileRoots ?? [homedir()], protectedRoots: [...protectedFileRoots, stateDir],
         organizationRoot: join(stateDir, 'file-organization'), sourceManifestStore: fileSourceManifests, sessionId,
         ocrProbe: localImageOcr,
+        enforceComputerRoots: restrictFileRealityToComputerRoots,
         ...(fileIndexSearch ? { indexSearch: fileIndexSearch } : {}) }));
       offeredTools.unshift(makeCapabilityRealityTool({ observer: capabilityReality }));
       if (capabilityAcquisition) offeredTools.unshift(makeCapabilityPackageAdminTool({

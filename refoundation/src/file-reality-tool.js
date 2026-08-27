@@ -63,6 +63,14 @@ function contentEvidence(query, content) {
   const matched = queryWords.filter((item) => compact(text).includes(compact(item)));
   return { matched, score: matched.length * 5 };
 }
+function ocrEvidence(query, observed) {
+  const evidence = contentEvidence(query, observed?.text ?? '');
+  const matching = (observed?.observations ?? []).filter((item) => evidence.matched.some(
+    (term) => compact(item?.text).includes(compact(term)),
+  )).slice(0, 3);
+  return { ...evidence, excerpt: matching.map((item) => String(item.text)).join(' · ').slice(0, 240) || null,
+    minimumConfidence: matching.length ? Math.min(...matching.map((item) => Number(item.confidence))) : null };
+}
 function safeInteger(value, fallback, min, max) {
   const parsed = Number(value ?? fallback); return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : fallback;
 }
@@ -173,12 +181,16 @@ export function makeFileRealityTool({
   indexSearch = defaultIndexSearch,
   ocrProbe = null,
   contactSheetBuilder = buildLocalImageContactSheet,
+  enforceComputerRoots = false,
   now = Date.now,
 } = {}) {
   if (!workspace || !home) throw new TypeError('file reality workspace and home are required');
   const handles = new Map();
   const volatilePlans = new Map();
   const canonicalProtectedRoots = Promise.all(protectedRoots.map(async (item) => {
+    try { return await realpath(resolve(item)); } catch { return resolve(item); }
+  }));
+  const canonicalComputerRoots = Promise.all(computerRoots.map(async (item) => {
     try { return await realpath(resolve(item)); } catch { return resolve(item); }
   }));
   const rootsFor = async (scope, path) => {
@@ -191,6 +203,10 @@ export function makeFileRealityTool({
       try {
         const exact = await realpath(resolve(item)); const stat = await lstat(exact);
         if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('file search root is unavailable');
+        if (selected === 'path' && enforceComputerRoots
+          && !(await canonicalComputerRoots).some((root) => pathInside(exact, root))) {
+          throw new Error('file search root is outside the qualified computer scope');
+        }
         if (!output.includes(exact)) output.push(exact);
       } catch (error) {
         if (selected === 'path') throw error;
@@ -336,12 +352,15 @@ export function makeFileRealityTool({
             const remaining = deadline - now(); if (remaining < 100) break; ocrProbes += 1;
             const observed = await ocrProbe(image.candidate, { timeoutMs: Math.min(1_500, remaining) });
             if (observed?.state !== 'observed') continue;
-            const evidence = contentEvidence(clue, observed.text); if (evidence.score <= 0) continue;
+            const evidence = ocrEvidence(clue, observed); if (evidence.score <= 0) continue;
             const existing = ranked.find((item) => item.record.path === image.candidate);
-            if (existing) { existing.score += evidence.score; existing.record.evidence.matchedOcrTerms = evidence.matched; }
+            if (existing) { existing.score += evidence.score; existing.record.evidence.matchedOcrTerms = evidence.matched;
+              existing.record.evidence.ocrExcerpt = evidence.excerpt;
+              existing.record.evidence.ocrMinimumConfidence = evidence.minimumConfidence; }
             else ranked.push({ record: exactRecord(image.candidate, image.stat, home, { indexed: image.indexed,
               matchedNameTerms: image.lexical.matchedName, matchedLocationTerms: image.lexical.matchedPath,
-              matchedContentTerms: [], matchedOcrTerms: evidence.matched,
+              matchedContentTerms: [], matchedOcrTerms: evidence.matched, ocrExcerpt: evidence.excerpt,
+              ocrMinimumConfidence: evidence.minimumConfidence,
               nameSimilarity: Number(image.lexical.nameSimilarity.toFixed(3)) }),
             score: image.lexical.score + evidence.score + (image.indexed ? 10 : 0) });
           }

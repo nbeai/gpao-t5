@@ -12,6 +12,7 @@ import { makeChatGptResponsesModel } from '../src/chatgpt-responses-model.js';
 import { makeOpenAIResponsesModel } from '../src/openai-responses-model.js';
 import { makeLocalImageOcr } from '../src/local-image-ocr.js';
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
+import { makeTerminalPlatformAdapter } from '../src/terminal-platform-adapter.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 import { MessengerCredentialStore } from '../src/messenger-credential-store.js';
 import { loadReadOnlyConnectionCredential } from './run-s3m6-reflection-shadow-qualification.mjs';
@@ -55,10 +56,14 @@ const model = credential.kind === 'api_key'
     credentials: { async get() { return { access: credential.secret.access, accountId: credential.secret.accountId,
       expiresAt: credential.secret.expiresAt, modelId: credential.modelId }; } } });
 const computer = discoverComputerEnvironment({ userHome: room });
+const terminalPlatformAdapter = await makeTerminalPlatformAdapter({ platform: 'darwin', protectedReadRoots: [homedir()] });
 const server = makeConsoleServer({ stateDir, workspace, computerEnvironment: computer, computerFileRoots: [desktop],
+  restrictFileRealityToComputerRoots: true,
   fileOcrProbe: makeLocalImageOcr({ platform: 'darwin', helper }), modelFactory: () => model,
   modelStatus: () => ({ connected: true, provider: credential.provider, modelId: credential.modelId }),
   learningReviewMode: 'off', messengerCredentialStore: new MessengerCredentialStore(join(stateDir, 'messenger')),
+  terminalEnvironment: { HOME: room, PATH: process.env.PATH ?? '/usr/bin:/bin', SHELL: '/bin/zsh', LANG: 'ko_KR.UTF-8' },
+  terminalPlatformAdapter,
   onError: (error) => console.error('[file-intelligence-human]', error?.message ?? error) });
 await new Promise((resolve, reject) => { server.once('error', reject); server.listen(Number(option('--port') ?? 0), '127.0.0.1', resolve); });
 const url = `http://127.0.0.1:${server.address().port}`;

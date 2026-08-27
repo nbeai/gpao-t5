@@ -10,5 +10,8 @@ test('파일 지능 인간 콘솔은 합성 fixture·읽기 전용 모델·빈 m
   assert.match(source, /new MessengerCredentialStore\(join\(stateDir, 'messenger'\)\)/u);
   assert.match(source, /한빛상사 478만원 견적 사진/u); assert.match(source, /여권사진처럼 보이는 파일/u);
   assert.match(source, /사람 신원은 추정하지 말고/u); assert.match(source, /makeLocalImageOcr/u);
+  assert.match(source, /restrictFileRealityToComputerRoots: true/u);
+  assert.match(source, /protectedReadRoots: \[homedir\(\)\]/u);
+  assert.match(source, /terminalEnvironment: \{ HOME: room/u);
   assert.doesNotMatch(source, /migrateStoredModelCredentials|MessengerCredentialStore\([^)]*homedir/u);
 });
