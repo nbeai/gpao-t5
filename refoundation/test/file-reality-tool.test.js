@@ -176,6 +176,32 @@ test('무의미한 이미지 파일명도 bounded local OCR 단서로 후보가 
   } finally { await rm(room.root, { recursive: true, force: true }); }
 });
 
+test('선택한 이미지 후보만 contact sheet로 모델에 한 번 공급하고 receipt에는 base64를 남기지 않는다', async () => {
+  const room = await fixture(); const one = join(room.elsewhere, 'a.png'); const two = join(room.elsewhere, 'b.jpg');
+  await Promise.all([writeFile(one, 'a'), writeFile(two, 'b')]);
+  try {
+    const tool = makeFileRealityTool({ workspace: room.workspace, home: room.root, platform: 'test', computerRoots: [room.root],
+      indexSearch: async () => [one, two], contactSheetBuilder: async (items) => ({ png: Buffer.from('sheet'), width: 720,
+        height: 272, labels: items.map((_, index) => `C${index + 1}`) }) });
+    const found = await tool.execute({ action: 'image_candidates', query: null, scope: 'path', path: room.elsewhere, handles: null,
+      maxCandidates: 10, placements: null, planId: null, effect: null, sourceUses: null, purpose: null,
+      unknowns: null, standardization: null });
+    const images = found.candidates.filter((item) => ['a.png', 'b.jpg'].includes(item.displayName));
+    const result = await tool.execute({ action: 'visual_candidates', query: null, scope: null, path: null,
+      handles: images.map((item) => item.handle), maxCandidates: null, placements: null, planId: null,
+      effect: null, sourceUses: null, purpose: null, unknowns: null, standardization: null });
+    assert.deepEqual(result.candidates.map((item) => item.visualRef), ['C1', 'C2']);
+    assert.equal(result._modelAttachments.length, 1); assert.match(result._modelAttachments[0].image_url, /^data:image\/png;base64,/u);
+    const tools = [tool]; let calls = 0;
+    const run = await runAgent({ request: '사진 후보 보여줘', tools, model: { async respond(input) { calls += 1;
+      if (calls === 1) return { text: '', toolCalls: [{ id: 'visual', name: 'file_reality', args: { action: 'visual_candidates',
+        query: null, scope: null, path: null, handles: images.map((item) => item.handle), maxCandidates: null,
+        placements: null, planId: null, effect: null, sourceUses: null, purpose: null, unknowns: null, standardization: null } }] };
+      assert.equal(input.messages.at(-1).modelAttachments.length, 1); return { text: 'C1을 선택했습니다.', toolCalls: [] }; } } });
+    assert.equal(run.answer, 'C1을 선택했습니다.'); assert.doesNotMatch(JSON.stringify(run.receipts), /base64|c2hlZXQ=/u);
+  } finally { await rm(room.root, { recursive: true, force: true }); }
+});
+
 test('on-demand tool search 뒤 파일 후보→exact reopen을 한 Run에서 사용한다', async () => {
   const room = await fixture();
   try {

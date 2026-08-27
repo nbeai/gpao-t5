@@ -6,6 +6,7 @@ import { basename, extname, isAbsolute, join, parse, relative, resolve, sep } fr
 import { promisify } from 'node:util';
 
 import { inspectBusinessDocument } from './document-data-inspector.js';
+import { buildLocalImageContactSheet } from './local-image-contact-sheet.js';
 
 const runFile = promisify(execFile);
 const TEXT_EXTENSIONS = new Set([
@@ -171,6 +172,7 @@ export function makeFileRealityTool({
   sessionId = null,
   indexSearch = defaultIndexSearch,
   ocrProbe = null,
+  contactSheetBuilder = buildLocalImageContactSheet,
   now = Date.now,
 } = {}) {
   if (!workspace || !home) throw new TypeError('file reality workspace and home are required');
@@ -235,10 +237,11 @@ export function makeFileRealityTool({
       '컴퓨터 전체 파일 찾기 이름 위치 모름 내용 단서 중복 최종본 버전',
       '다운로드 문서 엑셀 계약서 견적서 어디 뒀는지 기억 안남',
       '로컬 이미지 OCR 스캔 사진 영수증 송장 견적 금액 업체명으로 파일 찾기',
+      '폴더 사진 시각 후보 contact sheet 여권사진 증명사진 파일 찾기',
     ],
     relatedTools: ['attachment'],
     parameters: { type: 'object', additionalProperties: false, properties: {
-      action: { type: 'string', enum: ['search', 'inspect', 'compare', 'plan', 'apply', 'rollback', 'bind_sources'] },
+      action: { type: 'string', enum: ['search', 'image_candidates', 'inspect', 'compare', 'plan', 'apply', 'rollback', 'bind_sources', 'visual_candidates'] },
       query: { type: ['string', 'null'], maxLength: 500 },
       scope: { type: ['string', 'null'], enum: ['computer', 'workspace', 'path', null] },
       path: { type: ['string', 'null'], maxLength: 4096 },
@@ -269,6 +272,26 @@ export function makeFileRealityTool({
     },
     async execute({ action, query, scope, path, handles: requestedHandles, maxCandidates, placements, planId, effect,
       sourceUses, purpose, unknowns, standardization } = {}) {
+      if (action === 'image_candidates') {
+        const rootState = await rootsFor(scope, path); const roots = rootState.roots;
+        const exactProtectedRoots = await canonicalProtectedRoots; const startedAt = now(); const deadline = startedAt + 4_000;
+        const walk = await walkFiles(roots, { maxFiles: 100_000, deadline,
+          excludedDirectoryNames: DEFAULT_EXCLUDED_DIRECTORY_NAMES, protectedRoots: exactProtectedRoots });
+        const images = [];
+        for (const candidate of walk.files) {
+          if (!IMAGE_EXTENSIONS.has(extname(candidate).toLowerCase()) || protectedPath(candidate, exactProtectedRoots)) continue;
+          let stat; try { stat = await lstat(candidate); } catch { continue; }
+          if (stat.isFile() && !stat.isSymbolicLink() && stat.size <= 20 * 1024 * 1024) images.push(exactRecord(candidate, stat, home));
+        }
+        images.sort((left, right) => right.modifiedAt.localeCompare(left.modifiedAt) || left.displayName.localeCompare(right.displayName));
+        const limit = safeInteger(maxCandidates, 12, 1, 20);
+        return { state: 'observed', scope: scope ?? 'computer', candidates: images.slice(0, limit).map((record) => ({
+          handle: remember(record), displayName: record.displayName, locationText: record.locationText,
+          extension: record.extension, bytes: record.bytes, modifiedAt: record.modifiedAt })), contentIncluded: false,
+        coverage: { roots: roots.length, unavailableRoots: rootState.unavailableRoots,
+          filesystemFilesVisited: walk.files.length, filesystemEntriesVisited: walk.visited,
+          unreadableDirectories: walk.unreadable, truncated: walk.truncated, elapsedMs: Math.max(0, now() - startedAt) } };
+      }
       if (action === 'search') {
         const clue = String(query ?? '').trim(); if (clue.length < 2) throw new TypeError('file search clues are required');
         const rootState = await rootsFor(scope, path); const roots = rootState.roots;
@@ -467,6 +490,22 @@ export function makeFileRealityTool({
           usage: item.usage, columnMappings: item.columnMappings }); }
         return { state: 'bound', ...(await sourceManifestStore.create({ sessionId, purpose,
           unknowns: unknowns ?? [], sources, standardization })) };
+      }
+      if (action === 'visual_candidates') {
+        if (!Array.isArray(requestedHandles) || requestedHandles.length < 1 || requestedHandles.length > 12) {
+          throw new TypeError('one to twelve image handles are required');
+        }
+        const selected = [];
+        for (const handle of [...new Set(requestedHandles.map(String))]) { const { record } = await reopen(handle);
+          if (!IMAGE_EXTENSIONS.has(record.extension) || record.bytes > 20 * 1024 * 1024) throw new Error('visual candidate is not a supported image');
+          selected.push({ handle, record }); }
+        const sheet = await contactSheetBuilder(selected.map((item) => ({ path: item.record.path })));
+        return { state: 'observed', candidates: selected.map((item, index) => ({ visualRef: sheet.labels[index],
+          handle: item.handle, displayName: item.record.displayName, locationText: item.record.locationText,
+          bytes: item.record.bytes, modifiedAt: item.record.modifiedAt })),
+        contactSheet: { candidateCount: selected.length, width: sheet.width, height: sheet.height,
+          pixelsSuppliedToModel: true },
+        _modelAttachments: [{ type: 'input_image', detail: 'high', image_url: `data:image/png;base64,${sheet.png.toString('base64')}` }] };
       }
       throw new TypeError('file reality action is invalid');
     },

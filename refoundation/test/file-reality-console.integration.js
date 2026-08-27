@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import sharp from 'sharp';
 
 import { makeConsoleServer } from '../src/console-server.js';
 
@@ -106,4 +107,35 @@ test('실제 콘솔은 무의미한 이미지 파일명에서 local OCR 금액·
     body: JSON.stringify({ sessionId: session.id, text: '바탕화면에서 카카오로 받은 한빛상사 478만원 견적 사진 찾아줘' }) });
   const result = await response.json(); assert.equal(response.status, 200, JSON.stringify({ result, errors }));
   assert.match(result.reply, /478만원 견적 사진/u); assert.equal(probes, 2); assert.equal(errors.length, 0, errors.join('\n'));
+});
+
+test('실제 콘솔은 바탕화면의 무의미한 파일명 사진을 bounded contact sheet로 판별한다', async (t) => {
+  const room = await mkdtemp(join(tmpdir(), 't5-passport-photo-console-')); const desktop = join(room, 'Desktop');
+  const workspace = join(room, 'workspace'); await Promise.all([mkdir(desktop), mkdir(workspace)]);
+  const svg = (body) => Buffer.from(`<svg width="300" height="400" xmlns="http://www.w3.org/2000/svg"><rect width="300" height="400" fill="#eee"/>${body}</svg>`);
+  await writeFile(join(desktop, 'KakaoTalk_a.png'), await sharp(svg('<rect x="40" y="60" width="220" height="260" fill="#55a"/>')).png().toBuffer());
+  await writeFile(join(desktop, 'KakaoTalk_b.png'), await sharp(svg('<rect width="300" height="400" fill="white"/><ellipse cx="150" cy="150" rx="70" ry="90" fill="#e8b98e"/><path d="M80 130 Q150 30 220 130" fill="#222"/><path d="M55 400 Q70 260 150 260 Q230 260 245 400" fill="#333"/>')).png().toBuffer());
+  await writeFile(join(desktop, 'KakaoTalk_c.png'), await sharp(svg('<circle cx="150" cy="200" r="110" fill="#5a5"/>')).png().toBuffer());
+  let call = 0; const errors = []; const args = (extra) => ({ query: null, scope: null, path: null, handles: null,
+    maxCandidates: null, placements: null, planId: null, effect: null, sourceUses: null, purpose: null,
+    unknowns: null, standardization: null, ...extra });
+  const server = makeConsoleServer({ stateDir: join(room, 'state'), workspace, computerFileRoots: [desktop],
+    fileOcrProbe: async () => ({ state: 'observed', observations: [], text: '' }),
+    onError: (error) => errors.push(error?.stack ?? String(error)), modelFactory: () => ({ async respond(input) {
+      call += 1;
+      if (call === 1) return { text: '', toolCalls: [{ id: 'find-visual-hand', name: 'tool_search', args: { query: '폴더 사진 시각 후보 contact sheet 찾기' } }] };
+      if (call === 2) return { text: '', toolCalls: [{ id: 'image-candidates', name: 'file_reality', args: args({ action: 'image_candidates', scope: 'path', path: desktop, maxCandidates: 12 }) }] };
+      if (call === 3) { const found = JSON.parse(input.messages.findLast((item) => item.role === 'tool').content).result;
+        return { text: '', toolCalls: [{ id: 'visual-candidates', name: 'file_reality', args: args({ action: 'visual_candidates', handles: found.candidates.map((item) => item.handle) }) }] }; }
+      if (call === 4) { assert.equal(input.messages.at(-1).modelAttachments.length, 1);
+        const observed = JSON.parse(input.messages.at(-2).content).result; assert.equal(observed.candidates[1].displayName, 'KakaoTalk_b.png');
+        return { text: '', toolCalls: [{ id: 'complete-visual', name: 'work_completion', args: { outcome: 'achieved', inputSettlements: [] } }] }; }
+      return { text: '바탕화면에서 여권사진 후보 KakaoTalk_b.png를 찾았습니다.', toolCalls: [] };
+    } }) });
+  t.after(async () => { await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true }); });
+  const base = await listen(server); const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+  const response = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sessionId: session.id, text: '바탕화면에서 여권사진 찾아줘' }) });
+  const result = await response.json(); assert.equal(response.status, 200, JSON.stringify({ result, errors }));
+  assert.match(result.reply, /KakaoTalk_b\.png/u); assert.equal(errors.length, 0, errors.join('\n'));
 });
