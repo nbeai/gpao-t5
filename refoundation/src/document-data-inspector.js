@@ -329,6 +329,80 @@ async function inspectPdf(fileFacts, { maxPages, maxPageChars }) {
   }
 }
 
+function purposeTerms(query) {
+  return [...new Set(String(query ?? '').normalize('NFKC').toLowerCase()
+    .match(/[\p{L}\p{N}]{2,}/gu) ?? [])].slice(0, 24);
+}
+
+function occurrences(text, term) {
+  let count = 0; let cursor = 0;
+  while ((cursor = text.indexOf(term, cursor)) >= 0) { count += 1; cursor += Math.max(1, term.length); }
+  return count;
+}
+
+function purposeSnippet(text, terms, maximum = 600) {
+  const lower = text.toLowerCase(); const offsets = terms.map((term) => lower.indexOf(term)).filter((index) => index >= 0);
+  const center = offsets.length ? Math.min(...offsets) : 0; const start = Math.max(0, center - Math.floor(maximum / 3));
+  return text.slice(start, start + maximum);
+}
+
+export async function searchBusinessDocumentPages({ file, query, maxCandidates = 8,
+  maxBytes = DEFAULT_MAX_BYTES } = {}) {
+  if (!Number.isInteger(maxCandidates) || maxCandidates < 1 || maxCandidates > 16) throw new TypeError('maxCandidates is invalid');
+  const terms = purposeTerms(query); if (!terms.length) throw new TypeError('document page search requires meaningful terms');
+  const facts = await regularFileFacts(String(file ?? ''), maxBytes);
+  if (extname(facts.path).toLowerCase() !== '.pdf' && facts.content.subarray(0, 5).toString('binary') !== '%PDF-') {
+    throw new Error('document page search currently requires a PDF');
+  }
+  const document = await openPdf(facts.content); const candidates = [];
+  try {
+    for (let pageNumber = 1; pageNumber <= document.pageCount; pageNumber += 1) {
+      const page = document.page(pageNumber);
+      try {
+        const text = page.text().trim(); const lower = text.normalize('NFKC').toLowerCase();
+        const matched = terms.map((term) => ({ term, count: occurrences(lower, term) })).filter((item) => item.count > 0);
+        if (!matched.length) continue;
+        const score = matched.reduce((sum, item) => sum + item.count, 0) + (matched.length * 5);
+        candidates.push({ page: pageNumber,
+          pageHandle: `page-${sha256(Buffer.from(`${facts.sha256}:${pageNumber}:${sha256(Buffer.from(text))}`)).slice(0, 24)}`,
+          score, matchedTerms: matched.length, snippet: purposeSnippet(text, terms), totalChars: text.length });
+      } finally { page[Symbol.dispose]?.(); }
+    }
+    candidates.sort((a, b) => b.score - a.score || a.page - b.page);
+    return { schema: 't5.document-page-candidates.v1', fileSha256: facts.sha256,
+      totalPages: document.pageCount, locallySearchedPages: document.pageCount,
+      candidates: candidates.slice(0, maxCandidates), omittedCandidates: Math.max(0, candidates.length - maxCandidates),
+      transmission: { category: 'document_candidates', sourceWholeObserved: true,
+        totalUnits: document.pageCount, sentUnits: Math.min(candidates.length, maxCandidates), wholeSourceSent: false } };
+  } finally { await document[Symbol.asyncDispose]?.(); }
+}
+
+export async function reopenBusinessDocumentPages({ file, expectedSha256, pages,
+  maxPageChars = DEFAULT_MAX_PAGE_CHARS, maxBytes = DEFAULT_MAX_BYTES } = {}) {
+  if (!Array.isArray(pages) || !pages.length || pages.length > 4
+    || pages.some((page) => !Number.isInteger(page) || page < 1)) throw new TypeError('document reopen pages are invalid');
+  const facts = await regularFileFacts(String(file ?? ''), maxBytes);
+  if (facts.sha256 !== expectedSha256) throw Object.assign(new Error('document changed after page selection'), {
+    code: 'T5_DOCUMENT_SELECTION_STALE',
+  });
+  const document = await openPdf(facts.content); const selected = [];
+  try {
+    for (const pageNumber of [...new Set(pages)]) {
+      if (pageNumber > document.pageCount) throw new Error('selected document page no longer exists');
+      const page = document.page(pageNumber);
+      try { const text = page.text().trim(); selected.push({ page: pageNumber, text: text.slice(0, maxPageChars),
+        totalChars: text.length, truncated: text.length > maxPageChars,
+        omittedChars: Math.max(0, text.length - maxPageChars) }); }
+      finally { page[Symbol.dispose]?.(); }
+    }
+    return { schema: 't5.document-page-reopen.v1', fileSha256: facts.sha256,
+      totalPages: document.pageCount, pages: selected,
+      transmission: { category: 'document_excerpt', sourceWholeObserved: true,
+        totalUnits: document.pageCount, sentUnits: selected.length,
+        selectedUnits: selected.map((item) => item.page), wholeSourceSent: selected.length === document.pageCount } };
+  } finally { await document[Symbol.asyncDispose]?.(); }
+}
+
 export async function inspectBusinessDocument({
   file,
   maxBytes = DEFAULT_MAX_BYTES,

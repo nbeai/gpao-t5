@@ -1,4 +1,5 @@
 import { makeContextReceipt } from './context-receipt.js';
+import { makeTransmissionReceipt, settleTransmissionReceipt } from './transmission-receipt.js';
 import {
   reserveProviderAttempt, settleProviderSuccess, settleProviderUnknown,
 } from './provider-request-accounting.js';
@@ -124,7 +125,7 @@ export function makeOpenAIResponsesModel({
   return {
     id: model,
     async respond({
-      messages = [], tools = [], toolChoice = null, signal, onContextReceipt, resourceObserver,
+      messages = [], tools = [], toolChoice = null, signal, onContextReceipt, onTransmissionReceipt, resourceObserver,
       runtimeContext = '',
     } = {}) {
       const requestInstructions = runtimeContext ? `${instructions}\n\n${runtimeContext}` : instructions;
@@ -158,9 +159,10 @@ export function makeOpenAIResponsesModel({
         reasoning: { effort: reasoningEffort },
         store: false,
       };
+      const serializedBody = JSON.stringify(body);
       const contextReceipt = makeContextReceipt({
         provider: 'openai', model, instructions: requestInstructions, input: body.input, tools: body.tools,
-        sourceMessages: messages, body,
+        sourceMessages: messages, body, serializedBody,
       });
       await onContextReceipt?.(structuredClone(contextReceipt));
       await dump?.({
@@ -172,6 +174,9 @@ export function makeOpenAIResponsesModel({
       const resourceHandle = await reserveProviderAttempt(resourceObserver, {
         provider: 'openai', model, attempt: 1, contextReceipt,
       });
+      const transmissionReceipt = makeTransmissionReceipt({ provider: 'openai', model,
+        endpoint, serializedBody });
+      await onTransmissionReceipt?.(structuredClone(transmissionReceipt));
       let response; const responseStart = input.length;
       try {
         response = await fetchImpl(endpoint, {
@@ -180,9 +185,10 @@ export function makeOpenAIResponsesModel({
             'content-type': 'application/json',
             authorization: `Bearer ${key}`,
           },
-          body: JSON.stringify(body),
+          body: serializedBody,
           signal,
         });
+        await onTransmissionReceipt?.(settleTransmissionReceipt(transmissionReceipt, 'response_received'));
       } catch (error) {
         await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_transport_unknown');
         throw new OpenAIResponsesError(`OpenAI request failed: ${safeErrorText(error?.message, key)}`);
@@ -223,6 +229,7 @@ export function makeOpenAIResponsesModel({
         responseModel: json.model ?? model,
         usage: json.usage ?? null,
         contextReceipt,
+        transmissionReceipt: settleTransmissionReceipt(transmissionReceipt, 'response_received'),
       };
     },
     supersedeLastResponse() {

@@ -1,4 +1,5 @@
 import { makeContextReceipt } from './context-receipt.js';
+import { makeTransmissionReceipt, settleTransmissionReceipt } from './transmission-receipt.js';
 import {
   reserveProviderAttempt, settleProviderSuccess, settleProviderUnknown,
 } from './provider-request-accounting.js';
@@ -123,7 +124,7 @@ export function makeUpstageChatCompletionsModel({
   return {
     id: model,
     async respond({
-      messages = [], tools = [], toolChoice = null, signal, onContextReceipt, resourceObserver,
+      messages = [], tools = [], toolChoice = null, signal, onContextReceipt, onTransmissionReceipt, resourceObserver,
       runtimeContext = '',
     } = {}) {
       const requestInstructions = runtimeContext ? `${instructions}\n\n${runtimeContext}` : instructions;
@@ -156,9 +157,10 @@ export function makeUpstageChatCompletionsModel({
           tool_choice: toolChoice?.requiredToolName
             ? { type: 'function', function: { name: toolChoice.requiredToolName } } : 'auto' } : {}),
       };
+      const serializedBody = JSON.stringify(body);
       const contextReceipt = makeContextReceipt({
         provider: 'upstage', model, instructions: requestInstructions, input: body.messages,
-        tools: body.tools ?? [], sourceMessages: messages, body,
+        tools: body.tools ?? [], sourceMessages: messages, body, serializedBody,
       });
       await onContextReceipt?.(structuredClone(contextReceipt));
       await dump?.({ body, meta: { provider: 'upstage', endpoint: new URL(endpoint).origin, model } });
@@ -167,13 +169,17 @@ export function makeUpstageChatCompletionsModel({
       const resourceHandle = await reserveProviderAttempt(resourceObserver, {
         provider: 'upstage', model, attempt: 1, contextReceipt,
       });
+      const transmissionReceipt = makeTransmissionReceipt({ provider: 'upstage', model,
+        endpoint, serializedBody });
+      await onTransmissionReceipt?.(structuredClone(transmissionReceipt));
       let response; const responseStart = history.length;
       try {
         response = await fetchImpl(endpoint, {
           method: 'POST', signal,
           headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-          body: JSON.stringify(body),
+          body: serializedBody,
         });
+        await onTransmissionReceipt?.(settleTransmissionReceipt(transmissionReceipt, 'response_received'));
       } catch (error) {
         await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_transport_unknown');
         throw new UpstageChatCompletionsError(
@@ -220,6 +226,7 @@ export function makeUpstageChatCompletionsModel({
         text: typeof message.content === 'string' ? message.content : '',
         toolCalls: resultCalls(message), responseId: json.id ?? null,
         responseModel: json.model ?? model, usage: normalizedUsage(json.usage), contextReceipt,
+        transmissionReceipt: settleTransmissionReceipt(transmissionReceipt, 'response_received'),
       };
     },
     supersedeLastResponse() {

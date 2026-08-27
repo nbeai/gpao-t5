@@ -1,4 +1,5 @@
 import { makeContextReceipt } from './context-receipt.js';
+import { makeTransmissionReceipt, settleTransmissionReceipt } from './transmission-receipt.js';
 import {
   reserveProviderAttempt, settleProviderSuccess, settleProviderUnknown,
 } from './provider-request-accounting.js';
@@ -143,7 +144,7 @@ export function makeChatGptResponsesModel({
 
   return {
     async respond({
-      messages = [], tools = [], toolChoice = null, signal, onContextReceipt, resourceObserver,
+      messages = [], tools = [], toolChoice = null, signal, onContextReceipt, onTransmissionReceipt, resourceObserver,
       runtimeContext = '',
     } = {}) {
       const requestInstructions = runtimeContext ? `${instructions}\n\n${runtimeContext}` : instructions;
@@ -177,12 +178,15 @@ export function makeChatGptResponsesModel({
         stream: true,
         store: false,
       };
+      const serializedBody = JSON.stringify(body);
       const contextReceipt = makeContextReceipt({
           provider: 'chatgpt_oauth', model: requestModel, instructions: requestInstructions,
-        input: body.input, tools: body.tools, sourceMessages: messages, body,
+        input: body.input, tools: body.tools, sourceMessages: messages, body, serializedBody,
       });
       await onContextReceipt?.(structuredClone(contextReceipt));
       const responseStart = input.length;
+      const transmissionReceipt = makeTransmissionReceipt({ provider: 'chatgpt_oauth', model: requestModel,
+        endpoint, serializedBody });
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         await dump?.({
           body,
@@ -196,6 +200,7 @@ export function makeChatGptResponsesModel({
         const resourceHandle = await reserveProviderAttempt(resourceObserver, {
           provider: 'chatgpt_oauth', model: requestModel, attempt, contextReceipt,
         });
+        await onTransmissionReceipt?.({ ...structuredClone(transmissionReceipt), attempt });
         let parsed;
         let transportError;
         try {
@@ -207,9 +212,10 @@ export function makeChatGptResponsesModel({
               ...(credential.accountId ? { 'chatgpt-account-id': credential.accountId } : {}),
               accept: 'text/event-stream',
             },
-            body: JSON.stringify(body),
+            body: serializedBody,
             signal,
           });
+          await onTransmissionReceipt?.({ ...settleTransmissionReceipt(transmissionReceipt, 'response_received'), attempt });
           const raw = await response.text();
           await observeResponse?.({ status: response.status, raw, attempt });
           if (!response.ok) {
@@ -256,6 +262,7 @@ export function makeChatGptResponsesModel({
             responseModel: parsed.model,
             usage: parsed.usage,
             contextReceipt,
+            transmissionReceipt: settleTransmissionReceipt(transmissionReceipt, 'response_received'),
           };
         }
         await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_attempt_failed', {

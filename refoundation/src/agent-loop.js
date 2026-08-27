@@ -26,6 +26,7 @@ function normalizeResponse(response) {
     responseModel: response?.responseModel ?? null,
     usage: response?.usage ?? null,
     contextReceipt: response?.contextReceipt ?? null,
+    transmissionReceipt: response?.transmissionReceipt ?? null,
   };
 }
 
@@ -407,6 +408,10 @@ export async function runAgent({
           type: 'model_context', turn: modelTurns, contextReceipt: structuredClone(contextReceipt),
         });
       },
+      onTransmissionReceipt: async (transmissionReceipt) => {
+        await onEvent?.({ type: 'model_transmission', turn: modelTurns,
+          transmissionReceipt: structuredClone(transmissionReceipt) });
+      },
     }));
     if (situationBlock) await onEvent?.({
       type: 'resource_optimization_choice', turn: modelTurns,
@@ -420,6 +425,7 @@ export async function runAgent({
       ...(response.responseModel ? { responseModel: response.responseModel } : {}),
       ...(response.usage ? { usage: structuredClone(response.usage) } : {}),
       ...(response.contextReceipt ? { contextReceipt: structuredClone(response.contextReceipt) } : {}),
+      ...(response.transmissionReceipt ? { transmissionReceipt: structuredClone(response.transmissionReceipt) } : {}),
     });
     const reportedTokens = Number(response.usage?.total_tokens);
     if (Number.isFinite(reportedTokens) && reportedTokens > 0) providerTokens += reportedTokens;
@@ -435,6 +441,7 @@ export async function runAgent({
         responseModel: response.responseModel,
         usage: structuredClone(response.usage),
         contextReceipt: structuredClone(response.contextReceipt),
+        ...(response.transmissionReceipt ? { transmissionReceipt: structuredClone(response.transmissionReceipt) } : {}),
       },
     });
     if (providerBudgetExceeded) {

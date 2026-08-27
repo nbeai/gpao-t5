@@ -1,4 +1,5 @@
 import { makeContextReceipt } from './context-receipt.js';
+import { makeTransmissionReceipt, settleTransmissionReceipt } from './transmission-receipt.js';
 import {
   reserveProviderAttempt, settleProviderSuccess, settleProviderUnknown,
 } from './provider-request-accounting.js';
@@ -125,7 +126,7 @@ export function makeAnthropicMessagesModel({
   return {
     id: model,
     async respond({
-      messages = [], tools = [], toolChoice = null, signal, onContextReceipt, resourceObserver,
+      messages = [], tools = [], toolChoice = null, signal, onContextReceipt, onTransmissionReceipt, resourceObserver,
       runtimeContext = '',
     } = {}) {
       const requestInstructions = runtimeContext ? `${instructions}\n\n${runtimeContext}` : instructions;
@@ -157,9 +158,10 @@ export function makeAnthropicMessagesModel({
           tool_choice: { type: 'tool', name: toolChoice.requiredToolName },
         } : {}),
       };
+      const serializedBody = JSON.stringify(body);
       const contextReceipt = makeContextReceipt({
         provider: 'anthropic', model, instructions: requestInstructions, input: body.messages, tools: body.tools,
-        sourceMessages: messages, body,
+        sourceMessages: messages, body, serializedBody,
       });
       await onContextReceipt?.(structuredClone(contextReceipt));
       await dump?.({ body, meta: { provider: 'anthropic', endpoint: new URL(endpoint).origin, model } });
@@ -167,6 +169,9 @@ export function makeAnthropicMessagesModel({
       const resourceHandle = await reserveProviderAttempt(resourceObserver, {
         provider: 'anthropic', model, attempt: 1, contextReceipt,
       });
+      const transmissionReceipt = makeTransmissionReceipt({ provider: 'anthropic', model,
+        endpoint, serializedBody });
+      await onTransmissionReceipt?.(structuredClone(transmissionReceipt));
       let response; const responseStart = history.length;
       try {
         response = await fetchImpl(endpoint, {
@@ -175,8 +180,9 @@ export function makeAnthropicMessagesModel({
             'content-type': 'application/json', 'x-api-key': key,
             'anthropic-version': '2023-06-01',
           },
-          body: JSON.stringify(body),
+          body: serializedBody,
         });
+        await onTransmissionReceipt?.(settleTransmissionReceipt(transmissionReceipt, 'response_received'));
       } catch (error) {
         await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_transport_unknown');
         throw new AnthropicMessagesError(`Anthropic request failed: ${safeText(error?.message, key)}`);
@@ -210,6 +216,7 @@ export function makeAnthropicMessagesModel({
         text: resultText(json.content), toolCalls: resultCalls(json.content),
         responseId: json.id ?? null, responseModel: json.model ?? model,
         usage: normalizedUsage(json.usage), contextReceipt,
+        transmissionReceipt: settleTransmissionReceipt(transmissionReceipt, 'response_received'),
       };
     },
     supersedeLastResponse() {

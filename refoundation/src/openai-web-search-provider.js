@@ -1,4 +1,5 @@
 import { makeContextReceipt } from './context-receipt.js';
+import { makeTransmissionReceipt } from './transmission-receipt.js';
 import {
   reserveProviderAttempt, settleProviderSuccess, settleProviderUnknown,
 } from './provider-request-accounting.js';
@@ -110,11 +111,14 @@ export function makeStoredOpenAIWebSearchProvider({
         ].join(' '),
         store: false,
       };
+      const serializedBody = JSON.stringify(body);
       const contextReceipt = makeContextReceipt({
         provider: 'openai_web_search', model: credential.modelId,
-        instructions: '', input: body.input, tools: body.tools, sourceMessages: [], body,
+        instructions: '', input: body.input, tools: body.tools, sourceMessages: [], body, serializedBody,
       });
       if (signal?.aborted) throw new Error('OpenAI web search cancelled before dispatch');
+      contextReceipt.transmissionReceipt = makeTransmissionReceipt({ provider: 'openai_web_search',
+        model: credential.modelId, endpoint: `${baseUrl}/responses`, serializedBody });
       const resourceHandle = await reserveProviderAttempt(resourceObserver, {
         provider: 'openai_web_search', model: credential.modelId, attempt: 1, contextReceipt,
       });
@@ -123,7 +127,7 @@ export function makeStoredOpenAIWebSearchProvider({
         response = await fetchImpl(`${baseUrl}/responses`, {
           method: 'POST', signal,
           headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-          body: JSON.stringify(body),
+          body: serializedBody,
         });
       } catch (error) {
         await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_transport_unknown');

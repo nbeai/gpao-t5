@@ -28,7 +28,7 @@ function inputKind(item) {
 
 /** Content-free size receipt derived from the exact provider request body. */
 export function makeContextReceipt({
-  provider, model, instructions = '', input = [], tools = [], sourceMessages = [], body,
+  provider, model, instructions = '', input = [], tools = [], sourceMessages = [], body, serializedBody = null,
 } = {}) {
   if (!provider || !model || !body) throw new TypeError('provider, model, and request body are required');
   const inputKinds = {};
@@ -45,7 +45,7 @@ export function makeContextReceipt({
     schema: SCHEMA,
     provider: String(provider),
     model: String(model),
-    requestBytes: jsonBytes(body),
+    requestBytes: serializedBody == null ? jsonBytes(body) : utf8Bytes(serializedBody),
     instructionsBytes: utf8Bytes(instructions),
     input: { items: input.length, bytes: jsonBytes(input), byKind: inputKinds },
     tools: { definitions: tools.length, bytes: jsonBytes(tools), byName: toolsByName },

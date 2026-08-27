@@ -1,4 +1,5 @@
 import { makeContextReceipt } from './context-receipt.js';
+import { makeTransmissionReceipt, settleTransmissionReceipt } from './transmission-receipt.js';
 import {
   reserveProviderAttempt, settleProviderSuccess, settleProviderUnknown,
 } from './provider-request-accounting.js';
@@ -157,7 +158,7 @@ export function makeGeminiGenerateContentModel({
   return {
     id: model,
     async respond({
-      messages = [], tools = [], toolChoice = null, signal, onContextReceipt, resourceObserver,
+      messages = [], tools = [], toolChoice = null, signal, onContextReceipt, onTransmissionReceipt, resourceObserver,
       runtimeContext = '',
     } = {}) {
       const requestInstructions = runtimeContext ? `${instructions}\n\n${runtimeContext}` : instructions;
@@ -191,9 +192,10 @@ export function makeGeminiGenerateContentModel({
         } } } : {}),
         generationConfig: { maxOutputTokens },
       };
+      const serializedBody = JSON.stringify(body);
       const contextReceipt = makeContextReceipt({
         provider: 'gemini', model, instructions: requestInstructions, input: body.contents, tools: body.tools,
-        sourceMessages: messages, body,
+        sourceMessages: messages, body, serializedBody,
       });
       await onContextReceipt?.(structuredClone(contextReceipt));
       await dump?.({ body, meta: { provider: 'gemini', endpoint: new URL(endpoint).origin, model } });
@@ -201,13 +203,17 @@ export function makeGeminiGenerateContentModel({
       const resourceHandle = await reserveProviderAttempt(resourceObserver, {
         provider: 'gemini', model, attempt: 1, contextReceipt,
       });
+      const transmissionReceipt = makeTransmissionReceipt({ provider: 'gemini', model,
+        endpoint, serializedBody });
+      await onTransmissionReceipt?.(structuredClone(transmissionReceipt));
       let response; const responseStart = contents.length;
       try {
         response = await fetchImpl(endpoint, {
           method: 'POST', signal,
           headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
-          body: JSON.stringify(body),
+          body: serializedBody,
         });
+        await onTransmissionReceipt?.(settleTransmissionReceipt(transmissionReceipt, 'response_received'));
       } catch (error) {
         await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_transport_unknown');
         throw new GeminiGenerateContentError(`Gemini request failed: ${safeText(error?.message, key)}`);
@@ -242,6 +248,7 @@ export function makeGeminiGenerateContentModel({
         text: outputText(content.parts), toolCalls: outputCalls(content.parts),
         responseId: json.responseId ?? null, responseModel: json.modelVersion ?? model,
         usage: normalizedUsage(json.usageMetadata), contextReceipt,
+        transmissionReceipt: settleTransmissionReceipt(transmissionReceipt, 'response_received'),
       };
     },
     supersedeLastResponse() {

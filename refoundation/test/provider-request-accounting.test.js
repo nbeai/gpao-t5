@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 
 import { makeAnthropicMessagesModel } from '../src/anthropic-messages-model.js';
 import { makeChatGptResponsesModel } from '../src/chatgpt-responses-model.js';
@@ -49,13 +50,19 @@ test('모든 model adapter는 provider fetch 전에 reserve하고 실제 usage �
     },
   ];
   for (const item of cases) {
-    const sequence = [];
+    const sequence = []; let wire = null; const transmissions = [];
     const observer = accounting(sequence);
-    const model = item.model(async () => { sequence.push(['fetch']); return json(item.response); });
-    await model.respond({ messages: user, tools: [], resourceObserver: observer });
+    const model = item.model(async (_url, init) => { wire = init.body; sequence.push(['fetch']); return json(item.response); });
+    const result = await model.respond({ messages: user, tools: [], resourceObserver: observer,
+      onTransmissionReceipt: async (receipt) => transmissions.push(receipt) });
     assert.deepEqual(sequence.map(([kind]) => kind), ['reserve', 'fetch', 'commit'], item.name);
     assert.equal(sequence[0][1].attempt, 1, item.name);
     assert.ok(sequence[0][1].contextReceipt.requestBytes > 0, item.name);
+    assert.equal(transmissions.length, 2, item.name);
+    assert.deepEqual(transmissions.map((receipt) => receipt.transportState), ['dispatch_attempted', 'response_received'], item.name);
+    assert.equal(transmissions[0].requestBytes, Buffer.byteLength(wire), item.name);
+    assert.equal(transmissions[0].wireSha256, createHash('sha256').update(wire).digest('hex'), item.name);
+    assert.equal(result.transmissionReceipt.transportState, 'response_received', item.name);
   }
 });
 

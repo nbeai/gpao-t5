@@ -122,6 +122,7 @@ import { qualifyLearningComparison } from './learning-qualification.js';
 import { runLearningEvaluation } from './learning-evaluator.js';
 import { deferTools, makeToolSearchTool } from './tool-search.js';
 import { makeLocalConsoleGuard } from './local-console-guard.js';
+import { projectTransmissionReceipt } from './transmission-receipt.js';
 import { createWholeStateBundle, restoreWholeStateBundle, wholeStateTreeDigest } from './whole-state-bundle.js';
 import { makeT5WholeStateRegistry, validateT5WholeStateRelationships } from './t5-whole-state.js';
 
@@ -1952,6 +1953,9 @@ export function makeConsoleServer({
               type: 'model_context_built', stepId: `model-${event.turn}`,
               payload: { turn: event.turn, contextReceipt: event.contextReceipt },
             });
+          } else if (event.type === 'model_transmission') {
+            await run.append({ type: 'model_transmission_attempted', stepId: `model-wire-${event.turn}`,
+              payload: { turn: event.turn, transmissionReceipt: event.transmissionReceipt } });
           } else if (event.type === 'information_projection') {
             await run.append({
               type: 'information_projection',
@@ -3526,6 +3530,28 @@ export function makeConsoleServer({
           markdown: await readFile(founderManifestoPath, 'utf8'),
         });
         return;
+      }
+      if (req.method === 'GET' && url.pathname === '/transmission/recent') {
+        const requested = Number(url.searchParams.get('limit') ?? 10); const limit = Math.max(1, Math.min(20,
+          Number.isSafeInteger(requested) ? requested : 10)); const items = [];
+        for (const run of await runLedger.list()) {
+          const byTurn = new Map();
+          for (const event of run.events) {
+            if (event.type === 'model_transmission_attempted' && event.payload?.transmissionReceipt) {
+              byTurn.set(event.payload.turn, { recordedAt: event.recordedAt,
+                receipt: event.payload.transmissionReceipt });
+            }
+            if (event.type === 'model_completed' && event.payload?.response?.transmissionReceipt) {
+              byTurn.set(event.payload.turn, { recordedAt: event.recordedAt,
+                receipt: event.payload.response.transmissionReceipt });
+            }
+          }
+          for (const value of byTurn.values()) items.push({ recordedAt: value.recordedAt,
+            ...projectTransmissionReceipt(value.receipt) });
+          if (items.length >= limit * 2) break;
+        }
+        items.sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
+        privateJson(res, 200, { items: items.slice(0, limit), contentIncluded: false }); return;
       }
       if (req.method === 'POST' && url.pathname === '/backup/create') {
         const input = await body(req);
