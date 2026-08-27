@@ -1,0 +1,54 @@
+{
+  "schema": "t5.macos-search-dock-repair.v1",
+  "recordedOn": "2026-08-28",
+  "status": "SOURCE_REPAIRED_INSTALLER_REQUALIFICATION_REQUIRED",
+  "baseSourceCommit": "96c6bda67c3a8ef21696436d7f2db9724eb2639d",
+  "repairSourceCommit": "35369534657527684362da996f91acbce9cbc96f",
+  "incidents": [
+    {
+      "kind": "unexpected_macos_app_data_prompt",
+      "observedService": "kTCCServiceSystemPolicyAppData",
+      "responsibleBundle": "kr.co.gpao.t5",
+      "cause": "whole user home was passed to Spotlight and direct filesystem traversal for an ordinary file search"
+    },
+    {
+      "kind": "dock_identity_disappeared_after_console_open",
+      "cause": "the regular GPAO-T5 launcher terminated immediately after opening the browser console"
+    },
+    {
+      "kind": "background_identity_shown_as_node",
+      "cause": "the LaunchAgent executed the bundled node binary directly"
+    }
+  ],
+  "repairs": {
+    "ordinaryFileSearchRoots": [
+      "Desktop", "Documents", "Downloads", "Movies", "Music", "Pictures", "Public", "/Users/Shared", "/Volumes"
+    ],
+    "defaultWholeHomeRootRemoved": true,
+    "protectedLibraryPackages": [
+      ".photoslibrary", ".photolibrary", ".musiclibrary", ".imovielibrary", ".fcpbundle"
+    ],
+    "spotlightSkippedForDirectWalkMediaRoots": ["Pictures", "Music", "Movies"],
+    "regularAppRemainsInDock": true,
+    "dockReopenUsesExistingConsole": true,
+    "explicitAppQuitStopsLocalRuntime": true,
+    "backgroundEntryExecutable": "GPAO-T5 --background-runtime",
+    "backgroundModeDockVisible": false
+  },
+  "verification": {
+    "focused": "23 passed, 0 failed",
+    "nativeLauncherCompile": ["arm64", "x86_64"],
+    "daily": "1624 passed, 0 failed, 1 physical-Windows skipped",
+    "integration": "192 passed, 0 failed, 2 physical-Windows skipped",
+    "mutation": "2 of 2 killed",
+    "sourceDiffCheck": "passed"
+  },
+  "notClaimed": [
+    "new signed or notarized installer created",
+    "physical installed-app TCC prompt count verified as zero",
+    "physical Dock persistence and reopen verified on the rebuilt signed app",
+    "macOS background-items label physically verified after reinstall",
+    "Photos or Calendar official API integration completed",
+    "cloud-drive connector integration completed"
+  ]
+}

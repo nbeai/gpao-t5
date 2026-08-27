@@ -17,6 +17,14 @@ macOS·Windows 물리 제품 자격은 여전히 별도 후속 Gate로 남는다
 확인했고, 대화 입력 exact-once·실제 경과시간·교정/취소 Work 귀속도 다시 닫았다. 설치 파일 생성·서명·공증·
 설치·upgrade·rollback은 이 세션의 완료가 아니며 전용 설치 세션으로 이관한다.
 
+최초 0.3.0 설치본 실측에서 일반 파일 검색이 사용자 홈 전체를 Spotlight·직접 순회해 macOS의 다른 앱
+데이터 권한을 불필요하게 요청하고, 브라우저 콘솔을 연 직후 앱 런처가 종료돼 Dock identity가 사라지는
+결함이 확인됐다. commit `35369534`에서 기본 파일 검색을 사용자 자료 root로 제한하고 Photos·Music·Movie
+library package 직접 순회를 닫았으며, GPAO-T5 앱은 Dock에 상주해 재클릭 시 기존 콘솔을 열고 명시 종료 때
+Runtime을 정산하도록 교정했다. login background entry도 raw `node` 대신 GPAO-T5의 prohibited mode를 사용한다.
+source 수리와 회귀는 `refoundation/evidence/macos-search-dock-repair-2026-08-28.json`에 보존하며, 새 signed
+설치본에서 권한창 0·Dock 상주·background 표시를 물리 확인하는 책임은 전용 설치 세션에 남는다.
+
 현재 공식 Release Gate와 2차 완성의 진행 정본은 계속 `T5-SECOND-COMPLETION.md`가 담당한다. 이 문서는
 그 Release 상태는 변경하지 않는다. 오너는 2026-08-26 S3-A 측정선을 활성화하고 Terminal-first 고도화를
 `PASS WITH OBSERVATION`으로 닫았으며, Life Continuity는 commit `80dc0305`에서
