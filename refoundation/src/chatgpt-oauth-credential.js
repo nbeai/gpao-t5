@@ -311,8 +311,11 @@ export function makeStoredChatGptCredentialSource({
 }
 
 /** Public metadata for both connection kinds. Secret values never leave `select`. */
-export function makeStoredModelCredentialCatalog({ file, secretStore = null } = {}) {
+export function makeStoredModelCredentialCatalog({
+  file, secretStore = null, saveState = atomicSave,
+} = {}) {
   if (!file) throw new TypeError('model connection file is required');
+  if (typeof saveState !== 'function') throw new TypeError('model connection state writer is required');
   return {
     async list() {
       const state = await readState(file);
@@ -359,7 +362,7 @@ export function makeStoredModelCredentialCatalog({ file, secretStore = null } = 
         throw new ModelConnectionError('Model connection not found');
       }
       state.activeId = id;
-      await atomicSave(file, state);
+      await saveState(file, state);
       return { activeId: id };
     },
     async remove(id) {
@@ -368,13 +371,19 @@ export function makeStoredModelCredentialCatalog({ file, secretStore = null } = 
       const next = state.connections.filter((connection) => connection.id !== id);
       if (next.length === state.connections.length) throw new ModelConnectionError('Model connection not found');
       const removed = state.connections.find((connection) => connection.id === id);
+      const nextState = {
+        ...state,
+        connections: next,
+        activeId: state.activeId === id ? next[0]?.id ?? null : state.activeId,
+      };
+      // The public connection state is the owner of the secret reference. Commit its removal
+      // first so a disk/rename failure cannot leave live metadata pointing at an already-deleted
+      // Keychain/DPAPI item. Secret cleanup is exact and happens only after that atomic commit.
+      await saveState(file, nextState);
       if (secretStore && removed) {
         await secretStore.clear(removed.secretRef ?? modelCredentialSecretName(removed.id));
       }
-      state.connections = next;
-      if (state.activeId === id) state.activeId = next[0]?.id ?? null;
-      await atomicSave(file, state);
-      return { removed: true, activeId: state.activeId };
+      return { removed: true, activeId: nextState.activeId };
     },
   };
 }

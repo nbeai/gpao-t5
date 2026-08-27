@@ -162,6 +162,66 @@ test('콘솔 credential catalog는 API 키와 OAuth를 함께 보이되 목록�
   }
 });
 
+test('모델 연결 제거는 metadata commit 실패 시 OAuth·API secret을 건드리지 않는다', async () => {
+  for (const kind of ['chatgpt_oauth', 'api_key']) {
+    const dir = await mkdtemp(join(tmpdir(), `t5-model-remove-commit-fault-${kind}-`));
+    const file = join(dir, 'model-connection.json'); const secrets = secretStore();
+    const id = kind === 'chatgpt_oauth' ? 'chatgpt_oauth:gpt-5.5' : 'api_key:openai:gpt-5.6-terra';
+    const secretRef = kind === 'chatgpt_oauth' ? 'model-credential-oauth-fault' : 'model-credential-api-fault';
+    const secret = kind === 'chatgpt_oauth'
+      ? { credential: { access: ACCESS, refresh: REFRESH, expiresAt: Date.now() + 600_000 } }
+      : { key: 'sk-remove-fault-secret' };
+    const state = { version: 2, activeId: id, roleBindings: {}, connections: [{
+      id, kind, provider: kind === 'chatgpt_oauth' ? 'chatgpt_oauth' : 'openai',
+      modelId: kind === 'chatgpt_oauth' ? 'gpt-5.5' : 'gpt-5.6-terra', secretRef,
+    }] };
+    await writeFile(file, JSON.stringify(state), { mode: 0o600 });
+    await secrets.set(secretRef, secret);
+    let clearCalls = 0; const originalClear = secrets.clear.bind(secrets);
+    secrets.clear = async (name) => { clearCalls += 1; return originalClear(name); };
+    try {
+      const catalog = makeStoredModelCredentialCatalog({
+        file, secretStore: secrets,
+        saveState: async () => { throw new Error('injected metadata commit failure'); },
+      });
+      await assert.rejects(catalog.remove(id), /metadata commit failure/u);
+      assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), state);
+      assert.deepEqual(await secrets.get(secretRef), secret);
+      assert.equal(clearCalls, 0);
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  }
+});
+
+test('모델 연결 제거 성공은 metadata atomic commit 뒤 exact secret을 정리한다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-model-remove-order-'));
+  const file = join(dir, 'model-connection.json'); const secrets = secretStore();
+  const removedId = 'chatgpt_oauth:gpt-5.5'; const retainedId = 'api_key:openai:gpt-5.6-terra';
+  const removedRef = 'model-credential-remove-order'; const retainedRef = 'model-credential-retained';
+  const state = { version: 2, activeId: removedId, roleBindings: {}, connections: [
+    { id: removedId, kind: 'chatgpt_oauth', provider: 'chatgpt_oauth', modelId: 'gpt-5.5', secretRef: removedRef },
+    { id: retainedId, kind: 'api_key', provider: 'openai', modelId: 'gpt-5.6-terra', secretRef: retainedRef },
+  ] };
+  await writeFile(file, JSON.stringify(state), { mode: 0o600 });
+  await secrets.set(removedRef, { credential: { access: ACCESS } });
+  await secrets.set(retainedRef, { key: 'sk-retained' });
+  const events = []; const originalClear = secrets.clear.bind(secrets);
+  secrets.clear = async (name) => {
+    const committed = JSON.parse(await readFile(file, 'utf8'));
+    assert.equal(committed.connections.some((connection) => connection.id === removedId), false);
+    events.push('metadata'); events.push(`secret:${name}`); return originalClear(name);
+  };
+  try {
+    const catalog = makeStoredModelCredentialCatalog({ file, secretStore: secrets });
+    assert.deepEqual(await catalog.remove(removedId), { removed: true, activeId: retainedId });
+    assert.deepEqual(events, ['metadata', `secret:${removedRef}`]);
+    const persisted = JSON.parse(await readFile(file, 'utf8'));
+    assert.deepEqual(persisted.connections.map((connection) => connection.id), [retainedId]);
+    assert.equal(persisted.activeId, retainedId);
+    assert.equal(await secrets.get(removedRef), null);
+    assert.deepEqual(await secrets.get(retainedRef), { key: 'sk-retained' });
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 test('만료된 OAuth 자격은 refresh하고 같은 0600 저장 파일에 원자적으로 갱신한다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 't5-oauth-refresh-'));
   const file = join(dir, 'model-connection.json');
