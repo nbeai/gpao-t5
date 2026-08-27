@@ -13,5 +13,8 @@ test('macOS와 Windows adapter는 같은 ledger를 쓰되 현재 OS 밖 native P
   const source = await readFile(new URL('../src/file-activity-platform-adapters.js', import.meta.url), 'utf8');
   assert.match(source,/process\.platform !== platform/u);assert.match(source,/macos_fsevents/u);
   assert.match(source,/windows_usn/u);assert.match(source,/rescan_required/u);
+  assert.match(source,/const exit = new Promise[\s\S]*once\('close'/u);
+  assert.match(source,/const code=await exit/u);
+  assert.match(source,/pending\.length>=128/u);assert.match(source,/setTimeout[\s\S]*100/u);
   assert.doesNotMatch(source,/WSL|linux/u);
 });

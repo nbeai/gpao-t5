@@ -40,12 +40,13 @@ async function atomicJson(path, value) {
   await writeFile(temporary, `${JSON.stringify(value)}\n`, { mode: 0o600 }); await chmod(temporary, 0o600);
   await rename(temporary, path); await chmod(path, 0o600);
 }
-async function safeAppend(path, line) {
+async function safeAppendLines(path, lines) {
+  if (!Array.isArray(lines) || !lines.length) return;
   const flags = constants.O_CREAT | constants.O_APPEND | constants.O_WRONLY
     | (constants.O_NOFOLLOW ?? 0); const handle = await open(path, flags, 0o600);
   try {
     const before = await handle.stat(); if (!before.isFile() || before.nlink !== 1) throw new Error('activity file is unsafe');
-    await handle.write(`${line}\n`); await handle.sync();
+    await handle.write(`${lines.join('\n')}\n`); await handle.sync();
     const after = await handle.stat(); const pathAfter = await lstat(path);
     if (after.dev !== before.dev || after.ino !== before.ino || after.nlink !== 1
       || pathAfter.dev !== after.dev || pathAfter.ino !== after.ino || pathAfter.nlink !== 1) {
@@ -186,8 +187,8 @@ export class ScopedFileActivityLedger {
         if (!seen.has(event.sourceKey)) coalesced.set(event.sourceKey, event);
       }
       const accepted = [...coalesced.values()]; let sequence = existing.length;
-      for (const event of accepted) await safeAppend(this.activityFile(state.generation), JSON.stringify({
-        schema: EVENT_SCHEMA, sequence: ++sequence, source, journalDigest, ...event }));
+      await safeAppendLines(this.activityFile(state.generation), accepted.map((event) => JSON.stringify({
+        schema: EVENT_SCHEMA, sequence: ++sequence, source, journalDigest, ...event })));
       const next = { ...state, journal: exactJournal, cursor: exactCursor,
         eventCount: existing.length + accepted.length, lastBatchAt: canonicalTime(recordedAt) };
       await this.saveState(next);
