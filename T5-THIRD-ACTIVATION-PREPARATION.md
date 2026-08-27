@@ -1,6 +1,6 @@
 # T5 3차 고도화 — 활성화 전 준비 정본
 
-상태: `S3A_PASS_WITH_OBSERVATION · S3_SCOPE_FROZEN · S3T_PASS_WITH_OBSERVATION · S3M_MEMORY_CORE_COMPLETE_ADAPTIVE_DEFERRED · S3UX_REQUALIFIED_PASS_WITH_OBSERVATION · S3CA_DEFERRED_NEXT_CYCLE · S3CH0_3_CORE_COMPLETE_PRODUCT_JOURNEYS_ACTIVE · S3VD_CORE_PASS_WITH_OBSERVATION · OPTIMIZATION LOCKED`
+상태: `THIRD_COMPLETION_SOURCE_PASS_WITH_OBSERVATION · MACOS_QUALIFIED · WINDOWS_CODE_READY_EXTERNAL_QUALIFICATION_PENDING · S3M_ADAPTIVE_DEFERRED · S3CA_DEFERRED_NEXT_CYCLE`
 
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN`
 
@@ -39,12 +39,20 @@ collector를 얹지 않는다. 이 문서는 측정·반대시험·판정의 범
 아이디어와 비핵심 관측은 현재 범위를 넓히지 않고 3차 종료 뒤 별도 후속 후보로 남긴다. 등록된 각 기술선의
 완료 문장, S3-WA 전체 배선 감사, S3-HQ 내부 인간 자격이 모두 닫히면 3차를 완료하고 종료한다.
 
+2026-08-27 종료 결과: S3-WA는 evidence `s3-wa-whole-product-wiring-close-2026-08-27.json`에서 post-fix
+세 감사 lane의 재현 P0/P1 0과 전체 회귀를 확인했고, S3-HQ는 evidence
+`s3-hq-human-reality-close-2026-08-27.json`에서 `developer_fast_feedback` 6/6과
+`pre_tester_reality` 16/16을 실제 Terra·gpt-5.5 격리 콘솔로 통과했다. macOS 3차 source는 자격됐고,
+Windows는 installer·launcher·LOCALAPPDATA·DPAPI/Job host·CH helper code-ready까지 닫았으나 물리 Windows의
+서명 설치·x64/ARM64 실행·UI·Search/ACL·sandbox-first·두 모델 인간 자격은 외부 batch로 남는다. 따라서
+3차 source 개발은 `PASS WITH OBSERVATION`으로 종료하지만 macOS+Windows 종합 Release 완료는 주장하지 않는다.
+
 ## 1. 활성화 전 판정
 
 ```text
 2차 Release Gate: 변경 없음
-3차 개발선: S3-A 완료 · S3-T 완료 · S3-M Memory Core 완료/Adaptive Learning 다음 차수 · S3-UX 재자격 완료 · CH-0~3 Core 완료/제품 인간 여정 진행 · S3-CA1→4 다음 차수 · S3-VD Core 완료 · S3-PW 최소 플랫폼 자격 대기
-현재 허용 작업: CH1~3 제품 인간 여정, 현재 HEAD 회귀, S3-PW 최소 자격, S3-WA, S3-HQ 종료 작업
+3차 개발선: S3-A·T·M0~5·UX·CH0~3·VD·WA·HQ 완료 · S3-CA와 M6 adaptive 다음 차수 · Windows code-ready/외부 자격 대기
+현재 허용 작업: 현재 source macOS package·공증·설치 smoke 또는 별도 물리 Windows 자격 batch; 3차 기능·Prompt 추가 개발은 종료
 현재 금지 작업: 측정 결과를 전제한 구조 변경·성능 최적화, S3-UX/CA/VD 제품 hot path 선구현, UX/CH-0 전 CH-1 collector 선행, screen/audio/content capture, 여러 큰 개발선 동시 개통, 새 3차 개발선·기능 범위 추가
 ```
 
@@ -64,11 +72,11 @@ Release package 완료 조건을 대신하지도 않는다. Release 작업과 S3
 | S3-M | Life Continuity·Memory Stewardship·내부 Reflection/Principle/Skill | M0~M5 Memory Core 완료 · M6 기반은 default off · actual Principle/Skill은 다음 차수 |
 | S3-UX | Work Reality·교정/취소/복구·인간용 Receipt·Artifact/Effect 안심 | `PASS WITH OBSERVATION` · full-product 재자격 완료 |
 | S3-CA | Capability Reality·개발자 확장 설치·자연어 안전 획득·lifecycle | 다음 차수 이관 · 3차 구현 중단 |
-| S3-CH | Local Computer History·과거 Work/파일/앱 provenance | CH-0~3 Core·격리 자격 완료 · CH1~3 실제 제품 인간 여정 진행 |
-| S3-PW | Windows installer·app shell·공통 제품 자격 | 대기 |
+| S3-CH | Local Computer History·과거 Work/파일/앱 provenance | CH-0~3 제품 인간 여정 완료 · Windows physical은 PW external batch |
+| S3-PW | Windows installer·app shell·공통 제품 자격 | code-ready 완료 · physical Windows external qualification 대기 |
 | S3-VD | Visual Deliverable Core·출력 표면 선택·렌더 관측·교정·브랜드 파라미터 | Core `PASS WITH OBSERVATION` · Windows/편집형 PPTX/브랜드 인간 패널은 PW·HQ 자격 대기 |
-| S3-WA | Whole-product Wiring Audit·3차 부품의 실제 제품 배선·단일 진실·복구 경계 | 3차 기술 개발 완료 뒤 읽기 전용 감사 대기 |
-| S3-HQ | 한국 사업자 Human Reality Qualification·외부 테스터 전 내부 인간 자격 | 실행 체계 완료 · 3차 기술 개발 완료 뒤 실행 대기 |
+| S3-WA | Whole-product Wiring Audit·3차 부품의 실제 제품 배선·단일 진실·복구 경계 | `PASS WITH OBSERVATION` · post-fix P0/P1 0 |
+| S3-HQ | 한국 사업자 Human Reality Qualification·외부 테스터 전 내부 인간 자격 | `PASS WITH OBSERVATION` · fast 6/6 · pre-tester 16/16 |
 
 개발선 표는 일정표가 아니다. S3-A 뒤 구조가 자동 개통되지 않으며, 오너가 연 한 제품 개발선만 hot path를
 변경한다. S3-M6는 내부 학습 Skill만, S3-CA는 외부 Skill·MCP·CLI·Plugin 획득만 소유한다. S3-UX는 기존
@@ -754,7 +762,8 @@ S3-CA 연구 등록은 S3-M hot path 병행 개통을 뜻하지 않는다. 현�
 S3-M6는 CA capability의 usage outcome pointer를 Reflection Evidence로 참고할 수 있지만 외부 설치·update·rollback을
 수행하지 않는다. S3-CA는 사용자 Memory·Reflection·Principle을 저장하거나 의미 선택하지 않는다.
 
-3차 종합 완료는 각 개발선의 독립 PASS와 최종 사용자 목적 교차 자격을 요구한다.
+3차 source 완료는 각 개발선의 독립 PASS와 최종 사용자 목적 교차 자격을 요구한다. Windows public Release는
+아래 외부 실제 자격을 별도 논리곱으로 유지하며 code-ready를 actual PASS로 바꾸지 않는다.
 
 ```text
 S3-A Performance Truth
@@ -767,8 +776,11 @@ AND S3-VD Visual Deliverable Core
 AND S3-PW가 필요한 Windows 공통 자격
 AND S3-WA Whole-product Wiring Audit·재현 P0/P1 close
 AND S3-HQ developer_fast_feedback·pre_tester_reality 내부 인간 자격
-AND macOS·Windows 실제 사용자·비교군 Release
+AND macOS source actual qualification
+AND Windows code-ready with physical Windows qualification explicitly pending
 ```
+
+macOS+Windows 종합 Release 완료는 physical Windows 사용자·설치·보안 receipt가 추가된 뒤에만 별도로 선언한다.
 
 S3-CA의 다음 작업은 제품 코드가 아니라, 현재 능력으로 끝나는 positive control 하나와 미등록 외부 능력이
 필요한 실제 사용자 실패 하나의 목적·원본·종료점·비목표를 고정하는 것이다.

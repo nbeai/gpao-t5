@@ -1,0 +1,70 @@
+{
+  "schema": "t5.s3hq.human-reality-close.v1",
+  "recordedOn": "2026-08-27",
+  "status": "PASS_WITH_OBSERVATION",
+  "finalSourceCommit": "dd1342f278bd6660a8236c0fbe7d249c6db10090",
+  "waves": {
+    "developer_fast_feedback": {
+      "passed": 6, "failed": 0, "pendingHumanReview": 0, "notRun": 0,
+      "lanes": { "observedDemand": "2/2", "workflowCoverage": "2/2", "structuralStress": "2/2" }
+    },
+    "pre_tester_reality": {
+      "passed": 16, "failed": 0, "pendingHumanReview": 0, "notRun": 0,
+      "lanes": { "observedDemand": "6/6", "workflowCoverage": "7/7", "structuralStress": "3/3" }
+    }
+  },
+  "finalSuccessfulScenarios": [
+    { "id": "KHB-D01", "model": "gpt-5.6-terra", "tokens": 42581, "wallMs": 17779, "modelCalls": 5, "toolCalls": 3 },
+    { "id": "KHB-D02", "model": "gpt-5.6-terra", "tokens": 23113, "wallMs": 10021, "modelCalls": 3, "toolCalls": 2 },
+    { "id": "KHB-D03", "model": "gpt-5.6-terra", "tokens": 25081, "wallMs": 15204, "modelCalls": 3, "toolCalls": 2 },
+    { "id": "KHB-D08", "model": "gpt-5.6-terra", "tokens": 24526, "wallMs": 7334, "modelCalls": 3, "toolCalls": 2 },
+    { "id": "KHB-D10", "model": "gpt-5.5", "tokens": 9372, "wallMs": 11540, "modelCalls": 1, "toolCalls": 0 },
+    { "id": "KHB-D12", "model": "gpt-5.6-terra", "tokens": 9313, "wallMs": 7131, "modelCalls": 1, "toolCalls": 0 },
+    { "id": "KHB-E01", "model": "gpt-5.6-terra", "tokens": 65791, "wallMs": 20688, "modelCalls": 6, "toolCalls": 5 },
+    { "id": "KHB-R01", "model": "gpt-5.6-terra", "tokens": 57364, "wallMs": 27890, "modelCalls": 5, "toolCalls": 4 },
+    { "id": "KHB-S01", "model": "gpt-5.5", "tokens": 106652, "wallMs": 66801, "modelCalls": 8, "toolCalls": 8 },
+    { "id": "KHB-P01", "model": "gpt-5.5", "tokens": 62205, "wallMs": 56504, "modelCalls": 6, "toolCalls": 7 },
+    { "id": "KHB-M01", "model": "gpt-5.6-terra", "tokens": 36820, "wallMs": 15855, "modelCalls": 4, "toolCalls": 3 },
+    { "id": "KHB-A01", "model": "gpt-5.5", "tokens": 42285, "wallMs": 33252, "modelCalls": 4, "toolCalls": 4 },
+    { "id": "KHB-C01", "model": "gpt-5.6-terra", "tokens": 47178, "wallMs": 12521, "modelCalls": 5, "toolCalls": 4 },
+    { "id": "KHB-E02", "model": "gpt-5.6-terra", "tokens": 25745, "wallMs": 7906, "modelCalls": 3, "toolCalls": 3 },
+    { "id": "KHB-E03", "model": "gpt-5.6-terra", "tokens": 39781, "wallMs": 13075, "modelCalls": 4, "toolCalls": 5 },
+    { "id": "KHB-H01", "model": "gpt-5.6-terra", "tokens": 81805, "wallMs": 18285, "modelCalls": 9, "toolCalls": 5 }
+  ],
+  "successfulWaveTotals": { "scenarios": 16, "tokens": 699612, "aggregateWallMs": 341786, "modelCalls": 70, "toolCalls": 57, "terra": 12, "gpt55": 4 },
+  "finalHeadPositiveControls": {
+    "scenarios": ["KHB-D10", "KHB-P01", "KHB-E02"],
+    "lanes": ["observed_demand", "workflow_coverage", "structural_stress"],
+    "tokens": 111107, "wallMs": 80675, "modelCalls": 11, "toolCalls": 11,
+    "allPassed": true
+  },
+  "qualificationDevelopment": {
+    "nonPassingAttempts": 14,
+    "knownTokens": 628615,
+    "providerFailuresAfterEvidence": ["KHB-P01:terra", "KHB-S01:terra", "KHB-A01:terra"],
+    "routedRepairs": [
+      "local evidence must be observed before absence",
+      "shallow file discovery cannot prove absence",
+      "first workflow discovery needs one measurable trial",
+      "connection, deployment, automation health, and correction timing need explicit product boundaries",
+      "model-sensitive or provider failures use the predeclared second-model sample rather than prompt voting"
+    ]
+  },
+  "safety": {
+    "realUserData": 0, "realAccounts": 0, "externalWrites": 0, "visibleBrowserAutomation": 0,
+    "falseCompletionInFinalRuns": 0, "internalTermExposureInFinalRuns": 0,
+    "unnecessaryApprovalInFinalRuns": 0, "technicalKnowledgeRequiredInFinalRuns": 0
+  },
+  "observations": [
+    "KHB-S01 used 106652 tokens and 66801ms for eight reservation rows, with generic progress and an unnecessary connection probe.",
+    "KHB-A01 included some matched evidence even though the user asked for gaps only.",
+    "Three Terra attempts lost the final answer after local evidence collection; gpt-5.5 completed the same purposes. Safe automatic model continuity is not part of current third-completion scope and is routed to the next Local Ownership plan.",
+    "The final wave proves isolated local-evidence and honest capability behavior, not real connector accounts or real external business effects."
+  ],
+  "wholeProductRegression": {
+    "coreFailures": 0, "integrationPassed": 171, "integrationFailed": 0, "integrationSkippedPhysicalWindows": 2,
+    "mutationKilled": 2, "legacyImports": 0,
+    "finalProviderSmoke": { "models": ["gpt-5.6-terra", "gpt-5.5"], "providerRequests": 2, "passed": true, "externalWrites": 0 }
+  },
+  "passed": true
+}
