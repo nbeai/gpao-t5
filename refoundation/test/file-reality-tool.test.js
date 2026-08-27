@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -95,15 +95,45 @@ test('정리 plan은 목적지 충돌을 먼저 보여주고 어떤 파일도 �
     const revised = found.candidates.find((item) => item.displayName === '새봄-견적서-수정.txt');
     const plan = await tool.execute({ action: 'plan', query: null, scope: null, path: null, handles: null,
       maxCandidates: null, placements: [
-        { handle: first.handle, destinationDirectory: collision },
         { handle: revised.handle, destinationDirectory: ready },
+        { handle: first.handle, destinationDirectory: collision },
       ] });
     assert.equal(plan.readyToApply, false); assert.equal(plan.filesChanged, 0);
-    assert.deepEqual(plan.changes.map((item) => item.state), ['collision', 'ready']);
+    assert.deepEqual(plan.changes.map((item) => item.state), ['ready', 'collision']);
     assert.match(plan.note, /no file was moved/u);
+    const effect = { kind: 'local_change', reversible: true, backupAvailable: true };
+    await assert.rejects(tool.execute({ action: 'apply', query: null, scope: null, path: null, handles: null,
+      maxCandidates: null, placements: null, planId: plan.planId, effect }), /destination collision/u);
     assert.match(await readFile(room.a, 'utf8'), /3000000/u);
     assert.match(await readFile(room.c, 'utf8'), /3200000/u);
     await assert.rejects(stat(join(ready, '새봄-견적서-수정.txt')), { code: 'ENOENT' });
+  } finally { await rm(room.root, { recursive: true, force: true }); }
+});
+
+test('ready plan만 원자 이동하고 exact plan rollback이 원래 위치를 복원한다', async () => {
+  const room = await fixture();
+  try {
+    const destination = join(room.root, '정리함'); const plans = join(room.root, 't5-state', 'plans');
+    await mkdir(destination);
+    const tool = makeFileRealityTool({ workspace: room.workspace, home: room.root,
+      platform: 'test', computerRoots: [room.root], protectedRoots: [join(room.root, 't5-state')],
+      organizationRoot: plans, indexSearch: async () => [room.c] });
+    const found = await tool.execute({ action: 'search', query: '새봄 수정 3200000', scope: 'workspace', path: null,
+      handles: null, maxCandidates: 5, placements: null, planId: null, effect: null });
+    const selected = found.candidates.find((item) => item.displayName === '새봄-견적서-수정.txt');
+    const plan = await tool.execute({ action: 'plan', query: null, scope: null, path: null, handles: null,
+      maxCandidates: null, placements: [{ handle: selected.handle, destinationDirectory: destination }],
+      planId: null, effect: null });
+    const effect = { kind: 'local_change', reversible: true, backupAvailable: true };
+    await rename(room.c, join(destination, '새봄-견적서-수정.txt'));
+    const applied = await tool.execute({ action: 'apply', query: null, scope: null, path: null, handles: null,
+      maxCandidates: null, placements: null, planId: plan.planId, effect });
+    assert.equal(applied.filesMoved, 1); await assert.rejects(stat(room.c), { code: 'ENOENT' });
+    assert.match(await readFile(join(destination, '새봄-견적서-수정.txt'), 'utf8'), /3200000/u);
+    const restored = await tool.execute({ action: 'rollback', query: null, scope: null, path: null, handles: null,
+      maxCandidates: null, placements: null, planId: plan.planId, effect });
+    assert.equal(restored.filesRestored, 1); assert.match(await readFile(room.c, 'utf8'), /3200000/u);
+    await assert.rejects(stat(join(destination, '새봄-견적서-수정.txt')), { code: 'ENOENT' });
   } finally { await rm(room.root, { recursive: true, force: true }); }
 });
 

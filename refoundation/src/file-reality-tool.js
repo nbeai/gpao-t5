@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { execFile } from 'node:child_process';
-import { lstat, open as openFile, opendir, realpath } from 'node:fs/promises';
+import { chmod, lstat, mkdir, open as openFile, opendir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, parse, relative, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -139,6 +139,15 @@ function currentIdentity(record, stat) {
   return stat.isFile() && !stat.isSymbolicLink() && stat.dev === record.identity.dev && stat.ino === record.identity.ino
     && stat.size === record.identity.size && stat.mtimeMs === record.identity.mtimeMs;
 }
+function organizationEffect(effect) {
+  return effect?.kind === 'local_change' && effect?.reversible === true && effect?.backupAvailable === true;
+}
+async function statOrNull(path) {
+  try { return await lstat(path); } catch (error) { if (error?.code === 'ENOENT') return null; throw error; }
+}
+function identityMatches(identity, stat) {
+  return stat != null && currentIdentity({ identity }, stat);
+}
 
 export function makeFileRealityTool({
   workspace,
@@ -146,11 +155,13 @@ export function makeFileRealityTool({
   platform = process.platform,
   computerRoots = [home],
   protectedRoots = [],
+  organizationRoot = null,
   indexSearch = defaultIndexSearch,
   now = Date.now,
 } = {}) {
   if (!workspace || !home) throw new TypeError('file reality workspace and home are required');
   const handles = new Map();
+  const volatilePlans = new Map();
   const canonicalProtectedRoots = Promise.all(protectedRoots.map(async (item) => {
     try { return await realpath(resolve(item)); } catch { return resolve(item); }
   }));
@@ -176,6 +187,22 @@ export function makeFileRealityTool({
   const remember = (record) => {
     const handle = `file-${randomUUID()}`; handles.set(handle, record); return handle;
   };
+  const planFile = (planId) => organizationRoot ? join(organizationRoot, `${planId}.json`) : null;
+  const savePlan = async (plan) => {
+    volatilePlans.set(plan.planId, structuredClone(plan));
+    if (!organizationRoot) return;
+    await mkdir(organizationRoot, { recursive: true, mode: 0o700 }); await chmod(organizationRoot, 0o700);
+    const target = planFile(plan.planId); const temporary = `${target}.${randomUUID()}.tmp`;
+    try { await writeFile(temporary, JSON.stringify(plan), { mode: 0o600 }); await chmod(temporary, 0o600); await rename(temporary, target); }
+    finally { await rm(temporary, { force: true }); }
+  };
+  const loadPlan = async (planId) => {
+    const id = String(planId ?? ''); if (!/^plan-[0-9a-f-]{36}$/iu.test(id)) throw new Error('organization plan is unavailable');
+    if (organizationRoot) {
+      try { return JSON.parse(await readFile(planFile(id), 'utf8')); } catch (error) { if (error?.code !== 'ENOENT') throw error; }
+    }
+    const plan = volatilePlans.get(id); if (!plan) throw new Error('organization plan is unavailable'); return structuredClone(plan);
+  };
   const reopen = async (handle) => {
     const record = handles.get(String(handle ?? '')); if (!record) throw new Error('file candidate handle is unavailable');
     const stat = await lstat(record.path);
@@ -196,7 +223,7 @@ export function makeFileRealityTool({
     ],
     relatedTools: ['attachment'],
     parameters: { type: 'object', additionalProperties: false, properties: {
-      action: { type: 'string', enum: ['search', 'inspect', 'compare', 'plan'] },
+      action: { type: 'string', enum: ['search', 'inspect', 'compare', 'plan', 'apply', 'rollback'] },
       query: { type: ['string', 'null'], maxLength: 500 },
       scope: { type: ['string', 'null'], enum: ['computer', 'workspace', 'path', null] },
       path: { type: ['string', 'null'], maxLength: 4096 },
@@ -205,8 +232,17 @@ export function makeFileRealityTool({
       placements: { type: ['array', 'null'], maxItems: 12, items: { type: 'object', additionalProperties: false,
         properties: { handle: { type: 'string', maxLength: 64 }, destinationDirectory: { type: 'string', maxLength: 4096 } },
         required: ['handle', 'destinationDirectory'] } },
-    }, required: ['action', 'query', 'scope', 'path', 'handles', 'maxCandidates', 'placements'] },
-    async execute({ action, query, scope, path, handles: requestedHandles, maxCandidates, placements } = {}) {
+      planId: { type: ['string', 'null'], maxLength: 64 },
+      effect: { type: ['object', 'null'], additionalProperties: false, properties: {
+        kind: { type: 'string', enum: ['local_change'] }, reversible: { type: 'boolean' }, backupAvailable: { type: 'boolean' },
+      }, required: ['kind', 'reversible', 'backupAvailable'] },
+    }, required: ['action', 'query', 'scope', 'path', 'handles', 'maxCandidates', 'placements', 'planId', 'effect'] },
+    async preflight(args) {
+      if (!['apply', 'rollback'].includes(args?.action)) return { allowed: true };
+      return organizationEffect(args.effect) ? { allowed: true }
+        : { allowed: false, outcome: 'not_executed', result: { state: 'reversible_local_change_required' } };
+    },
+    async execute({ action, query, scope, path, handles: requestedHandles, maxCandidates, placements, planId, effect } = {}) {
       if (action === 'search') {
         const clue = String(query ?? '').trim(); if (clue.length < 2) throw new TypeError('file search clues are required');
         const rootState = await rootsFor(scope, path); const roots = rootState.roots;
@@ -294,7 +330,7 @@ export function makeFileRealityTool({
       if (action === 'plan') {
         if (!Array.isArray(placements) || placements.length < 1) throw new TypeError('one or more file placements are required');
         const roots = (await rootsFor('computer')).roots; const exactProtectedRoots = await canonicalProtectedRoots;
-        const seenSources = new Set(); const seenTargets = new Set(); const changes = [];
+        const seenSources = new Set(); const seenTargets = new Set(); const changes = []; const operations = [];
         for (const placement of placements) {
           const { record, stat } = await reopen(placement.handle);
           if (seenSources.has(record.path)) throw new TypeError('a file can appear only once in an organization plan');
@@ -310,12 +346,67 @@ export function makeFileRealityTool({
           let targetStat = null; try { targetStat = await lstat(target); } catch (error) { if (error?.code !== 'ENOENT') throw error; }
           const alreadyThere = resolve(record.path) === resolve(target);
           const collision = targetStat != null && !alreadyThere;
+          const crossVolume = !alreadyThere && stat.dev !== destinationStat.dev;
           changes.push({ handle: placement.handle, displayName: record.displayName,
             from: record.locationText, to: locationText(target, home), bytes: stat.size,
-            state: alreadyThere ? 'already_there' : collision ? 'collision' : 'ready' });
+            state: alreadyThere ? 'already_there' : collision ? 'collision' : crossVolume ? 'cross_volume_unsupported' : 'ready' });
+          operations.push({ source: record.path, target, identity: record.identity,
+            displayName: record.displayName, state: alreadyThere ? 'unchanged' : 'pending' });
         }
-        return { state: 'planned', changes, readyToApply: changes.every((item) => item.state !== 'collision'),
+        const id = `plan-${randomUUID()}`; const readyToApply = changes.every((item) => ['ready', 'already_there'].includes(item.state));
+        await savePlan({ schema: 't5.file-organization-plan.v1', planId: id, state: 'planned', operations,
+          createdAt: new Date(now()).toISOString() });
+        return { state: 'planned', planId: id, changes, readyToApply,
           filesChanged: 0, note: 'preview only; no file was moved, renamed, overwritten, or deleted' };
+      }
+      if (action === 'apply') {
+        if (!organizationEffect(effect)) throw new Error('reversible local change declaration is required');
+        const plan = await loadPlan(planId); if (plan.state !== 'planned') throw new Error('organization plan is not ready to apply');
+        if (plan.operations.some((item) => !['pending', 'moved', 'unchanged'].includes(item.state))) throw new Error('organization plan state is invalid');
+        for (const operation of plan.operations) {
+          if (operation.state === 'unchanged') continue;
+          const source = await statOrNull(operation.source); const target = await statOrNull(operation.target);
+          if (source == null && identityMatches(operation.identity, target)) {
+            operation.state = 'moved'; await savePlan(plan); continue;
+          }
+          const parent = await lstat(parse(operation.target).dir);
+          if (!identityMatches(operation.identity, source) || source.dev !== parent.dev) throw new Error('organization source changed after preview');
+          if (target != null) throw new Error('organization destination collision');
+        }
+        const moved = [];
+        try {
+          for (const operation of plan.operations) {
+            if (operation.state !== 'pending') continue;
+            await rename(operation.source, operation.target); operation.state = 'moved'; moved.push(operation); await savePlan(plan);
+          }
+        } catch (error) {
+          let rollbackVerified = true;
+          for (const operation of moved.reverse()) {
+            try { await rename(operation.target, operation.source); operation.state = 'pending'; await savePlan(plan); }
+            catch { rollbackVerified = false; operation.state = 'recovery_required'; }
+          }
+          plan.state = rollbackVerified ? 'planned' : 'recovery_required'; await savePlan(plan); throw error;
+        }
+        plan.state = 'applied'; plan.appliedAt = new Date(now()).toISOString(); await savePlan(plan);
+        return { state: 'applied', planId: plan.planId,
+          filesMoved: plan.operations.filter((item) => item.state === 'moved').length,
+          rollbackAvailable: true, files: plan.operations.map((item) => ({ displayName: item.displayName, state: item.state })) };
+      }
+      if (action === 'rollback') {
+        if (!organizationEffect(effect)) throw new Error('reversible local change declaration is required');
+        const plan = await loadPlan(planId); if (plan.state !== 'applied') throw new Error('organization plan is not applied');
+        for (const operation of plan.operations.filter((item) => item.state === 'moved')) {
+          const source = await statOrNull(operation.source); const target = await statOrNull(operation.target);
+          if (target == null && identityMatches(operation.identity, source)) {
+            operation.state = 'rolled_back'; await savePlan(plan); continue;
+          }
+          if (!identityMatches(operation.identity, target)) throw new Error('organized file changed after apply');
+          if (source != null) throw new Error('original location is no longer empty');
+        }
+        const moved = plan.operations.filter((item) => item.state === 'moved').reverse();
+        for (const operation of moved) { await rename(operation.target, operation.source); operation.state = 'rolled_back'; await savePlan(plan); }
+        plan.state = 'rolled_back'; plan.rolledBackAt = new Date(now()).toISOString(); await savePlan(plan);
+        return { state: 'rolled_back', planId: plan.planId, filesRestored: moved.length };
       }
       throw new TypeError('file reality action is invalid');
     },

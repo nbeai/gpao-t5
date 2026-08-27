@@ -1453,6 +1453,7 @@ export function makeConsoleServer({
       const offeredTools = [...terminal.tools];
       offeredTools.unshift(makeFileRealityTool({ workspace, home: homedir(), platform: computer.platform,
         computerRoots: computerFileRoots ?? [homedir()], protectedRoots: [...protectedFileRoots, stateDir],
+        organizationRoot: join(stateDir, 'file-organization'),
         ...(fileIndexSearch ? { indexSearch: fileIndexSearch } : {}) }));
       offeredTools.unshift(makeCapabilityRealityTool({ observer: capabilityReality }));
       if (capabilityAcquisition) offeredTools.unshift(makeCapabilityPackageAdminTool({
