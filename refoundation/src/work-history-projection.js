@@ -20,9 +20,9 @@ function publicText(value, maximum = 160) {
     '민감한 정보');
 }
 
-function publicDate(value) {
+function publicDate(value, timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC') {
   const date = new Date(value); if (!Number.isFinite(date.getTime())) return '날짜 확인 필요';
-  return `${date.getUTCFullYear()}. ${date.getUTCMonth() + 1}. ${date.getUTCDate()}.`;
+  return date.toLocaleDateString('ko-KR', { timeZone });
 }
 function statusText(status) {
   return ({ working: '진행 중', completed: '완료', incomplete: '끝내지 못함', stopped: '멈춤',
@@ -44,7 +44,7 @@ export function projectWorkHistoryEntry(input = {}) {
     throw new TypeError('validated Work history input is required');
   }
   const output = { schema: 't5.public-work-history.v1', historyHandle: input.historyHandle,
-    title: publicText(input.title) || '제목 없는 작업', whenText: publicDate(input.recordedAt),
+    title: publicText(input.title) || '제목 없는 작업', whenText: publicDate(input.recordedAt, input.timeZone),
     status: { text: statusText(input.status) },
     actorText: ['내 요청', 'Telegram 요청', '자동 실행', '알 수 없음'].includes(input.actorText)
       ? input.actorText : '알 수 없음',

@@ -20,14 +20,15 @@ test('service는 explicit enable 뒤만 실행하고 private·pause·forget을 �
   const forgotten=await service.forget();assert.equal(forgotten.remainingSegments,0);assert.equal((await service.status()).enabled,false);
 });
 
-test('adapter 부재와 자연 실패를 enabled로 꾸미지 않는다',async()=>{
+test('adapter 부재는 enable 실패이고 자연 실패는 desired intent를 보존한 degraded truth다',async()=>{
   const room=await mkdtemp(join(tmpdir(),'t5-ch2-service-fail-'));const ledger=new CoarseAppActivityLedger(room);
   const unavailable=makeCoarseAppActivityService({ledger});await unavailable.configure({platform:'darwin'});
   await assert.rejects(()=>unavailable.enable(),(error)=>error.status===503);assert.equal((await unavailable.status()).desiredEnabled,false);
   let settle;const done=new Promise((resolve)=>{settle=resolve;});let observed=null;const service=makeCoarseAppActivityService({ledger,onError:(error)=>{observed=error.message;},
     adapterFactory:async()=>({async start(){return{state:'running'};},async stop(){},async wait(){return done;}})});
-  await service.enable();settle({state:'failed'});for(let index=0;index<50&&(await service.status()).desiredEnabled;index+=1)await new Promise((resolve)=>setTimeout(resolve,2));
-  assert.equal((await service.status()).enabled,false);assert.equal(observed,'coarse_app_collector_failed');
+  await service.enable();settle({state:'failed'});for(let index=0;index<50&&!(await service.status()).degraded;index+=1)await new Promise((resolve)=>setTimeout(resolve,2));
+  const state=await service.status();assert.equal(state.enabled,false);assert.equal(state.desiredEnabled,true);assert.equal(state.degraded,true);
+  assert.match(state.userSafeSummary,/다시 시작하지 못했/u);assert.equal(observed,'coarse_app_collector_failed');
 });
 
 test('자연 collector 종료는 rollover하고 private·pause는 durable intent를 보존한다',async()=>{

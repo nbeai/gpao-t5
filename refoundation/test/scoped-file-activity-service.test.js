@@ -29,7 +29,7 @@ test('service는 adapter 없음과 collector failure를 enabled로 꾸미지 않
   assert.equal((await service.status()).enabled,false);
 });
 
-test('collector가 자연 실패하면 durable enabled도 false가 되고 실패를 사용자 Work로 전파하지 않는다', async () => {
+test('collector가 자연 실패하면 durable intent를 보존하고 degraded truth를 보인다', async () => {
   const room=await mkdtemp(join(tmpdir(),'t5-ch1-service-failure-'));const root=join(room,'root');await mkdir(root);
   const ledger=new ScopedFileActivityLedger(join(room,'state'));let observed=null;
   let settle;const completion=new Promise((resolve)=>{settle=resolve;});
@@ -37,8 +37,9 @@ test('collector가 자연 실패하면 durable enabled도 false가 되고 실패
     async start(){return{state:'running'};},async stop(){settle({state:'stopped'});},async wait(){return completion;}})});
   await service.configure({roots:[root],recordedAt:'2026-08-27T00:01:00.000Z'});
   await service.enable({recordedAt:'2026-08-27T00:01:01.000Z'});settle({state:'failed'});
-  for(let index=0;index<50&&(await service.status()).desiredEnabled;index+=1)await new Promise((resolve)=>setTimeout(resolve,2));
-  const state=await service.status();assert.equal(state.enabled,false);assert.equal(state.desiredEnabled,false);
+  for(let index=0;index<50&&!(await service.status()).degraded;index+=1)await new Promise((resolve)=>setTimeout(resolve,2));
+  const state=await service.status();assert.equal(state.enabled,false);assert.equal(state.desiredEnabled,true);assert.equal(state.degraded,true);
+  assert.match(state.userSafeSummary, /다시 시작하지 못했/u);
   assert.equal(observed,'file_activity_collector_failed');
 });
 

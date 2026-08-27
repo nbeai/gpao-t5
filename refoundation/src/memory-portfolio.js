@@ -15,12 +15,23 @@ export function currentUserMemoryCandidates(items = []) {
   return [...bySubject.values()];
 }
 
-export function selectMemoryPortfolio({ items = [], currentWork = null } = {}) {
+function legacyChannelVisible(item, currentChannel, enforceChannelScope) {
+  if (enforceChannelScope !== true) return true;
+  const sourceChannel = item?.source?.channel;
+  return sourceChannel == null || sourceChannel === currentChannel;
+}
+
+export function selectMemoryPortfolio({
+  items = [], currentWork = null, currentChannel = null, enforceChannelScope = false,
+} = {}) {
   const legacy = items.filter((item) => !item.temporal);
   const exactWork = legacy.filter((item) => item.kind === 'work' && currentWork
     && item.source?.workId === currentWork.workId
     && Number(item.source?.revision ?? 0) === Number(currentWork.revision));
-  const explicitUser = currentUserMemoryCandidates(legacy).filter((item) => item.alwaysRelevant === true);
+  const explicitUser = currentUserMemoryCandidates(legacy).filter((item) => (
+    enforceChannelScope !== true && item.alwaysRelevant === true
+    && legacyChannelVisible(item, currentChannel, enforceChannelScope)
+  ));
   return [...explicitUser, ...exactWork];
 }
 
@@ -61,21 +72,27 @@ export function temporalMemoryCandidateProjection(claims = [], {
   ].join('\n') };
 }
 
-export function forgetTombstoneProjection(tombstones = []) {
-  if (!tombstones.length) return null;
+export function forgetTombstoneProjection(tombstones = [], { asOf = new Date().toISOString() } = {}) {
+  const recoverable = tombstones.filter((item) => (
+    item.reversibleUntil != null && item.reversibleUntil > asOf
+  ));
+  if (!recoverable.length) return null;
   return { role: 'assistant', content: [
     '[T5 RECOVERABLE FORGET POINTERS — no memory content]',
     'Use memory_control restore only when the user explicitly asks to restore an exact forgotten memory.',
-    ...tombstones.slice(0, 50).map((item) => JSON.stringify({
+    ...recoverable.slice(0, 50).map((item) => JSON.stringify({
       requestId: item.requestId, memoryId: item.memoryId,
       subjectHandle: item.subjectKey, reversibleUntil: item.reversibleUntil,
     })),
   ].join('\n') };
 }
 
-export function memoryCandidateProjection(items = []) {
+export function memoryCandidateProjection(items = [], {
+  currentChannel = null, enforceChannelScope = false,
+} = {}) {
   const candidates = currentUserMemoryCandidates(items.filter((item) => !item.temporal))
-    .filter((item) => item.alwaysRelevant !== true);
+    .filter((item) => (enforceChannelScope === true || item.alwaysRelevant !== true)
+      && legacyChannelVisible(item, currentChannel, enforceChannelScope));
   if (!candidates.length) return null;
   return { role: 'assistant', content: [
     '[T5 USER MEMORY CANDIDATES — subjects and pointers only; not recalled content]',

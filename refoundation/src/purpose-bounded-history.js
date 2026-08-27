@@ -20,7 +20,8 @@ export function makePurposeBoundedHistoryAdapter({workHistory,fileActivityServic
   async function sourceRows(query){const [work,file,app]=await Promise.all([workHistory.list({query,status:null,cursor:null,limit:20}),
     fileActivityService.history({limit:100}),appActivityService.history({limit:100})]);const rows=[];
     for(const item of work.items??[])rows.push({kind:'work',sourceHandle:item.historyHandle,label:safeLabel(item.title,'과거 작업'),
-      searchText:[item.title,item.statusText,item.actorText].join(' '),occurredAt:item.occurredAt??null,facts:{status:item.statusText??'상태 확인 필요',remaining:item.counts?.remaining??0}});
+      searchText:[item.title,item.status?.text,item.actorText,item.whenText].join(' '),occurredAt:null,timeLabel:item.whenText??null,
+      facts:{status:item.status?.text??'상태 확인 필요',remaining:item.remaining?.count??0}});
     for(const item of file.items??[])rows.push({kind:'file',sourceHandle:item.activityHandle,label:safeLabel(item.pathText,'과거 파일'),
       searchText:[item.pathText,item.kind].join(' '),occurredAt:item.occurredAt??null,facts:{change:item.kind,availability:item.availability}});
     for(const item of app.items??[])rows.push({kind:'app',sourceHandle:item.activityHandle,label:safeLabel(item.appLabel,'과거 앱'),
@@ -29,7 +30,8 @@ export function makePurposeBoundedHistoryAdapter({workHistory,fileActivityServic
   return Object.freeze({async search({query,limit=8}={}){trim();const purpose=text(query,'history purpose',200);if(!Number.isSafeInteger(limit)||limit<1||limit>8)
       throw new TypeError('history candidate limit is invalid');const queryDigest=hash(['history-purpose',purpose]);const terms=tokens(purpose);const rows=(await sourceRows(purpose))
         .filter((item)=>matches(item.searchText,terms)).slice(0,limit);const queryHandle=hash(['history-query',randomUUID(),queryDigest]).slice(0,32);const candidates=rows.map((row)=>({
-          handle:hash(['history-candidate',queryHandle,row.kind,row.sourceHandle]).slice(0,32),kind:row.kind,label:row.label,time:timeBucket(row.occurredAt,now()),facts:clone(row.facts)}));
+          handle:hash(['history-candidate',queryHandle,row.kind,row.sourceHandle]).slice(0,32),kind:row.kind,label:row.label,
+          time:row.timeLabel??timeBucket(row.occurredAt,now()),facts:clone(row.facts)}));
       const entries=new Map(candidates.map((candidate,index)=>[candidate.handle,{...rows[index],candidate}]));const candidateDigest=hash(candidates);windows.set(queryHandle,{queryDigest,
         candidateDigest,candidateCount:candidates.length,entries,selected:null,expiresAt:now()+10*60_000});trim();return{schema:'t5.purpose-history-candidates.v1',queryHandle,
         candidateCount:candidates.length,candidateDigest,candidates:clone(candidates),rawHistorySent:false,modelCalls:0};},

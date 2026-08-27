@@ -72,8 +72,7 @@ import { generateLivingLibrary } from './living-library.js';
 import { LivingLibraryRegistry } from './living-library-registry.js';
 import { makeMemoryControlTool } from './memory-control-tool.js';
 import {
-  makeMemoryClaimTool, makeMemoryTool, memoryContextMessage, memoryFlushRequest,
-  MEMORY_FLUSH_SYSTEM_INSTRUCTIONS,
+  makeMemoryClaimTool, makeMemoryTool, memoryContextMessage,
 } from './memory-tool.js';
 import { makeSessionSearchTool } from './session-search-tool.js';
 import { makeWebSearchTool } from './web-search-tool.js';
@@ -661,6 +660,7 @@ export function makeConsoleServer({
   const workRealityPublished = new Map();
   const workRealityQueues = new Map();
   const pendingSurfaceMetrics = new Map();
+  const connectionAuthorizationHandoffs = new Map();
   async function transcriptWithHumanReceipts(session) {
     return Promise.all((session.transcript ?? []).map(async (entry) => {
       if (entry?.role !== 'assistant' || !entry.result) return entry;
@@ -1092,15 +1092,21 @@ export function makeConsoleServer({
     const preexistingWork = preexistingWorkState.works.filter((work) => (
       work.sessionId === sessionId && work.status === 'active'
     )).at(-1) ?? null;
+    const currentMemoryChannel = session.origin?.channel ?? 'console';
     const memoryPortfolio = selectMemoryPortfolio({
       items: memorySnapshot.items, request: text, currentWork: preexistingWork,
+      currentChannel: currentMemoryChannel, enforceChannelScope: true,
     });
-    const memoryCandidates = memoryCandidateProjection(memorySnapshot.items);
+    const memoryCandidates = memoryCandidateProjection(memorySnapshot.items, {
+      currentChannel: currentMemoryChannel, enforceChannelScope: true,
+    });
     const temporalMemoryCandidates = temporalMemoryCandidateProjection(memorySnapshot.claims ?? [], {
       asOf: new Date().toISOString(), currentWork: preexistingWork,
-      currentChannel: session.origin?.channel ?? 'console',
+      currentChannel: currentMemoryChannel,
     });
-    const forgetCandidates = forgetTombstoneProjection(memorySnapshot.tombstones ?? []);
+    const forgetCandidates = forgetTombstoneProjection(memorySnapshot.tombstones ?? [], {
+      asOf: new Date().toISOString(),
+    });
     const memorySourceReader = makeRecordSourceReader({
       mode: 'O2_full_shadow', conversationLedger: conversations, runLedger, workStore,
       attachmentStore: attachments,
@@ -1303,80 +1309,12 @@ export function makeConsoleServer({
             const checkpointId = randomUUID();
             if (memoryFlushMode === 'pre-checkpoint-v0') {
               await run.append({
-                type: 'memory_flush_started', stepId: 'memory-flush', payload: {
+                type: 'memory_flush_skipped', stepId: 'memory-flush', payload: {
                   checkpointId, coversThroughMessageId: summarized.coversThroughMessageId,
-                  currentItems: memorySnapshot.items.length,
+                  currentItems: memorySnapshot.items.length, writes: 0,
+                  reason: 'record_provenance_and_sensitivity_required',
                 },
               });
-              try {
-                const memoryModel = await modelFactory({
-                  sessionId, workspace, computer: computerFacts,
-                  instructionsOverride: MEMORY_FLUSH_SYSTEM_INSTRUCTIONS,
-                  purpose: 'memory_flush',
-                });
-                const memoryTool = makeMemoryTool({
-                  ledger: memories,
-                  source: {
-                    origin: 'pre_checkpoint', sessionId, runId: run.runId,
-                    coversThroughMessageId: summarized.coversThroughMessageId,
-                  },
-                });
-                const memoryResult = await runAgent({
-                  request: memoryFlushRequest(summarized.summary, memorySnapshot.items),
-                  model: memoryModel, tools: [memoryTool], signal: controller.signal,
-                  maxModelTurns: memoryFlushMaxModelTurns,
-                  resourceRun,
-                  resourcePurpose: 'memory_flush',
-                  onEvent: async (event) => {
-                    const memoryTurn = -2000 + Number(event.turn ?? 0);
-                    if (event.type === 'model_start') {
-                      await run.append({
-                        type: 'model_started', stepId: `memory-model-${event.turn}`,
-                        payload: { turn: memoryTurn, purpose: 'memory_flush' },
-                      });
-                    } else if (event.type === 'model_context') {
-                      await run.append({
-                        type: 'model_context_built', stepId: `memory-model-${event.turn}`,
-                        payload: { turn: memoryTurn, purpose: 'memory_flush', contextReceipt: event.contextReceipt },
-                      });
-                    } else if (event.type === 'model_end') {
-                      await run.append({
-                        type: 'model_completed', stepId: `memory-model-${event.turn}`,
-                        payload: { turn: memoryTurn, purpose: 'memory_flush', response: event.response },
-                      });
-                    } else if (event.type === 'tool_start') {
-                      await run.append({
-                        type: 'tool_started', stepId: `memory-tool-${event.toolCallId}`,
-                        payload: {
-                          turn: memoryTurn, purpose: 'memory_flush', toolCallId: event.toolCallId,
-                          name: event.name, args: event.args,
-                        },
-                      });
-                    } else if (event.type === 'tool_end') {
-                      await run.append({
-                        type: 'tool_completed', stepId: `memory-tool-${event.receipt.toolCallId}`,
-                        payload: { turn: memoryTurn, purpose: 'memory_flush', receipt: event.receipt },
-                      });
-                    }
-                  },
-                });
-                if (memoryResult.status !== 'completed') {
-                  throw new Error(`memory flush ended without completion: ${memoryResult.status}`);
-                }
-                const afterMemory = await memories.read();
-                await run.append({
-                  type: 'memory_flush_completed', stepId: 'memory-flush', payload: {
-                    checkpointId, modelTurns: memoryResult.modelTurns,
-                    receiptCount: memoryResult.receipts.length,
-                    itemsBefore: memorySnapshot.items.length, itemsAfter: afterMemory.items.length,
-                  },
-                });
-              } catch (error) {
-                await run.append({
-                  type: 'memory_flush_failed', stepId: 'memory-flush',
-                  payload: { checkpointId, error: error?.message ?? String(error) },
-                });
-              }
             }
             await conversations.appendCheckpoint({
               sessionId, checkpointId,
@@ -1753,7 +1691,8 @@ export function makeConsoleServer({
       }));
       if(purposeHistory)offeredTools.unshift(makePurposeHistoryTool({adapter:purposeHistory}));
       offeredTools.unshift(makeConnectionTool({
-        doctor: connectionDoctor, startConnection: startConnectionForTool,
+        doctor: connectionDoctor,
+        startConnection: (id) => startConnectionForTool(id, { runId: run.runId }),
         performConnection: (id, actionId) => performConnectionAction(id, actionId, { sessionId }),
       }));
       const coreToolNames = [
@@ -2144,12 +2083,20 @@ export function makeConsoleServer({
       const connectionHandoff = connectionHandoffReceipt ? (() => {
         const mode = connectionHandoffReceipt.result.handoffMode
           ?? (connectionHandoffReceipt.requestedCall.args.action === 'start' ? 'oauth' : 'user_action');
+        const connectionId = connectionHandoffReceipt.result.connection?.id;
+        const authorization = mode === 'oauth'
+          ? connectionAuthorizationHandoffs.get(`${run.runId}:${connectionId}`) : null;
+        if (mode === 'oauth' && !authorization) {
+          throw Object.assign(new Error('connection authorization handoff is unavailable'), {
+            code: 'connection_handoff_unavailable',
+          });
+        }
         return {
           active: true, mode, handoffId: run.runId,
-          connectionId: connectionHandoffReceipt.result.connection?.id,
+          connectionId,
           label: connectionHandoffReceipt.result.connection?.label,
           ...(mode === 'oauth' ? {
-            authorizeUrl: connectionHandoffReceipt.result.authorizeUrl,
+            authorizeUrl: authorization.authorizeUrl,
             awaitEndpoint: connectionHandoffReceipt.result.awaitEndpoint,
           } : {
             checkEndpoint: connectionHandoffReceipt.result.checkEndpoint,
@@ -2528,6 +2475,9 @@ export function makeConsoleServer({
         endingEntry.resolveCancelTerminal?.(endingEntry.cancellationValue);
       }
       running.delete(sessionId);
+      for (const key of connectionAuthorizationHandoffs.keys()) {
+        if (key.startsWith(`${run.runId}:`)) connectionAuthorizationHandoffs.delete(key);
+      }
       await scheduleNextWorkInput(sessionId).catch((error) => onError?.(error));
       for (const [processId, event] of pendingProcessWakes) {
         if (event.ownerId === sessionId) {
@@ -3255,7 +3205,7 @@ export function makeConsoleServer({
     try { await automationScheduler.stop(); }
     finally { automationOwner.deactivate(); }
   };
-  async function startConnectionForTool(id) {
+  async function startConnectionForTool(id, { runId } = {}) {
     const service = connectionServices.get(id);
     if (!service || typeof service.start !== 'function') throw new Error('connection start is unavailable');
     const alreadyWaiting = await capabilityCoordinator.hasActiveConnection(id);
@@ -3276,9 +3226,12 @@ export function makeConsoleServer({
       await service.close?.();
       throw new Error('connection authorization URL is invalid');
     }
+    connectionAuthorizationHandoffs.set(`${String(runId)}:${service.id}`, {
+      authorizeUrl: authorizeUrl.href,
+    });
     return {
       connection: { id: service.id, label: service.label },
-      authorizeUrl: authorizeUrl.href,
+      handoffMode: 'oauth', authorizationSurfaceReady: true,
       awaitEndpoint: `/connections/${service.id}/await`,
     };
   }

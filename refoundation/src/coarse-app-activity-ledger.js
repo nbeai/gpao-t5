@@ -74,12 +74,17 @@ export class CoarseAppActivityLedger{
   async excludeObservedApp({appHandle:requested,recordedAt}={}){if(!/^[a-f0-9]{32}$/u.test(requested??''))throw new TypeError('opaque app handle is required');
     return this.serialize(async()=>{const state=await this.readState();const segments=await this.readSegments(state);const matches=[...new Set(segments
       .filter((item)=>appHandle(item.appId)===requested).map((item)=>item.appId))];if(matches.length!==1)throw new Error('observed app handle is unavailable');
-      await rm(this.segmentFile(state.generation),{force:true});const next={...state,generation:state.generation+1,enabled:false,privateMode:false,
-        mode:'all_except',includeApps:[],excludeApps:[...new Set([...state.excludeApps,matches[0]])].sort(),segmentCount:0,configuredAt:time(recordedAt)};
-      await atomicJson(this.stateFile,next);return{excluded:true,remainingSegments:0,enabled:false};});}
-  async includeAll({recordedAt}={}){return this.serialize(async()=>{const state=await this.readState();await rm(this.segmentFile(state.generation),{force:true});
-    const next={...state,generation:state.generation+1,enabled:false,privateMode:false,mode:'all_except',includeApps:[],excludeApps:[],segmentCount:0,
-      configuredAt:time(recordedAt)};await atomicJson(this.stateFile,next);return{includedAll:true,remainingSegments:0,enabled:false};});}
+      const retained=segments.filter((item)=>item.appId!==matches[0]);const generation=state.generation+1;
+      await appendLines(this.segmentFile(generation),retained.map((segment,index)=>JSON.stringify({...segment,sequence:index+1})));
+      const next={...state,generation,enabled:false,privateMode:false,mode:'all_except',includeApps:[],
+        excludeApps:[...new Set([...state.excludeApps,matches[0]])].sort(),segmentCount:retained.length,configuredAt:time(recordedAt)};
+      await atomicJson(this.stateFile,next);await rm(this.segmentFile(state.generation),{force:true});
+      return{excluded:true,remainingSegments:retained.length,enabled:false};});}
+  async includeAll({recordedAt}={}){return this.serialize(async()=>{const state=await this.readState();const segments=await this.readSegments(state);
+    const generation=state.generation+1;await appendLines(this.segmentFile(generation),segments.map((segment,index)=>JSON.stringify({...segment,sequence:index+1})));
+    const next={...state,generation,enabled:false,privateMode:false,mode:'all_except',includeApps:[],excludeApps:[],segmentCount:segments.length,
+      configuredAt:time(recordedAt)};await atomicJson(this.stateFile,next);await rm(this.segmentFile(state.generation),{force:true});
+    return{includedAll:true,remainingSegments:segments.length,enabled:false};});}
   async status(){const state=await this.readState();const segments=await this.readSegments(state);let bytes=0;for(const path of[this.stateFile,this.segmentFile(state.generation)])
     try{bytes+=(await stat(path)).size;}catch(error){if(error?.code!=='ENOENT')throw error;}return{configured:state.configured,enabled:state.enabled,privateMode:state.privateMode,
       platform:state.platform,mode:state.mode,includeApps:clone(state.includeApps),excludeApps:clone(state.excludeApps),segmentCount:segments.length,storageBytes:bytes,

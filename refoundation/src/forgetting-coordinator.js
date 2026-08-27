@@ -183,8 +183,17 @@ export class ForgettingCoordinator {
   }
 
   async restore({ requestId, memoryId, recordRefs } = {}) {
+    const restoredAt = this.now();
+    const state = await this.memoryLedger.read();
+    const tombstone = state.tombstones.find((item) => (
+      item.requestId === String(requestId ?? '') && item.memoryId === String(memoryId ?? '')
+    ));
+    if (!tombstone) throw new Error('forget tombstone not found');
+    if (tombstone.reversibleUntil == null || restoredAt >= tombstone.reversibleUntil) {
+      throw Object.assign(new Error('forget recovery window expired'), { code: 'T5_FORGET_EXPIRED' });
+    }
     const claim = await this.memoryLedger.restoreForgottenClaim({
-      requestId, memoryId, recordRefs, recordedAt: this.now(),
+      requestId, memoryId, recordRefs, recordedAt: restoredAt,
     });
     return { state: 'restored', memoryId: claim.memoryId,
       subjectRevision: claim.subjectRevision, sourceOrder: claim.sourceOrder };

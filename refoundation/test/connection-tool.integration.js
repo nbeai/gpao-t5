@@ -194,6 +194,9 @@ test('자연어 계정 연결은 connection start 뒤 대화 내 OAuth handoff�
       }] };
       const receipt = JSON.parse(input.messages.at(-1).content);
       assert.equal(receipt.result.state, 'user_authorization_required');
+      assert.equal(JSON.stringify(input.messages).includes('state=public'), false,
+        'OAuth authorization state must not enter provider model context');
+      assert.equal(receipt.result.authorizeUrl, undefined);
       return { text: 'Notion 계정 연결 화면에서 허용해 주세요.', toolCalls: [] };
     } }),
   });
@@ -209,6 +212,10 @@ test('자연어 계정 연결은 connection start 뒤 대화 내 OAuth handoff�
     }).then((response) => response.json());
     assert.equal(answer.connectionHandoff?.connectionId, 'notion');
     assert.equal(answer.connectionHandoff?.handoffId, answer.runId);
+    assert.equal(answer.connectionHandoff?.authorizeUrl,
+      'https://notion.example/authorize?state=public');
+    assert.equal(JSON.stringify(await server.conversationLedger.read(session.id)).includes('state=public'), false);
+    assert.equal(JSON.stringify(await server.runLedger.read(answer.runId)).includes('state=public'), false);
     let detail = await fetch(`${base}/sessions/${session.id}`).then((response) => response.json());
     assert.deepEqual(detail.activeConnectionHandoffIds, [answer.runId]);
     const other = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());

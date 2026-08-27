@@ -398,6 +398,10 @@ export class MemoryLedger {
       const current = await this.read();
       const tombstone = current.tombstones.find((item) => item.memoryId === id && item.requestId === request);
       if (!tombstone) throw new Error('forget tombstone not found');
+      const restoredAt = recordedAt ?? new Date().toISOString();
+      if (tombstone.reversibleUntil == null || restoredAt >= tombstone.reversibleUntil) {
+        throw Object.assign(new Error('forget recovery window expired'), { code: 'T5_FORGET_EXPIRED' });
+      }
       const prior = current.claims.find((item) => item.memoryId === id);
       if (!prior || prior.status !== 'retracted') throw new Error('retracted MemoryClaim not found');
       const sourceOrder = current.events.length + 1;
@@ -405,7 +409,7 @@ export class MemoryLedger {
         .map((item) => Number(item.subjectRevision))) + 1;
       const restored = makeMemoryClaim({
         ...prior, status: 'active', subjectRevision, sourceOrder,
-        recordedAt: recordedAt ?? new Date().toISOString(),
+        recordedAt: restoredAt,
         sources: [...prior.sources, ...references], supersedes: [], conflictsWith: [],
       });
       const legacyKind = restored.scope.workId || restored.scope.projectId ? 'work' : 'user';

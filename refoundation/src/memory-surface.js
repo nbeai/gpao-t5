@@ -29,7 +29,7 @@ function publicClaim(claim, forgotten = false) {
   };
 }
 
-export function projectMemorySurface(state) {
+export function projectMemorySurface(state, { asOf = new Date().toISOString() } = {}) {
   const temporalIds = new Set(state.claims.map((claim) => claim.memoryId));
   const forgottenIds = new Set(state.tombstones.map((item) => item.memoryId));
   return {
@@ -37,7 +37,9 @@ export function projectMemorySurface(state) {
     current: state.claims.filter((claim) => claim.status === 'active').map((claim) => publicClaim(claim)),
     history: state.claims.filter((claim) => claim.status !== 'active')
       .map((claim) => publicClaim(claim, forgottenIds.has(claim.memoryId))),
-    forgotten: state.tombstones.map((tombstone) => ({
+    forgotten: state.tombstones.filter((tombstone) => (
+      tombstone.reversibleUntil != null && tombstone.reversibleUntil > asOf
+    )).map((tombstone) => ({
       memoryId: tombstone.memoryId,
       requestId: tombstone.requestId,
       reversibleUntil: tombstone.reversibleUntil,
