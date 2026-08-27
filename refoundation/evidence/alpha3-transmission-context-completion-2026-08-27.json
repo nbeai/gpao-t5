@@ -1,0 +1,39 @@
+{
+  "schema": "t5.alpha3.transmission-context-completion.v1",
+  "recordedOn": "2026-08-27",
+  "baselineSourceCommit": "418eca60",
+  "officialPlan": "T5-THIRD-ALPHA.md",
+  "status": "PASS",
+  "completionSentence": "사용자는 큰 로컬 자료를 맡겨도 정확성을 잃지 않고 필요한 조각만 모델에 전달되며, 실제로 무엇이 어느 provider에 전달됐고 무엇이 로컬에 남았는지 확인한다.",
+  "qualified": [
+    "OpenAI Responses, Anthropic Messages, Gemini GenerateContent, Upstage Chat Completions and ChatGPT OAuth serialize each request once and derive TransmissionReceipt from the exact same string passed to fetch.",
+    "Hosted OpenAI web search accounting also binds to its exact serialized provider body.",
+    "Cancel before dispatch creates zero Transmission Receipts; dispatch attempt and provider response receipt remain distinct states; transport loss never becomes response_received.",
+    "Receipts contain provider, model, endpoint origin, bytes, wire digest, content-free categories and credential-field counts but no prompt or tool content.",
+    "Public settings projection removes endpoint and wire digest and shows recent provider, bytes, categories and response state.",
+    "Whole-source non-transmission is unknown unless the runtime actually searched the complete source and observed a partial selection.",
+    "A deterministic 500-page PDF previously projected pages 1 through 20 and missed the purpose sentinel on page 421; the new local search examined all 500 pages, returned at most eight bounded candidates, the model chose an opaque handle, and exact reopen returned only page 421 with the correct value 7391.",
+    "Foreign, invented or stale page handles and changed document digests return no old content.",
+    "Exact reopen tool output is categorized as selected document excerpt and can truthfully mark wholeSourceNotSent confirmed."
+  ],
+  "verification": {
+    "alpha3Focused": { "tests": 64, "passed": 64, "failed": 0 },
+    "dailyCheck": { "tests": 1549, "passed": 1548, "failed": 0, "skipped": 1 },
+    "fullCi": {
+      "unit": { "passed": 1548, "failed": 0, "skipped": 1 },
+      "integration": { "passed": 181, "failed": 0, "skipped": 2 },
+      "mutation": { "killed": 2, "survived": 0 }
+    },
+    "providerCallsForQualification": 0,
+    "externalEffectsForQualification": 0
+  },
+  "notClaimed": [
+    "Provider-side retention, training or deletion behavior not observable from the request wire",
+    "Whole-source exclusion when the runtime did not observe the complete source scope",
+    "Purpose-selective indexing for every document format beyond the qualified PDF path",
+    "Physical Windows product qualification",
+    "Alpha4 through Alpha6 completion",
+    "3차Alpha completion"
+  ],
+  "next": "Open Alpha4 with one already-authenticated registered CLI plus local sync and OS capability purpose, preserving separate authority and effect receipts."
+}

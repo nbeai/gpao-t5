@@ -1,6 +1,6 @@
 # T5 3차α — Local Ownership & Persistent Intelligence
 
-상태: `ALPHA0_COMPLETE · ALPHA1_COMPLETE · ALPHA2_COMPLETE · ALPHA3_TRANSMISSION_TRUTH_NEXT · SOURCE_SCOPE_FROZEN`
+상태: `ALPHA0_COMPLETE · ALPHA1_COMPLETE · ALPHA2_COMPLETE · ALPHA3_COMPLETE · ALPHA4_CAPABILITY_BROKER_NEXT · SOURCE_SCOPE_FROZEN`
 기준 source: `5e9d10a11453df24fe77a896d59d891c423da621`
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN`
 
@@ -210,5 +210,7 @@ exact bytes staging, encrypted bundle, wrong-password·corruption 무변경, rel
 Runtime stop 뒤 atomic activation·재기동, rollback, effect non-retry와 설정 UX까지
 `refoundation/evidence/alpha2-whole-state-completion-2026-08-27.json`에서 α2 전체로 통과했다.
 
-다음 한 작업은 α3-A Transmission Truth다. 실제 provider 직전 serialized body에서 범주 Receipt를 만들고, 현재
-ContextReceipt나 의도된 prompt를 실제 전송 진실로 승격하지 않는 wire counterexample부터 고정한다.
+α3-A actual wire Receipt와 α3-B 대형 PDF local candidate→model selection→exact reopen은
+`refoundation/evidence/alpha3-transmission-context-completion-2026-08-27.json`에서 전체로 통과했다. 다음 한 작업은
+α4 Existing Capability Broker다. 로컬 동기화 파일·인증 CLI·공식 원격 연결·OS native capability를 사용자 목적에서
+조합하되 credential·authority·execution·effect Receipt를 합치지 않는 현재 미달 fixture부터 고정한다.

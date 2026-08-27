@@ -1,0 +1,18 @@
+{
+  "schema": "t5.alpha3.transmission-incidents.v1",
+  "positiveControls": [
+    "ContextReceipt already measured JSON request bytes without storing content.",
+    "A2 Information Control, Memory pointers, CH3 and Terminal recall already compact or reopen selected history.",
+    "PDF inspection already bounded default projection to 20 pages instead of sending a whole large document."
+  ],
+  "incidents": [
+    { "id": "A3-PRE-DISPATCH", "oracle": "cancel before dispatch creates zero Transmission Receipts" },
+    { "id": "A3-EXACT-WIRE", "oracle": "Receipt bytes and SHA equal the exact string passed to provider fetch" },
+    { "id": "A3-TRANSPORT-STATE", "oracle": "dispatch_attempted, response_received and transport unknown are not collapsed" },
+    { "id": "A3-CONTENT-FREE", "oracle": "Receipt and public projection contain no prompt, document, image or tool-result content" },
+    { "id": "A3-CREDENTIAL", "oracle": "credential headers are excluded and credential fields in request body are counted without values" },
+    { "id": "A3-UNKNOWN-SCOPE", "oracle": "whole-source non-transmission remains unknown unless full local scope was actually observed" },
+    { "id": "A3-LARGE-DOCUMENT", "oracle": "500-page late target is found locally and only model-selected exact pages reopen" },
+    { "id": "A3-STALE-SELECTION", "oracle": "changed document digest invalidates all prior page handles" }
+  ]
+}
