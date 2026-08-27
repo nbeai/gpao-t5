@@ -1,6 +1,6 @@
 # T5 3차 고도화 — 활성화 전 준비 정본
 
-상태: `THIRD_COMPLETION_SOURCE_PASS_WITH_OBSERVATION · MACOS_QUALIFIED · WINDOWS_CODE_READY_EXTERNAL_QUALIFICATION_PENDING · S3M_ADAPTIVE_DEFERRED · S3CA_DEFERRED_TO_FOURTH`
+상태: `THIRD_COMPLETION_PREINSTALL_QUALIFIED · MACOS_SOURCE_AND_RELEASE_PREFLIGHT_PASS · WINDOWS_CODE_READY_EXTERNAL_QUALIFICATION_PENDING · S3M_ADAPTIVE_DEFERRED · S3CA_DEFERRED_TO_FOURTH`
 
 3차 source와 3차α source 개발은 종료됐다. 오너는 2026-08-28 S3-CA 전체를 4차로 이관했다.
 3차에는 α4의 기존 인증 CLI·로컬 동기화 파일·공식 원격 연결·OS 능력 조합만 보존하고, 새 외부 확장을
@@ -10,6 +10,12 @@ macOS·Windows 물리 제품 자격은 여전히 별도 후속 Gate로 남는다
 
 현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN`
 3차 설치 후보: `0.3.0 · S3-CA/M6 비활성 · macOS signed/notarized package 자격 대기 · Windows physical qualification 대기`
+
+2026-08-28 설치 전 재자격은 `refoundation/evidence/third-completion-preinstall-qualification-2026-08-28.json`에
+보존한다. 실제 한국 사업자 인간 시나리오 16개는 최초 실패를 숨기지 않고 결함 가족을 수리한 뒤 모두
+통과했다. 인간 자격 launcher의 computer scope는 격리 home/workspace로 제한돼 실제 사용자 root 노출 0을
+확인했고, 대화 입력 exact-once·실제 경과시간·교정/취소 Work 귀속도 다시 닫았다. 설치 파일 생성·서명·공증·
+설치·upgrade·rollback은 이 세션의 완료가 아니며 전용 설치 세션으로 이관한다.
 
 현재 공식 Release Gate와 2차 완성의 진행 정본은 계속 `T5-SECOND-COMPLETION.md`가 담당한다. 이 문서는
 그 Release 상태는 변경하지 않는다. 오너는 2026-08-26 S3-A 측정선을 활성화하고 Terminal-first 고도화를
@@ -59,7 +65,7 @@ Windows는 installer·launcher·LOCALAPPDATA·DPAPI/Job host·CH helper code-rea
 ```text
 2차 Release Gate: 변경 없음
 3차 개발선: S3-A·T·M0~5·UX·CH0~3·VD·WA·HQ 완료 · S3-CA와 M6 adaptive 다음 차수 · Windows code-ready/외부 자격 대기
-현재 허용 작업: 3차 전체 제품 점검·재현 P0/P1 수리·macOS 설치 후보 자격
+현재 허용 작업: 전용 설치 세션의 exact source 확인·macOS package 제작·서명·공증·설치/upgrade/rollback 자격
 현재 금지 작업: S3-CA1→4 제품 개통, 별도 Docking Core·Store·Receipt·상시 Agent, 서비스별 Runtime 정책, 모델 임의 설치, screen/audio/content capture, S3-M6 병행 개통, macOS·Windows 물리 자격의 S3-CA 성공 합산
 ```
 
