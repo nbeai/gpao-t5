@@ -1,0 +1,24 @@
+{
+  "schema":"t5.s3ch3.purpose-history-incidents.v1",
+  "gate":"S3-CH3",
+  "userCompletion":"사용자는 평소 말로 과거 Work·파일·앱 흐름을 찾고, T5는 현재 목적에 맞는 작은 후보와 선택된 exact source만 사용해 답·열기·복구로 이어간다.",
+  "failureFamilies":[
+    {"id":"CH3-F01","name":"raw-history-context-dump","oracle":"provider request에 전체 Work/File/App event·transcript·title·path bytes 0"},
+    {"id":"CH3-F02","name":"unbounded-local-candidate-scan","oracle":"metadata filter와 candidate count/bytes가 bounded이고 nonmatching exact reopen 0"},
+    {"id":"CH3-F03","name":"current-correction-loses","oracle":"현재 사용자 교정이 과거 activity·Episode·model relevance보다 우선"},
+    {"id":"CH3-F04","name":"scope-sensitivity-leak","oracle":"private/foreign Session·folder·channel 후보와 hidden content는 provider 후보 0"},
+    {"id":"CH3-F05","name":"metadata-becomes-content","oracle":"파일명·앱 사용 시간만으로 파일 내용·사용 목적·성과를 발명 0"},
+    {"id":"CH3-F06","name":"actor-cause-forgery","oracle":"시간 겹침을 t5/user/system actor 또는 causal Work binding으로 승격 0"},
+    {"id":"CH3-F07","name":"model-supplied-identity","oracle":"model payload는 raw Session/Work/Run/record/path/source identity를 저작하지 못함"},
+    {"id":"CH3-F08","name":"foreign-stale-handle-replay","oracle":"handle은 current query window·scope·candidate digest에 결속되고 replay/restart mismatch fail closed"},
+    {"id":"CH3-F09","name":"omitted-eligible-candidate","oracle":"runtime exact candidate set digest/count와 model selection receipt가 일치"},
+    {"id":"CH3-F10","name":"changed-missing-reopen","oracle":"선택 뒤 source changed/missing/permission/unknown이면 old content를 반환하지 않음"},
+    {"id":"CH3-F11","name":"search-snippet-secret-leak","oracle":"candidate에는 bounded human label·kind·coarse time·counts만, snippet/path/hash/secret 0"},
+    {"id":"CH3-F12","name":"history-becomes-memory-persona","oracle":"raw activity로 MemoryClaim·persona·preference·occupation 자동 write 0"},
+    {"id":"CH3-F13","name":"foreground-provider-cost","oracle":"local filter는 model call 0, relevance model은 explicit history purpose에서 1회 bounded, normal turn additional 0"},
+    {"id":"CH3-F14","name":"false-resume-or-effect","oracle":"reopen은 read-only; same Work execution resume·redelivery·external write는 별도 exact user action 전 0"}
+  ],
+  "requiredOrder":["local metadata filter","bounded opaque candidates","scope and sensitivity redaction","model relevance selection","exact source reopen","user answer or explicit action"],
+  "nonGoals":["new collector","new raw activity ledger","screen/audio/content Recall","whole history embedding","automatic Memory or persona","same Work execution resume","external redelivery without explicit action"],
+  "liveAccountsOrSecrets":0
+}
