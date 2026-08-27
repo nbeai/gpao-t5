@@ -39,7 +39,7 @@
   "verification": {
     "focused": "23 passed, 0 failed",
     "nativeLauncherCompile": ["arm64", "x86_64"],
-    "daily": "1627 passed, 0 failed, 1 physical-Windows skipped",
+    "daily": "1624 passed, 0 failed, 1 physical-Windows skipped",
     "integration": "192 passed, 0 failed, 2 physical-Windows skipped",
     "mutation": "2 of 2 killed",
     "sourceDiffCheck": "passed"
