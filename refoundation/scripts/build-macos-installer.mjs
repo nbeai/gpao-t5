@@ -145,6 +145,16 @@ async function buildFileActivityHelper(work, runtimeBin) {
   if (architectures.join(',') !== 'arm64,x86_64') throw new Error('File activity helper is not universal');
 }
 
+async function buildCoarseAppActivityHelper(work, runtimeBin) {
+  const source = join(repo, 'refoundation', 'native', 'macos-coarse-app-activity.m');
+  const arm = join(work, 'coarse-app-activity-arm64'); const x64 = join(work, 'coarse-app-activity-x64');
+  for (const [architecture, destination] of [['arm64', arm], ['x86_64', x64]]) run('xcrun', ['clang', '-fobjc-arc', '-O2',
+    '-target', `${architecture}-apple-macos13.0`, '-framework', 'AppKit', '-framework', 'CoreGraphics', source, '-o', destination]);
+  const destination = join(runtimeBin, 't5-macos-coarse-app-activity'); run('lipo', ['-create', arm, x64, '-output', destination]);
+  await chmod(destination, 0o755); const architectures = run('lipo', ['-archs', destination]).trim().split(/\s+/u).sort();
+  if (architectures.join(',') !== 'arm64,x86_64') throw new Error('Coarse app activity helper is not universal');
+}
+
 async function signMachO(app, identity, keychain, entitlements, nodePaths) {
   const keychainArgs = keychain ? ['--keychain', keychain] : [];
   const sign = (path, extra = []) => run('codesign', [
@@ -181,6 +191,7 @@ async function main() {
     await buildDocxPageRenderer(work, runtimeBin);
     await buildMemorySpotlightHelper(work, runtimeBin);
     await buildFileActivityHelper(work, runtimeBin);
+    await buildCoarseAppActivityHelper(work, runtimeBin);
 
     const armNode = join(runtimeBin, 'node-arm64');
     const x64Node = join(runtimeBin, 'node-x64');

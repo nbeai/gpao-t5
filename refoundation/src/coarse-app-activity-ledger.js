@@ -20,7 +20,8 @@ async function appendLines(path,lines){if(!lines.length)return;const handle=awai
   if(before.dev!==after.dev||before.ino!==after.ino||after.nlink!==1||exact.dev!==after.dev||exact.ino!==after.ino||exact.nlink!==1)
     throw new Error('app activity file identity changed');}finally{await handle.close();}await chmod(path,0o600);}
 function allowedByPolicy(state,appId){return state.mode==='include_only'?state.includeApps.includes(appId):!state.excludeApps.includes(appId);}
-function publicSegment(segment){return{activityHandle:hash(['app-segment',segment.segmentDigest]).slice(0,32),appLabel:segment.appLabel,
+function appHandle(appId){return hash(['app-policy',appId]).slice(0,32);}
+function publicSegment(segment){return{activityHandle:hash(['app-segment',segment.segmentDigest]).slice(0,32),appHandle:appHandle(segment.appId),appLabel:segment.appLabel,
   startedAt:segment.startedAt,endedAt:segment.endedAt,durationMs:segment.durationMs,activity:segment.afk==='active'?'사용 중':segment.afk==='afk'?'자리 비움':'확인 필요',
   workBinding:'연결되지 않음',coverage:'foreground_app_only'};}
 
@@ -69,6 +70,15 @@ export class CoarseAppActivityLedger{
     await atomicJson(this.stateFile,next);return{accepted:accepted.length,state:accepted.length?'recorded':'duplicate'};});}
   async query({limit=100}={}){const state=await this.readState();const count=Math.min(500,Math.max(1,Number(limit)||100));
     return(await this.readSegments(state)).slice(-count).reverse().map(publicSegment);}
+  async excludeObservedApp({appHandle:requested,recordedAt}={}){if(!/^[a-f0-9]{32}$/u.test(requested??''))throw new TypeError('opaque app handle is required');
+    return this.serialize(async()=>{const state=await this.readState();const segments=await this.readSegments(state);const matches=[...new Set(segments
+      .filter((item)=>appHandle(item.appId)===requested).map((item)=>item.appId))];if(matches.length!==1)throw new Error('observed app handle is unavailable');
+      await rm(this.segmentFile(state.generation),{force:true});const next={...state,generation:state.generation+1,enabled:false,privateMode:false,
+        mode:'all_except',includeApps:[],excludeApps:[...new Set([...state.excludeApps,matches[0]])].sort(),segmentCount:0,configuredAt:time(recordedAt)};
+      await atomicJson(this.stateFile,next);return{excluded:true,remainingSegments:0,enabled:false};});}
+  async includeAll({recordedAt}={}){return this.serialize(async()=>{const state=await this.readState();await rm(this.segmentFile(state.generation),{force:true});
+    const next={...state,generation:state.generation+1,enabled:false,privateMode:false,mode:'all_except',includeApps:[],excludeApps:[],segmentCount:0,
+      configuredAt:time(recordedAt)};await atomicJson(this.stateFile,next);return{includedAll:true,remainingSegments:0,enabled:false};});}
   async status(){const state=await this.readState();const segments=await this.readSegments(state);let bytes=0;for(const path of[this.stateFile,this.segmentFile(state.generation)])
     try{bytes+=(await stat(path)).size;}catch(error){if(error?.code!=='ENOENT')throw error;}return{configured:state.configured,enabled:state.enabled,privateMode:state.privateMode,
       platform:state.platform,mode:state.mode,includeApps:clone(state.includeApps),excludeApps:clone(state.excludeApps),segmentCount:segments.length,storageBytes:bytes,

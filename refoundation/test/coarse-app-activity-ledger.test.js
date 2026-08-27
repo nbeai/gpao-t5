@@ -49,3 +49,13 @@ test('duration·duplicate·policy schema는 fail closed한다',async()=>{
   await assert.rejects(()=>ledger.ingest({source:'fixture',policyGeneration:2,segments:[{...segment('wrong'),durationMs:1}],recordedAt:when(6)}),/duration/u);
   assert.deepEqual(await ledger.ingest({source:'fixture',policyGeneration:2,segments:[segment('once'),segment('once')],recordedAt:when(6)}),{accepted:1,state:'recorded'});
 });
+
+test('관측 앱 제외와 전체 재포함은 opaque handle만 받고 이전 segment를 물리 삭제한다',async()=>{
+  const room=await mkdtemp(join(tmpdir(),'t5-ch2-policy-handle-'));const ledger=new CoarseAppActivityLedger(room);
+  await ledger.configure({platform:'darwin',recordedAt:when(0)});await ledger.setEnabled({enabled:true,recordedAt:when(1)});
+  await ledger.ingest({source:'fixture',policyGeneration:2,segments:[segment('known','com.known')],recordedAt:when(6)});
+  const observed=(await ledger.query())[0];assert.match(observed.appHandle,/^[a-f0-9]{32}$/u);assert.equal(observed.appId,undefined);
+  await ledger.excludeObservedApp({appHandle:observed.appHandle,recordedAt:when(7)});let state=await ledger.status();
+  assert.equal(state.segmentCount,0);assert.deepEqual(state.excludeApps,['com.known']);
+  await ledger.includeAll({recordedAt:when(8)});state=await ledger.status();assert.deepEqual(state.excludeApps,[]);assert.equal(state.segmentCount,0);
+});

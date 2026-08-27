@@ -354,6 +354,7 @@ export function makeConsoleServer({
   reflectionReviewCoordinator = null,
   fileActivityService = null,
   fileActivityRootSelector = null,
+  appActivityService = null,
   onError,
 } = {}) {
   if (!stateDir || !workspace) throw new TypeError('stateDir and workspace are required');
@@ -400,6 +401,8 @@ export function makeConsoleServer({
   if (fileActivityRootSelector != null && typeof fileActivityRootSelector !== 'function') {
     throw new TypeError('fileActivityRootSelector is invalid');
   }
+  if (appActivityService != null && ['status','configure','enable','pause','setPrivate','history','export','excludeApp','includeAll','forget','close']
+    .some((name)=>typeof appActivityService[name]!=='function'))throw new TypeError('appActivityService is incomplete');
   // A browser tab can outlive this server process during development, an app restart, or a
   // computer restart. Give every process lifetime a public, non-secret identity so the page can
   // distinguish a reconnect from a connection to the same runtime.
@@ -3807,6 +3810,35 @@ export function makeConsoleServer({
           : input.action === 'pause' ? await fileActivityService.pause() : await fileActivityService.forget();
         privateJson(res, 200, result); return;
       }
+      if(req.method==='GET'&&url.pathname==='/app-activity/state'){
+        if(!appActivityService){privateJson(res,200,{available:false,configured:false,enabled:false,desiredEnabled:false,privateMode:false,
+          segmentCount:0,storageBytes:0,excludedCount:0,retention:'until_user_deletes',contentCapture:false,titleCapture:false,urlCapture:false,
+          modelContextDefault:false,userSafeSummary:'이 운영체제의 앱 활동 기록은 아직 준비되지 않았어요.'});return;}
+        const state=await appActivityService.status();privateJson(res,200,{available:state.available,configured:state.configured,enabled:state.enabled,
+          desiredEnabled:state.desiredEnabled,privateMode:state.privateMode,segmentCount:state.segmentCount,storageBytes:state.storageBytes,
+          excludedCount:state.excludeApps?.length??0,retention:state.retention,contentCapture:false,titleCapture:false,urlCapture:false,
+          modelContextDefault:false,userSafeSummary:state.userSafeSummary});return;}
+      if(req.method==='GET'&&url.pathname==='/app-activity/history'){
+        if(!appActivityService)throw Object.assign(new Error('앱 활동 기록을 아직 사용할 수 없어요.'),{status:503});const limit=Number(url.searchParams.get('limit')??20);
+        if(!Number.isSafeInteger(limit)||limit<1||limit>100)throw Object.assign(new Error('앱 활동 기록 범위가 올바르지 않아요.'),{status:400});
+        privateJson(res,200,await appActivityService.history({limit}));return;}
+      if(req.method==='GET'&&url.pathname==='/app-activity/export'){
+        if(!appActivityService)throw Object.assign(new Error('앱 활동 기록을 아직 사용할 수 없어요.'),{status:503});privateJson(res,200,await appActivityService.export());return;}
+      if(req.method==='POST'&&url.pathname==='/app-activity/configure'){
+        if(!appActivityService)throw Object.assign(new Error('앱 활동 기록을 아직 사용할 수 없어요.'),{status:503});const input=await body(req);
+        if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).length!==0)throw Object.assign(new Error('앱 활동 기록 범위가 올바르지 않아요.'),{status:400});
+        await appActivityService.configure({platform:process.platform,mode:'all_except',includeApps:[],excludeApps:[]});privateJson(res,200,await appActivityService.enable());return;}
+      if(req.method==='POST'&&url.pathname==='/app-activity/exclude'){
+        if(!appActivityService)throw Object.assign(new Error('앱 활동 기록을 아직 사용할 수 없어요.'),{status:503});const input=await body(req);
+        if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).length!==1||!/^[a-f0-9]{32}$/u.test(input.appHandle??''))
+          throw Object.assign(new Error('제외할 앱을 찾지 못했어요.'),{status:400});privateJson(res,200,await appActivityService.excludeApp({appHandle:input.appHandle}));return;}
+      if(req.method==='POST'&&url.pathname==='/app-activity/action'){
+        if(!appActivityService)throw Object.assign(new Error('앱 활동 기록을 아직 사용할 수 없어요.'),{status:503});const input=await body(req);
+        if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).length!==1
+          ||!['enable','pause','private_on','private_off','include_all','forget'].includes(input.action))throw Object.assign(new Error('앱 활동 기록 동작이 올바르지 않아요.'),{status:400});
+        const result=input.action==='enable'?await appActivityService.enable():input.action==='pause'?await appActivityService.pause()
+          :input.action==='private_on'?await appActivityService.setPrivate({privateMode:true}):input.action==='private_off'?await appActivityService.setPrivate({privateMode:false})
+            :input.action==='include_all'?await appActivityService.includeAll():await appActivityService.forget();privateJson(res,200,result);return;}
       if (req.method === 'GET' && url.pathname.startsWith('/sessions/')) {
         const session = await sessions.load(decodeURIComponent(url.pathname.slice('/sessions/'.length)));
         if (!session) { json(res, 404, { error: '세션을 찾지 못했어요.' }); return; }
@@ -4424,10 +4456,12 @@ export function makeConsoleServer({
         && /reflection_review_|reflection_source_|current_evidence/u.test(error?.code ?? '')) {
         error.status = error.code?.includes('not_found') ? 404 : 409;
       }
-      const privateRoute = url.pathname.startsWith('/reflection/review/') || url.pathname.startsWith('/file-activity/');
+      const privateRoute = url.pathname.startsWith('/reflection/review/') || url.pathname.startsWith('/file-activity/')
+        || url.pathname.startsWith('/app-activity/');
       const responder = privateRoute ? privateJson : json;
       const message = url.pathname.startsWith('/file-activity/') && httpErrorStatus(error) >= 500
-        ? '파일 활동 기록을 처리하지 못했어요.' : error?.message ?? '처리 중 문제가 있었어요.';
+        ? '파일 활동 기록을 처리하지 못했어요.' : url.pathname.startsWith('/app-activity/')&&httpErrorStatus(error)>=500
+          ? '앱 활동 기록을 처리하지 못했어요.':error?.message ?? '처리 중 문제가 있었어요.';
       responder(res, httpErrorStatus(error), { error: message });
     }
   });
@@ -4446,6 +4480,7 @@ export function makeConsoleServer({
   server.memoryLedger = memories;
   server.reflectionReviewCoordinator = reflectionReviewCoordinator;
   server.fileActivityService = fileActivityService;
+  server.appActivityService = appActivityService;
   server.capabilityHandoffLedger = capabilityHandoffs;
   server.capabilityLifecycleLedger = capabilityLifecycle;
   server.learningCandidateStore = learningCandidates;
@@ -4479,6 +4514,7 @@ export function makeConsoleServer({
   };
   server.closeModelConnections = () => modelConnections?.close?.();
   server.closeFileActivity = () => fileActivityService?.close?.();
+  server.closeAppActivity = () => appActivityService?.close?.();
   server.closeMessengers = () => messenger.stop();
   server.closeBrowsers = closeBrowserDrivers;
   server.closeWorkspaceConnections = async () => {

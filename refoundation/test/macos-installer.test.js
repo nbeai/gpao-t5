@@ -13,6 +13,8 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.match(build, /t5-macos-file-activity/u);
   assert.match(build, /CoreServices/u);
   assert.match(build, /File activity helper is not universal/u);
+  assert.match(build, /buildCoarseAppActivityHelper/u);assert.match(build,/t5-macos-coarse-app-activity/u);
+  assert.match(build,/Coarse app activity helper is not universal/u);
   assert.match(build, /COPYRIGHT/u);
   assert.match(build, /THIRD_PARTY_NOTICES\.md/u);
   assert.match(build, /'skill-packages'/u);

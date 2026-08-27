@@ -39,6 +39,9 @@ import { ScopedFileActivityLedger } from '../src/scoped-file-activity-ledger.js'
 import { makeScopedFileActivityService } from '../src/scoped-file-activity-service.js';
 import { makeMacOSFSEventsAdapter } from '../src/file-activity-platform-adapters.js';
 import { makeNativeFolderSelector } from '../src/native-folder-selector.js';
+import { CoarseAppActivityLedger } from '../src/coarse-app-activity-ledger.js';
+import { makeCoarseAppActivityService } from '../src/coarse-app-activity-service.js';
+import { makeMacOSCoarseAppAdapter } from '../src/coarse-app-activity-platform-adapters.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -92,6 +95,20 @@ const fileActivityService = makeScopedFileActivityService({
 });
 const fileActivityRootSelector = makeNativeFolderSelector();
 await fileActivityService.resumeConfigured().catch(() => {});
+
+const appActivityLedger = new CoarseAppActivityLedger(join(stateDir, 'app-activity'));
+const packagedAppActivityHelper = process.platform === 'darwin'
+  ? resolve(process.env.T5_APP_ACTIVITY_HELPER ?? join(dirname(process.execPath), 't5-macos-coarse-app-activity')) : null;
+let appActivityAdapterFactory = null;
+if (packagedAppActivityHelper) {
+  try { await accessFile(packagedAppActivityHelper, constants.X_OK); appActivityAdapterFactory = async () => makeMacOSCoarseAppAdapter({
+    helper: packagedAppActivityHelper, ledger: appActivityLedger,
+    onError: (error) => console.error('[app-activity]', error?.message ?? 'collector failed'),
+  }); } catch {}
+}
+const appActivityService = makeCoarseAppActivityService({ ledger: appActivityLedger, adapterFactory: appActivityAdapterFactory,
+  onError: (error) => console.error('[app-activity]', error?.message ?? 'collector failed') });
+await appActivityService.resumeConfigured().catch(() => {});
 
 const platformSecretStore = makePlatformSecretStore({ platform: computerEnvironment.platform });
 await migrateStoredModelCredentials({ file: connectionFile, secretStore: platformSecretStore });
@@ -168,6 +185,7 @@ const server = makeConsoleServer({
   messengerCredentialStore,
   fileActivityService,
   fileActivityRootSelector,
+  appActivityService,
   localConsoleToken,
   onError: (error) => console.error('[refoundation-console]', error?.message ?? error),
 });
@@ -218,6 +236,7 @@ const stop = async () => {
     boundedShutdown(() => server.closeWorkspaceConnections()),
     boundedShutdown(() => server.closeAutomations()),
     boundedShutdown(() => server.closeFileActivity()),
+    boundedShutdown(() => server.closeAppActivity()),
     boundedShutdown(() => server.managedProcesses.stopAll('runtime_shutdown')),
   ]);
   await boundedShutdown(() => new Promise((resolveClose) => {

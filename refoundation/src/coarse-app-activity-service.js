@@ -25,5 +25,10 @@ export function makeCoarseAppActivityService({ledger,adapterFactory=null,onError
     async resumeConfigured(){return serialize(async()=>{const state=await ledger.status();if(!state.enabled||state.privateMode)return status();try{await startRuntime();}catch(error){
       await ledger.setEnabled({enabled:false,recordedAt:new Date().toISOString()});throw error;}return status();});},
     async history({limit}={}){return{items:await ledger.query({limit})};},async export(){return{schema:'t5.coarse-app-activity-export.v1',items:await ledger.query({limit:500})};},
+    async excludeApp({appHandle}={}){return serialize(async()=>{const prior=await ledger.status();await stopRuntime();
+      const result=await ledger.excludeObservedApp({appHandle,recordedAt:new Date().toISOString()});if(prior.enabled&&!prior.privateMode){
+        await ledger.setEnabled({enabled:true,recordedAt:new Date().toISOString()});await startRuntime();}return{...result,status:await status()};});},
+    async includeAll(){return serialize(async()=>{const prior=await ledger.status();await stopRuntime();const result=await ledger.includeAll({recordedAt:new Date().toISOString()});
+      if(prior.enabled&&!prior.privateMode){await ledger.setEnabled({enabled:true,recordedAt:new Date().toISOString()});await startRuntime();}return{...result,status:await status()};});},
     async forget(){return serialize(async()=>{await stopRuntime();return ledger.forgetAll({recordedAt:new Date().toISOString()});});},async close(){await serialize(stopRuntime);}});
 }
