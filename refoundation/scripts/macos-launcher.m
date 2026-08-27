@@ -126,7 +126,7 @@
   self.primaryRegularInstance = NO;
   NSError *error = nil;
   NSTask *task = [self processForEntry:@"refoundation/scripts/stop-local-runtime.mjs"
-    arguments:@[@"--port-file", self.portFile.path, @"--reason", @"user_full_stop"] error:&error];
+    arguments:@[@"--port-file", self.portFile.path, @"--reason", @"user_quit"] error:&error];
   if (!task) return NSTerminateNow;
   task.terminationHandler = ^(NSTask *finished) {
     dispatch_async(dispatch_get_main_queue(), ^{ [NSApp replyToApplicationShouldTerminate:YES]; });
