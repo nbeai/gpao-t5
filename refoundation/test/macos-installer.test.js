@@ -35,6 +35,8 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.match(launcher, /backgroundRuntimeMode/u);
   assert.match(launcher, /NSApplicationActivationPolicyProhibited/u);
   assert.match(launcher, /openConsoleWithCompletion:nil/u);
+  assert.match(launcher, /--reason"\s*,\s*@"user_full_stop/u);
+  assert.doesNotMatch(launcher, /user_quit/u);
   assert.doesNotMatch(launcher, /applicationWillTerminate[\s\S]*\[self\.child terminate\]/u);
   assert.doesNotMatch(launcher, /connect-chatgpt\.mjs|startOAuth/u);
   assert.match(launcher, /applicationDidFinishLaunching[\s\S]*?\[self startConsole\]/u);
