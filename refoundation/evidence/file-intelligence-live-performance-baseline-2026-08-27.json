@@ -1,0 +1,29 @@
+{
+  "schema": "t5.file-intelligence-live-performance-baseline.v1",
+  "recordedOn": "2026-08-27",
+  "sourceCommit": "6d211dad",
+  "status": "BASELINE_HUMAN_PASS_PERFORMANCE_OPEN",
+  "environment": "clean live console, actual user home, gpt-5.5, read and owner-requested local organization",
+  "humanAssessment": "All observed file-finding objectives succeeded; OCR quality was acceptable; elapsed time felt longer than desired.",
+  "journeys": [
+    { "id": "structured_person_record", "wallMs": 37874, "modelCalls": 6, "toolCalls": 7, "completed": true },
+    { "id": "external_report_recency", "wallMs": 55677, "modelCalls": 5, "toolCalls": 4, "completed": true },
+    { "id": "portrait_batch_organize", "wallMs": 84981, "modelCalls": 13, "toolCalls": 12, "completed": true },
+    { "id": "vague_filename", "wallMs": 48683, "modelCalls": 7, "toolCalls": 6, "completed": true },
+    { "id": "visual_name_ocr", "wallMs": 110100, "modelCalls": 14, "toolCalls": 16, "completed": true }
+  ],
+  "aggregate": {
+    "journeys": 5,
+    "meanWallMs": 67463,
+    "meanModelCalls": 9,
+    "meanToolCalls": 9,
+    "falseCompletion": 0
+  },
+  "notClaimed": [
+    "Warm-cache performance",
+    "Persistent OCR or document index reuse",
+    "Windows physical performance",
+    "A fixed product time or call-count limit"
+  ],
+  "next": "Introduce generation-bound local observation cache and FTS index, then replay the same journey families without prompt-specific patches."
+}
