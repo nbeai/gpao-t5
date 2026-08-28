@@ -1,0 +1,104 @@
+{
+  "schema": "t5.s4g.g0-read-only-baseline.v1",
+  "recordedAt": "2026-08-28T18:52:36.160Z",
+  "sourceHead": "b918b367",
+  "productSourceChanges": 0,
+  "model": "gpt-5.5",
+  "fixture": {
+    "inputFiles": 12,
+    "inputRows": 527,
+    "expectedSummaryRows": 4,
+    "expectedErrorRows": 47
+  },
+  "purpose": {
+    "naturalLanguageOnly": true,
+    "programRequestedByUser": false,
+    "httpStatus": 200,
+    "workStatus": "completed",
+    "answerPresent": true
+  },
+  "performance": {
+    "wallMs": 107840,
+    "modelCalls": 13,
+    "toolCalls": 12,
+    "providerTokens": 323691,
+    "requestBytes": 1424937
+  },
+  "route": {
+    "toolNames": [
+      "tool_search",
+      "exec",
+      "exec",
+      "file_reality",
+      "exec",
+      "exec",
+      "exec",
+      "exec",
+      "file_reality",
+      "attachment",
+      "attachment",
+      "work_completion"
+    ],
+    "programAuthoredOrExecuted": true,
+    "programRelatedToolCalls": 5,
+    "outputReopenedAfterProgramObserved": true,
+    "capsuleContractObserved": false
+  },
+  "verification": {
+    "passed": true,
+    "rawSummaryHeaderExactBeforeBomNormalization": false,
+    "rawErrorHeaderExactBeforeBomNormalization": false,
+    "summaryHeaderExactAfterBomNormalization": true,
+    "errorHeaderExactAfterBomNormalization": true,
+    "totalsExact": true,
+    "summaryOrderExact": true,
+    "errorsExact": true,
+    "errorIdentitySetExact": true,
+    "errorOrderExact": true,
+    "missingErrorKeys": [],
+    "unexpectedErrorKeys": [],
+    "summaryRows": 4,
+    "errorRows": 47,
+    "outputHashes": {
+      "summary": "34c1d2ff6745cd9c4995693232e0b280598f8a0e6d5c2d45d171512ffa2189d0",
+      "errors": "9d101217623c7bcb0b193a388cf318f0244c4d31a9928c447bc69b592d633ac9"
+    },
+    "sourceUnchanged": true,
+    "residualFiles": 0,
+    "programResidualFiles": 0,
+    "residualManagedProcesses": 0,
+    "runtimeErrors": 0
+  },
+  "qualificationCorrection": {
+    "reason": "The first verifier treated the UTF-8 BOM as part of the first header field.",
+    "acceptedEncoding": "utf-8-bom",
+    "acceptedLineEndings": "crlf",
+    "independentOracleHashMatch": true,
+    "oracleHashes": {
+      "summary": "34c1d2ff6745cd9c4995693232e0b280598f8a0e6d5c2d45d171512ffa2189d0",
+      "errors": "9d101217623c7bcb0b193a388cf318f0244c4d31a9928c447bc69b592d633ac9"
+    },
+    "additionalModelRunForCorrection": false
+  },
+  "diagnostic": {
+    "surfaceKind": "reply",
+    "surfaceCode": null,
+    "surfaceError": null,
+    "runtimeErrors": []
+  },
+  "boundaries": {
+    "actualUserData": false,
+    "externalWrites": 0,
+    "packageInstallRequested": "unmeasured_in_retained_receipt",
+    "networkRequested": "unmeasured_in_retained_receipt",
+    "userTechnicalKnowledgeRequired": false
+  },
+  "gateOutcome": {
+    "status": "G0_COMPLETE",
+    "userPurposeAchieved": true,
+    "productImplementationAdopted": 0,
+    "largestGap": "The existing route achieved the purpose but used 13 model calls, 12 tool calls, 323691 provider tokens and 107840 ms without a source/interpreter/fixture capsule qualification.",
+    "nextGate": "G1_CAPSULE_CONTRACT"
+  },
+  "decision": "G1_OPEN_ECONOMY_AND_QUALIFICATION_GAP"
+}

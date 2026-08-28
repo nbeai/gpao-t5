@@ -6,21 +6,25 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../../', import.meta.url);
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 
-test('4차 정본은 S4-F를 닫고 S4-G read-only baseline만 연다', async () => {
+test('4차 정본은 S4-G1을 닫고 S4-G2 source preparation만 연다', async () => {
   const [plan, agents, second] = await Promise.all([
     readFile(new URL('T5-FOURTH-COMPLETION.md', root), 'utf8'),
     readFile(new URL('AGENTS.md', root), 'utf8'),
     readFile(new URL('T5-SECOND-COMPLETION.md', root), 'utf8'),
   ]);
-  assert.match(plan, /S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_READ_ONLY_BASELINE_ACTIVE/u);
+  assert.match(plan, /S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_ACTIVE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING/u);
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
-  assert.match(plan, /현재 Gate: `S4-G EPHEMERAL PROGRAM CAPSULE · READ-ONLY BASELINE`/u);
+  assert.match(plan, /현재 Gate: `S4-G2 EPHEMERAL PROGRAM CAPSULE · SOURCE PREPARATION`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',
     'S4-H', 'S4-I', 'S4-J', 'S4-K', 'S4-UX', 'S4-L', 'S4-HQ'];
   let cursor = -1;
   for (const gate of gates) { const next = plan.indexOf(`### ${gate} —`); assert.ok(next > cursor, gate); cursor = next; }
   assert.match(plan, /최초 실패 하나로 구현을 열되[\s\S]*서로 다른 세 목적 분야/u);
-  assert.match(plan, /Experience-Based Growth[\s\S]*Capability Reality & Acquisition/u);
+  assert.match(plan, /S4-J — Experience-Based Growth — DEFERRED TO FUTURE RESEARCH/u);
+  assert.match(plan, /S4-K — Capability Reality CROSS-CUTTING · Acquisition DEFERRED TO FUTURE RESEARCH/u);
+  assert.match(plan, /Capability Reality는 별도 획득 엔진이나 Gate가 아니다[\s\S]*S4-G·S4-I·S4-HQ/u);
+  assert.match(plan, /Capability Acquisition은 오너 결정으로 미래 연구에 이관/u);
+  assert.match(plan, /제품 import는 0/u);
   assert.match(plan, /S4-UX — Interaction Continuity & Human Reassurance[\s\S]*canonical status projection/u);
   assert.match(plan, /짧은 작업은 별도 진행 소음 없이[\s\S]*긴 작업은 실제 단계가 바뀔 때만/u);
   assert.match(plan, /Console·Telegram에서 같은 canonical 상태/u);
@@ -78,7 +82,7 @@ test('4차 정본은 S4-F를 닫고 S4-G read-only baseline만 연다', async ()
   assert.match(plan, /PTY parent-death containment[\s\S]*S4-L/u);
   assert.match(plan, /S4-E2 actual[\s\S]*S4-E3 actual/u);
   assert.match(plan, /S4-E1 actual은 여섯 계약/u);
-  assert.match(plan, /S4-C carry-forward로 동일 도구면의 모델별 Hand 선택/u);
+  assert.match(plan, /S4-C carry-forward의 모델별 Hand 선택/u);
   assert.match(plan, /S4-C carry-forward로 실제 자료가 있는데 없다고 말하는지/u);
   assert.match(plan, /각 local engine·model·Capability의 실제 사용 가능 여부[\s\S]*개인정보 범위/u);
   assert.match(plan, /publishable output, internal intermediate, diagnostic, temporary, cleanup/u);
@@ -86,12 +90,12 @@ test('4차 정본은 S4-F를 닫고 S4-G read-only baseline만 연다', async ()
   assert.match(plan, /one-to-one·one-to-many·many-to-one·ambiguous·unmatched·conflicting/u);
   assert.match(plan, /최종 Excel·ZIP을 독립 재개방/u);
   assert.match(plan, /model partial[\s\S]*surface persistence[\s\S]*delivery terminal/u);
-  assert.match(plan, /engine·model 후보별 identity[\s\S]*local\/external[\s\S]*privacy scope/u);
+  assert.match(plan, /현재 사용할 수 있는 손[\s\S]*local\/external[\s\S]*privacy scope/u);
   assert.match(plan, /사용자 메시지·T5 답변·실제 작업시간/u);
   assert.match(plan, /Artifact lineage에서 version이 단조 증가/u);
   assert.match(plan, /내부 `sandbox:` URL/u);
   assert.match(plan, /권역별 Excel 6개[\s\S]*내부 파일 0/u);
-  assert.match(plan, /장시간 한국어 오디오[\s\S]*Notion에 반영·재개방/u);
+  assert.match(plan, /장시간 한국어 오디오에서 현재 사용 가능한 STT engine[\s\S]*Notion에 반영·재개방/u);
   assert.match(agents, /`T5-FOURTH-COMPLETION\.md` — 지금 어느 Gate/u);
   assert.match(second, /현재 후속 Gate: `T5-FOURTH-COMPLETION\.md · S4-D1`/u);
 });

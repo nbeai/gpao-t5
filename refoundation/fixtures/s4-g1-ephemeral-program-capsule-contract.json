@@ -1,0 +1,92 @@
+{
+  "schema": "t5.s4g.ephemeral-program-capsule-contract.v1",
+  "status": "CONTRACT_ONLY_PRODUCT_CHANGES_ZERO",
+  "candidateKind": "artifact_building",
+  "completionSentence": "One current-Work capsule binds exact source, interpreter, inputs, independent fixture evidence, declared outputs, confinement and cleanup without treating program self-report as user completion.",
+  "facts": {
+    "identity": ["capsuleId", "workId", "revision"],
+    "source": ["sha256"],
+    "interpreter": ["executableIdentity", "version", "digest"],
+    "execution": ["cwd", "scratchHandle"],
+    "inputs": ["recordRef", "revision", "sha256"],
+    "fixture": ["inputRef", "oracleRef", "oracleProvenance", "expectedDigest"],
+    "outputs": ["relativePath", "kind", "publishable"],
+    "resourceLimitDimensions": ["wall", "rss", "processes", "stdout", "stderr"]
+  },
+  "authority": {
+    "model": [
+      "whether a capsule is economically useful",
+      "program source bytes",
+      "which evidence and output meaning satisfy the user purpose",
+      "whether another method is preferable"
+    ],
+    "runtime": [
+      "canonical identity and revision",
+      "source and input digests",
+      "interpreter availability and identity",
+      "confinement, execution, output and cleanup receipts",
+      "no duplicate actual execution after unknown effect"
+    ]
+  },
+  "states": [
+    "prepared",
+    "fixture_failed",
+    "fixture_verified",
+    "actual_running",
+    "actual_failed_no_effect",
+    "actual_effect_unknown",
+    "output_unverified",
+    "output_verified",
+    "published_verified",
+    "cleanup_unknown",
+    "cleaned"
+  ],
+  "oracleProvenanceAllowed": [
+    "user_declared_fact",
+    "runtime_deterministic_fact",
+    "independent_observer_contract"
+  ],
+  "oracleProvenanceForbidden": [
+    "capsule_stdout",
+    "capsule_manifest",
+    "capsule_generated_expected_output",
+    "model_claim_without_observed_fact"
+  ],
+  "invariants": [
+    "fixture qualification binds exact source and interpreter digests",
+    "actual execution uses only the source digest that passed fixture qualification",
+    "every actual input is reopened at the bound revision and digest before execution",
+    "program exit zero and program-authored manifests do not verify output",
+    "actual effect unknown never triggers blind automatic execution",
+    "only independently observed publishable outputs enter the F publication transaction",
+    "diagnostic, temporary and duplicate personal-data files never become user artifacts",
+    "cleanup uncertainty remains distinct from output verification and user-purpose completion"
+  ],
+  "reuse": [
+    "RecordRef and existing source manifest",
+    "S4-D managed process, output handle and crash settlement",
+    "S4-E scratch and declared-output confinement",
+    "S4-F prepare, publication, verification and rollback transaction"
+  ],
+  "counterexamples": [
+    "source changes after fixture qualification",
+    "interpreter digest changes after fixture qualification",
+    "actual input revision or digest changes before execution",
+    "program and its own manifest claim success without an independent observer",
+    "exit zero produces a wrong or incomplete output",
+    "verified output leaves undeclared diagnostic or personal-data copies",
+    "runtime crash leaves actual effect unknown and a retry is attempted",
+    "foreign Work or revision reuses a capsule admission"
+  ],
+  "nonGoals": [
+    "capsule runtime implementation",
+    "interpreter selection",
+    "new store",
+    "new intent or business schema",
+    "nested tool RPC",
+    "agent team or DAG planner",
+    "package installation",
+    "automatic skill promotion",
+    "physical Windows qualification"
+  ]
+}

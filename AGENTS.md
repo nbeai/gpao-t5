@@ -30,8 +30,11 @@
 - legacy 조사는 archive에서 읽기 전용으로만 수행한다. 수정·재실행이 필요하면 현재 제품 작업과
   분리된 별도 archive 작업으로 열며 결과를 현재 제품의 성공으로 간주하지 않는다.
 - 4차 개발은 tag `t5-0.3.1-clean-baseline`에서 갈라진 `codex/t5-fourth-android-intelligence`만 사용한다.
-- Purpose, Situation, Terminal, Mutation, Authoring, Program Capsule, Reconciliation, Recovery, Experience,
-  Capability, Interaction UX는 `T5-FOURTH-COMPLETION.md`의 현재 Gate가 열기 전에는 구현하지 않는다.
+- Purpose, Situation, Terminal, Mutation, Authoring, Program Capsule, Reconciliation, Recovery,
+  Interaction UX는 `T5-FOURTH-COMPLETION.md`의 현재 Gate가 열기 전에는 구현하지 않는다.
+- Experience-Based Growth와 Capability Acquisition은 오너 결정으로 4차 필수 Gate에서 제외했다. 제품 entry는
+  0이며 미래 연구로만 보존한다. Capability Reality는 새 획득 엔진이 아니라 S4-G·S4-I·S4-HQ에서 현재 손과
+  부족·대안의 사실을 정직하게 확인하는 공통 불변식으로만 유지한다.
 - Reflection·Principle·Capability package의 휴면 연구 source는 교재이지 제품 정본이 아니다. 현재 실패와
   반대시험 없이 product entry로 import하거나 package payload에 되돌리지 않는다.
 

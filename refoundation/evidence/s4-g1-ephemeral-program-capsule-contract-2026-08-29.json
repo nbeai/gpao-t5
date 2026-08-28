@@ -1,0 +1,45 @@
+{
+  "schema": "t5.s4g.g1-capsule-contract-complete.v1",
+  "recordedOn": "2026-08-29",
+  "status": "G1_COMPLETE",
+  "sourceBaseCommit": "b918b367",
+  "g0Evidence": "refoundation/evidence/s4-g0-read-only-baseline-2026-08-29.json",
+  "contract": "refoundation/fixtures/s4-g1-ephemeral-program-capsule-contract.json",
+  "candidateKind": "artifact_building",
+  "productChanges": 0,
+  "newRuntime": 0,
+  "newTool": 0,
+  "newStore": 0,
+  "interpreterSelected": false,
+  "factsSeparated": [
+    "source prepared",
+    "fixture verified",
+    "actual executed",
+    "output exists",
+    "output independently verified",
+    "user purpose achieved",
+    "temporary state cleaned"
+  ],
+  "reuse": [
+    "RecordRef and existing source manifest",
+    "S4-D process and output reality",
+    "S4-E confinement",
+    "S4-F authoring and publication transaction"
+  ],
+  "forbiddenFirstScope": [
+    "nested Tool RPC",
+    "Agent Team",
+    "DAG planner",
+    "package installation",
+    "automatic Skill promotion"
+  ],
+  "verification": {
+    "focusedPassed": 9,
+    "focusedFailed": 0,
+    "contractCounterexamples": 8,
+    "dailyCheckPassed": 1722,
+    "dailyCheckFailed": 0,
+    "dailyCheckSkipped": 1
+  },
+  "nextGate": "G2_SOURCE_PREPARATION"
+}

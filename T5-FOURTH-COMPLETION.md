@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_READ_ONLY_BASELINE_ACTIVE`
-현재 Gate: `S4-G EPHEMERAL PROGRAM CAPSULE · READ-ONLY BASELINE`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_ACTIVE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+현재 Gate: `S4-G2 EPHEMERAL PROGRAM CAPSULE · SOURCE PREPARATION`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -11,17 +11,17 @@ Terminal·Work Intelligence·Capability·Windows를 설명하는 별도 총괄 �
 작은 기계 증거만 `refoundation/evidence/`에 남긴다.
 
 `Android`는 사용자의 목적을 이해하고 현실에서 스스로 적절한 손을 구성하는 제품 비유다. Android 모바일
-운영체제를 뜻하지 않는다. 외부 제품 목표는 `Android Intelligence`, 내부 기술 목표는
-`Work Intelligence + Terminal Execution + Capability Growth`다.
+운영체제를 뜻하지 않는다. 외부 제품 목표는 `Android Intelligence`, 이번 4차의 내부 기술 목표는
+`Work Intelligence + Terminal Execution + Safe Program Composition`이다.
 
 ## 1. 제품 약속과 최종 완료 문장
 
 > 사용자는 기능·명령어·프로그램을 선택하지 않고 평소 말로 목적만 설명한다. T5는 사용자의 상황과 기준,
 > 컴퓨터와 외부 자원의 현재 현실을 파악하고 가장 경제적인 방법을 선택한다. 기존 손으로 충분하면 즉시
-> 사용하고, 부족하면 현재 Work에 필요한 작은 도구를 만들거나 검증된 능력을 갖춘다. 큰 자료와 장시간
+> 사용하고, 부족하면 현재 Work에 필요한 작은 도구를 만들거나 이미 사용할 수 있는 검증된 대안을 찾는다. 큰 자료와 장시간
 > 작업도 가볍게 관리하며 맡긴 범위 안에서만 실행하고, 결과·효과·전달을 검증한다. 실패·교정·취소·Runtime
-> 사고 뒤에도 고아 실행과 중복 효과 없이 이어가며, 실제 협업 경험을 통해 사용자에게 맞는 일머리와
-> 전문성을 발전시킨다.
+> 사고 뒤에도 고아 실행과 중복 효과 없이 이어가며, 사용자는 내부 프로그램과 기술을 배우지 않고 실제
+> 결과와 남은 미확인·필요한 다음 행동만 받는다.
 
 4차는 Capability 수나 Terminal 기능 수를 늘리는 개발이 아니다. 강한 모델의 목적 이해·방법 구성·복구와
 T5의 현실 감각·기억·손·실행 장부를 한 몸으로 만들어 처음 보는 업무도 끝내는 단계다.
@@ -36,8 +36,8 @@ T5의 현실 감각·기억·손·실행 장부를 한 몸으로 만들어 처�
 → 자료 연결·계산·대사
 → 결과·효과·전달 검증
 → 실패하면 다른 방법으로 복구
-→ 실제 교정과 성과에서 성장
-→ 부족한 손만 안전하게 획득
+→ 실제 결과와 남은 미확인 정산
+→ 사용자에게 자연스럽게 전달
 ```
 
 ## 2. 역할 경계
@@ -55,14 +55,17 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-G ephemeral program capsule의 현재 실제 차이 측정이다.
-3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
-   없이 끝까지 관찰한다.
-4. **이미 선 실제 증거**: F는 closed preview·scratch prepare·lock·publication·verify·settle·다음 턴 Undo를 닫았다.
-5. **현재 가장 큰 미달**: 기존 손으로 어려운 처음 보는 변환에서 작은 프로그램 작성·fixture·독립 output 검증의
-   현재 제품 차이가 아직 재현되지 않았다.
-6. **이번 변경 방식**: 제품 변경 0에서 기존 HP-03·대형 자료 통합·프로그램 생성 여정의 실제 실패만 재현한다.
-7. **Non-goals**: 즉시 capsule tool 구현·package 자동 설치·Core 수정·S4-H.
+2. **현재 Gate**: S4-G2 ephemeral program capsule의 source preparation이다.
+3. **사용자 완료 문장**: T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은
+   프로그램을 만들고, 고정된 입력과 범위에서 시험·실행하며, 프로그램과 독립적으로 검증한 사용자 결과만
+   발행하고 나머지는 정리한다.
+4. **이미 선 실제 증거**: G1은 source·interpreter·input·fixture·output·cleanup 사실과 11개 상태를 분리하고
+   프로그램 self-report 금지·D/E/F 재사용 계약을 제품 변경 0으로 고정했다.
+5. **현재 가장 큰 미달**: exact program source·fixture input·독립 oracle·output declaration을 사용자 target 밖
+   scratch에 함께 준비하고 한 항목 실패 시 전체를 버리는 현재 제품 경로가 없다.
+6. **이번 변경 방식**: F의 scratch candidate preparation과 E의 canonical confinement를 재사용해 source 원문은
+   모델이 쓰고 Runtime은 위치·digest·identity·전체 준비 성공만 보장하는 가장 작은 후보를 만든다.
+7. **Non-goals**: fixture 실행·actual 실행·interpreter 확정·nested Tool RPC·package 설치·Core 수정·S4-H.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -297,8 +300,8 @@ presence는 즉시 업로드 요구 대신 두 번의 workspace 검색을 유도
 
 S4-C는 제품 성공으로 완료한 것이 아니다. `USER_COMPLETION_NOT_UNIVERSALLY_PROVEN`이며 S4-C 제품 구현 채택은
 0이다. A03·S01의 거짓 부재, portable command 선택, shallow observation 해석, 불필요한 Connection과 모델별
-정확성·비용 차이는 S4-K의 model·Capability 선택 현실과 S4-HQ의 실제 인간 목적에서 다시 확인한다. HQ에서
-핵심 목적이 실패하면 4차 전체 완료를 주장하지 않는다.
+정확성·비용 차이는 S4-G·S4-I의 현재 손·대안 현실과 S4-HQ의 실제 인간 목적에서 다시 확인한다. HQ에서 핵심
+목적이 실패하면 4차 전체 완료를 주장하지 않는다.
 
 완료 문장:
 
@@ -636,9 +639,48 @@ Capsule은 실행 전에 publishable output, internal intermediate, diagnostic, 
 파일 외 내부 JSON·log·debug·manifest·개인정보 중복 사본은 Artifact와 ZIP에 들어가지 않는다. 프로그램이
 작성한 output manifest는 관측 후보일 뿐 독립 검증이 아니다.
 
+첫 제품 후보는 실제 로컬 입력에서 결과 파일을 만드는 `Artifact-Building Capsule`이다. 프로그램 안에서 여러
+T5 Tool을 호출하는 Programmatic Tool Orchestration은 model 왕복이 실제 병목으로 재현되기 전에는 열지 않는다.
+nested Tool RPC·Agent Team·DAG planner·자동 Skill 승격·package 자동 설치는 G의 첫 제품 범위가 아니다.
+
+개발 순서는 다음처럼 닫는다.
+
+1. `G0 Read-only Baseline`: 제품 변경 0에서 기존 Terminal·workspace_patch로 자연어 사용자 목적을 실행하고
+   성공·비용·source/actual/output/cleanup 현실을 측정한다.
+2. `G1 Capsule Contract`: source·interpreter·cwd·input revision/hash·fixture·expected output·scratch·resource
+   limit의 최소 사실만 고정한다.
+3. `G2 Source Preparation`: 프로그램·fixture·oracle·output declaration을 사용자 target 밖 managed scratch에
+   준비하고 준비 실패 시 actual 실행 0을 보장한다.
+4. `G3 Fixture Qualification`: exact source와 interpreter를 작은 결정적 fixture에서 시험하고 프로그램이 함께
+   작성한 자기 oracle만으로 통과시키지 않는다.
+5. `G4 Actual Execution`: fixture를 통과한 source만 frozen input에 실행하며 input/source 변경·사고 뒤 blind
+   retry를 막는다.
+6. `G5 Independent Observer`: 프로그램 manifest가 아니라 T5 observer가 실제 output·형식·hash·입력 관계·예상
+   밖 파일·residual process를 다시 관측한다.
+7. `G6 Publication and Cleanup`: 검증된 publishable 결과만 F transaction으로 발행하고 internal·diagnostic·
+   temporary·개인정보 중복 사본을 정리한다.
+8. `G7 Product Activation and A/B`: 자연어 요청에서 유리할 때만 자발 선택하고 단순 작업의 불필요한 Capsule과
+   동일 목적 품질·경제성 회귀를 막는다.
+
+G0 actual은 제품 변경 0의 gpt-5.5가 자연어 요청만으로 CSV 12개·527행을 프로그램 경로로 처리해 거래처별
+4행 집계와 오류 47행을 정확히 만들고 원본 변경·잔여 파일·managed process를 0으로 끝냈다. output은
+CRLF·UTF-8 BOM이었고 최초 raw header verifier가 BOM을 field로 센 qualification 결함은 독립 oracle hash exact
+match로 교정했다. 실제 경로는 output을 다시 열었지만 13 model calls·12 tool calls·323,691 provider tokens·
+1,424,937 request bytes·107.8초를 사용했고 source/interpreter/fixture Capsule 자격은 없었다. 정확성 성공만으로
+이 비용과 자격 공백을 숨기지 않고 G1을 연다.
+
+G1 actual은 source·interpreter·input·fixture·output·scratch·resource limit의 최소 사실, 11개 분리 상태,
+자기 oracle 금지와 D·E·F·RecordRef 재사용 경계를 contract fixture와 반대시험으로 고정했다. 새 Runtime·Tool·
+Store·interpreter 선택과 제품 source 변경은 0이다.
+
+현재는 `G2` source preparation만 열려 있다. program source·fixture input·independent oracle·output declaration을
+사용자 target 밖 managed scratch에 모두 준비하고 exact digest로 다시 열며, 하나라도 실패하면 scratch 전체를
+정리하고 fixture·actual 실행을 0으로 유지한다. interpreter는 여전히 확정하지 않는다.
+
 완료 문장:
 
-> T5는 처음 보는 업무에 필요한 작은 도구를 작성·시험·실행하고 독립 검증해 기존 손의 한계를 넘는다.
+> T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은 프로그램을 만들고, 고정된
+> 입력과 범위에서 시험·실행하며, 프로그램과 독립적으로 검증한 사용자 결과만 발행하고 나머지는 정리한다.
 
 ### S4-H — 범용 Reconciliation 확장
 
@@ -688,54 +730,31 @@ surface가 이미 공개된 유용한 결과를 지우거나 후속 입력이 �
 
 > T5는 실패와 불확실성을 해석해 적절한 방법으로 전환하고 사용자가 바로 활용할 결과를 일머리 있게 전달한다.
 
-### S4-J — Experience-Based Growth
+### S4-J — Experience-Based Growth — DEFERRED TO FUTURE RESEARCH
 
-실제 settled Work와 사용자 교정에서만 재사용 후보를 만든다. 반례·near miss·작은 trial·동일 목적 A/B·사용자
-확인·승격·회귀 rollback을 거친다. 회사 용어·결과 형식·자료 위치·중요 기준·허용 자율성·예외·효과가 좋았던
-방법을 source와 함께 다룬다.
+오너 결정으로 4차 필수 Gate에서 제외했다. 실제 settled Work·사용자 교정·반례·작은 trial·동일 목적 A/B를
+거쳐 방법을 승격·교체·rollback하는 장기 연구는 현재 제품 entry 0으로 보존한다. 기존 Memory·Episode·Skill과
+사용자 규칙은 그대로 유지하며, 자동 Skill 승격·사용자 persona·출처 없는 추론·Core 수정은 4차에 넣지 않는다.
 
-기존 Reflection·Principle·Learning 연구 코드는 교재다. product entry로 import하지 않고 현재 실패에서 필요한
-계약만 가장 작게 다시 연결한다. 사용자 persona, 출처 없는 추론, 자동 Core 수정은 없다.
+이 절은 미래 연구 경계를 기록할 뿐 4차 완료 조건이나 현재 개발 순서를 열지 않는다.
 
-완료 문장:
+### S4-K — Capability Reality CROSS-CUTTING · Acquisition DEFERRED TO FUTURE RESEARCH
 
-> T5는 실제 협업 증거를 바탕으로 더 적은 설명과 교정으로 일하고 성과가 떨어진 방법은 되돌린다.
+Capability Reality는 별도 획득 엔진이나 Gate가 아니다. S4-G·S4-I·S4-HQ가 기존 Connection·Capability·Resource
+Receipt를 이용해 현재 사용할 수 있는 손, 부족한 이유, 이미 가능한 대안, 입력 한계, 비용·시간, local/external,
+privacy scope와 실패 대안을 정직하게 확인하는 공통 불변식으로 유지한다. 관련성·수단 선택은 모델이 판단하며
+업무 Router나 모델 강제 선택을 만들지 않는다.
 
-### S4-K — Capability Reality & Acquisition
+외부 후보 발견, Skill·Plugin·CLI·MCP 설치, 격리 inactive 준비, positive control, update·rollback·remove를
+통합하는 Capability Acquisition은 오너 결정으로 미래 연구에 이관했다. 기존 CA research 모듈과 휴면 source의
+제품 import는 0이며, 4차에서는 package 자동 설치·자동 영구 승격·새 획득 lifecycle을 열지 않는다.
 
-Experience Growth와 분리해 마지막에 연다.
-
-```text
-정확한 능력 gap
-→ 현재 대안 확인
-→ 후보 발견
-→ 출처·version·digest·권한·비용 관측
-→ 격리 inactive 준비
-→ 작은 positive control
-→ 원래 Work 재개
-→ 실제 효과 검증
-→ 재사용·update·rollback·remove
-```
-
-Skill·Plugin·CLI·MCP는 출발점이 아니라 결과물이다. 기존 CA research 모듈을 통째로 복원하지 않는다. branch·
-tag·credential URL·임의 lifecycle hook·검증되지 않은 package는 제품 능력이 아니다. 네 사용자 경계는
-비밀값 입력, 백업 없는 파괴, 새 상대 첫 외부 전송, 돈이 나가는 일로 유지한다.
-
-실행 Capability는 필요할 때 engine·model 후보별 identity, version, 입력 형식·크기·길이, 언어, 품질 증거,
-비용, 처리시간, local/external, privacy scope, runtime requirement, result format, fallback을 관측한다. 사용자는
-로컬 우선·비용 우선·품질 우선·특정 공급자·민감자료 외부 전송 금지 정책을 자연어로 정할 수 있다. STT는
-이 계약의 positive control일 수 있지만 `회의록이면 특정 API` 같은 업무 Router나 성공한 전사 재실행은 없다.
-
-S4-C carry-forward로 동일 도구면의 모델별 Hand 선택, portable command, shallow observation 해석, 목적 정확성,
-wall·calls·tokens를 Capability Reality 후보 사실에 포함한다. 이 사실은 업무 Router나 모델 강제 선택이 아니다.
-
-완료 문장:
-
-> T5는 현재 손이 부족한 이유를 정확히 알고 기존 대안이 없을 때만 검증된 능력을 안전하게 갖춰 원래 목적을 재개한다.
+S4-C carry-forward의 모델별 Hand 선택, portable command, shallow observation 해석, 목적 정확성,
+wall·calls·tokens는 S4-G·S4-I·S4-HQ에서 현재 사실과 실제 사용자 결과로 다시 확인한다.
 
 ### S4-UX — Interaction Continuity & Human Reassurance
 
-S4-B~K가 만든 머리·손·복구 현실을 새 원장이나 모델의 진행 서술 없이 현재 Work·Run·Tool·Effect·Delivery
+S4-B~I가 만든 머리·손·복구 현실을 새 원장이나 모델의 진행 서술 없이 현재 Work·Run·Tool·Effect·Delivery
 사건에서 사용자 언어로 투영한다. 이미 선 canonical Work reality, milestone, 경과시간, 교정·중지, 재접속 복원,
 Telegram 진행, Artifact·Effect·Delivery 영수증을 재사용한다.
 
@@ -780,7 +799,7 @@ percentage, 애니메이션으로 시간 채우기, Runtime 문구로 모델의 
 
 ### S4-L — Windows 물리 자격
 
-Windows는 마지막에 처음 고려하지 않는다. S4-B~K의 공통 계약마다 Windows adapter 의미와 반대시험을 함께
+Windows는 마지막에 처음 고려하지 않는다. S4-B~I의 공통 계약마다 Windows adapter 의미와 반대시험을 함께
 고정하고, S4-UX의 단일 상태·진행 밀도·교정·중지·재접속 계약까지 포함해 이 Gate에서 실제 Windows x64·ARM64
 제품 여정을 최종 자격한다. PowerShell direct argv, ConPTY, Job Object, DPAPI, NTFS ACL·junction·hardlink,
 Windows Search·OCR·문서 render와 실제 UI 흐름을 확인한다.
@@ -806,12 +825,13 @@ macOS 성공, Linux/WSL, emulation, GitHub runner는 물리 Windows 사용자 �
 - 흩어진 자료에서 빠진 증빙과 맞지 않는 금액만 만들기
 - 형식이 다른 대량 자료를 작은 프로그램으로 통합·검산하기
 - 프로젝트의 실패 원인을 찾아 수정·재시험하고 장기 process를 복구하기
-- 현재 연결되지 않은 자원의 gap과 최소 대안을 확인하고 필요한 능력만 갖추기
+- 현재 연결되지 않은 자원의 gap과 이미 가능한 최소 대안을 확인하고 연결·획득을 거짓 주장하지 않기
 - target 밖 write·secret·외부 전송·결제·late child effect를 차단하기
 - 여러 턴의 월·권역 기록과 교정, 신청자 원본과 제출 양식을 결합해 권역별 Excel 6개를 만든 뒤 ZIP의
   18행·source-key join·필수값 coverage·시트·금액·내부 파일 0을 독립 검증하기
-- 장시간 한국어 오디오를 적합한 STT engine으로 전사하고 요약·실행 과제·전체 원문 Artifact를 분리해
-  Notion에 반영·재개방하며 비용·시간·privacy·첨부 미지원 범위를 보존하기
+- 장시간 한국어 오디오에서 현재 사용 가능한 STT engine의 현실을 확인하고, 사용할 수 있을 때만 전사·요약·
+  실행 과제·전체 원문 Artifact를 분리해 Notion에 반영·재개방하며 비용·시간·privacy·첨부 미지원 범위를
+  보존하기. 사용할 수 없으면 최소 대안과 미실행 사실을 보존한다.
 
 S4-C carry-forward로 실제 자료가 있는데 없다고 말하는지, shallow 검색을 전체 부재로 확대하는지, 불필요한
 Connection을 먼저 여는지, 같은 목적을 더 적합한 모델이 해결하는지를 다시 확인한다.
@@ -848,6 +868,7 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 - 화면 전체 Recall, 무제한 상시 파일 본문 수집, 사용자 persona
 - SSH·Docker·cloud backend 일반 확대, root/admin 일반 shell
 - 모든 외부 서비스 Connector, Skill 개수 늘리기
+- Experience-Based Growth 제품 구현, Capability Acquisition, package 자동 설치·자동 Skill 승격
 - Prompt 전면 재작성, UI 전면 재설계
 - 모든 변경 자동 rollback, 모든 shell effect의 과장된 완전 confinement
 - Runtime 규칙으로 모델의 목적·관계·완료 의미 선택
@@ -855,6 +876,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D managed non-PTY와 D5C는 닫혔다. S4-E baseline은 세 실제 gap으로
-닫혔다. S4-E1~E7과 S4-F structured authoring 전체도 닫혔다. 현재 다음 한 작업은 S4-G ephemeral program
-capsule read-only baseline이다. 실제 기존 손의 사용자 목적 실패 전에는 새 capsule 구현을 열지 않는다.
+S4-C 미달은 S4-G·S4-I·S4-HQ에 이월했다. S4-D managed non-PTY와 D5C, S4-E1~E7, S4-F structured authoring은
+닫혔다. S4-G0의 실제 차이와 S4-G1 Capsule contract도 닫혔다. 현재 다음 한 작업은 S4-G2 source preparation이다.
+이 단계에서는 fixture·actual 실행, 새 Tool·Store, interpreter 선택을 열지 않는다.
