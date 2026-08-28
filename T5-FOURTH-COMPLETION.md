@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_BASELINE_COMPLETE · S4_D2_STOP_COMPLETION_SETTLEMENT_ACTIVE`
-현재 Gate: `S4-D2 STOP/COMPLETION SETTLEMENT · MINIMUM RED FIRST`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_BASELINE_COMPLETE · S4_D2_STOP_COMPLETION_SETTLEMENT_COMPLETE · S4_D3_LIVE_OUTPUT_SPINE_RED_ACTIVE`
+현재 Gate: `S4-D3 LIVE OUTPUT SPINE · LOSS COUNTERTESTS AND RSS PROFILING FIRST`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,16 +55,16 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-D2 Stop/Completion Settlement의 최소 반대시험과 구현이다.
+2. **현재 Gate**: S4-D3 Live Output Spine의 유실 반대시험과 RSS 원인 분리다.
 3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
    없이 끝까지 관찰한다.
-4. **이미 선 실제 증거**: ordinary completion wake는 exact once지만 이미 completed인 process를 `stop`으로 먼저
-   관측하면 terminal 결과를 반환한 뒤 `claimTerminalWake`가 같은 결과를 다시 claim했다.
-5. **현재 가장 큰 미달**: stop·poll·wake 중 먼저 terminal을 관측한 경로와 background wake settlement가 exact
-   once로 결속되지 않았다.
-6. **이번 변경 방식**: terminal event promise를 사용한 두 순서의 RED를 먼저 만들고, 기존 record의
-   `terminalObserved`·`wakeClaimed`만으로 terminal early-return settlement를 닫는다.
-7. **Non-goals**: 새 Store·sleep 기반 경합 제어·process state 재정의, live output spool, crash rebind, S4-E,
+4. **이미 선 실제 증거**: S4-D2는 stop-first RED와 wake-first 반대 순서를 기존 `terminalObserved`·`wakeClaimed`로
+   닫았다. S4-D1에서는 2.5M 동시 출력 중 402,872자가 유실되고 exact handle이 없었으며 RSS가 반복 급증했다.
+5. **현재 가장 큰 미달**: 실행 중 managed output은 resident 1MiB tail만 남겨 exact range와 완료 후 동일 handle을
+   제공하지 못한다. RSS 급증의 Buffer·string·snapshot·압축·GC 원인은 분리되지 않았다.
+6. **이번 변경 방식**: 기존 TerminalOutputStore 재사용을 전제로 stdout·stderr·동시 폭주·Unicode·running range·
+   completion handle·partial spool·disk full·foreign owner·재실행 0을 RED로 만들고 RSS를 별도 계측한다.
+7. **Non-goals**: RSS 전체 해결 주장, 새 Output Store, crash rebind, S4-D4 구현, 고정 출력 상한, S4-E,
    실제 HOME·계정·외부 효과 시험.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
@@ -307,7 +307,7 @@ S4-C는 제품 성공으로 완료한 것이 아니다. `USER_COMPLETION_NOT_UNI
 
 > T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한 손으로 필요한 원문만 본다.
 
-### S4-D — Terminal 실행 중 output·process 미달 — D2 STOP/COMPLETION SETTLEMENT ACTIVE
+### S4-D — Terminal 실행 중 output·process 미달 — D2 COMPLETE, D3 RED ACTIVE
 
 S4-D0은 disk spool 전에 KHB-S01에서 발견된 pipeline 실행 사실을 닫았다. zsh `pipestatus`와 bash
 `PIPESTATUS`로 마지막 unconditional foreground pipeline의 전체 exit와 단계 exit를 분리한다. Runtime은 이
@@ -362,6 +362,19 @@ S4-D2 완료 문장:
 S4-D2는 terminal 결과를 반환하는 경로와 wake 소비를 기존 record settlement에 결속한다. stop이 이미 terminal을
 관측하면 `terminalObserved`를 원자적으로 남기고, wake가 먼저 claim된 순서에서는 이후 stop이 background wake를
 다시 만들지 않는다. 새 Store와 고정 sleep은 없다.
+
+S4-D2 actual은 stop-first RED가 같은 completion wake를 재claim하는 것을 재현한 뒤 terminal stop early-return에
+`terminalObserved`를 기록하는 최소 변경으로 닫았다. wake-first 반대 순서와 기존 managed process·Terminal·
+Work surface 관련 검사 34개는 실패 0이다.
+
+S4-D3 완료 문장:
+
+> T5는 대형 process 출력을 실행 중부터 유실 없이 보존하고 모델에는 필요한 범위만 공급하며, 완료 후에도
+> 같은 handle로 정확히 회수한다.
+
+S4-D3는 기존 `TerminalOutputStore`를 재사용한다. process 시작부터 stdout·stderr append, 작은 memory
+head·tail·cursor, 실행 중 exact range, 완료 후 같은 handle finalize, restart 뒤 저장 범위 reopen을 검토한다.
+출력 유실 수리와 RSS 원인·개선은 별도 사실로 판정한다.
 
 - 실행 중 stdout·stderr append-only disk spool
 - 작은 memory head·tail·cursor와 bounded range read
@@ -642,5 +655,5 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D1은 세 P1을 분리해 완료됐고 오너 결정으로 S4-D 구현이 열렸다.
-현재 다음 한 작업은 S4-D2의 stop-first·wake-first 최소 RED와 기존 settlement를 이용한 가장 작은 수리다.
+S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D2 exact-once settlement는 최소 변경으로 닫혔다. 현재 다음 한
+작업은 S4-D3의 managed live-output 유실 RED와 RSS 구성요소 profiling이다. crash ownership은 S4-D4까지 열지 않는다.

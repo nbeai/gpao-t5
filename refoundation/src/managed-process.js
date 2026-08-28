@@ -304,7 +304,11 @@ export class ManagedProcessRegistry {
 
   async stop({ processId, ownerId, reason = 'requested', cursor }) {
     const record = this.#owned(processId, ownerId);
-    if (terminal(record.state)) return this.#snapshot(record, cursor);
+    if (terminal(record.state)) {
+      const snapshot = this.#snapshot(record, cursor);
+      record.terminalObserved = true;
+      return snapshot;
+    }
     if (record.state !== 'stop_requested') {
       record.state = 'stop_requested';
       record.stopReason = reason;

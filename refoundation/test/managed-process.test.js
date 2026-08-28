@@ -136,6 +136,47 @@ test('process_start가 running으로 반환된 뒤 생긴 terminal 상태는 한
   }
 }));
 
+test('S4-D2 RED: stop이 이미 terminal 결과를 반환하면 같은 completion wake는 다시 claim되지 않는다', {
+  timeout: 2000,
+}, async () => room(async ({ root, registry }) => {
+  let resolveTerminal;
+  const terminalEvent = new Promise((resolve) => { resolveTerminal = resolve; });
+  const unsubscribe = registry.onTerminal(resolveTerminal);
+  try {
+    const started = await registry.start({
+      program: '/bin/sh', args: ['-lc', "printf 'stop-first'"], cwd: root,
+      env: process.env, ownerId: 'session-stop-first', waitMs: 0,
+      metadata: { kind: 'managed', originRunId: 'run-stop-first' },
+    });
+    await terminalEvent;
+    const observed = await registry.stop({ processId: started.processId,
+      ownerId: 'session-stop-first', reason: 'model_requested', cursor: started.cursor });
+    assert.equal(observed.state, 'completed');
+    assert.equal(registry.claimTerminalWake(started.processId), null);
+  } finally { unsubscribe(); }
+}));
+
+test('S4-D2 반대 순서: wake가 먼저 claim되면 이후 stop이 background wake를 다시 만들지 않는다', {
+  timeout: 2000,
+}, async () => room(async ({ root, registry }) => {
+  let resolveTerminal;
+  const terminalEvent = new Promise((resolve) => { resolveTerminal = resolve; });
+  const unsubscribe = registry.onTerminal(resolveTerminal);
+  try {
+    const started = await registry.start({
+      program: '/bin/sh', args: ['-lc', "printf 'wake-first'"], cwd: root,
+      env: process.env, ownerId: 'session-wake-first', waitMs: 0,
+      metadata: { kind: 'managed', originRunId: 'run-wake-first' },
+    });
+    await terminalEvent;
+    assert.equal(registry.claimTerminalWake(started.processId)?.state, 'completed');
+    const observed = await registry.stop({ processId: started.processId,
+      ownerId: 'session-wake-first', reason: 'model_requested', cursor: started.cursor });
+    assert.equal(observed.state, 'completed');
+    assert.equal(registry.claimTerminalWake(started.processId), null);
+  } finally { unsubscribe(); }
+}));
+
 test('모델이 poll로 terminal 상태를 이미 관측한 process는 다시 wake하지 않는다', async () => room(async ({ root, registry }) => {
   const started = await registry.start({
     program: '/bin/sh', args: ['-lc', "sleep 0.04; printf 'observed'"], cwd: root,

@@ -1,0 +1,49 @@
+{
+  "schema": "t5.s4d2.stop-completion-settlement.v1",
+  "recordedOn": "2026-08-28",
+  "status": "COMPLETE",
+  "sourceBaseCommit": "7dda6026",
+  "triggerEvidence": "refoundation/evidence/s4-d1-live-output-process-baseline-2026-08-28.json",
+  "failure": {
+    "order": "process completed -> stop returned completed -> completion wake claimed same terminal result",
+    "severity": "P1",
+    "redTestFailedForExactReason": true
+  },
+  "contract": {
+    "completionSentence": "The same process terminal result is applied to user Work exactly once regardless of whether stop, poll, or completion wake observes it first.",
+    "settlementFieldsReused": ["terminalObserved", "wakeClaimed"],
+    "newStore": false,
+    "fixedSleepCoordination": false,
+    "processStateReinterpreted": false
+  },
+  "implementation": {
+    "file": "refoundation/src/managed-process.js",
+    "change": "terminal stop early-return snapshots the result and records terminalObserved before returning",
+    "addedProductLines": 4
+  },
+  "countertests": {
+    "stopFirstThenWake": "passed; wake null",
+    "wakeFirstThenStop": "passed; second wake null",
+    "terminalEventPromiseUsed": true,
+    "coordinationSleepUsed": false
+  },
+  "verification": {
+    "focusedPassed": 34,
+    "focusedFailed": 0,
+    "fullCi": {
+      "unitPassed": 1656,
+      "unitFailed": 0,
+      "unitSkipped": 1,
+      "integrationPassed": 192,
+      "integrationFailed": 0,
+      "integrationSkipped": 2,
+      "mutationKills": 2
+    }
+  },
+  "nonClaims": [
+    "managed live output loss is fixed",
+    "crash process ownership is fixed",
+    "all distributed duplicate delivery is fixed"
+  ],
+  "nextOneTask": "After full CI, open S4-D3 Live Output Spine with loss countertests and separate RSS profiling before implementation."
+}
