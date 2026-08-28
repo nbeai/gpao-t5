@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_BASELINE_COMPLETE · S4_D2_COMPLETE · S4_D3_COMPLETE_WITH_RSS_OBSERVATION · S4_D4_BASELINE_COMPLETE · S4_D4A_PARENT_DEATH_CONTAINMENT_COMPLETE · S4_D4B_SUCCESSOR_SETTLEMENT_COMPLETE · S4_D5_RSS_ATTRIBUTION_COMPLETE · S4_D5A_IN_PROCESS_CANDIDATES_REJECTED · S4_D5B_ISOLATED_EXPLAINER_QUALIFICATION_COMPLETE · S4_D5C_PRODUCT_ISOLATION_ACTIVE`
-현재 Gate: `S4-D5C ISOLATED COMMAND EXPLAINER · PRODUCT INTEGRATION`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5A_IN_PROCESS_CANDIDATES_REJECTED · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_READ_ONLY_BASELINE_ACTIVE`
+현재 Gate: `S4-E MANAGED MUTATION CONFINEMENT · READ-ONLY BASELINE`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,16 +55,16 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-D5C isolated command explainer 제품 배선이다.
+2. **현재 Gate**: S4-E managed mutation confinement의 현재 실제 범위 측정이다.
 3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
    없이 끝까지 관찰한다.
-4. **이미 선 실제 증거**: D5B persistent helper는 cold 39.6ms·warm 0.19ms, 동시 8건 exact pairing, crash
-   fail-closed를 통과했다. live output은 주 Runtime +18.6MB·helper 63.6MB·wall +39.4ms에서 exact hash를 보존했다.
-5. **현재 가장 큰 미달**: 자격 helper는 제품 Terminal의 기본 command explainer와 lifecycle에 아직 연결되지 않았다.
-6. **이번 변경 방식**: 기존 command explanation 계약은 그대로 두고 lazy helper client를 제품 Runtime 소유로
-   연결하며 stdin·bounded JSON·request identity·crash fail-closed·정상 shutdown을 보장한다.
-7. **Non-goals**: 새 Store·parser 의미 축소·고정 memory 상한·출력 손실·process reattach·PTY containment·
-   Windows 물리 자격·S4-E·실제 HOME·계정·외부 효과.
+4. **이미 선 실제 증거**: D5C는 exact command explanation·pipeline·broker·Capability·output을 보존하며 전체
+   메모리 후보를 약 598MB에서 약 82.1MB로 낮췄고 전체 CI를 통과했다.
+5. **현재 가장 큰 미달**: managed workspace와 exact target 밖 child write·symlink·target 교체의 현재 물리 차단
+   범위가 하나의 실제 기준선으로 분리되지 않았다.
+6. **이번 변경 방식**: 제품 변경 0에서 canonical path·symlink·hardlink·실행 중 교체·late child write·protected
+   secret·부분 변경을 기존 sandbox/effect/rollback 현실로 재현한다.
+7. **Non-goals**: 일반 shell 전체 효과 통제 주장·새 Store·업무별 write 규칙·반복 승인·S4-F·실제 HOME·계정·외부 효과.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -306,7 +306,7 @@ S4-C는 제품 성공으로 완료한 것이 아니다. `USER_COMPLETION_NOT_UNI
 
 > T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한 손으로 필요한 원문만 본다.
 
-### S4-D — Terminal 실행 중 output·process 미달 — D2·D3·D4A·D4B·D5·D5B COMPLETE, D5A REJECTED, D5C ACTIVE
+### S4-D — Terminal 실행 중 output·process 미달 — MANAGED NON-PTY COMPLETE
 
 S4-D0은 disk spool 전에 KHB-S01에서 발견된 pipeline 실행 사실을 닫았다. zsh `pipestatus`와 bash
 `PIPESTATUS`로 마지막 unconditional foreground pipeline의 전체 exit와 단계 exit를 분리한다. Runtime은 이
@@ -477,6 +477,17 @@ S4-D5C 완료 문장:
 
 > 제품 Runtime은 command parser를 실행 손과 분리해 exact explanation·권한·pipeline·Capability 사실을 유지하고,
 > helper가 죽거나 응답이 깨지면 보호 없는 Terminal 실행 전에 멈추며 정상 종료·재시작에서 고아 helper를 남기지 않는다.
+
+S4-D5C actual은 lazy `IsolatedCommandExplainer`를 제품 Console의 기존 `makeTerminalHand` explanation 입구에
+연결했다. command는 argv가 아니라 child stdin JSONL로 전달되고 response·identity·timeout을 bounded 검증한다.
+helper infrastructure failure는 process start 전에 fail closed하며 기존 custom parser 실패 호환은 유지한다.
+Runtime shutdown과 server close는 helper를 종료한다.
+
+실제 2.2M자 제품 client A/B에서 주 Runtime peak delta median 18.5MB, helper 약 63.6MB, 전체 약 82.1MB였고
+기존 약 598MB 대비 약 86% 감소했다. wall median은 339.2ms였고 stdout·stderr exact hash, finalized handle,
+pipeline·foreground·managed·cancel·Runtime stop 양성 대조를 보존했다. 전체 CI는 unit failure 0, integration
+192/192, mutation 2/2였다. PTY parent-death containment와 물리 Windows helper lifecycle은 이 완료에 포함하지
+않고 각각 기존 non-claim과 S4-L에 남긴다.
 
 - 실행 중 stdout·stderr append-only disk spool
 - 작은 memory head·tail·cursor와 bounded range read
@@ -757,6 +768,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D2·D3·D4A·D4B·D5·D5B는 닫혔고 D5A in-process 후보는 폐기했다.
-현재 다음 한 작업은 자격된 persistent helper를 기존 command explanation 계약에 가장 작게 연결하는 D5C다.
-제품 RED·전체 Terminal 양성 대조·helper lifecycle·전체 CI 전에는 S4-D와 S4-E를 닫지 않는다.
+S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D managed non-PTY와 D5C는 닫혔고 PTY parent-death·물리 Windows는
+명시한 범위에 남긴다. 현재 다음 한 작업은 S4-E의 read-only mutation confinement 기준선이다. 실제 범위 밖
+write가 재현되고 기존 sandbox·effect·rollback으로 닫히지 않을 때만 가장 작은 구현을 연다.

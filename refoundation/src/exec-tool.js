@@ -184,7 +184,10 @@ function makeCommandTool(options = {}, { managed }) {
       const cwd = await resolveWorkingDirectory(root, args.cwd);
       let commandExplanation;
       try { commandExplanation = await explain(command); }
-      catch (error) { commandExplanation = { ok: false, error: error?.message ?? String(error) }; }
+      catch (error) {
+        if (error?.code === 'T5_COMMAND_EXPLAINER_UNAVAILABLE') throw error;
+        commandExplanation = { ok: false, error: error?.message ?? String(error) };
+      }
       let attributedCapabilities = [];
       if (typeof capabilityAttribution === 'function') {
         try { attributedCapabilities = await capabilityAttribution({

@@ -12,6 +12,7 @@ import { makeProcessControlTool, makeProcessStartTool, makeTerminalHand } from '
 import { explainShellCommand } from '../src/command-explainer.js';
 import { ManagedProcessRegistry } from '../src/managed-process.js';
 import { TerminalOutputStore } from '../src/terminal-output-store.js';
+import { IsolatedCommandExplainer } from '../src/isolated-command-explainer.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const script = fileURLToPath(import.meta.url);
@@ -55,6 +56,7 @@ const arms = [
   'terminal_direct_live_store',
   'terminal_live_store',
   'terminal_persistent_explanation',
+  'terminal_product_explanation',
   'terminal_bounded_hash_read',
   'terminal_concat_read',
 ];
@@ -364,10 +366,13 @@ async function runTerminal(root, arm, track) {
   const registry = new ManagedProcessRegistry({ outputLimit: 64_000,
     ...(direct ? { platform: 'linux' } : {}) });
   const persistent = arm === 'terminal_persistent_explanation' ? persistentExplanationClient() : null;
+  const productExplainer = arm === 'terminal_product_explanation'
+    ? new IsolatedCommandExplainer() : null;
   const hand = makeTerminalHand({ workingDirectory: root, workspace: root,
     ownerId: 'session-a', originRunId: 'run-a', yieldMs: 10,
     ...(store ? { terminalOutputStore: store } : {}), processRegistry: registry,
-    ...(persistent ? { explainCommand: (command) => persistent.explain(command) } : {}) });
+    ...(persistent ? { explainCommand: (command) => persistent.explain(command) } : {}),
+    ...(productExplainer ? { explainCommand: (command) => productExplainer.explain(command) } : {}) });
   const session = hand.tools.find((tool) => tool.name === 'terminal_session');
   try {
     if (persistent) await persistent.explain("printf 'warm helper'");
@@ -376,7 +381,8 @@ async function runTerminal(root, arm, track) {
     track();
     const terminal = await pollTerminal(session, started, track);
     let read = null;
-    if (['terminal_bounded_hash_read', 'terminal_persistent_explanation'].includes(arm)) {
+    if (['terminal_bounded_hash_read', 'terminal_persistent_explanation',
+      'terminal_product_explanation'].includes(arm)) {
       read = await readBounded(session, terminal.outputRecall.handle, 'hash', track);
     } else if (arm === 'terminal_concat_read') {
       read = await readBounded(session, terminal.outputRecall.handle, 'concat', track);
@@ -390,6 +396,7 @@ async function runTerminal(root, arm, track) {
   } finally {
     await registry.stopAll('test_cleanup');
     await persistent?.close();
+    await productExplainer?.close();
   }
 }
 

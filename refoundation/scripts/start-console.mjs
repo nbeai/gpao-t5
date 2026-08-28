@@ -325,6 +325,7 @@ const stop = async (reason = 'runtime_signal') => {
   server.closeModelConnections();
   await Promise.all([
     boundedShutdown(() => server.closeBrowsers()),
+    boundedShutdown(() => server.closeCommandExplainer()),
     boundedShutdown(() => server.closeWorkspaceConnections()),
     boundedShutdown(() => server.closeFileActivity()),
     boundedShutdown(() => server.closeAppActivity()),

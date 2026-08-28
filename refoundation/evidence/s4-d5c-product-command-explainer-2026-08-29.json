@@ -1,0 +1,52 @@
+{
+  "schema": "t5.s4d5c.product-command-explainer.v1",
+  "recordedOn": "2026-08-29",
+  "status": "PRODUCT_INTEGRATION_COMPLETE",
+  "sourceBaseCommit": "c094900b",
+  "implementation": {
+    "client": "IsolatedCommandExplainer",
+    "existingEntry": "makeTerminalHand explainCommand",
+    "newStore": false,
+    "commandInArgv": false,
+    "failClosedBeforeProcessStart": true,
+    "concurrentIdentity": true,
+    "normalShutdown": true,
+    "serverCloseCleanup": true
+  },
+  "compatibility": {
+    "commandExplanationContentPreserved": true,
+    "pipelineFactsPreserved": true,
+    "credentialBrokerPreserved": true,
+    "capabilityAttributionPreserved": true,
+    "foregroundManagedFailurePathsPreserved": true,
+    "customParserFailureCompatibilityPreserved": true
+  },
+  "performance": {
+    "samples": 3,
+    "outputCharsPerStream": 1100020,
+    "mainRuntimeMedianPeakRssDelta": 18530304,
+    "helperCandidateRss": 63569920,
+    "combinedCandidateBytes": 82100224,
+    "previousInProcessBytes": 598048768,
+    "combinedReductionBytes": 515948544,
+    "combinedReductionRatio": 0.8627,
+    "medianWallMs": 339.172208,
+    "stdoutExactHash": true,
+    "stderrExactHash": true,
+    "sameFinalizedHandle": true
+  },
+  "verification": {
+    "focusedAdjacentPassed": 40,
+    "focusedAdjacentFailed": 0,
+    "fullCiExit": 0,
+    "integrationPassed": 192,
+    "integrationFailed": 0,
+    "mutationKills": 2
+  },
+  "nonClaims": [
+    "PTY parent-death containment is implemented",
+    "physical Windows helper lifecycle is qualified",
+    "all arbitrary shell effects are confined"
+  ],
+  "nextOneTask": "Open S4-E read-only managed mutation confinement baseline before any new confinement implementation."
+}

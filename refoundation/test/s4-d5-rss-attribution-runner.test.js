@@ -24,6 +24,7 @@ test('S4-D5 profiler는 격리 arm에서 RSS 계층을 분리하고 제품·사�
     'registry_direct_without_live_store', 'registry_without_live_store',
     'terminal_direct_live_store', 'terminal_live_store',
     'terminal_persistent_explanation',
+    'terminal_product_explanation',
     'terminal_bounded_hash_read', 'terminal_concat_read']) {
     assert.match(source, new RegExp(`'${arm}'`, 'u'));
   }

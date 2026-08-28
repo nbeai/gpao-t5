@@ -10,6 +10,7 @@ import { pipeline } from 'node:stream/promises';
 import { runAgent } from './agent-loop.js';
 import { ConsoleSessionStore } from './console-session-store.js';
 import { makeTerminalHand } from './exec-tool.js';
+import { IsolatedCommandExplainer } from './isolated-command-explainer.js';
 import { TerminalOutputStore } from './terminal-output-store.js';
 import { discoverComputerEnvironment, publicComputerFacts } from './computer-environment.js';
 import { makePathRevealer } from './path-revealer.js';
@@ -363,6 +364,7 @@ export function makeConsoleServer({
   terminalPlatformAdapter = null,
   terminalCredentialBroker = null,
   terminalCapabilityAttribution = null,
+  commandExplainer = null,
   computerFileRoots = null,
   protectedFileRoots = [],
   fileIndexSearch = null,
@@ -557,6 +559,11 @@ export function makeConsoleServer({
     });
   }
   const terminalOutputs = new TerminalOutputStore(join(stateDir, 'terminal-outputs'));
+  const terminalCommandExplainer = commandExplainer ?? new IsolatedCommandExplainer();
+  if (typeof terminalCommandExplainer.explain !== 'function'
+    || typeof terminalCommandExplainer.close !== 'function') {
+    throw new TypeError('commandExplainer is incomplete');
+  }
   const executableOutputOperations = new ExecutableOutputOperationStore({
     attachmentStore: attachments, workspace,
   });
@@ -1501,6 +1508,7 @@ export function makeConsoleServer({
         terminalPlatformAdapter,
         terminalCredentialBroker,
         terminalOutputStore: terminalOutputs,
+        explainCommand: (command) => terminalCommandExplainer.explain(command),
         capabilityAttribution: async (facts) => [
           ...await managedCliStore.attributeCommand(facts.commandExplanation),
           ...(typeof terminalCapabilityAttribution === 'function'
@@ -5017,6 +5025,7 @@ export function makeConsoleServer({
     wakeSubscribers.clear();
   };
   server.closeModelConnections = () => modelConnections?.close?.();
+  server.closeCommandExplainer = () => terminalCommandExplainer.close();
   server.closeFileActivity = () => fileActivityService?.close?.();
   server.closeAppActivity = () => appActivityService?.close?.();
   server.closeMessengers = async () => { await messengerStartup; return messenger.stop(); };
@@ -5028,5 +5037,6 @@ export function makeConsoleServer({
       await service.close?.();
     }));
   };
+  server.once('close', () => { terminalCommandExplainer.close().catch(() => {}); });
   return server;
 }
