@@ -1,0 +1,37 @@
+{
+  "schema": "t5.s4g.g7-exec-heredoc-source-facts.v1",
+  "recordedOn": "2026-08-29",
+  "status": "STRUCTURAL_SOURCE_FACT_COMPLETE_EXECUTION_UNCHANGED",
+  "sourceBaseCommit": "6931d9b0",
+  "observedFacts": {
+    "parser": "tree-sitter-bash",
+    "heredocBody": ["commandId", "startIndex", "endIndex", "bytes", "sha256"],
+    "bodyBytesDuplicatedInNewField": false,
+    "pipelineOwnerBoundStructurally": true
+  },
+  "ordinaryExec": {
+    "commandExplanationShapeChanged": false,
+    "newToolSchemaBytes": 0,
+    "additionalModelCalls": 0,
+    "additionalToolCalls": 0
+  },
+  "runtimeMeaning": {
+    "temporaryProgramSelected": false,
+    "inputMeaningSelected": false,
+    "backendSelected": false,
+    "completionSelected": false
+  },
+  "productExecutionChanged": false,
+  "verification": {
+    "focused": { "passed": 6, "failed": 0 },
+    "dailyCheck": { "passed": 1750, "failed": 0, "skipped": 1 }
+  },
+  "nonGoals": [
+    "command regex inference",
+    "global exec schema expansion",
+    "Python to QuickJS translation",
+    "all exec wrapping",
+    "durable purpose or program store"
+  ],
+  "nextOneTask": "transient_program_contract_continuation"
+}

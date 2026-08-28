@@ -15,6 +15,7 @@ test('파이프와 조건 연쇄를 실제 명령 단계와 operator로 추출�
   assert.ok(result.shapes.includes('pipeline'));
   assert.ok(result.shapes.includes('and'));
   assert.equal(result.steps[0].text, 'find . -type f');
+  assert.equal(Object.hasOwn(result, 'heredocs'), false);
 });
 
 test('명령 치환 안의 실행도 nested step으로 보존한다', async () => {
@@ -35,4 +36,23 @@ test('지나치게 큰 명령은 파서에 넣지 않는다', async () => {
     () => explainShellCommand(`printf x ${'a'.repeat(128 * 1024)}`),
     /too large to explain/,
   );
+});
+
+test('interpreter heredoc은 문자열 추측 없이 exact body span·digest·bytes로 관측한다', async () => {
+  const source = "python3 - <<'PY'\nimport csv\nprint('x')\nPY";
+  const result = await explainShellCommand(source);
+  assert.equal(result.ok, true); assert.ok(result.shapes.includes('heredoc-body'));
+  assert.equal(result.heredocs.length, 1); assert.equal(result.heredocs[0].commandId, 'command-0');
+  const body = source.slice(result.heredocs[0].startIndex, result.heredocs[0].endIndex);
+  assert.match(body, /import csv/u); assert.equal(result.heredocs[0].bytes, Buffer.byteLength(body));
+  assert.match(result.heredocs[0].sha256, /^[a-f0-9]{64}$/u);
+});
+
+test('pipeline이 붙은 heredoc도 source를 소유한 interpreter command에 결속한다', async () => {
+  const source = "python3 - <<'PY' | sed 's/x/y/'\nprint('x')\nPY";
+  const result = await explainShellCommand(source);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.steps.map((step) => step.executable), ['python3', 'sed']);
+  assert.equal(result.heredocs.length, 1);
+  assert.equal(result.heredocs[0].commandId, 'command-0');
 });

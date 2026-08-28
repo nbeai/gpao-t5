@@ -735,6 +735,14 @@ turn 6에는 Python heredoc으로 순수 변환을 작성해 declared output 두
 child-process 요구가 pure transform일 때만 QuickJS를 내부 backend 후보로 사용한다. 요구가 맞지 않으면 자동
 언어 변환 없이 같은 Python과 Terminal 경계를 유지한다.
 
+G7 exec 흡수의 첫 제품 조각은 기존 Tree-sitter command explanation에서 heredoc body의 exact span·bytes·digest와
+그 source를 받은 command identity만 구조적으로 관측한다. pipeline이 heredoc command 뒤에 붙어도 source owner를
+redirected statement의 body command에 결속한다. body가 없는 일반 exec explanation에는 새 field를 만들지 않으며,
+이 사실만으로 temporary program·입력·요구 조건·backend·성공 의미를 Runtime이 선택하지 않는다. 실행·격리·
+발행 동작도 아직 바꾸지 않았다. 다음 조각은 이 구조적 source fact가 있을 때만 실행 전에 모델이 current Work의
+RecordRef·declared output·resource requirements를 명시할 수 있는 transient continuation이며, 전역 exec schema나
+durable Store를 만들지 않는다.
+
 완료 문장:
 
 > T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은 프로그램을 만들고, 고정된
@@ -936,5 +944,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 S4-C 미달은 S4-G·S4-I·S4-HQ에 이월했다. S4-D managed non-PTY와 D5C, S4-E1~E7, S4-F structured authoring은
 닫혔다. S4-G0~G6도 순서대로 닫혔다. S4-G7 별도 Tool 후보는 폐기됐고 제품 source delta는 0이다. 현재 다음 한
-작업은 기존 exec의 model-authored temporary program에만 적용되는 작은 실행 계약과 반대시험이다. 동일 Python
-source·입력·출력 의미를 보존한 A/B 전에는 G 전체 완료를 주장하지 않는다.
+작업은 구조적으로 관측된 exec heredoc source가 있을 때만 여는 transient program-contract continuation이다.
+일반 exec schema·실행은 그대로 두고 current Work RecordRef·declared output·requirements를 실행 전에 결속한다.
+동일 Python source·입력·출력 의미를 보존한 A/B 전에는 G 전체 완료를 주장하지 않는다.

@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import * as TreeSitter from 'web-tree-sitter';
@@ -124,6 +125,16 @@ function contextInside(node, current) {
   return current;
 }
 
+function redirectedCommandId(node, steps) {
+  let statement = node.parent;
+  while (statement && statement.type !== 'redirected_statement') statement = statement.parent;
+  const body = statement?.childForFieldName('body');
+  if (!body) return null;
+  return steps.find((step) => (
+    step.span.startIndex >= body.startIndex && step.span.endIndex <= body.endIndex
+  ))?.id ?? null;
+}
+
 /** Parse a POSIX shell command into executable steps and topology without deciding permission. */
 export async function explainShellCommand(sourceValue) {
   const source = String(sourceValue ?? '');
@@ -144,8 +155,9 @@ export async function explainShellCommand(sourceValue) {
   }
   try {
     const steps = [];
+    const heredocs = [];
     const shapes = new Set();
-    function walk(node, context = 'top-level') {
+    function walk(node, context = 'top-level', commandId = null) {
       if (node.type === 'pipeline') shapes.add('pipeline');
       if (node.type === 'list') {
         const text = node.text;
@@ -156,10 +168,16 @@ export async function explainShellCommand(sourceValue) {
       if (node.type === 'subshell') shapes.add('subshell');
       if (node.type === 'command') {
         const step = stepFrom(node, context, steps.length);
-        if (step) steps.push(step);
+        if (step) { steps.push(step); commandId = step.id; }
+      }
+      if (node.type === 'heredoc_body') {
+        const body = String(node.text ?? ''); shapes.add('heredoc-body');
+        heredocs.push({ commandId: commandId ?? redirectedCommandId(node, steps),
+          startIndex: node.startIndex, endIndex: node.endIndex,
+          bytes: Buffer.byteLength(body, 'utf8'), sha256: createHash('sha256').update(body).digest('hex') });
       }
       const childContext = contextInside(node, context);
-      for (const child of namedChildren(node)) walk(child, childContext);
+      for (const child of namedChildren(node)) walk(child, childContext, commandId);
     }
     walk(tree.rootNode);
     steps.sort((left, right) => left.span.startIndex - right.span.startIndex);
@@ -176,6 +194,7 @@ export async function explainShellCommand(sourceValue) {
       shapes: [...shapes],
       steps,
       operators,
+      ...(heredocs.length > 0 ? { heredocs } : {}),
     };
   } finally {
     tree.delete();
