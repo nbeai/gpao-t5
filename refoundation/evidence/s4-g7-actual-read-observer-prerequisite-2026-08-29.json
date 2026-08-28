@@ -1,0 +1,44 @@
+{
+  "schema": "t5.s4g.g7-actual-read-observer-prerequisite.v1",
+  "recordedOn": "2026-08-29",
+  "status": "EXACT_UNPRIVILEGED_ACTUAL_READ_OBSERVER_UNAVAILABLE_SNAPSHOT_QUALIFICATION_NEXT",
+  "sourceBaseCommit": "d29daaa8",
+  "productChanges": 0,
+  "requiredContract": {
+    "workspaceOutsideReadDeniedByOs": true,
+    "workspaceReadOnly": true,
+    "directoryObservationSeparatedFromFileRead": true,
+    "actualFileReadsHaveExactIdentityRevisionDigest": true,
+    "sourceReopenedAfterExecution": true,
+    "pythonHookIsNotSecurityBoundary": true
+  },
+  "macosObservations": [
+    { "candidate": "fs_usage", "available": false, "reason": "root_required" },
+    { "candidate": "opensnoop_dtrace", "available": false, "reason": "additional_privileges_required_under_sip" },
+    { "candidate": "seatbelt_allow_with_report", "available": false, "reason": "no_consumable_per_run_allowed_read_receipt" },
+    { "candidate": "seatbelt_trace", "available": false, "reason": "accepted_profile_but_created_no_trace_file" },
+    { "candidate": "fuse_broker", "available": false, "reason": "no_fuse_filesystem_installed" },
+    { "candidate": "python_open_or_audit_hook_only", "available": false, "reason": "not_an_os_security_or_complete_native_read_boundary" }
+  ],
+  "snapshotPositiveControl": {
+    "candidate": "apfs_copy_on_write_read_only_workspace_generation",
+    "canFreezeBoundedSourceUniverse": true,
+    "canPreventOriginalDirectWrite": true,
+    "exactActualReadSet": false,
+    "productAdopted": false,
+    "nextMeasurements": [
+      "clone_and_manifest_wall_disk",
+      "source_change_during_snapshot",
+      "symlink_hardlink_and_tree_bound",
+      "declared_output_separation",
+      "cleanup_and_crash_residual",
+      "same_python_source_without_translation"
+    ]
+  },
+  "verification": {
+    "dailyCheckPassed": 1761,
+    "dailyCheckFailed": 0,
+    "dailyCheckSkipped": 1
+  },
+  "nextOneTask": "apfs_readonly_snapshot_generation_qualification_product_changes_zero"
+}

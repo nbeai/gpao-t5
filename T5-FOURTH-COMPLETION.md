@@ -1,6 +1,6 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_COMPLETE · S4_G3_FIXTURE_QUALIFICATION_COMPLETE · S4_G4_ACTUAL_EXECUTION_COMPLETE · S4_G5_INDEPENDENT_OBSERVER_COMPLETE · S4_G6_PUBLICATION_CLEANUP_COMPLETE · S4_G7_PREBOUND_TRANSIENT_CANDIDATE_REJECTED_REDESIGN_REQUIRED · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_COMPLETE · S4_G3_FIXTURE_QUALIFICATION_COMPLETE · S4_G4_ACTUAL_EXECUTION_COMPLETE · S4_G5_INDEPENDENT_OBSERVER_COMPLETE · S4_G6_PUBLICATION_CLEANUP_COMPLETE · S4_G7_PREBOUND_TRANSIENT_REJECTED · S4_G7_ACTUAL_READ_OBSERVER_PREREQUISITE_MEASURED · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
 현재 Gate: `S4-G7 EPHEMERAL PROGRAM CAPSULE · PRODUCT ACTIVATION AND A/B`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
@@ -769,6 +769,18 @@ completion recovery 배선을 모두 제거했다. 두 번째 content-free 순�
 확인한다. 전체 workspace 복제·파일명 목록 provider 전송·Python open 정규식·사용자 target 직접 write는 금지한다.
 이 실제-read 결속이 source 우회·비용·privacy 반례를 통과하기 전 제품 entry를 다시 열지 않는다.
 
+제품 변경 0의 macOS actual-read observer prerequisite 측정에서는 `fs_usage`가 root를 요구했고,
+`opensnoop`·DTrace는 SIP 환경에서 추가 권한 없이는 시작되지 않았다. Seatbelt의 `(with report)`와 `trace` 지시는
+허용된 file read를 현재 Run이 소비할 수 있는 exact receipt로 만들지 않았고, host에는 FUSE filesystem도 없다.
+Python audit hook은 workspace 밖 접근의 물리 차단을 대신하지 않으며 C extension·native read까지 완전한 OS read
+set이라고 주장하지 않는다. 따라서 현재 권한과 설치 의존성 0 조건에서 exact actual-read observer 후보는 없다.
+
+다음 positive control은 APFS copy-on-write read-only workspace snapshot이다. 이는 actual read file만 식별하지는
+못하지만 실행 전후 동일한 bounded source universe를 고정하고 원본 direct write 0을 만들 수 있다. clone 생성·
+전체 manifest 비용, source snapshot 중 원본 경합, symlink·hardlink·대형 tree, declared output 분리, cleanup을 먼저
+qualification하고 실제 read set으로 과장하지 않는다. brokered filesystem은 제품 기본에 새 system extension·
+관리자 설치를 요구하지 않는 경로가 실제로 설 때만 다시 비교한다.
+
 완료 문장:
 
 > T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은 프로그램을 만들고, 고정된
@@ -970,6 +982,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 S4-C 미달은 S4-G·S4-I·S4-HQ에 이월했다. S4-D managed non-PTY와 D5C, S4-E1~E7, S4-F structured authoring은
 닫혔다. S4-G0~G6도 순서대로 닫혔다. S4-G7 별도 Tool 후보는 폐기됐고 제품 source delta는 0이다. 현재 다음 한
-작업은 제품 변경 0의 actual-read binding qualification이다. 모델이 자연스럽게 작성한 동일 Python source가 실제로
-읽은 managed source만 content-free identity·전후 digest로 결속할 수 있는지, scratch 밖 write·network·child·
-provider 전송 증가 없이 먼저 측정한다. 통과 전에는 새 transient 제품 배선을 열지 않으며 G 완료를 주장하지 않는다.
+작업은 제품 변경 0의 APFS read-only snapshot generation qualification이다. clone·manifest·원본 재검사 비용과
+symlink·hardlink·경합·대형 tree 경계를 측정하고, 동일 Python source가 snapshot 안에서 원본 direct write 없이
+동작하는지 확인한다. actual read set이라고 부르지 않으며 통과 전 새 제품 entry와 G 완료를 주장하지 않는다.
