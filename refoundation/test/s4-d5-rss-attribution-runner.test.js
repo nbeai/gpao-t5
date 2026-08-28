@@ -17,11 +17,13 @@ test('S4-D5 profiler는 격리 arm에서 RSS 계층을 분리하고 제품·사�
     'process_start_explainer_discarded',
     'process_start_prepared_explanation_bytes',
     'process_start_isolated_explanation',
+    'process_start_persistent_explanation',
     'prepared_bytes_then_registry_poll',
     'explanation_digest_then_registry_poll', 'explanation_file_then_registry_poll',
     'process_start_registry_poll', 'process_start_control_poll',
     'registry_direct_without_live_store', 'registry_without_live_store',
     'terminal_direct_live_store', 'terminal_live_store',
+    'terminal_persistent_explanation',
     'terminal_bounded_hash_read', 'terminal_concat_read']) {
     assert.match(source, new RegExp(`'${arm}'`, 'u'));
   }
@@ -33,5 +35,5 @@ test('S4-D5 profiler는 격리 arm에서 RSS 계층을 분리하고 제품·사�
   assert.match(source, /productChanges: 0/u);
   assert.doesNotMatch(source, /makeConsoleServer|modelFactory|provider|credential/u);
   assert.match(helper, /for await \(const chunk of process\.stdin\)/u);
-  assert.doesNotMatch(helper, /process\.argv|workspace|credential|provider/u);
+  assert.doesNotMatch(helper, /process\.argv(?:\[2\]|\.slice\(2\))|workspace|credential|provider/u);
 });

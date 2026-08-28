@@ -1,0 +1,50 @@
+{
+  "schema": "t5.s4d5b.persistent-explainer.v1",
+  "recordedOn": "2026-08-29",
+  "status": "QUALIFICATION_COMPLETE_PRODUCT_INTEGRATION_OPEN",
+  "sourceBaseCommit": "cc45e7d7",
+  "productChanges": 0,
+  "protocol": {
+    "transport": "local child stdin/stdout JSONL",
+    "commandInArgv": false,
+    "maxCommandChars": 131072,
+    "maxResponseBytes": 524288,
+    "closedRequest": ["id", "command"],
+    "automaticCommandExecution": 0
+  },
+  "persistentQualification": {
+    "coldWallMs": 39.62375,
+    "warmCalls": 20,
+    "warmMedianWallMs": 0.19425,
+    "warmMaxWallMs": 0.538167,
+    "helperMedianRss": 74301440,
+    "concurrentCalls": 8,
+    "concurrentExactIdentity": true,
+    "crashPendingState": "explainer_process_exited",
+    "successorExact": true
+  },
+  "liveOutputQualification": {
+    "samples": 3,
+    "outputCharsPerStream": 1100020,
+    "mainRuntimeMedianPeakRssDelta": 18563072,
+    "helperMedianRss": 63569920,
+    "medianWallMs": 341.8075,
+    "currentInProcessMedianWallMs": 302.455833,
+    "addedMedianWallMs": 39.351667,
+    "stdoutExactHash": true,
+    "stderrExactHash": true,
+    "sameFinalizedHandle": true,
+    "retainedConcatChars": 0
+  },
+  "decision": {
+    "qualificationPassed": true,
+    "productAdopted": false,
+    "productIntegrationOpened": true
+  },
+  "nonClaims": [
+    "the product Runtime uses the isolated helper",
+    "physical Windows helper lifecycle is qualified",
+    "S4-D is complete"
+  ],
+  "nextOneTask": "Implement D5C by connecting the qualified lazy persistent helper to the existing command explanation contract with fail-closed lifecycle and no new Store."
+}

@@ -5,6 +5,7 @@ import { once } from 'node:events';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
 import { makeProcessControlTool, makeProcessStartTool, makeTerminalHand } from '../src/exec-tool.js';
@@ -43,6 +44,7 @@ const arms = [
   'process_start_explainer_discarded',
   'process_start_prepared_explanation_bytes',
   'process_start_isolated_explanation',
+  'process_start_persistent_explanation',
   'prepared_bytes_then_registry_poll',
   'explanation_digest_then_registry_poll',
   'explanation_file_then_registry_poll',
@@ -52,6 +54,7 @@ const arms = [
   'registry_without_live_store',
   'terminal_direct_live_store',
   'terminal_live_store',
+  'terminal_persistent_explanation',
   'terminal_bounded_hash_read',
   'terminal_concat_read',
 ];
@@ -237,6 +240,41 @@ async function isolatedExplanation(command) {
   return JSON.parse(stdout);
 }
 
+function persistentExplanationClient() {
+  const child = spawn(process.execPath, [explainerChild, '--persistent'], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  const pending = new Map(); let sequence = 0; let lastRss = null;
+  const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
+  lines.on('line', (line) => {
+    let response;
+    try { response = JSON.parse(line); } catch { response = null; }
+    const entry = response?.id && pending.get(response.id); if (!entry) return;
+    pending.delete(response.id);
+    if (response.ok === true) { lastRss = response.rss; entry.resolve(response.result); }
+    else entry.reject(new Error(response?.error ?? 'invalid_explanation_response'));
+  });
+  child.once('exit', () => {
+    for (const entry of pending.values()) entry.reject(new Error('explainer_process_exited'));
+    pending.clear();
+  });
+  return {
+    explain(command) {
+      const id = `p-${++sequence}`;
+      return new Promise((resolve, reject) => {
+        pending.set(id, { resolve, reject });
+        child.stdin.write(`${JSON.stringify({ id, command })}\n`);
+      });
+    },
+    rss: () => lastRss,
+    async close() {
+      child.stdin.end();
+      if (child.exitCode == null) await once(child, 'close');
+      lines.close();
+    },
+  };
+}
+
 async function runPreparedBytesThenRegistry(root, track) {
   const bytes = await prepareExplanationBytes(outputCommand()); track();
   const result = await runRegistryPoll(root, track);
@@ -271,6 +309,7 @@ async function runAfterExplainer(root, next, track) {
 
 async function runProcessToolPoll(root, mode, track) {
   const registry = new ManagedProcessRegistry({ platform: 'linux', outputLimit: 64_000 });
+  const persistent = mode === 'persistent_explanation' ? persistentExplanationClient() : null;
   const start = makeProcessStartTool({ workingDirectory: root, workspace: root,
     ownerId: 'session-a', originRunId: 'run-a', yieldMs: 10, processRegistry: registry,
     ...(mode === 'no_explainer' ? { explainCommand: async () => ({ ok: false,
@@ -292,8 +331,12 @@ async function runProcessToolPoll(root, mode, track) {
       JSON.parse((await prepareExplanationBytes(command)).toString('utf8'))
     ) } : {}),
     ...(mode === 'isolated_explanation' ? { explainCommand: isolatedExplanation } : {}) });
+  if (persistent) start.execute = makeProcessStartTool({ workingDirectory: root, workspace: root,
+    ownerId: 'session-a', originRunId: 'run-a', yieldMs: 10, processRegistry: registry,
+    explainCommand: (command) => persistent.explain(command) }).execute;
   const control = makeProcessControlTool({ processRegistry: registry, ownerId: 'session-a' });
   try {
+    if (persistent) await persistent.explain("printf 'warm helper'");
     let current = await start.execute({ command: outputCommand(), cwd: null, effect }, { onActivity: track });
     let polls = 0;
     while (current.state === 'running' && polls < 512) {
@@ -307,8 +350,11 @@ async function runProcessToolPoll(root, mode, track) {
       polls += 1; track();
     }
     if (current.state === 'running') throw new Error('process tool poll did not settle');
-    return { terminalState: current.state, polls };
-  } finally { await registry.stopAll('test_cleanup'); }
+    return { terminalState: current.state, polls, helperRss: persistent?.rss() ?? null };
+  } finally {
+    await registry.stopAll('test_cleanup');
+    await persistent?.close();
+  }
 }
 
 async function runTerminal(root, arm, track) {
@@ -317,27 +363,34 @@ async function runTerminal(root, arm, track) {
   const direct = ['registry_direct_without_live_store', 'terminal_direct_live_store'].includes(arm);
   const registry = new ManagedProcessRegistry({ outputLimit: 64_000,
     ...(direct ? { platform: 'linux' } : {}) });
+  const persistent = arm === 'terminal_persistent_explanation' ? persistentExplanationClient() : null;
   const hand = makeTerminalHand({ workingDirectory: root, workspace: root,
     ownerId: 'session-a', originRunId: 'run-a', yieldMs: 10,
-    ...(store ? { terminalOutputStore: store } : {}), processRegistry: registry });
+    ...(store ? { terminalOutputStore: store } : {}), processRegistry: registry,
+    ...(persistent ? { explainCommand: (command) => persistent.explain(command) } : {}) });
   const session = hand.tools.find((tool) => tool.name === 'terminal_session');
   try {
+    if (persistent) await persistent.explain("printf 'warm helper'");
     const started = await session.execute(terminalArgs({ action: 'start',
       command: outputCommand(), effect }), { onActivity: track });
     track();
     const terminal = await pollTerminal(session, started, track);
     let read = null;
-    if (arm === 'terminal_bounded_hash_read') {
+    if (['terminal_bounded_hash_read', 'terminal_persistent_explanation'].includes(arm)) {
       read = await readBounded(session, terminal.outputRecall.handle, 'hash', track);
     } else if (arm === 'terminal_concat_read') {
       read = await readBounded(session, terminal.outputRecall.handle, 'concat', track);
     }
     return { terminalState: terminal.state, outputRecall: terminal.outputRecall?.state ?? null,
       polls: terminal.qualificationPolls,
+      helperRss: persistent?.rss() ?? null,
       residentStdoutChars: registry.fullOutput(terminal.processId, 'session-a').stdout.text.length,
       residentStderrChars: registry.fullOutput(terminal.processId, 'session-a').stderr.text.length,
       read };
-  } finally { await registry.stopAll('test_cleanup'); }
+  } finally {
+    await registry.stopAll('test_cleanup');
+    await persistent?.close();
+  }
 }
 
 async function runArm(arm) {
@@ -373,7 +426,8 @@ async function runArm(arm) {
                             : arm === 'process_start_explainer_discarded' ? await runProcessToolPoll(root, 'explainer_discarded', track)
                               : arm === 'process_start_prepared_explanation_bytes' ? await runProcessToolPoll(root, 'prepared_explanation_bytes', track)
                                 : arm === 'process_start_isolated_explanation' ? await runProcessToolPoll(root, 'isolated_explanation', track)
-                                  : arm === 'prepared_bytes_then_registry_poll' ? await runPreparedBytesThenRegistry(root, track)
+                                  : arm === 'process_start_persistent_explanation' ? await runProcessToolPoll(root, 'persistent_explanation', track)
+                                    : arm === 'prepared_bytes_then_registry_poll' ? await runPreparedBytesThenRegistry(root, track)
                                   : arm === 'explanation_digest_then_registry_poll' ? await runExplanationPointerThenRegistry(root, 'digest', track)
                                     : arm === 'explanation_file_then_registry_poll' ? await runExplanationPointerThenRegistry(root, 'file', track)
                                       : arm === 'process_start_registry_poll' ? await runProcessToolPoll(root, 'registry', track)
