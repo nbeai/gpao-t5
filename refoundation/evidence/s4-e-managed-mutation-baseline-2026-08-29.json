@@ -1,0 +1,39 @@
+{
+  "schema": "t5.s4e.managed-mutation-baseline.v1",
+  "recordedOn": "2026-08-29",
+  "status": "READ_ONLY_BASELINE_COMPLETE_THREE_GAPS_REPRODUCED",
+  "sourceBaseCommit": "d1795915",
+  "productChanges": 0,
+  "reproduced": {
+    "destinationParentSymlinkEscape": true,
+    "hardlinkSourceAdmitted": true,
+    "undeclaredTerminalWriteObserved": false
+  },
+  "positiveControls": {
+    "sourceIdentityChangeBlocked": true,
+    "destinationCollisionBlocked": true,
+    "crossVolumeMoveBlocked": true,
+    "partialMoveRollbackExists": true
+  },
+  "absorbedPrinciples": [
+    "exact target admission",
+    "pinned parent entry mutation",
+    "pre-execution identity revalidation",
+    "same-directory atomic publication",
+    "exact-target rollback pointer",
+    "post-effect unexpected-write observation"
+  ],
+  "comparisonSources": [
+    "https://github.com/openclaw/openclaw/blob/main/src/agents/sandbox/fs-bridge.ts",
+    "https://docs.openclaw.ai/gateway/security/secure-file-operations",
+    "https://github.com/NousResearch/hermes-agent/blob/main/tools/file_tools.py",
+    "https://github.com/NousResearch/hermes-agent/blob/main/tools/checkpoint_manager.py"
+  ],
+  "nonClaims": [
+    "all Terminal writes are confined",
+    "late child writes are fully measured",
+    "physical Windows reparse-point and hardlink behavior is qualified",
+    "S4-E implementation is open"
+  ],
+  "nextOneTask": "Define S4-E1 POSIX and Windows pinned mutation countertests before implementing the first symlink-parent repair."
+}

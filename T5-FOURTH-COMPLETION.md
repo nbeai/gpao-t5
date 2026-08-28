@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5A_IN_PROCESS_CANDIDATES_REJECTED · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_READ_ONLY_BASELINE_ACTIVE`
-현재 Gate: `S4-E MANAGED MUTATION CONFINEMENT · READ-ONLY BASELINE`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5A_IN_PROCESS_CANDIDATES_REJECTED · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_READ_ONLY_BASELINE_COMPLETE · S4_E1_PINNED_MUTATION_CONTRACT_ACTIVE`
+현재 Gate: `S4-E1 PINNED MUTATION CONTRACT · DESIGN AND COUNTERTEST`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,16 +55,15 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-E managed mutation confinement의 현재 실제 범위 측정이다.
+2. **현재 Gate**: S4-E1 pinned mutation의 설계·반대시험이다. 제품 구현은 아직 열지 않는다.
 3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
    없이 끝까지 관찰한다.
-4. **이미 선 실제 증거**: D5C는 exact command explanation·pipeline·broker·Capability·output을 보존하며 전체
-   메모리 후보를 약 598MB에서 약 82.1MB로 낮췄고 전체 CI를 통과했다.
-5. **현재 가장 큰 미달**: managed workspace와 exact target 밖 child write·symlink·target 교체의 현재 물리 차단
-   범위가 하나의 실제 기준선으로 분리되지 않았다.
-6. **이번 변경 방식**: 제품 변경 0에서 canonical path·symlink·hardlink·실행 중 교체·late child write·protected
-   secret·부분 변경을 기존 sandbox/effect/rollback 현실로 재현한다.
-7. **Non-goals**: 일반 shell 전체 효과 통제 주장·새 Store·업무별 write 규칙·반복 승인·S4-F·실제 HOME·계정·외부 효과.
+4. **이미 선 실제 증거**: E baseline은 destination parent symlink escape, hardlink source admission, 선언 밖 Terminal
+   write 미관측을 재현했다. source stale·collision·cross-volume 차단은 기존 양성 대조로 남았다.
+5. **현재 가장 큰 미달**: mutation이 검증된 parent entry에 pin되지 않고 requested path 문자열과 사전 stat에 의존한다.
+6. **이번 변경 방식**: exact target admission→pinned mutation→pre-execution revalidation→atomic publication→exact
+   rollback pointer→post-effect observation 여섯 계약과 Windows adapter 의미를 반대시험으로 먼저 고정한다.
+7. **Non-goals**: 제품 구현·Docker 기본화·Python 공통 Core·전체 workspace snapshot·일반 shell 완전 통제·S4-F.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -516,6 +515,17 @@ output이다. canonical path와 symlink·hardlink·junction, 실행 중 target �
 
 > T5가 관리하는 생성·변경 작업은 맡긴 대상과 scratch 밖으로 쓰지 않고 실행 전후 현실과 남은 unknown을 보존한다.
 
+S4-E read-only actual은 제품 변경 0에서 세 결함을 재현했다. File Reality plan 뒤 destination directory를 같은
+filesystem의 symlink로 교체하면 apply가 성공하고 link target 밖에 파일을 이동했다. workspace source가 외부
+파일의 hardlink여도 plan/apply가 성공했다. Terminal local_change는 선언 target과 sibling을 함께 썼지만
+EffectObservation은 선언 target 하나만 관측했다. 기존 source dev·ino·size·mtime 변화, destination collision,
+cross-volume unsupported, apply 실패 rollback은 양성 대조다.
+
+S4-E1은 OpenClaw의 mount-root·relative-parent·basename pinning, `openat`/directory handle·nofollow, hardlink 별도
+거부, sibling temp+file/directory sync+atomic replace, EXDEV source identity 재검사와 Hermes의 ordered path lock,
+stale overwrite 금지, post-write hash, exact-target checkpoint 원리를 교재로 사용한다. T5는 Docker·전체 shadow
+Git·warning-only overwrite·업무별 규칙을 가져오지 않는다.
+
 ### S4-F — Structured Authoring
 
 내부 `workspace_patch` 후보는 `inspect → preview → write_new/apply_patch → verify → rollback`을 제공한다.
@@ -768,6 +778,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D managed non-PTY와 D5C는 닫혔고 PTY parent-death·물리 Windows는
-명시한 범위에 남긴다. 현재 다음 한 작업은 S4-E의 read-only mutation confinement 기준선이다. 실제 범위 밖
-write가 재현되고 기존 sandbox·effect·rollback으로 닫히지 않을 때만 가장 작은 구현을 연다.
+S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D managed non-PTY와 D5C는 닫혔다. S4-E baseline은 세 실제 gap으로
+닫혔다. 현재 다음 한 작업은 여섯 pinned mutation 계약과 POSIX·Windows 반대시험을 제품 변경 없이 고정하는
+S4-E1이다. 계약이 선 뒤 첫 symlink-parent escape 하나로만 구현을 연다.
