@@ -1,0 +1,20 @@
+{
+  "schema": "t5.s4f2.scratch-prepare.v1",
+  "recordedOn": "2026-08-29",
+  "status": "COMPLETE_INTERNAL_PRIMITIVE",
+  "sourceBaseCommit": "16aeb793",
+  "qualification": {
+    "candidateScratchExactBytes": true,
+    "candidateDigestReopened": true,
+    "jsonValidated": true,
+    "yamlValidated": true,
+    "tomlValidatorUnavailableFailsClosed": true,
+    "literalShellExpansion": false,
+    "oneCandidateFailureTargetWrites": 0,
+    "oneCandidateFailureScratchRetained": false,
+    "focusedPassed": 4,
+    "focusedFailed": 0
+  },
+  "nonClaims": ["all opaque formats structurally validated", "target locks acquired", "publication started"],
+  "nextOneTask": "Open S4-F3 sorted target lock and revalidation."
+}

@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_CONTRACT_AND_BASELINE_COMPLETE · S4_F1_INSPECT_CLOSED_PREVIEW_COMPLETE · S4_F2_SCRATCH_PREPARE_ACTIVE`
-현재 Gate: `S4-F2 SCRATCH PREPARE AND VALIDATE`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_CONTRACT_AND_BASELINE_COMPLETE · S4_F1_INSPECT_CLOSED_PREVIEW_COMPLETE · S4_F2_SCRATCH_PREPARE_COMPLETE · S4_F3_LOCK_REVALIDATE_ACTIVE`
+현재 Gate: `S4-F3 SORTED LOCK AND REVALIDATE`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,13 +55,13 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-F2 candidate scratch 준비·형식 검증이다.
+2. **현재 Gate**: S4-F3 sorted target lock과 전체 preimage 재검사다.
 3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
    없이 끝까지 관찰한다.
 4. **이미 선 실제 증거**: F baseline은 multi-file partial commit·stale overwrite·shell literal expansion을 재현했다.
-5. **현재 가장 큰 미달**: closed plan candidate가 사용자 target 밖 scratch에서 모두 검증되기 전 publish 준비 상태가 없다.
-6. **이번 변경 방식**: fresh plan의 create·modify bytes를 scratch에 만들고 JSON·구조·digest를 검증하며 하나라도
-   실패하면 target 변경 0으로 전체 prepare를 닫는다.
+5. **현재 가장 큰 미달**: prepare 뒤 publish 전 다른 Work가 같은 target을 바꾸거나 동시에 publication을 시작할 수 있다.
+6. **이번 변경 방식**: canonical target path를 정렬해 durable lock을 잡고 모든 preimage·parent·collision을 다시
+   확인한 뒤에만 publication admission을 반환한다.
 7. **Non-goals**: publish·rollback 실행·범용 IDE·다중 파일 원자성 주장·S4-G.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
@@ -581,6 +581,10 @@ S4-F1 actual은 create·modify·delete·move의 모든 source/destination, exact
 첫 write 전에 closed plan으로 만들고 content 없는 preview를 반환한다. root escape·duplicate target·hardlink
 source를 admission에서 거부하며 preview 중 target write는 0이다.
 
+S4-F2 actual은 create·modify candidate를 managed scratch에 exact bytes로 atomic publication하고 digest를
+재개방한다. JSON·YAML은 문법 검증하며 TOML validator 부재는 실패로 닫는다. 한 candidate라도 실패하면 scratch
+전체를 정리하고 target write 0이다. opaque 형식은 hash만 검증하며 구조 검증 완료로 꾸미지 않는다.
+
 ### S4-G — Ephemeral Program Capsule
 
 기존 손으로 같은 품질을 경제적으로 달성하기 어려울 때만 현재 Work의 작은 프로그램을 만든다.
@@ -825,5 +829,5 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D managed non-PTY와 D5C는 닫혔다. S4-E baseline은 세 실제 gap으로
 닫혔다. S4-E1~E7도 닫혀 managed mutation confinement 완료 문장을 현재 좁은 범위에서 충족한다. 현재 다음
-한 작업은 F1 candidate를 scratch에서 모두 만들고 형식·digest를 검증하는 S4-F2다. publish·rollback은 아직
+한 작업은 sorted canonical target lock과 전체 preimage·parent·collision을 재검사하는 S4-F3다. publish는 아직
 열지 않는다.
