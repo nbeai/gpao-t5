@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_COMPLETE · S4_G3_FIXTURE_QUALIFICATION_COMPLETE · S4_G4_ACTUAL_EXECUTION_COMPLETE · S4_G5_INDEPENDENT_OBSERVER_ACTIVE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
-현재 Gate: `S4-G5 EPHEMERAL PROGRAM CAPSULE · INDEPENDENT OBSERVER`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_COMPLETE · S4_G3_FIXTURE_QUALIFICATION_COMPLETE · S4_G4_ACTUAL_EXECUTION_COMPLETE · S4_G5_INDEPENDENT_OBSERVER_COMPLETE · S4_G6_PUBLICATION_CLEANUP_ACTIVE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+현재 Gate: `S4-G6 EPHEMERAL PROGRAM CAPSULE · PUBLICATION AND CLEANUP`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,17 +55,17 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-G5 ephemeral program capsule의 independent observer다.
+2. **현재 Gate**: S4-G6 ephemeral program capsule의 publication and cleanup이다.
 3. **사용자 완료 문장**: T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은
    프로그램을 만들고, 고정된 입력과 범위에서 시험·실행하며, 프로그램과 독립적으로 검증한 사용자 결과만
    발행하고 나머지는 정리한다.
-4. **이미 선 실제 증거**: G4는 exact RecordRef를 실행 전후 reopen하고 qualified source를 한 번 실행해
-   `actual_output_unverified` scratch candidate만 만들며 stale·cancel·retry를 4/4로 닫았다.
-5. **현재 가장 큰 미달**: guest JSON candidate가 declared output path·kind·category·구조·입력 관계와 맞는지
-   프로그램과 독립된 host observer가 아직 확인하지 않았다.
-6. **이번 변경 방식**: candidate JSON을 host에서 closed parse하고 declaration과 actual input facts를 대조해 expected·
-   missing·unexpected·invalid·cleanup 범위를 분리하며 guest manifest는 증거로 쓰지 않는다.
-7. **Non-goals**: user target publication·cleanup settlement·product activation·nested Tool RPC·S4-H.
+4. **이미 선 실제 증거**: G5는 closed output set·generic format·exact relation digest를 host에서 독립 확인하고
+   missing·unexpected·invalid·relation failure를 3/3으로 분리했다.
+5. **현재 가장 큰 미달**: verified publishable만 사용자 target에 F transaction으로 발행하고 internal·diagnostic·
+   temporary와 Capsule scratch를 정리한 terminal receipt가 없다.
+6. **이번 변경 방식**: G5 verified outputs 중 publishable만 F publication에 넘기고 나머지와 source·fixture·actual·
+   observer scratch를 물리 정리한 뒤 target reopen과 scratch absence를 각각 확인한다.
+7. **Non-goals**: product activation·자동 영구 보존·nested Tool RPC·S4-H.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -701,9 +701,14 @@ fixture-qualified source·interpreter·limits로 한 번 실행한다. guest에�
 결과는 managed scratch의 `actual_output_unverified` JSON candidate로만 atomic publication한다. stale-before는 helper
 0, stale-after는 candidate publication 0, cancel·helper failure는 no-effect, 같은 qualification 재실행은 0이다.
 
-현재는 `G5` independent observer만 열려 있다. guest output을 closed JSON으로 다시 열어 G2 output declaration과
-실제 input facts를 대조하고 publishable·internal·diagnostic·temporary, missing·unexpected·invalid·cleanup required를
-분리한다. 프로그램의 자기 manifest와 exit 0은 observer 증거가 아니다.
+G5 actual은 guest candidate를 closed `outputs` 배열로 파싱하고 G2 declaration의 exact path set과 대조한다.
+host가 UTF-8/base64 bytes를 재물질화해 JSON·CSV·text 구조와 hash를 다시 관측하고, 독립 relation verifier가
+actual input/output digest 전체를 exact 반환할 때만 `output_verified`로 올린다. missing·unexpected·duplicate·
+invalid format·relation mismatch·residual process는 unverified이며 user target write는 0이다.
+
+현재는 `G6` publication and cleanup만 열려 있다. verified publishable outputs만 F transaction으로 사용자 target에
+발행하고 internal_intermediate·diagnostic·temporary와 Capsule scratch를 정리하며 publication과 cleanup을 별도
+terminal 사실로 검증한다.
 
 완료 문장:
 
@@ -905,6 +910,5 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 ## 10. 현재 다음 한 작업
 
 S4-C 미달은 S4-G·S4-I·S4-HQ에 이월했다. S4-D managed non-PTY와 D5C, S4-E1~E7, S4-F structured authoring은
-닫혔다. S4-G0 실제 차이, G1 contract, G2 source preparation, G3 fixture qualification, G4 actual execution도
-닫혔다. 현재 다음 한 작업은 S4-G5 independent output observer다. publication·cleanup settlement·product
+닫혔다. S4-G0~G5도 순서대로 닫혔다. 현재 다음 한 작업은 S4-G6 verified publication and cleanup이다. product
 activation은 열지 않는다.
