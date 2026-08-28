@@ -67,7 +67,8 @@ JSON.stringify(transform(${JSON.stringify(input)}));`;
   return value;
 }
 
-async function evaluateInManagedHelper({ processRegistry, helperPath, ownerId, source, input,
+export async function evaluateQuickJsInManagedHelper({ processRegistry, helperPath = DEFAULT_HELPER,
+  ownerId, source, input,
   limits, signal, makeId }) {
   if (!processRegistry?.start || !processRegistry?.write || !processRegistry?.poll || !processRegistry?.stop) {
     throw new TypeError('managed process registry required for QuickJS fixture');
@@ -149,7 +150,7 @@ export async function qualifyEphemeralProgramFixture({ prepared: rawPrepared, in
     exactFile(oraclePath, prepared.manifest.fixture.oracle),
   ]);
   const source = strictUtf8(sourceBytes, 'capsule source'); const fixtureInput = strictUtf8(fixtureBytes, 'fixture input');
-  const evaluated = await evaluateInManagedHelper({ processRegistry, helperPath,
+  const evaluated = await evaluateQuickJsInManagedHelper({ processRegistry, helperPath,
     ownerId: prepared.manifest.workId, source, input: fixtureInput, limits, signal, makeId });
   if (evaluated.state !== 'completed') return { qualification: null, receipt: {
     state: 'fixture_failed', reason: evaluated.reason,

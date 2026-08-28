@@ -1,0 +1,32 @@
+{
+  "schema": "t5.s4g.g4-actual-execution-complete.v1",
+  "recordedOn": "2026-08-29",
+  "status": "G4_COMPLETE",
+  "sourceBaseCommit": "2722eb38",
+  "productWiring": 0,
+  "execution": {
+    "fixtureQualifiedSourceOnly": true,
+    "interpreterAndLimitsReused": true,
+    "recordRefsReopenedBefore": true,
+    "recordRefsReopenedAfter": true,
+    "selectedInputBytesOnly": true,
+    "singleAttempt": true,
+    "outputState": "actual_output_unverified",
+    "userTargetWrites": 0
+  },
+  "counterexamples": {
+    "staleBeforeHelperStarts": 0,
+    "staleAfterCandidatePublications": 0,
+    "cancelBlindRetries": 0,
+    "secondAttemptAccepted": false
+  },
+  "verification": {
+    "focusedPassed": 4,
+    "focusedFailed": 0,
+    "dailyCheckPassed": 1738,
+    "dailyCheckFailed": 0,
+    "dailyCheckSkipped": 1
+  },
+  "nonClaims": ["output independently verified", "output published to user target", "product activated"],
+  "nextGate": "G5_INDEPENDENT_OBSERVER"
+}
