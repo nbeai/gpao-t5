@@ -6,15 +6,17 @@
   "countertest": { "redBeforeBoundary": true, "greenAfterBoundary": true },
   "boundary": {
     "sharedBy": ["macOS builder", "Windows builder", "macOS package verifier"],
-    "excludedFiles": 18,
+    "fourthCycleExcludedFiles": 18,
+    "qualificationOnlyExcludedFiles": 29,
+    "totalExcludedFiles": 47,
     "sourceDeletedFromGit": false,
     "currentProductCapabilityRemoved": false,
     "platformRequiredSourceRemoved": false
   },
   "actualMacOSDevelopmentPayload": {
     "packageMode": "unsigned qualification only",
-    "files": 4335,
-    "installedBytes": 320834721,
+    "files": 4306,
+    "installedBytes": 320625111,
     "payloadGatePassed": true,
     "explicitPackageVerificationPassed": true,
     "bundledNode": "v24.14.0 arm64"
@@ -24,8 +26,8 @@
     "installedBytes": 322329236
   },
   "delta": {
-    "files": -18,
-    "installedBytes": -1494515
+    "files": -47,
+    "installedBytes": -1704125
   },
   "preserved": [
     "managed Skill and CLI runtime",

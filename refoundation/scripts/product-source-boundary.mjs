@@ -21,6 +21,38 @@ export const FOURTH_CYCLE_DORMANT_SOURCE = Object.freeze([
   'src/reflection-source-window-coordinator.js',
 ]);
 
+export const QUALIFICATION_ONLY_SOURCE = Object.freeze([
+  'src/attachment-qualification.js',
+  'src/b-transition-qualification.js',
+  'src/backend-demand.js',
+  'src/business-artifact-continuity.js',
+  'src/business-workflow-qualification.js',
+  'src/connection-readiness.js',
+  'src/deliverable-truth-qualification.js',
+  'src/document-candidate-qualification.js',
+  'src/document-compatibility-baseline.js',
+  'src/document-data-qualification.js',
+  'src/human-scenarios.js',
+  'src/incident-reference-fixture.js',
+  'src/korean-web-baseline.js',
+  'src/memory-recall-auditor.js',
+  'src/pdf-deliverable-qualification.js',
+  'src/project-qualification.js',
+  'src/recovery-qualification.js',
+  'src/resource-report.js',
+  'src/s3-human-business-observation.js',
+  'src/s3-human-business-scenarios.js',
+  'src/skill-value-comparison.js',
+  'src/social-link-baseline.js',
+  'src/structural-document-qualification.js',
+  'src/terminal-performance.js',
+  'src/text-tabular-qualification.js',
+  'src/user-grounded-social-fixture.js',
+  'src/user-grounded-social-scenarios.js',
+  'src/video-text-baseline.js',
+  'src/web-variance-analysis.js',
+]);
+
 export async function removeFourthCycleDormantSource(refoundationRoot) {
   for (const relativePath of FOURTH_CYCLE_DORMANT_SOURCE) {
     await rm(join(refoundationRoot, relativePath), { force: true });
@@ -35,4 +67,20 @@ export async function assertFourthCycleDormantSourceExcluded(refoundationRoot) {
   }
   if (present.length) throw new Error(`fourth-cycle source entered the current product payload: ${present.join(', ')}`);
   return { excluded: true, files: FOURTH_CYCLE_DORMANT_SOURCE.length };
+}
+
+export async function removeQualificationOnlySource(refoundationRoot) {
+  for (const relativePath of QUALIFICATION_ONLY_SOURCE) {
+    await rm(join(refoundationRoot, relativePath), { force: true });
+  }
+}
+
+export async function assertQualificationOnlySourceExcluded(refoundationRoot) {
+  const present = [];
+  for (const relativePath of QUALIFICATION_ONLY_SOURCE) {
+    try { await lstat(join(refoundationRoot, relativePath)); present.push(relativePath); }
+    catch (error) { if (error?.code !== 'ENOENT') throw error; }
+  }
+  if (present.length) throw new Error(`qualification-only source entered the current product payload: ${present.join(', ')}`);
+  return { excluded: true, files: QUALIFICATION_ONLY_SOURCE.length };
 }

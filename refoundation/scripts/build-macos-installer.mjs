@@ -14,7 +14,8 @@ import {
 import { assertReleaseSourcePolicy } from './macos-release-source-boundary.mjs';
 import { assertProductionMacPayload, inventoryMacApp } from './macos-payload-inventory.mjs';
 import {
-  assertFourthCycleDormantSourceExcluded, removeFourthCycleDormantSource,
+  assertFourthCycleDormantSourceExcluded, assertQualificationOnlySourceExcluded,
+  removeFourthCycleDormantSource, removeQualificationOnlySource,
 } from './product-source-boundary.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -88,7 +89,9 @@ async function copyRuntimeApp(target) {
     });
   }
   await removeFourthCycleDormantSource(refoundation);
+  await removeQualificationOnlySource(refoundation);
   await assertFourthCycleDormantSourceExcluded(refoundation);
+  await assertQualificationOnlySourceExcluded(refoundation);
   for (const script of [
     'start-console.mjs', 'ensure-local-runtime.mjs', 'stop-local-runtime.mjs', 'activate-whole-state-restore.mjs', 'connect-chatgpt.mjs', 'prepare-node-pty.mjs', 'restrict-kordoc-bin.mjs',
   ]) {
