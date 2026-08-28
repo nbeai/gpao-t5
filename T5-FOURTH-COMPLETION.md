@@ -1,6 +1,6 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_TRANSACTION_PHASES_COMPLETE · S4_F1_CANONICAL_PARENT_CORRECTED · S4_F2_SCRATCH_PREPARE_REQUALIFIED · S4_F3_SORTED_LOCK_REVALIDATE_COMPLETE · S4_F4_PUBLICATION_ROLLBACK_COMPLETE · S4_F5_INDEPENDENT_VERIFY_COMPLETE · S4_F6_SETTLEMENT_COMPLETE · S4_F7_PRODUCT_SURFACE_ACTIVE`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_TRANSACTION_PHASES_COMPLETE · S4_F1_CANONICAL_PARENT_CORRECTED · S4_F2_SCRATCH_PREPARE_REQUALIFIED · S4_F3_SORTED_LOCK_REVALIDATE_COMPLETE · S4_F4_PUBLICATION_ROLLBACK_COMPLETE · S4_F5_INDEPENDENT_VERIFY_COMPLETE · S4_F6_SETTLEMENT_COMPLETE · S4_F7_PREVIEW_APPLY_COMPLETE_DURABLE_UNDO_ACTIVE`
 현재 Gate: `S4-F7 WORKSPACE PATCH PRODUCT SURFACE`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
@@ -605,6 +605,11 @@ S4-F6 actual은 verified transaction lock을 exact release하고 scratch candida
 경로를 노출하지 않는 내부 Undo 범위로 보존하고 `published_verified` receipt에는 verified/Undo target 수만 남긴다.
 lock release·scratch cleanup 미확인은 `partial_effect_unknown`이다.
 
+S4-F7 actual은 on-demand `workspace_patch`의 preview/apply 두 action을 Console tool search에 연결했다. 같은 Run의
+fresh opaque handle만 한 번 apply할 수 있고 candidate 원문·internal path·backup pointer는 preview/result에 없다.
+사업·개발·개인 파일 세 목적과 실제 Console 종단, invalid candidate target write 0이 통과했다. 전체 CI는 unit
+1,719/1,719, integration 193/193, mutation 2/2다. 다음 대화·Runtime 재시작 뒤 durable Undo는 아직 열려 있다.
+
 ### S4-G — Ephemeral Program Capsule
 
 기존 손으로 같은 품질을 경제적으로 달성하기 어려울 때만 현재 Work의 작은 프로그램을 만든다.
@@ -848,5 +853,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 ## 10. 현재 다음 한 작업
 
 S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D managed non-PTY와 D5C는 닫혔다. S4-E baseline은 세 실제 gap으로
-닫혔다. S4-E1~E7과 F의 일곱 transaction phase도 닫혔다. 현재 다음 한 작업은 이를 bounded preview/apply 제품
-표면과 실제 콘솔 여정에 연결하는 S4-F7이다. 이 통합 전 S4-F 전체 완료를 주장하지 않는다.
+닫혔다. S4-E1~E7과 F의 일곱 transaction phase, F7 preview/apply 제품선도 닫혔다. 현재 다음 한 작업은 settlement
+pointer를 Session-safe durable handle로 reopen해 다음 대화에서도 exact rollback하는 F7 durable Undo다. 이 통합
+전 S4-F 전체 완료를 주장하지 않는다.

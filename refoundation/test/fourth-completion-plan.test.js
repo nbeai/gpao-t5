@@ -6,13 +6,13 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../../', import.meta.url);
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 
-test('4차 정본은 F transaction phase를 닫고 F7 product surface만 연다', async () => {
+test('4차 정본은 F7 preview apply를 닫고 durable Undo만 연다', async () => {
   const [plan, agents, second] = await Promise.all([
     readFile(new URL('T5-FOURTH-COMPLETION.md', root), 'utf8'),
     readFile(new URL('AGENTS.md', root), 'utf8'),
     readFile(new URL('T5-SECOND-COMPLETION.md', root), 'utf8'),
   ]);
-  assert.match(plan, /S4_F_TRANSACTION_PHASES_COMPLETE[\s\S]*S4_F6_SETTLEMENT_COMPLETE · S4_F7_PRODUCT_SURFACE_ACTIVE/u);
+  assert.match(plan, /S4_F_TRANSACTION_PHASES_COMPLETE[\s\S]*S4_F6_SETTLEMENT_COMPLETE · S4_F7_PREVIEW_APPLY_COMPLETE_DURABLE_UNDO_ACTIVE/u);
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
   assert.match(plan, /현재 Gate: `S4-F7 WORKSPACE PATCH PRODUCT SURFACE`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',

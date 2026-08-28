@@ -1,0 +1,28 @@
+{
+  "schema": "t5.s4f7.workspace-patch-preview-apply.v1",
+  "recordedOn": "2026-08-29",
+  "status": "PREVIEW_APPLY_COMPLETE_DURABLE_UNDO_OPEN",
+  "sourceBaseCommit": "0180d7b7",
+  "product": {
+    "tool": "workspace_patch",
+    "actions": ["preview", "apply"],
+    "onDemand": true,
+    "freshHandleSingleUse": true,
+    "candidateContentProjected": false,
+    "internalPathsProjected": false
+  },
+  "qualification": {
+    "actualConsoleJourney": true,
+    "purposeFamilies": ["business", "development", "personal"],
+    "invalidCandidateTargetWrites": 0,
+    "focusedPassed": 20,
+    "focusedFailed": 0,
+    "unitPassed": 1719,
+    "unitFailed": 0,
+    "integrationPassed": 193,
+    "integrationFailed": 0,
+    "mutationKills": 2
+  },
+  "nonClaims": ["durable Undo across a later Run", "S4-F complete", "physical Windows authoring qualified"],
+  "nextOneTask": "Add Session-safe durable settlement reopen and rollback action before closing S4-F."
+}

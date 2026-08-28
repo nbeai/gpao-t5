@@ -12,6 +12,7 @@ import { ConsoleSessionStore } from './console-session-store.js';
 import { makeTerminalHand } from './exec-tool.js';
 import { IsolatedCommandExplainer } from './isolated-command-explainer.js';
 import { ManagedMutationObserver } from './managed-mutation-observer.js';
+import { makeWorkspacePatchTool } from './workspace-patch-tool.js';
 import { TerminalOutputStore } from './terminal-output-store.js';
 import { discoverComputerEnvironment, publicComputerFacts } from './computer-environment.js';
 import { makePathRevealer } from './path-revealer.js';
@@ -1533,6 +1534,8 @@ export function makeConsoleServer({
       const skillSnapshot = mergeSkillSnapshots([bundledSkillSnapshot, managedSkillSnapshot]);
       const capabilitySnapshot = await capabilityCatalogPromise;
       const offeredTools = [...terminal.tools];
+      offeredTools.unshift(makeWorkspacePatchTool({ workspace,
+        stateRoot: join(stateDir, 'authoring', sessionId, run.runId) }));
       offeredTools.unshift(makeFileRealityTool({ workspace, home: computer.userHome, platform: computer.platform,
         computerRoots: computerFileRoots ?? [homedir()], protectedRoots: [...protectedFileRoots, stateDir],
         organizationRoot: join(stateDir, 'file-organization'), sourceManifestStore: fileSourceManifests, sessionId,
