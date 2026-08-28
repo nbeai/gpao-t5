@@ -720,6 +720,14 @@ G7 first actual에서 gpt-5.5는 Capsule을 선택하지 않고 기존 exec 경�
 self-selection이 실패했으므로 product wiring 후보를 모두 제거했다. Prompt·전역 schema 노출·업무 Router를
 추가하지 않으며 G7 완료를 주장하지 않는다.
 
+제품 변경 0의 prompt dump 재실행에서 모델은 turn 1·2에 exec로 파일과 기준을 보고, turn 3의 tool_search에는
+`file reality bind_sources local files reconciliation CSV source manifest register_output`을 exact query로 사용했다.
+turn 6에는 Python heredoc으로 순수 변환을 작성해 declared output 두 개만 변경했고, turn 7에는 별도 Python
+재계산으로 결과를 다시 검증한 뒤 12 source bind와 두 Artifact 등록을 끝냈다. 즉 프로그램 필요성을 몰랐던 것이
+아니라 기존 exec가 모델에게 자연스러운 프로그램 interface였다. Python source를 QuickJS로 자동 redirect하면
+언어·표준 library·filesystem 의미가 달라지고, 전역 exec schema 확장은 단순 요청 비용을 늘리므로 둘 다 채택하지
+않는다. G7은 Capsule이 별도 backend여야 하는지, 이미 선 exec의 안전·검증 원리로 흡수돼야 하는지 재판정한다.
+
 완료 문장:
 
 > T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은 프로그램을 만들고, 고정된

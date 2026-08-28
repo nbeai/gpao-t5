@@ -1,0 +1,29 @@
+{
+  "schema":"t5.s4g.g7-exec-path-diagnostic.v1",
+  "recordedOn":"2026-08-29",
+  "sourceHead":"ad01f241",
+  "productChanges":0,
+  "model":"gpt-5.5",
+  "purposeAchieved":true,
+  "promptDumpInspected":true,
+  "firstVisibleHands":["exec","tool_search"],
+  "sequence":[
+    {"turn":1,"action":"exec","fact":"bounded file listing"},
+    {"turn":2,"action":"exec","fact":"criteria and CSV sample inspection with Python"},
+    {"turn":3,"action":"tool_search","exactQuery":"file reality bind_sources local files reconciliation CSV source manifest register_output"},
+    {"turn":6,"action":"exec","fact":"model-authored Python deterministic transform","effect":"local_change","targets":2,"network":false},
+    {"turn":7,"action":"exec","fact":"independent Python recomputation and output comparison"},
+    {"turn":8,"action":"file_reality.bind_sources","inputs":12},
+    {"turn":9,"action":"attachment.register_output","outputs":2}
+  ],
+  "performance":{"wallMs":101754,"modelCalls":11,"toolCalls":11,"providerTokens":251526,"requestBytes":1130593},
+  "classification":"MODEL_NEEDED_PROGRAM_BUT_EXISTING_EXEC_WAS_THE_NATURAL_INTERFACE",
+  "structuredExecCandidate":{
+    "concept":"model explicitly supplies a pure-program execution contract and Runtime selects an eligible backend",
+    "automaticPythonToQuickJsRedirectSafe":false,
+    "reason":"language, standard library, filesystem and output semantics differ",
+    "globalExecSchemaExpansionAdopted":false,
+    "reasonForNoAdoption":"would add bytes and choice burden to simple requests before a same-purpose benefit is proven"
+  },
+  "decision":"NO_SECOND_PRODUCT_PATCH; REASSESS WHETHER CAPSULE_IS_A_BACKEND_OR_AN_UNNEEDED_DUPLICATE_OF_EXEC"
+}
