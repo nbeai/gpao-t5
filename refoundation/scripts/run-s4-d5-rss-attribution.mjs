@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +14,7 @@ import { TerminalOutputStore } from '../src/terminal-output-store.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const script = fileURLToPath(import.meta.url);
+const explainerChild = join(here, 'command-explainer-child.mjs');
 const effect = { kind: 'observe', targets: [], confirmation: 'not_applicable', rollbackOfToolCallId: null };
 const terminalArgs = (overrides = {}) => ({
   action: 'list', command: null, cwd: null, effect: null, processId: null, cursor: null,
@@ -33,8 +34,18 @@ const arms = [
   'command_explainer_output',
   'explainer_then_raw_pipe',
   'explainer_then_registry_poll',
+  'explainer_output_then_registry_poll',
   'explainer_retained_then_registry_poll',
   'process_start_no_explainer',
+  'process_start_detached_explanation',
+  'process_start_json_explanation',
+  'process_start_buffer_detached_explanation',
+  'process_start_explainer_discarded',
+  'process_start_prepared_explanation_bytes',
+  'process_start_isolated_explanation',
+  'prepared_bytes_then_registry_poll',
+  'explanation_digest_then_registry_poll',
+  'explanation_file_then_registry_poll',
   'process_start_registry_poll',
   'process_start_control_poll',
   'registry_direct_without_live_store',
@@ -206,8 +217,53 @@ async function runRegistryShellPoll(root, track) {
   } finally { await registry.stopAll('test_cleanup'); }
 }
 
+async function prepareExplanationBytes(command) {
+  const explanation = await explainShellCommand(command);
+  return Buffer.from(JSON.stringify(explanation), 'utf8');
+}
+
+async function isolatedExplanation(command) {
+  const child = spawn(process.execPath, [explainerChild], { stdio: ['pipe', 'pipe', 'pipe'] });
+  let stdout = ''; let stderr = '';
+  child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
+  child.stdout.on('data', (chunk) => {
+    stdout += chunk;
+    if (stdout.length > 512 * 1024) child.kill('SIGKILL');
+  });
+  child.stderr.on('data', (chunk) => { stderr = `${stderr}${chunk}`.slice(0, 1000); });
+  child.stdin.end(String(command));
+  const [code] = await once(child, 'close');
+  if (code !== 0) throw new Error(`isolated explainer failed: ${stderr}`);
+  return JSON.parse(stdout);
+}
+
+async function runPreparedBytesThenRegistry(root, track) {
+  const bytes = await prepareExplanationBytes(outputCommand()); track();
+  const result = await runRegistryPoll(root, track);
+  const explanation = JSON.parse(bytes.toString('utf8'));
+  return { ...result, restoredExplanationSteps: explanation.steps.length };
+}
+
+async function runExplanationPointerThenRegistry(root, mode, track) {
+  let explanation = await explainShellCommand(outputCommand());
+  let serialized = JSON.stringify(explanation);
+  let pointer;
+  if (mode === 'digest') pointer = createHash('sha256').update(serialized).digest('hex');
+  else {
+    pointer = join(root, 'command-explanation.json');
+    await writeFile(pointer, serialized, { mode: 0o600 });
+  }
+  explanation = null; serialized = null;
+  track();
+  const result = await runRegistryPoll(root, track);
+  const restored = mode === 'digest' ? pointer
+    : JSON.parse(await readFile(pointer, 'utf8')).steps.length;
+  return { ...result, restored };
+}
+
 async function runAfterExplainer(root, next, track) {
-  const explanation = await explainShellCommand(next === 'retained' ? outputCommand() : "printf 'warm parser'");
+  const explanation = await explainShellCommand(['retained', 'output_discarded'].includes(next)
+    ? outputCommand() : "printf 'warm parser'");
   track();
   const result = next === 'raw' ? await runRawPipe('discard', track) : await runRegistryPoll(root, track);
   return next === 'retained' ? { ...result, retainedExplanationSteps: explanation.steps.length } : result;
@@ -218,13 +274,32 @@ async function runProcessToolPoll(root, mode, track) {
   const start = makeProcessStartTool({ workingDirectory: root, workspace: root,
     ownerId: 'session-a', originRunId: 'run-a', yieldMs: 10, processRegistry: registry,
     ...(mode === 'no_explainer' ? { explainCommand: async () => ({ ok: false,
-      hasParseError: null, source: null, shapes: [], steps: [], operators: [] }) } : {}) });
+      hasParseError: null, source: null, shapes: [], steps: [], operators: [] }) } : {}),
+    ...(mode === 'detached_explanation' ? { explainCommand: async (command) => (
+      structuredClone(await explainShellCommand(command))
+    ) } : {}),
+    ...(mode === 'json_explanation' ? { explainCommand: async (command) => (
+      JSON.parse(JSON.stringify(await explainShellCommand(command)))
+    ) } : {}),
+    ...(mode === 'buffer_detached_explanation' ? { explainCommand: async (command) => (
+      JSON.parse(Buffer.from(JSON.stringify(await explainShellCommand(command)), 'utf8').toString('utf8'))
+    ) } : {}),
+    ...(mode === 'explainer_discarded' ? { explainCommand: async (command) => {
+      await explainShellCommand(command);
+      return { ok: false, hasParseError: null, source: null, shapes: [], steps: [], operators: [] };
+    } } : {}),
+    ...(mode === 'prepared_explanation_bytes' ? { explainCommand: async (command) => (
+      JSON.parse((await prepareExplanationBytes(command)).toString('utf8'))
+    ) } : {}),
+    ...(mode === 'isolated_explanation' ? { explainCommand: isolatedExplanation } : {}) });
   const control = makeProcessControlTool({ processRegistry: registry, ownerId: 'session-a' });
   try {
     let current = await start.execute({ command: outputCommand(), cwd: null, effect }, { onActivity: track });
     let polls = 0;
     while (current.state === 'running' && polls < 512) {
-      current = ['registry', 'no_explainer'].includes(mode)
+      current = ['registry', 'no_explainer', 'detached_explanation', 'json_explanation',
+        'buffer_detached_explanation', 'explainer_discarded', 'prepared_explanation_bytes',
+        'isolated_explanation'].includes(mode)
         ? await registry.poll({ processId: current.processId, cursor: current.cursor,
           ownerId: 'session-a', waitMs: 1000 })
         : await control.execute({ action: 'poll', processId: current.processId, cursor: current.cursor,
@@ -283,7 +358,8 @@ async function runArm(arm) {
           : arm === 'command_explainer_output' ? await explainShellCommand(outputCommand())
             : arm === 'explainer_then_raw_pipe' ? await runAfterExplainer(root, 'raw', track)
               : arm === 'explainer_then_registry_poll' ? await runAfterExplainer(root, 'registry', track)
-                : arm === 'explainer_retained_then_registry_poll' ? await runAfterExplainer(root, 'retained', track)
+                : arm === 'explainer_output_then_registry_poll' ? await runAfterExplainer(root, 'output_discarded', track)
+                  : arm === 'explainer_retained_then_registry_poll' ? await runAfterExplainer(root, 'retained', track)
         : arm === 'raw_pipe_discard' ? await runRawPipe('discard', track)
           : arm === 'raw_pipe_bounded_string' ? await runRawPipe('bounded_string', track)
             : arm === 'raw_pipe_bounded_snapshots' ? await runRawPipe('bounded_snapshots', track)
@@ -291,7 +367,16 @@ async function runArm(arm) {
                 : arm === 'registry_direct_poll' ? await runRegistryPoll(root, track)
                   : arm === 'registry_shell_poll' ? await runRegistryShellPoll(root, track)
                     : arm === 'process_start_no_explainer' ? await runProcessToolPoll(root, 'no_explainer', track)
-                      : arm === 'process_start_registry_poll' ? await runProcessToolPoll(root, 'registry', track)
+                      : arm === 'process_start_detached_explanation' ? await runProcessToolPoll(root, 'detached_explanation', track)
+                        : arm === 'process_start_json_explanation' ? await runProcessToolPoll(root, 'json_explanation', track)
+                          : arm === 'process_start_buffer_detached_explanation' ? await runProcessToolPoll(root, 'buffer_detached_explanation', track)
+                            : arm === 'process_start_explainer_discarded' ? await runProcessToolPoll(root, 'explainer_discarded', track)
+                              : arm === 'process_start_prepared_explanation_bytes' ? await runProcessToolPoll(root, 'prepared_explanation_bytes', track)
+                                : arm === 'process_start_isolated_explanation' ? await runProcessToolPoll(root, 'isolated_explanation', track)
+                                  : arm === 'prepared_bytes_then_registry_poll' ? await runPreparedBytesThenRegistry(root, track)
+                                  : arm === 'explanation_digest_then_registry_poll' ? await runExplanationPointerThenRegistry(root, 'digest', track)
+                                    : arm === 'explanation_file_then_registry_poll' ? await runExplanationPointerThenRegistry(root, 'file', track)
+                                      : arm === 'process_start_registry_poll' ? await runProcessToolPoll(root, 'registry', track)
                       : arm === 'process_start_control_poll' ? await runProcessToolPoll(root, 'control', track)
         : await runTerminal(root, arm, track);
     const afterOperation = { label: 'after_operation', ...memory() }; track();

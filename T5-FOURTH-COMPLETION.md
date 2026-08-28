@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_BASELINE_COMPLETE · S4_D2_COMPLETE · S4_D3_COMPLETE_WITH_RSS_OBSERVATION · S4_D4_BASELINE_COMPLETE · S4_D4A_PARENT_DEATH_CONTAINMENT_COMPLETE · S4_D4B_SUCCESSOR_SETTLEMENT_COMPLETE · S4_D5_RSS_ATTRIBUTION_COMPLETE · S4_D5A_EXPLANATION_LIFETIME_REPAIR_ACTIVE`
-현재 Gate: `S4-D5A COMMAND EXPLANATION LIFETIME REPAIR`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_BASELINE_COMPLETE · S4_D2_COMPLETE · S4_D3_COMPLETE_WITH_RSS_OBSERVATION · S4_D4_BASELINE_COMPLETE · S4_D4A_PARENT_DEATH_CONTAINMENT_COMPLETE · S4_D4B_SUCCESSOR_SETTLEMENT_COMPLETE · S4_D5_RSS_ATTRIBUTION_COMPLETE · S4_D5A_IN_PROCESS_CANDIDATES_REJECTED · S4_D5B_ISOLATED_EXPLAINER_QUALIFICATION_ACTIVE`
+현재 Gate: `S4-D5B ISOLATED COMMAND EXPLAINER · QUALIFICATION ONLY`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,16 +55,16 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-D5A command explanation lifetime 최소 수리다.
+2. **현재 Gate**: S4-D5B isolated command explainer의 정확성·경제성 자격이다. 제품 변경은 0이다.
 3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
    없이 끝까지 관찰한다.
-4. **이미 선 실제 증거**: D5는 command explanation을 managed process 동안 보존하면 RSS +595.6MB, 같은 parser
-   결과를 process 전에 해제하면 +20.9MB, explainer를 우회하면 +11.3MB임을 격리 3회 중앙값으로 분리했다.
-5. **현재 가장 큰 미달**: 이미 launch·권한 파생을 끝낸 command explanation이 대출력 실행 동안 불필요하게
-   살아 있어 Runtime RSS를 약 600MB까지 올린다.
-6. **이번 변경 방식**: explanation의 모든 현재 소비를 끝낸 뒤 registry start 전에 참조만 해제하고, command
-   해석·권한·pipeline 사실·broker·출력·process 결과는 그대로 보존한다.
-7. **Non-goals**: parser 교체·새 process protocol·고정 memory 상한·출력 손실·Store 변경·process reattach·
+4. **이미 선 실제 증거**: reset·delete·null·clone·JSON·Buffer·digest·file pointer는 모두 128MB RED를 닫지
+   못했다. one-shot 격리 helper는 주 Runtime RSS를 +11.4MB로 낮췄지만 wall을 251ms에서 419ms로 늘렸다.
+5. **현재 가장 큰 미달**: in-process parser와 대출력 실행의 결합은 제거해야 하지만 every-command one-shot
+   helper는 빠름·경제성 목표에 비싸다.
+6. **이번 변경 방식**: qualification-only lazy persistent helper에서 exact explanation·동시 요청·child crash·
+   restart·첫 호출과 warm 호출 비용·전체 process RSS를 측정하고 제품 채택 여부를 판정한다.
+7. **Non-goals**: 제품 기본 배선·새 Store·parser 의미 축소·고정 memory 상한·출력 손실·process reattach·
    PTY containment·Windows 재구현·S4-E·실제 HOME·계정·외부 효과.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
@@ -307,7 +307,7 @@ S4-C는 제품 성공으로 완료한 것이 아니다. `USER_COMPLETION_NOT_UNI
 
 > T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한 손으로 필요한 원문만 본다.
 
-### S4-D — Terminal 실행 중 output·process 미달 — D2·D3·D4A·D4B·D5 COMPLETE, D5A ACTIVE
+### S4-D — Terminal 실행 중 output·process 미달 — D2·D3·D4A·D4B·D5 COMPLETE, D5A REJECTED, D5B ACTIVE
 
 S4-D0은 disk spool 전에 KHB-S01에서 발견된 pipeline 실행 사실을 닫았다. zsh `pipestatus`와 bash
 `PIPESTATUS`로 마지막 unconditional foreground pipeline의 전체 exit와 단계 exit를 분리한다. Runtime은 이
@@ -452,6 +452,20 @@ S4-D5A 완료 문장:
 
 > T5는 command 해석에서 얻은 안전·실행 사실은 보존하되 사용이 끝난 parse-derived 객체를 process 실행 동안
 > 붙들지 않아 대출력 정확성을 유지하면서 Runtime RSS를 불필요하게 키우지 않는다.
+
+S4-D5A actual은 in-process 최소 후보를 폐기했다. parser `reset`·`delete`, reference null, structured clone,
+JSON·Buffer 재물질화, digest·temporary file pointer 모두 대출력 128MB RED를 통과하지 못했다. 명령 해석을
+우회하면 RSS는 내려갔지만 권한·pipeline·Capability·학습 사실을 제거하므로 제품 후보가 아니다. 같은 방향의
+세 번째 patch를 붙이지 않고 parser 실행 위치를 재설계한다.
+
+S4-D5B one-shot 격리 positive control은 command를 argv가 아닌 stdin으로 보내고 bounded JSON만 되돌렸다. 주
+Runtime peak RSS delta는 3회 중 약 11.4MB였지만 median wall은 418.6ms로 current in-process 251.1ms보다
+167.5ms 느렸다. 따라서 one-shot helper 제품 채택은 0이다.
+
+S4-D5B 완료 문장:
+
+> T5는 command 해석 정확성과 안전 사실을 보존하면서 parser memory를 실행 Runtime과 격리하고, 첫 호출 뒤
+> 반복 명령에는 사용자가 체감할 불필요한 지연을 더하지 않으며 helper 사고를 보호 없는 실행으로 낮추지 않는다.
 
 - 실행 중 stdout·stderr append-only disk spool
 - 작은 memory head·tail·cursor와 bounded range read
@@ -732,6 +746,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D2·D3·D4A·D4B·D5는 닫혔다. 현재 다음 한 작업은 parser나 Store를
-교체하지 않고 이미 소비가 끝난 command explanation 참조만 registry start 전에 해제하는 S4-D5A다. 같은
-대출력 AB/BA에서 exact hash·pipeline·권한·짧은 명령을 보존하고 RSS를 다시 측정하기 전 S4-D와 S4-E를 닫지 않는다.
+S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D2·D3·D4A·D4B·D5는 닫혔고 D5A in-process 후보는 폐기했다. 현재
+다음 한 작업은 제품 변경 0에서 lazy persistent isolated explainer의 cold·warm wall, 주 Runtime+helper RSS,
+동시 요청 exact pairing, helper crash fail-closed를 재는 D5B다. 이 결과 전에는 S4-D와 S4-E를 닫지 않는다.

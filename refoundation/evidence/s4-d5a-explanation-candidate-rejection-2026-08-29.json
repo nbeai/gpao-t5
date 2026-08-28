@@ -1,0 +1,43 @@
+{
+  "schema": "t5.s4d5a.explanation-candidate-rejection.v1",
+  "recordedOn": "2026-08-29",
+  "status": "IN_PROCESS_CANDIDATES_REJECTED_ISOLATION_QUALIFICATION_OPEN",
+  "sourceBaseCommit": "1e655ea1",
+  "productChanges": 0,
+  "redBoundaryBytes": 134217728,
+  "rejected": [
+    "parser reset",
+    "parser delete and cache release",
+    "local reference release",
+    "structured clone",
+    "JSON materialization",
+    "Buffer materialization",
+    "digest pointer",
+    "temporary file pointer"
+  ],
+  "positiveControl": {
+    "kind": "one_shot_isolated_command_explainer",
+    "stdinCommand": true,
+    "argvCommand": false,
+    "boundedStdoutBytes": 524288,
+    "mainRuntimeMedianPeakRssDelta": 11370496,
+    "mainRuntimeMedianAfterGcRssDelta": 3358720,
+    "medianWallMs": 418.594875,
+    "currentInProcessMedianWallMs": 251.121167,
+    "addedMedianWallMs": 167.473708,
+    "terminalCompleted": true,
+    "productAdopted": false
+  },
+  "interpretation": {
+    "runtimeMeaningChanged": false,
+    "commandExplanationRemoved": false,
+    "isolationDirectionSupported": true,
+    "oneShotEconomicsPassed": false
+  },
+  "nonClaims": [
+    "RSS is repaired in the product",
+    "a persistent helper is safe or exact-once",
+    "physical Windows helper behavior is qualified"
+  ],
+  "nextOneTask": "Qualify a lazy persistent isolated explainer for cold and warm latency, aggregate RSS, concurrent identity, crash and fail-closed behavior without product wiring."
+}
