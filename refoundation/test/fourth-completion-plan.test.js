@@ -12,9 +12,9 @@ test('4차 정본은 S4-B를 모델 관측으로 닫고 S4-C read-only 기준선
     readFile(new URL('AGENTS.md', root), 'utf8'),
     readFile(new URL('T5-SECOND-COMPLETION.md', root), 'utf8'),
   ]);
-  assert.match(plan, /FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_C_BASELINE_ACTIVE · PRODUCT_CODE_LOCKED/u);
+  assert.match(plan, /FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_C_GPT55_FAILURE_REPRODUCED · PRODUCT_CODE_LOCKED/u);
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
-  assert.match(plan, /현재 Gate: `S4-C SITUATION & HAND · KHB-S01 READ-ONLY BASELINE`/u);
+  assert.match(plan, /현재 Gate: `S4-C SITUATION & HAND · KHB-S01 TERRA COMPARISON PENDING`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',
     'S4-H', 'S4-I', 'S4-J', 'S4-K', 'S4-UX', 'S4-L', 'S4-HQ'];
   let cursor = -1;
@@ -33,6 +33,8 @@ test('4차 정본은 S4-B를 모델 관측으로 닫고 S4-C read-only 기준선
   assert.match(plan, /exact source 재투영 후보는 열지 않는다/u);
   assert.match(plan, /S4-C — Situation·Hand의 실제 차이 수리 — ACTIVE/u);
   assert.match(plan, /첫 기준선은 KHB-S01/u);
+  assert.match(plan, /connection list가 로컬 Evidence보다 먼저 호출/u);
+  assert.match(plan, /find -printf[\s\S]*pipeline exit 0/u);
   assert.match(agents, /`T5-FOURTH-COMPLETION\.md` — 지금 어느 Gate/u);
   assert.match(second, /현재 후속 Gate: `T5-FOURTH-COMPLETION\.md · S4-C`/u);
 });

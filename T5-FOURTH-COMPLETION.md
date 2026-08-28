@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_C_BASELINE_ACTIVE · PRODUCT_CODE_LOCKED`
-현재 Gate: `S4-C SITUATION & HAND · KHB-S01 READ-ONLY BASELINE`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_C_GPT55_FAILURE_REPRODUCED · PRODUCT_CODE_LOCKED`
+현재 Gate: `S4-C SITUATION & HAND · KHB-S01 TERRA COMPARISON PENDING`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -58,12 +58,13 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 2. **현재 Gate**: S4-C Situation·Hand의 KHB-S01 read-only 기준선이다. 제품 코드는 잠겨 있다.
 3. **사용자 완료 문장**: T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한
    손으로 필요한 원문만 본다.
-4. **이미 선 실제 증거**: File Reality·tool search·Connection Truth·Resource Situation이 있고, 과거 KHB-S01은
-   예약 8행에서 106,652 tokens·66.8초·model 8회·tool 8회와 불필요한 connection probe를 남겼다.
-5. **현재 가장 큰 미달**: KHB-S01의 고비용과 connection probe가 현재 clean head에서도 재현되는지, 모델이
-   현재 로컬 Evidence와 연결 현실을 어떤 순서로 받았는지 정산되지 않았다.
-6. **이번 변경 방식**: 기존 fixture·동일 자연어 목적을 제품 변경 없이 한 번 실행해 source 후보·Tool route·
-   model calls·tool calls·provider bytes·tokens·wall·첫 유용한 결과를 측정하고 실제 차이만 반대시험으로 연다.
+4. **이미 선 실제 증거**: current gpt-5.5 KHB-S01은 목적을 달성했지만 첫 Tool로 쓰이지 않은 connection list를
+   호출했고, macOS 비호환 `find -printf`가 stderr를 내면서 pipeline exit 0 성공으로 기록된 뒤 Python 재검색이
+   이어졌다. 78,470 tokens·40.6초·model 6회·tool 5회였다.
+5. **현재 가장 큰 미달**: 불필요한 connection과 비호환 shell 선택이 gpt-5.5 분산인지 공통 Tool surface
+   문제인지 Terra 동일 실행이 없어 분리되지 않았다.
+6. **이번 변경 방식**: 합성 예약·문의 fixture의 Terra 전송을 오너가 명시 승인하면 동일 제품·도구면으로 한 번
+   비교한다. 승인 전에는 gpt-5.5 prompt·Run·Receipt와 현재 source만 읽고 제품 구현을 열지 않는다.
 7. **Non-goals**: 새 index·OCR cache·relationship map, 서비스별 route, 연결 기능 추가, Prompt 변경, 업무
    정규식, Work brief·목적 schema, UI 변경, 실제 계정·외부 효과 시험.
 
@@ -221,6 +222,12 @@ source pointer·revision·candidate·conflict로만 보존하고 사람·회사�
 첫 기준선은 KHB-S01이다. 과거의 불필요한 connection probe와 106,652-token 표본을 현재 결함으로 자동
 승격하지 않는다. 제품 변경 0의 current-head replay에서 같은 사용자 목적·로컬 예약 Evidence·빈 연결 현실을
 사용하고, 실제 Tool route와 final Context를 읽은 뒤 최초 결함 가족 하나만 연다.
+
+current gpt-5.5 replay에서 connection list가 로컬 Evidence보다 먼저 호출됐고 최종 답에는 사용되지 않았다.
+첫 shell 검색은 macOS가 지원하지 않는 `find -printf`를 사용해 stderr를 냈지만 pipeline의 마지막 명령이 0으로
+끝나 Tool success로 기록됐으며, 다음 Turn의 Python 검색이 같은 목적을 다시 수행했다. 최종 결과는 정확했고
+과거 표본보다 비용은 줄었으므로 사용자 목적 성공과 Hand 경제성 미달을 분리한다. Terra 비교 전에는 이것을
+공통 Runtime 결함으로 확정하지 않는다.
 
 완료 문장:
 
@@ -456,7 +463,7 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-B는 KHB-A01을 두 모델의 출력 절제 품질 관측으로 보존하고 exact source 재투영 후보 없이 닫았다. 제품
-변경은 0이다. 현재 다음 한 작업은 KHB-S01을 동일 격리 fixture와 current clean head에서 한 번 실행해 로컬
-예약 Evidence보다 connection probe를 먼저 여는지, 같은 Evidence를 반복하는지, 8행 목적에 비용이 다시
-발생하는지 정산하는 S4-C read-only baseline이다. 재현 전에는 index·cache·route·Prompt 구현을 열지 않는다.
+S4-C gpt-5.5 기준선은 사용자 목적을 달성했지만 불필요한 connection list와 실패가 가려진 macOS shell 검색을
+재현했다. 제품 변경은 0이다. 현재 다음 한 작업은 오너의 구체적 전송 승인 아래 동일 합성 fixture를 Terra에
+한 번 보내 두 Hand 선택이 모델별인지 공통인지 분리하는 것이다. 승인 전에는 제품 코드·Prompt·Tool surface를
+변경하지 않는다.
