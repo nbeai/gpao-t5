@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_COMPLETE · S4_G3_FIXTURE_QUALIFICATION_COMPLETE · S4_G4_ACTUAL_EXECUTION_COMPLETE · S4_G5_INDEPENDENT_OBSERVER_COMPLETE · S4_G6_PUBLICATION_CLEANUP_ACTIVE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
-현재 Gate: `S4-G6 EPHEMERAL PROGRAM CAPSULE · PUBLICATION AND CLEANUP`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_COMPLETE · S4_G3_FIXTURE_QUALIFICATION_COMPLETE · S4_G4_ACTUAL_EXECUTION_COMPLETE · S4_G5_INDEPENDENT_OBSERVER_COMPLETE · S4_G6_PUBLICATION_CLEANUP_COMPLETE · S4_G7_PRODUCT_ACTIVATION_AB_ACTIVE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+현재 Gate: `S4-G7 EPHEMERAL PROGRAM CAPSULE · PRODUCT ACTIVATION AND A/B`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,17 +55,17 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-G6 ephemeral program capsule의 publication and cleanup이다.
+2. **현재 Gate**: S4-G7 ephemeral program capsule의 product activation and A/B다.
 3. **사용자 완료 문장**: T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은
    프로그램을 만들고, 고정된 입력과 범위에서 시험·실행하며, 프로그램과 독립적으로 검증한 사용자 결과만
    발행하고 나머지는 정리한다.
-4. **이미 선 실제 증거**: G5는 closed output set·generic format·exact relation digest를 host에서 독립 확인하고
-   missing·unexpected·invalid·relation failure를 3/3으로 분리했다.
-5. **현재 가장 큰 미달**: verified publishable만 사용자 target에 F transaction으로 발행하고 internal·diagnostic·
-   temporary와 Capsule scratch를 정리한 terminal receipt가 없다.
-6. **이번 변경 방식**: G5 verified outputs 중 publishable만 F publication에 넘기고 나머지와 source·fixture·actual·
-   observer scratch를 물리 정리한 뒤 target reopen과 scratch absence를 각각 확인한다.
-7. **Non-goals**: product activation·자동 영구 보존·nested Tool RPC·S4-H.
+4. **이미 선 실제 증거**: G6는 verified publishable만 F transaction으로 발행하고 internal·diagnostic·temporary를
+   제외하며 Capsule scratch cleanup과 cleanup_unknown을 4/4로 분리했다.
+5. **현재 가장 큰 미달**: 자연어 대량 변환에서 모델이 Capsule을 자발 선택하고 단순 요청에서는 선택하지 않으며
+   G0 대비 품질 무회귀·calls/tokens/wall 이익이 있는지 제품 경로로 증명되지 않았다.
+6. **이번 변경 방식**: Capsule을 on-demand hidden tool로 연결하고 같은 G0 목적 A/B·단순 합계 음성 대조·명시적
+   프로그램 제작을 실제 모델로 비교한다.
+7. **Non-goals**: nested Tool RPC·자동 Skill·package runtime 설치·S4-H.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -706,9 +706,13 @@ host가 UTF-8/base64 bytes를 재물질화해 JSON·CSV·text 구조와 hash를 
 actual input/output digest 전체를 exact 반환할 때만 `output_verified`로 올린다. missing·unexpected·duplicate·
 invalid format·relation mismatch·residual process는 unverified이며 user target write는 0이다.
 
-현재는 `G6` publication and cleanup만 열려 있다. verified publishable outputs만 F transaction으로 사용자 target에
-발행하고 internal_intermediate·diagnostic·temporary와 Capsule scratch를 정리하며 publication과 cleanup을 별도
-terminal 사실로 검증한다.
+G6 actual은 G5 verified outputs 중 publishable만 Buffer candidate로 F의 Preview→Prepare→Lock→Publish→Verify→
+Settle에 전달한다. internal·diagnostic·temporary는 사용자 target에 만들지 않으며 F rollback·Undo pointer를
+보존한다. F settlement 뒤 Capsule scratch 전체를 삭제하고 absence를 다시 확인한다. cleanup 실패는 이미 검증된
+publication을 지우지 않고 `published_verified_cleanup_unknown`으로 분리한다.
+
+현재는 `G7` product activation and A/B만 열려 있다. 자연어 대량 변환의 자발 선택, 단순 요청의 비선택,
+명시적 프로그램 Artifact 분리, G0 대비 품질·calls·tokens·wall·잔여물 0을 실제 모델에서 확인한다.
 
 완료 문장:
 
@@ -910,5 +914,4 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 ## 10. 현재 다음 한 작업
 
 S4-C 미달은 S4-G·S4-I·S4-HQ에 이월했다. S4-D managed non-PTY와 D5C, S4-E1~E7, S4-F structured authoring은
-닫혔다. S4-G0~G5도 순서대로 닫혔다. 현재 다음 한 작업은 S4-G6 verified publication and cleanup이다. product
-activation은 열지 않는다.
+닫혔다. S4-G0~G6도 순서대로 닫혔다. 현재 다음 한 작업은 S4-G7 product activation and A/B다.
