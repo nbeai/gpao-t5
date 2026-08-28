@@ -10,6 +10,7 @@ import { redactBrokeredTerminalResult } from './terminal-credential-broker.js';
 import { settleCapabilityUse } from './capability-use-receipt.js';
 import { makeTerminalOutputTool } from './terminal-output-store.js';
 import { makeTerminalSessionTool } from './terminal-session-tool.js';
+import { preparePipelineTruth, settlePipelineTruth } from './terminal-pipeline-truth.js';
 
 const DEFAULT_YIELD_MS = 1000;
 const DEFAULT_OUTPUT_LIMIT = 64_000;
@@ -204,9 +205,12 @@ function makeCommandTool(options = {}, { managed }) {
       let launch;
       try {
         const effectBefore = await observeDeclaredEffect(declaredEffect, cwd);
+        const managedCommand = commandWithManagedPath(command, pathPrepend, runtime.family);
+        const pipelineTruth = !managed && runtime.family === 'posix'
+          ? preparePipelineTruth({ command: managedCommand, commandExplanation, shellProgram: runtime.program }) : null;
         const normalLaunch = {
           program: runtime.program,
-          args: runtime.argsFor(commandWithManagedPath(command, pathPrepend, runtime.family)),
+          args: runtime.argsFor(pipelineTruth?.command ?? managedCommand),
           cwd, env: isolatedEnv(root, env, runtime), confinement: null,
         };
         const brokered = await terminalCredentialBroker?.prepare?.({ commandExplanation, managed })
@@ -242,6 +246,7 @@ function makeCommandTool(options = {}, { managed }) {
           },
           onActivity: context.onActivity,
         });
+        result = settlePipelineTruth(result, pipelineTruth);
         if (context.signal?.aborted && (result.state === 'running' || result.state === 'stop_requested')) {
           result = await registry.stop({
             processId: result.processId, ownerId, reason: 'aborted', cursor: result.cursor,

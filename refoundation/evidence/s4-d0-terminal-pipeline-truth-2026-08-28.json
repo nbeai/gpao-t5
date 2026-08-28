@@ -1,0 +1,127 @@
+{
+  "schema": "t5.s4d0.terminal-pipeline-truth.v1",
+  "recordedOn": "2026-08-28",
+  "status": "PRODUCT_INVARIANT_ADOPTED_WITH_COST_OBSERVATION",
+  "sourceBaseCommit": "a8f12514",
+  "trigger": {
+    "scenario": "KHB-S01",
+    "failure": "a nonfinal macOS find stage failed while the final pipeline stage exited zero",
+    "priorReceiptOutcome": "succeeded",
+    "risk": "the model could treat a failed observation as successful Evidence"
+  },
+  "productBoundary": {
+    "files": [
+      "refoundation/src/terminal-pipeline-truth.js",
+      "refoundation/src/exec-tool.js"
+    ],
+    "scope": "foreground POSIX exec whose final unconditional top-level construct is a pipeline",
+    "shells": ["zsh", "bash"],
+    "factsRecorded": [
+      "stage exit codes",
+      "overall exit code",
+      "nonfinal hidden-failure indices",
+      "nonfinal exit-141 indices"
+    ],
+    "outcomeRule": "a nonfinal code other than 0 or 141 with overall code 0 becomes pipeline_stage_failed",
+    "exit141Rule": "record the exact code without claiming the process was certainly terminated by SIGPIPE",
+    "unsupportedScope": [
+      "managed background processes",
+      "conditional and/or pipelines",
+      "pipelines followed by another foreground command",
+      "non-POSIX command runtimes"
+    ],
+    "promptChanged": false,
+    "toolSchemaChanged": false,
+    "newStore": false,
+    "commandPolicyList": false
+  },
+  "deterministicQualification": {
+    "status": "passed",
+    "tests": 32,
+    "covered": [
+      "false | true",
+      "yes | head",
+      "all-zero pipeline",
+      "stderr preservation and sideband removal",
+      "zsh pipestatus",
+      "bash PIPESTATUS",
+      "unforgeable per-call marker matching",
+      "pipeline followed by a non-pipeline command",
+      "conditional pipeline exclusion",
+      "macOS find -printf failure hidden by head",
+      "existing exec and platform adapter invariants"
+    ]
+  },
+  "gpt55LiveD0": {
+    "payload": "isolated synthetic KHB-S01 fixture",
+    "realUserData": false,
+    "realAccounts": false,
+    "externalWrites": 0,
+    "purposeAchieved": true,
+    "resultCorrect": true,
+    "hiddenPipelineFailure": {
+      "commandFamily": "find -printf | sort | head",
+      "stageExitCodes": [1, 0, 0],
+      "overallExitCode": 0,
+      "receiptOutcome": "failed",
+      "modelRecovered": true
+    },
+    "wallMs": 74854,
+    "modelCalls": 8,
+    "toolCalls": 7,
+    "providerTokens": 125769,
+    "requestBytes": 592222,
+    "comparisonToUnchangedBaseline": {
+      "wallMs": 34224,
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "providerTokens": 47299,
+      "requestBytes": 203781
+    }
+  },
+  "qualificationOnlyWorkspaceFactCombination": {
+    "productAdopted": false,
+    "sourceRemoved": true,
+    "fact": "top-level entry type counts with names, paths, and content excluded; descendants explicitly unobserved",
+    "projectionCost": {
+      "instructionBytesPerModelCall": 163,
+      "serializedRequestBytesPerModelCall": 180
+    },
+    "gpt55": {
+      "purposeAchieved": true,
+      "identifiersMasked": true,
+      "connectionCalls": 0,
+      "wallMs": 54222,
+      "modelCalls": 6,
+      "toolCalls": 5,
+      "providerTokens": 84319,
+      "requestBytes": 390121
+    },
+    "terra": {
+      "purposeAchieved": true,
+      "resultCorrect": true,
+      "connectionCalls": 1,
+      "identifiersMasked": false,
+      "wallMs": 27823,
+      "modelCalls": 6,
+      "toolCalls": 5,
+      "providerTokens": 83666,
+      "requestBytes": 402039
+    },
+    "reasonNotAdopted": "qualification authorization does not authorize a new default projection of real workspace metadata to model providers"
+  },
+  "windowsMeaning": {
+    "productBehavior": "the POSIX adapter is not applied to Windows command runtimes",
+    "currentClaim": "no Windows pipeline behavior changed",
+    "physicalQualification": "pending S4-L"
+  },
+  "verdict": {
+    "truthBoundary": "passed",
+    "qualityRegression": false,
+    "safetyRegression": false,
+    "economicObservation": "the D0-only live recovery was slower and more expensive; the invariant adds no model call itself but exposes failures the model may recover from",
+    "s4dStatus": "D0 complete; disk spool, restart handles, and broader process truth remain unopened",
+    "s4cStatus": "reopen structural assessment because shallow successful search can still produce false absence"
+  },
+  "nextOneTask": "Reassess S4-C from the exact shallow-observation failure without adding workspace metadata projection, a new Tool, Store, Intent router, business schema, or global Prompt."
+}

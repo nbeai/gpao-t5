@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_C_GPT55_FAILURE_REPRODUCED · PRODUCT_CODE_LOCKED`
-현재 Gate: `S4-C SITUATION & HAND · KHB-S01 TERRA COMPARISON PENDING`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_COMPLETE_WITH_COST_OBSERVATION · S4_C_STRUCTURAL_REASSESSMENT · PRODUCT_CODE_LOCKED`
+현재 Gate: `S4-C SITUATION & HAND · SHALLOW OBSERVATION FALSE ABSENCE REASSESSMENT`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,18 +55,20 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-C Situation·Hand의 KHB-S01 read-only 기준선이다. 제품 코드는 잠겨 있다.
+2. **현재 Gate**: S4-D0 완료 뒤 S4-C의 shallow observation false absence를 구조적으로 재평가한다. 제품
+   코드는 잠겨 있다.
 3. **사용자 완료 문장**: T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한
    손으로 필요한 원문만 본다.
-4. **이미 선 실제 증거**: current gpt-5.5 KHB-S01은 목적을 달성했지만 첫 Tool로 쓰이지 않은 connection list를
-   호출했고, macOS 비호환 `find -printf`가 stderr를 내면서 pipeline exit 0 성공으로 기록된 뒤 Python 재검색이
-   이어졌다. 78,470 tokens·40.6초·model 6회·tool 5회였다.
-5. **현재 가장 큰 미달**: 불필요한 connection과 비호환 shell 선택이 gpt-5.5 분산인지 공통 Tool surface
-   문제인지 Terra 동일 실행이 없어 분리되지 않았다.
-6. **이번 변경 방식**: 합성 예약·문의 fixture의 Terra 전송을 오너가 명시 승인하면 동일 제품·도구면으로 한 번
-   비교한다. 승인 전에는 gpt-5.5 prompt·Run·Receipt와 현재 source만 읽고 제품 구현을 열지 않는다.
-7. **Non-goals**: 새 index·OCR cache·relationship map, 서비스별 route, 연결 기능 추가, Prompt 변경, 업무
-   정규식, Work brief·목적 schema, UI 변경, 실제 계정·외부 효과 시험.
+4. **이미 선 실제 증거**: S4-D0은 POSIX 마지막 foreground pipeline의 단계별 exit를 보존해 숨은 실패를
+   실패 Receipt로 바꿨다. gpt-5.5는 복구해 목적을 달성했지만 125,769 tokens·74.9초로 비용이 늘었다. 내용과
+   이름을 제외한 top-level workspace fact를 결합한 자격시험에서는 gpt-5.5와 Terra가 모두 목적을 달성했다.
+5. **현재 가장 큰 미달**: D0은 실패한 pipeline을 고쳤지만 exit 0인 shallow 검색을 모델이 전체 부재로
+   오인하는 문제는 남았다. 결합 사실은 호출당 지시문 163 bytes였지만 실제 workspace metadata의 새 provider
+   투영 경계이므로 제품 기본값으로 자동 승격하지 않았다.
+6. **이번 변경 방식**: 제품 변경 없이 실제 shallow 관측·Receipt·모델 입력을 총괄 재검토한다. 기존 현실로
+   충분하면 모델 품질로 분리하고, 실제 Runtime 사실 미달이 입증될 때만 가장 작은 bounded 구조를 제안한다.
+7. **Non-goals**: workspace metadata 기본 투영, 새 Tool·Store·Intent router·업무 schema·전역 Prompt,
+   command 의미 규칙, Connection 강제 지연, Terminal 추가 패치, 실제 계정·외부 효과 시험.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -211,7 +213,7 @@ call에서의 위치, 최신 교정과 거리, 앞선 assistant·ToolReceipt 크
 > T5는 모델에게 현재 사용자 원문·교정·Evidence·실행 현실을 작고 정확하게 공급하며, 목적·완료 의미와
 > 사용자 답은 모델이 판단한다.
 
-### S4-C — Situation·Hand의 실제 차이 수리 — ACTIVE
+### S4-C — Situation·Hand의 실제 차이 수리 — STRUCTURAL REASSESSMENT
 
 현재 목적에 관련된 Conversation·Memory·Work·file·connection·Capability pointer를 후보화하고 모델이 선택한
 Evidence만 exact reopen한다. 기존 Information Control·Resource Situation·tool search를 우선 사용한다.
@@ -229,11 +231,36 @@ current gpt-5.5 replay에서 connection list가 로컬 Evidence보다 먼저 호
 과거 표본보다 비용은 줄었으므로 사용자 목적 성공과 Hand 경제성 미달을 분리한다. Terra 비교 전에는 이것을
 공통 Runtime 결함으로 확정하지 않는다.
 
+Terra도 첫 Tool로 connection list를 호출했고, depth 2까지만 본 뒤 depth 3의 실제 파일 5개를 없다고 보고해
+목적에 실패했다. File Reality 기본 노출·Connection deferred 후보는 gpt-5.5가 계속 shallow exec와 connection을
+선택해 목적 실패로 폐기했다. top-level workspace metadata 후보는 재검색을 유도했지만 두 번째 검색의
+`find -printf 2>/dev/null | head` 내부 실패가 exit 0으로 숨겨져 다시 목적에 실패해 폐기했다. 두 후보 모두
+기본 제품에는 남지 않는다.
+
+S4-D0은 마지막 foreground POSIX pipeline의 단계 exit를 사실로 보존하고 비-141 앞 단계 실패를 실패
+Receipt로 바꿨다. gpt-5.5 실모델은 정확히 복구했지만 125,769 tokens·74.9초로 기준선보다 느리고 비쌌다.
+
+D0과 content-free top-level workspace fact를 결합한 자격시험에서는 gpt-5.5와 Terra가 모두 정확한 일요일
+15:00 80%를 찾았다. gpt-5.5는 connection 호출이 0이었고 고객 식별자를 가렸으며, Terra는 connection을 한 번
+호출하고 합성 고객 코드를 그대로 노출했다. 이 fact는 모델 call당 지시문 163 bytes·직렬화 request 180 bytes를
+추가한다. 하지만 합성 시험 전송 승인은 실제 workspace metadata의 제품 기본 투영 승인이 아니므로 구현은
+제품 source에서 제거했고 증거만 남겼다.
+
+따라서 pipeline hidden failure는 닫혔지만, 성공한 shallow 검색을 전체 부재로 넓히는 문제와 Terra의 불필요한
+connection 비용은 S4-C에 남는다. 같은 방향의 세 번째 Prompt·Tool 후보를 얹지 않고 구조와 모델 경계를 다시
+판정한다.
+
 완료 문장:
 
 > T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한 손으로 필요한 원문만 본다.
 
-### S4-D — Terminal 실행 중 output·process 미달
+### S4-D — Terminal 실행 중 output·process 미달 — D0 COMPLETE, BROADER GATE UNOPENED
+
+S4-D0은 disk spool 전에 KHB-S01에서 발견된 pipeline 실행 진실을 닫았다. zsh `pipestatus`와 bash
+`PIPESTATUS`로 마지막 unconditional foreground pipeline의 전체 exit와 단계 exit를 분리한다. 앞 단계의 0·141
+이외 exit가 마지막 0에 숨으면 실패 Receipt가 된다. 141은 SIGPIPE라고 단정하지 않고 exact exit 사실로 남긴다.
+조건 분기, pipeline 뒤 다른 명령, managed process, non-POSIX runtime은 관측한 척하지 않고 기존 동작을 보존한다.
+Windows 제품 동작은 바뀌지 않았으며 물리 자격은 S4-L에 남는다. 전역 pipefail은 적용하지 않았다.
 
 기존 Terminal Core 위에 필요한 차이만 연결한다.
 
@@ -463,7 +490,7 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-C gpt-5.5 기준선은 사용자 목적을 달성했지만 불필요한 connection list와 실패가 가려진 macOS shell 검색을
-재현했다. 제품 변경은 0이다. 현재 다음 한 작업은 오너의 구체적 전송 승인 아래 동일 합성 fixture를 Terra에
-한 번 보내 두 Hand 선택이 모델별인지 공통인지 분리하는 것이다. 승인 전에는 제품 코드·Prompt·Tool surface를
-변경하지 않는다.
+S4-D0은 숨은 pipeline 단계 실패를 정확히 실패 Receipt로 공급하도록 닫혔다. 품질·안전 회귀는 없지만 실모델
+복구 비용 증가는 보존했다. top-level workspace fact 결합은 두 모델의 목적을 회복했으나 제품 데이터 투영
+경계가 달라 source에서 제거했다. 현재 다음 한 작업은 S4-C에서 shallow 성공 관측을 전체 부재로 넓힌 정확한
+원인을 제품 변경 없이 총괄 재점검하는 것이다. 같은 Prompt·Tool 후보를 더 붙이지 않는다.

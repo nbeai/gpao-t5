@@ -1,7 +1,7 @@
 {
   "schema": "t5.s4c.situation-hand-baseline.v1",
   "recordedOn": "2026-08-28",
-  "status": "GPT55_FAILURE_REPRODUCED_TERRA_EXPLICIT_APPROVAL_PENDING",
+  "status": "CROSS_MODEL_FAILURE_REPRODUCED_D0_ADOPTED_S4C_UNRESOLVED",
   "sourceCommit": "35769fb0",
   "scenario": "KHB-S01",
   "productChanges": 0,
@@ -28,7 +28,7 @@
     "resultComplete": true,
     "identifiersMasked": true,
     "messagesSent": 0,
-    "wallMs": 40640,
+    "wallMs": 40630,
     "modelCalls": 6,
     "toolCalls": 5,
     "providerTokens": 78470,
@@ -41,7 +41,7 @@
     ]
   },
   "efficiencyDeltaFromPrior": {
-    "wallMs": -26161,
+    "wallMs": -26171,
     "modelCalls": -2,
     "toolCalls": -3,
     "providerTokens": -28182
@@ -75,10 +75,80 @@
     "the two failures share one Core cause"
   ],
   "terraComparison": {
-    "status": "not_run_explicit_payload_destination_approval_required",
+    "status": "purpose_failed",
     "payload": "synthetic reservation, customer, service, and inquiry fixture",
     "destination": "configured OpenAI Terra model connection",
-    "externalWrites": 0
+    "externalWrites": 0,
+    "wallMs": 9422,
+    "modelCalls": 3,
+    "toolCalls": 2,
+    "providerTokens": 30846,
+    "toolSequence": ["connection", "exec"],
+    "facts": [
+      "connection list was the first Tool",
+      "the only file observation was limited to depth 2",
+      "five actual fixture files existed at depth 3",
+      "the final answer falsely said no relevant file existed"
+    ]
   },
-  "nextOneTask": "With explicit owner approval for this synthetic payload and destination, run KHB-S01 once on Terra; otherwise retain the gpt-5.5 failures as model observations and do not open product code."
+  "rejectedCandidates": [
+    {
+      "id": "file_reality_core_connection_deferred",
+      "productAdopted": false,
+      "gpt55": { "purposeAchieved": false, "wallMs": 23880, "modelCalls": 5,
+        "toolCalls": 4, "providerTokens": 52261 },
+      "reason": "The model still chose shallow exec, reopened Connection through tool_search, and falsely reported absence."
+    },
+    {
+      "id": "top_level_workspace_metadata",
+      "productAdopted": false,
+      "gpt55": { "purposeAchieved": false, "wallMs": 19212, "modelCalls": 4,
+        "toolCalls": 4, "providerTokens": 46925 },
+      "reason": "The model received one observed top-level directory and unobserved descendants, expanded search, then used unsupported find -printf with stderr suppressed; pipeline exit 0 hid failure."
+    }
+  ],
+  "terminalD0": {
+    "productAdopted": true,
+    "evidence": "refoundation/evidence/s4-d0-terminal-pipeline-truth-2026-08-28.json",
+    "repaired": "nonfinal POSIX pipeline failure hidden by an overall exit code of zero",
+    "notRepaired": "a successful shallow search being treated by the model as proof that descendants do not exist"
+  },
+  "combinedQualification": {
+    "productAdopted": false,
+    "sourceRemoved": true,
+    "runtimeFact": "content-free top-level entry type counts and descendantsObserved=false",
+    "projectionCost": {
+      "instructionBytesPerModelCall": 163,
+      "serializedRequestBytesPerModelCall": 180
+    },
+    "gpt55": {
+      "purposeAchieved": true,
+      "identifiersMasked": true,
+      "connectionCalls": 0,
+      "wallMs": 54222,
+      "modelCalls": 6,
+      "toolCalls": 5,
+      "providerTokens": 84319,
+      "requestBytes": 390121
+    },
+    "terra": {
+      "purposeAchieved": true,
+      "resultCorrect": true,
+      "identifiersMasked": false,
+      "connectionCalls": 1,
+      "wallMs": 27823,
+      "modelCalls": 6,
+      "toolCalls": 5,
+      "providerTokens": 83666,
+      "requestBytes": 402039
+    },
+    "reasonNotAdopted": "synthetic qualification approval did not authorize a new default projection of real workspace metadata"
+  },
+  "routingDecision": {
+    "connectionFirst": "S4-C cross-model efficiency observation",
+    "falseAbsenceDirectBlocker": "S4-D0 repaired hidden stage failure; shallow successful observation still does not prove absence",
+    "s4cProductCodeAdopted": false,
+    "nextGate": "S4-C structural reassessment with product code locked"
+  },
+  "nextOneTask": "Reassess the exact shallow-observation failure without adding workspace metadata projection, a new Tool, Store, Intent router, business schema, or global Prompt."
 }
