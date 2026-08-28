@@ -23,9 +23,12 @@ test('실제 Console은 workspace_patch preview→apply→최종 답을 한 Run�
           query: '여러 파일 구조화 수정 생성 transaction rollback',
         } }] };
       }
+      if (turn === 5) return { text: '', toolCalls: [{ id: 'find-undo', name: 'tool_search', args: {
+        query: 'workspace patch rollback undo 여러 파일 원복',
+      } }] };
       assert.ok(tools.some((tool) => tool.name === 'workspace_patch'));
       if (turn === 2) return { text: '', toolCalls: [{ id: 'preview', name: 'workspace_patch', args: {
-        action: 'preview', planHandle: null, operations: [
+        action: 'preview', planHandle: null, undoHandle: null, operations: [
           { type: 'modify', path: 'config.json', to: null, content: '{"revision":2}' },
           { type: 'create', path: 'literal.txt', to: null, content: '$HOME literal' },
         ],
@@ -35,9 +38,18 @@ test('실제 Console은 workspace_patch preview→apply→최종 답을 한 Run�
           item.role === 'tool' && item.name === 'workspace_patch'
         )).content);
         return { text: '', toolCalls: [{ id: 'apply', name: 'workspace_patch', args: {
-        action: 'apply', planHandle: receipt.result.planHandle, operations: [],
+        action: 'apply', planHandle: receipt.result.planHandle, undoHandle: null, operations: [],
       } }] };
       }
+      if (turn === 6) {
+        const receipts = [...messages].reverse().filter((item) => item.role === 'tool'
+          && item.name === 'workspace_patch').map((item) => JSON.parse(item.content));
+        const undoHandle = receipts.find((item) => item.result?.undoHandle)?.result.undoHandle;
+        return { text: '', toolCalls: [{ id: 'rollback', name: 'workspace_patch', args: {
+          action: 'rollback', planHandle: null, undoHandle, operations: [],
+        } }] };
+      }
+      if (turn === 7) return { text: '두 파일을 이전 상태로 복원했어요.', toolCalls: [] };
       return { text: '두 파일을 함께 적용하고 다시 확인했어요.', toolCalls: [] };
     } }),
     onError: () => {},
@@ -52,6 +64,10 @@ test('실제 Console은 workspace_patch preview→apply→최종 답을 한 Run�
     assert.equal(response.status, 200); assert.match(response.body.reply, /두 파일/u);
     assert.equal(await readFile(join(workspace, 'config.json'), 'utf8'), '{"revision":2}');
     assert.equal(await readFile(join(workspace, 'literal.txt'), 'utf8'), '$HOME literal');
+    const undone = await post(base, '/turn', { sessionId: session.id, text: '방금 두 파일 변경을 되돌려줘' });
+    assert.equal(undone.status, 200, JSON.stringify(undone.body)); assert.match(undone.body.reply, /복원/u);
+    assert.equal(await readFile(join(workspace, 'config.json'), 'utf8'), '{"revision":1}');
+    await assert.rejects(readFile(join(workspace, 'literal.txt')), { code: 'ENOENT' });
   } finally {
     server.closeWakeStreams(); await server.closeCommandExplainer(); await server.closeMessengers();
     await new Promise((resolve) => server.close(resolve)); await rm(root, { recursive: true, force: true });

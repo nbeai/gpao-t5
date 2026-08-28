@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { makeWorkspacePatchTool } from '../src/workspace-patch-tool.js';
 
-const call = (overrides = {}) => ({ action: 'preview', planHandle: null, operations: [], ...overrides });
+const call = (overrides = {}) => ({ action: 'preview', planHandle: null, undoHandle: null,
+  operations: [], ...overrides });
 
 test('workspace_patch preview→apply는 literal multi-file 결과를 published_verified로 끝낸다', async () => {
   const root = await mkdtemp(join(tmpdir(), 't5-workspace-patch-'));
@@ -22,6 +23,26 @@ test('workspace_patch preview→apply는 literal multi-file 결과를 published_
     assert.equal(await readFile(join(root, 'a.json'), 'utf8'), '{"next":true}');
     assert.equal(await readFile(join(root, 'literal.txt'), 'utf8'), '$HOME literal');
     await assert.rejects(tool.execute(call({ action: 'apply', planHandle: preview.planHandle })), /stale/u);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('workspace_patch durable undo는 새 tool instance에서 exact rollback하고 handle을 한 번만 쓴다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-workspace-undo-')); const stateRoot = join(root, '.state');
+  try {
+    const target = join(root, 'a.json'); await writeFile(target, '{"revision":1}');
+    const first = makeWorkspacePatchTool({ workspace: root, stateRoot, sessionId: 'session-a' });
+    const preview = await first.execute(call({ operations: [
+      { type: 'modify', path: 'a.json', to: null, content: '{"revision":2}' },
+      { type: 'create', path: 'created.txt', to: null, content: 'created' },
+    ] }));
+    const applied = await first.execute(call({ action: 'apply', planHandle: preview.planHandle }));
+    assert.ok(applied.undoHandle); assert.equal(await readFile(target, 'utf8'), '{"revision":2}');
+    const restarted = makeWorkspacePatchTool({ workspace: root, stateRoot, sessionId: 'session-a' });
+    const rolled = await restarted.execute(call({ action: 'rollback', undoHandle: applied.undoHandle }));
+    assert.equal(rolled.state, 'rolled_back_verified');
+    assert.equal(await readFile(target, 'utf8'), '{"revision":1}');
+    await assert.rejects(readFile(join(root, 'created.txt')), { code: 'ENOENT' });
+    await assert.rejects(restarted.execute(call({ action: 'rollback', undoHandle: applied.undoHandle })), /stale/u);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

@@ -1535,7 +1535,7 @@ export function makeConsoleServer({
       const capabilitySnapshot = await capabilityCatalogPromise;
       const offeredTools = [...terminal.tools];
       offeredTools.unshift(makeWorkspacePatchTool({ workspace,
-        stateRoot: join(stateDir, 'authoring', sessionId, run.runId) }));
+        stateRoot: join(stateDir, 'authoring', sessionId), sessionId }));
       offeredTools.unshift(makeFileRealityTool({ workspace, home: computer.userHome, platform: computer.platform,
         computerRoots: computerFileRoots ?? [homedir()], protectedRoots: [...protectedFileRoots, stateDir],
         organizationRoot: join(stateDir, 'file-organization'), sourceManifestStore: fileSourceManifests, sessionId,

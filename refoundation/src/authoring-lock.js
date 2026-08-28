@@ -8,7 +8,7 @@ import { observePublicationPreimage } from './atomic-file-publication.js';
 const ADMISSIONS = new WeakSet();
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
-const resource = (path) => `target-${sha256(path).slice(0, 48)}`;
+export const authoringTargetResource = (path) => `target-${sha256(path).slice(0, 48)}`;
 
 export class AuthoringLockCoordinator {
   constructor(lockRoot, options = {}) {
@@ -24,7 +24,7 @@ export class AuthoringLockCoordinator {
     const claims = [];
     try {
       for (const path of targets) {
-        const key = resource(path); const acquired = await this.ownership.acquire(key);
+        const key = authoringTargetResource(path); const acquired = await this.ownership.acquire(key);
         if (!acquired.claimed) throw Object.assign(new Error('authoring target is locked'), {
           code: 'authoring_target_contended',
         });
@@ -64,13 +64,32 @@ export class AuthoringLockCoordinator {
     }
   }
 
+  async acquirePaths(paths) {
+    const claims = [];
+    try {
+      for (const path of [...new Set(paths)].sort()) {
+        const key = authoringTargetResource(path); const acquired = await this.ownership.acquire(key);
+        if (!acquired.claimed) throw Object.assign(new Error('authoring target is locked'), {
+          code: 'authoring_target_contended',
+        });
+        claims.push({ path, key, claim: acquired.claim });
+      }
+      return claims;
+    } catch (error) {
+      await this.releaseClaims(claims); throw error;
+    }
+  }
+
+  async releaseClaims(claims) {
+    let released = 0;
+    for (const item of [...claims].reverse()) if (await this.ownership.release(item.key, item.claim)) released += 1;
+    return { released };
+  }
+
   async release(admission) {
     if (!ADMISSIONS.has(admission)) throw new TypeError('fresh authoring admission required');
-    let released = 0;
-    for (const item of [...admission.claims].reverse()) {
-      if (await this.ownership.release(item.key, item.claim)) released += 1;
-    }
-    admission.state = 'released'; return { released };
+    const result = await this.releaseClaims(admission.claims);
+    admission.state = 'released'; return result;
   }
 }
 

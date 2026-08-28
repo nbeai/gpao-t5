@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_TRANSACTION_PHASES_COMPLETE · S4_F1_CANONICAL_PARENT_CORRECTED · S4_F2_SCRATCH_PREPARE_REQUALIFIED · S4_F3_SORTED_LOCK_REVALIDATE_COMPLETE · S4_F4_PUBLICATION_ROLLBACK_COMPLETE · S4_F5_INDEPENDENT_VERIFY_COMPLETE · S4_F6_SETTLEMENT_COMPLETE · S4_F7_PREVIEW_APPLY_COMPLETE_DURABLE_UNDO_ACTIVE`
-현재 Gate: `S4-F7 WORKSPACE PATCH PRODUCT SURFACE`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_READ_ONLY_BASELINE_ACTIVE`
+현재 Gate: `S4-G EPHEMERAL PROGRAM CAPSULE · READ-ONLY BASELINE`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,14 +55,14 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-F7 workspace_patch 제품 표면·실제 여정 통합이다.
+2. **현재 Gate**: S4-G ephemeral program capsule의 현재 실제 차이 측정이다.
 3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
    없이 끝까지 관찰한다.
-4. **이미 선 실제 증거**: F baseline은 multi-file partial commit·stale overwrite·shell literal expansion을 재현했다.
-5. **현재 가장 큰 미달**: 일곱 transaction phase가 내부 primitive로만 있고 모델이 closed preview/apply로 사용할 수 없다.
-6. **이번 변경 방식**: preview와 apply 두 action만 가진 bounded workspace_patch를 기존 tool search에 연결하고 실제
-   세 목적 multi-file 여정과 failure rollback을 검증한다.
-7. **Non-goals**: 범용 IDE·raw diff shell·filesystem 동시 rename 주장·S4-G.
+4. **이미 선 실제 증거**: F는 closed preview·scratch prepare·lock·publication·verify·settle·다음 턴 Undo를 닫았다.
+5. **현재 가장 큰 미달**: 기존 손으로 어려운 처음 보는 변환에서 작은 프로그램 작성·fixture·독립 output 검증의
+   현재 제품 차이가 아직 재현되지 않았다.
+6. **이번 변경 방식**: 제품 변경 0에서 기존 HP-03·대형 자료 통합·프로그램 생성 여정의 실제 실패만 재현한다.
+7. **Non-goals**: 즉시 capsule tool 구현·package 자동 설치·Core 수정·S4-H.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -605,10 +605,13 @@ S4-F6 actual은 verified transaction lock을 exact release하고 scratch candida
 경로를 노출하지 않는 내부 Undo 범위로 보존하고 `published_verified` receipt에는 verified/Undo target 수만 남긴다.
 lock release·scratch cleanup 미확인은 `partial_effect_unknown`이다.
 
-S4-F7 actual은 on-demand `workspace_patch`의 preview/apply 두 action을 Console tool search에 연결했다. 같은 Run의
-fresh opaque handle만 한 번 apply할 수 있고 candidate 원문·internal path·backup pointer는 preview/result에 없다.
-사업·개발·개인 파일 세 목적과 실제 Console 종단, invalid candidate target write 0이 통과했다. 전체 CI는 unit
-1,719/1,719, integration 193/193, mutation 2/2다. 다음 대화·Runtime 재시작 뒤 durable Undo는 아직 열려 있다.
+S4-F actual은 on-demand `workspace_patch`의 preview/apply/rollback 세 action을 Console tool search에 연결했다.
+같은 Run의 fresh preview handle만 한 번 apply할 수 있고 candidate 원문·internal path·backup pointer는
+preview/result에 없다. 사업·개발·개인 파일 세 목적과 실제 Console 종단, invalid candidate target write 0이
+통과했다. 최종 검사는 unit 1,720/1,720, integration 193/193, mutation 2/2다. 성공 settlement는 Session-scoped
+0600 manifest로 보존되고
+opaque Undo handle은 다음 사용자 턴의 새 tool instance에서 current postimage 전체를 사전 확인한 뒤 역순 exact
+restore한다. handle은 atomic claim으로 한 번만 사용되며 stale target은 Undo write 0이다.
 
 ### S4-G — Ephemeral Program Capsule
 
@@ -853,6 +856,5 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 ## 10. 현재 다음 한 작업
 
 S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D managed non-PTY와 D5C는 닫혔다. S4-E baseline은 세 실제 gap으로
-닫혔다. S4-E1~E7과 F의 일곱 transaction phase, F7 preview/apply 제품선도 닫혔다. 현재 다음 한 작업은 settlement
-pointer를 Session-safe durable handle로 reopen해 다음 대화에서도 exact rollback하는 F7 durable Undo다. 이 통합
-전 S4-F 전체 완료를 주장하지 않는다.
+닫혔다. S4-E1~E7과 S4-F structured authoring 전체도 닫혔다. 현재 다음 한 작업은 S4-G ephemeral program
+capsule read-only baseline이다. 실제 기존 손의 사용자 목적 실패 전에는 새 capsule 구현을 열지 않는다.

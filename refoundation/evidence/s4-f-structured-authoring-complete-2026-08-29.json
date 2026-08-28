@@ -1,0 +1,36 @@
+{
+  "schema": "t5.s4f.structured-authoring-complete.v1",
+  "recordedOn": "2026-08-29",
+  "status": "COMPLETE",
+  "sourceBaseCommit": "6bb96565",
+  "product": {
+    "tool": "workspace_patch",
+    "actions": ["preview", "apply", "rollback"],
+    "transactionPhases": ["inspect", "preview", "prepare", "lock_and_revalidate", "publish", "verify", "settle"],
+    "durableUndo": true,
+    "nextTurnUndo": true,
+    "singleUseUndoHandle": true
+  },
+  "qualification": {
+    "nestedParentEscapeRejected": true,
+    "invalidCandidateTargetWrites": 0,
+    "stalePreimagePublication": 0,
+    "laterFailureRolledBack": true,
+    "relationFailureRolledBack": true,
+    "actualConsoleApply": true,
+    "actualConsoleNextTurnUndo": true,
+    "purposeFamilies": ["business", "development", "personal"]
+  },
+  "verification": {
+    "environmentAndBoundaryExit": 0,
+    "unitPassed": 1720,
+    "unitFailed": 0,
+    "unitSkipped": 1,
+    "integrationPassed": 193,
+    "integrationFailed": 0,
+    "integrationSkipped": 2,
+    "mutationKilled": 2
+  },
+  "nonClaims": ["filesystem simultaneous rename", "all opaque formats semantically verified", "physical Windows authoring qualified"],
+  "nextOneTask": "Open S4-G read-only ephemeral program capsule baseline."
+}
