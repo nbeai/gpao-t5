@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_BASELINE_COMPLETE · S4_D2_COMPLETE · S4_D3_LIVE_OUTPUT_SPINE_COMPLETE_WITH_RSS_OBSERVATION · S4_D4_CRASH_OWNERSHIP_READ_ONLY_ACTIVE`
-현재 Gate: `S4-D4 CRASH PROCESS OWNERSHIP · READ-ONLY IDENTITY DESIGN`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_BASELINE_COMPLETE · S4_D2_COMPLETE · S4_D3_COMPLETE_WITH_RSS_OBSERVATION · S4_D4_READ_ONLY_IDENTITY_BASELINE_COMPLETE_IMPLEMENTATION_CLOSED`
+현재 Gate: `S4-D4 IMPLEMENTATION CLOSED · IDENTITY BOUNDARY OWNER REVIEW`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,18 +55,18 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-D4 Crash Process Ownership의 read-only identity 설계다. 구현은 잠겨 있다.
+2. **현재 Gate**: S4-D4 read-only identity 기준선이 끝났고 구현 전 오너 검토 상태다.
 3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
    없이 끝까지 관찰한다.
-4. **이미 선 실제 증거**: S4-D3는 기존 TerminalOutputStore를 실행 시작부터 연결해 1MiB+ 양방향 출력 전체 hash,
-   running range, restart Store, completion·stop·PTY same handle을 통과했다. Disk failure는 degraded로 분리했고
-   short AB·BA 회귀는 없었다. RSS는 기존 높은 범위에 남아 개선을 주장하지 않는다.
-5. **현재 가장 큰 미달**: abrupt Runtime crash 뒤 child가 계속 효과를 만들고 successor는 old handle을 모른다.
-   exact WorkStore state, owner event commit, partial live spool, process group·PID start identity, Windows 사고가 미측정이다.
-6. **이번 변경 방식**: 제품 변경 0에서 durable owner·Run·Work·live output manifest와 OS pid·group·start identity를
-   관측한다. 재부착보다 고아 방지와 identity 증명 가능 범위를 먼저 비교한다.
-7. **Non-goals**: process reattach 구현, PID만으로 소유권 주장, 모든 crash 복구, parent-death wrapper 채택,
-   Windows 성공 주장, S4-E, 실제 HOME·계정·외부 효과 시험.
+4. **이미 선 실제 증거**: SIGKILL 뒤 child는 PPID 1·PGID=PID로 살아 effect를 만들었다. Run start receipt와 live
+   output handle은 durable했지만 successor registry는 process 0·old handle 404였다. Work·claim은 active, Run은
+   interrupted, partial output 20자는 live manifest에서 exact reopen됐다.
+5. **현재 가장 큰 미달**: durable identity에 OS pid·process group·executable·start identity·generation이 없어서
+   successor가 살아 있는 process를 자기 것이라고 증명하거나 멈출 수 없다.
+6. **이번 변경 방식**: read-only 실제 사고로 identity 경계를 고정했고 제품 변경은 0이다. 재부착보다 고아 방지를
+   우선하며 identity 미증명 시 effect unknown·Work interrupted·blind retry 0을 유지한다.
+7. **Non-goals**: PID-only reattach, parent-death wrapper 즉시 구현, 모든 crash 복구, Windows 성공 주장, S4-E,
+   실제 HOME·계정·외부 효과 시험.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -308,7 +308,7 @@ S4-C는 제품 성공으로 완료한 것이 아니다. `USER_COMPLETION_NOT_UNI
 
 > T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한 손으로 필요한 원문만 본다.
 
-### S4-D — Terminal 실행 중 output·process 미달 — D2·D3 COMPLETE, D4 READ-ONLY ACTIVE
+### S4-D — Terminal 실행 중 output·process 미달 — D2·D3 COMPLETE, D4 BASELINE COMPLETE IMPLEMENTATION CLOSED
 
 S4-D0은 disk spool 전에 KHB-S01에서 발견된 pipeline 실행 사실을 닫았다. zsh `pipestatus`와 bash
 `PIPESTATUS`로 마지막 unconditional foreground pipeline의 전체 exit와 단계 exit를 분리한다. Runtime은 이
@@ -391,6 +391,16 @@ S4-D4 완료 문장:
 S4-D4는 구현 전에 abrupt crash 뒤 exact WorkStore·owner event·partial output manifest, process group, PID start
 identity, generation, Windows Job Object 사고를 read-only로 측정한다. identity를 증명하지 못하면 재부착하지
 않고 effect unknown·Work interrupted·blind retry 0을 유지한다.
+
+S4-D4 actual은 Runtime SIGKILL 뒤 managed child가 PPID 1로 살아 late effect를 만든 것을 관측했다. durable Run
+receipt에는 opaque processId와 output handle이 있었고 live manifest는 `BEFORE-RUNTIME-CRASH` 20자를 보존했다.
+그러나 OS pid·PGID·executable·start identity·generation은 durable하지 않았다. successor는 Run을 interrupted로
+읽고 blind reexecution은 하지 않았지만 registry process 0·old handle 404였으며 Work와 execution claim은 active로
+남았다. physical Windows는 실행하지 않았고 Job Object kill-on-close 계약만 양성 대조로 남는다.
+
+안전한 구현 방향은 PID 재부착이 아니다. launch 전 durable owner identity와 macOS parent-death process-group
+wrapper, Windows Job Object kill-on-close를 비교한다. exact identity가 증명되면 관측·stop·bounded reconcile,
+증명되지 않으면 재부착 0·effect unknown·Work interrupted·blind retry 0이다. 이 설계는 아직 채택하지 않았다.
 
 - 실행 중 stdout·stderr append-only disk spool
 - 작은 memory head·tail·cursor와 bounded range read
@@ -672,4 +682,5 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 ## 10. 현재 다음 한 작업
 
 S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D2 exact-once와 S4-D3 live output spine은 닫혔고 RSS는 별도 관측으로
-남았다. 현재 다음 한 작업은 제품 변경 0의 S4-D4 abrupt crash ownership·identity read-only 기준선이다.
+남았다. S4-D4 read-only identity 기준선도 끝났으며 현재 다음 작업은 오너의 D4 구현 경계 판정이다. S4-E는
+열지 않는다.

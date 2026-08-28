@@ -6,15 +6,15 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../../', import.meta.url);
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 
-test('4차 정본은 S4-D3를 닫고 S4-D4 read-only identity만 연다', async () => {
+test('4차 정본은 S4-D4 identity 기준선을 닫고 구현을 잠근다', async () => {
   const [plan, agents, second] = await Promise.all([
     readFile(new URL('T5-FOURTH-COMPLETION.md', root), 'utf8'),
     readFile(new URL('AGENTS.md', root), 'utf8'),
     readFile(new URL('T5-SECOND-COMPLETION.md', root), 'utf8'),
   ]);
-  assert.match(plan, /S4_D1_BASELINE_COMPLETE · S4_D2_COMPLETE · S4_D3_LIVE_OUTPUT_SPINE_COMPLETE_WITH_RSS_OBSERVATION · S4_D4_CRASH_OWNERSHIP_READ_ONLY_ACTIVE/u);
+  assert.match(plan, /S4_D1_BASELINE_COMPLETE · S4_D2_COMPLETE · S4_D3_COMPLETE_WITH_RSS_OBSERVATION · S4_D4_READ_ONLY_IDENTITY_BASELINE_COMPLETE_IMPLEMENTATION_CLOSED/u);
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
-  assert.match(plan, /현재 Gate: `S4-D4 CRASH PROCESS OWNERSHIP · READ-ONLY IDENTITY DESIGN`/u);
+  assert.match(plan, /현재 Gate: `S4-D4 IMPLEMENTATION CLOSED · IDENTITY BOUNDARY OWNER REVIEW`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',
     'S4-H', 'S4-I', 'S4-J', 'S4-K', 'S4-UX', 'S4-L', 'S4-HQ'];
   let cursor = -1;
@@ -35,7 +35,7 @@ test('4차 정본은 S4-D3를 닫고 S4-D4 read-only identity만 연다', async 
   assert.match(plan, /첫 기준선은 KHB-S01/u);
   assert.match(plan, /connection list가 로컬 Evidence보다 먼저 호출/u);
   assert.match(plan, /find -printf[\s\S]*exit 0/u);
-  assert.match(plan, /S4-D — Terminal 실행 중 output·process 미달 — D2·D3 COMPLETE, D4 READ-ONLY ACTIVE/u);
+  assert.match(plan, /S4-D — Terminal 실행 중 output·process 미달 — D2·D3 COMPLETE, D4 BASELINE COMPLETE IMPLEMENTATION CLOSED/u);
   assert.match(plan, /전역 pipefail과 exit-code 예외 목록은 적용하지 않았다/u);
   assert.match(plan, /workspacePresence:[\s\S]*scope: current_managed_workspace[\s\S]*contentIncluded: false/u);
   assert.match(plan, /workspace_presence` 범주는 call당 161 payload bytes/u);
@@ -55,6 +55,9 @@ test('4차 정본은 S4-D3를 닫고 S4-D4 read-only identity만 연다', async 
   assert.match(plan, /TerminalOutputStore v3` live raw chunk/u);
   assert.match(plan, /RSS는 약 634MB[\s\S]*개선을 주장하지 않/u);
   assert.match(plan, /S4-D4 완료 문장:[\s\S]*T5가 모르는 process가 계속 효과를 만들지 않/u);
+  assert.match(plan, /PPID 1로 살아 late effect/u);
+  assert.match(plan, /Work와 execution claim은 active/u);
+  assert.match(plan, /PID 재부착이 아니다/u);
   assert.match(plan, /S4-C carry-forward로 동일 도구면의 모델별 Hand 선택/u);
   assert.match(plan, /S4-C carry-forward로 실제 자료가 있는데 없다고 말하는지/u);
   assert.match(plan, /각 local engine·model·Capability의 실제 사용 가능 여부[\s\S]*개인정보 범위/u);

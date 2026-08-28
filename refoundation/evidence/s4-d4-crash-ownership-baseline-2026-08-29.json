@@ -1,0 +1,75 @@
+{
+  "schema": "t5.s4d4.crash-ownership-baseline.v1",
+  "recordedOn": "2026-08-29",
+  "status": "READ_ONLY_IDENTITY_BASELINE_COMPLETE_IMPLEMENTATION_CLOSED",
+  "sourceCommit": "9edced20",
+  "productChanges": 0,
+  "environment": {
+    "isolatedTemporaryRoot": true,
+    "realUserData": false,
+    "realAccounts": false,
+    "externalWrites": 0,
+    "runtimeCrash": "SIGKILL",
+    "platform": "darwin",
+    "physicalWindowsRun": false
+  },
+  "runtimeCrash": {
+    "childEffectAfterCrash": true,
+    "childAliveAfterCrash": true,
+    "osPid": 30860,
+    "osPpidAfterCrash": 1,
+    "osProcessGroup": 30860,
+    "processGroupEqualsPid": true,
+    "observedCommandAfterCrash": "sleep 10"
+  },
+  "durableBeforeCrash": {
+    "terminalStartToolCompletedEvent": true,
+    "opaqueProcessIdInRunReceipt": true,
+    "outputHandleInRunReceipt": true,
+    "workStatus": "active",
+    "executionClaimState": "active",
+    "runStatusAfterReopen": "interrupted"
+  },
+  "successorRuntime": {
+    "registryProcessCount": 0,
+    "oldOpaqueHandleState": "not_found",
+    "workStatus": "active",
+    "executionClaimState": "active",
+    "automaticToolReexecutionObserved": false,
+    "canObserveOrStopOldProcess": false
+  },
+  "liveOutputAfterCrash": {
+    "manifestState": "live",
+    "stdoutChars": 20,
+    "exactPartialOutput": "BEFORE-RUNTIME-CRASH",
+    "finalized": false,
+    "sameHandleReadableBySuccessorStore": true
+  },
+  "missingDurableIdentity": [
+    "os pid",
+    "process group",
+    "executable identity",
+    "OS process start identity",
+    "runtime generation"
+  ],
+  "windows": {
+    "physicalRun": false,
+    "knownPositiveControl": "Job Object kill-on-close contract",
+    "sameAccidentQualified": false
+  },
+  "safetyFinding": "The successor knows the Run was interrupted and does not blindly reexecute, but it cannot prove, observe, or stop the still-effective OS process and leaves Work plus execution claim active.",
+  "designBoundary": {
+    "reattachByPidAllowed": false,
+    "priority": "prevent orphan before attempting reattachment",
+    "ifIdentityProven": ["observe live process", "exact stop", "bounded reconcile"],
+    "ifIdentityUnproven": ["do not reattach", "effect unknown", "Work interrupted", "blind retry zero"],
+    "comparisonCandidates": ["durable owner record before launch", "parent-death process-group wrapper on macOS", "Windows Job Object kill-on-close"]
+  },
+  "notYetProven": [
+    "a durable identity design is sufficient against PID reuse",
+    "a macOS parent-death wrapper is the smallest safe implementation",
+    "successor Work recovery after exact child reconciliation",
+    "physical Windows crash behavior"
+  ],
+  "nextOneTask": "Owner reviews the D4 identity boundary before any owner record, parent-death wrapper, or reattach implementation; S4-E remains closed."
+}
