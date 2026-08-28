@@ -12,7 +12,7 @@ test('4차 정본은 S4-G6를 닫고 S4-G7 product activation A/B만 연다', as
     readFile(new URL('AGENTS.md', root), 'utf8'),
     readFile(new URL('T5-SECOND-COMPLETION.md', root), 'utf8'),
   ]);
-  assert.match(plan, /S4_G6_PUBLICATION_CLEANUP_COMPLETE · S4_G7_PREBOUND_TRANSIENT_REJECTED · S4_G7_ACTUAL_READ_OBSERVER_PREREQUISITE_MEASURED · S4_J_DEFERRED_FUTURE_RESEARCH/u);
+  assert.match(plan, /S4_G6_PUBLICATION_CLEANUP_COMPLETE · S4_G7_PREBOUND_TRANSIENT_REJECTED · S4_G7_ACTUAL_READ_OBSERVER_PREREQUISITE_MEASURED · S4_G7_READONLY_SNAPSHOT_GENERATION_QUALIFIED_PRODUCT0_READSET_FALSE · S4_J_DEFERRED_FUTURE_RESEARCH/u);
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
   assert.match(plan, /현재 Gate: `S4-G7 EPHEMERAL PROGRAM CAPSULE · PRODUCT ACTIVATION AND A\/B`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',
@@ -102,6 +102,10 @@ test('4차 정본은 S4-G6를 닫고 S4-G7 product activation A/B만 연다', as
   assert.match(plan, /현재 권한과 설치 의존성 0 조건에서 exact actual-read observer 후보는 없다/u);
   assert.match(plan, /APFS copy-on-write read-only workspace snapshot/u);
   assert.match(plan, /actual read set이라고 부르지 않/u);
+  assert.match(plan, /COPYFILE_FICLONE_FORCE`의 `ENOSYS`/u);
+  assert.match(plan, /13파일·204 logical bytes fixture는 24\.477ms/u);
+  assert.match(plan, /exactActualReadSet=false/u);
+  assert.match(plan, /snapshot output observer·F publication qualification/u);
   assert.match(plan, /두 행의 고유값 교환[\s\S]*요청하지 않은 개인정보 JSON/u);
   assert.match(plan, /one-to-one·one-to-many·many-to-one·ambiguous·unmatched·conflicting/u);
   assert.match(plan, /최종 Excel·ZIP을 독립 재개방/u);

@@ -1,0 +1,56 @@
+{
+  "schema": "t5.s4g.g7-readonly-snapshot-generation.v1",
+  "recordedOn": "2026-08-29",
+  "status": "READONLY_SNAPSHOT_GENERATION_QUALIFIED_PRODUCT_WIRING_ZERO_ACTUAL_READSET_FALSE",
+  "sourceBaseCommit": "bb9a9b9b",
+  "qualificationSourceOnly": true,
+  "productEntryChanges": 0,
+  "clone": {
+    "nodeCopyfileFicloneForce": "ENOSYS",
+    "silentOrdinaryCopyFallback": false,
+    "selectedPrimitive": "/bin/cp -c direct argv",
+    "sameFilesystemRequired": true
+  },
+  "metric": {
+    "files": 13,
+    "directories": 2,
+    "logicalBytes": 204,
+    "reportedFileBlocksBytes": 53248,
+    "reportedBlocksAreUniquePhysicalAllocation": false,
+    "wallMs": 24.477,
+    "providerBytes": 0
+  },
+  "boundaries": {
+    "allFileHashesReopened": true,
+    "sourceIdentityRecheckedAfterClone": true,
+    "cloneFilesReadOnly": true,
+    "symlinkRejected": true,
+    "hardlinkRejected": true,
+    "staleGenerationRejected": true,
+    "partialGenerationAfterFailure": 0,
+    "cleanupVerified": true
+  },
+  "sameLanguagePython": {
+    "sameSource": true,
+    "translated": false,
+    "network": 0,
+    "childProcess": 0,
+    "originalWrites": 0,
+    "userTargetWrites": 0,
+    "resultCorrect": true
+  },
+  "truthBoundary": {
+    "snapshotSourceUniverseBound": true,
+    "exactActualReadSet": false,
+    "unreadSnapshotFilesCanBeSeparated": false,
+    "productAdopted": false
+  },
+  "verification": {
+    "focusedPassed": 3,
+    "focusedFailed": 0,
+    "dailyCheckPassed": 1765,
+    "dailyCheckFailed": 0,
+    "dailyCheckSkipped": 1
+  },
+  "nextOneTask": "snapshot_output_observer_f_publication_qualification_product_changes_zero"
+}

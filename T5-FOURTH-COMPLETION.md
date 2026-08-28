@@ -1,6 +1,6 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_COMPLETE · S4_G3_FIXTURE_QUALIFICATION_COMPLETE · S4_G4_ACTUAL_EXECUTION_COMPLETE · S4_G5_INDEPENDENT_OBSERVER_COMPLETE · S4_G6_PUBLICATION_CLEANUP_COMPLETE · S4_G7_PREBOUND_TRANSIENT_REJECTED · S4_G7_ACTUAL_READ_OBSERVER_PREREQUISITE_MEASURED · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_COMPLETE · S4_G3_FIXTURE_QUALIFICATION_COMPLETE · S4_G4_ACTUAL_EXECUTION_COMPLETE · S4_G5_INDEPENDENT_OBSERVER_COMPLETE · S4_G6_PUBLICATION_CLEANUP_COMPLETE · S4_G7_PREBOUND_TRANSIENT_REJECTED · S4_G7_ACTUAL_READ_OBSERVER_PREREQUISITE_MEASURED · S4_G7_READONLY_SNAPSHOT_GENERATION_QUALIFIED_PRODUCT0_READSET_FALSE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
 현재 Gate: `S4-G7 EPHEMERAL PROGRAM CAPSULE · PRODUCT ACTIVATION AND A/B`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
@@ -781,6 +781,17 @@ set이라고 주장하지 않는다. 따라서 현재 권한과 설치 의존성
 qualification하고 실제 read set으로 과장하지 않는다. brokered filesystem은 제품 기본에 새 system extension·
 관리자 설치를 요구하지 않는 경로가 실제로 설 때만 다시 비교한다.
 
+snapshot generation qualification actual은 Node `COPYFILE_FICLONE_FORCE`의 `ENOSYS`를 일반 copy로 낮추지 않고
+macOS `/bin/cp -c` direct argv만 사용했다. 13파일·204 logical bytes fixture는 24.477ms에 generation을 만들었고
+file stat blocks 합계는 53,248 bytes였다. 이 blocks 값은 clone의 고유 physical allocation 측정이 아니다.
+모든 file hash와 원본 dev·ino·size·mtime을 clone 전후 재검사하고 clone file을 read-only로 바꿨다. symlink·
+hardlink·generation 중 source 변경은 candidate와 partial generation 0으로 닫혔다.
+
+같은 Python source는 snapshot의 workspace-relative RecordRef 전체를 받아 source 번역·network·child·원본 write·
+user target write 0으로 정확한 합계를 만들었다. 하지만 program이 실제 읽은 파일과 snapshot에 함께 결속됐지만
+읽지 않은 파일을 OS 사실로 분리하지 못하므로 snapshot은 `exactActualReadSet=false`다. 제품 entry·exec schema·
+model calls·provider bytes 변화는 0이며, output은 아직 unverified scratch candidate라 G7 완료나 제품 채택이 아니다.
+
 완료 문장:
 
 > T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은 프로그램을 만들고, 고정된
@@ -982,6 +993,7 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 S4-C 미달은 S4-G·S4-I·S4-HQ에 이월했다. S4-D managed non-PTY와 D5C, S4-E1~E7, S4-F structured authoring은
 닫혔다. S4-G0~G6도 순서대로 닫혔다. S4-G7 별도 Tool 후보는 폐기됐고 제품 source delta는 0이다. 현재 다음 한
-작업은 제품 변경 0의 APFS read-only snapshot generation qualification이다. clone·manifest·원본 재검사 비용과
-symlink·hardlink·경합·대형 tree 경계를 측정하고, 동일 Python source가 snapshot 안에서 원본 direct write 없이
-동작하는지 확인한다. actual read set이라고 부르지 않으며 통과 전 새 제품 entry와 G 완료를 주장하지 않는다.
+작업은 제품 변경 0의 snapshot output observer·F publication qualification이다. 전체 snapshot source universe와
+실제 output closed set·형식·hash·원본 unchanged를 독립 관측하고 verified publishable만 F transaction으로
+발행·Undo·cleanup할 수 있는지 세 목적 fixture에서 확인한다. actual read set이라고 부르지 않으며, 전체 tree
+비용과 과결속 trade-off가 사용자 이익보다 크면 제품 후보를 열지 않는다.
