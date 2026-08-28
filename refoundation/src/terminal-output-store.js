@@ -130,7 +130,7 @@ export class TerminalOutputStore {
     if (manifest.sessionId !== sessionId || manifest.schema !== 't5.terminal-output.v3') {
       throw Object.assign(new Error('terminal output not found'), { status: 404 });
     }
-    if (manifest.state === 'finalized') return structuredClone(manifest);
+    if (['finalized', 'interrupted'].includes(manifest.state)) return structuredClone(manifest);
     for (const stream of ['stdout', 'stderr']) {
       const hash = createHash('sha256');
       for (const chunk of manifest.streams[stream].chunks) {
@@ -139,6 +139,23 @@ export class TerminalOutputStore {
       manifest.streams[stream].sha256 = hash.digest('hex');
     }
     manifest.state = 'finalized'; manifest.finalizedAt = new Date().toISOString();
+    await writeJsonAtomic(root, 'manifest.json', manifest); return structuredClone(manifest);
+  }
+
+  async interrupt({ handle: raw, sessionId } = {}) {
+    const handle = id(raw); const root = join(this.objects, handle); const manifest = await loadManifest(root);
+    if (manifest.sessionId !== sessionId || manifest.schema !== 't5.terminal-output.v3') {
+      throw Object.assign(new Error('terminal output not found'), { status: 404 });
+    }
+    if (['finalized', 'interrupted'].includes(manifest.state)) return structuredClone(manifest);
+    for (const stream of ['stdout', 'stderr']) {
+      const hash = createHash('sha256');
+      for (const chunk of manifest.streams[stream].chunks) {
+        hash.update(await readFile(join(root, chunk.file)));
+      }
+      manifest.streams[stream].sha256 = hash.digest('hex');
+    }
+    manifest.state = 'interrupted'; manifest.interruptedAt = new Date().toISOString();
     await writeJsonAtomic(root, 'manifest.json', manifest); return structuredClone(manifest);
   }
 

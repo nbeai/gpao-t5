@@ -560,24 +560,72 @@ export function makeConsoleServer({
   const executableOutputOperations = new ExecutableOutputOperationStore({
     attachmentStore: attachments, workspace,
   });
+
+  function activeManagedProcessStarts(run) {
+    const active = new Map();
+    for (const event of run?.events ?? []) {
+      if (event.type !== 'tool_completed') continue;
+      const receipt = event.payload?.receipt;
+      if (receipt?.requestedCall?.name !== 'terminal_session') continue;
+      const action = receipt.requestedCall.args?.action;
+      const result = receipt.result;
+      const processId = result?.processId;
+      if (!processId) continue;
+      if (['start', 'start_tty'].includes(action) && result.state === 'running') {
+        active.set(processId, {
+          action, processId, boundary: result.processBoundary ?? null,
+          outputHandle: result.outputRecall?.handle ?? null,
+        });
+      }
+      if (['completed', 'failed', 'stopped'].includes(result?.state)) active.delete(processId);
+    }
+    return [...active.values()];
+  }
+
+  function parentDeathContained(process) {
+    return process.action === 'start' && process.boundary?.qualified === true
+      && ['macos_parent_death_process_group', 'windows_job_object'].includes(process.boundary.kind);
+  }
+
   async function recoverTerminalFailedWorkClaims() {
-    const state = await workStore.read(); const released = [];
+    let state = await workStore.read(); const recovered = [];
     for (const claim of state.claims.filter((item) => item.state === 'active')) {
-      if (state.cancellations.some((item) => item.runId === claim.runId)) continue;
       if (state.results.some((item) => item.runId === claim.runId)) continue;
       const run = await runLedger.read(claim.runId).catch(() => null);
       if (!run || !['failed', 'cancelled', 'interrupted'].includes(run.status)) continue;
       const settled = state.events.find((event) => event.type === 'work_settled' && event.runId === claim.runId);
       if (settled && settled.outcome !== 'cancelled') continue;
+
+      const managed = run.status === 'interrupted' ? activeManagedProcessStarts(run) : [];
+      if (managed.length) {
+        if (!managed.every(parentDeathContained)) continue;
+        const existing = state.cancellations.find((item) => item.runId === claim.runId);
+        const admission = existing ?? await workStore.admitCancellation({
+          requestId: `runtime-interrupted-${claim.runId}`,
+          sessionId: run.sessionId,
+          runId: claim.runId,
+          workId: claim.workId,
+          revision: claim.revision,
+          disposition: 'interrupted_resumable',
+        });
+        for (const process of managed) if (process.outputHandle) {
+          await terminalOutputs.interrupt({ handle: process.outputHandle,
+            sessionId: run.sessionId }).catch((error) => onError?.(error));
+        }
+        await workStore.settleCancellation({ admission, unknownEffect: true, childrenTerminal: true });
+        recovered.push(claim.runId);
+        state = await workStore.read();
+        continue;
+      }
+
+      if (state.cancellations.some((item) => item.runId === claim.runId)) continue;
       const result = await workStore.releaseExecution({ runId: claim.runId,
         reason: settled ? 'legacy_cancelled_claim_repair' : 'restart_terminal_run_recovery',
         allowSettled: Boolean(settled) });
-      if (result.released) released.push(claim.runId);
+      if (result.released) recovered.push(claim.runId);
     }
-    return released;
+    return recovered;
   }
-  const failedWorkClaimRecovery = recoverTerminalFailedWorkClaims()
-    .catch((error) => { onError?.(error); return []; });
   async function recoverPreparedAdmissions() {
     const state = await workStore.read(); const recovered = [];
     for (const input of state.inputs.filter((item) => item.state === 'prepared')) {
@@ -617,6 +665,8 @@ export function makeConsoleServer({
   const workCancellation = new WorkCancellationCoordinator({
     workStore, runLedger, processRegistry: processes,
   });
+  const failedWorkClaimRecovery = recoverTerminalFailedWorkClaims()
+    .catch((error) => { onError?.(error); return []; });
   function publicCancellationSurface(receipt) {
     const cancellation = { terminal: receipt.state === 'terminal',
       resumable: receipt.disposition === 'interrupted_resumable' && receipt.childrenTerminal === true,
@@ -3509,6 +3559,7 @@ export function makeConsoleServer({
     onError: (error) => onError?.(error),
   });
   resultPublicationRecovery = (async () => {
+    await failedWorkClaimRecovery;
     const lease = await messenger.withPollingOwnership('telegram', async ({ assertFence }) => {
       await recoverCancellationPublicationsOwned(assertFence);
       const recovered = await recoverResultPublicationsOwned(assertFence);

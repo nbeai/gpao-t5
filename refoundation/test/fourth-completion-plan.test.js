@@ -6,15 +6,15 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../../', import.meta.url);
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 
-test('4차 정본은 D4A를 닫고 D4B successor settlement만 연다', async () => {
+test('4차 정본은 D4B successor settlement를 닫고 D5 RSS 원인 분리만 연다', async () => {
   const [plan, agents, second] = await Promise.all([
     readFile(new URL('T5-FOURTH-COMPLETION.md', root), 'utf8'),
     readFile(new URL('AGENTS.md', root), 'utf8'),
     readFile(new URL('T5-SECOND-COMPLETION.md', root), 'utf8'),
   ]);
-  assert.match(plan, /S4_D4_BASELINE_COMPLETE · S4_D4A_PARENT_DEATH_CONTAINMENT_COMPLETE · S4_D4B_SUCCESSOR_SETTLEMENT_ACTIVE/u);
+  assert.match(plan, /S4_D4A_PARENT_DEATH_CONTAINMENT_COMPLETE · S4_D4B_SUCCESSOR_SETTLEMENT_COMPLETE · S4_D5_RSS_ATTRIBUTION_ACTIVE/u);
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
-  assert.match(plan, /현재 Gate: `S4-D4B SUCCESSOR SETTLEMENT · INTERRUPTED WORK WITHOUT REEXECUTION`/u);
+  assert.match(plan, /현재 Gate: `S4-D5 TERMINAL HAND RSS ATTRIBUTION · READ-ONLY`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',
     'S4-H', 'S4-I', 'S4-J', 'S4-K', 'S4-UX', 'S4-L', 'S4-HQ'];
   let cursor = -1;
@@ -35,7 +35,7 @@ test('4차 정본은 D4A를 닫고 D4B successor settlement만 연다', async ()
   assert.match(plan, /첫 기준선은 KHB-S01/u);
   assert.match(plan, /connection list가 로컬 Evidence보다 먼저 호출/u);
   assert.match(plan, /find -printf[\s\S]*exit 0/u);
-  assert.match(plan, /S4-D — Terminal 실행 중 output·process 미달 — D2·D3·D4A COMPLETE, D4B ACTIVE/u);
+  assert.match(plan, /S4-D — Terminal 실행 중 output·process 미달 — D2·D3·D4A·D4B COMPLETE, D5 READ-ONLY ACTIVE/u);
   assert.match(plan, /전역 pipefail과 exit-code 예외 목록은 적용하지 않았다/u);
   assert.match(plan, /workspacePresence:[\s\S]*scope: current_managed_workspace[\s\S]*contentIncluded: false/u);
   assert.match(plan, /workspace_presence` 범주는 call당 161 payload bytes/u);
@@ -63,6 +63,9 @@ test('4차 정본은 D4A를 닫고 D4B successor settlement만 연다', async ()
   assert.match(plan, /S4-D4A 완료 문장:[\s\S]*late effect를 만들기 전에/u);
   assert.match(plan, /managed background startup 비용[\s\S]*\+22\.84ms/u);
   assert.match(plan, /S4-D4B 완료 문장:[\s\S]*interrupted-resumable·effect unknown/u);
+  assert.match(plan, /사업 보고·개발 분석·개인 파일 세 목적[\s\S]*Tool 재실행 0/u);
+  assert.match(plan, /PTY는 children terminal로 꾸미지 않고 active claim/u);
+  assert.match(plan, /S4-D5 완료 문장:[\s\S]*높은 RSS가 생기는 실제 계층/u);
   assert.match(plan, /S4-C carry-forward로 동일 도구면의 모델별 Hand 선택/u);
   assert.match(plan, /S4-C carry-forward로 실제 자료가 있는데 없다고 말하는지/u);
   assert.match(plan, /각 local engine·model·Capability의 실제 사용 가능 여부[\s\S]*개인정보 범위/u);

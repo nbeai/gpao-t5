@@ -1,0 +1,78 @@
+{
+  "schema": "t5.s4d4b.successor-settlement.v1",
+  "recordedOn": "2026-08-29",
+  "status": "COMPLETE",
+  "sourceBaseCommit": "d48b7bdc",
+  "triggerEvidence": "refoundation/evidence/s4-d4-crash-ownership-baseline-2026-08-29.json",
+  "scope": "successor settlement for interrupted managed non-PTY Runs with a qualified parent-death boundary",
+  "completionSentence": "The successor Runtime does not automatically reexecute an interrupted managed Work; it settles the Work as interrupted-resumable with unknown effect, releases the execution claim, and reopens preserved partial output through the same handle.",
+  "implementation": {
+    "storesReused": ["RunLedger", "WorkStore", "TerminalOutputStore"],
+    "newStore": false,
+    "newPurposeSchema": false,
+    "newPrompt": false,
+    "processReattach": false,
+    "automaticToolReexecution": false,
+    "eligibleBoundaries": [
+      "macos_parent_death_process_group",
+      "windows_job_object"
+    ],
+    "outputTerminalState": "interrupted",
+    "effectState": "unknown",
+    "workDisposition": "interrupted_resumable"
+  },
+  "qualification": {
+    "purposeFamilies": [
+      "business_report",
+      "development_analysis",
+      "personal_file_organization"
+    ],
+    "settledPurposeFamilies": 3,
+    "claimsReleased": 3,
+    "workRevisionAdvanced": 3,
+    "partialOutputSameHandleReopened": 3,
+    "modelCalls": 0,
+    "toolReexecutions": 0,
+    "providerBytes": 0,
+    "secondSuccessorAdditionalWorkEvents": 0,
+    "unqualifiedPtySettledAsTerminal": false,
+    "unqualifiedPtyClaimReleased": false,
+    "unqualifiedPtyOutputState": "live",
+    "focusedTest": {
+      "passed": 2,
+      "failed": 0,
+      "threePurposeSettlementMs": 42.982875,
+      "unqualifiedPtyMs": 7.970625,
+      "fileWallMs": 318.290417
+    }
+  },
+  "cost": {
+    "ordinaryRequestModelCallsAdded": 0,
+    "ordinaryRequestToolCallsAdded": 0,
+    "ordinaryRequestProviderBytesAdded": 0,
+    "ordinaryRequestTokensAdded": 0,
+    "crashRecoveryDiskWork": "existing WorkStore cancellation/result events plus one atomic output manifest settlement per live handle",
+    "commandStartupCostAdded": "none beyond the already measured D4A parent-death host"
+  },
+  "verification": {
+    "focusedAdjacentPassed": 30,
+    "focusedAdjacentFailed": 0,
+    "dailyCheckExit": 0,
+    "fullCiExit": 0,
+    "unitPassed": 1671,
+    "unitFailed": 0,
+    "unitSkipped": 1,
+    "integrationPassed": 192,
+    "integrationFailed": 0,
+    "integrationSkipped": 2,
+    "mutationKills": 2
+  },
+  "nonClaims": [
+    "PTY parent-death containment is implemented",
+    "physical Windows crash recovery is qualified",
+    "a missing or degraded partial output is reconstructed",
+    "a live process is reattached by PID",
+    "the unresolved full Terminal Hand RSS is fixed"
+  ],
+  "nextOneTask": "Run S4-D5 read-only RSS attribution before opening any memory fix or S4-E."
+}

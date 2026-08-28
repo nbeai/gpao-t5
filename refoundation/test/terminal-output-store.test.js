@@ -44,3 +44,26 @@ test('큰 출력은 압축 chunk로 저장하고 Unicode 경계의 요청 구간
     assert.equal((await readdir(join(room, 'objects', saved.handle))).includes('stdout'), false);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
+
+test('live output interruption은 같은 handle을 읽기 전용 terminal 상태로 exact once 봉인한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-terminal-output-interrupted-'));
+  const store = new TerminalOutputStore(room);
+  try {
+    const live = await store.begin({ sessionId: 'session-a', runId: 'run-a' });
+    await store.append({ handle: live.handle, sessionId: 'session-a',
+      stream: 'stdout', text: '중단 전 결과😀' });
+    const interrupted = await store.interrupt({ handle: live.handle, sessionId: 'session-a' });
+    assert.equal(interrupted.state, 'interrupted');
+    assert.match(interrupted.streams.stdout.sha256, /^[a-f0-9]{64}$/u);
+    const repeated = await store.interrupt({ handle: live.handle, sessionId: 'session-a' });
+    assert.equal(repeated.interruptedAt, interrupted.interruptedAt);
+    assert.equal((await store.finalize({ handle: live.handle,
+      sessionId: 'session-a' })).state, 'interrupted');
+    assert.equal((await store.read({ handle: live.handle, sessionId: 'session-a',
+      stream: 'stdout', offset: 0, limit: 100 })).text, '중단 전 결과😀');
+    await assert.rejects(store.append({ handle: live.handle, sessionId: 'session-a',
+      stream: 'stdout', text: '사고 뒤 추가' }), /not found/u);
+    await assert.rejects(store.interrupt({ handle: live.handle,
+      sessionId: 'session-b' }), /not found/u);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
