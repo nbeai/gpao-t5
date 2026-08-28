@@ -12,11 +12,12 @@ import {
   assertDeveloperIdentities, loadReleaseConfiguration, runtimeMaterial, signingConfiguration,
 } from './macos-release-configuration.mjs';
 import { assertReleaseSourcePolicy } from './macos-release-source-boundary.mjs';
+import { assertProductionMacPayload, inventoryMacApp } from './macos-payload-inventory.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..', '..');
 const product = {
-  name: 'GPAO-T5', bundleId: 'kr.co.gpao.t5', version: '0.3.0', port: 4174,
+  name: 'GPAO-T5', bundleId: 'kr.co.gpao.t5', version: '0.3.1', port: 4174,
 };
 const PACKAGE_SOURCE_PATHS = [
   'refoundation',
@@ -36,6 +37,11 @@ function packageSourceDirty() {
 
 async function sha256(path) {
   return createHash('sha256').update(await readFile(path)).digest('hex');
+}
+
+async function requireNewArtifact(path) {
+  try { await stat(path); throw new Error(`refusing to overwrite existing release artifact: ${path}`); }
+  catch (error) { if (error?.code !== 'ENOENT') throw error; }
 }
 
 async function walk(root) {
@@ -90,14 +96,26 @@ async function copyRuntimeApp(target) {
     join(repo, 'docs', '00-product', 'GPAO-T5-FOUNDER-MANIFESTO-ko.md'),
     join(target, 'docs', '00-product', 'GPAO-T5-FOUNDER-MANIFESTO-ko.md'),
   );
-  run('npm', ['ci', '--omit=dev'], { cwd: refoundation, stdio: 'inherit' });
-  // T5 uses kordoc's deterministic document parsers, not its optional local AI/OCR
-  // stack. Keep the separately pinned sharp decoder required by QH-4, but do not
-  // ship unused transformers/onnx binaries or their vulnerable ZIP dependency.
+  run('npm', ['ci', '--omit=dev', '--omit=optional', '--ignore-scripts'], { cwd: refoundation, stdio: 'inherit' });
+  run('npm', ['install', '--force', '--no-save', '--package-lock=false', '--omit=dev', '--omit=optional', '--ignore-scripts',
+    '@img/sharp-darwin-arm64@0.35.3', '@img/sharp-darwin-x64@0.35.3',
+    '@img/sharp-libvips-darwin-arm64@1.3.2', '@img/sharp-libvips-darwin-x64@1.3.2',
+  ], { cwd: refoundation, stdio: 'inherit' });
   for (const relativePath of [
-    '@huggingface/transformers', 'onnxruntime-node', 'onnxruntime-common', 'adm-zip',
+    '@huggingface', '@hyzyla', '@napi-rs', 'onnxruntime-node', 'onnxruntime-common',
+    'onnxruntime-web', 'pdfjs-dist', 'adm-zip',
   ]) {
     await rm(join(refoundation, 'node_modules', relativePath), { recursive: true, force: true });
+  }
+  for (const relativePath of [
+    ['node-pty', 'prebuilds', 'win32-arm64'], ['node-pty', 'prebuilds', 'win32-x64'],
+    ['node-pty', 'deps'], ['node-pty', 'third_party'], ['node-pty', 'src'],
+    ['tree-sitter-bash', 'prebuilds'], ['tree-sitter-bash', 'src'], ['web-tree-sitter', 'debug'],
+  ]) await rm(join(refoundation, 'node_modules', ...relativePath), { recursive: true, force: true });
+  for (const path of await walk(join(refoundation, 'node_modules'))) {
+    const name = basename(path);
+    if (name.endsWith('.map') || /\.d\.(?:ts|cts|mts)$/u.test(name) || name.endsWith('.pdb')
+      || /^(?:readme|changelog|history|contributing|authors?|security)(?:\..*)?$/iu.test(name)) await rm(path, { force: true });
   }
 }
 
@@ -304,6 +322,9 @@ read -r _
     await chmod(uninstall, 0o755);
     run('xattr', ['-cr', app]);
 
+    const unsignedPayloadInventory = await inventoryMacApp(app);
+    assertProductionMacPayload(unsignedPayloadInventory);
+
     const appIdentity = signing.applicationIdentity;
     const installerIdentity = signing.installerIdentity;
     const keychain = signing.keychain;
@@ -318,6 +339,8 @@ read -r _
 </dict></plist>\n`);
       await signMachO(app, appIdentity, keychain, entitlements, [armNode, x64Node]);
     }
+    const payloadInventory = appIdentity ? await inventoryMacApp(app) : unsignedPayloadInventory;
+    const payloadGate = assertProductionMacPayload(payloadInventory);
 
     const scripts = join(work, 'pkg-scripts');
     await mkdir(scripts, { recursive: true });
@@ -329,7 +352,7 @@ if [ -n "$USER_NAME" ] && [ "$USER_NAME" != "root" ]; then
   OLD_NODE="$OLD_APP/Contents/Resources/runtime/bin/node"
   OLD_STOP="$OLD_APP/Contents/Resources/app/refoundation/scripts/stop-local-runtime.mjs"
   OLD_PORT="$USER_HOME/Library/Application Support/GPAO-T5/state/console-port.json"
-  if [ -x "$OLD_NODE" ] && [ -f "$OLD_STOP" ]; then
+  if [ -x "$OLD_NODE" ] && [ -f "$OLD_STOP" ] && [ -f "$OLD_PORT" ]; then
     sudo -u "$USER_NAME" env HOME="$USER_HOME" "$OLD_NODE" "$OLD_STOP" --port-file "$OLD_PORT" --reason product_update || exit 1
   elif sudo -u "$USER_NAME" /usr/bin/pgrep -x "${product.name}" >/dev/null 2>&1; then
     sudo -u "$USER_NAME" /usr/bin/osascript -e 'tell application id "${product.bundleId}" to quit' >/dev/null 2>&1 || exit 1
@@ -380,6 +403,9 @@ exit 0
       '--identifier', product.bundleId, '--version', product.version, component], { stdio: 'inherit' });
     const suffix = installerIdentity ? '' : '-unsigned';
     const output = join(out, `${product.name}-${product.version}-universal${suffix}.pkg`);
+    const manifestPath = join(out, `${product.name}-${product.version}-universal${suffix}.manifest.json`);
+    await requireNewArtifact(output);
+    await requireNewArtifact(manifestPath);
     if (installerIdentity) {
       const unsigned = join(work, 'unsigned-product.pkg');
       run('productbuild', ['--package', component, unsigned], { stdio: 'inherit' });
@@ -396,12 +422,14 @@ exit 0
       sourceDirty: sourcePolicy.sourceDirty, sourceScope: 'packaged-inputs',
       developmentOnly: sourcePolicy.developmentOnly, releaseEligible: sourcePolicy.releaseEligible,
       node: { version: 'v24.14.0', officialArchiveSha256: nodeHashes },
+      payload: payloadInventory.payload, payloadGate,
+      dependencies: { packages: payloadInventory.dependencies.packages, bom: payloadInventory.dependencies.bom },
+      binaries: payloadInventory.binaries,
       signing: appIdentity ? 'developer-id' : 'unsigned', notarized: false, stapled: false,
       package: { path: output, bytes: (await stat(output)).size, sha256: await sha256(output) },
       excludes: ['credentials', 'user data', 'tests', 'legacy runtime'],
     };
-    await writeFile(join(out, `${product.name}-${product.version}-universal.manifest.json`),
-      `${JSON.stringify(manifest, null, 2)}\n`);
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { flag: 'wx' });
     console.log(JSON.stringify(manifest, null, 2));
   } finally {
     if (process.env.T5_KEEP_PACKAGE_WORK !== '1') await rm(work, { recursive: true, force: true });

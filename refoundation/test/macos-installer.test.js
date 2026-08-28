@@ -26,6 +26,9 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.match(build, /'status', '--porcelain', '--', ...PACKAGE_SOURCE_PATHS/u);
   assert.match(build, /sourceScope: 'packaged-inputs'/u);
   assert.match(build, /pkg-scripts[\s\S]*preinstall[\s\S]*stop-local-runtime\.mjs[\s\S]*product_update/u);
+  assert.match(build, /\[ -f "\$OLD_PORT" \][\s\S]*"\$OLD_STOP"/u);
+  assert.match(build, /assertProductionMacPayload/u);
+  assert.match(build, /requireNewArtifact\(output\)/u);
   assert.match(build, /do shell script[\s\S]*with administrator privileges/u);
   assert.match(build, /pkgutil --forget/u);
   assert.doesNotMatch(build, /ADMIN_COMMAND=/u);
@@ -55,9 +58,11 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.doesNotMatch(verifier, /'-l', 'BEGIN \(RSA \)\?PRIVATE KEY/u);
 });
 
-test('3차 완성 package version은 제품 version 0.3.0과 일치한다', async () => {
+test('3차 완성 package version은 제품 version 0.3.1과 일치한다', async () => {
   const packageMetadata = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
   const build = await readFile(new URL('../scripts/build-macos-installer.mjs', import.meta.url), 'utf8');
-  assert.equal(packageMetadata.version, '0.3.0');
-  assert.match(build, /version:\s*'0\.3\.0'/u);
+  const windowsBuild = await readFile(new URL('../scripts/build-windows-package.mjs', import.meta.url), 'utf8');
+  assert.equal(packageMetadata.version, '0.3.1');
+  assert.match(build, /version:\s*'0\.3\.1'/u);
+  assert.match(windowsBuild, /version\s*=\s*'0\.3\.1'/u);
 });
