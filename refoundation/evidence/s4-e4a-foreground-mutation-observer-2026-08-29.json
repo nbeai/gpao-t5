@@ -1,0 +1,28 @@
+{
+  "schema": "t5.s4e4a.foreground-mutation-observer.v1",
+  "recordedOn": "2026-08-29",
+  "status": "COMPLETE",
+  "sourceBaseCommit": "9a999131",
+  "scope": "completed foreground local_change inside current managed workspace",
+  "implementation": {
+    "newStore": false,
+    "maximumEntries": 4096,
+    "maximumChangedPaths": 64,
+    "fileContentProjected": false,
+    "unchangedPathsProjected": false,
+    "symlinksFollowed": false
+  },
+  "qualification": {
+    "declaredWriteSeparated": true,
+    "unexpectedWriteSeparated": true,
+    "entryLimitUnknown": true,
+    "focusedPassed": 15,
+    "focusedFailed": 0
+  },
+  "nonClaims": [
+    "managed background writes are observed",
+    "late detached child writes are observed",
+    "all filesystem writes are confined"
+  ],
+  "nextOneTask": "Open S4-E5 atomic publication design and injected-failure countertests."
+}

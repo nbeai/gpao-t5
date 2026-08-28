@@ -11,6 +11,7 @@ import { runAgent } from './agent-loop.js';
 import { ConsoleSessionStore } from './console-session-store.js';
 import { makeTerminalHand } from './exec-tool.js';
 import { IsolatedCommandExplainer } from './isolated-command-explainer.js';
+import { ManagedMutationObserver } from './managed-mutation-observer.js';
 import { TerminalOutputStore } from './terminal-output-store.js';
 import { discoverComputerEnvironment, publicComputerFacts } from './computer-environment.js';
 import { makePathRevealer } from './path-revealer.js';
@@ -559,6 +560,7 @@ export function makeConsoleServer({
     });
   }
   const terminalOutputs = new TerminalOutputStore(join(stateDir, 'terminal-outputs'));
+  const managedMutationObserver = new ManagedMutationObserver(workspace);
   const terminalCommandExplainer = commandExplainer ?? new IsolatedCommandExplainer();
   if (typeof terminalCommandExplainer.explain !== 'function'
     || typeof terminalCommandExplainer.close !== 'function') {
@@ -1509,6 +1511,7 @@ export function makeConsoleServer({
         terminalCredentialBroker,
         terminalOutputStore: terminalOutputs,
         explainCommand: (command) => terminalCommandExplainer.explain(command),
+        mutationObserver: managedMutationObserver,
         capabilityAttribution: async (facts) => [
           ...await managedCliStore.attributeCommand(facts.commandExplanation),
           ...(typeof terminalCapabilityAttribution === 'function'

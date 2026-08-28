@@ -6,6 +6,7 @@ import test from 'node:test';
 
 import { makeExecTool } from '../src/exec-tool.js';
 import { makeFileRealityTool } from '../src/file-reality-tool.js';
+import { ManagedMutationObserver } from '../src/managed-mutation-observer.js';
 
 const args = (overrides = {}) => ({ action: 'search', query: null, scope: null, path: null,
   handles: null, maxCandidates: null, placements: null, planId: null, effect: null, ...overrides });
@@ -51,16 +52,19 @@ test('S4-E3: workspace source hardlink는 plan admission에서 차단된다', as
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test('S4-E baseline: Terminal effect observation은 선언 밖 실제 write를 관측하지 않는다', async () => {
+test('S4-E4A: foreground Terminal은 선언 밖 실제 write를 bounded managed diff로 관측한다', async () => {
   const root = await mkdtemp(join(tmpdir(), 't5-s4e-unexpected-write-'));
   try {
     const target = join(root, 'target.txt'); const unexpected = join(root, 'unexpected.txt');
-    const tool = makeExecTool({ workspace: root, explainCommand: async () => ({ ok: false }) });
+    const tool = makeExecTool({ workspace: root, explainCommand: async () => ({ ok: false }),
+      mutationObserver: new ManagedMutationObserver(root) });
     const command = `printf target > ${JSON.stringify(target)}; printf outside > ${JSON.stringify(unexpected)}`;
     const result = await tool.execute({ command, cwd: null,
       effect: { ...effect, targets: [target] } });
     assert.equal(result.state, 'completed');
     assert.equal(result.effectObservation.after.targets.length, 1);
+    assert.deepEqual(result.managedMutationObservation.declaredChanges, ['target.txt']);
+    assert.deepEqual(result.managedMutationObservation.unexpectedChanges, ['unexpected.txt']);
     assert.equal(await readFile(unexpected, 'utf8'), 'outside');
   } finally { await rm(root, { recursive: true, force: true }); }
 });

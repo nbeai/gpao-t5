@@ -123,6 +123,7 @@ function makeCommandTool(options = {}, { managed }) {
     terminalPlatformAdapter,
     terminalCredentialBroker,
     terminalOutputStore,
+    mutationObserver,
     protectedBrowserRoots = [],
   } = options;
   const defaultDirectory = workingDirectory ?? workspace;
@@ -208,6 +209,8 @@ function makeCommandTool(options = {}, { managed }) {
       let launch;
       try {
         const effectBefore = await observeDeclaredEffect(declaredEffect, cwd);
+        const mutationBefore = !managed && declaredEffect.kind === 'local_change' && mutationObserver
+          ? await mutationObserver.observe() : null;
         const managedCommand = commandWithManagedPath(command, pathPrepend, runtime.family);
         const pipelineTruth = !managed && runtime.family === 'posix'
           ? preparePipelineTruth({ command: managedCommand, commandExplanation, shellProgram: runtime.program }) : null;
@@ -288,6 +291,14 @@ function makeCommandTool(options = {}, { managed }) {
             declaredEffect, effectBefore, effectAfter,
           ),
         };
+        if (mutationBefore) {
+          const mutationAfter = result.state === 'completed' || result.state === 'failed'
+            ? await mutationObserver.observe() : null;
+          result.managedMutationObservation = mutationAfter
+            ? mutationObserver.compare(mutationBefore, mutationAfter, declaredEffect.targets) : {
+              state: 'unknown', reason: 'process_not_terminal',
+            };
+        }
         if (capabilityAdmissions.length) result.capabilityReceipts = capabilityAdmissions.map((admission) => (
           settleCapabilityUse({ admission, result, effectObservation: result.effectObservation })
         ));
