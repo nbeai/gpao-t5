@@ -1,0 +1,34 @@
+{
+  "schema": "t5.s4e5.atomic-publication-contract.v1",
+  "states": ["published", "not_published", "published_durability_unknown"],
+  "orderedFacts": [
+    "same_directory_exclusive_temporary",
+    "write_all_bytes",
+    "written_digest",
+    "file_sync",
+    "preimage_revalidation",
+    "atomic_replace",
+    "directory_sync",
+    "readback_digest",
+    "temporary_cleanup"
+  ],
+  "failureMeaning": {
+    "beforeAtomicReplace": "not_published",
+    "atomicReplaceSucceededDirectorySyncFailed": "published_durability_unknown",
+    "readbackMismatch": "published_durability_unknown"
+  },
+  "invariants": [
+    "target is old complete bytes or new complete bytes, never partial bytes",
+    "stale preimage does not overwrite",
+    "temporary file is never a user artifact",
+    "mode is preserved when replacing an existing regular single-link file",
+    "success requires exact readback digest"
+  ],
+  "nonGoals": [
+    "multi-file transaction",
+    "cross-filesystem move",
+    "rollback retention policy",
+    "Windows physical ReplaceFile qualification",
+    "public workspace_patch tool"
+  ]
+}

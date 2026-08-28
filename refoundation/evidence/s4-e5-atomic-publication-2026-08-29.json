@@ -1,0 +1,26 @@
+{
+  "schema": "t5.s4e5.atomic-publication.v1",
+  "recordedOn": "2026-08-29",
+  "status": "COMPLETE_INTERNAL_PRIMITIVE",
+  "sourceBaseCommit": "10b3ece3",
+  "implementation": {
+    "newStore": false,
+    "sameDirectoryExclusiveTemporary": true,
+    "fileSync": true,
+    "preimageRevalidation": true,
+    "atomicReplace": true,
+    "directorySync": true,
+    "readbackDigest": true,
+    "modePreserved": true
+  },
+  "qualification": {
+    "success": "published",
+    "preReplaceFailureTargetChanged": false,
+    "preReplaceFailureTemporaryRetained": false,
+    "directorySyncFailure": "published_durability_unknown",
+    "focusedPassed": 4,
+    "focusedFailed": 0
+  },
+  "nonClaims": ["public workspace_patch exists", "multi-file transaction exists", "Windows ReplaceFile is physically qualified"],
+  "nextOneTask": "Open S4-E6 exact-target rollback pointer."
+}
