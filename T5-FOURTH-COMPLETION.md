@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_BASELINE_ACTIVE · PRODUCT_CODE_LOCKED`
-현재 Gate: `S4-A SINGLE SOURCE · MINIMUM FAILURE BASELINE`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_C_BASELINE_ACTIVE · PRODUCT_CODE_LOCKED`
+현재 Gate: `S4-C SITUATION & HAND · KHB-S01 READ-ONLY BASELINE`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,17 +55,17 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-A 단일 정본·최소 실패 기준선. 제품 코드는 잠겨 있다.
-3. **사용자 완료 문장**: 3차 Cleanroom 제품의 실제 강점·비용·미달이 같은 사용자 목적에서 고정되어 최초
-   결함 가족 하나만 근거 있게 S4-B로 열린다.
-4. **이미 선 실제 증거**: `t5-0.3.1-clean-baseline`, 전체 제품 CI, 16개 사업 인간 시나리오, Terminal Core,
-   File Reality·reconciliation, Resource Situation, Work·Memory·Recovery, 격리 위험 경계가 있다.
-5. **현재 가장 큰 미달**: 4차 제안의 항목과 현재 제품의 실제 차이가 아직 한 clean-head 비교 기준으로
-   정산되지 않았고, S4-B Purpose & Done 결함도 현재 source에서 재현되지 않았다.
-6. **이번 변경 방식**: 기존 증거에서 일곱 최소 축을 고르고 제품 무변경 positive control과 candidate failure를
-   분리한 뒤, 현재 source에서 재현된 최초 결함만 반대시험으로 고정한다.
-7. **Non-goals**: Prompt 변경, 제품 source 변경, 새 Store, UI 변경, 새 index, Terminal 재작성, Reflection·
-   Principle·Capability research import, 실제 개인 자료·계정·외부 효과 시험.
+2. **현재 Gate**: S4-C Situation·Hand의 KHB-S01 read-only 기준선이다. 제품 코드는 잠겨 있다.
+3. **사용자 완료 문장**: T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한
+   손으로 필요한 원문만 본다.
+4. **이미 선 실제 증거**: File Reality·tool search·Connection Truth·Resource Situation이 있고, 과거 KHB-S01은
+   예약 8행에서 106,652 tokens·66.8초·model 8회·tool 8회와 불필요한 connection probe를 남겼다.
+5. **현재 가장 큰 미달**: KHB-S01의 고비용과 connection probe가 현재 clean head에서도 재현되는지, 모델이
+   현재 로컬 Evidence와 연결 현실을 어떤 순서로 받았는지 정산되지 않았다.
+6. **이번 변경 방식**: 기존 fixture·동일 자연어 목적을 제품 변경 없이 한 번 실행해 source 후보·Tool route·
+   model calls·tool calls·provider bytes·tokens·wall·첫 유용한 결과를 측정하고 실제 차이만 반대시험으로 연다.
+7. **Non-goals**: 새 index·OCR cache·relationship map, 서비스별 route, 연결 기능 추가, Prompt 변경, 업무
+   정규식, Work brief·목적 schema, UI 변경, 실제 계정·외부 효과 시험.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -81,6 +81,21 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 - 각 Gate 동안 관련 최소 시나리오만 실행한다. 전체 인간 wave는 S4-HQ에서 한 번 수행한다.
 - 비교군의 source·동작에서 실패를 막는 원리만 추출하고 제품 화면·용어·아키텍처를 복제하지 않는다.
 - 한 결함 가족에 세 번째 patch가 필요하면 추가 구현을 중단하고 구조를 재판정한다.
+- 시도가 반복 실패하면 같은 방향의 문구·조건을 더 붙이지 않는다. 사용자 목적·현재 source·wire·실제
+  model input·비교 원리를 총괄 재점검하고, 첫 가정과 다른 관점의 해결 후보를 세운 뒤 다시 시작한다.
+
+모든 설계 후보는 구현 전에 네 질문을 통과한다.
+
+```text
+사례가 늘면 목록이 자라는가, 하나의 원리가 흡수하는가?
+Runtime에 의미 선택을 넣는가, 관측 사실만 주고 모델이 해석하는가?
+안전을 등급·반복 승인·절대 금지의 마찰로 사는가, 격리·관측·Receipt·복원으로 만드는가?
+범위가 Gate·기능 수인가, 사용자가 말할 수 있는 닫는 문장 하나인가?
+```
+
+경쟁군 대비 더 빠른 속도·정확성·경제성을 계속 추구한다. 새 상태나 protocol이 정확성을 높여도 짧은
+요청과 이미 잘하던 목적의 model calls·tool calls·provider bytes·첫 유용한 결과를 이유 없이 악화시키면
+채택하지 않는다.
 
 ## 5. 공통 합격식
 
@@ -140,7 +155,7 @@ AND target 밖 effect·orphan process·blind retry·false completion 0
 
 > 3차 제품의 실제 경로와 성능이 고정됐고 4차 전후를 같은 사용자 목적으로 비교할 수 있다.
 
-### S4-A — 단일 정본·최소 실패 기준선 — ACTIVE
+### S4-A — 단일 정본·최소 실패 기준선 — COMPLETE
 
 제품 변경 없이 사업·개발·연구·개인 파일·능력 부족·장기 실행·위험 경계 일곱 축을 기존 증거에서 고른다.
 각 축은 positive control, known observation, 현재 clean-head 재현 여부를 분리한다. 과거 실패가 있었다는
@@ -158,29 +173,54 @@ S4-B를 여는 조건:
 
 > 4차의 기존 강점·실제 비용·현재 미달이 한 기준선으로 분리됐고 최초 결함 가족 하나만 다음 Gate로 열린다.
 
-### S4-B — Purpose & Done Intelligence
+### S4-B — Purpose & Done Model Reality — COMPLETE WITH MODEL OBSERVATION
 
-현재 Work와 Conversation·Receipt를 사용해 모델이 목적, 결과 사용처, 원하는 결과 또는 실제 상태, 명시 범위,
-주어진 자료, 필요한 완료 증거, 중요한 미확인, 허용된 외부 효과를 작게 보게 한다. 값은 absent·unknown을
-허용하며 결과 사용처를 매번 질문하거나 새 고정 업무양식으로 만들지 않는다. 새 Store와 Intent enum은 없다.
+S4-B는 새 목적 기능을 만드는 구현 Gate가 아니다. 모델이 목적·중요도·Evidence 충분성·미확인·완료 의미·
+사용자 문장을 판단할 환경이 현재 제품에 이미 정확히 마련됐는지 자격하는 Gate다.
 
-반대시험: 산출물만 만들고 사용 목적 미달, 부분 자료를 전체로 오인, 교정 전 목적 지속, 사용자 결정을 임의
-확정, 다음 행동 약속 후 미실행, 파일 생성과 목적 완료 합치기.
+확인할 사실:
 
-범용 close: 최초 실패 분야 외 직원 계약·거래처 미입금·개인 파일 등 서로 다른 두 분야에서 같은 목적/완료
-원리가 추가 전용 규칙 없이 성립한다.
+- 현재 사용자 원문이 최종 답 model call에도 exact하게 존재한다.
+- 가장 최근 교정이 과거 요청·assistant 해석·기억보다 가깝고 우선한다.
+- 현재 목적에 필요한 Evidence·실행·효과·전달 Receipt와 미복구 실패·unknown이 정확히 공급된다.
+- 큰 ToolReceipt와 과거 assistant 답이 현재 사용자 원문을 묻거나 더 강한 현재 목적처럼 보이지 않는다.
+- 오래된 Work·결과·교정이 현재 답에 섞이지 않는다.
+- 모델이 작성한 최종 답을 Runtime이 덧붙이거나 교정·삭제하지 않는다.
+
+금지:
+
+- Work brief Tool·목적 schema·성공 기준 schema·Intent enum·목적 전용 Store
+- 답 범위 정규식·사후 문장 삭제·업무별 Prompt·모든 요청의 추가 model call
+- 모델 최초 해석의 durable truth·Runtime의 의미 선택·모델 품질 실수마다 새 구조 추가
+
+KHB-A01은 제품 변경 0에서 동일 gpt-5.5 반복과 Terra를 비교한다. 원문이 단순히 존재하는지뿐 아니라 final
+call에서의 위치, 최신 교정과 거리, 앞선 assistant·ToolReceipt 크기, 현재 Evidence coverage를 측정한다. 환경이
+정상인데 모델만 과잉 출력하면 Runtime 결함으로 승격하지 않고 모델 품질 관측·모델 비교·전환 기준 후보로
+보존한다.
+
+실제 배치 결함이 재현될 때만 현재 사용자 원문과 최신 교정 pointer를 final call 가까이에 exact 재투영하는
+최소 후보를 연다. 새 의미를 작성하거나 원문을 요약하지 않는다. 장기 Work·모델 전환·Context 압축에서 목적
+유실이 별도로 반복될 때만 출처 있는 bounded checkpoint를 새 실패 가족로 검토한다.
+
+오너 결정으로 exact source 재투영 후보는 열지 않는다. KHB-A01은 두 모델의 출력 절제 품질 관측으로
+보존하며 Work brief·목적 schema·Prompt·Runtime 후처리 없이 S4-B를 닫는다.
 
 완료 문장:
 
-> T5는 처음 보는 업무도 기능명으로 분류하지 않고 사용자가 실제로 얻으려는 결과와 완료 증거를 이해한다.
+> T5는 모델에게 현재 사용자 원문·교정·Evidence·실행 현실을 작고 정확하게 공급하며, 목적·완료 의미와
+> 사용자 답은 모델이 판단한다.
 
-### S4-C — Situation·Hand의 실제 차이 수리
+### S4-C — Situation·Hand의 실제 차이 수리 — ACTIVE
 
 현재 목적에 관련된 Conversation·Memory·Work·file·connection·Capability pointer를 후보화하고 모델이 선택한
 Evidence만 exact reopen한다. 기존 Information Control·Resource Situation·tool search를 우선 사용한다.
 
 새 index·OCR cache·relationship map은 현재 목적 A/B에서 실제 반복 읽기나 누락이 재현될 때만 연다. 관계는
 source pointer·revision·candidate·conflict로만 보존하고 사람·회사·상품·계약의 영구 truth를 만들지 않는다.
+
+첫 기준선은 KHB-S01이다. 과거의 불필요한 connection probe와 106,652-token 표본을 현재 결함으로 자동
+승격하지 않는다. 제품 변경 0의 current-head replay에서 같은 사용자 목적·로컬 예약 Evidence·빈 연결 현실을
+사용하고, 실제 Tool route와 final Context를 읽은 뒤 최초 결함 가족 하나만 연다.
 
 완료 문장:
 
@@ -416,7 +456,7 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-제품 source 변경은 아직 0이다. 다음 한 작업은 S4-A 기존 증거 재사용 감사를 기계적으로 고정하고, clean-head
-positive control을 실행한 뒤 `KHB-A01` 계열의 목적/결과 범위 미달을 현재 모델에서 한 번 재현할지 확인하는
-것이다. 재현되지 않으면 고치지 않고 다음 candidate로 이동한다. 재현되면 실제 prompt dump와 같은 결함 가족
-세 분야 close 조건을 먼저 작성한 뒤 S4-B의 가장 작은 구현만 연다.
+S4-B는 KHB-A01을 두 모델의 출력 절제 품질 관측으로 보존하고 exact source 재투영 후보 없이 닫았다. 제품
+변경은 0이다. 현재 다음 한 작업은 KHB-S01을 동일 격리 fixture와 current clean head에서 한 번 실행해 로컬
+예약 Evidence보다 connection probe를 먼저 여는지, 같은 Evidence를 반복하는지, 8행 목적에 비용이 다시
+발생하는지 정산하는 S4-C read-only baseline이다. 재현 전에는 index·cache·route·Prompt 구현을 열지 않는다.

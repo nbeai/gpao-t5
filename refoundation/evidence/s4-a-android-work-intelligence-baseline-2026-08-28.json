@@ -1,7 +1,7 @@
 {
   "schema": "t5.s4a.android-work-intelligence-baseline.v1",
   "recordedOn": "2026-08-28",
-  "status": "S4_A_DETERMINISTIC_BASELINE_PASS_LIVE_REPLAY_PENDING",
+  "status": "S4_A_COMPLETE_S4_B_COMPLETE_MODEL_OBSERVATION_S4_C_BASELINE_OPEN",
   "baseTag": "t5-0.3.1-clean-baseline",
   "baseCommit": "8aba370095d0620e49b9cd61012a1813be015539",
   "branch": "codex/t5-fourth-android-intelligence",
@@ -85,7 +85,7 @@
       "id": "purpose_result_scope",
       "source": "KHB-A01",
       "observation": "A prior final answer included matched evidence although the user asked for gaps only.",
-      "currentHeadStatus": "not_replayed"
+      "currentHeadStatus": "reproduced"
     },
     {
       "id": "unnecessary_connection_probe",
@@ -115,33 +115,140 @@
     "productSourceChangedFromCleanBaseline": false
   },
   "sourceDigests": {
-    "T5-FOURTH-COMPLETION.md": "c422aff49c7d15b230bfc053eba5f33384a60a08a32da04f65170c0085ecade9",
+    "T5-FOURTH-COMPLETION.md": "511949b02b544a3359376e1c58218ef66bed06e8918367932aecc7b577556e9e",
     "s2-a-human-console-live-scenarios.json": "3cd3b4ab7a1213fa4fd55cbe9aab3a7e7d371eff4e0450bafca492ca20fec898",
     "s2-human-performance-scenarios.json": "21bb10a831cc8858a32286d04640f8bba666dbb0ad883416b98b4d7290770a59",
     "s3-human-business-scenarios.json": "19d456f49be876547b0b333e6b547e8f41521d3c622a387349d42b43df9ced6e"
   },
   "firstCurrentDefect": {
-    "family": null,
-    "scenario": null,
-    "promptDump": null,
-    "countertest": null,
-    "reproduced": false
+    "family": "purpose_result_scope",
+    "scenario": "KHB-A01",
+    "model": "gpt-5.5",
+    "reproduced": true,
+    "separation": {
+      "purposeFailed": true,
+      "evidenceCorrect": true,
+      "receiptsComplete": true,
+      "surfaceOutOfScope": true,
+      "outOfScopeSections": ["정상 대조된 항목", "합계 참고"]
+    },
+    "runMetrics": {
+      "wallMs": 57145,
+      "modelCalls": 6,
+      "toolCalls": 10,
+      "providerTokens": 74815,
+      "failedToolCalls": 1,
+      "externalEffects": 0
+    },
+    "promptAnalysis": {
+      "promptDumps": 6,
+      "rawUserRequestPresentEveryCall": true,
+      "generalScopeInstructionPresent": true,
+      "finalCallPlacementMeasured": false,
+      "rawPromptDumpsCopiedToRepository": false,
+      "sha256": [
+        "1b1af694d3676869975705ece0daddde550bdfdcea8535358cc8a3be5a228e4d",
+        "0373d2fe39d9b18ffe9c09da7e6afad6271ceb190ad7274aec5f938e972ebf80",
+        "38307153868d2274173a623542865185e23f6e696c1ad1c97d9cbb01f1985e8e",
+        "1ce2781dec9b1024762ee4742272d87f2d6e714f8c373dfb31aa5b2e25f70a23",
+        "e4cbae1b5db35ddde6de418d38be13aa524df8bfc08f00270683209e016a57ae",
+        "a17825deedc1ae754be08c181f3736e9f74b210e0369102180e4bd0946f6ddf1"
+      ]
+    },
+    "modelGuidanceReference": {
+      "source": "https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5.5",
+      "observed": "Supply the task-specific outcome, success criteria, output shape, and stopping conditions; make the smallest measured prompt change rather than repeating general process instructions."
+    },
+    "rootHypothesis": "model_output_restraint_or_context_placement_not_yet_separated"
   },
-  "s4bAuthorized": false,
+  "rejectedExperiments": [
+    {
+      "candidate": "completion_time_model_contract",
+      "productAdopted": false,
+      "reason": "After seeing Evidence, the model widened its own output scope with reference totals. The candidate was too late and did not preserve the exact user result boundary."
+    },
+    {
+      "candidate": "evidence_before_work_brief",
+      "productAdopted": false,
+      "reason": "The initial brief was accurate and reference totals disappeared, but normal matching examples remained after an explicit final scope reminder. The candidate increased model and provider cost without closing the user outcome.",
+      "bounds": { "maximumSerializedBytes": 3072, "actualBytes": 600 },
+      "comparisonToUnchangedProduct": {
+        "firstRequestBytesDelta": 1911,
+        "firstToolSchemaBytesDelta": 1910,
+        "totalRequestBytesDelta": 83873,
+        "providerTokensDelta": 17971,
+        "modelCallsDelta": 1,
+        "toolCallsDelta": 0,
+        "wallMsDelta": -7666
+      },
+      "rawPromptDumpsCopiedToRepository": false
+    }
+  ],
+  "unchangedProductModelComparison": {
+    "fixture": "KHB-A01",
+    "toolSurfaceSame": true,
+    "externalEffects": 0,
+    "gpt55": {
+      "resultScopePassed": false,
+      "correctEvidenceAndCalculationPreserved": true,
+      "outOfScope": ["normal matching examples", "reference totals"],
+      "wallMs": 57145,
+      "modelCalls": 6,
+      "toolCalls": 10,
+      "providerTokens": 74815,
+      "finalPrompt": {
+        "currentUserIndex": 1,
+        "itemsAfterCurrentUser": 25,
+        "bytesAfterCurrentUser": 32817,
+        "toolOutputBytesAfterCurrentUser": 15715,
+        "requestBodyBytes": 77842
+      }
+    },
+    "terra": {
+      "resultScopePassed": false,
+      "correctEvidenceAndCalculationPreserved": true,
+      "outOfScope": ["normal matching examples", "reference totals"],
+      "wallMs": 22297,
+      "modelCalls": 6,
+      "toolCalls": 8,
+      "providerTokens": null,
+      "providerTokensReason": "provider usage was not returned by this qualification route",
+      "finalPrompt": {
+        "currentUserIndex": 1,
+        "itemsAfterCurrentUser": 21,
+        "bytesAfterCurrentUser": 28552,
+        "toolOutputBytesAfterCurrentUser": 15341,
+        "requestBodyBytes": 73500
+      }
+    },
+    "finding": "The failure reproduced on both models. Current user text existed exactly but was followed by large current-Run evidence before final generation.",
+    "contextPlacementCandidate": true,
+    "contextPlacementCausalityProven": false,
+    "rawPromptDumpsCopiedToRepository": false
+  },
+  "s4bAuthorized": true,
+  "productImplementationAuthorized": false,
+  "ownerDecision": {
+    "exactSourceReprojectionCandidateOpened": false,
+    "khbA01Disposition": "model_output_restraint_observation",
+    "workBriefDisposition": "rejected_not_productized",
+    "s4bClosedWithoutProductCode": true,
+    "nextGate": "S4-C KHB-S01 read-only baseline"
+  },
   "gateCloseRequires": [
-    "one current clean-head user-purpose failure reproduced",
-    "purpose, Evidence, Receipt, and surface failure separated",
-    "actual prompt dump when model input is implicated",
-    "comparison principle observed",
-    "countertest fails when the real behavior is removed",
-    "same defect family closes across three different purpose domains"
+    "same unchanged product and fixture compared on gpt-5.5 and Terra",
+    "current user source and latest correction position measured in the final model call",
+    "current Evidence, prior assistant, and ToolReceipt bytes measured without copying raw content",
+    "Runtime context defect separated from model output variance",
+    "no Work brief, purpose schema, Intent enum, purpose Store, regex answer filter, or global Prompt patch",
+    "only an observed exact-source placement defect may open a minimal pointer reprojection countertest"
   ],
   "notClaimed": [
-    "S4-A complete",
-    "S4-B open",
-    "any past observation is a current product defect",
+    "S4-B complete",
+    "KHB-A01 is a Runtime purpose-system defect",
+    "a Work brief or purpose schema is required",
     "product Prompt or source changed",
     "physical Windows qualified"
   ],
-  "nextOneTask": "Run the selected deterministic positive controls on the clean fourth head, then replay the KHB-A01 purpose/result-scope candidate once without product changes."
+  "nextOneTask": "Run unchanged KHB-S01 once to measure whether unnecessary connection probing and high-cost Situation/Hand selection reproduce before authorizing S4-C product code."
 }

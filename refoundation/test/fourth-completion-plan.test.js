@@ -1,21 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
 const root = new URL('../../', import.meta.url);
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 
-test('4차 정본은 Cleanroom에서 S4-A만 열고 전체 Gate를 한 문서에 고정한다', async () => {
+test('4차 정본은 S4-B를 모델 관측으로 닫고 S4-C read-only 기준선만 연다', async () => {
   const [plan, agents, second] = await Promise.all([
     readFile(new URL('T5-FOURTH-COMPLETION.md', root), 'utf8'),
     readFile(new URL('AGENTS.md', root), 'utf8'),
     readFile(new URL('T5-SECOND-COMPLETION.md', root), 'utf8'),
   ]);
-  assert.match(plan, /FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_BASELINE_ACTIVE · PRODUCT_CODE_LOCKED/u);
+  assert.match(plan, /FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_C_BASELINE_ACTIVE · PRODUCT_CODE_LOCKED/u);
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
-  assert.match(plan, /현재 Gate: `S4-A SINGLE SOURCE · MINIMUM FAILURE BASELINE`/u);
+  assert.match(plan, /현재 Gate: `S4-C SITUATION & HAND · KHB-S01 READ-ONLY BASELINE`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',
     'S4-H', 'S4-I', 'S4-J', 'S4-K', 'S4-UX', 'S4-L', 'S4-HQ'];
   let cursor = -1;
@@ -28,14 +27,20 @@ test('4차 정본은 Cleanroom에서 S4-A만 열고 전체 Gate를 한 문서에
   assert.match(plan, /S4-UX의 단일 상태·진행 밀도·교정·중지·재접속 계약[\s\S]*Windows x64·ARM64/u);
   assert.match(plan, /Windows는 마지막에 처음 고려하지 않는다/u);
   assert.match(plan, /기존 모듈은 정본이 아니라 교재/u);
+  assert.match(plan, /S4-B — Purpose & Done Model Reality/u);
+  assert.match(plan, /Work brief Tool·목적 schema·성공 기준 schema·Intent enum·목적 전용 Store/u);
+  assert.match(plan, /제품 변경 0[\s\S]*gpt-5\.5 반복과 Terra/u);
+  assert.match(plan, /exact source 재투영 후보는 열지 않는다/u);
+  assert.match(plan, /S4-C — Situation·Hand의 실제 차이 수리 — ACTIVE/u);
+  assert.match(plan, /첫 기준선은 KHB-S01/u);
   assert.match(agents, /`T5-FOURTH-COMPLETION\.md` — 지금 어느 Gate/u);
-  assert.match(second, /현재 후속 Gate: `T5-FOURTH-COMPLETION\.md · S4-A`/u);
+  assert.match(second, /현재 후속 Gate: `T5-FOURTH-COMPLETION\.md · S4-C`/u);
 });
 
-test('S4-A 기계 증거는 일곱 재사용 축과 미개통 S4-B를 정직하게 분리한다', async () => {
+test('S4-A 기계 증거는 일곱 재사용 축과 재현된 최초 S4-B 결함을 분리한다', async () => {
   const evidence = JSON.parse(await readFile(new URL(
     '../evidence/s4-a-android-work-intelligence-baseline-2026-08-28.json', import.meta.url), 'utf8'));
-  assert.equal(evidence.status, 'S4_A_DETERMINISTIC_BASELINE_PASS_LIVE_REPLAY_PENDING');
+  assert.equal(evidence.status, 'S4_A_COMPLETE_S4_B_COMPLETE_MODEL_OBSERVATION_S4_C_BASELINE_OPEN');
   assert.equal(evidence.baseCommit, '8aba370095d0620e49b9cd61012a1813be015539');
   assert.equal(evidence.productChanges, 0);
   assert.deepEqual(evidence.baselineSelection.map((item) => item.lane), [
@@ -46,17 +51,30 @@ test('S4-A 기계 증거는 일곱 재사용 축과 미개통 S4-B를 정직하�
     assert.ok(lane.scenarioIds.length > 0);
     for (const source of lane.sources) await readFile(new URL(`../../${source}`, import.meta.url));
   }
-  assert.equal(evidence.firstCurrentDefect.reproduced, false);
-  assert.equal(evidence.firstCurrentDefect.family, null);
-  assert.equal(evidence.s4bAuthorized, false);
+  assert.equal(evidence.firstCurrentDefect.reproduced, true);
+  assert.equal(evidence.firstCurrentDefect.family, 'purpose_result_scope');
+  assert.equal(evidence.firstCurrentDefect.promptAnalysis.promptDumps, 6);
+  assert.equal(evidence.firstCurrentDefect.separation.evidenceCorrect, true);
+  assert.equal(evidence.firstCurrentDefect.separation.surfaceOutOfScope, true);
+  assert.equal(evidence.s4bAuthorized, true);
+  assert.equal(evidence.productImplementationAuthorized, false);
+  assert.deepEqual(evidence.rejectedExperiments.map((item) => item.productAdopted), [false, false]);
+  assert.equal(evidence.unchangedProductModelComparison.gpt55.resultScopePassed, false);
+  assert.equal(evidence.unchangedProductModelComparison.terra.resultScopePassed, false);
+  assert.equal(evidence.unchangedProductModelComparison.contextPlacementCandidate, true);
+  assert.equal(evidence.unchangedProductModelComparison.contextPlacementCausalityProven, false);
+  assert.equal(evidence.ownerDecision.exactSourceReprojectionCandidateOpened, false);
+  assert.equal(evidence.ownerDecision.s4bClosedWithoutProductCode, true);
   assert.deepEqual(evidence.deterministicVerification.focusedTests, { passed: 57, failed: 0 });
   assert.deepEqual(evidence.deterministicVerification.dailyCheck, { passed: 1638, failed: 0, skipped: 1 });
   assert.equal(evidence.sourceDigests['T5-FOURTH-COMPLETION.md'], digest(await readFile(
     new URL('../../T5-FOURTH-COMPLETION.md', import.meta.url))));
-  assert.ok(evidence.gateCloseRequires.some((item) => item.includes('three different purpose domains')));
+  assert.ok(evidence.gateCloseRequires.some((item) => item.includes('exact-source placement defect')));
 });
 
-test('S4-A 동안 Cleanroom 대비 제품 source와 UI 변경은 0이다', () => {
-  execFileSync('git', ['diff', '--quiet', 't5-0.3.1-clean-baseline', '--',
-    'refoundation/src', 'refoundation/ui'], { cwd: new URL('../..', import.meta.url) });
+test('S4-A 완료 시점의 Cleanroom 대비 제품 source와 UI 변경은 0이었다', async () => {
+  const evidence = JSON.parse(await readFile(new URL(
+    '../evidence/s4-a-android-work-intelligence-baseline-2026-08-28.json', import.meta.url), 'utf8'));
+  assert.equal(evidence.productChanges, 0);
+  assert.equal(evidence.deterministicVerification.productSourceChangedFromCleanBaseline, false);
 });
