@@ -51,7 +51,7 @@ test('C1 evidence는 과거 reply와 현재 Memory·Automation 표면 보존을 
   assert.ok(evidence.notChanged.includes('Prompt'));
 });
 
-test('C2는 절대 활성화되지 않는 toolbox 조건부 action과 caller 없는 alias route를 제거한다', async () => {
+test('C2는 절대 활성화되지 않는 toolbox 조건부 action을 제거하고 compatibility alias를 보존한다', async () => {
   const [ui, server] = await Promise.all([
     readFile(new URL('../ui/index.html', import.meta.url), 'utf8'),
     readFile(new URL('../src/console-server.js', import.meta.url), 'utf8'),
@@ -59,7 +59,7 @@ test('C2는 절대 활성화되지 않는 toolbox 조건부 action과 caller 없
   for (const token of ['renderInvalidDeclared', '/connectors/truth', '/connectors/declared/remove', '/personal-tools/']) {
     assert.doesNotMatch(ui, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'));
   }
-  assert.doesNotMatch(server, /url\.pathname === '\/connectors\/truth'/u);
+  assert.match(server, /url\.pathname === '\/connectors\/truth'/u);
   assert.match(ui, /fetch\('\/toolbox'/u);
   assert.match(ui, /fetch\('\/connections\/doctor'/u);
   assert.match(server, /url\.pathname === '\/toolbox'/u);
@@ -69,12 +69,13 @@ test('C2는 절대 활성화되지 않는 toolbox 조건부 action과 caller 없
 test('C2 첫 가족은 canonical connection과 현재 toolbox를 보존한다', async () => {
   const evidence = JSON.parse(await readFile(new URL(
     '../evidence/product-cleanroom-toolbox-alias-close-2026-08-28.json', import.meta.url), 'utf8'));
-  assert.equal(evidence.status, 'C2_FIRST_FAMILY_COMPLETE');
+  assert.equal(evidence.status, 'C2_FIRST_FAMILY_REQUALIFIED');
   assert.equal(evidence.countertest.redBeforeRemoval, true);
   assert.equal(evidence.countertest.greenAfterRemoval, true);
   assert.ok(evidence.preserved.includes('GET /connections/doctor canonical connection truth'));
+  assert.ok(evidence.preserved.includes('GET /connectors/truth compatibility projection'));
   assert.ok(evidence.preserved.includes('current Skill, CLI and Capability lifecycle'));
-  assert.deepEqual(evidence.lineDelta, { uiRemoved: 43, serverRemoved: 4 });
+  assert.deepEqual(evidence.lineDelta, { uiRemoved: 43, serverRemoved: 0 });
 });
 
 test('C3 첫 가족은 4차 CA production import만 끊고 현재 Capability lifecycle을 보존한다', async () => {
