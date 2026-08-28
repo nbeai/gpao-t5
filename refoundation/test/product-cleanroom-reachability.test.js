@@ -76,3 +76,15 @@ test('C2 첫 가족은 canonical connection과 현재 toolbox를 보존한다', 
   assert.ok(evidence.preserved.includes('current Skill, CLI and Capability lifecycle'));
   assert.deepEqual(evidence.lineDelta, { uiRemoved: 43, serverRemoved: 4 });
 });
+
+test('C3 첫 가족은 4차 CA production import만 끊고 현재 Capability lifecycle을 보존한다', async () => {
+  const evidence = JSON.parse(await readFile(new URL(
+    '../evidence/product-cleanroom-ca-production-isolation-2026-08-28.json', import.meta.url), 'utf8'));
+  assert.equal(evidence.status, 'C3_FIRST_FAMILY_COMPLETE');
+  assert.deepEqual(evidence.staticGraph, {
+    sourceModules: 254, reachableBefore: 198, reachableAfter: 196, unreachableAfter: 58,
+  });
+  assert.ok(evidence.preservedCurrentProduct.includes('managed Skill and CLI preparation'));
+  assert.ok(evidence.preservedCurrentProduct.includes('Capability lifecycle, outcome evidence and comparison'));
+  assert.ok(evidence.preservedResearch.includes('CA2 local package store and coordinator qualification'));
+});

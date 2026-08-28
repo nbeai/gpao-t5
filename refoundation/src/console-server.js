@@ -110,8 +110,6 @@ import {
 } from './conversation-recovery.js';
 import { makeConnectionDoctor } from './connection-truth.js';
 import { makeConnectionTool } from './connection-tool.js';
-import { makeCapabilityRealityObserver, makeCapabilityRealityTool } from './capability-reality.js';
-import { makeCapabilityPackageAdminTool } from './capability-acquisition-coordinator.js';
 import { wrapRemoteConnectionTool } from './existing-capability-inspectors.js';
 import { CapabilityHandoffLedger } from './capability-handoff-ledger.js';
 import { makeCapabilityHandoffCoordinator } from './capability-handoff-coordinator.js';
@@ -370,8 +368,6 @@ export function makeConsoleServer({
   fileIndexSearch = null,
   fileOcrProbe = null,
   restrictFileRealityToComputerRoots = false,
-  capabilityRealityEnabled = false,
-  capabilityAcquisition = null,
   documentCli = bundledDocumentCli,
   attachmentStore,
   resourceLedger: providedResourceLedger,
@@ -1482,13 +1478,6 @@ export function makeConsoleServer({
         ocrProbe: localImageOcr,
         enforceComputerRoots: restrictFileRealityToComputerRoots,
         ...(fileIndexSearch ? { indexSearch: fileIndexSearch } : {}) }));
-      if (capabilityRealityEnabled) offeredTools.unshift(makeCapabilityRealityTool({ observer: capabilityReality }));
-      if (capabilityAcquisition) offeredTools.unshift(makeCapabilityPackageAdminTool({
-        coordinator: capabilityAcquisition,
-        authorizeEffect: (args, context) => effectPreflight({
-          toolName: 'capability_package_admin', args, ownerId: sessionId, context,
-        }),
-      }));
       const nativeComputer = makeNativeComputerTool({ revealPath: reveal, platform: computer.platform });
       if (nativeComputer) offeredTools.unshift(nativeComputer);
       if (!options.observationOnly && options.trigger !== 'automation') {
@@ -3010,9 +2999,6 @@ export function makeConsoleServer({
     })),
     ...workspaceConnectionInspectors,
   ] });
-  const capabilityReality = makeCapabilityRealityObserver({
-    connectionDoctor, catalogSnapshot: capabilityCatalogPromise,
-  });
   automationScheduler = new AutomationScheduler({
     store: automationStore,
     owner: automationOwner.owner, inspectOwner: automationOwner.inspect,
@@ -4596,10 +4582,6 @@ export function makeConsoleServer({
           canStart: current.get(entry.id)?.actions?.some((action) => ['oauth', 'credentials', 'user_action'].includes(action.kind))
             ?? entry.canStart,
         })) }); return;
-      }
-      if (req.method === 'GET' && url.pathname === '/capabilities/reality') {
-        if (!capabilityRealityEnabled) { json(res, 404, { error: '이 기능은 현재 제품 범위에 없어요.' }); return; }
-        privateJson(res, 200, await capabilityReality.inspect()); return;
       }
       const connectionIcon = req.method === 'GET' && url.pathname.match(/^\/connection-icons\/([a-z0-9-]+\.svg)$/u);
       if (connectionIcon) {

@@ -1,12 +1,9 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { validateCapabilityPackage } from '../src/capability-package-contract.js';
 import { capabilityRealityFact, makeCapabilityRealityObserver } from '../src/capability-reality.js';
-import { makeConsoleServer } from '../src/console-server.js';
 
 const digest = 'a'.repeat(64);
 function packageFixture() { return {
@@ -82,49 +79,6 @@ test('CA1 사고 가족은 서비스 목록이 아니라 범용 실패 원리로
   assert.doesNotMatch(JSON.stringify(incidents), /naver|google|coupang/iu);
 });
 
-test('제품은 능력 부족이 확인된 뒤에만 작은 Capability Reality를 열고 후보를 usable로 꾸미지 않는다', async () => {
-  const room = await mkdtemp(join(tmpdir(), 't5-ca1-product-')); let turn = 0;
-  const server = makeConsoleServer({ stateDir: join(room, 'state'), workspace: room,
-    capabilityRealityEnabled: true,
-    workspaceConnectionInspectors: [{ id: 'company-api', label: '회사 API', category: 'business',
-      inspect: async () => ({ state: 'needs_connection', reason: 'credential_missing',
-        userSafeSummary: '연결 정보가 필요해요.', capabilities: { read: false }, routes: [] }) }],
-    modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
-    modelFactory: () => ({ async respond(input) { turn += 1;
-      if (turn === 1) {
-        assert.equal(input.tools.some((tool) => tool.name === 'capability_reality'), false);
-        return { text: '', toolCalls: [{ id: 'find', name: 'tool_search', args: {
-          query: 'current missing external capability reality',
-        } }] };
-      }
-      if (turn === 2) {
-        assert.equal(input.tools.some((tool) => tool.name === 'capability_reality'), true);
-        return { text: '', toolCalls: [{ id: 'reality', name: 'capability_reality', args: {
-          action: 'inspect', id: 'company-api',
-        } }] };
-      }
-      const fact = JSON.parse(input.messages.at(-1).content).result.facts[0];
-      assert.equal(fact.reality, 'needs_auth');
-      assert.equal(fact.axes.acquisition, 'qualified');
-      return { text: '회사 API는 존재하지만 현재 연결 정보가 필요해요.', toolCalls: [] };
-    } }),
-  });
-  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
-  const base = `http://127.0.0.1:${server.address().port}`;
-  try {
-    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
-    const answer = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sessionId: session.id, text: '회사 API로 재고를 확인할 수 있어?' }) }).then((response) => response.json());
-    assert.match(answer.reply, /연결 정보가 필요/u);
-    const reality = await fetch(`${base}/capabilities/reality`).then((response) => response.json());
-    assert.equal(reality.facts.find((item) => item.id === 'company-api').reality, 'needs_auth');
-    assert.doesNotMatch(JSON.stringify(reality), /\/Users\/|credential_missing/u);
-  } finally {
-    server.closeWakeStreams(); await server.closeMessengers();
-    await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true });
-  }
-});
-
 test('CA1 evidence는 설치·custom coding·전략 Pack을 완료로 꾸미지 않는다', async () => {
   const evidence = JSON.parse(await readFile(new URL('../evidence/s3-ca1-docking-reality-completion-2026-08-27.json', import.meta.url), 'utf8'));
   const plan = await readFile(new URL('../../T5-THIRD-ACTIVATION-PREPARATION.md', import.meta.url), 'utf8');
@@ -139,7 +93,7 @@ test('3차 제품 entry는 CA 연구 source를 보존해도 acquisition과 Capab
   const entry = await readFile(new URL('../scripts/start-console.mjs', import.meta.url), 'utf8');
   const consoleSource = await readFile(new URL('../src/console-server.js', import.meta.url), 'utf8');
   assert.doesNotMatch(entry, /makeCapabilityAcquisitionCoordinator|LocalCapabilityPackageStore|capabilityAcquisition/u);
-  assert.match(consoleSource, /capabilityRealityEnabled = false/u);
-  assert.match(consoleSource, /if \(capabilityRealityEnabled\) offeredTools\.unshift\(makeCapabilityRealityTool/u);
-  assert.match(consoleSource, /if \(!capabilityRealityEnabled\) \{ json\(res, 404/u);
+  assert.doesNotMatch(consoleSource, /makeCapabilityRealityObserver|makeCapabilityRealityTool/u);
+  assert.doesNotMatch(consoleSource, /makeCapabilityPackageAdminTool|capabilityRealityEnabled|capabilityAcquisition/u);
+  assert.doesNotMatch(consoleSource, /\/capabilities\/reality/u);
 });

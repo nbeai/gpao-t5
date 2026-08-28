@@ -1,0 +1,41 @@
+{
+  "schema": "t5.product-cleanroom-ca-production-isolation.v1",
+  "recordedOn": "2026-08-28",
+  "status": "C3_FIRST_FAMILY_COMPLETE",
+  "failureOriginal": "Fourth-cycle arbitrary Capability Reality and Package Admin remained import-reachable from the current production server through dormant constructor parameters and a hidden route.",
+  "countertest": { "redBeforeRemoval": true, "greenAfterRemoval": true },
+  "removedFromProduction": [
+    "Capability Reality observer and model tool imports",
+    "Capability Package Admin tool import",
+    "capabilityRealityEnabled and capabilityAcquisition server parameters",
+    "conditional tool construction",
+    "GET /capabilities/reality route"
+  ],
+  "preservedResearch": [
+    "Capability package pure contract",
+    "Capability Reality fact and observer",
+    "CA1 incident and evidence tests",
+    "CA2 local package store and coordinator qualification"
+  ],
+  "preservedCurrentProduct": [
+    "bundled Skill runtime",
+    "managed Skill and CLI preparation",
+    "GitHub CLI broker",
+    "Connection truth and handoff",
+    "Capability lifecycle, outcome evidence and comparison",
+    "Alpha4 existing capability journey"
+  ],
+  "staticGraph": {
+    "sourceModules": 254,
+    "reachableBefore": 198,
+    "reachableAfter": 196,
+    "unreachableAfter": 58
+  },
+  "verification": {
+    "CAAndAlpha4": { "passed": 17, "failed": 0 },
+    "additionalCurrentCapabilityFocused": { "passed": 27, "failed": 0 },
+    "diffCheck": "passed"
+  },
+  "notChanged": ["Prompt", "current tool schema", "current Capability lifecycle", "fourth-cycle research source"],
+  "nextOneTask": "Audit Browser production imports separately from historical and qualification ownership before package exclusion."
+}
