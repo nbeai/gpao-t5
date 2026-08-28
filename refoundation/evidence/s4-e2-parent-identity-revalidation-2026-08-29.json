@@ -1,0 +1,20 @@
+{
+  "schema": "t5.s4e2.parent-identity-revalidation.v1",
+  "recordedOn": "2026-08-29",
+  "status": "COMPLETE",
+  "sourceBaseCommit": "bdc32931",
+  "implementation": "plan records canonical destination parent dev and ino; apply requires same non-symlink directory identity",
+  "qualification": {
+    "symlinkParentEscapeBlocked": true,
+    "outsideWrites": 0,
+    "sourcePreserved": true,
+    "focusedPassed": 15,
+    "focusedFailed": 0
+  },
+  "nonClaims": [
+    "final lstat-to-rename TOCTOU is closed",
+    "hardlink admission is fixed",
+    "Windows reparse-point behavior is physically qualified"
+  ],
+  "nextOneTask": "Open S4-E3 hardlink admission as a separate defect family."
+}

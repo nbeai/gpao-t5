@@ -23,7 +23,7 @@ async function planned(root, source, destination) {
   return { tool, plan };
 }
 
-test('S4-E baseline: plan 뒤 destination parent symlink 교체가 managed root 밖 이동으로 이어진다', async () => {
+test('S4-E2: plan 뒤 destination parent symlink 교체는 managed root 밖 이동 전에 차단된다', async () => {
   const root = await mkdtemp(join(tmpdir(), 't5-s4e-symlink-parent-'));
   try {
     const workspace = join(root, 'workspace'); const destination = join(root, 'destination');
@@ -31,10 +31,10 @@ test('S4-E baseline: plan 뒤 destination parent symlink 교체가 managed root 
     const source = join(workspace, 'target.txt'); await writeFile(source, 'exact-source');
     const { tool, plan } = await planned(root, source, destination);
     await rm(destination, { recursive: true }); await symlink(outside, destination);
-    const applied = await tool.execute(args({ action: 'apply', planId: plan.planId,
-      effect: { ...effect, targets: [source] } }));
-    assert.equal(applied.state, 'applied');
-    assert.equal(await readFile(join(outside, 'target.txt'), 'utf8'), 'exact-source');
+    await assert.rejects(tool.execute(args({ action: 'apply', planId: plan.planId,
+      effect: { ...effect, targets: [source] } })), /destination changed/u);
+    await assert.rejects(readFile(join(outside, 'target.txt'), 'utf8'), { code: 'ENOENT' });
+    assert.equal(await readFile(source, 'utf8'), 'exact-source');
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

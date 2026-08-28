@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5A_IN_PROCESS_CANDIDATES_REJECTED · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_READ_ONLY_BASELINE_COMPLETE · S4_E1_PINNED_MUTATION_CONTRACT_COMPLETE · S4_E2_PARENT_IDENTITY_REVALIDATION_ACTIVE`
-현재 Gate: `S4-E2 DESTINATION PARENT IDENTITY REVALIDATION`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5A_IN_PROCESS_CANDIDATES_REJECTED · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_READ_ONLY_BASELINE_COMPLETE · S4_E1_PINNED_MUTATION_CONTRACT_COMPLETE · S4_E2_PARENT_IDENTITY_REVALIDATION_COMPLETE · S4_E3_HARDLINK_ADMISSION_ACTIVE`
+현재 Gate: `S4-E3 HARDLINK ADMISSION`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,15 +55,14 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-E2 destination parent identity 재검사 구현이다.
+2. **현재 Gate**: S4-E3 hardlink source admission 수리다.
 3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
    없이 끝까지 관찰한다.
 4. **이미 선 실제 증거**: E baseline은 destination parent symlink escape, hardlink source admission, 선언 밖 Terminal
    write 미관측을 재현했다. source stale·collision·cross-volume 차단은 기존 양성 대조로 남았다.
 5. **현재 가장 큰 미달**: mutation이 검증된 parent entry에 pin되지 않고 requested path 문자열과 사전 stat에 의존한다.
-6. **이번 변경 방식**: plan에 canonical destination parent의 dev·ino·type을 결속하고 apply 직전에 동일 directory·
-   non-symlink identity인지 재검사해 최초 escape를 닫는다.
-7. **Non-goals**: openat 최종 pinning·hardlink·atomic publication·unexpected write·Docker·전체 workspace snapshot·S4-F.
+6. **이번 변경 방식**: source admission과 apply 재검사에서 regular file `nlink === 1`을 exact identity에 결속한다.
+7. **Non-goals**: openat 최종 pinning·atomic publication·unexpected write·Docker·전체 workspace snapshot·S4-F.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -530,6 +529,10 @@ S4-E1 actual은 여섯 계약, POSIX directory FD/openat/nofollow/renameat/fsync
 point/file identity/ReplaceFile/FlushFileBuffers 의미, 열 개 반대시험과 non-goal을 기계 fixture로 고정했다. 첫
 구현은 destination parent identity 재검사 하나이며 남은 최종 TOCTOU를 닫았다고 주장하지 않는다.
 
+S4-E2 actual은 plan에 canonical destination parent dev·ino를 결속하고 apply 직전에 directory·non-symlink·same
+identity를 재검사한다. 원래 symlink-parent escape는 외부 이동 0으로 닫혔고 source stale·collision·cross-volume·
+rollback 양성 대조를 보존했다. 검사와 rename 사이 openat 수준 TOCTOU는 아직 non-claim이다.
+
 ### S4-F — Structured Authoring
 
 내부 `workspace_patch` 후보는 `inspect → preview → write_new/apply_patch → verify → rollback`을 제공한다.
@@ -783,5 +786,5 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 ## 10. 현재 다음 한 작업
 
 S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D managed non-PTY와 D5C는 닫혔다. S4-E baseline은 세 실제 gap으로
-닫혔다. 현재 다음 한 작업은 plan의 canonical destination parent identity를 apply 직전에 재검사해 첫
-symlink-parent escape를 닫는 S4-E2다. hardlink·atomic publication·unexpected write는 함께 수정하지 않는다.
+닫혔다. S4-E1·E2도 닫혔다. 현재 다음 한 작업은 workspace source hardlink admission 하나를 닫는 S4-E3다.
+atomic publication·unexpected write는 함께 수정하지 않는다.

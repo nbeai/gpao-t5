@@ -521,6 +521,7 @@ export function makeFileRealityTool({
             from: record.locationText, to: locationText(target, home), bytes: stat.size,
             state: alreadyThere ? 'already_there' : collision ? 'collision' : crossVolume ? 'cross_volume_unsupported' : 'ready' });
           operations.push({ source: record.path, target, identity: record.identity,
+            destinationParentIdentity: { dev: destinationStat.dev, ino: destinationStat.ino },
             displayName: record.displayName, state: alreadyThere ? 'unchanged' : 'pending' });
         }
         const id = `plan-${randomUUID()}`; const readyToApply = changes.every((item) => ['ready', 'already_there'].includes(item.state));
@@ -540,6 +541,11 @@ export function makeFileRealityTool({
             operation.state = 'moved'; await savePlan(plan); continue;
           }
           const parent = await lstat(parse(operation.target).dir);
+          if (!parent.isDirectory() || parent.isSymbolicLink()
+            || parent.dev !== operation.destinationParentIdentity?.dev
+            || parent.ino !== operation.destinationParentIdentity?.ino) {
+            throw new Error('organization destination changed after preview');
+          }
           if (!identityMatches(operation.identity, source) || source.dev !== parent.dev) throw new Error('organization source changed after preview');
           if (target != null) throw new Error('organization destination collision');
         }
