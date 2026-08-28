@@ -1,0 +1,88 @@
+{
+  "schema": "t5.product-cleanroom-reachability.v1",
+  "recordedOn": "2026-08-28",
+  "status": "C0_READ_ONLY_AUDIT_COMPLETE",
+  "baselineCommit": "f74711de56f8f4e36975fc893a806cca615444a9",
+  "productEntries": [
+    "refoundation/scripts/start-console.mjs",
+    "refoundation/scripts/ensure-local-runtime.mjs",
+    "refoundation/scripts/stop-local-runtime.mjs",
+    "refoundation/scripts/activate-whole-state-restore.mjs",
+    "refoundation/scripts/connect-chatgpt.mjs",
+    "refoundation/scripts/prepare-node-pty.mjs",
+    "refoundation/scripts/restrict-kordoc-bin.mjs",
+    "refoundation/bin/t5-document.mjs"
+  ],
+  "staticModuleGraph": {
+    "sourceModules": 254,
+    "reachableFromPackagedRuntimeEntries": 198,
+    "unreachableFromPackagedRuntimeEntries": 56,
+    "limitations": [
+      "Static relative-import reachability does not prove historical data compatibility.",
+      "Platform-required and qualification-only modules may be unreachable on the current host.",
+      "Dynamic runtime construction is classified separately before removal."
+    ]
+  },
+  "classification": {
+    "ACTIVE_PRODUCT": [
+      "Conversation, Run, Work, Resource, Authority, Memory, Attachment, Automation, Telegram, Connection, Artifact, Effect, History and backup paths reached from start-console",
+      "bundled Skill, managed CLI and current Capability lifecycle",
+      "current UI settings, conversation, Work reality and Artifact surfaces"
+    ],
+    "PLATFORM_REQUIRED": [
+      "Windows launcher, product environment, DPAPI, Job Object, ConPTY, Search and activity adapters",
+      "macOS native helpers and platform adapters"
+    ],
+    "QUALIFICATION_ONLY": [
+      "attachment, document, deliverable, project, terminal and human qualification modules",
+      "performance, comparison, incident and business scenario modules"
+    ],
+    "FOURTH_CYCLE_DORMANT": [
+      "capability-package-contract.js and local-capability-package-store.js",
+      "Reflection and Principle materialization, review and qualification modules",
+      "arbitrary Capability Reality and Package Admin production imports guarded off by default"
+    ],
+    "HISTORICAL_READ_ONLY": [
+      "Previously persisted supplemental result fields may still be present in old Session projections",
+      "Historical reply and canonical transcript remain readable even when obsolete mutation actions are removed"
+    ],
+    "HISTORICAL_DEAD": [
+      "UI renderers for memorySuggestion, patternCandidate, capabilityResolution, automationSuggestion or automationProposal, surfaceRequest and deliveryFailed have no current server producer",
+      "Their mutation endpoints /memory/confirm, /memory/reject, /patterns/confirm, /patterns/rollback, /personal-tools, /automation/setup, /automation/approve, /connectors/secret and /deliveries/:id/retry have no current server route"
+    ],
+    "UNKNOWN": [
+      "Visible conversation-search UI posts to /search, but the current server has no /search route; this is a broken active surface and not a deletion candidate without an owner decision.",
+      "Toolbox invalid-declaration cleanup and personal-tool test actions are conditional UI paths whose current persisted-data reachability requires a separate audit.",
+      "Browser source is not constructed by the installed start entry but historical and qualification responsibilities must be separated before package removal."
+    ]
+  },
+  "packageObservation": {
+    "copiesWholeSourceDirectory": true,
+    "unreachableSourceCurrentlyPackaged": true,
+    "bulkRemovalAuthorized": false,
+    "requiredMethod": "file-by-file product, platform, qualification, fourth-cycle and historical classification"
+  },
+  "c1AuthorizedFamily": {
+    "name": "obsolete supplemental result actions",
+    "preserve": [
+      "historical assistant reply",
+      "canonical transcript",
+      "current Memory settings and rollback",
+      "current Automation, Connection, Telegram and Capability lifecycle"
+    ],
+    "remove": [
+      "obsolete renderer invocation",
+      "obsolete mutation buttons",
+      "obsolete endpoint strings owned only by those renderers"
+    ]
+  },
+  "productChanges": 0,
+  "notClaimed": [
+    "Every unreachable module is dead",
+    "The visible conversation-search feature should be removed",
+    "Windows source is removable",
+    "Prompt changes are authorized",
+    "large-file refactoring is authorized"
+  ],
+  "nextOneTask": "C1 countertest and removal of the obsolete supplemental result action family only."
+}
