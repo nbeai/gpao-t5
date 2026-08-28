@@ -11,8 +11,8 @@
   },
   "child": {
     "path": "refoundation/scripts/python-capsule-child.py",
-    "bytes": 2187,
-    "sha256": "8e79518b85ddd78865e7fbd5a7e545b27a3d19c11704539a3b57b725b2beda93"
+    "bytes": 2376,
+    "sha256": "05ef7a8db1530666133d76da9965be76573d753f77b249dadbdd9701f1fc2174"
   },
   "sourceTranslation": false,
   "contract": {
@@ -36,7 +36,7 @@
   "qualification": {
     "focusedPassed": 10,
     "focusedFailed": 0,
-    "dailyCheckPassed": 1758,
+    "dailyCheckPassed": 1760,
     "dailyCheckFailed": 0,
     "dailyCheckSkipped": 1
   },
@@ -49,5 +49,5 @@
     "physical Windows qualification",
     "third-party Python packages"
   ],
-  "nextOneTask": "transient_program_contract_continuation"
+  "nextOneTask": "actual_read_binding_qualification_product_changes_zero"
 }

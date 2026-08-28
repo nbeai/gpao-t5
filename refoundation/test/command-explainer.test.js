@@ -46,6 +46,13 @@ test('interpreter heredoc은 문자열 추측 없이 exact body span·digest·by
   const body = source.slice(result.heredocs[0].startIndex, result.heredocs[0].endIndex);
   assert.match(body, /import csv/u); assert.equal(result.heredocs[0].bytes, Buffer.byteLength(body));
   assert.match(result.heredocs[0].sha256, /^[a-f0-9]{64}$/u);
+  assert.equal(result.heredocs[0].literal, true);
+});
+
+test('unquoted heredoc은 shell expansion 가능성을 literal source로 꾸미지 않는다', async () => {
+  const result = await explainShellCommand('python3 - <<PY\nprint("$HOME")\nPY');
+  assert.equal(result.ok, true);
+  assert.equal(result.heredocs[0].literal, false);
 });
 
 test('pipeline이 붙은 heredoc도 source를 소유한 interpreter command에 결속한다', async () => {

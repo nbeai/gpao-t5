@@ -1,0 +1,55 @@
+{
+  "schema": "t5.s4g.g7-prebound-transient-rejection.v1",
+  "recordedOn": "2026-08-29",
+  "status": "PREBOUND_TRANSIENT_CANDIDATE_REJECTED_PRODUCT_WIRING_ZERO",
+  "sourceBaseCommit": "895d79e5",
+  "candidate": {
+    "entry": "one exact prior bind_sources manifest plus literal Python heredoc and declared local targets",
+    "ordinaryHeredocChanged": false,
+    "ordinaryExecSchemaChanged": false,
+    "fallbackAfterProtectedEntry": false,
+    "pythonTranslation": false
+  },
+  "live": {
+    "model": "gpt-5.5",
+    "fixture": { "inputFiles": 12, "inputRows": 527, "summaryRows": 4, "errorRows": 47 },
+    "purposePassed": true,
+    "sourceUnchanged": true,
+    "residualFiles": 0,
+    "residualProcesses": 0,
+    "wallMs": 93989,
+    "modelCalls": 10,
+    "toolCalls": 10,
+    "providerTokens": 208713,
+    "requestBytes": 957833,
+    "protectedContinuationRequested": 0,
+    "protectedContinuationExecuted": 0,
+    "userBenefitAttributedToCandidate": false
+  },
+  "unchangedProductDiagnosticComparison": {
+    "wallMs": 101754,
+    "modelCalls": 11,
+    "toolCalls": 11,
+    "providerTokens": 251526,
+    "requestBytes": 1130593,
+    "causalImprovementAttributedToCandidate": false
+  },
+  "secondDiagnostic": {
+    "productChanges": 0,
+    "result": "fetch_failed",
+    "usedAsProductEvidence": false
+  },
+  "rejection": {
+    "productEntry": 0,
+    "execPreflightWiring": 0,
+    "continuationTool": 0,
+    "completionRecoveryMeaning": 0,
+    "reason": "The natural model path did not satisfy the prior-binding activation premise, so the candidate produced no user benefit."
+  },
+  "verificationAfterRemoval": {
+    "dailyCheckPassed": 1760,
+    "dailyCheckFailed": 0,
+    "dailyCheckSkipped": 1
+  },
+  "nextOneTask": "actual_read_binding_qualification_product_changes_zero"
+}

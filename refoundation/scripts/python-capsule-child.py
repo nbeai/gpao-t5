@@ -1,5 +1,4 @@
 import os
-import runpy
 import sys
 
 
@@ -47,9 +46,13 @@ def audit(event, args):
 
 sys.addaudithook(audit)
 os.chdir(scratch)
-sys.argv = [source]
+sys.argv = ['-']
 try:
-    runpy.run_path(source, run_name='__main__')
+    with open(source, 'r', encoding='utf-8') as stream:
+        source_text = stream.read()
+    code = compile(source_text, '<stdin>', 'exec')
+    scope = {'__name__': '__main__', '__file__': '<stdin>', '__package__': None}
+    exec(code, scope, scope)
 except SystemExit as error:
     code = error.code if isinstance(error.code, int) else 1
     raise SystemExit(code)

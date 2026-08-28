@@ -135,6 +135,15 @@ function redirectedCommandId(node, steps) {
   ))?.id ?? null;
 }
 
+function heredocLiteral(node) {
+  let redirect = node.parent;
+  while (redirect && redirect.type !== 'heredoc_redirect') redirect = redirect.parent;
+  const start = redirect == null ? null
+    : namedChildren(redirect).find((child) => child.type === 'heredoc_start');
+  const first = String(start?.text ?? '')[0] ?? '';
+  return first === "'" || first === '"' || first === '\\';
+}
+
 /** Parse a POSIX shell command into executable steps and topology without deciding permission. */
 export async function explainShellCommand(sourceValue) {
   const source = String(sourceValue ?? '');
@@ -174,7 +183,8 @@ export async function explainShellCommand(sourceValue) {
         const body = String(node.text ?? ''); shapes.add('heredoc-body');
         heredocs.push({ commandId: commandId ?? redirectedCommandId(node, steps),
           startIndex: node.startIndex, endIndex: node.endIndex,
-          bytes: Buffer.byteLength(body, 'utf8'), sha256: createHash('sha256').update(body).digest('hex') });
+          bytes: Buffer.byteLength(body, 'utf8'), sha256: createHash('sha256').update(body).digest('hex'),
+          literal: heredocLiteral(node) });
       }
       const childContext = contextInside(node, context);
       for (const child of namedChildren(node)) walk(child, childContext, commandId);

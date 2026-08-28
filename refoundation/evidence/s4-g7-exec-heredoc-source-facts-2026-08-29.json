@@ -5,7 +5,7 @@
   "sourceBaseCommit": "6931d9b0",
   "observedFacts": {
     "parser": "tree-sitter-bash",
-    "heredocBody": ["commandId", "startIndex", "endIndex", "bytes", "sha256"],
+    "heredocBody": ["commandId", "startIndex", "endIndex", "bytes", "sha256", "literal"],
     "bodyBytesDuplicatedInNewField": false,
     "pipelineOwnerBoundStructurally": true
   },
@@ -24,7 +24,7 @@
   "productExecutionChanged": false,
   "verification": {
     "focused": { "passed": 6, "failed": 0 },
-    "dailyCheck": { "passed": 1750, "failed": 0, "skipped": 1 }
+    "dailyCheck": { "passed": 1760, "failed": 0, "skipped": 1 }
   },
   "nonGoals": [
     "command regex inference",
@@ -33,5 +33,5 @@
     "all exec wrapping",
     "durable purpose or program store"
   ],
-  "nextOneTask": "transient_program_contract_continuation"
+  "nextOneTask": "actual_read_binding_qualification_product_changes_zero"
 }

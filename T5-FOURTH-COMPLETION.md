@@ -1,6 +1,6 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_COMPLETE · S4_G3_FIXTURE_QUALIFICATION_COMPLETE · S4_G4_ACTUAL_EXECUTION_COMPLETE · S4_G5_INDEPENDENT_OBSERVER_COMPLETE · S4_G6_PUBLICATION_CLEANUP_COMPLETE · S4_G7_EXEC_PROGRAM_CONTRACT_REDESIGN_ACTIVE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_COMPLETE · S4_G3_FIXTURE_QUALIFICATION_COMPLETE · S4_G4_ACTUAL_EXECUTION_COMPLETE · S4_G5_INDEPENDENT_OBSERVER_COMPLETE · S4_G6_PUBLICATION_CLEANUP_COMPLETE · S4_G7_PREBOUND_TRANSIENT_CANDIDATE_REJECTED_REDESIGN_REQUIRED · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
 현재 Gate: `S4-G7 EPHEMERAL PROGRAM CAPSULE · PRODUCT ACTIVATION AND A/B`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
@@ -751,6 +751,24 @@ source를 사용한다. input RecordRef마다 scratch 상대경로를 결속해 
 undeclared scratch output, staged input mutation, non-macOS non-claim 7개가 통과했다. 이 자격은 backend 가능성만
 증명하며 Console·exec product wiring과 independent relation verification·F publication은 아직 0이다.
 
+첫 transient continuation 후보는 같은 Run에서 이미 `bind_sources`로 결속된 manifest가 하나이고, exact literal
+Python heredoc·declared local target·현재 Work revision·Run/cancel owner가 모두 있을 때만 원래 exec를 실행하지
+않고 보호 backend→host format observation→F transaction을 잇도록 구성했다. 일반 heredoc과 manifest 없는
+Python exec의 첫 model schema·실행은 바꾸지 않았고, 보호 경로 입장 뒤 requirement·revision·program 실패는
+일반 exec fallback 0으로 닫혔다.
+
+하지만 실제 12파일·527행 gpt-5.5 자연어 A/B에서 사용자 목적은 정확히 달성했어도 continuation request·execution은
+각 0이었다. 결과는 93.989초·10 model calls·10 tool calls·208,713 provider tokens·957,833 request bytes였고,
+기존 제품 변경 0 진단 101.754초·11 calls·251,526 tokens보다 가벼웠지만 이 이익은 continuation에 귀속되지 않는다.
+모델은 기존 exec 프로그램 경로를 사용했고 선결속 전제 후보는 사용자 이익 0이므로 제품 entry·exec preflight·
+completion recovery 배선을 모두 제거했다. 두 번째 content-free 순서 진단은 provider `fetch failed`로 끝나
+새 제품 근거로 승격하지 않는다.
+
+따라서 같은 선결속 방향에 조건을 더 붙이지 않는다. 다음 후보는 제품 변경 0 qualification에서 모델이 실제
+프로그램 실행 중 읽은 managed workspace source identity를 의미 선택 없이 관측·전후 digest로 결속할 수 있는지
+확인한다. 전체 workspace 복제·파일명 목록 provider 전송·Python open 정규식·사용자 target 직접 write는 금지한다.
+이 실제-read 결속이 source 우회·비용·privacy 반례를 통과하기 전 제품 entry를 다시 열지 않는다.
+
 완료 문장:
 
 > T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은 프로그램을 만들고, 고정된
@@ -952,6 +970,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 S4-C 미달은 S4-G·S4-I·S4-HQ에 이월했다. S4-D managed non-PTY와 D5C, S4-E1~E7, S4-F structured authoring은
 닫혔다. S4-G0~G6도 순서대로 닫혔다. S4-G7 별도 Tool 후보는 폐기됐고 제품 source delta는 0이다. 현재 다음 한
-작업은 구조적으로 관측된 exec heredoc source가 있을 때만 여는 transient program-contract continuation이다.
-일반 exec schema·실행은 그대로 두고 current Work RecordRef·declared output·requirements를 실행 전에 결속한다.
-동일 Python source·입력·출력 의미를 보존한 A/B 전에는 G 전체 완료를 주장하지 않는다.
+작업은 제품 변경 0의 actual-read binding qualification이다. 모델이 자연스럽게 작성한 동일 Python source가 실제로
+읽은 managed source만 content-free identity·전후 digest로 결속할 수 있는지, scratch 밖 write·network·child·
+provider 전송 증가 없이 먼저 측정한다. 통과 전에는 새 transient 제품 배선을 열지 않으며 G 완료를 주장하지 않는다.

@@ -92,7 +92,7 @@ export async function executePythonProgramQualification({ contract: rawContract,
   sourceReader, processRegistry, scratchRoot: rootValue, protectedReadRoots = [],
   sandboxExec = '/usr/bin/sandbox-exec', childPath = DEFAULT_CHILD, timeoutMs = 10_000,
   maxOutputBytes = 16 * 1024 * 1024, publish = publishAtomicFile,
-  platform = process.platform } = {}) {
+  platform = process.platform, signal = null } = {}) {
   const contract = assertExecProgramContract(rawContract);
   if (platform !== 'darwin') throw new Error('physical macOS Python qualification required');
   if (!INTERPRETERS.has(interpreter) || interpreter.path !== contract.interpreter) {
@@ -108,6 +108,8 @@ export async function executePythonProgramQualification({ contract: rawContract,
     throw new TypeError('managed process registry required');
   }
   ATTEMPTED.add(contract);
+  if (signal?.aborted) return { execution: null, receipt: {
+    state: 'actual_failed_no_effect', reason: 'cancelled', userTargetWrites: 0 } };
   const root = resolve(rootValue); await mkdir(root, { recursive: true, mode: 0o700 });
   const rootIdentity = await lstat(root);
   if (!rootIdentity.isDirectory() || rootIdentity.isSymbolicLink()) throw new Error('Python scratch root is unsafe');
@@ -147,6 +149,12 @@ export async function executePythonProgramQualification({ contract: rawContract,
     let current = started; let cursor = started.cursor; let stdout = started.stdout; let stderr = started.stderr;
     const deadline = Date.now() + timeoutMs;
     while (current.state === 'running') {
+      if (signal?.aborted) {
+        current = await processRegistry.stop({ processId: current.processId, ownerId: contract.workId,
+          reason: 'python_program_cancelled', cursor });
+        return { execution: null, receipt: { state: 'actual_failed_no_effect', reason: 'cancelled',
+          processBoundary: current.processBoundary ?? null, userTargetWrites: 0 } };
+      }
       if (Date.now() >= deadline) {
         current = await processRegistry.stop({ processId: current.processId, ownerId: contract.workId,
           reason: 'python_program_timeout', cursor });

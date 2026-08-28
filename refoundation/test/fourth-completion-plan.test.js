@@ -12,7 +12,7 @@ test('4차 정본은 S4-G6를 닫고 S4-G7 product activation A/B만 연다', as
     readFile(new URL('AGENTS.md', root), 'utf8'),
     readFile(new URL('T5-SECOND-COMPLETION.md', root), 'utf8'),
   ]);
-  assert.match(plan, /S4_G6_PUBLICATION_CLEANUP_COMPLETE · S4_G7_EXEC_PROGRAM_CONTRACT_REDESIGN_ACTIVE · S4_J_DEFERRED_FUTURE_RESEARCH/u);
+  assert.match(plan, /S4_G6_PUBLICATION_CLEANUP_COMPLETE · S4_G7_PREBOUND_TRANSIENT_CANDIDATE_REJECTED_REDESIGN_REQUIRED · S4_J_DEFERRED_FUTURE_RESEARCH/u);
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
   assert.match(plan, /현재 Gate: `S4-G7 EPHEMERAL PROGRAM CAPSULE · PRODUCT ACTIVATION AND A\/B`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',
@@ -90,10 +90,14 @@ test('4차 정본은 S4-G6를 닫고 S4-G7 product activation A/B만 연다', as
   assert.match(plan, /QuickJS release-sync WASM[\s\S]*host API를 0[\s\S]*D-managed one-shot helper[\s\S]*G4 actual은/u);
   assert.match(plan, /Tree-sitter command explanation에서 heredoc body의 exact span·bytes·digest/u);
   assert.match(plan, /body가 없는 일반 exec explanation에는 새 field를 만들지 않/u);
-  assert.match(plan, /transient program-contract continuation/u);
+  assert.match(plan, /첫 transient continuation 후보/u);
   assert.match(plan, /같은 source-language Terminal backend의 macOS qualification/u);
   assert.match(plan, /child fork, network, protected read, outside write/u);
   assert.match(plan, /Console·exec product wiring과 independent relation verification·F publication은 아직 0/u);
+  assert.match(plan, /continuation request·execution은[\s\S]*각 0/u);
+  assert.match(plan, /93\.989초·10 model calls·10 tool calls·208,713 provider tokens/u);
+  assert.match(plan, /제품 entry·exec preflight·[\s\S]*배선을 모두 제거/u);
+  assert.match(plan, /actual-read binding qualification/u);
   assert.match(plan, /두 행의 고유값 교환[\s\S]*요청하지 않은 개인정보 JSON/u);
   assert.match(plan, /one-to-one·one-to-many·many-to-one·ambiguous·unmatched·conflicting/u);
   assert.match(plan, /최종 Excel·ZIP을 독립 재개방/u);

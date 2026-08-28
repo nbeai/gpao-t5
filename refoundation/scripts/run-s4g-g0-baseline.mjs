@@ -11,6 +11,7 @@ import { inspectDelimitedText } from '../src/text-document-observer.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 import { resolveTerminalShellEnvironment } from '../src/terminal-shell-environment.js';
 import { makeTerminalPlatformAdapter } from '../src/terminal-platform-adapter.js';
+import { explainShellCommand } from '../src/command-explainer.js';
 
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const option = (name) => {
@@ -145,7 +146,7 @@ async function verifyOutputs(workspace, oracle) {
     outputHashes: { summary: hash(await readFile(summaryPath)), errors: hash(await readFile(errorsPath)) } };
 }
 
-function runFacts(run) {
+async function runFacts(run) {
   const modelEvents = (run?.events ?? []).filter((event) => event.type === 'model_completed');
   const receipts = (run?.events ?? []).filter((event) => event.type === 'tool_completed')
     .map((event) => event.payload?.receipt).filter(Boolean);
@@ -159,6 +160,31 @@ function runFacts(run) {
     .filter((index) => index >= 0);
   const lastProgramIndex = programIndexes.at(-1) ?? -1;
   const outputPattern = /거래처별_확정매출\.csv|오류행\.csv/u;
+  const continuationRequest = receipts.find((receipt) => receipt.requestedCall?.name === 'exec'
+    && receipt.actualCall == null && receipt.result?.state === 'program_continuation_required');
+  const continuationResults = receipts.filter((receipt) => receipt.actualCall?.name === 'program_continue'
+    && receipt.result?.state === 'published_verified_cleaned');
+  let sourceDigestMatched = false;
+  if (continuationRequest) {
+    const explanation = await explainShellCommand(continuationRequest.requestedCall.args?.command ?? '');
+    sourceDigestMatched = explanation.heredocs?.length === 1
+      && explanation.heredocs[0].sha256 === continuationRequest.result?.source?.sha256;
+  }
+  const callFacts = await Promise.all(receipts.map(async (receipt) => {
+    const requested = receipt.requestedCall ?? {}; const args = requested.args ?? {};
+    const fact = { name: requested.name ?? receipt.actualCall?.name ?? null,
+      action: args.action ?? null, outcome: receipt.outcome ?? null,
+      resultState: receipt.result?.state ?? null, actualExecuted: receipt.actualCall != null,
+      effectKind: args.effect?.kind ?? null, targetCount: args.effect?.targets?.length ?? 0 };
+    if (fact.name === 'exec') {
+      const explanation = await explainShellCommand(args.command ?? '').catch(() => null);
+      fact.heredocCount = explanation?.heredocs?.length ?? 0;
+      fact.literalHeredoc = explanation?.heredocs?.length === 1
+        ? explanation.heredocs[0].literal === true : null;
+      fact.executable = explanation?.steps?.length === 1 ? explanation.steps[0].executable : null;
+    }
+    return fact;
+  }));
   return {
     modelCalls: modelEvents.length, toolCalls: receipts.length,
     toolNames: calls.map((call) => call.name),
@@ -170,7 +196,14 @@ function runFacts(run) {
     programRelatedToolCalls: programIndexes.length,
     outputReopenedAfterProgram: lastProgramIndex >= 0 && serializedCalls
       .some((value, index) => index > lastProgramIndex && outputPattern.test(value)),
-    capsuleContractObserved: receipts.some((receipt) => receipt.result?.schema === 't5.ephemeral-program-capsule.v1'),
+    capsuleContractObserved: continuationResults.length === 1,
+    protectedContinuationRequested: Boolean(continuationRequest),
+    protectedContinuationCompleted: continuationResults.length === 1,
+    protectedSourceDigestMatched: sourceDigestMatched,
+    originalExecActualCalls: receipts.filter((receipt) => receipt.requestedCall?.name === 'exec'
+      && receipt.result?.state === 'program_continuation_required' && receipt.actualCall != null).length,
+    continuationExecutions: continuationResults.length,
+    callFacts,
     packageInstallRequested: serializedCalls.some((value) => packagePattern.test(value)),
     networkRequested: calls.some((call, index) => ['web_search', 'web_read', 'web_research', 'browser'].includes(call.name)
       || networkPattern.test(serializedCalls[index])),
@@ -235,7 +268,7 @@ async function main() {
       body: JSON.stringify({ sessionId: session.id, text: prompt }) });
     const surface = await response.json(); const wallMs = Math.round(performance.now() - began);
     const run = surface.runId ? await server.runLedger.read(surface.runId) : null;
-    const facts = runFacts(run); const verification = await verifyOutputs(workspace, oracle);
+    const facts = await runFacts(run); const verification = await verifyOutputs(workspace, oracle);
     const after = await filesUnder(workspace); const beforeInputs = before.filter((item) => item.path.startsWith('입력/'));
     const afterByPath = new Map(after.map((item) => [item.path, item]));
     const sourceUnchanged = beforeInputs.every((item) => afterByPath.get(item.path)?.sha256 === item.sha256);
@@ -258,7 +291,13 @@ async function main() {
       route: { toolNames: facts.toolNames, programAuthoredOrExecuted: facts.programAuthoredOrExecuted,
         programRelatedToolCalls: facts.programRelatedToolCalls,
         outputReopenedAfterProgramObserved: facts.outputReopenedAfterProgram,
-        capsuleContractObserved: facts.capsuleContractObserved },
+        capsuleContractObserved: facts.capsuleContractObserved,
+        protectedContinuationRequested: facts.protectedContinuationRequested,
+        protectedContinuationCompleted: facts.protectedContinuationCompleted,
+        protectedSourceDigestMatched: facts.protectedSourceDigestMatched,
+        originalExecActualCalls: facts.originalExecActualCalls,
+        continuationExecutions: facts.continuationExecutions,
+        callFacts: facts.callFacts },
       verification: { ...verification, sourceUnchanged, residualFiles: residual.length,
         programResidualFiles: programResiduals.length, residualManagedProcesses,
         runtimeErrors: runtimeErrors.length },
@@ -271,7 +310,8 @@ async function main() {
       ...(keep ? { retainedFixtureRoot: root } : {}),
     };
     result.decision = verification.passed && sourceUnchanged
-      && facts.capsuleContractObserved && facts.outputReopenedAfterProgram
+      && facts.protectedContinuationCompleted && facts.protectedSourceDigestMatched
+      && facts.originalExecActualCalls === 0 && facts.continuationExecutions === 1
       && residual.length === 0 && residualManagedProcesses === 0
       ? 'PRODUCT_CHANGE_ZERO_CANDIDATE' : 'G1_EVIDENCE_CANDIDATE_REQUIRES_OWNER_REVIEW';
     const serialized = `${JSON.stringify(result, null, 2)}\n`;
