@@ -1,19 +1,20 @@
 {
   "schema": "t5.s4f1.inspect-closed-preview.v1",
   "recordedOn": "2026-08-29",
-  "status": "COMPLETE_INTERNAL_PRIMITIVE",
+  "status": "SUPERSEDED_BY_CANONICAL_PARENT_CORRECTION",
   "sourceBaseCommit": "c6ee66cd",
   "qualification": {
     "allTargetKindsClosedBeforeWrite": true,
     "exactPreimages": true,
     "candidateContentProjected": false,
     "previewTargetWrites": 0,
-    "rootEscapeRejected": true,
+    "lexicalRootEscapeRejected": true,
+    "nestedSymlinkParentRejected": false,
     "duplicateTargetRejected": true,
     "hardlinkSourceRejected": true,
     "focusedPassed": 5,
     "focusedFailed": 0
   },
   "nonClaims": ["candidate scratch validation complete", "publication implemented", "public workspace_patch exists"],
-  "nextOneTask": "Open S4-F2 scratch prepare and validate."
+  "nextOneTask": "See s4-f1-canonical-parent-correction-2026-08-29.json before relying on root containment."
 }

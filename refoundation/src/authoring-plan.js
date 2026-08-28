@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, realpath } from 'node:fs/promises';
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { observePublicationPreimage } from './atomic-file-publication.js';
 
 const TYPES = new Set(['create', 'modify', 'delete', 'move']);
@@ -10,9 +10,14 @@ const inside = (candidate, root) => { const value = relative(root, candidate);
   return value === '' || (value !== '..' && !value.startsWith(`..${sep}`) && !isAbsolute(value)); };
 
 async function targetPath(workspace, value) {
-  const path = resolve(workspace, String(value ?? ''));
-  if (!inside(path, workspace) || path === workspace) throw new Error('authoring target escaped workspace');
-  return path;
+  const lexical = resolve(workspace, String(value ?? ''));
+  if (!inside(lexical, workspace) || lexical === workspace) throw new Error('authoring target escaped workspace');
+  let parent; try { parent = await realpath(dirname(lexical)); }
+  catch { throw new Error('authoring parent is unavailable'); }
+  if (!inside(parent, workspace)) throw new Error('authoring parent escaped workspace');
+  const stat = await lstat(parent);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('authoring parent is unavailable');
+  return { path: join(parent, basename(lexical)), parentIdentity: { dev: stat.dev, ino: stat.ino } };
 }
 
 export async function buildAuthoringPreview({ workspace: rootValue, operations, makeId = randomUUID } = {}) {
@@ -23,8 +28,9 @@ export async function buildAuthoringPreview({ workspace: rootValue, operations, 
     if (!input || !TYPES.has(input.type) || Object.keys(input).some((key) => (
       !['type', 'path', 'to', 'content'].includes(key)
     ))) throw new TypeError('authoring operation is invalid');
-    const path = await targetPath(workspace, input.path);
-    const to = input.type === 'move' ? await targetPath(workspace, input.to) : null;
+    const sourceTarget = await targetPath(workspace, input.path); const path = sourceTarget.path;
+    const destinationTarget = input.type === 'move' ? await targetPath(workspace, input.to) : null;
+    const to = destinationTarget?.path ?? null;
     for (const candidate of [path, to].filter(Boolean)) {
       if (paths.has(candidate)) throw new Error('authoring target is duplicated'); paths.add(candidate);
     }
@@ -37,11 +43,9 @@ export async function buildAuthoringPreview({ workspace: rootValue, operations, 
     const bytes = contentRequired ? (Buffer.isBuffer(input.content)
       ? Buffer.from(input.content) : Buffer.from(String(input.content))) : null;
     prepared.push({ type: input.type, path, to, preimage, bytes,
+      parentIdentity: sourceTarget.parentIdentity,
+      toParentIdentity: destinationTarget?.parentIdentity ?? null,
       candidate: bytes ? { bytes: bytes.length, sha256: sha256(bytes) } : null });
-  }
-  for (const operation of prepared) for (const parent of [operation.path, operation.to].filter(Boolean)) {
-    const stat = await lstat(resolve(parent, '..')).catch(() => null);
-    if (!stat?.isDirectory() || stat.isSymbolicLink()) throw new Error('authoring parent is unavailable');
   }
   const plan = { schema: 't5.authoring-plan.v1', planId: makeId(), workspace,
     operations: prepared, state: 'previewed', createdAt: new Date().toISOString() };

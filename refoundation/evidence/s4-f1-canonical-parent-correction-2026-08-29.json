@@ -1,0 +1,25 @@
+{
+  "schema": "t5.s4f1.canonical-parent-correction.v1",
+  "recordedOn": "2026-08-29",
+  "status": "COMPLETE_F1_F2_REQUALIFIED",
+  "sourceBaseCommit": "ed16b8c3",
+  "supersedes": "refoundation/evidence/s4-f1-inspect-closed-preview-2026-08-29.json",
+  "reproduced": {
+    "nestedSymlinkParentAccepted": true,
+    "outsidePreimageInspected": true,
+    "outsideWrite": false
+  },
+  "implementation": {
+    "canonicalParentRealpath": true,
+    "canonicalWorkspaceContainment": true,
+    "parentDevInoBoundToPlan": true,
+    "outsidePreimageReadBeforeReject": false
+  },
+  "qualification": {
+    "nestedSymlinkParentRejected": true,
+    "outsideVictimUnchanged": true,
+    "f1F2FocusedPassed": 8,
+    "f1F2FocusedFailed": 0
+  },
+  "nextOneTask": "Resume S4-F3 sorted lock and revalidation."
+}

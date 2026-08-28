@@ -12,7 +12,7 @@ test('4차 정본은 S4-F2 prepare를 닫고 F3 lock revalidate만 연다', asyn
     readFile(new URL('AGENTS.md', root), 'utf8'),
     readFile(new URL('T5-SECOND-COMPLETION.md', root), 'utf8'),
   ]);
-  assert.match(plan, /S4_F1_INSPECT_CLOSED_PREVIEW_COMPLETE · S4_F2_SCRATCH_PREPARE_COMPLETE · S4_F3_LOCK_REVALIDATE_ACTIVE/u);
+  assert.match(plan, /S4_F1_CANONICAL_PARENT_CORRECTED · S4_F2_SCRATCH_PREPARE_REQUALIFIED · S4_F3_LOCK_REVALIDATE_ACTIVE/u);
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
   assert.match(plan, /현재 Gate: `S4-F3 SORTED LOCK AND REVALIDATE`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',
