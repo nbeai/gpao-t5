@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_READ_ONLY_BASELINE_COMPLETE_THREE_P1_REPRODUCED · PRODUCT_CODE_LOCKED`
-현재 Gate: `S4-D IMPLEMENTATION CLOSED · BASELINE OWNER REVIEW`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_BASELINE_COMPLETE · S4_D2_STOP_COMPLETION_SETTLEMENT_ACTIVE`
+현재 Gate: `S4-D2 STOP/COMPLETION SETTLEMENT · MINIMUM RED FIRST`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,18 +55,17 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-D1 read-only 기준선이 끝났고 구현 개통 전 오너 검토 상태다. 제품 코드는 잠겨 있다.
+2. **현재 Gate**: S4-D2 Stop/Completion Settlement의 최소 반대시험과 구현이다.
 3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
    없이 끝까지 관찰한다.
-4. **이미 선 실제 증거**: 1.30M stdout + 1.20M stderr에서 앞 402,872자가 resident spool에서 영구 유실됐고
-   exact recall handle이 없었다. 두 실행의 관측 RSS 증가는 601MB·582MB였다. abrupt Runtime crash 뒤 child는
-   살아 effect를 냈지만 successor registry는 old handle을 찾지 못했다. stop이 terminal을 반환한 뒤 wake도 재claim됐다.
-5. **현재 가장 큰 미달**: managed live output exact recall loss, abrupt crash orphan·handle loss, stop/completion
-   duplicate wake 세 P1이 재현됐다. 물리 Windows와 abrupt crash 뒤 exact WorkStore 상태는 미측정이다.
-6. **이번 변경 방식**: read-only 실행·기존 비교 증거·양성 대조 24개로 세 가족을 분리했고 제품 변경은 0이다.
-   구현은 gap 가족별 최소 RED와 ownership 설계가 선 뒤 별도로 연다.
-7. **Non-goals**: 즉시 disk spool 구현, 모든 crash process 재결속 주장, 세 가족 한 패치, 고정 poll·출력 상한,
-   S4-C 추가 패치, 다음 Gate, 실제 HOME·계정·외부 효과 시험.
+4. **이미 선 실제 증거**: ordinary completion wake는 exact once지만 이미 completed인 process를 `stop`으로 먼저
+   관측하면 terminal 결과를 반환한 뒤 `claimTerminalWake`가 같은 결과를 다시 claim했다.
+5. **현재 가장 큰 미달**: stop·poll·wake 중 먼저 terminal을 관측한 경로와 background wake settlement가 exact
+   once로 결속되지 않았다.
+6. **이번 변경 방식**: terminal event promise를 사용한 두 순서의 RED를 먼저 만들고, 기존 record의
+   `terminalObserved`·`wakeClaimed`만으로 terminal early-return settlement를 닫는다.
+7. **Non-goals**: 새 Store·sleep 기반 경합 제어·process state 재정의, live output spool, crash rebind, S4-E,
+   실제 HOME·계정·외부 효과 시험.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -308,7 +307,7 @@ S4-C는 제품 성공으로 완료한 것이 아니다. `USER_COMPLETION_NOT_UNI
 
 > T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한 손으로 필요한 원문만 본다.
 
-### S4-D — Terminal 실행 중 output·process 미달 — D1 BASELINE COMPLETE, IMPLEMENTATION CLOSED
+### S4-D — Terminal 실행 중 output·process 미달 — D2 STOP/COMPLETION SETTLEMENT ACTIVE
 
 S4-D0은 disk spool 전에 KHB-S01에서 발견된 pipeline 실행 사실을 닫았다. zsh `pipestatus`와 bash
 `PIPESTATUS`로 마지막 unconditional foreground pipeline의 전체 exit와 단계 exit를 분리한다. Runtime은 이
@@ -348,6 +347,21 @@ S4-D1 actual 결과:
 
 현재 재사용할 비교 원리는 Codex의 serialized process interaction·omission facts, OpenClaw의 scoped registry·
 unread delta, OpenHands의 paged shell output이다. 이것만으로 disk spool이나 crash rebind 구현을 자동 승인하지 않는다.
+
+구현 순서는 오너 결정으로 다음처럼 고정한다.
+
+1. `S4-D2 Stop/Completion Settlement`
+2. `S4-D3 Live Output Spine`
+3. `S4-D4 Crash Process Ownership` — read-only identity design first
+
+S4-D2 완료 문장:
+
+> 같은 process terminal 결과는 stop·poll·completion wake 중 어떤 경로로 먼저 관측돼도 사용자 Work에 정확히
+> 한 번만 반영된다.
+
+S4-D2는 terminal 결과를 반환하는 경로와 wake 소비를 기존 record settlement에 결속한다. stop이 이미 terminal을
+관측하면 `terminalObserved`를 원자적으로 남기고, wake가 먼저 claim된 순서에서는 이후 stop이 background wake를
+다시 만들지 않는다. 새 Store와 고정 sleep은 없다.
 
 - 실행 중 stdout·stderr append-only disk spool
 - 작은 memory head·tail·cursor와 bounded range read
@@ -628,6 +642,5 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-C는 `CLOSED_WITH_MODEL_PROVIDER_OBSERVATION`이며 미달은 S4-K와 S4-HQ에 이월했다. S4-D1 read-only 기준선은
-세 P1과 현재 양성 대조를 분리해 완료됐다. 현재 다음 작업은 오너의 구현 개통 판정이다. 개통 시 live-output
-loss와 duplicate wake의 최소 RED부터 시작하고 restart rebind는 별도 process identity 설계로 남긴다.
+S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D1은 세 P1을 분리해 완료됐고 오너 결정으로 S4-D 구현이 열렸다.
+현재 다음 한 작업은 S4-D2의 stop-first·wake-first 최소 RED와 기존 settlement를 이용한 가장 작은 수리다.
