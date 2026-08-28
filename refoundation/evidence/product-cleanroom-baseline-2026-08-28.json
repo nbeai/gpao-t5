@@ -1,0 +1,49 @@
+{
+  "schema": "t5.product-cleanroom-baseline.v1",
+  "recordedOn": "2026-08-28",
+  "status": "PRE_CLEAN_BASELINE_VERIFIED",
+  "productVersion": "0.3.1",
+  "sourceCommit": "f74711de56f8f4e36975fc893a806cca615444a9",
+  "annotatedTag": "t5-0.3.1-pre-clean-baseline",
+  "productGoal": "Preserve every current user behavior and historical-read compatibility while removing only unreachable product residue and separating fourth-cycle source.",
+  "completionSentence": "0.3.1 user behavior and historical-read compatibility remain unchanged; active product, platform-required, qualification-only, fourth-cycle dormant, historical-read-only, historical-dead, and unknown responsibilities are separated by evidence.",
+  "sourceScope": {
+    "productInputsClean": true,
+    "legacyImports": 0,
+    "originalWorktreeUserOwnedDirtyPathsExcluded": 3,
+    "cleanroomWorktree": "/Users/jyp/Developer/t5-p-op-cleanroom",
+    "branch": "codex/t5-cleanroom"
+  },
+  "verification": {
+    "daily": { "passed": 1623, "failed": 0, "skippedPhysicalWindows": 1 },
+    "productIntegration": { "passed": 192, "failed": 0, "skippedPhysicalWindows": 2 },
+    "mutation": { "killed": 2, "survived": 0 },
+    "packagePayload": "passed with explicit 0.3.1 package path",
+    "installedRuntimeHealth": "passed"
+  },
+  "currentShape": {
+    "consoleServerLines": 4999,
+    "uiIndexLines": 4694,
+    "consoleInstructionBytes": 30276,
+    "sourceModules": 255,
+    "testModules": 428
+  },
+  "classification": [
+    "ACTIVE_PRODUCT",
+    "PLATFORM_REQUIRED",
+    "QUALIFICATION_ONLY",
+    "FOURTH_CYCLE_DORMANT",
+    "HISTORICAL_READ_ONLY",
+    "HISTORICAL_DEAD",
+    "UNKNOWN"
+  ],
+  "nonGoals": [
+    "Prompt changes",
+    "UI redesign",
+    "new Store or canonical state",
+    "new product feature",
+    "large-file refactor",
+    "fourth-cycle activation"
+  ],
+  "nextOneTask": "C0 read-only production, platform, UI, model-tool, channel, restore, update, and package reachability audit."
+}

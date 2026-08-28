@@ -1,6 +1,6 @@
 # T5 3차 고도화 — 활성화 전 준비 정본
 
-상태: `THIRD_COMPLETION_PREINSTALL_QUALIFIED · MACOS_SOURCE_AND_RELEASE_PREFLIGHT_PASS · WINDOWS_CODE_READY_EXTERNAL_QUALIFICATION_PENDING · S3M_ADAPTIVE_DEFERRED · S3CA_DEFERRED_TO_FOURTH`
+상태: `THIRD_COMPLETION_0_3_1_PRODUCT_BASELINE · PRODUCT_CLEANROOM_ACTIVE · WINDOWS_CODE_READY_EXTERNAL_QUALIFICATION_PENDING · S3M_ADAPTIVE_DEFERRED · S3CA_DEFERRED_TO_FOURTH`
 
 3차 source와 3차α source 개발은 종료됐다. 오너는 2026-08-28 S3-CA 전체를 4차로 이관했다.
 3차에는 α4의 기존 인증 CLI·로컬 동기화 파일·공식 원격 연결·OS 능력 조합만 보존하고, 새 외부 확장을
@@ -8,8 +8,12 @@
 개통하지 않는다. CA1·CA2 연구 source와 반대시험은 4차 시작점으로 휴면 보존하며 3차 완료 근거로 합산하지 않는다.
 macOS·Windows 물리 제품 자격은 여전히 별도 후속 Gate로 남는다.
 
-현재 공식 Release Gate: `SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN`
-3차 설치 후보: `0.3.0 · S3-CA/M6 비활성 · macOS signed/notarized package 자격 대기 · Windows physical qualification 대기`
+현재 Gate: `0.3.1 INSTALLED PRODUCT BASELINE · PRODUCT CLEANROOM B0/C0`
+3차 제품 기준: `0.3.1 · source f74711de · S3-CA/M6 비활성 · Windows physical qualification 대기`
+
+Product Cleanroom의 pre-clean 기준은 annotated tag `t5-0.3.1-pre-clean-baseline`이다. Cleanroom은 Prompt,
+제품 의미, UI 디자인, 새 기능을 바꾸지 않는다. C0에서 production·platform·qualification·4차·historical
+reachability를 먼저 분류하고, 실제 caller와 과거 기록 호환성이 모두 없는 가족만 이후 단계에서 제거한다.
 
 2026-08-28 설치 전 재자격은 `refoundation/evidence/third-completion-preinstall-qualification-2026-08-28.json`에
 보존한다. 실제 한국 사업자 인간 시나리오 16개는 최초 실패를 숨기지 않고 결함 가족을 수리한 뒤 모두

@@ -93,7 +93,7 @@ test('S3-A 준비는 공식 Gate·제품 진실·observer 비개입을 유지한
     readFile(new URL('docs/03-verification/T5-S3-A-PERFORMANCE-TRUTH-WORK-ORDER-2026-08-26-ko.md', root), 'utf8'),
   ]);
   const historicalGate = 'SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING EXTERNAL BLOCKER';
-  const currentGate = 'SECOND COMPLETION COMPLETE · 0.2.1 UNSIGNED PACKAGE QUALIFIED · SIGNING/NOTARY READY · CURRENT SOURCE RELEASE NOT RUN';
+  const currentGate = '0.3.1 INSTALLED PRODUCT BASELINE · PRODUCT CLEANROOM B0/C0';
   assert.equal(value.officialReleaseGate, historicalGate);
   assert.ok(workOrder.includes(historicalGate));
   assert.ok(current.includes(currentGate));
