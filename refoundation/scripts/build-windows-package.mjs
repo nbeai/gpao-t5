@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 
 import { makeWindowsIconIco, windowsPeArchitecture, WINDOWS_INSTALL_SCRIPT, WINDOWS_UNINSTALL_SCRIPT } from './windows-package-contract.mjs';
+import { assertFourthCycleDormantSourceExcluded, removeFourthCycleDormantSource } from './product-source-boundary.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..', '..');
@@ -27,6 +28,7 @@ async function copyRuntimeApp(target) {
   const refoundation=join(target,'refoundation');await mkdir(join(refoundation,'scripts'),{recursive:true});
   for(const file of ['package.json','package-lock.json'])await copyFile(join(repo,'refoundation',file),join(refoundation,file));
   for(const directory of ['src','bin','skills','skill-packages','capabilities','config','ui'])await cp(join(repo,'refoundation',directory),join(refoundation,directory),{recursive:true,dereference:false});
+  await removeFourthCycleDormantSource(refoundation);await assertFourthCycleDormantSourceExcluded(refoundation);
   for(const script of ['start-console.mjs','ensure-local-runtime.mjs','stop-local-runtime.mjs','activate-whole-state-restore.mjs','connect-chatgpt.mjs','prepare-node-pty.mjs','restrict-kordoc-bin.mjs'])await copyFile(join(repo,'refoundation','scripts',script),join(refoundation,'scripts',script));
   run('npm.cmd',['ci','--omit=dev'],{cwd:refoundation,stdio:'inherit'});
   for(const item of ['@huggingface/transformers','onnxruntime-node','onnxruntime-common','adm-zip'])await rm(join(refoundation,'node_modules',item),{recursive:true,force:true});

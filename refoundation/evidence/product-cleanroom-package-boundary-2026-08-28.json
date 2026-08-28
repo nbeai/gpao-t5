@@ -1,0 +1,45 @@
+{
+  "schema": "t5.product-cleanroom-package-boundary.v1",
+  "recordedOn": "2026-08-28",
+  "status": "C4_COMPLETE",
+  "failureOriginal": "Both platform builders copied the complete source directory, so fourth-cycle CA, Reflection and Principle research entered the current product payload despite having no packaged runtime entry reachability.",
+  "countertest": { "redBeforeBoundary": true, "greenAfterBoundary": true },
+  "boundary": {
+    "sharedBy": ["macOS builder", "Windows builder", "macOS package verifier"],
+    "excludedFiles": 18,
+    "sourceDeletedFromGit": false,
+    "currentProductCapabilityRemoved": false,
+    "platformRequiredSourceRemoved": false
+  },
+  "actualMacOSDevelopmentPayload": {
+    "packageMode": "unsigned qualification only",
+    "files": 4335,
+    "installedBytes": 320834721,
+    "payloadGatePassed": true,
+    "explicitPackageVerificationPassed": true,
+    "bundledNode": "v24.14.0 arm64"
+  },
+  "preCleanPayloadReference": {
+    "files": 4353,
+    "installedBytes": 322329236
+  },
+  "delta": {
+    "files": -18,
+    "installedBytes": -1494515
+  },
+  "preserved": [
+    "managed Skill and CLI runtime",
+    "GitHub CLI broker",
+    "Connection and Capability lifecycle",
+    "macOS and Windows platform source",
+    "native helpers, document parser, PTY and decoders",
+    "fourth-cycle research in the Git source branch"
+  ],
+  "verification": {
+    "boundaryAndPlatformFocused": { "passed": 9, "failed": 0 },
+    "packageVerifierFocused": { "passed": 4, "failed": 0 },
+    "actualPayload": "passed"
+  },
+  "notChanged": ["Prompt", "model tool surface", "canonical state", "UI design"],
+  "nextOneTask": "C5 final full regression and clean baseline evidence; keep visible conversation-search UNKNOWN out of deletion scope."
+}

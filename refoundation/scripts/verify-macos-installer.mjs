@@ -5,6 +5,8 @@ import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import { assertFourthCycleDormantSourceExcluded } from './product-source-boundary.mjs';
+
 const pkg = resolve(process.argv[2] ?? '');
 if (!pkg) throw new Error('pkg path is required');
 await stat(pkg);
@@ -93,6 +95,7 @@ try {
 
   const node = join(runtime, 'node');
   const refoundation = join(appRoot, 'refoundation');
+  await assertFourthCycleDormantSourceExcluded(refoundation);
   const environment = {
     ...process.env,
     PATH: `${runtime}:${join(refoundation, 'node_modules', '.bin')}:/usr/bin:/bin:/usr/sbin:/sbin`,
