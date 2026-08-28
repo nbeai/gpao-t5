@@ -1,0 +1,27 @@
+{
+  "schema": "t5.product-cleanroom-toolbox-alias-close.v1",
+  "recordedOn": "2026-08-28",
+  "status": "C2_FIRST_FAMILY_COMPLETE",
+  "failureOriginal": "The toolbox contained conditional actions that the server could never advertise, while a legacy connector alias always returned an empty invalid-declaration set and had no other caller.",
+  "countertest": { "redBeforeRemoval": true, "greenAfterRemoval": true },
+  "removed": [
+    "renderInvalidDeclared and its impossible invalidDeclared branch",
+    "obsolete /connectors/declared/remove caller",
+    "obsolete conditional personal-tool test button",
+    "caller-free GET /connectors/truth alias"
+  ],
+  "preserved": [
+    "GET /toolbox current terminal and optional browser projection",
+    "GET /connections/doctor canonical connection truth",
+    "Telegram owner controls",
+    "current Skill, CLI and Capability lifecycle",
+    "current Connection settings"
+  ],
+  "verification": {
+    "focused": { "passed": 17, "failed": 0 },
+    "diffCheck": "passed"
+  },
+  "lineDelta": { "uiRemoved": 43, "serverRemoved": 4 },
+  "notChanged": ["Prompt", "canonical state", "tool schema", "UI design"],
+  "nextOneTask": "Audit remaining visible broken conversation search separately; do not delete it as dead code without an owner product decision."
+}

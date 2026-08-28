@@ -4896,10 +4896,6 @@ export function makeConsoleServer({
       if (req.method === 'GET' && url.pathname === '/connections/doctor') {
         json(res, 200, await connectionDoctor.inspect()); return;
       }
-      if (req.method === 'GET' && url.pathname === '/connectors/truth') {
-        const report = await connectionDoctor.inspect();
-        json(res, 200, { ...report, connectors: report.connections, invalidDeclared: [] }); return;
-      }
       if (req.method === 'POST' && url.pathname === '/turn/metrics/visible') {
         const input = await body(req);
         json(res, 200, { ok: await recordSurfaceMetric(input) }); return;

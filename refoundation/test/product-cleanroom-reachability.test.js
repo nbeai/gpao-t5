@@ -50,3 +50,29 @@ test('C1 evidence는 과거 reply와 현재 Memory·Automation 표면 보존을 
   assert.ok(evidence.preserved.includes('current Automation settings actions'));
   assert.ok(evidence.notChanged.includes('Prompt'));
 });
+
+test('C2는 절대 활성화되지 않는 toolbox 조건부 action과 caller 없는 alias route를 제거한다', async () => {
+  const [ui, server] = await Promise.all([
+    readFile(new URL('../ui/index.html', import.meta.url), 'utf8'),
+    readFile(new URL('../src/console-server.js', import.meta.url), 'utf8'),
+  ]);
+  for (const token of ['renderInvalidDeclared', '/connectors/truth', '/connectors/declared/remove', '/personal-tools/']) {
+    assert.doesNotMatch(ui, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'));
+  }
+  assert.doesNotMatch(server, /url\.pathname === '\/connectors\/truth'/u);
+  assert.match(ui, /fetch\('\/toolbox'/u);
+  assert.match(ui, /fetch\('\/connections\/doctor'/u);
+  assert.match(server, /url\.pathname === '\/toolbox'/u);
+  assert.match(server, /url\.pathname === '\/connections\/doctor'/u);
+});
+
+test('C2 첫 가족은 canonical connection과 현재 toolbox를 보존한다', async () => {
+  const evidence = JSON.parse(await readFile(new URL(
+    '../evidence/product-cleanroom-toolbox-alias-close-2026-08-28.json', import.meta.url), 'utf8'));
+  assert.equal(evidence.status, 'C2_FIRST_FAMILY_COMPLETE');
+  assert.equal(evidence.countertest.redBeforeRemoval, true);
+  assert.equal(evidence.countertest.greenAfterRemoval, true);
+  assert.ok(evidence.preserved.includes('GET /connections/doctor canonical connection truth'));
+  assert.ok(evidence.preserved.includes('current Skill, CLI and Capability lifecycle'));
+  assert.deepEqual(evidence.lineDelta, { uiRemoved: 43, serverRemoved: 4 });
+});
