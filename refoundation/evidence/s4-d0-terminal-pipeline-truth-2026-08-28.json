@@ -1,7 +1,7 @@
 {
   "schema": "t5.s4d0.terminal-pipeline-truth.v1",
   "recordedOn": "2026-08-28",
-  "status": "PRODUCT_INVARIANT_ADOPTED_WITH_COST_OBSERVATION",
+  "status": "PRODUCT_FACT_ONLY_INVARIANT_CORRECTED",
   "sourceBaseCommit": "a8f12514",
   "trigger": {
     "scenario": "KHB-S01",
@@ -18,12 +18,9 @@
     "shells": ["zsh", "bash"],
     "factsRecorded": [
       "stage exit codes",
-      "overall exit code",
-      "nonfinal hidden-failure indices",
-      "nonfinal exit-141 indices"
+      "overall exit code"
     ],
-    "outcomeRule": "a nonfinal code other than 0 or 141 with overall code 0 becomes pipeline_stage_failed",
-    "exit141Rule": "record the exact code without claiming the process was certainly terminated by SIGPIPE",
+    "outcomeRule": "preserve the shell overall result; the model interprets command-specific stage exit meaning",
     "unsupportedScope": [
       "managed background processes",
       "conditional and/or pipelines",
@@ -35,11 +32,47 @@
     "newStore": false,
     "commandPolicyList": false
   },
+  "supersededSemanticPromotion": {
+    "introducedAtCommit": "1607c69e",
+    "removed": true,
+    "removedFields": [
+      "hiddenFailureIndices",
+      "upstreamExit141Indices",
+      "originalExitCode",
+      "pipeline_stage_failed",
+      "nonfinal_pipeline_stage_failed"
+    ],
+    "counterexamples": [
+      {
+        "command": "grep no-match /dev/null | wc -l",
+        "stageExitCodes": [1, 0],
+        "overallExitCode": 0,
+        "stdout": "0",
+        "meaning": "grep exit 1 is a normal no-match result for this command"
+      },
+      {
+        "command": "diff a b | sed -n '1,12p'",
+        "stageExitCodes": [1, 0],
+        "overallExitCode": 0,
+        "stdout": "a normal textual difference",
+        "meaning": "diff exit 1 means files differ rather than execution failure"
+      }
+    ],
+    "redBeforeRedesign": {
+      "tests": 2,
+      "actualState": "pipeline_stage_failed",
+      "expectedState": "completed"
+    },
+    "designDecision": "do not grow a command or exit-code exception list"
+  },
   "deterministicQualification": {
     "status": "passed",
-    "tests": 32,
+    "tests": 34,
     "covered": [
+      "grep no-match | wc normal result",
+      "diff differences | sed normal result",
       "false | true",
+      "true | false overall failure preservation",
       "yes | head",
       "all-zero pipeline",
       "stderr preservation and sideband removal",
@@ -59,11 +92,11 @@
     "externalWrites": 0,
     "purposeAchieved": true,
     "resultCorrect": true,
-    "hiddenPipelineFailure": {
+    "historicalSemanticPromotionRun": {
       "commandFamily": "find -printf | sort | head",
       "stageExitCodes": [1, 0, 0],
       "overallExitCode": 0,
-      "receiptOutcome": "failed",
+      "receiptOutcomeAt1607c69e": "failed",
       "modelRecovered": true
     },
     "wallMs": 74854,
@@ -117,11 +150,12 @@
   },
   "verdict": {
     "truthBoundary": "passed",
-    "qualityRegression": false,
+    "semanticPromotion": "reverted",
+    "qualityRegression": "grep and diff regressions closed by removing Runtime meaning selection",
     "safetyRegression": false,
-    "economicObservation": "the D0-only live recovery was slower and more expensive; the invariant adds no model call itself but exposes failures the model may recover from",
-    "s4dStatus": "D0 complete; disk spool, restart handles, and broader process truth remain unopened",
-    "s4cStatus": "reopen structural assessment because shallow successful search can still produce false absence"
+    "economicObservation": "stage observation adds no model call; the historical promotion run cost is not evidence for the corrected fact-only contract",
+    "s4dStatus": "D0 fact-only observation complete; disk spool, restart handles, and broader process truth remain unopened",
+    "s4cStatus": "returned to S4-C and paused by owner; no next Gate or feature work"
   },
-  "nextOneTask": "Reassess S4-C from the exact shallow-observation failure without adding workspace metadata projection, a new Tool, Store, Intent router, business schema, or global Prompt."
+  "nextOneTask": "none until owner resumes S4-C"
 }

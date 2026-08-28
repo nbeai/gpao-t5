@@ -1,7 +1,7 @@
 {
   "schema": "t5.s4c.situation-hand-baseline.v1",
   "recordedOn": "2026-08-28",
-  "status": "CROSS_MODEL_FAILURE_REPRODUCED_D0_ADOPTED_S4C_UNRESOLVED",
+  "status": "PAUSED_AFTER_CROSS_MODEL_CROSS_DOMAIN_VARIANCE_D0_CORRECTED",
   "sourceCommit": "35769fb0",
   "scenario": "KHB-S01",
   "productChanges": 0,
@@ -110,8 +110,54 @@
   "terminalD0": {
     "productAdopted": true,
     "evidence": "refoundation/evidence/s4-d0-terminal-pipeline-truth-2026-08-28.json",
-    "repaired": "nonfinal POSIX pipeline failure hidden by an overall exit code of zero",
+    "repaired": "POSIX pipeline stage and overall exit facts are supplied without Runtime command-meaning selection",
     "notRepaired": "a successful shallow search being treated by the model as proof that descendants do not exist"
+  },
+  "structuralReassessmentBeforeOwnerPause": {
+    "productChanges": 0,
+    "terraPromptFact": {
+      "userRequestPresent": true,
+      "shallowSearchWarningPresent": true,
+      "receiptIncludedMaxDepth2": true,
+      "execAvailableOnFinalCall": true,
+      "modelStillClaimedWorkspaceAbsence": true
+    },
+    "gpt55ContractComparison": {
+      "scenario": "KHB-A03",
+      "purposeAchieved": false,
+      "wallMs": 8751,
+      "modelCalls": 2,
+      "toolCalls": 1,
+      "providerTokens": 18356,
+      "requestBytes": 98325,
+      "onlyTool": "attachment list",
+      "execAvailableOnBothCalls": true,
+      "falseClaim": "no contract files were attached although two contract revisions existed in the current workspace"
+    },
+    "gpt55ReceivablesPositiveControl": {
+      "scenario": "KHB-M05",
+      "purposeAchieved": true,
+      "resultCorrect": true,
+      "messagesSent": 0,
+      "wallMs": 36287,
+      "modelCalls": 7,
+      "toolCalls": 6,
+      "providerTokens": 93068,
+      "requestBytes": 443679
+    },
+    "compactPrincipleQualification": {
+      "scenario": "KHB-A03",
+      "productAdopted": false,
+      "sourceRemoved": true,
+      "purposeAchieved": false,
+      "wallMs": 10608,
+      "modelCalls": 3,
+      "toolCalls": 2,
+      "providerTokens": 10374,
+      "requestBytes": 59029,
+      "reason": "shorter principles did not change the attachment-only false-absence route"
+    },
+    "finding": "the failure is not explained by a missing Tool, hidden user request, or instruction length alone; S4-C remains unresolved"
   },
   "combinedQualification": {
     "productAdopted": false,
@@ -148,7 +194,7 @@
     "connectionFirst": "S4-C cross-model efficiency observation",
     "falseAbsenceDirectBlocker": "S4-D0 repaired hidden stage failure; shallow successful observation still does not prove absence",
     "s4cProductCodeAdopted": false,
-    "nextGate": "S4-C structural reassessment with product code locked"
+    "nextGate": "none; S4-C is paused by owner after the D0 fact-only correction"
   },
-  "nextOneTask": "Reassess the exact shallow-observation failure without adding workspace metadata projection, a new Tool, Store, Intent router, business schema, or global Prompt."
+  "nextOneTask": "none until owner resumes S4-C"
 }

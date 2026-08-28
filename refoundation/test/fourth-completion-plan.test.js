@@ -6,15 +6,15 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../../', import.meta.url);
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 
-test('4차 정본은 S4-D0을 닫고 S4-C 구조 재평가만 연다', async () => {
+test('4차 정본은 S4-D0 fact-only 교정 뒤 S4-C 정지선을 보존한다', async () => {
   const [plan, agents, second] = await Promise.all([
     readFile(new URL('T5-FOURTH-COMPLETION.md', root), 'utf8'),
     readFile(new URL('AGENTS.md', root), 'utf8'),
     readFile(new URL('T5-SECOND-COMPLETION.md', root), 'utf8'),
   ]);
-  assert.match(plan, /FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_COMPLETE_WITH_COST_OBSERVATION · S4_C_STRUCTURAL_REASSESSMENT · PRODUCT_CODE_LOCKED/u);
+  assert.match(plan, /FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_PAUSED_BY_OWNER · PRODUCT_CODE_LOCKED/u);
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
-  assert.match(plan, /현재 Gate: `S4-C SITUATION & HAND · SHALLOW OBSERVATION FALSE ABSENCE REASSESSMENT`/u);
+  assert.match(plan, /현재 Gate: `S4-C SITUATION & HAND · PAUSED · NO FURTHER GATE OR FEATURE WORK`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',
     'S4-H', 'S4-I', 'S4-J', 'S4-K', 'S4-UX', 'S4-L', 'S4-HQ'];
   let cursor = -1;
@@ -31,12 +31,13 @@ test('4차 정본은 S4-D0을 닫고 S4-C 구조 재평가만 연다', async () 
   assert.match(plan, /Work brief Tool·목적 schema·성공 기준 schema·Intent enum·목적 전용 Store/u);
   assert.match(plan, /제품 변경 0[\s\S]*gpt-5\.5 반복과 Terra/u);
   assert.match(plan, /exact source 재투영 후보는 열지 않는다/u);
-  assert.match(plan, /S4-C — Situation·Hand의 실제 차이 수리 — STRUCTURAL REASSESSMENT/u);
+  assert.match(plan, /S4-C — Situation·Hand의 실제 차이 수리 — PAUSED BY OWNER/u);
   assert.match(plan, /첫 기준선은 KHB-S01/u);
   assert.match(plan, /connection list가 로컬 Evidence보다 먼저 호출/u);
   assert.match(plan, /find -printf[\s\S]*exit 0/u);
-  assert.match(plan, /S4-D — Terminal 실행 중 output·process 미달 — D0 COMPLETE, BROADER GATE UNOPENED/u);
-  assert.match(plan, /전역 pipefail은 적용하지 않았다/u);
+  assert.match(plan, /S4-D — Terminal 실행 중 output·process 미달 — D0 FACT-ONLY CORRECTED, BROADER GATE UNOPENED/u);
+  assert.match(plan, /전역 pipefail과 exit-code 예외 목록은 적용하지 않았다/u);
+  assert.match(plan, /현재 다음 작업은 없다/u);
   assert.match(agents, /`T5-FOURTH-COMPLETION\.md` — 지금 어느 Gate/u);
   assert.match(second, /현재 후속 Gate: `T5-FOURTH-COMPLETION\.md · S4-C`/u);
 });

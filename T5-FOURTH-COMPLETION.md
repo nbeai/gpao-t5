@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_COMPLETE_WITH_COST_OBSERVATION · S4_C_STRUCTURAL_REASSESSMENT · PRODUCT_CODE_LOCKED`
-현재 Gate: `S4-C SITUATION & HAND · SHALLOW OBSERVATION FALSE ABSENCE REASSESSMENT`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_PAUSED_BY_OWNER · PRODUCT_CODE_LOCKED`
+현재 Gate: `S4-C SITUATION & HAND · PAUSED · NO FURTHER GATE OR FEATURE WORK`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,20 +55,17 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-D0 완료 뒤 S4-C의 shallow observation false absence를 구조적으로 재평가한다. 제품
-   코드는 잠겨 있다.
+2. **현재 Gate**: S4-D0 fact-only 교정 뒤 S4-C로 돌아왔고 오너 지시로 멈췄다. 제품 코드는 잠겨 있다.
 3. **사용자 완료 문장**: T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한
    손으로 필요한 원문만 본다.
-4. **이미 선 실제 증거**: S4-D0은 POSIX 마지막 foreground pipeline의 단계별 exit를 보존해 숨은 실패를
-   실패 Receipt로 바꿨다. gpt-5.5는 복구해 목적을 달성했지만 125,769 tokens·74.9초로 비용이 늘었다. 내용과
-   이름을 제외한 top-level workspace fact를 결합한 자격시험에서는 gpt-5.5와 Terra가 모두 목적을 달성했다.
-5. **현재 가장 큰 미달**: D0은 실패한 pipeline을 고쳤지만 exit 0인 shallow 검색을 모델이 전체 부재로
-   오인하는 문제는 남았다. 결합 사실은 호출당 지시문 163 bytes였지만 실제 workspace metadata의 새 provider
-   투영 경계이므로 제품 기본값으로 자동 승격하지 않았다.
-6. **이번 변경 방식**: 제품 변경 없이 실제 shallow 관측·Receipt·모델 입력을 총괄 재검토한다. 기존 현실로
-   충분하면 모델 품질로 분리하고, 실제 Runtime 사실 미달이 입증될 때만 가장 작은 bounded 구조를 제안한다.
-7. **Non-goals**: workspace metadata 기본 투영, 새 Tool·Store·Intent router·업무 schema·전역 Prompt,
-   command 의미 규칙, Connection 강제 지연, Terminal 추가 패치, 실제 계정·외부 효과 시험.
+4. **이미 선 실제 증거**: `grep no-match | wc -l`과 `diff a b | sed`는 stage exit 1과 정상 overall exit 0·
+   stdout을 함께 냈지만 `1607c69e`의 Runtime 의미 승격이 실패로 바꿨다. 두 반례를 RED로 고정한 뒤 승격을
+   제거했고 stage exit와 overall exit 사실만 남겼다.
+5. **현재 가장 큰 미달**: S4-C의 shallow observation false absence는 gpt-5.5 계약 비교에서도 재현됐고
+   미수금에서는 성공해 cross-domain variance로 남았다. 이 미달은 해결되지 않았지만 현재 작업 대상이 아니다.
+6. **이번 변경 방식**: D0에서 명령별 exit 의미를 Runtime이 선택하지 않도록 계약을 교정했고 추가 작업은 없다.
+7. **Non-goals**: exit-code 예외 목록, pipeline 실패 승격, Prompt·Tool·Store·Intent 변경, S4-C 수리, 다음 Gate,
+   추가 기능, 실제 계정·외부 효과 시험.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -213,7 +210,7 @@ call에서의 위치, 최신 교정과 거리, 앞선 assistant·ToolReceipt 크
 > T5는 모델에게 현재 사용자 원문·교정·Evidence·실행 현실을 작고 정확하게 공급하며, 목적·완료 의미와
 > 사용자 답은 모델이 판단한다.
 
-### S4-C — Situation·Hand의 실제 차이 수리 — STRUCTURAL REASSESSMENT
+### S4-C — Situation·Hand의 실제 차이 수리 — PAUSED BY OWNER
 
 현재 목적에 관련된 Conversation·Memory·Work·file·connection·Capability pointer를 후보화하고 모델이 선택한
 Evidence만 exact reopen한다. 기존 Information Control·Resource Situation·tool search를 우선 사용한다.
@@ -250,17 +247,23 @@ D0과 content-free top-level workspace fact를 결합한 자격시험에서는 g
 connection 비용은 S4-C에 남는다. 같은 방향의 세 번째 Prompt·Tool 후보를 얹지 않고 구조와 모델 경계를 다시
 판정한다.
 
+current-head의 gpt-5.5 반대확인에서 KHB-M05 미수금은 정확히 성공했지만 KHB-A03 계약 비교는 `attachment list`
+하나만 실행하고 workspace의 계약서 두 개를 보지 않은 채 업로드를 요구했다. 두 번째 호출에도 `exec`는 실제로
+열려 있었다. 짧은 원리형 qualification instruction도 같은 실패를 반복해 product source에서 제거했다. 이
+cross-domain variance는 미해결로 보존하며 오너 지시에 따라 S4-C 작업을 멈춘다.
+
 완료 문장:
 
 > T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한 손으로 필요한 원문만 본다.
 
-### S4-D — Terminal 실행 중 output·process 미달 — D0 COMPLETE, BROADER GATE UNOPENED
+### S4-D — Terminal 실행 중 output·process 미달 — D0 FACT-ONLY CORRECTED, BROADER GATE UNOPENED
 
-S4-D0은 disk spool 전에 KHB-S01에서 발견된 pipeline 실행 진실을 닫았다. zsh `pipestatus`와 bash
-`PIPESTATUS`로 마지막 unconditional foreground pipeline의 전체 exit와 단계 exit를 분리한다. 앞 단계의 0·141
-이외 exit가 마지막 0에 숨으면 실패 Receipt가 된다. 141은 SIGPIPE라고 단정하지 않고 exact exit 사실로 남긴다.
-조건 분기, pipeline 뒤 다른 명령, managed process, non-POSIX runtime은 관측한 척하지 않고 기존 동작을 보존한다.
-Windows 제품 동작은 바뀌지 않았으며 물리 자격은 S4-L에 남는다. 전역 pipefail은 적용하지 않았다.
+S4-D0은 disk spool 전에 KHB-S01에서 발견된 pipeline 실행 사실을 닫았다. zsh `pipestatus`와 bash
+`PIPESTATUS`로 마지막 unconditional foreground pipeline의 전체 exit와 단계 exit를 분리한다. Runtime은 이
+숫자를 사실로만 공급하고 `grep`의 no-match 1, `diff`의 differences 1, `find`의 1처럼 명령별 의미를 선택하지
+않는다. shell overall exit·state·stdout·stderr도 바꾸지 않는다. 조건 분기, pipeline 뒤 다른 명령, managed
+process, non-POSIX runtime은 관측한 척하지 않고 기존 동작을 보존한다. Windows 제품 동작은 바뀌지 않았으며
+물리 자격은 S4-L에 남는다. 전역 pipefail과 exit-code 예외 목록은 적용하지 않았다.
 
 기존 Terminal Core 위에 필요한 차이만 연결한다.
 
@@ -490,7 +493,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-D0은 숨은 pipeline 단계 실패를 정확히 실패 Receipt로 공급하도록 닫혔다. 품질·안전 회귀는 없지만 실모델
-복구 비용 증가는 보존했다. top-level workspace fact 결합은 두 모델의 목적을 회복했으나 제품 데이터 투영
-경계가 달라 source에서 제거했다. 현재 다음 한 작업은 S4-C에서 shallow 성공 관측을 전체 부재로 넓힌 정확한
-원인을 제품 변경 없이 총괄 재점검하는 것이다. 같은 Prompt·Tool 후보를 더 붙이지 않는다.
+S4-D0은 pipeline stage exit와 overall exit를 사실로만 공급하도록 교정됐다. 명령별 exit 의미 승격과 예외
+목록은 없다. S4-C로 돌아왔지만 오너 지시에 따라 다음 Gate 진행·추가 기능 구현·S4-C 수리를 모두 중단한다.
+현재 다음 작업은 없다.

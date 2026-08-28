@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('S4-C 기준선은 D0 수리와 남은 shallow false absence를 분리한다', async () => {
+test('S4-C 기준선은 D0 fact-only 교정과 owner 정지선을 보존한다', async () => {
   const evidence = JSON.parse(await readFile(new URL(
     '../evidence/s4-c-situation-hand-baseline-2026-08-28.json', import.meta.url), 'utf8'));
-  assert.equal(evidence.status, 'CROSS_MODEL_FAILURE_REPRODUCED_D0_ADOPTED_S4C_UNRESOLVED');
+  assert.equal(evidence.status, 'PAUSED_AFTER_CROSS_MODEL_CROSS_DOMAIN_VARIANCE_D0_CORRECTED');
   assert.equal(evidence.productChanges, 0);
   assert.equal(evidence.currentGpt55.purposeAchieved, true);
   assert.equal(evidence.currentGpt55.connectionResultUsedInFinalAnswer, false);
@@ -23,6 +23,11 @@ test('S4-C 기준선은 D0 수리와 남은 shallow false absence를 분리한�
   assert.equal(evidence.combinedQualification.terra.purposeAchieved, true);
   assert.equal(evidence.combinedQualification.productAdopted, false);
   assert.equal(evidence.combinedQualification.sourceRemoved, true);
+  assert.equal(evidence.structuralReassessmentBeforeOwnerPause.gpt55ContractComparison.purposeAchieved, false);
+  assert.equal(evidence.structuralReassessmentBeforeOwnerPause.gpt55ContractComparison.execAvailableOnBothCalls, true);
+  assert.equal(evidence.structuralReassessmentBeforeOwnerPause.gpt55ReceivablesPositiveControl.purposeAchieved, true);
+  assert.equal(evidence.structuralReassessmentBeforeOwnerPause.compactPrincipleQualification.productAdopted, false);
+  assert.equal(evidence.nextOneTask, 'none until owner resumes S4-C');
   assert.match(evidence.routingDecision.falseAbsenceDirectBlocker, /shallow successful observation/u);
   assert.ok(evidence.notYetProven.includes('connection should be deferred globally'));
 });

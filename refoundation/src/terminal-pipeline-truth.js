@@ -56,20 +56,10 @@ export function settlePipelineTruth(result, prepared) {
     } };
   }
   const originalExitCode = Number(match[2]);
-  const nonFinal = stageExitCodes.slice(0, -1);
-  const upstreamExit141Indices = nonFinal.flatMap((code, index) => code === 141 ? [index] : []);
-  const hiddenFailureIndices = nonFinal.flatMap((code, index) => (
-    code !== 0 && code !== 141 ? [index] : []
-  ));
   const pipelineObservation = {
     state: 'observed', shell: prepared.shell, scope: prepared.scope,
     stageExitCodes, overallExitCode: originalExitCode,
-    hiddenFailureIndices, upstreamExit141Indices,
   };
   const cleaned = String(result.stderr ?? '').slice(0, match.index);
-  if (hiddenFailureIndices.length && originalExitCode === 0) {
-    return { ...result, stderr: cleaned, originalExitCode, exitCode: stageExitCodes[hiddenFailureIndices[0]],
-      state: 'pipeline_stage_failed', reason: 'nonfinal_pipeline_stage_failed', pipelineObservation };
-  }
   return { ...result, stderr: cleaned, pipelineObservation };
 }
