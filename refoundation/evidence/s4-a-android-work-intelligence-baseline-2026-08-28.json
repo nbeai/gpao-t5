@@ -1,0 +1,144 @@
+{
+  "schema": "t5.s4a.android-work-intelligence-baseline.v1",
+  "recordedOn": "2026-08-28",
+  "status": "S4_A_DETERMINISTIC_BASELINE_PASS_LIVE_REPLAY_PENDING",
+  "baseTag": "t5-0.3.1-clean-baseline",
+  "baseCommit": "8aba370095d0620e49b9cd61012a1813be015539",
+  "branch": "codex/t5-fourth-android-intelligence",
+  "canonicalPlan": "T5-FOURTH-COMPLETION.md",
+  "productChanges": 0,
+  "baselineSelection": [
+    {
+      "lane": "business",
+      "scenarioIds": ["KHB-E01", "KHB-A01", "KHB-P01"],
+      "sources": [
+        "refoundation/config/s3-human-business-scenarios.json",
+        "refoundation/evidence/s3-hq-human-reality-close-2026-08-27.json",
+        "refoundation/evidence/third-completion-preinstall-qualification-2026-08-28.json"
+      ],
+      "purpose": "reconciliation, requested result scope, and past-versus-current evidence"
+    },
+    {
+      "lane": "development",
+      "scenarioIds": ["A-H06", "HP-03"],
+      "sources": [
+        "refoundation/config/s2-a-human-console-live-scenarios.json",
+        "refoundation/config/s2-human-performance-scenarios.json"
+      ],
+      "purpose": "program identity, analysis, nondeveloper result, and artifact reopen"
+    },
+    {
+      "lane": "research",
+      "scenarioIds": ["A-H04"],
+      "sources": ["refoundation/config/s2-a-human-console-live-scenarios.json"],
+      "purpose": "current source reading, fact-versus-interpretation, and bounded research"
+    },
+    {
+      "lane": "personal_file",
+      "scenarioIds": ["HP-01", "visual_name_ocr"],
+      "sources": [
+        "refoundation/config/s2-human-performance-scenarios.json",
+        "refoundation/evidence/file-intelligence-live-performance-baseline-2026-08-27.json"
+      ],
+      "purpose": "vague evidence, OCR, exact target retention, and current performance"
+    },
+    {
+      "lane": "capability_gap",
+      "scenarioIds": ["KHB-E02"],
+      "sources": [
+        "refoundation/config/s3-human-business-scenarios.json",
+        "refoundation/evidence/s3-hq-human-reality-close-2026-08-27.json"
+      ],
+      "purpose": "current connection and capability gap, local alternative, and one material question"
+    },
+    {
+      "lane": "long_execution",
+      "scenarioIds": ["terminal-H04", "A-H07"],
+      "sources": [
+        "refoundation/evidence/s3-terminal-core-human-qualification-2026-08-26.json",
+        "refoundation/config/s2-a-human-console-live-scenarios.json"
+      ],
+      "purpose": "single execution, exact output, cancel, wake, and restart boundary"
+    },
+    {
+      "lane": "risk_boundary",
+      "scenarioIds": ["HP-07", "terminal-sandbox-first"],
+      "sources": [
+        "refoundation/config/s2-human-performance-scenarios.json",
+        "refoundation/evidence/s3-t1b-product-confinement-2026-08-26.json"
+      ],
+      "purpose": "secret non-exposure, managed confinement, and truthful effect settlement"
+    }
+  ],
+  "positiveControls": {
+    "businessHumanScenarios": { "passed": 16, "failed": 0 },
+    "terminalPairedJourneysAfterRepair": "8/8",
+    "fileReconciliationFocused": { "passed": 46, "failed": 0 },
+    "cleanroomProductIntegration": { "passed": 192, "failed": 0, "skippedPhysicalWindows": 2 },
+    "cleanroomMutation": { "killed": 2, "survived": 0 }
+  },
+  "candidateObservations": [
+    {
+      "id": "purpose_result_scope",
+      "source": "KHB-A01",
+      "observation": "A prior final answer included matched evidence although the user asked for gaps only.",
+      "currentHeadStatus": "not_replayed"
+    },
+    {
+      "id": "unnecessary_connection_probe",
+      "source": "KHB-S01",
+      "observation": "Eight reservation rows used 106652 tokens, 66801ms, eight model calls, eight tool calls, and an unnecessary connection probe.",
+      "currentHeadStatus": "not_replayed"
+    },
+    {
+      "id": "visual_ocr_cost",
+      "source": "visual_name_ocr",
+      "observation": "The purpose passed but one sample used 110100ms, 14 model calls, and 16 tool calls.",
+      "currentHeadStatus": "not_replayed"
+    },
+    {
+      "id": "live_process_durability",
+      "source": "current source audit",
+      "observation": "Live managed process output remains memory-spooled and its handle does not survive a Runtime restart.",
+      "currentHeadStatus": "source_gap_observed_user_failure_not_replayed"
+    }
+  ],
+  "deterministicVerification": {
+    "selectedScenarioSourcesReadable": true,
+    "currentPositiveControlsPassed": true,
+    "focusedTests": { "passed": 57, "failed": 0 },
+    "dailyCheck": { "passed": 1638, "failed": 0, "skipped": 1 },
+    "legacyImports": 0,
+    "productSourceChangedFromCleanBaseline": false
+  },
+  "sourceDigests": {
+    "T5-FOURTH-COMPLETION.md": "530320fc44db613640ff2e57ff452007d35d3e56dfa7972ead810be6128610c7",
+    "s2-a-human-console-live-scenarios.json": "3cd3b4ab7a1213fa4fd55cbe9aab3a7e7d371eff4e0450bafca492ca20fec898",
+    "s2-human-performance-scenarios.json": "21bb10a831cc8858a32286d04640f8bba666dbb0ad883416b98b4d7290770a59",
+    "s3-human-business-scenarios.json": "19d456f49be876547b0b333e6b547e8f41521d3c622a387349d42b43df9ced6e"
+  },
+  "firstCurrentDefect": {
+    "family": null,
+    "scenario": null,
+    "promptDump": null,
+    "countertest": null,
+    "reproduced": false
+  },
+  "s4bAuthorized": false,
+  "gateCloseRequires": [
+    "one current clean-head user-purpose failure reproduced",
+    "purpose, Evidence, Receipt, and surface failure separated",
+    "actual prompt dump when model input is implicated",
+    "comparison principle observed",
+    "countertest fails when the real behavior is removed",
+    "same defect family closes across three different purpose domains"
+  ],
+  "notClaimed": [
+    "S4-A complete",
+    "S4-B open",
+    "any past observation is a current product defect",
+    "product Prompt or source changed",
+    "physical Windows qualified"
+  ],
+  "nextOneTask": "Run the selected deterministic positive controls on the clean fourth head, then replay the KHB-A01 purpose/result-scope candidate once without product changes."
+}

@@ -4,10 +4,11 @@
 간주하지 않는다. 현재 T5의 목적과 진행 상태는 아래 문서만 먼저 읽는다.
 
 1. `T5-PRODUCT.md` — 무엇을 만드는가
-2. `T5-SECOND-COMPLETION.md` — 지금 어느 Gate를 어떤 범위로 통과하는가
+2. `T5-FOURTH-COMPLETION.md` — 지금 어느 Gate를 어떤 범위로 통과하는가
 
-`T5-REFOUNDATION.md`는 1차 완성의 역사·실패·증거 참조다. 현재 Gate가 직접 가리킨 과거 근거가 필요할
-때만 해당 부분을 읽고, 현재 계획이나 작업 범위를 그 문서에서 추론하지 않는다.
+`T5-SECOND-COMPLETION.md`, `T5-THIRD-ACTIVATION-PREPARATION.md`, `T5-THIRD-ALPHA.md`,
+`T5-REFOUNDATION.md`는 완료 역사·실패·증거 참조다. 현재 Gate가 직접 가리킨 과거 근거가 필요할 때만
+해당 부분을 읽고, 현재 계획이나 작업 범위를 그 문서에서 추론하지 않는다.
 
 하위 디렉터리에 `AGENTS.md`가 있으면 그 디렉터리 작업에 한해 더 좁은 규칙이 우선한다.
 
@@ -28,8 +29,11 @@
 - 현재 콘솔 디자인과 대화 UX는 R4에서 재사용한다. 새 코어 개발을 이유로 UI를 다시 디자인하지 않는다.
 - legacy 조사는 archive에서 읽기 전용으로만 수행한다. 수정·재실행이 필요하면 현재 제품 작업과
   분리된 별도 archive 작업으로 열며 결과를 현재 제품의 성공으로 간주하지 않는다.
-- Memory, Skills, Learning, Automation, Channels, Multi-agent는 `T5-SECOND-COMPLETION.md`의 현재
-  Gate가 열기 전에는 구현하지 않는다.
+- 4차 개발은 tag `t5-0.3.1-clean-baseline`에서 갈라진 `codex/t5-fourth-android-intelligence`만 사용한다.
+- Purpose, Situation, Terminal, Mutation, Authoring, Program Capsule, Reconciliation, Recovery, Experience,
+  Capability는 `T5-FOURTH-COMPLETION.md`의 현재 Gate가 열기 전에는 구현하지 않는다.
+- Reflection·Principle·Capability package의 휴면 연구 source는 교재이지 제품 정본이 아니다. 현재 실패와
+  반대시험 없이 product entry로 import하거나 package payload에 되돌리지 않는다.
 
 ## 3. 한 작업의 시작
 
@@ -118,8 +122,12 @@ baseline으로 보고하고 오너 결정 없이 의미를 바꾸지 않는다.
 개발자가 아니며, 내부 Run·Tool·Thread·상태 기계는 일반 사용자가 설명 없이 이해할 T5의 경험과
 언어로 다시 설계한다.
 
-3차 완성의 각 기술 Gate를 구현하는 동안 전체 사업자 인간 시나리오 wave를 반복하지 않는다. 관련 실패를
-확인할 최소 시나리오만 선택한다. 모든 3차 기술 개발선이 닫힌 뒤에는
+4차의 각 기술 Gate를 구현하는 동안 전체 인간 시나리오 wave를 반복하지 않는다. 최초 실패 하나로 구현을
+열고 관련 최소 시나리오만 사용하되, Gate 완료는 같은 결함 가족이 서로 다른 세 목적 분야에서도 전용 규칙
+없이 성립해야 한다. 모든 기술선이 닫힌 뒤에만 `T5-FOURTH-COMPLETION.md`의 S4-HQ 전체 인간 시나리오와
+비교군 A/B를 수행한다.
+
+완료된 3차의 판정 규율도 역사 증거와의 호환을 위해 보존한다. 모든 3차 기술 개발선이 닫힌 뒤에는
 `T5-THIRD-ACTIVATION-PREPARATION.md`의 S3-WA에서 읽기 전용 다중 에이전트 배선 감사를 먼저 수행하고,
 재현된 P0/P1만 통합 책임자 한 명이 순차 수리한다. 그 뒤 S3-HQ의 `developer_fast_feedback`과
 `pre_tester_reality`를 내부에서 통과하기 전 외부 테스터·설치본 평가나 3차 종합 완료를 주장하지 않는다.
