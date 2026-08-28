@@ -8,9 +8,14 @@ import { admitEphemeralProgramPreparation, prepareEphemeralProgram } from '../sr
 import { assertQualifiedEphemeralProgramFixture, observeBundledQuickJsInterpreter,
   qualifyEphemeralProgramFixture } from '../src/ephemeral-program-quickjs.js';
 import { makeRecordReference } from '../src/record-reference.js';
+import { ManagedProcessRegistry } from '../src/managed-process.js';
 import { createHash } from 'node:crypto';
 
 const digest = (value) => createHash('sha256').update(value).digest('hex');
+const registry = () => new ManagedProcessRegistry({
+  platform: process.platform === 'win32' ? 'linux' : process.platform,
+  outputLimit: 128 * 1024,
+});
 
 function record() {
   return makeRecordReference({ sourceKind: 'local_file', sourceStore: 'managed-file', sourceId: 'g3-input',
@@ -33,12 +38,15 @@ test('G3 QuickJS는 host API 0의 bounded fixture를 independent oracle과 exact
   const root = await mkdtemp(join(tmpdir(), 't5-g3-quickjs-'));
   try {
     const candidate = await prepared(root); const interpreter = await observeBundledQuickJsInterpreter();
-    const result = await qualifyEphemeralProgramFixture({ prepared: candidate, interpreter });
+    const result = await qualifyEphemeralProgramFixture({ prepared: candidate, interpreter,
+      processRegistry: registry() });
     assert.equal(assertQualifiedEphemeralProgramFixture(result.qualification), result.qualification);
     assert.equal(result.receipt.state, 'fixture_verified'); assert.equal(result.receipt.guestHostApis, 0);
     assert.equal(result.receipt.interpreter.kind, 'quickjs_wasm_release_sync');
     assert.equal(result.receipt.interpreter.version, '0.32.0');
     assert.match(result.receipt.interpreter.wasmSha256, /^[a-f0-9]{64}$/u);
+    if (process.platform === 'darwin') assert.deepEqual(result.receipt.helperBoundary,
+      { kind: 'macos_parent_death_process_group', qualified: true });
     assert.deepEqual({ actualExecutions: result.receipt.actualExecutions,
       userTargetWrites: result.receipt.userTargetWrites }, { actualExecutions: 0, userTargetWrites: 0 });
     assert.equal(await readFile(join(candidate.directory, 'fixture', 'observed.output'), 'utf8'), '{"sum":6}');
@@ -55,7 +63,7 @@ test('G3 guest에는 process·require·fetch·Worker·Date가 없고 source가 h
     const candidate = await prepared(root, { source, fixture: 'unused',
       oracle: '{"process":"undefined","require":"undefined","fetch":"undefined","worker":"undefined","date":"undefined"}' });
     const result = await qualifyEphemeralProgramFixture({ prepared: candidate,
-      interpreter: await observeBundledQuickJsInterpreter() });
+      interpreter: await observeBundledQuickJsInterpreter(), processRegistry: registry() });
     assert.equal(result.receipt.state, 'fixture_verified');
   } finally { await rm(root, { recursive: true, force: true }); }
 });
@@ -76,11 +84,11 @@ test('G3 memory·timeout·output limit과 oracle mismatch는 fixture_failed이�
     try {
       const candidate = await prepared(root, { source: item.source, fixture: 'unused', oracle: item.oracle });
       const result = await qualifyEphemeralProgramFixture({ prepared: candidate,
-        interpreter: await observeBundledQuickJsInterpreter(), ...item.options });
+        interpreter: await observeBundledQuickJsInterpreter(), processRegistry: registry(), ...item.options });
       assert.equal(result.qualification, null); assert.equal(result.receipt.state, 'fixture_failed');
       assert.equal(result.receipt.reason, item.reason); assert.equal(result.receipt.actualExecutions, 0);
       await assert.rejects(qualifyEphemeralProgramFixture({ prepared: candidate,
-        interpreter: await observeBundledQuickJsInterpreter() }), /already attempted/u);
+        interpreter: await observeBundledQuickJsInterpreter(), processRegistry: registry() }), /already attempted/u);
     } finally { await rm(root, { recursive: true, force: true }); }
   }
 });
@@ -91,10 +99,43 @@ test('G3는 prepared source 변경과 forged interpreter를 실행 전에 거부
     const candidate = await prepared(root);
     await writeFile(join(candidate.directory, candidate.manifest.source.file), 'function transform(){return {sum:9}}');
     await assert.rejects(qualifyEphemeralProgramFixture({ prepared: candidate,
-      interpreter: await observeBundledQuickJsInterpreter() }), /source changed/u);
+      interpreter: await observeBundledQuickJsInterpreter(), processRegistry: registry() }), /source changed/u);
     const fresh = await prepared(join(root, 'fresh'));
     await assert.rejects(qualifyEphemeralProgramFixture({ prepared: fresh,
-      interpreter: { kind: 'quickjs_wasm_release_sync', version: '0.32.0' } }), /observed bundled/u);
+      interpreter: { kind: 'quickjs_wasm_release_sync', version: '0.32.0' },
+      processRegistry: registry() }), /observed bundled/u);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('G3 managed helper crash·cancel은 fixture_failed이고 actual execution을 열지 않는다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-g3-helper-failure-'));
+  try {
+    const crashedCandidate = await prepared(root); const crashHelper = join(root, 'crash-helper.mjs');
+    await writeFile(crashHelper, 'process.stdin.resume(); process.stdin.on("end",()=>process.exit(7));\n');
+    const crashed = await qualifyEphemeralProgramFixture({ prepared: crashedCandidate,
+      interpreter: await observeBundledQuickJsInterpreter(), processRegistry: registry(), helperPath: crashHelper });
+    assert.equal(crashed.qualification, null); assert.equal(crashed.receipt.reason, 'helper_failed');
+    assert.equal(crashed.receipt.actualExecutions, 0);
+
+    const corruptCandidate = await prepared(join(root, 'corrupt'));
+    const corruptHelper = join(root, 'corrupt-helper.mjs');
+    await writeFile(corruptHelper, 'process.stdin.resume(); process.stdin.on("end",()=>console.log("not-json"));\n');
+    const corrupt = await qualifyEphemeralProgramFixture({ prepared: corruptCandidate,
+      interpreter: await observeBundledQuickJsInterpreter(), processRegistry: registry(), helperPath: corruptHelper });
+    assert.equal(corrupt.qualification, null); assert.equal(corrupt.receipt.reason, 'helper_failed');
+
+    const cancelRoot = join(root, 'cancel');
+    const cancelledCandidate = await prepared(cancelRoot, {
+      source: 'function transform(){ while(true){} }', fixture: 'unused', oracle: '{}',
+    });
+    const processes = registry(); const controller = new AbortController();
+    setTimeout(() => controller.abort(), 50);
+    const cancelled = await qualifyEphemeralProgramFixture({ prepared: cancelledCandidate,
+      interpreter: await observeBundledQuickJsInterpreter(), processRegistry: processes,
+      signal: controller.signal, timeoutMs: 5_000 });
+    assert.equal(cancelled.qualification, null); assert.equal(cancelled.receipt.reason, 'cancelled');
+    assert.equal(cancelled.receipt.actualExecutions, 0);
+    assert.ok(processes.list('work-g3').every((item) => ['completed', 'failed', 'stopped'].includes(item.state)));
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
@@ -110,13 +151,14 @@ test('G3 QuickJS 후보는 Console에 연결되지 않고 actual input·Tool RPC
 test('G3 증거는 direct Node를 폐기하고 QuickJS core와 남은 helper 격리를 분리한다', async () => {
   const value = JSON.parse(await readFile(new URL(
     '../evidence/s4-g3-fixture-qualification-candidate-2026-08-29.json', import.meta.url), 'utf8'));
-  assert.equal(value.status, 'G3_ACTIVE_QUICKJS_CORE_QUALIFIED_HELPER_ISOLATION_PENDING');
+  assert.equal(value.status, 'G3_COMPLETE');
   assert.equal(value.productWiring, 0); assert.equal(value.actualInputExecutions, 0);
   assert.equal(value.rejectedNodeCandidate.adopted, false);
   assert.equal(value.rejectedNodeCandidate.hardRssBoundaryProven, false);
   assert.equal(value.quickJsCandidate.hostApis, 0);
-  assert.equal(value.quickJsCandidate.focusedPassed, 5);
+  assert.equal(value.quickJsCandidate.focusedPassed, 7);
   assert.equal(value.quickJsCandidate.focusedFailed, 0);
   assert.equal(value.dependencyAudit.quickJsAdvisoriesObserved, 0);
-  assert.ok(value.remainingBeforeG3Complete.includes('one-shot managed helper'));
+  assert.equal(value.managedHelper.crashFailsClosed, true);
+  assert.equal(value.nextGate, 'G4_ACTUAL_EXECUTION');
 });

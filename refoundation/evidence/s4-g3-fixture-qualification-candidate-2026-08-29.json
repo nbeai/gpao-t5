@@ -1,7 +1,7 @@
 {
   "schema": "t5.s4g.g3-fixture-qualification-candidate.v1",
   "recordedOn": "2026-08-29",
-  "status": "G3_ACTIVE_QUICKJS_CORE_QUALIFIED_HELPER_ISOLATION_PENDING",
+  "status": "G3_COMPLETE",
   "sourceBaseCommit": "75ece4c3",
   "productWiring": 0,
   "actualInputExecutions": 0,
@@ -32,7 +32,7 @@
     "independentOracleExact": true,
     "staleSourceRejected": true,
     "forgedInterpreterRejected": true,
-    "focusedPassed": 5,
+    "focusedPassed": 7,
     "focusedFailed": 0
   },
   "dependencyAudit": {
@@ -41,19 +41,28 @@
     "existingHighSeverityFamily": "kordoc transitive onnxruntime-node, adm-zip and sharp",
     "automaticFixApplied": false
   },
-  "remainingBeforeG3Complete": [
-    "one-shot managed helper",
-    "D parent-death boundary",
-    "helper crash and cancel settlement",
-    "bounded request and result identity",
-    "physical Windows deferred to S4-L"
-  ],
+  "managedHelper": {
+    "oneShot": true,
+    "boundedRequest": true,
+    "boundedResult": true,
+    "exactRequestIdentity": true,
+    "corruptResponseRejected": true,
+    "crashFailsClosed": true,
+    "cancelStopsHelper": true,
+    "macosParentDeathBoundary": "macos_parent_death_process_group",
+    "actualExecutionsAfterFailure": 0
+  },
+  "nonClaims": ["physical Windows helper qualified", "actual input executed", "product activation"],
   "verification": {
-    "dailyCheckPassed": 1733,
+    "dailyCheckPassed": 1734,
     "dailyCheckFailed": 0,
     "dailyCheckSkipped": 1,
-    "focusedDependencyAndFixturePassed": 17,
-    "focusedDependencyAndFixtureFailed": 0
+    "focusedQuickJsAndHelperPassed": 7,
+    "focusedQuickJsAndHelperFailed": 0,
+    "focusedPlanPassed": 3,
+    "focusedPlanFailed": 0,
+    "focusedDependencyHygienePassed": 17,
+    "focusedDependencyHygieneFailed": 0
   },
-  "nextOneTask": "Run QuickJS fixture evaluation in a D-managed one-shot helper without opening actual input execution."
+  "nextGate": "G4_ACTUAL_EXECUTION"
 }

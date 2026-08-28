@@ -6,15 +6,15 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../../', import.meta.url);
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 
-test('4차 정본은 S4-G2를 닫고 S4-G3 fixture qualification만 연다', async () => {
+test('4차 정본은 S4-G3를 닫고 S4-G4 actual execution만 연다', async () => {
   const [plan, agents, second] = await Promise.all([
     readFile(new URL('T5-FOURTH-COMPLETION.md', root), 'utf8'),
     readFile(new URL('AGENTS.md', root), 'utf8'),
     readFile(new URL('T5-SECOND-COMPLETION.md', root), 'utf8'),
   ]);
-  assert.match(plan, /S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_COMPLETE · S4_G3_FIXTURE_QUALIFICATION_ACTIVE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING/u);
+  assert.match(plan, /S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_COMPLETE · S4_G3_FIXTURE_QUALIFICATION_COMPLETE · S4_G4_ACTUAL_EXECUTION_ACTIVE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING/u);
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
-  assert.match(plan, /현재 Gate: `S4-G3 EPHEMERAL PROGRAM CAPSULE · FIXTURE QUALIFICATION`/u);
+  assert.match(plan, /현재 Gate: `S4-G4 EPHEMERAL PROGRAM CAPSULE · ACTUAL EXECUTION`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',
     'S4-H', 'S4-I', 'S4-J', 'S4-K', 'S4-UX', 'S4-L', 'S4-HQ'];
   let cursor = -1;
@@ -87,7 +87,7 @@ test('4차 정본은 S4-G2를 닫고 S4-G3 fixture qualification만 연다', asy
   assert.match(plan, /각 local engine·model·Capability의 실제 사용 가능 여부[\s\S]*개인정보 범위/u);
   assert.match(plan, /publishable output, internal intermediate, diagnostic, temporary, cleanup/u);
   assert.match(plan, /같은 Node child를 실행해[\s\S]*sampled RSS monitor[\s\S]*hard cap으로 채택하지 않/u);
-  assert.match(plan, /QuickJS release-sync WASM[\s\S]*host API를 0[\s\S]*D managed helper 격리 전에는 G3 전체 완료를 주장하지 않는다/u);
+  assert.match(plan, /QuickJS release-sync WASM[\s\S]*host API를 0[\s\S]*D-managed one-shot helper[\s\S]*G4` actual execution/u);
   assert.match(plan, /두 행의 고유값 교환[\s\S]*요청하지 않은 개인정보 JSON/u);
   assert.match(plan, /one-to-one·one-to-many·many-to-one·ambiguous·unmatched·conflicting/u);
   assert.match(plan, /최종 Excel·ZIP을 독립 재개방/u);
