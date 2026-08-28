@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_ACTIVE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
-현재 Gate: `S4-G2 EPHEMERAL PROGRAM CAPSULE · SOURCE PREPARATION`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_COMPLETE · S4_G3_FIXTURE_QUALIFICATION_ACTIVE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+현재 Gate: `S4-G3 EPHEMERAL PROGRAM CAPSULE · FIXTURE QUALIFICATION`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,17 +55,17 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-G2 ephemeral program capsule의 source preparation이다.
+2. **현재 Gate**: S4-G3 ephemeral program capsule의 fixture qualification이다.
 3. **사용자 완료 문장**: T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은
    프로그램을 만들고, 고정된 입력과 범위에서 시험·실행하며, 프로그램과 독립적으로 검증한 사용자 결과만
    발행하고 나머지는 정리한다.
-4. **이미 선 실제 증거**: G1은 source·interpreter·input·fixture·output·cleanup 사실과 11개 상태를 분리하고
-   프로그램 self-report 금지·D/E/F 재사용 계약을 제품 변경 0으로 고정했다.
-5. **현재 가장 큰 미달**: exact program source·fixture input·독립 oracle·output declaration을 사용자 target 밖
-   scratch에 함께 준비하고 한 항목 실패 시 전체를 버리는 현재 제품 경로가 없다.
-6. **이번 변경 방식**: F의 scratch candidate preparation과 E의 canonical confinement를 재사용해 source 원문은
-   모델이 쓰고 Runtime은 위치·digest·identity·전체 준비 성공만 보장하는 가장 작은 후보를 만든다.
-7. **Non-goals**: fixture 실행·actual 실행·interpreter 확정·nested Tool RPC·package 설치·Core 수정·S4-H.
+4. **이미 선 실제 증거**: G2는 source·fixture·oracle·output declaration·manifest를 0700/0600 scratch에 exact
+   digest로 함께 준비하고 actual input 복사·실행·network·package·credential·user target write 0을 고정했다.
+5. **현재 가장 큰 미달**: 준비된 exact source를 어떤 interpreter·confinement·resource boundary에서 fixture에만
+   실행하고 독립 oracle과 대조할지 아직 자격되지 않았다.
+6. **이번 변경 방식**: interpreter 후보와 macOS·Windows confinement 의미를 먼저 실제 반례로 비교하고, D의
+   managed process/output와 E의 scratch-only 범위를 재사용하는 가장 작은 fixture-only 실행 후보를 연다.
+7. **Non-goals**: actual input 실행·product activation·nested Tool RPC·package 설치·자동 Skill·S4-H.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -673,9 +673,14 @@ G1 actual은 source·interpreter·input·fixture·output·scratch·resource limi
 자기 oracle 금지와 D·E·F·RecordRef 재사용 경계를 contract fixture와 반대시험으로 고정했다. 새 Runtime·Tool·
 Store·interpreter 선택과 제품 source 변경은 0이다.
 
-현재는 `G2` source preparation만 열려 있다. program source·fixture input·independent oracle·output declaration을
-사용자 target 밖 managed scratch에 모두 준비하고 exact digest로 다시 열며, 하나라도 실패하면 scratch 전체를
-정리하고 fixture·actual 실행을 0으로 유지한다. interpreter는 여전히 확정하지 않는다.
+G2 actual은 program source·fixture input·independent oracle·output declaration·runtime manifest를 사용자 target
+밖 managed scratch에 함께 준비하고 exact digest로 다시 연다. 실제 input은 RecordRef·revision·hash만 결속하며
+원문은 복제하지 않는다. one-candidate failure·symlink root·generation escape는 generation 전체 cleanup과
+fixture·actual execution 0으로 닫힌다. 제품 wiring·network·package·credential·user target write는 0이다.
+
+현재는 `G3` fixture qualification만 열려 있다. interpreter 후보의 identity·version·digest와 scratch-only write,
+network·secret·child process 차단, timeout·memory·output boundary를 실제 반례로 먼저 자격한다. exact source와
+interpreter가 작은 fixture·independent oracle을 통과하기 전 actual input은 실행하지 않는다.
 
 완료 문장:
 
@@ -877,5 +882,5 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 ## 10. 현재 다음 한 작업
 
 S4-C 미달은 S4-G·S4-I·S4-HQ에 이월했다. S4-D managed non-PTY와 D5C, S4-E1~E7, S4-F structured authoring은
-닫혔다. S4-G0의 실제 차이와 S4-G1 Capsule contract도 닫혔다. 현재 다음 한 작업은 S4-G2 source preparation이다.
-이 단계에서는 fixture·actual 실행, 새 Tool·Store, interpreter 선택을 열지 않는다.
+닫혔다. S4-G0 실제 차이, G1 contract, G2 source preparation도 닫혔다. 현재 다음 한 작업은 S4-G3 interpreter·
+confinement read-only qualification과 fixture-only 반대시험이다. actual input 실행과 product activation은 열지 않는다.

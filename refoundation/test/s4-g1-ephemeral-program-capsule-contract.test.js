@@ -11,6 +11,7 @@ test('S4-G1 계약은 program self-report와 사용자 완료를 합치지 않�
   assert.deepEqual(value.facts.identity, ['capsuleId', 'workId', 'revision']);
   assert.deepEqual(value.facts.source, ['sha256']);
   assert.deepEqual(value.facts.inputs, ['recordRef', 'revision', 'sha256']);
+  assert.deepEqual(value.facts.outputs, ['relativePath', 'kind', 'category', 'cleanupRequired']);
   assert.deepEqual(value.states, ['prepared', 'fixture_failed', 'fixture_verified', 'actual_running',
     'actual_failed_no_effect', 'actual_effect_unknown', 'output_unverified', 'output_verified',
     'published_verified', 'cleanup_unknown', 'cleaned']);

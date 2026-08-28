@@ -1,0 +1,61 @@
+{
+  "schema": "t5.s4g.g2-source-preparation-complete.v1",
+  "recordedOn": "2026-08-29",
+  "status": "G2_COMPLETE",
+  "sourceBaseCommit": "648ea474",
+  "module": "refoundation/src/ephemeral-program-preparation.js",
+  "productWiring": 0,
+  "preparedTogether": [
+    "program source",
+    "fixture input",
+    "independent oracle",
+    "output declaration",
+    "runtime manifest"
+  ],
+  "inputBoundary": {
+    "actualInputBytesCopied": false,
+    "recordRefRevisionDigestOnly": true,
+    "secretOrNeverStoreAccepted": false,
+    "foreignWorkAccepted": false
+  },
+  "scratchBoundary": {
+    "directoryMode": "0700",
+    "fileMode": "0600",
+    "atomicPublication": true,
+    "exactDigestReopen": true,
+    "symlinkRootAccepted": false,
+    "generationEscapeAccepted": false,
+    "oneCandidateFailureRemovesWholeGeneration": true
+  },
+  "outputCategories": [
+    "publishable",
+    "internal_intermediate",
+    "diagnostic",
+    "temporary"
+  ],
+  "execution": {
+    "fixtureExecutions": 0,
+    "actualExecutions": 0,
+    "networkCalls": 0,
+    "packageInstalls": 0,
+    "credentialReads": 0,
+    "userTargetWrites": 0
+  },
+  "verification": {
+    "g2FocusedPassed": 5,
+    "g2FocusedFailed": 0,
+    "combinedContractPassed": 7,
+    "combinedContractFailed": 0,
+    "dailyCheckPassed": 1727,
+    "dailyCheckFailed": 0,
+    "dailyCheckSkipped": 1
+  },
+  "nonClaims": [
+    "interpreter selected",
+    "fixture executed",
+    "program sandbox qualified",
+    "actual input executed",
+    "physical Windows qualified"
+  ],
+  "nextGate": "G3_FIXTURE_QUALIFICATION"
+}

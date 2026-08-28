@@ -10,7 +10,7 @@
     "execution": ["cwd", "scratchHandle"],
     "inputs": ["recordRef", "revision", "sha256"],
     "fixture": ["inputRef", "oracleRef", "oracleProvenance", "expectedDigest"],
-    "outputs": ["relativePath", "kind", "publishable"],
+    "outputs": ["relativePath", "kind", "category", "cleanupRequired"],
     "resourceLimitDimensions": ["wall", "rss", "processes", "stdout", "stderr"]
   },
   "authority": {
