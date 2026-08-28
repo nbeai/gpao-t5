@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_BASELINE_COMPLETE · S4_D2_STOP_COMPLETION_SETTLEMENT_COMPLETE · S4_D3_LIVE_OUTPUT_SPINE_RED_ACTIVE`
-현재 Gate: `S4-D3 LIVE OUTPUT SPINE · LOSS COUNTERTESTS AND RSS PROFILING FIRST`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_BASELINE_COMPLETE · S4_D2_COMPLETE · S4_D3_LIVE_OUTPUT_SPINE_COMPLETE_WITH_RSS_OBSERVATION · S4_D4_CRASH_OWNERSHIP_READ_ONLY_ACTIVE`
+현재 Gate: `S4-D4 CRASH PROCESS OWNERSHIP · READ-ONLY IDENTITY DESIGN`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,17 +55,18 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-D3 Live Output Spine의 유실 반대시험과 RSS 원인 분리다.
+2. **현재 Gate**: S4-D4 Crash Process Ownership의 read-only identity 설계다. 구현은 잠겨 있다.
 3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
    없이 끝까지 관찰한다.
-4. **이미 선 실제 증거**: S4-D2는 stop-first RED와 wake-first 반대 순서를 기존 `terminalObserved`·`wakeClaimed`로
-   닫았다. S4-D1에서는 2.5M 동시 출력 중 402,872자가 유실되고 exact handle이 없었으며 RSS가 반복 급증했다.
-5. **현재 가장 큰 미달**: 실행 중 managed output은 resident 1MiB tail만 남겨 exact range와 완료 후 동일 handle을
-   제공하지 못한다. RSS 급증의 Buffer·string·snapshot·압축·GC 원인은 분리되지 않았다.
-6. **이번 변경 방식**: 기존 TerminalOutputStore 재사용을 전제로 stdout·stderr·동시 폭주·Unicode·running range·
-   completion handle·partial spool·disk full·foreign owner·재실행 0을 RED로 만들고 RSS를 별도 계측한다.
-7. **Non-goals**: RSS 전체 해결 주장, 새 Output Store, crash rebind, S4-D4 구현, 고정 출력 상한, S4-E,
-   실제 HOME·계정·외부 효과 시험.
+4. **이미 선 실제 증거**: S4-D3는 기존 TerminalOutputStore를 실행 시작부터 연결해 1MiB+ 양방향 출력 전체 hash,
+   running range, restart Store, completion·stop·PTY same handle을 통과했다. Disk failure는 degraded로 분리했고
+   short AB·BA 회귀는 없었다. RSS는 기존 높은 범위에 남아 개선을 주장하지 않는다.
+5. **현재 가장 큰 미달**: abrupt Runtime crash 뒤 child가 계속 효과를 만들고 successor는 old handle을 모른다.
+   exact WorkStore state, owner event commit, partial live spool, process group·PID start identity, Windows 사고가 미측정이다.
+6. **이번 변경 방식**: 제품 변경 0에서 durable owner·Run·Work·live output manifest와 OS pid·group·start identity를
+   관측한다. 재부착보다 고아 방지와 identity 증명 가능 범위를 먼저 비교한다.
+7. **Non-goals**: process reattach 구현, PID만으로 소유권 주장, 모든 crash 복구, parent-death wrapper 채택,
+   Windows 성공 주장, S4-E, 실제 HOME·계정·외부 효과 시험.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -307,7 +308,7 @@ S4-C는 제품 성공으로 완료한 것이 아니다. `USER_COMPLETION_NOT_UNI
 
 > T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한 손으로 필요한 원문만 본다.
 
-### S4-D — Terminal 실행 중 output·process 미달 — D2 COMPLETE, D3 RED ACTIVE
+### S4-D — Terminal 실행 중 output·process 미달 — D2·D3 COMPLETE, D4 READ-ONLY ACTIVE
 
 S4-D0은 disk spool 전에 KHB-S01에서 발견된 pipeline 실행 사실을 닫았다. zsh `pipestatus`와 bash
 `PIPESTATUS`로 마지막 unconditional foreground pipeline의 전체 exit와 단계 exit를 분리한다. Runtime은 이
@@ -359,9 +360,9 @@ S4-D2 완료 문장:
 > 같은 process terminal 결과는 stop·poll·completion wake 중 어떤 경로로 먼저 관측돼도 사용자 Work에 정확히
 > 한 번만 반영된다.
 
-S4-D2는 terminal 결과를 반환하는 경로와 wake 소비를 기존 record settlement에 결속한다. stop이 이미 terminal을
-관측하면 `terminalObserved`를 원자적으로 남기고, wake가 먼저 claim된 순서에서는 이후 stop이 background wake를
-다시 만들지 않는다. 새 Store와 고정 sleep은 없다.
+S4-D2는 terminal 결과를 반환하는 경로와 wake 소비를 기존 `terminalObserved`·`wakeClaimed` settlement에
+결속한다. stop이 이미 terminal을 관측하면 `terminalObserved`를 원자적으로 남기고, wake가 먼저 claim된
+순서에서는 이후 stop이 background wake를 다시 만들지 않는다. 새 Store와 고정 sleep은 없다.
 
 S4-D2 actual은 stop-first RED가 같은 completion wake를 재claim하는 것을 재현한 뒤 terminal stop early-return에
 `terminalObserved`를 기록하는 최소 변경으로 닫았다. wake-first 반대 순서와 기존 managed process·Terminal·
@@ -375,6 +376,21 @@ S4-D3 완료 문장:
 S4-D3는 기존 `TerminalOutputStore`를 재사용한다. process 시작부터 stdout·stderr append, 작은 memory
 head·tail·cursor, 실행 중 exact range, 완료 후 같은 handle finalize, restart 뒤 저장 범위 reopen을 검토한다.
 출력 유실 수리와 RSS 원인·개선은 별도 사실로 판정한다.
+
+S4-D3 actual은 `TerminalOutputStore v3` live raw chunk와 atomic manifest를 사용한다. process cursor와 disk
+persisted cursor를 분리하고, running·restarted Store·completed·stopped·PTY에서 같은 handle을 유지한다. 1.1M
+stdout·stderr 전체 hash, Unicode 경계, foreign owner, disk failure degraded, command 재실행 0을 통과했다. 짧은
+managed command AB·BA는 no-store 4.17ms/회, live-store 4.06ms/회였다. 종료 후 RSS는 약 634MB로 기존
+637·656MB 범위와 비슷해 개선을 주장하지 않으며 D3 정확성 완료와 별도 관측으로 남긴다.
+
+S4-D4 완료 문장:
+
+> Runtime 사고 뒤 T5가 모르는 process가 계속 효과를 만들지 않으며, 살아 있는 process를 정확히 증명할 수
+> 있을 때만 관측·중단한다.
+
+S4-D4는 구현 전에 abrupt crash 뒤 exact WorkStore·owner event·partial output manifest, process group, PID start
+identity, generation, Windows Job Object 사고를 read-only로 측정한다. identity를 증명하지 못하면 재부착하지
+않고 effect unknown·Work interrupted·blind retry 0을 유지한다.
 
 - 실행 중 stdout·stderr append-only disk spool
 - 작은 memory head·tail·cursor와 bounded range read
@@ -655,5 +671,5 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D2 exact-once settlement는 최소 변경으로 닫혔다. 현재 다음 한
-작업은 S4-D3의 managed live-output 유실 RED와 RSS 구성요소 profiling이다. crash ownership은 S4-D4까지 열지 않는다.
+S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D2 exact-once와 S4-D3 live output spine은 닫혔고 RSS는 별도 관측으로
+남았다. 현재 다음 한 작업은 제품 변경 0의 S4-D4 abrupt crash ownership·identity read-only 기준선이다.

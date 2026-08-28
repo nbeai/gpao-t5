@@ -227,25 +227,45 @@ function makeCommandTool(options = {}, { managed }) {
         } : observationProbe
           ? await terminalPlatformAdapter.prepareObservationProbe(normalLaunch)
           : terminalPlatformAdapter?.prepare ? await terminalPlatformAdapter.prepare(normalLaunch) : normalLaunch;
-        let result = await registry.start({
-          program: launch.program,
-          args: launch.args,
-          command,
-          cwd,
-          env: launch.env,
-          ownerId,
-          waitMs: managed ? yieldMs : null,
-          spoolLimit: managed ? undefined : Number.POSITIVE_INFINITY,
-          metadata: {
-            kind: managed ? 'managed' : 'foreground',
-            ...(options.originRunId ? { originRunId: options.originRunId } : {}),
-            declaredEffect: structuredClone(declaredEffect),
-            effectBefore: structuredClone(effectBefore),
-            effectCwd: cwd,
-            ...(capabilitiesUsed.length ? { capabilitiesUsed: structuredClone(capabilitiesUsed) } : {}),
-          },
-          onActivity: context.onActivity,
-        });
+        let liveOutput = null;
+        if (managed && terminalOutputStore && ownerId && options.originRunId) {
+          const opened = await terminalOutputStore.begin({ sessionId: ownerId, runId: options.originRunId });
+          liveOutput = {
+            handle: opened.handle,
+            append: ({ stream, text }) => terminalOutputStore.append({
+              handle: opened.handle, sessionId: ownerId, stream, text,
+            }),
+            finalize: () => terminalOutputStore.finalize({ handle: opened.handle, sessionId: ownerId }),
+          };
+        }
+        let result;
+        try {
+          result = await registry.start({
+            program: launch.program,
+            args: launch.args,
+            command,
+            cwd,
+            env: launch.env,
+            ownerId,
+            waitMs: managed ? yieldMs : null,
+            spoolLimit: managed ? (liveOutput ? outputLimit : undefined) : Number.POSITIVE_INFINITY,
+            metadata: {
+              kind: managed ? 'managed' : 'foreground',
+              ...(options.originRunId ? { originRunId: options.originRunId } : {}),
+              declaredEffect: structuredClone(declaredEffect),
+              effectBefore: structuredClone(effectBefore),
+              effectCwd: cwd,
+              ...(capabilitiesUsed.length ? { capabilitiesUsed: structuredClone(capabilitiesUsed) } : {}),
+            },
+            onActivity: context.onActivity,
+            outputSink: liveOutput,
+          });
+        } catch (error) {
+          if (liveOutput) await terminalOutputStore.discard({
+            handle: liveOutput.handle, sessionId: ownerId,
+          }).catch(() => {});
+          throw error;
+        }
         result = settlePipelineTruth(result, pipelineTruth);
         if (context.signal?.aborted && (result.state === 'running' || result.state === 'stop_requested')) {
           result = await registry.stop({
@@ -442,6 +462,7 @@ export function makeTerminalHand(options = {}) {
     ? makeTerminalOutputTool({ store: options.terminalOutputStore, sessionId: options.ownerId }) : null;
   const managedRecall = new Map();
   const decorateManagedResult = async (result) => {
+    if (result?.outputRecall?.handle) return result.truncated ? withStoredOutputPreview(result) : result;
     if (!result?.truncated || !['completed', 'failed', 'stopped'].includes(result.state)
       || !options.terminalOutputStore || !options.ownerId || !options.originRunId) return result;
     let stored = managedRecall.get(result.processId);

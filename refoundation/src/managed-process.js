@@ -108,12 +108,36 @@ export class ManagedProcessRegistry {
       ...(record.state === 'stopped' ? { terminationConfirmed: true } : {}),
       ...(record.state === 'stop_requested' ? { terminationConfirmed: false } : {}),
       ...(record.processBoundary ? { processBoundary: structuredClone(record.processBoundary) } : {}),
+      ...(record.outputSink ? { outputRecall: {
+        handle: record.outputSink.handle, state: record.outputSinkState,
+        cursor: structuredClone(record.outputPersisted),
+      } } : {}),
+      ...(record.outputSinkState === 'degraded' ? {
+        exactOutputRecallUnavailable: true,
+        outputPersistence: { state: 'degraded', reason: 'live_output_persistence_failed' },
+      } : {}),
     };
   }
 
   #notifyActivity(record) {
     for (const notify of record.activityWaiters) notify();
     record.activityWaiters.clear();
+  }
+
+  #appendPersistedOutput(record, stream, chunk) {
+    if (!record.outputSink || record.outputSinkState === 'degraded') return;
+    record.outputSinkChain = record.outputSinkChain.then(async () => {
+      const persisted = await record.outputSink.append({ stream, text: String(chunk) });
+      record.outputPersisted[stream] = persisted.totalChars;
+    }).catch(() => { record.outputSinkState = 'degraded'; });
+  }
+
+  async #finalizePersistedOutput(record) {
+    if (!record.outputSink) return;
+    await record.outputSinkChain;
+    if (record.outputSinkState === 'degraded') return;
+    try { await record.outputSink.finalize(); record.outputSinkState = 'finalized'; }
+    catch { record.outputSinkState = 'degraded'; }
   }
 
   #waitForActivity(record, waitMs, before) {
@@ -146,7 +170,7 @@ export class ManagedProcessRegistry {
 
   async start({
     program, args = [], cwd, env, ownerId, waitMs = 1000, command = null,
-    spoolLimit = this.spoolLimit, metadata = {}, onActivity = null,
+    spoolLimit = this.spoolLimit, metadata = {}, onActivity = null, outputSink = null,
   }) {
     if (!program || !cwd || !ownerId) throw new TypeError('program, cwd, and ownerId are required');
     if (this.platform === 'win32' && !this.windowsJobHost) {
@@ -172,6 +196,9 @@ export class ManagedProcessRegistry {
       stopReason: null, startedAt: new Date().toISOString(), startedAtMs: Date.now(), endedAt: null, endedAtMs: null,
       stdout: new OutputSpool(spoolLimit),
       stderr: new OutputSpool(spoolLimit),
+      outputSink, outputSinkState: outputSink ? 'live' : null,
+      outputSinkChain: Promise.resolve(),
+      outputPersisted: { stdout: 0, stderr: 0 },
       activityWaiters: new Set(),
       closePromise: null,
     };
@@ -181,12 +208,14 @@ export class ManagedProcessRegistry {
     child.stderr?.setEncoding('utf8');
     child.stdout?.on('data', (chunk) => {
       record.stdout.append(chunk);
+      this.#appendPersistedOutput(record, 'stdout', chunk);
       if (typeof onActivity === 'function') Promise.resolve(onActivity({ stream: 'stdout',
         deltaChars: String(chunk).length, totalChars: record.stdout.total, state: record.state })).catch(() => {});
       this.#notifyActivity(record);
     });
     child.stderr?.on('data', (chunk) => {
       record.stderr.append(chunk);
+      this.#appendPersistedOutput(record, 'stderr', chunk);
       if (typeof onActivity === 'function') Promise.resolve(onActivity({ stream: 'stderr',
         deltaChars: String(chunk).length, totalChars: record.stderr.total, state: record.state })).catch(() => {});
       this.#notifyActivity(record);
@@ -194,7 +223,8 @@ export class ManagedProcessRegistry {
     child.once('error', (error) => {
       record.error = error?.message ?? String(error);
     });
-    child.once('close', (code, signal) => {
+    child.once('close', (code, signal) => { Promise.resolve().then(async () => {
+      await this.#finalizePersistedOutput(record);
       record.exitCode = code ?? -1;
       record.signal = signal ?? null;
       record.endedAt = new Date().toISOString();
@@ -204,14 +234,14 @@ export class ManagedProcessRegistry {
       this.#notifyActivity(record);
       record.resolveClose();
       this.#notifyTerminal(record);
-    });
+    }); });
     if (waitMs == null) await record.closePromise;
     else await Promise.race([record.closePromise, delay(Math.max(0, waitMs))]);
     return this.#snapshot(record);
   }
 
   async startPty({ ptyProcess, command, cwd, ownerId, waitMs = 1000, metadata = {},
-    spoolLimit = this.spoolLimit, onActivity = null }) {
+    spoolLimit = this.spoolLimit, onActivity = null, outputSink = null }) {
     if (!ptyProcess || !cwd || !ownerId) throw new TypeError('ptyProcess, cwd, and ownerId are required');
     const id = randomUUID();
     const child = {
@@ -227,17 +257,22 @@ export class ManagedProcessRegistry {
       state: 'running', exitCode: null, signal: null, error: null,
       stopReason: null, startedAt: new Date().toISOString(), startedAtMs: Date.now(), endedAt: null, endedAtMs: null,
       stdout: new OutputSpool(spoolLimit), stderr: new OutputSpool(spoolLimit),
+      outputSink, outputSinkState: outputSink ? 'live' : null,
+      outputSinkChain: Promise.resolve(),
+      outputPersisted: { stdout: 0, stderr: 0 },
       activityWaiters: new Set(), closePromise: null,
     };
     record.closePromise = new Promise((resolveClose) => { record.resolveClose = resolveClose; });
     this.records.set(id, record);
     ptyProcess.onData((chunk) => {
       record.stdout.append(chunk);
+      this.#appendPersistedOutput(record, 'stdout', chunk);
       if (typeof onActivity === 'function') Promise.resolve(onActivity({ stream: 'stdout',
         deltaChars: String(chunk).length, totalChars: record.stdout.total, state: record.state })).catch(() => {});
       this.#notifyActivity(record);
     });
-    ptyProcess.onExit(({ exitCode, signal }) => {
+    ptyProcess.onExit(({ exitCode, signal }) => { Promise.resolve().then(async () => {
+      await this.#finalizePersistedOutput(record);
       record.exitCode = exitCode ?? -1;
       record.signal = signal == null ? null : String(signal);
       record.endedAt = new Date().toISOString();
@@ -247,7 +282,7 @@ export class ManagedProcessRegistry {
       this.#notifyActivity(record);
       record.resolveClose();
       this.#notifyTerminal(record);
-    });
+    }); });
     if (waitMs == null) await record.closePromise;
     else await Promise.race([record.closePromise, delay(Math.max(0, waitMs))]);
     return this.#snapshot(record);
@@ -261,6 +296,7 @@ export class ManagedProcessRegistry {
       && before.stderr === (cursor?.stderr ?? 0)) {
       await this.#waitForActivity(record, waitMs, before);
     }
+    await record.outputSinkChain;
     const snapshot = this.#snapshot(record, cursor);
     if (terminal(record.state)) record.terminalObserved = true;
     return snapshot;

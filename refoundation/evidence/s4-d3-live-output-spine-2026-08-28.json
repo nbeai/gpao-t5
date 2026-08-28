@@ -1,0 +1,68 @@
+{
+  "schema": "t5.s4d3.live-output-spine.v1",
+  "recordedOn": "2026-08-28",
+  "status": "COMPLETE_WITH_RSS_OBSERVATION",
+  "sourceBaseCommit": "3c915edf",
+  "triggerEvidence": "refoundation/evidence/s4-d1-live-output-process-baseline-2026-08-28.json",
+  "completionSentence": "T5 preserves large process output without loss from execution time, supplies only needed ranges to the model, and reopens exact output through the same handle after completion.",
+  "implementation": {
+    "storeReused": "TerminalOutputStore",
+    "liveSchema": "t5.terminal-output.v3",
+    "liveChunks": "raw UTF-8 0600 objects",
+    "manifest": "atomic replacement after each committed append",
+    "sameHandleLifecycle": ["live", "finalized", "degraded"],
+    "persistedCursorSeparateFromProcessCursor": true,
+    "residentSpoolWithLiveHandleChars": 64000,
+    "commandReexecution": 0,
+    "newOutputStore": false
+  },
+  "qualification": {
+    "simultaneousStreams": { "stdoutChars": 1100020, "stderrChars": 1100020 },
+    "exactFullHashMatched": { "stdout": true, "stderr": true },
+    "runningRangeRead": true,
+    "restartedStoreRangeRead": true,
+    "completionSameHandle": true,
+    "runtimeStopPartialSameHandle": true,
+    "ptySameHandle": true,
+    "unicodeChunkBoundary": true,
+    "foreignSessionDenied": true,
+    "diskFailure": {
+      "processCompleted": true,
+      "exactOutputRecallUnavailable": true,
+      "outputRecallState": "degraded"
+    }
+  },
+  "performance": {
+    "shortManagedAbBaCommandsPerArm": 40,
+    "noStoreMsPerCommand": 4.16603855,
+    "liveStoreMsPerCommand": 4.05912605,
+    "shortCommandRegressionObserved": false,
+    "rss": {
+      "baselineAfterTerminalSamples": [655671296, 636796928],
+      "candidateAfterTerminal": 633815040,
+      "candidatePeakActivitySample": 362528768,
+      "improvementClaimed": false,
+      "finding": "pure strings, standalone Store, and Registry-only paths were small; the full Terminal Hand path retains high RSS and the exact cause remains unresolved"
+    }
+  },
+  "verification": {
+    "focusedPassed": 42,
+    "focusedFailed": 0,
+    "fullCi": {
+      "unitPassed": 1661,
+      "unitFailed": 0,
+      "unitSkipped": 1,
+      "integrationPassed": 192,
+      "integrationFailed": 0,
+      "integrationSkipped": 2,
+      "mutationKills": 2
+    }
+  },
+  "nonClaims": [
+    "high RSS is fixed",
+    "live raw chunks are the final retention or compression policy",
+    "abrupt crash process ownership is fixed",
+    "physical Windows live output is qualified"
+  ],
+  "nextOneTask": "Open S4-D4 read-only crash ownership identity baseline before any reattach or parent-death implementation."
+}

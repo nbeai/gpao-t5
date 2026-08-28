@@ -32,7 +32,7 @@ function ptyEnv(defaultDirectory, runtime, additions = {}) {
 export function makePtyStartTool({
   workingDirectory, workspace, computer, processRegistry, ownerId = 'default',
   yieldMs = 1000, originRunId, effectPreflight, env = {}, pathPrepend, capabilityAttribution,
-  terminalPlatformAdapter,
+  terminalPlatformAdapter, terminalOutputStore, outputLimit = 64_000,
 } = {}) {
   const defaultDirectory = workingDirectory ?? workspace;
   if (!defaultDirectory || !isAbsolute(defaultDirectory)) throw new TypeError('absolute workingDirectory is required');
@@ -76,19 +76,39 @@ export function makePtyStartTool({
         args: runtime.argsFor(commandWithManagedPath(command, pathPrepend, runtime.family)),
         cwd, env: ptyEnv(root, runtime, env), confinement: null,
       };
-      const ptyProcess = pty.spawn(launch.program, launch.args, {
-        cwd, env: launch.env, name: 'xterm-256color',
-        cols: args.cols, rows: args.rows,
-      });
-      let result = await processRegistry.startPty({
-        ptyProcess, command, cwd, ownerId, waitMs: yieldMs,
-        metadata: {
-          kind: 'managed', pty: true, originRunId,
-          declaredEffect: structuredClone(args.effect), effectBefore, effectCwd: cwd,
-          ...(capabilitiesUsed.length ? { capabilitiesUsed: structuredClone(capabilitiesUsed) } : {}),
-        },
-        onActivity: context.onActivity,
-      });
+      let liveOutput = null;
+      if (terminalOutputStore && ownerId && originRunId) {
+        const opened = await terminalOutputStore.begin({ sessionId: ownerId, runId: originRunId });
+        liveOutput = {
+          handle: opened.handle,
+          append: ({ stream, text }) => terminalOutputStore.append({
+            handle: opened.handle, sessionId: ownerId, stream, text,
+          }),
+          finalize: () => terminalOutputStore.finalize({ handle: opened.handle, sessionId: ownerId }),
+        };
+      }
+      let result;
+      try {
+        const ptyProcess = pty.spawn(launch.program, launch.args, {
+          cwd, env: launch.env, name: 'xterm-256color',
+          cols: args.cols, rows: args.rows,
+        });
+        result = await processRegistry.startPty({
+          ptyProcess, command, cwd, ownerId, waitMs: yieldMs,
+          metadata: {
+            kind: 'managed', pty: true, originRunId,
+            declaredEffect: structuredClone(args.effect), effectBefore, effectCwd: cwd,
+            ...(capabilitiesUsed.length ? { capabilitiesUsed: structuredClone(capabilitiesUsed) } : {}),
+          },
+          onActivity: context.onActivity, outputSink: liveOutput,
+          spoolLimit: liveOutput ? outputLimit : undefined,
+        });
+      } catch (error) {
+        if (liveOutput) await terminalOutputStore.discard({
+          handle: liveOutput.handle, sessionId: ownerId,
+        }).catch(() => {});
+        throw error;
+      }
       if (context.signal?.aborted && result.state === 'running') {
         result = await processRegistry.stop({ processId: result.processId, ownerId, reason: 'aborted', cursor: result.cursor });
       }
