@@ -1,0 +1,62 @@
+{
+  "schema": "t5.s4e1.pinned-mutation-contract.v1",
+  "status": "CONTRACT_ONLY_PRODUCT_CHANGES_ZERO",
+  "scope": "T5 managed workspace, exact user target, declared scratch and output",
+  "contracts": [
+    {
+      "id": "exact_target_admission",
+      "facts": ["managedRootIdentity", "lexicalRelativePath", "canonicalParentIdentity", "basename", "sourceIdentity", "sourceDigest"]
+    },
+    {
+      "id": "pinned_mutation",
+      "facts": ["openedParentHandle", "basenameEntry", "noSymlinkTraversal", "hardlinkCount"]
+    },
+    {
+      "id": "pre_execution_revalidation",
+      "facts": ["parentIdentityUnchanged", "sourceIdentityUnchanged", "targetStateUnchanged", "workRevisionCurrent"]
+    },
+    {
+      "id": "atomic_publication",
+      "facts": ["siblingTemporary", "writtenDigest", "fileSync", "atomicReplace", "directorySync", "temporaryCleanup"]
+    },
+    {
+      "id": "exact_rollback_pointer",
+      "facts": ["targetOnlyBackup", "preimageIdentity", "preimageDigest", "restoreReadback", "noWorkspaceSnapshot"]
+    },
+    {
+      "id": "post_effect_observation",
+      "facts": ["requestedTarget", "actualTarget", "beforeIdentity", "afterIdentity", "unexpectedWrites", "lateChildWrites", "unknowns"]
+    }
+  ],
+  "platforms": {
+    "posix": ["directoryFd", "openat", "oNofollow", "oDirectory", "renameat", "fileAndDirectoryFsync"],
+    "windows": ["directoryHandle", "reparsePointRejected", "fileIdentity", "replaceFile", "flushFileBuffers", "ntfsHardlinkCount"]
+  },
+  "countertests": [
+    "destination_parent_replaced_by_symlink_after_plan",
+    "intermediate_directory_replaced_after_admission",
+    "source_replaced_by_hardlink_after_plan",
+    "target_created_between_check_and_publish",
+    "same_target_concurrent_work",
+    "cross_filesystem_source_changes_after_copy",
+    "partial_write_or_disk_full",
+    "late_child_writes_outside_declared_targets",
+    "rollback_preimage_changed_before_restore",
+    "windows_junction_or_reparse_point_escape"
+  ],
+  "nonGoals": [
+    "Docker as the default boundary",
+    "Python as the cross-platform product core",
+    "whole-workspace shadow Git",
+    "warning-only stale overwrite",
+    "complete confinement of arbitrary shell effects",
+    "business-specific mutation rules"
+  ],
+  "firstImplementation": "destination_parent_identity_revalidation",
+  "implementationOpenRequires": [
+    "existing source identity and cross-volume controls preserved",
+    "the original symlink-parent escape countertest is red",
+    "the repair changes no model meaning or approval boundary",
+    "remaining TOCTOU is explicitly not claimed closed"
+  ]
+}
