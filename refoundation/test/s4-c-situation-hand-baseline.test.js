@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('S4-C 기준선은 D0 fact-only 교정 뒤 workspace presence qualification만 연다', async () => {
+test('S4-C 기준선은 boolean 실패와 model provider 품질 분리를 보존한다', async () => {
   const evidence = JSON.parse(await readFile(new URL(
     '../evidence/s4-c-situation-hand-baseline-2026-08-28.json', import.meta.url), 'utf8'));
-  assert.equal(evidence.status, 'QUALIFICATION_ONLY_WORKSPACE_PRESENCE_ACTIVE');
+  assert.equal(evidence.status, 'WORKSPACE_PRESENCE_REJECTED_MODEL_PROVIDER_QUALITY_OBSERVATION');
   assert.equal(evidence.productChanges, 0);
   assert.equal(evidence.currentGpt55.purposeAchieved, true);
   assert.equal(evidence.currentGpt55.connectionResultUsedInFinalAnswer, false);
@@ -30,6 +30,10 @@ test('S4-C 기준선은 D0 fact-only 교정 뒤 workspace presence qualification
   assert.equal(evidence.ownerResumption.productAdopted, false);
   assert.equal(evidence.ownerResumption.transmissionCategoryRequired, 'workspace_presence');
   assert.equal(evidence.ownerResumption.stopAfterBooleanFailure, true);
+  assert.equal(evidence.ownerResumption.sourceRemoved, true);
+  assert.equal(evidence.ownerResumption.liveA03.purposeAchieved, false);
+  assert.equal(evidence.ownerResumption.liveA03.namesPathsContentCountsTransmitted, false);
+  assert.equal(evidence.ownerResumption.expandedMatrixRun, false);
   assert.match(evidence.routingDecision.falseAbsenceDirectBlocker, /shallow successful observation/u);
   assert.ok(evidence.notYetProven.includes('connection should be deferred globally'));
 });

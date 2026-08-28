@@ -1,7 +1,7 @@
 {
   "schema": "t5.s4c.situation-hand-baseline.v1",
   "recordedOn": "2026-08-28",
-  "status": "QUALIFICATION_ONLY_WORKSPACE_PRESENCE_ACTIVE",
+  "status": "WORKSPACE_PRESENCE_REJECTED_MODEL_PROVIDER_QUALITY_OBSERVATION",
   "sourceCommit": "35769fb0",
   "scenario": "KHB-S01",
   "productChanges": 0,
@@ -194,16 +194,41 @@
     "connectionFirst": "S4-C cross-model efficiency observation",
     "falseAbsenceDirectBlocker": "S4-D0 repaired hidden stage failure; shallow successful observation still does not prove absence",
     "s4cProductCodeAdopted": false,
-    "nextGate": "S4-C qualification-only workspace presence A/B; product code remains locked"
+    "nextGate": "owner decision on closing S4-C as model/provider quality observation"
   },
   "ownerResumption": {
     "productAdopted": false,
+    "sourceRemoved": true,
     "candidate": "content-free boolean current managed workspace presence",
     "allowedStates": ["nonempty", "empty", "unavailable", "unknown"],
     "contentNamesPathsCountsIncluded": false,
     "evaluation": ["KHB-A03", "KHB-S01", "KHB-M05", "HP-01", "empty workspace", "unrelated direct answers"],
     "transmissionCategoryRequired": "workspace_presence",
-    "stopAfterBooleanFailure": true
+    "stopAfterBooleanFailure": true,
+    "deterministicQualification": { "passed": 20, "failed": 0 },
+    "liveA03": {
+      "model": "gpt-5.5",
+      "purposeAchieved": false,
+      "wallMs": 20751,
+      "modelCalls": 5,
+      "toolCalls": 4,
+      "providerTokens": 52656,
+      "requestBytes": 270298,
+      "toolSequence": ["attachment", "exec", "exec", "work_completion"],
+      "pipelineStageExitCodes": [1, 0, 0],
+      "workspacePresencePayloadBytesPerCall": 161,
+      "firstRequestWireDeltaBytes": 197,
+      "namesPathsContentCountsTransmitted": false
+    },
+    "deltaFromUnchangedA03": {
+      "wallMs": 12000,
+      "modelCalls": 3,
+      "toolCalls": 3,
+      "providerTokens": 34300,
+      "requestBytes": 171973
+    },
+    "expandedMatrixRun": false,
+    "rejectionReason": "boolean presence changed the route but did not recover the purpose and materially worsened cost"
   },
-  "nextOneTask": "Run qualification-only boolean workspace presence A/B without changing the product default."
+  "nextOneTask": "Owner decides whether S4-C closes as model/provider quality observation; do not open another metadata or Prompt candidate."
 }

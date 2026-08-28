@@ -6,15 +6,15 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../../', import.meta.url);
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 
-test('4차 정본은 S4-D0 fact-only 교정 뒤 S4-C workspace presence qualification만 연다', async () => {
+test('4차 정본은 S4-C boolean을 폐기하고 model provider 관측만 남긴다', async () => {
   const [plan, agents, second] = await Promise.all([
     readFile(new URL('T5-FOURTH-COMPLETION.md', root), 'utf8'),
     readFile(new URL('AGENTS.md', root), 'utf8'),
     readFile(new URL('T5-SECOND-COMPLETION.md', root), 'utf8'),
   ]);
-  assert.match(plan, /FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_WORKSPACE_PRESENCE_QUALIFICATION_ACTIVE · PRODUCT_CODE_LOCKED/u);
+  assert.match(plan, /FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_BOOLEAN_REJECTED_MODEL_PROVIDER_OBSERVATION · PRODUCT_CODE_LOCKED/u);
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
-  assert.match(plan, /현재 Gate: `S4-C SITUATION & HAND · WORKSPACE PRESENCE QUALIFICATION-ONLY A\/B`/u);
+  assert.match(plan, /현재 Gate: `S4-C SITUATION & HAND · BOOLEAN REJECTED · OWNER DECISION`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',
     'S4-H', 'S4-I', 'S4-J', 'S4-K', 'S4-UX', 'S4-L', 'S4-HQ'];
   let cursor = -1;
@@ -31,16 +31,16 @@ test('4차 정본은 S4-D0 fact-only 교정 뒤 S4-C workspace presence qualific
   assert.match(plan, /Work brief Tool·목적 schema·성공 기준 schema·Intent enum·목적 전용 Store/u);
   assert.match(plan, /제품 변경 0[\s\S]*gpt-5\.5 반복과 Terra/u);
   assert.match(plan, /exact source 재투영 후보는 열지 않는다/u);
-  assert.match(plan, /S4-C — Situation·Hand의 실제 차이 수리 — WORKSPACE PRESENCE QUALIFICATION ACTIVE/u);
+  assert.match(plan, /S4-C — Situation·Hand의 실제 차이 수리 — BOOLEAN REJECTED, MODEL\/PROVIDER OBSERVATION/u);
   assert.match(plan, /첫 기준선은 KHB-S01/u);
   assert.match(plan, /connection list가 로컬 Evidence보다 먼저 호출/u);
   assert.match(plan, /find -printf[\s\S]*exit 0/u);
   assert.match(plan, /S4-D — Terminal 실행 중 output·process 미달 — D0 FACT-ONLY CORRECTED, BROADER GATE UNOPENED/u);
   assert.match(plan, /전역 pipefail과 exit-code 예외 목록은 적용하지 않았다/u);
   assert.match(plan, /workspacePresence:[\s\S]*scope: current_managed_workspace[\s\S]*contentIncluded: false/u);
-  assert.match(plan, /Transmission Receipt는 `workspace_presence`/u);
-  assert.match(plan, /A03·S01·M05·HP-01과 empty workspace/u);
-  assert.match(plan, /boolean 실패 뒤 metadata 확대/u);
+  assert.match(plan, /workspace_presence` 범주는 call당 161 payload bytes/u);
+  assert.match(plan, /후보 코드와 전송 범주를 모두 제거/u);
+  assert.match(plan, /현재 다음 작업은 오너의 Gate 판정/u);
   assert.match(plan, /각 local engine·model·Capability의 실제 사용 가능 여부[\s\S]*개인정보 범위/u);
   assert.match(plan, /publishable output, internal intermediate, diagnostic, temporary, cleanup/u);
   assert.match(plan, /두 행의 고유값 교환[\s\S]*요청하지 않은 개인정보 JSON/u);

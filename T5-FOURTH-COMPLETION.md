@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_WORKSPACE_PRESENCE_QUALIFICATION_ACTIVE · PRODUCT_CODE_LOCKED`
-현재 Gate: `S4-C SITUATION & HAND · WORKSPACE PRESENCE QUALIFICATION-ONLY A/B`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_BOOLEAN_REJECTED_MODEL_PROVIDER_OBSERVATION · PRODUCT_CODE_LOCKED`
+현재 Gate: `S4-C SITUATION & HAND · BOOLEAN REJECTED · OWNER DECISION`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,18 +55,19 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-C Workspace Presence Reality의 qualification-only A/B다. 제품 코드는 잠겨 있다.
+2. **현재 Gate**: S4-C boolean workspace presence를 폐기했고 model·provider 품질 관측으로 남겼다. 제품 코드는
+   잠겨 있다.
 3. **사용자 완료 문장**: T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한
    손으로 필요한 원문만 본다.
-4. **이미 선 실제 증거**: gpt-5.5 A03은 `attachment list`만 보고 workspace 계약서 두 개를 놓쳤고 Terra S01은
-   depth 2 검색을 전체 부재로 확대했다. M05와 HP-01은 양성 대조다. 이름·경로·내용을 제외한 top-level fact를
-   준 앞선 S01 시험에서는 두 모델이 목적을 회복했으나 정확한 개수까지 포함해 제품에 채택하지 않았다.
-5. **현재 가장 큰 미달**: 모델이 현재 managed workspace에 아직 보지 않은 현실이 있는지 모른 채 attachment·
-   connection·shallow 관측을 전체 부재로 확대한다.
-6. **이번 변경 방식**: recursion 없이 첫 entry에서 멈춘 boolean presence fact만 qualification runtime에 공급하고
-   A03·S01·M05·HP-01·empty workspace·관련 없는 짧은 요청을 동일 제품 A/B로 측정한다.
-7. **Non-goals**: 제품 기본 활성화, 파일명·경로·내용·개수·확장자 전송, metadata 단계적 확대, 새 Tool·Store·
-   Intent·업무 schema·Prompt, 다음 Gate, 실제 HOME·계정·외부 효과 시험.
+4. **이미 선 실제 증거**: boolean presence는 A03에서 attachment-only 종료를 막고 재귀 검색까지 유도했지만,
+   모델은 macOS 비호환 `find -printf`의 stage `[1,0,0]`을 해석하지 못해 계약서 두 개를 계속 놓쳤다. 목적은
+   실패했고 5 model calls·4 tool calls·52,656 tokens·20.8초가 들었다.
+5. **현재 가장 큰 미달**: 필요한 사실·Tool·stage exit가 모두 있어도 모델이 portable 방법과 결과 의미를 잘못
+   선택하는 품질 variance가 남았다. Runtime metadata 부족으로 계속 확대하지 않는다.
+6. **이번 변경 방식**: qualification 후보와 `workspace_presence` 전송 배선을 제품 source에서 제거하고 실패·비용·
+   전송 진실만 증거에 남겼다.
+7. **Non-goals**: 파일 수·이름·확장자 metadata 확대, exit 의미 Runtime 승격, 새 Prompt·Tool·Store·Intent·업무
+   schema, 모델별 patch, 다음 Gate 자동 개통, 실제 HOME·계정·외부 효과 시험.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -211,7 +212,7 @@ call에서의 위치, 최신 교정과 거리, 앞선 assistant·ToolReceipt 크
 > T5는 모델에게 현재 사용자 원문·교정·Evidence·실행 현실을 작고 정확하게 공급하며, 목적·완료 의미와
 > 사용자 답은 모델이 판단한다.
 
-### S4-C — Situation·Hand의 실제 차이 수리 — WORKSPACE PRESENCE QUALIFICATION ACTIVE
+### S4-C — Situation·Hand의 실제 차이 수리 — BOOLEAN REJECTED, MODEL/PROVIDER OBSERVATION
 
 현재 목적에 관련된 Conversation·Memory·Work·file·connection·Capability pointer를 후보화하고 모델이 선택한
 Evidence만 exact reopen한다. 기존 Information Control·Resource Situation·tool search를 우선 사용한다.
@@ -285,6 +286,19 @@ model/tool call 0, 불필요한 connection·attachment 감소, 전송 원문 0�
 
 boolean만으로 A03·S01이 회복되지 않거나 무조건 workspace 검색·empty 확대·짧은 요청 비용 증가·모델별 Prompt가
 생기면 후보를 폐기한다. 파일 수·이름·확장자를 조금씩 추가하지 않고 모델·provider 선택 품질 관측으로 분리한다.
+
+실제 A03 첫 자격에서 boolean의 privacy·scope·Transmission Receipt 계약은 통과했지만 사용자 목적은 실패했다.
+presence는 즉시 업로드 요구 대신 두 번의 workspace 검색을 유도했다. 첫 검색은 depth 2, 두 번째는 재귀였으나
+둘 다 macOS가 지원하지 않는 `find -printf`를 사용했고 stage exit `[1,0,0]`·overall `0`이었다. 모델은 이 사실을
+받고도 관련 파일이 없다고 답했다. 실제 `.md` 계약서 두 개는 depth 3에 존재했다.
+
+기준선 8.8초·2 model calls·1 tool call·18,356 tokens·98,325 request bytes에서 후보는 20.8초·5 model calls·
+4 tool calls·52,656 tokens·270,298 request bytes로 악화됐다. `workspace_presence` 범주는 call당 161 payload bytes,
+첫 wire +197 bytes였고 이름·경로·내용·개수는 전송하지 않았다. 프라이버시 성공이 목적 실패와 비용 회귀를
+상쇄하지 않으므로 S01·M05·HP-01·negative matrix로 확대하지 않고 후보 코드와 전송 범주를 모두 제거했다.
+
+이 결과는 workspace metadata 부족을 더 키울 근거가 아니라 같은 Runtime 현실에서의 model·provider 방법 선택
+품질 관측이다. 다음 metadata 후보나 모델별 Prompt를 열지 않는다.
 
 완료 문장:
 
@@ -574,6 +588,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-D0은 pipeline stage exit와 overall exit를 사실로만 공급하도록 교정됐다. 현재 다음 한 작업은 제품 기본값을
-바꾸지 않고 `workspacePresence` boolean의 qualification-only A/B와 Transmission Receipt 범주를 실행하는 것이다.
-boolean 실패 뒤 metadata 확대, 다음 Gate 진행, 추가 기능 구현은 금지한다.
+S4-D0은 pipeline stage exit와 overall exit를 사실로만 공급하도록 교정됐다. boolean workspace presence는 A03
+목적과 경제성에 실패해 제품 source에서 제거했다. S4-C는 model·provider 품질 관측으로 남아 있으며 다음
+metadata 후보·모델별 Prompt·다음 Gate를 자동으로 열지 않는다. 현재 다음 작업은 오너의 Gate 판정이다.
