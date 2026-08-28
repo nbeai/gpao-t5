@@ -39,6 +39,7 @@ async function filesUnder(root) {
 
 async function materialize(workspace) {
   const input = join(workspace, '입력'); await mkdir(input, { recursive: true });
+  await mkdir(join(workspace, '결과'), { recursive: true });
   const vendors = ['가온상사', '나래유통', '다온기획', '라온마켓'];
   const totals = new Map(vendors.map((vendor) => [vendor, { count: 0, amount: 0 }]));
   const errors = []; const seen = new Set();

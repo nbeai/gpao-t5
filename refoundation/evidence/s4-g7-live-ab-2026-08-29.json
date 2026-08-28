@@ -1,0 +1,99 @@
+{
+  "schema": "t5.s4g.g0-read-only-baseline.v1",
+  "recordedAt": "2026-08-28T20:24:52.786Z",
+  "sourceHead": "g7-candidate-after-96f224fa",
+  "productSourceChangesDuringQualification": 2,
+  "candidateProductSourceDeltaAfterRejection": 0,
+  "model": "gpt-5.5",
+  "fixture": {
+    "inputFiles": 12,
+    "inputRows": 527,
+    "expectedSummaryRows": 4,
+    "expectedErrorRows": 47
+  },
+  "purpose": {
+    "naturalLanguageOnly": true,
+    "programRequestedByUser": false,
+    "httpStatus": 200,
+    "workStatus": "completed",
+    "answerPresent": true
+  },
+  "performance": {
+    "wallMs": 125044,
+    "modelCalls": 11,
+    "toolCalls": 11,
+    "providerTokens": 254539,
+    "requestBytes": 1144432
+  },
+  "route": {
+    "toolNames": [
+      "tool_search",
+      "exec",
+      "exec",
+      "file_reality",
+      "file_reality",
+      "file_reality",
+      "exec",
+      "exec",
+      "attachment",
+      "attachment",
+      "work_completion"
+    ],
+    "programAuthoredOrExecuted": true,
+    "programRelatedToolCalls": 3,
+    "outputReopenedAfterProgramObserved": true,
+    "capsuleContractObserved": false
+  },
+  "verification": {
+    "passed": true,
+    "summaryHeaderExact": true,
+    "errorHeaderExact": true,
+    "totalsExact": true,
+    "summaryOrderExact": true,
+    "errorsExact": true,
+    "errorIdentitySetExact": true,
+    "errorOrderExact": true,
+    "missingErrorKeys": [],
+    "unexpectedErrorKeys": [],
+    "summaryRows": 4,
+    "errorRows": 47,
+    "outputHashes": {
+      "summary": "249742a910167025c5e7e049eff8db023f1f4adf72124d5fd2ef8d7f3038e702",
+      "errors": "83722464b8c6158b6b4f40f87c140aa238885c418cd849cada25e6507a9d8ae1"
+    },
+    "sourceUnchanged": true,
+    "residualFiles": 0,
+    "programResidualFiles": 0,
+    "residualManagedProcesses": 0,
+    "runtimeErrors": 0
+  },
+  "diagnostic": {
+    "surfaceKind": "reply",
+    "surfaceCode": null,
+    "surfaceError": null,
+    "runtimeErrors": []
+  },
+  "boundaries": {
+    "actualUserData": false,
+    "externalWrites": 0,
+    "packageInstallRequested": false,
+    "networkRequested": false,
+    "userTechnicalKnowledgeRequired": false
+  },
+  "g7Assessment": {
+    "baselineModelCalls": 13,
+    "candidateModelCalls": 11,
+    "baselineProviderTokens": 323691,
+    "candidateProviderTokens": 254539,
+    "baselineWallMs": 107840,
+    "candidateWallMs": 125044,
+    "capsuleSelected": false,
+    "purposeAchieved": true,
+    "adopted": false,
+    "reason": "The model completed the purpose through the existing exec route; Capsule produced no user benefit and wall time regressed.",
+    "dailyCheckPassedAfterCandidateRemoval": 1743,
+    "dailyCheckFailedAfterCandidateRemoval": 0,
+    "dailyCheckSkippedAfterCandidateRemoval": 1
+  },
+  "decision": "G7_PRODUCT_WIRING_REJECTED_MODEL_TOOL_SELECTION_OBSERVATION"
+}

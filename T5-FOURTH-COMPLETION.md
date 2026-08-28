@@ -1,6 +1,6 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_COMPLETE · S4_G3_FIXTURE_QUALIFICATION_COMPLETE · S4_G4_ACTUAL_EXECUTION_COMPLETE · S4_G5_INDEPENDENT_OBSERVER_COMPLETE · S4_G6_PUBLICATION_CLEANUP_COMPLETE · S4_G7_PRODUCT_ACTIVATION_AB_ACTIVE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_COMPLETE · S4_G3_FIXTURE_QUALIFICATION_COMPLETE · S4_G4_ACTUAL_EXECUTION_COMPLETE · S4_G5_INDEPENDENT_OBSERVER_COMPLETE · S4_G6_PUBLICATION_CLEANUP_COMPLETE · S4_G7_PRODUCT_WIRING_REJECTED_MODEL_SELECTION_OBSERVATION · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
 현재 Gate: `S4-G7 EPHEMERAL PROGRAM CAPSULE · PRODUCT ACTIVATION AND A/B`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
@@ -714,6 +714,12 @@ publication을 지우지 않고 `published_verified_cleanup_unknown`으로 분�
 현재는 `G7` product activation and A/B만 열려 있다. 자연어 대량 변환의 자발 선택, 단순 요청의 비선택,
 명시적 프로그램 Artifact 분리, G0 대비 품질·calls·tokens·wall·잔여물 0을 실제 모델에서 확인한다.
 
+G7 first actual에서 gpt-5.5는 Capsule을 선택하지 않고 기존 exec 경로로 같은 12-file·527-row 목적을 정확히
+완료했다. model calls는 13→11, provider tokens는 323,691→254,539로 줄었지만 wall은 107.8초→125.0초로
+악화됐고 Capsule 사용자 이익은 0이었다. 단순 계산의 추가 call 0과 hidden-tool 기계 경계는 통과했지만 positive
+self-selection이 실패했으므로 product wiring 후보를 모두 제거했다. Prompt·전역 schema 노출·업무 Router를
+추가하지 않으며 G7 완료를 주장하지 않는다.
+
 완료 문장:
 
 > T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은 프로그램을 만들고, 고정된
@@ -914,4 +920,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 ## 10. 현재 다음 한 작업
 
 S4-C 미달은 S4-G·S4-I·S4-HQ에 이월했다. S4-D managed non-PTY와 D5C, S4-E1~E7, S4-F structured authoring은
-닫혔다. S4-G0~G6도 순서대로 닫혔다. 현재 다음 한 작업은 S4-G7 product activation and A/B다.
+닫혔다. S4-G0~G6도 순서대로 닫혔다. S4-G7 첫 product wiring은 모델이 사용하지 않아 폐기했고 제품 source
+delta는 0이다. 현재 다음 한 작업은 같은 hidden-tool 방향에 문구를 더 붙이지 않고 모델·tool discovery 경계를
+재판정하는 것이다. 실제 사용자 이익이 없는 한 G 전체 완료를 주장하지 않는다.
