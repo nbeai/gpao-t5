@@ -1,24 +1,27 @@
 # T5 Second Completion — Current Development Source
 
-상태: `SECOND_COMPLETION_COMPLETE · THIRD_0_3_1_PRODUCT_BASELINE · PRODUCT_CLEANROOM_ACTIVE`
-현재 Gate: `0.3.1 INSTALLED PRODUCT BASELINE · PRODUCT CLEANROOM B0/C0`
-기준 source: `f74711de`
-배포 상태: `legacy-free 0.3.1 current product baseline · cleanroom behavior-preserving hygiene active`
+상태: `SECOND_COMPLETION_COMPLETE · THIRD_0_3_1_PRODUCT_BASELINE · PRODUCT_CLEANROOM_COMPLETE`
+현재 Gate: `0.3.1 CLEAN INSTALLED PRODUCT BASELINE`
+기준 source: `fd58c2da`
+배포 상태: `legacy-free 0.3.1 clean product baseline · behavior-preserving hygiene complete`
 
 이 문서는 T5 2차 완성의 유일한 현재 작업 계획이다. 제품 정의는 `T5-PRODUCT.md`, 작업 규율은
 `AGENTS.md`, 1차 완성의 역사·실패 원본·과거 Gate는 `T5-REFOUNDATION.md`가 담당한다.
 
 ## 0.3.1 Product Cleanroom 전환 — 2026-08-28
 
-- 현재 설치본 기능 기준 source는 `f74711de`, annotated tag는
-  `t5-0.3.1-pre-clean-baseline`이다.
+- 정리 전 설치본 기능 기준은 source `f74711de`, annotated tag
+  `t5-0.3.1-pre-clean-baseline`이다. 정리 후 기준 tag는 `t5-0.3.1-clean-baseline`이다.
 - Product Cleanroom은 새 기능·Prompt·UI 디자인·새 Store를 만드는 개발선이 아니다. 현재 사용자 행동과
   과거 기록 읽기 호환성을 보존하면서 죽은 UI action·caller 없는 route·4차 휴면 import·불필요 payload를
   증거로 분리하는 짧은 위생 Gate다.
 - S3-CA의 임의 외부 package acquisition과 M6 adaptive activation은 계속 다음 차수다. 현재 검증된
   Skill·CLI·Connection lifecycle과 Windows platform source는 Cleanroom 제거 대상이 아니다.
-- 기준 증거는 `refoundation/evidence/product-cleanroom-baseline-2026-08-28.json`이 담당한다.
-- 다음 한 작업은 코드 변경 없는 C0 reachability 감사다.
+- 정리 전 기준은 `refoundation/evidence/product-cleanroom-baseline-2026-08-28.json`, 완료 결과는
+  `refoundation/evidence/product-cleanroom-closeout-2026-08-28.json`이 담당한다.
+- Prompt·제품 의미·UI 디자인을 바꾸지 않고 caller 없는 UI·서버 432줄을 제거했다. 4차 휴면 18개와
+  qualification-only 29개는 source 증거로 보존하되 설치 payload에서 제외했다. 전체 제품 CI는 통과했다.
+- Cleanroom은 종료됐다. 다음 개발 Gate는 오너가 이 clean baseline에서 별도로 연다.
 
 ## 0.2.1 Release hardening — 2026-08-26
 

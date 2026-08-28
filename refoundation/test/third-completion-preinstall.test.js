@@ -24,9 +24,10 @@ test('3차 설치 전 자격은 16개 인간 목적·격리·CA/M6 비활성·�
 test('3차 정본은 설치 전 역사와 현재 Cleanroom 기준을 함께 가리킨다', async () => {
   const plan = await readFile(new URL('../../T5-THIRD-ACTIVATION-PREPARATION.md', import.meta.url), 'utf8');
   assert.match(plan, /THIRD_COMPLETION_0_3_1_PRODUCT_BASELINE/u);
-  assert.match(plan, /PRODUCT_CLEANROOM_ACTIVE/u);
+  assert.match(plan, /PRODUCT_CLEANROOM_COMPLETE/u);
   assert.match(plan, /third-completion-preinstall-qualification-2026-08-28\.json/u);
   assert.match(plan, /전용 설치 세션/u);
   assert.match(plan, /S3CA_DEFERRED_TO_FOURTH/u);
   assert.match(plan, /t5-0\.3\.1-pre-clean-baseline/u);
+  assert.match(plan, /t5-0\.3\.1-clean-baseline/u);
 });

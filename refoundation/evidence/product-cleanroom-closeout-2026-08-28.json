@@ -1,0 +1,59 @@
+{
+  "schema": "t5.product-cleanroom-closeout.v1",
+  "recordedOn": "2026-08-28",
+  "status": "PRODUCT_CLEANROOM_COMPLETE",
+  "productVersion": "0.3.1",
+  "preCleanCommit": "f74711de56f8f4e36975fc893a806cca615444a9",
+  "implementationHead": "fd58c2dad83fcf230bf2c23bfabb367b562d98ab",
+  "preCleanTag": "t5-0.3.1-pre-clean-baseline",
+  "cleanBaselineTag": "t5-0.3.1-clean-baseline",
+  "sourceReduction": {
+    "consoleServerLines": -18,
+    "uiIndexLines": -414
+  },
+  "currentShape": {
+    "consoleServerLines": 4981,
+    "uiIndexLines": 4280,
+    "sourceModules": 255,
+    "reachableFromPackagedRuntimeEntries": 196
+  },
+  "packageBoundary": {
+    "fourthCycleDormantExcludedFiles": 18,
+    "qualificationOnlyExcludedFiles": 29,
+    "totalExcludedFiles": 47,
+    "payloadFileDelta": -47,
+    "installedByteDelta": -1704125,
+    "sourceEvidenceRetainedInGit": true
+  },
+  "preserved": {
+    "promptUnchanged": true,
+    "productMeaningUnchanged": true,
+    "uiDesignUnchanged": true,
+    "currentUserBehavior": true,
+    "historicalReplyAndTranscriptRead": true,
+    "platformRequiredSource": true,
+    "managedSkillCliAndConnectionLifecycle": true
+  },
+  "verification": {
+    "fullProductCi": "passed",
+    "legacyImports": 0,
+    "productIntegration": { "passed": 192, "failed": 0, "skippedPhysicalWindows": 2 },
+    "mutation": { "killed": 2, "survived": 0 },
+    "packagePayloadGate": "passed",
+    "explicitPackageVerification": "passed"
+  },
+  "unresolved": [
+    "Visible conversation search posts to /search while the current server has no /search route; retained as an owner-visible broken active surface, not deleted.",
+    "Browser production and package responsibility remains UNKNOWN and was retained.",
+    "Prompt performance work was outside this hygiene Gate.",
+    "Physical platform qualification remains outside this Cleanroom Gate."
+  ],
+  "notClaimed": [
+    "new product capability",
+    "UI redesign",
+    "Prompt improvement",
+    "all UNKNOWN source is dead",
+    "deferred fourth-cycle activation"
+  ],
+  "nextOneTask": "Owner opens the next development Gate from t5-0.3.1-clean-baseline."
+}
