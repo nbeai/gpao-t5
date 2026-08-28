@@ -8,7 +8,7 @@ import { publishAtomicFile } from './atomic-file-publication.js';
 const PREPARED = new WeakSet();
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
-function validateFormat(operation, bytes) {
+export function validateAuthoringFormat(operation, bytes) {
   const extension = extname(operation.path).toLowerCase();
   const text = bytes.toString('utf8').replace(/^\uFEFF/u, '');
   if (extension === '.json') {
@@ -22,7 +22,7 @@ function validateFormat(operation, bytes) {
 }
 
 export async function prepareAuthoringPlan({ plan: rawPlan, scratchRoot: rootValue,
-  makeId = randomUUID, validate = validateFormat } = {}) {
+  makeId = randomUUID, validate = validateAuthoringFormat } = {}) {
   const plan = assertAuthoringPlan(rawPlan);
   if (plan.state !== 'previewed') throw new Error('authoring plan is not previewed');
   const scratchRoot = resolve(rootValue); await mkdir(scratchRoot, { recursive: true, mode: 0o700 });

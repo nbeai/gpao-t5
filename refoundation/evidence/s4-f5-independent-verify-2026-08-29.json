@@ -1,0 +1,19 @@
+{
+  "schema": "t5.s4f5.independent-verify.v1",
+  "recordedOn": "2026-08-29",
+  "status": "COMPLETE_INTERNAL_VERIFIER",
+  "sourceBaseCommit": "ae81684b",
+  "qualification": {
+    "actualTargetsReopened": true,
+    "createModifyHashAndFormatVerified": true,
+    "deleteAbsenceVerified": true,
+    "moveSourceDestinationVerified": true,
+    "relationVerifierIndependent": true,
+    "relationFailureRolledBack": true,
+    "thirdPartyTamperState": "partial_effect_unknown",
+    "focusedPassed": 6,
+    "focusedFailed": 0
+  },
+  "nonClaims": ["final settlement complete", "public workspace_patch exists", "all document semantics verified"],
+  "nextOneTask": "Open S4-F6 settle cleanup and Undo pointers."
+}

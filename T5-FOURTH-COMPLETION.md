@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_CONTRACT_AND_BASELINE_COMPLETE · S4_F1_CANONICAL_PARENT_CORRECTED · S4_F2_SCRATCH_PREPARE_REQUALIFIED · S4_F3_SORTED_LOCK_REVALIDATE_COMPLETE · S4_F4_PUBLICATION_ROLLBACK_COMPLETE · S4_F5_INDEPENDENT_VERIFY_ACTIVE`
-현재 Gate: `S4-F5 INDEPENDENT REOPEN AND VERIFY`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_CONTRACT_AND_BASELINE_COMPLETE · S4_F1_CANONICAL_PARENT_CORRECTED · S4_F2_SCRATCH_PREPARE_REQUALIFIED · S4_F3_SORTED_LOCK_REVALIDATE_COMPLETE · S4_F4_PUBLICATION_ROLLBACK_COMPLETE · S4_F5_INDEPENDENT_VERIFY_COMPLETE · S4_F6_SETTLEMENT_ACTIVE`
+현재 Gate: `S4-F6 SETTLE CLEANUP AND UNDO POINTERS`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,13 +55,14 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-F5 전체 target 독립 재개방·검증이다.
+2. **현재 Gate**: S4-F6 verified transaction 최종 정산이다.
 3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
    없이 끝까지 관찰한다.
 4. **이미 선 실제 증거**: F baseline은 multi-file partial commit·stale overwrite·shell literal expansion을 재현했다.
-5. **현재 가장 큰 미달**: publication 성공 뒤 모든 target의 실제 hash·형식·삭제·이동·cross-file revision을 독립 확인하지 않는다.
-6. **이번 변경 방식**: plan과 scratch가 아닌 실제 target을 전부 reopen해 expected state·hash·형식·관계 revision을 검증한다.
-7. **Non-goals**: settle/public tool·범용 IDE·filesystem 동시 rename 주장·S4-G.
+5. **현재 가장 큰 미달**: verified transaction의 lock·scratch·rollback pointer·최종 사용자 상태가 하나로 정산되지 않았다.
+6. **이번 변경 방식**: lock을 해제하고 scratch를 정리하되 exact rollback pointer는 Undo 범위로 보존하며 최종
+   `published_verified` receipt를 만든다.
+7. **Non-goals**: public tool·범용 IDE·retention 전체 정책·filesystem 동시 rename 주장·S4-G.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -596,6 +597,10 @@ S4-F4 actual은 모든 target의 E6 rollback pointer를 먼저 durable하게 만
 target별 publication으로 적용한다. 후순위 failure는 적용된 target을 역순 exact restore하고 모두 재검증되면
 `rolled_back_verified`, 하나라도 복원이 불명확하면 `partial_effect_unknown`이다. failure 뒤 lock은 모두 해제된다.
 
+S4-F5 actual은 plan/scratch 영수증이 아니라 actual target 전체를 reopen해 create·modify hash·형식, delete
+absence, move source/destination과 독립 relation verifier를 확인한다. relation failure는 전체 rollback하며 제3자
+target 변조로 exact restore가 불가능하면 `partial_effect_unknown`이다.
+
 ### S4-G — Ephemeral Program Capsule
 
 기존 손으로 같은 품질을 경제적으로 달성하기 어려울 때만 현재 Work의 작은 프로그램을 만든다.
@@ -839,4 +844,5 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 ## 10. 현재 다음 한 작업
 
 S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D managed non-PTY와 D5C는 닫혔다. S4-E baseline은 세 실제 gap으로
-닫혔다. S4-E1~E7과 F1~F4도 닫혔다. 현재 다음 한 작업은 실제 target 전체를 독립 재개방하는 S4-F5다.
+닫혔다. S4-E1~E7과 F1~F5도 닫혔다. 현재 다음 한 작업은 verified transaction을 cleanup·lock release·Undo
+pointer와 함께 `published_verified`로 정산하는 S4-F6다.
