@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_PAUSED_BY_OWNER · PRODUCT_CODE_LOCKED`
-현재 Gate: `S4-C SITUATION & HAND · PAUSED · NO FURTHER GATE OR FEATURE WORK`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_WORKSPACE_PRESENCE_QUALIFICATION_ACTIVE · PRODUCT_CODE_LOCKED`
+현재 Gate: `S4-C SITUATION & HAND · WORKSPACE PRESENCE QUALIFICATION-ONLY A/B`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,17 +55,18 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-D0 fact-only 교정 뒤 S4-C로 돌아왔고 오너 지시로 멈췄다. 제품 코드는 잠겨 있다.
+2. **현재 Gate**: S4-C Workspace Presence Reality의 qualification-only A/B다. 제품 코드는 잠겨 있다.
 3. **사용자 완료 문장**: T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한
    손으로 필요한 원문만 본다.
-4. **이미 선 실제 증거**: `grep no-match | wc -l`과 `diff a b | sed`는 stage exit 1과 정상 overall exit 0·
-   stdout을 함께 냈지만 `1607c69e`의 Runtime 의미 승격이 실패로 바꿨다. 두 반례를 RED로 고정한 뒤 승격을
-   제거했고 stage exit와 overall exit 사실만 남겼다.
-5. **현재 가장 큰 미달**: S4-C의 shallow observation false absence는 gpt-5.5 계약 비교에서도 재현됐고
-   미수금에서는 성공해 cross-domain variance로 남았다. 이 미달은 해결되지 않았지만 현재 작업 대상이 아니다.
-6. **이번 변경 방식**: D0에서 명령별 exit 의미를 Runtime이 선택하지 않도록 계약을 교정했고 추가 작업은 없다.
-7. **Non-goals**: exit-code 예외 목록, pipeline 실패 승격, Prompt·Tool·Store·Intent 변경, S4-C 수리, 다음 Gate,
-   추가 기능, 실제 계정·외부 효과 시험.
+4. **이미 선 실제 증거**: gpt-5.5 A03은 `attachment list`만 보고 workspace 계약서 두 개를 놓쳤고 Terra S01은
+   depth 2 검색을 전체 부재로 확대했다. M05와 HP-01은 양성 대조다. 이름·경로·내용을 제외한 top-level fact를
+   준 앞선 S01 시험에서는 두 모델이 목적을 회복했으나 정확한 개수까지 포함해 제품에 채택하지 않았다.
+5. **현재 가장 큰 미달**: 모델이 현재 managed workspace에 아직 보지 않은 현실이 있는지 모른 채 attachment·
+   connection·shallow 관측을 전체 부재로 확대한다.
+6. **이번 변경 방식**: recursion 없이 첫 entry에서 멈춘 boolean presence fact만 qualification runtime에 공급하고
+   A03·S01·M05·HP-01·empty workspace·관련 없는 짧은 요청을 동일 제품 A/B로 측정한다.
+7. **Non-goals**: 제품 기본 활성화, 파일명·경로·내용·개수·확장자 전송, metadata 단계적 확대, 새 Tool·Store·
+   Intent·업무 schema·Prompt, 다음 Gate, 실제 HOME·계정·외부 효과 시험.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -210,7 +211,7 @@ call에서의 위치, 최신 교정과 거리, 앞선 assistant·ToolReceipt 크
 > T5는 모델에게 현재 사용자 원문·교정·Evidence·실행 현실을 작고 정확하게 공급하며, 목적·완료 의미와
 > 사용자 답은 모델이 판단한다.
 
-### S4-C — Situation·Hand의 실제 차이 수리 — PAUSED BY OWNER
+### S4-C — Situation·Hand의 실제 차이 수리 — WORKSPACE PRESENCE QUALIFICATION ACTIVE
 
 현재 목적에 관련된 Conversation·Memory·Work·file·connection·Capability pointer를 후보화하고 모델이 선택한
 Evidence만 exact reopen한다. 기존 Information Control·Resource Situation·tool search를 우선 사용한다.
@@ -255,7 +256,35 @@ connection 비용은 S4-C에 남는다. 같은 방향의 세 번째 Prompt·Tool
 current-head의 gpt-5.5 반대확인에서 KHB-M05 미수금은 정확히 성공했지만 KHB-A03 계약 비교는 `attachment list`
 하나만 실행하고 workspace의 계약서 두 개를 보지 않은 채 업로드를 요구했다. 두 번째 호출에도 `exec`는 실제로
 열려 있었다. 짧은 원리형 qualification instruction도 같은 실패를 반복해 product source에서 제거했다. 이
-cross-domain variance는 미해결로 보존하며 오너 지시에 따라 S4-C 작업을 멈춘다.
+cross-domain variance는 미해결로 보존하며 당시 오너 지시에 따라 S4-C 작업을 멈췄다.
+
+오너 재개로 다음 bounded 후보 하나만 qualification에서 연다.
+
+```yaml
+workspacePresence:
+  scope: current_managed_workspace
+  state: nonempty | empty | unavailable | unknown
+  descendantsObserved: false
+  relevanceKnown: false
+  computerScopeObserved: false
+  contentIncluded: false
+```
+
+관측은 현재 managed workspace의 top level만 열고 첫 qualifying entry에서 즉시 멈춘다. recursion·이름·경로·
+크기·시간·개수 보존은 0이고 symlink 내부에 들어가지 않는다. 읽기 실패는 `empty`가 아니라 `unavailable`,
+관측하지 않은 상태는 `unknown`이다. 이 사실은 현재 Run의 Situation에만 존재하고 Store·Memory·Conversation·
+사용자 결과·작업 기록에는 남지 않는다. 관련성·어떤 손을 쓸지·부재 의미는 모델이 선택한다.
+
+boolean도 provider에 전달되는 새 정보이므로 Transmission Receipt는 `workspace_presence`를 별도 범주로 기록하고
+원문·이름·경로·내용·개수·식별자가 포함되지 않았음을 반대시험으로 고정한다. Windows는 같은 managed workspace
+top-level presence 의미를 사용하되 physical adapter 자격은 S4-L에 남긴다.
+
+qualification-only A/B는 A03·S01·M05·HP-01과 empty workspace·관련 없는 인사·질문·계산을 사용한다. A03의
+계약서 두 개 비교, S01 거짓 부재 0, M05·HP-01 무회귀, empty를 computer absence로 확대 0, 짧은 요청의 추가
+model/tool call 0, 불필요한 connection·attachment 감소, 전송 원문 0과 bytes·wall·tokens가 모두 확인돼야 한다.
+
+boolean만으로 A03·S01이 회복되지 않거나 무조건 workspace 검색·empty 확대·짧은 요청 비용 증가·모델별 Prompt가
+생기면 후보를 폐기한다. 파일 수·이름·확장자를 조금씩 추가하지 않고 모델·provider 선택 품질 관측으로 분리한다.
 
 완료 문장:
 
@@ -545,6 +574,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-D0은 pipeline stage exit와 overall exit를 사실로만 공급하도록 교정됐다. 명령별 exit 의미 승격과 예외
-목록은 없다. S4-C로 돌아왔지만 오너 지시에 따라 다음 Gate 진행·추가 기능 구현·S4-C 수리를 모두 중단한다.
-현재 다음 작업은 없다.
+S4-D0은 pipeline stage exit와 overall exit를 사실로만 공급하도록 교정됐다. 현재 다음 한 작업은 제품 기본값을
+바꾸지 않고 `workspacePresence` boolean의 qualification-only A/B와 Transmission Receipt 범주를 실행하는 것이다.
+boolean 실패 뒤 metadata 확대, 다음 Gate 진행, 추가 기능 구현은 금지한다.
