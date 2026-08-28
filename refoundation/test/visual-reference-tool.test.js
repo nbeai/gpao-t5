@@ -23,8 +23,9 @@ test('실제 decoder는 refoundation production runtime에 exact dependency와 p
   const runtimePackage = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
   const installer = await readFile(new URL('../scripts/build-macos-installer.mjs', import.meta.url), 'utf8');
   assert.equal(runtimePackage.dependencies.sharp, '0.35.3');
-  assert.match(installer, /npm', \['ci', '--omit=dev'\]/u);
-  assert.doesNotMatch(installer, /omit=optional/u);
+  assert.match(installer, /npm', \['ci', '--omit=dev', '--omit=optional', '--ignore-scripts'\]/u);
+  assert.match(installer, /@img\/sharp-darwin-arm64@0\.35\.3/u);
+  assert.match(installer, /@img\/sharp-darwin-x64@0\.35\.3/u);
 });
 
 function imageResponse(bodyInput, { status = 200, headers = {} } = {}) {
