@@ -76,6 +76,8 @@ retain that complete text and all required notices.
 | `@img/sharp-win32-arm64` | 0.35.3 | Apache-2.0 AND LGPL-3.0-or-later |
 | `@img/sharp-win32-ia32` | 0.35.3 | Apache-2.0 AND LGPL-3.0-or-later |
 | `@img/sharp-win32-x64` | 0.35.3 | Apache-2.0 AND LGPL-3.0-or-later |
+| `@jitl/quickjs-ffi-types` | 0.32.0 | MIT |
+| `@jitl/quickjs-wasmfile-release-sync` | 0.32.0 | MIT |
 | `@modelcontextprotocol/client` | 2.0.0 | MIT |
 | `@modelcontextprotocol/core` | 2.0.0 | MIT |
 | `@modelcontextprotocol/sdk` | 1.30.0 | MIT |
@@ -251,6 +253,7 @@ retain that complete text and all required notices.
 | `proxy-addr` | 2.0.7 | MIT |
 | `punycode.js` | 2.3.1 | MIT |
 | `qs` | 6.15.3 | BSD-3-Clause |
+| `quickjs-emscripten-core` | 0.32.0 | MIT |
 | `range-parser` | 1.3.0 | MIT |
 | `raw-body` | 3.0.2 | MIT |
 | `readable-stream` | 2.3.8 | MIT |
@@ -303,6 +306,7 @@ Direct upstream projects:
 - Mozilla Readability: <https://github.com/mozilla/readability>
 - Model Context Protocol TypeScript SDK: <https://github.com/modelcontextprotocol/typescript-sdk>
 - Office Kit XLSX: <https://github.com/office-kit/xlsx>
+- QuickJS Emscripten: <https://github.com/justjake/quickjs-emscripten>
 - agent-browser: <https://github.com/vercel-labs/agent-browser>
 - clawpdf: <https://github.com/openclaw/clawpdf>
 - cron-parser: <https://github.com/harrisiirak/cron-parser>

@@ -1,0 +1,51 @@
+{
+  "schema": "t5.s4g.g3-node-confinement-baseline.v1",
+  "recordedAt": "2026-08-28T19:29:00.835Z",
+  "productChanges": 0,
+  "platform": "darwin",
+  "interpreter": {
+    "kind": "bundled_node_candidate",
+    "version": "v24.14.0",
+    "digest": "20a18709f0154d668f1bd6f6ea8c2a7ae001447b4b2c339732f22e57a8767a55"
+  },
+  "seatbeltOnly": {
+    "sameInterpreterChildEscaped": true,
+    "childStatus": 0,
+    "childErrorCode": null
+  },
+  "nodePermissionPlusSeatbelt": {
+    "fixtureScratchWrite": "allowed",
+    "outsideWriteBlocked": true,
+    "protectedReadBlocked": true,
+    "sameInterpreterChildBlocked": true,
+    "workerBlocked": true,
+    "networkBlocked": true,
+    "secretEnvPresent": false,
+    "expectedOutputExact": true
+  },
+  "limits": {
+    "wallTimeoutKilled": true,
+    "outputProjectionBounded": true,
+    "outputProducedBytes": 131072,
+    "heapLimitMb": 32,
+    "externalBufferAllocationBytes": 134217728,
+    "observedRssBytes": 179961856,
+    "hardRssBoundaryProven": false,
+    "sampledRssBoundary": {
+      "limitBytes": 100663296,
+      "pollMs": 10,
+      "limitExceeded": true,
+      "killed": true,
+      "peakObservedBytes": 174129152,
+      "overshootBytes": 73465856,
+      "hardCapClaimed": false
+    }
+  },
+  "canaries": {
+    "outsideWriteAbsent": true,
+    "protectedCanaryUnchanged": true
+  },
+  "actualInputExecutions": 0,
+  "externalNetworkEffects": 0,
+  "decision": "NODE_CANDIDATE_INCOMPLETE_HARD_RSS_BOUNDARY"
+}

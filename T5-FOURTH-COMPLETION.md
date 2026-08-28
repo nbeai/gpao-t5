@@ -59,12 +59,12 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 3. **사용자 완료 문장**: T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은
    프로그램을 만들고, 고정된 입력과 범위에서 시험·실행하며, 프로그램과 독립적으로 검증한 사용자 결과만
    발행하고 나머지는 정리한다.
-4. **이미 선 실제 증거**: G2는 source·fixture·oracle·output declaration·manifest를 0700/0600 scratch에 exact
-   digest로 함께 준비하고 actual input 복사·실행·network·package·credential·user target write 0을 고정했다.
-5. **현재 가장 큰 미달**: 준비된 exact source를 어떤 interpreter·confinement·resource boundary에서 fixture에만
-   실행하고 독립 oracle과 대조할지 아직 자격되지 않았다.
-6. **이번 변경 방식**: interpreter 후보와 macOS·Windows confinement 의미를 먼저 실제 반례로 비교하고, D의
-   managed process/output와 E의 scratch-only 범위를 재사용하는 가장 작은 fixture-only 실행 후보를 연다.
+4. **이미 선 실제 증거**: direct Node는 same-interpreter child와 RSS cap에서 폐기됐고 QuickJS WASM은 host API 0,
+   memory·stack·deadline·output limit과 independent oracle fixture를 focused 5/5로 통과했다.
+5. **현재 가장 큰 미달**: QuickJS fixture evaluator가 아직 주 Runtime process 안에서 동작해 D의 parent-death·
+   cancel·helper crash settlement와 결속되지 않았다.
+6. **이번 변경 방식**: exact QuickJS variant를 one-shot managed helper에 격리하고 bounded request/result만 교환해
+   helper crash·timeout·cancel이 actual 실행을 열지 않는지 확인한다.
 7. **Non-goals**: actual input 실행·product activation·nested Tool RPC·package 설치·자동 Skill·S4-H.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
@@ -682,6 +682,17 @@ fixture·actual execution 0으로 닫힌다. 제품 wiring·network·package·cr
 network·secret·child process 차단, timeout·memory·output boundary를 실제 반례로 먼저 자격한다. exact source와
 interpreter가 작은 fixture·independent oracle을 통과하기 전 actual input은 실행하지 않는다.
 
+G3 current actual에서 macOS Seatbelt에 exact bundled Node만 허용한 후보는 guest가 같은 Node child를 실행해
+폐기했다. Node permission을 결합하면 filesystem·network·secret env·child·worker·timeout·output은 닫혔지만
+32MB heap 설정에서도 128MB external Buffer와 약 180MB RSS가 가능했다. 96MiB sampled RSS monitor는 약 73MiB
+overshoot 뒤에야 process를 끝내 hard cap으로 채택하지 않았다. 같은 Node 방향의 patch를 더 붙이지 않는다.
+
+대안 QuickJS release-sync WASM은 guest host API를 0으로 두고 runtime memory·stack·deadline을 직접 제한한다.
+exact variant `0.32.0`과 WASM digest를 관측하고 strict UTF-8 fixture의 pure `transform(input)` 결과를 JSON bytes로
+받아 independent oracle과 host에서 exact 비교했다. 정상 fixture, host API 부재, memory·timeout·output·oracle
+mismatch, stale source·forged interpreter가 5/5를 통과했다. Console wiring·actual input execution은 0이다.
+다만 D managed helper 격리 전에는 G3 전체 완료를 주장하지 않는다.
+
 완료 문장:
 
 > T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은 프로그램을 만들고, 고정된
@@ -883,4 +894,5 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 S4-C 미달은 S4-G·S4-I·S4-HQ에 이월했다. S4-D managed non-PTY와 D5C, S4-E1~E7, S4-F structured authoring은
 닫혔다. S4-G0 실제 차이, G1 contract, G2 source preparation도 닫혔다. 현재 다음 한 작업은 S4-G3 interpreter·
-confinement read-only qualification과 fixture-only 반대시험이다. actual input 실행과 product activation은 열지 않는다.
+QuickJS fixture evaluator를 D managed one-shot helper에 격리해 crash·cancel·parent-death를 닫는 일이다. actual input
+실행과 product activation은 열지 않는다.

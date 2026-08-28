@@ -86,6 +86,8 @@ test('4차 정본은 S4-G2를 닫고 S4-G3 fixture qualification만 연다', asy
   assert.match(plan, /S4-C carry-forward로 실제 자료가 있는데 없다고 말하는지/u);
   assert.match(plan, /각 local engine·model·Capability의 실제 사용 가능 여부[\s\S]*개인정보 범위/u);
   assert.match(plan, /publishable output, internal intermediate, diagnostic, temporary, cleanup/u);
+  assert.match(plan, /같은 Node child를 실행해[\s\S]*sampled RSS monitor[\s\S]*hard cap으로 채택하지 않/u);
+  assert.match(plan, /QuickJS release-sync WASM[\s\S]*host API를 0[\s\S]*D managed helper 격리 전에는 G3 전체 완료를 주장하지 않는다/u);
   assert.match(plan, /두 행의 고유값 교환[\s\S]*요청하지 않은 개인정보 JSON/u);
   assert.match(plan, /one-to-one·one-to-many·many-to-one·ambiguous·unmatched·conflicting/u);
   assert.match(plan, /최종 Excel·ZIP을 독립 재개방/u);
