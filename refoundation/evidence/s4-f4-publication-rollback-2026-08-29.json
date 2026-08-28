@@ -1,0 +1,18 @@
+{
+  "schema": "t5.s4f4.publication-rollback.v1",
+  "recordedOn": "2026-08-29",
+  "status": "COMPLETE_INTERNAL_TRANSACTION",
+  "sourceBaseCommit": "ccace56b",
+  "qualification": {
+    "rollbackPointersBeforePublication": true,
+    "createModifyDeleteMovePublished": true,
+    "thirdOperationFailureRolledBack": true,
+    "rollbackDigestsVerified": true,
+    "rollbackFailureState": "partial_effect_unknown",
+    "failureLocksReleased": true,
+    "focusedPassed": 9,
+    "focusedFailed": 0
+  },
+  "nonClaims": ["filesystem simultaneous rename", "final independent verification complete", "public workspace_patch exists"],
+  "nextOneTask": "Open S4-F5 independent reopen and verify."
+}

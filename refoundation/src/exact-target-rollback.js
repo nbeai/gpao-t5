@@ -28,9 +28,10 @@ export async function createExactTargetRollbackPointer({ target: targetValue, ro
     rollbackRoot: canonicalRoot, backupName, preimage, createdAt: new Date().toISOString() });
 }
 
-export async function restoreExactTargetRollback({ pointer, expectedPostimage } = {}) {
+export async function restoreExactTargetRollback(options = {}) {
+  const { pointer, expectedPostimage } = options;
   if (pointer?.schema !== 't5.exact-target-rollback.v1' || !pointer.target || !pointer.rollbackRoot
-    || !expectedPostimage) throw new TypeError('exact rollback pointer is invalid');
+    || !Object.hasOwn(options, 'expectedPostimage')) throw new TypeError('exact rollback pointer is invalid');
   const rollbackRoot = await realpath(pointer.rollbackRoot);
   const target = resolve(pointer.target); const current = await observePublicationPreimage(target);
   if (JSON.stringify(current) !== JSON.stringify(expectedPostimage)) {
