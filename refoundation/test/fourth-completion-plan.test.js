@@ -38,6 +38,18 @@ test('4차 정본은 S4-D0 fact-only 교정 뒤 S4-C 정지선을 보존한다',
   assert.match(plan, /S4-D — Terminal 실행 중 output·process 미달 — D0 FACT-ONLY CORRECTED, BROADER GATE UNOPENED/u);
   assert.match(plan, /전역 pipefail과 exit-code 예외 목록은 적용하지 않았다/u);
   assert.match(plan, /현재 다음 작업은 없다/u);
+  assert.match(plan, /각 local engine·model·Capability의 실제 사용 가능 여부[\s\S]*개인정보 범위/u);
+  assert.match(plan, /publishable output, internal intermediate, diagnostic, temporary, cleanup/u);
+  assert.match(plan, /두 행의 고유값 교환[\s\S]*요청하지 않은 개인정보 JSON/u);
+  assert.match(plan, /one-to-one·one-to-many·many-to-one·ambiguous·unmatched·conflicting/u);
+  assert.match(plan, /최종 Excel·ZIP을 독립 재개방/u);
+  assert.match(plan, /model partial[\s\S]*surface persistence[\s\S]*delivery terminal/u);
+  assert.match(plan, /engine·model 후보별 identity[\s\S]*local\/external[\s\S]*privacy scope/u);
+  assert.match(plan, /사용자 메시지·T5 답변·실제 작업시간/u);
+  assert.match(plan, /Artifact lineage에서 version이 단조 증가/u);
+  assert.match(plan, /내부 `sandbox:` URL/u);
+  assert.match(plan, /권역별 Excel 6개[\s\S]*내부 파일 0/u);
+  assert.match(plan, /장시간 한국어 오디오[\s\S]*Notion에 반영·재개방/u);
   assert.match(agents, /`T5-FOURTH-COMPLETION\.md` — 지금 어느 Gate/u);
   assert.match(second, /현재 후속 Gate: `T5-FOURTH-COMPLETION\.md · S4-C`/u);
 });

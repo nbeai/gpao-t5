@@ -218,6 +218,11 @@ Evidence만 exact reopen한다. 기존 Information Control·Resource Situation·
 새 index·OCR cache·relationship map은 현재 목적 A/B에서 실제 반복 읽기나 누락이 재현될 때만 연다. 관계는
 source pointer·revision·candidate·conflict로만 보존하고 사람·회사·상품·계약의 영구 truth를 만들지 않는다.
 
+한 Work 안에서 서로 다른 실행 수단을 조합할 때는 업무 이름으로 provider를 고르지 않는다. 모델이 현재 목적과
+사용자 정책을 보고 선택할 수 있도록 각 local engine·model·Capability의 실제 사용 가능 여부, 입력 한계,
+품질 자격, 비용, 실측 시간, 로컬/외부 처리, 개인정보 범위, 결과 형식, 실패 대안을 사실로 공급한다. 현재
+모델 전환·Resource Situation·Capability Reality와의 실제 차이가 재현되기 전에는 새 router를 만들지 않는다.
+
 첫 기준선은 KHB-S01이다. 과거의 불필요한 connection probe와 106,652-token 표본을 현재 결함으로 자동
 승격하지 않는다. 제품 변경 0의 current-head replay에서 같은 사용자 목적·로컬 예약 Evidence·빈 연결 현실을
 사용하고, 실제 Tool route와 final Context를 읽은 뒤 최초 결함 가족 하나만 연다.
@@ -322,6 +327,11 @@ source·digest
 자동 package 설치, credential 원문, Core 수정, 자동 영구 Skill 승격, 외부 effect 재실행은 없다. 프로그램의
 exit 0·자체 JSON·자체 fixture는 사용자 목적 성공 증거가 아니다.
 
+Capsule은 실행 전에 publishable output, internal intermediate, diagnostic, temporary, cleanup 범위를 구분하고,
+실행 뒤 별도 observer가 실제 파일·container 목록, MIME·형식·크기·hash를 expected output과 대조한다. 요청한
+파일 외 내부 JSON·log·debug·manifest·개인정보 중복 사본은 Artifact와 ZIP에 들어가지 않는다. 프로그램이
+작성한 output manifest는 관측 후보일 뿐 독립 검증이 아니다.
+
 완료 문장:
 
 > T5는 처음 보는 업무에 필요한 작은 도구를 작성·시험·실행하고 독립 검증해 기존 손의 한계를 넘는다.
@@ -331,6 +341,23 @@ exit 0·자체 JSON·자체 fixture는 사용자 목적 성공 증거가 아니�
 기존 `bind_sources`·source manifest·document reopen 위에서 실제 실패만 넓힌다. 서로 다른 자료의 대상 후보,
 field mapping, 중복·누락·충돌, 날짜·수량·금액, partial coverage, 원본 행·셀·페이지 lineage, 결과 재계산과
 사용처 형식을 분리한다.
+
+0.3.1 실제 사용자의 자연어 기록→교정→원본 신청자료→양식→권역별 Excel·ZIP 여정은 목적을 달성했지만,
+독립 감사에서 두 행의 고유값 교환, 필수값 한 건 미확인, 요청하지 않은 개인정보 JSON 포함이 관측됐다. 이름·
+월·권역 예외를 만들지 않고 다음 범용 계약으로 흡수한다.
+
+- 행 순서나 비슷한 이름이 아니라 source key·source row·revision으로 join한다.
+- one-to-one·one-to-many·many-to-one·ambiguous·unmatched·conflicting cardinality를 사실로 남긴다.
+- 동일 source identity의 기간별 값 같음·다름·누락을 관측하고 Runtime이 올바른 값을 선택하지 않는다.
+- 필수 field마다 전체·확인·허용 빈칸·원본 없음·join 실패·상충·미확인 coverage를 계산한다.
+- output file·sheet·row·field에서 source file·sheet·row·revision·mapping·verification으로 이어지는 lineage를
+  Receipt에 보존하되 기술 field를 사용자 Excel에 강제로 추가하지 않는다.
+- 최종 Excel·ZIP을 독립 재개방해 실제 파일 수·시트·행·열·필수값·중복·누락·formula error·내부 파일·
+  개인정보 범위를 검사한다.
+- 최종 답의 파일 수·행 수·권역별 수·검증 완료·미확인·포함 파일 목록은 observer 결과와 일치해야 한다.
+
+같은 이메일이라는 이유만으로 다른 기간의 고유값을 복사하거나 출처 없는 identity를 merge하지 않는다. 필수값
+하나가 미확인이면 전체 검증 완료로 말하지 않고 확인된 행과 남은 한 행을 분리한다.
 
 재고·계약·미수금 실패의 공통 원인이 같은 대상·시간·상태 연결일 때 하나의 source-backed reconciliation
 원리를 고친다. 세 전용 기능을 만들지 않고 ambiguous identity를 자동 merge하지 않는다.
@@ -344,6 +371,11 @@ field mapping, 중복·누락·충돌, 날짜·수량·금액, partial coverage,
 방법 실패와 목적 실패를 분리하고 성공한 Evidence·부분 결과·effect를 보존한다. 아직 시도하지 않은 Hand,
 대체 비용과 위험, 사용자에게 물을 사실과 T5가 더 관측할 사실, exact resume를 모델에 공급한다. update·crash·
 cancel 뒤 blind retry와 orphan process를 막는다.
+
+provider·surface 실패 전 사용자가 이미 본 부분 답과 확인된 계산은 exact fragment로 보존한다. model partial
+생성, 사용자 가시화, final 생성, surface persistence, delivery terminal을 한 success로 합치지 않는다. 실패
+surface가 이미 공개된 유용한 결과를 지우거나 후속 입력이 같은 계산·Tool·외부 effect를 다시 실행해서는 안
+되며 Console·Telegram의 공개 상태가 달라서도 안 된다.
 
 사용자 답은 결과 중심으로 모델이 작성한다. `결과 → 근거 → 미확인 → 다음 행동`은 가능한 정보 순서이지
 고정 답변 템플릿이 아니다.
@@ -385,6 +417,11 @@ Skill·Plugin·CLI·MCP는 출발점이 아니라 결과물이다. 기존 CA res
 tag·credential URL·임의 lifecycle hook·검증되지 않은 package는 제품 능력이 아니다. 네 사용자 경계는
 비밀값 입력, 백업 없는 파괴, 새 상대 첫 외부 전송, 돈이 나가는 일로 유지한다.
 
+실행 Capability는 필요할 때 engine·model 후보별 identity, version, 입력 형식·크기·길이, 언어, 품질 증거,
+비용, 처리시간, local/external, privacy scope, runtime requirement, result format, fallback을 관측한다. 사용자는
+로컬 우선·비용 우선·품질 우선·특정 공급자·민감자료 외부 전송 금지 정책을 자연어로 정할 수 있다. STT는
+이 계약의 positive control일 수 있지만 `회의록이면 특정 API` 같은 업무 Router나 성공한 전사 재실행은 없다.
+
 완료 문장:
 
 > T5는 현재 손이 부족한 이유를 정확히 알고 기존 대안이 없을 때만 검증된 능력을 안전하게 갖춰 원래 목적을 재개한다.
@@ -405,6 +442,14 @@ Telegram 진행, Artifact·Effect·Delivery 영수증을 재사용한다.
 - Session 이동·재접속·Console·Telegram에서 같은 canonical 상태와 terminal 결과를 유지한다.
 - 내부 Run·Tool·command·path·hash·검색어·비밀·모델 사고 원문을 사용자 상태에 투영하지 않는다.
 - 과거 표본과 현재 단계 근거 없는 ETA·percentage·`거의 완료`를 만들지 않는다.
+- Conversation recordedAt, Work 시작, surface persistence, delivery terminal, Resource wall의 canonical 시간을
+  사용자 timezone으로 투영해 사용자 메시지·T5 답변·실제 작업시간을 확인할 수 있게 한다.
+- 같은 결과의 수정본은 같은 Artifact lineage에서 version이 단조 증가하고, 새 목적의 결과만 새 lineage를
+  시작한다. Console·Telegram이 같은 최신 버전을 보여주며 이전 파일을 덮어쓰지 않는다.
+- 내부 `sandbox:` URL·attachment id·hash·임시 경로·source manifest id 대신 native 파일 카드·파일명·
+  다운로드·버전만 보여준다.
+- `N개 대상의 변화를 확인` 같은 원장 문구를 반복하지 않고 오디오 변환·검산·외부 반영 확인처럼 실제 업무
+  단계가 바뀔 때 하나의 사용자 상태로 합친다.
 
 반대시험:
 
@@ -414,6 +459,9 @@ Telegram 진행, Artifact·Effect·Delivery 영수증을 재사용한다.
 - 사용자 행동이 필요한데 계속 진행 중으로 보이거나, 교정 접수 뒤 실제 Work가 바뀌지 않는다.
 - 짧은 요청에 불필요한 상태가 누적되거나 긴 요청이 일반 문구 하나로 장시간 정지한다.
 - 재접속·Console·Telegram이 서로 다른 현재 단계·남은 일·terminal 결과를 보인다.
+- 같은 Artifact가 version 3 뒤 version 1로 보이거나 메시지·답·Work 종료 시간이 실제 원장과 다르다.
+- 내부 sandbox URL 또는 프로그램의 diagnostic file이 사용자 결과로 보인다.
+- provider 실패 surface가 사용자가 이미 본 올바른 부분 답을 지운다.
 
 비목표: UI 전면 재설계, 새 WorkStore·진행 원장, 모델 사고 공개, Tool 로그, 업무별 진행 대본, 가짜 ETA·
 percentage, 애니메이션으로 시간 채우기, Runtime 문구로 모델의 최종 답 교체.
@@ -453,6 +501,10 @@ macOS 성공, Linux/WSL, emulation, GitHub runner는 물리 Windows 사용자 �
 - 프로젝트의 실패 원인을 찾아 수정·재시험하고 장기 process를 복구하기
 - 현재 연결되지 않은 자원의 gap과 최소 대안을 확인하고 필요한 능력만 갖추기
 - target 밖 write·secret·외부 전송·결제·late child effect를 차단하기
+- 여러 턴의 월·권역 기록과 교정, 신청자 원본과 제출 양식을 결합해 권역별 Excel 6개를 만든 뒤 ZIP의
+  18행·source-key join·필수값 coverage·시트·금액·내부 파일 0을 독립 검증하기
+- 장시간 한국어 오디오를 적합한 STT engine으로 전사하고 요약·실행 과제·전체 원문 Artifact를 분리해
+  Notion에 반영·재개방하며 비용·시간·privacy·첨부 미지원 범위를 보존하기
 
 완료 문장은 이 문서 1절의 최종 완료 문장 전체다.
 

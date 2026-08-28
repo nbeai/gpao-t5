@@ -7,7 +7,8 @@
   "branch": "codex/t5-fourth-android-intelligence",
   "canonicalPlan": "T5-FOURTH-COMPLETION.md",
   "ownerPlanAmendments": [
-    "S4-UX Interaction Continuity & Human Reassurance is scheduled after S4-K and before Windows physical qualification and S4-HQ."
+    "S4-UX Interaction Continuity & Human Reassurance is scheduled after S4-K and before Windows physical qualification and S4-HQ.",
+    "A real 0.3.1 Telegram workflow adds source-keyed reconciliation, capsule output closure, partial-result recovery, economic engine selection, human time, Artifact continuity, and two final human journeys to the existing fourth-completion Gates."
   ],
   "productChanges": 0,
   "baselineSelection": [
@@ -115,7 +116,7 @@
     "productSourceChangedFromCleanBaseline": false
   },
   "sourceDigests": {
-    "T5-FOURTH-COMPLETION.md": "2451dee652994712480272af7c7739ea2d55364c44572ca8ec2c351bc1e298db",
+    "T5-FOURTH-COMPLETION.md": "044d7db927d82e4c182c968dd9ae1f8a8527b03607e3adb3207467390db50f7d",
     "s2-a-human-console-live-scenarios.json": "3cd3b4ab7a1213fa4fd55cbe9aab3a7e7d371eff4e0450bafca492ca20fec898",
     "s2-human-performance-scenarios.json": "21bb10a831cc8858a32286d04640f8bba666dbb0ad883416b98b4d7290770a59",
     "s3-human-business-scenarios.json": "19d456f49be876547b0b333e6b547e8f41521d3c622a387349d42b43df9ced6e"
