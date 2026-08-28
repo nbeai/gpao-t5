@@ -91,6 +91,9 @@ test('4차 정본은 S4-G6를 닫고 S4-G7 product activation A/B만 연다', as
   assert.match(plan, /Tree-sitter command explanation에서 heredoc body의 exact span·bytes·digest/u);
   assert.match(plan, /body가 없는 일반 exec explanation에는 새 field를 만들지 않/u);
   assert.match(plan, /transient program-contract continuation/u);
+  assert.match(plan, /같은 source-language Terminal backend의 macOS qualification/u);
+  assert.match(plan, /child fork, network, protected read, outside write/u);
+  assert.match(plan, /Console·exec product wiring과 independent relation verification·F publication은 아직 0/u);
   assert.match(plan, /두 행의 고유값 교환[\s\S]*요청하지 않은 개인정보 JSON/u);
   assert.match(plan, /one-to-one·one-to-many·many-to-one·ambiguous·unmatched·conflicting/u);
   assert.match(plan, /최종 Excel·ZIP을 독립 재개방/u);

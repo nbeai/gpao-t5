@@ -743,6 +743,14 @@ redirected statement의 body command에 결속한다. body가 없는 일반 exec
 RecordRef·declared output·resource requirements를 명시할 수 있는 transient continuation이며, 전역 exec schema나
 durable Store를 만들지 않는다.
 
+같은 source-language Terminal backend의 macOS qualification은 exact `/usr/bin/python3` 3.9.6과 원문 Python
+source를 사용한다. input RecordRef마다 scratch 상대경로를 결속해 실행 전후 원본 digest와 staged copy를 다시
+확인하고, declared output도 scratch에서만 관측한다. Seatbelt는 network·process fork·scratch 밖 write를 물리
+차단하고 Python audit boundary는 scratch와 interpreter runtime 밖 read·directory observation을 닫는다. source
+번역·package·user target write는 0이다. 정상 CSV 변환, child fork, network, protected read, outside write,
+undeclared scratch output, staged input mutation, non-macOS non-claim 7개가 통과했다. 이 자격은 backend 가능성만
+증명하며 Console·exec product wiring과 independent relation verification·F publication은 아직 0이다.
+
 완료 문장:
 
 > T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은 프로그램을 만들고, 고정된

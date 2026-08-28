@@ -1,0 +1,53 @@
+{
+  "schema": "t5.s4g.g7-python-same-language-qualification.v1",
+  "recordedOn": "2026-08-29",
+  "status": "SAME_LANGUAGE_PYTHON_BACKEND_QUALIFIED_PRODUCT_WIRING_ZERO",
+  "sourceBaseCommit": "6adea14b",
+  "interpreter": {
+    "path": "/usr/bin/python3",
+    "version": "Python 3.9.6",
+    "bytes": 118640,
+    "sha256": "44a68ddc1983d6cff3fd35ba3f9ba5f82004216f1dcde69892b3d1b06e408698"
+  },
+  "child": {
+    "path": "refoundation/scripts/python-capsule-child.py",
+    "bytes": 2187,
+    "sha256": "8e79518b85ddd78865e7fbd5a7e545b27a3d19c11704539a3b57b725b2beda93"
+  },
+  "sourceTranslation": false,
+  "contract": {
+    "workRevisionBound": true,
+    "inputRecordRefs": true,
+    "inputRelativePaths": true,
+    "declaredOutputCategories": true,
+    "inputOutputOverlapRejected": true
+  },
+  "boundaries": {
+    "frozenInputReopenedBeforeAndAfter": true,
+    "stagedInputReopenedAfter": true,
+    "scratchWriteConfined": true,
+    "outsideReadDenied": true,
+    "networkDenied": true,
+    "processForkDenied": true,
+    "unexpectedOutputRejected": true,
+    "scratchCleanupVerified": true,
+    "userTargetWrites": 0
+  },
+  "qualification": {
+    "focusedPassed": 10,
+    "focusedFailed": 0,
+    "dailyCheckPassed": 1758,
+    "dailyCheckFailed": 0,
+    "dailyCheckSkipped": 1
+  },
+  "productWiring": 0,
+  "notClaimed": [
+    "Console activation",
+    "independent relation verification",
+    "F publication and Undo",
+    "live model A/B",
+    "physical Windows qualification",
+    "third-party Python packages"
+  ],
+  "nextOneTask": "transient_program_contract_continuation"
+}
