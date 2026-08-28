@@ -25,3 +25,28 @@ test('C1 후보 field는 현재 product source에서 생성되지 않는다', as
     'automationProposal', 'surfaceRequest', 'deliveryFailed',
   ]) assert.doesNotMatch(source, new RegExp(`\\b${field}\\b`, 'u'));
 });
+
+test('C1은 현재 producer가 없는 supplemental action renderer와 죽은 endpoint를 UI에서 제거한다', async () => {
+  const ui = await readFile(new URL('../ui/index.html', import.meta.url), 'utf8');
+  for (const token of [
+    'renderPatternCandidate', 'renderCapabilityResolution', 'renderAutomationSuggestion',
+    'renderSuggestion', 'renderSecretInput', 'renderDeliveryFailed',
+    '/patterns/confirm', '/patterns/rollback', '/automation/setup',
+    '/automation/approve', '/connectors/secret', '/deliveries/${df.deliveryId}/retry',
+  ]) assert.doesNotMatch(ui, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'));
+  assert.match(ui, /r\.reply/u);
+  assert.match(ui, /\/memory\/rollback/u);
+  assert.match(ui, /\/automation\/pause/u);
+});
+
+test('C1 evidence는 과거 reply와 현재 Memory·Automation 표면 보존을 분리한다', async () => {
+  const evidence = JSON.parse(await readFile(new URL(
+    '../evidence/product-cleanroom-ui-dead-surface-2026-08-28.json', import.meta.url), 'utf8'));
+  assert.equal(evidence.status, 'C1_COMPLETE');
+  assert.equal(evidence.countertest.redBeforeRemoval, true);
+  assert.equal(evidence.countertest.greenAfterRemoval, true);
+  assert.equal(evidence.removed.uiLines, 371);
+  assert.ok(evidence.preserved.includes('historical assistant reply and canonical transcript'));
+  assert.ok(evidence.preserved.includes('current Automation settings actions'));
+  assert.ok(evidence.notChanged.includes('Prompt'));
+});

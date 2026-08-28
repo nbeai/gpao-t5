@@ -1,0 +1,62 @@
+{
+  "schema": "t5.product-cleanroom-ui-dead-surface.v1",
+  "recordedOn": "2026-08-28",
+  "status": "C1_COMPLETE",
+  "baselineCommit": "f74711de56f8f4e36975fc893a806cca615444a9",
+  "auditEvidence": "product-cleanroom-reachability-2026-08-28.json",
+  "failureOriginal": "The current UI retained supplemental result renderers whose fields have no current server producer and whose mutation endpoints have no current server route.",
+  "countertest": {
+    "redBeforeRemoval": true,
+    "greenAfterRemoval": true
+  },
+  "removed": {
+    "uiLines": 371,
+    "renderers": [
+      "renderDeliveryFailed",
+      "renderPatternCandidate",
+      "renderCapabilityResolution",
+      "renderAutomationSuggestion",
+      "renderSecretInput",
+      "renderMemoryApplied",
+      "renderMemoryWithdrawn",
+      "renderMemoryWithdrawMiss",
+      "renderSuggestion"
+    ],
+    "currentProducerFields": [
+      "memorySuggestion",
+      "patternCandidate",
+      "capabilityResolution",
+      "automationSuggestion",
+      "automationProposal",
+      "surfaceRequest",
+      "deliveryFailed"
+    ],
+    "deadMutationFamilies": [
+      "pattern confirmation and rollback",
+      "obsolete personal-tool creation card",
+      "obsolete automation suggestion setup and approval",
+      "obsolete connector secret card",
+      "obsolete delivery retry card",
+      "obsolete memory suggestion confirmation"
+    ]
+  },
+  "preserved": [
+    "historical assistant reply and canonical transcript",
+    "current conversation and approval rendering",
+    "current Memory state, source, correction, forgetting, restore and rollback",
+    "current Automation settings actions",
+    "current Connection, Telegram, Artifact, Effect and Work History surfaces"
+  ],
+  "verification": {
+    "focusedUiAndMemory": { "passed": 22, "failed": 0 },
+    "diffCheck": "passed"
+  },
+  "notChanged": [
+    "Prompt",
+    "server route or canonical state",
+    "UI design",
+    "current model tool surface",
+    "visible conversation-search UNKNOWN boundary"
+  ],
+  "nextOneTask": "C2 audit and remove only caller-free server routes or conditional UI actions after persisted-data reachability is proven."
+}
