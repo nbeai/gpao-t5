@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_BASELINE_COMPLETE · S4_D2_COMPLETE · S4_D3_COMPLETE_WITH_RSS_OBSERVATION · S4_D4_BASELINE_COMPLETE · S4_D4A_PARENT_DEATH_CONTAINMENT_COMPLETE · S4_D4B_SUCCESSOR_SETTLEMENT_COMPLETE · S4_D5_RSS_ATTRIBUTION_ACTIVE`
-현재 Gate: `S4-D5 TERMINAL HAND RSS ATTRIBUTION · READ-ONLY`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_BASELINE_COMPLETE · S4_D2_COMPLETE · S4_D3_COMPLETE_WITH_RSS_OBSERVATION · S4_D4_BASELINE_COMPLETE · S4_D4A_PARENT_DEATH_CONTAINMENT_COMPLETE · S4_D4B_SUCCESSOR_SETTLEMENT_COMPLETE · S4_D5_RSS_ATTRIBUTION_COMPLETE · S4_D5A_EXPLANATION_LIFETIME_REPAIR_ACTIVE`
+현재 Gate: `S4-D5A COMMAND EXPLANATION LIFETIME REPAIR`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,17 +55,17 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-D5 Terminal Hand RSS 원인 분리다. 제품 변경 없이 측정한다.
+2. **현재 Gate**: S4-D5A command explanation lifetime 최소 수리다.
 3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
    없이 끝까지 관찰한다.
-4. **이미 선 실제 증거**: D4B는 contained managed non-PTY Run을 successor에서 exact once 정산하고 partial
-   output을 같은 handle로 다시 열었다. D3의 전체 Terminal Hand RSS 약 634MB는 아직 원인이 분리되지 않았다.
-5. **현재 가장 큰 미달**: 출력 정확성은 닫혔지만 전체 Terminal Hand의 높은 RSS가 어느 계층의 보존·복제에서
-   생기는지 설명되지 않았다.
-6. **이번 변경 방식**: 같은 대출력 fixture를 base process·Store-only·Registry-only·Terminal Hand로 분해하고
-   output bytes·Buffer/string·snapshot·delta·GC 전후 RSS를 read-only 측정한다.
-7. **Non-goals**: 제품 코드 수정·고정 memory 상한·출력 손실·process reattach·PTY containment·Windows 재구현·
-   S4-E·실제 HOME·계정·외부 효과.
+4. **이미 선 실제 증거**: D5는 command explanation을 managed process 동안 보존하면 RSS +595.6MB, 같은 parser
+   결과를 process 전에 해제하면 +20.9MB, explainer를 우회하면 +11.3MB임을 격리 3회 중앙값으로 분리했다.
+5. **현재 가장 큰 미달**: 이미 launch·권한 파생을 끝낸 command explanation이 대출력 실행 동안 불필요하게
+   살아 있어 Runtime RSS를 약 600MB까지 올린다.
+6. **이번 변경 방식**: explanation의 모든 현재 소비를 끝낸 뒤 registry start 전에 참조만 해제하고, command
+   해석·권한·pipeline 사실·broker·출력·process 결과는 그대로 보존한다.
+7. **Non-goals**: parser 교체·새 process protocol·고정 memory 상한·출력 손실·Store 변경·process reattach·
+   PTY containment·Windows 재구현·S4-E·실제 HOME·계정·외부 효과.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -307,7 +307,7 @@ S4-C는 제품 성공으로 완료한 것이 아니다. `USER_COMPLETION_NOT_UNI
 
 > T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한 손으로 필요한 원문만 본다.
 
-### S4-D — Terminal 실행 중 output·process 미달 — D2·D3·D4A·D4B COMPLETE, D5 READ-ONLY ACTIVE
+### S4-D — Terminal 실행 중 output·process 미달 — D2·D3·D4A·D4B·D5 COMPLETE, D5A ACTIVE
 
 S4-D0은 disk spool 전에 KHB-S01에서 발견된 pipeline 실행 사실을 닫았다. zsh `pipestatus`와 bash
 `PIPESTATUS`로 마지막 unconditional foreground pipeline의 전체 exit와 단계 exit를 분리한다. Runtime은 이
@@ -440,6 +440,18 @@ S4-D5 완료 문장:
 
 > T5는 대출력 Terminal Hand의 높은 RSS가 생기는 실제 계층과 보존량을 재현 가능한 측정으로 분리하고, 사용자
 > 정확성을 해치지 않는 가장 작은 수리 후보 또는 제품 변경 0 판정을 고정한다.
+
+S4-D5 actual은 1,100,020자 stdout·stderr를 3회씩 독립 process에서 측정했다. Store-only RSS 중앙 증가는
+9.0MB, raw pipe 2.5MB, bounded string 5.0MB, direct registry poll 10.8MB였다. command explainer 결과를 해제한 뒤
+direct registry를 실행하면 20.9MB였지만 같은 결과 객체를 실행 동안 보존하면 595.6MB, 실제 process start는
+595.7MB, 전체 live Store Terminal Hand는 598.0MB였다. bounded hash read는 598.3MB, 전체 문자열 합치기는
+608.5MB로 주원인이 아니었다. heap retained 증가는 약 1MB라 memory leak으로 단정하지 않고 parse-derived
+explanation lifetime과 process output이 결합한 RSS high-water로 한정한다.
+
+S4-D5A 완료 문장:
+
+> T5는 command 해석에서 얻은 안전·실행 사실은 보존하되 사용이 끝난 parse-derived 객체를 process 실행 동안
+> 붙들지 않아 대출력 정확성을 유지하면서 Runtime RSS를 불필요하게 키우지 않는다.
 
 - 실행 중 stdout·stderr append-only disk spool
 - 작은 memory head·tail·cursor와 bounded range read
@@ -720,6 +732,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D2·D3·D4A·D4B는 닫혔다. 현재 다음 한 작업은 D3에서 남은 약
-634MB RSS를 전체 Terminal Hand의 계층별 retained memory로 분리하는 S4-D5 read-only profiling이다. 원인이
-재현되기 전 제품 수리를 열지 않으며 S4-E도 열지 않는다.
+S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D2·D3·D4A·D4B·D5는 닫혔다. 현재 다음 한 작업은 parser나 Store를
+교체하지 않고 이미 소비가 끝난 command explanation 참조만 registry start 전에 해제하는 S4-D5A다. 같은
+대출력 AB/BA에서 exact hash·pipeline·권한·짧은 명령을 보존하고 RSS를 다시 측정하기 전 S4-D와 S4-E를 닫지 않는다.

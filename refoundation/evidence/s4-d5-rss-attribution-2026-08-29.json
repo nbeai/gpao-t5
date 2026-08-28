@@ -1,0 +1,61 @@
+{
+  "schema": "t5.s4d5.rss-attribution.v1",
+  "recordedOn": "2026-08-29",
+  "status": "READ_ONLY_ATTRIBUTION_COMPLETE_REPAIR_CANDIDATE_OPEN",
+  "sourceBaseCommit": "8e82d93c",
+  "productChanges": 0,
+  "environment": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "node": "v24.14.0",
+    "isolatedTemporaryRoots": true,
+    "realUserData": false,
+    "externalWrites": 0,
+    "samplesPerArm": 3,
+    "outputCharsPerStream": 1100020
+  },
+  "median": {
+    "idlePeakRssDelta": 0,
+    "storeOnlyPeakRssDelta": 8994816,
+    "rawPipePeakRssDelta": 2457600,
+    "boundedStringPeakRssDelta": 5013504,
+    "boundedSnapshotsPeakRssDelta": 11386880,
+    "registryWaitTerminalPeakRssDelta": 5898240,
+    "registryPollPeakRssDelta": 10813440,
+    "commandExplainerShortPeakRssDelta": 10452992,
+    "commandExplainerOutputPeakRssDelta": 30343168,
+    "releasedExplanationThenRegistryPeakRssDelta": 20922368,
+    "retainedExplanationThenRegistryPeakRssDelta": 595623936,
+    "processStartNoExplainerPeakRssDelta": 11288576,
+    "processStartCurrentPeakRssDelta": 595705856,
+    "terminalLiveStorePeakRssDelta": 598048768,
+    "terminalBoundedHashReadPeakRssDelta": 598327296,
+    "terminalConcatReadPeakRssDelta": 608518144,
+    "currentAfterGcHeapDelta": 929456
+  },
+  "attribution": {
+    "diskStorePrimaryCause": false,
+    "rawPipePrimaryCause": false,
+    "boundedOutputStringPrimaryCause": false,
+    "pollSnapshotPrimaryCause": false,
+    "macosParentDeathHostPrimaryCause": false,
+    "boundedExactReadPrimaryCause": false,
+    "retainedCommandExplanationNecessaryInReproduction": true,
+    "finding": "Keeping the parse-derived command explanation reachable across managed process output raises Runtime RSS by about 596 MB; releasing the explanation before the same registry work keeps the median peak delta near 21 MB.",
+    "memoryLeakClaimed": false
+  },
+  "repairCandidate": {
+    "change": "release the local commandExplanation reference after all launch, authority, pipeline and broker derivations and before registry.start",
+    "newParser": false,
+    "newProcessProtocol": false,
+    "newStore": false,
+    "outputReduction": false
+  },
+  "nonClaims": [
+    "web-tree-sitter itself permanently consumes 596 MB",
+    "the exact V8 or allocator implementation mechanism is proven",
+    "RSS repair is complete",
+    "physical Windows RSS is qualified"
+  ],
+  "nextOneTask": "Open S4-D5A with a red RSS countertest, release only the exhausted commandExplanation reference, and rerun exact output and short-command controls."
+}
