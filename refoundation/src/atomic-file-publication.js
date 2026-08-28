@@ -18,7 +18,7 @@ export async function observePublicationPreimage(targetValue) {
 }
 
 export async function publishAtomicFile({ target: targetValue, bytes: source,
-  expectedPreimage, makeId = randomUUID, io = {} } = {}) {
+  expectedPreimage, mode = null, makeId = randomUUID, io = {} } = {}) {
   const target = resolve(targetValue); const parent = await realpath(dirname(target));
   const parentBefore = await lstat(parent);
   if (!parentBefore.isDirectory() || parentBefore.isSymbolicLink()) throw new Error('publication parent is unavailable');
@@ -29,9 +29,9 @@ export async function publishAtomicFile({ target: targetValue, bytes: source,
   const openFile = io.open ?? open; const renameFile = io.rename ?? rename; const removeFile = io.rm ?? rm;
   let handle = null; let replaced = false;
   try {
-    handle = await openFile(temporary, 'wx', current?.mode ?? 0o600);
+    handle = await openFile(temporary, 'wx', mode ?? current?.mode ?? 0o600);
     await handle.writeFile(bytes); await handle.sync();
-    if (current) await handle.chmod(current.mode);
+    if (mode != null || current) await handle.chmod(mode ?? current.mode);
     await handle.close(); handle = null;
     const parentNow = await lstat(parent);
     if (parentNow.dev !== parentBefore.dev || parentNow.ino !== parentBefore.ino

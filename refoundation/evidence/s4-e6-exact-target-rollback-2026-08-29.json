@@ -1,0 +1,17 @@
+{
+  "schema": "t5.s4e6.exact-target-rollback.v1",
+  "recordedOn": "2026-08-29",
+  "status": "COMPLETE_INTERNAL_PRIMITIVE",
+  "sourceBaseCommit": "7bbdc941",
+  "scope": "one exact target preimage",
+  "qualification": {
+    "existingBytesDigestModeRestored": true,
+    "createdTargetRemoved": true,
+    "changedPostimageOverwrite": false,
+    "changedBackupOverwrite": false,
+    "focusedPassed": 6,
+    "focusedFailed": 0
+  },
+  "nonClaims": ["whole workspace rollback", "retention policy complete", "unexpected writes prevented"],
+  "nextOneTask": "Open S4-E7 physical confinement because post-effect observation alone does not satisfy target-outside-write zero."
+}

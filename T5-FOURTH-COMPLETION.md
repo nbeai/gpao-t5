@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5A_IN_PROCESS_CANDIDATES_REJECTED · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_READ_ONLY_BASELINE_COMPLETE · S4_E1_PINNED_MUTATION_CONTRACT_COMPLETE · S4_E2_PARENT_IDENTITY_REVALIDATION_COMPLETE · S4_E3_HARDLINK_ADMISSION_COMPLETE · S4_E4A_FOREGROUND_OBSERVER_COMPLETE · S4_E5_ATOMIC_PUBLICATION_COMPLETE · S4_E6_EXACT_ROLLBACK_POINTER_ACTIVE`
-현재 Gate: `S4-E6 EXACT TARGET ROLLBACK POINTER`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5A_IN_PROCESS_CANDIDATES_REJECTED · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_READ_ONLY_BASELINE_COMPLETE · S4_E1_PINNED_MUTATION_CONTRACT_COMPLETE · S4_E2_PARENT_IDENTITY_REVALIDATION_COMPLETE · S4_E3_HARDLINK_ADMISSION_COMPLETE · S4_E4A_FOREGROUND_OBSERVER_COMPLETE · S4_E5_ATOMIC_PUBLICATION_COMPLETE · S4_E6_EXACT_ROLLBACK_POINTER_COMPLETE · S4_E7_MANAGED_LOCAL_CHANGE_CONFINEMENT_ACTIVE`
+현재 Gate: `S4-E7 MANAGED LOCAL CHANGE PHYSICAL CONFINEMENT`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,14 +55,14 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-E6 exact-target rollback pointer 설계·반대시험이다.
+2. **현재 Gate**: S4-E7 managed local_change의 target 밖 write 물리 차단이다.
 3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
    없이 끝까지 관찰한다.
 4. **이미 선 실제 증거**: E baseline은 destination parent symlink escape, hardlink source admission, 선언 밖 Terminal
    write 미관측을 재현했다. source stale·collision·cross-volume 차단은 기존 양성 대조로 남았다.
 5. **현재 가장 큰 미달**: mutation이 검증된 parent entry에 pin되지 않고 requested path 문자열과 사전 stat에 의존한다.
-6. **이번 변경 방식**: 변경 target 하나의 preimage bytes·identity·digest만 보존하고 restore 뒤 exact readback을
-   요구하는 bounded pointer를 고정한다.
+6. **이번 변경 방식**: macOS foreground local_change를 declared managed targets·scratch/output에만 쓰도록 OS
+   sandbox로 제한하고, target 밖 write 0을 post-effect observer로 확인한다.
 7. **Non-goals**: 전체 filesystem 감시·일반 shell 완전 통제·무제한 snapshot·Docker·업무별 write 목록·S4-F.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
@@ -551,6 +551,10 @@ directory sync, readback digest와 temp cleanup을 내부 범용 primitive로 �
 0이고 replace 뒤 durability/readback 실패는 `published_durability_unknown`이다. 공개 patch tool과 multi-file
 transaction은 열지 않았다.
 
+S4-E6 actual은 target 하나의 preimage bytes·identity·digest·mode만 managed backup에 보존한다. restore는 current
+postimage와 backup hash가 exact할 때 기존 file을 atomic publication으로 복원하고 원래 없던 target은 directory
+sync와 absence readback 뒤 제거한다. target·backup 변조는 overwrite 0이며 retention 정책은 열지 않았다.
+
 ### S4-F — Structured Authoring
 
 내부 `workspace_patch` 후보는 `inspect → preview → write_new/apply_patch → verify → rollback`을 제공한다.
@@ -804,5 +808,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 ## 10. 현재 다음 한 작업
 
 S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D managed non-PTY와 D5C는 닫혔다. S4-E baseline은 세 실제 gap으로
-닫혔다. S4-E1·E2·E3·E4A·E5도 닫혔다. 현재 다음 한 작업은 exact target 하나의 rollback pointer를 고정하는
-S4-E6다. 전체 workspace snapshot과 retention 정책은 열지 않는다.
+닫혔다. S4-E1~E6도 닫혔다. 최종 대조에서 E4A가 unexpected write를 관측하지만 방지하지 않는 blocker가 남았다.
+현재 다음 한 작업은 macOS foreground local_change의 target 밖 write를 물리 차단하는 S4-E7이다. 물리 Windows는
+S4-L에 남기며 일반 shell 전체 confinement는 주장하지 않는다.
