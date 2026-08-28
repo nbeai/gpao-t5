@@ -1,0 +1,17 @@
+{
+  "schema": "t5.s4f6.settlement.v1",
+  "recordedOn": "2026-08-29",
+  "status": "COMPLETE_INTERNAL_SETTLEMENT",
+  "sourceBaseCommit": "41dab3e7",
+  "qualification": {
+    "targetLocksReleased": true,
+    "scratchPhysicallyCleaned": true,
+    "rollbackPointersPreservedOpaque": true,
+    "publishedVerifiedReceiptNoPaths": true,
+    "cleanupFailureState": "partial_effect_unknown",
+    "focusedPassed": 5,
+    "focusedFailed": 0
+  },
+  "nonClaims": ["public workspace_patch exists", "retention policy complete", "S4-F complete"],
+  "nextOneTask": "Open S4-F7 workspace_patch product surface and actual console journeys."
+}
