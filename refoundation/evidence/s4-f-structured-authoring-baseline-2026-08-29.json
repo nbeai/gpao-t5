@@ -1,0 +1,24 @@
+{
+  "schema": "t5.s4f.structured-authoring-baseline.v1",
+  "recordedOn": "2026-08-29",
+  "status": "CONTRACT_AND_READ_ONLY_BASELINE_COMPLETE_THREE_GAPS",
+  "sourceBaseCommit": "70d53fd3",
+  "productChanges": 0,
+  "reproduced": {
+    "multiFilePartialCommit": true,
+    "stalePreimageOverwrite": true,
+    "shellLiteralExpansion": true
+  },
+  "contract": {
+    "phases": ["inspect", "preview", "prepare", "lock_and_revalidate", "publish", "verify", "settle"],
+    "honestSettlements": ["published_verified", "not_published", "rolled_back_verified", "partial_effect_unknown", "published_durability_unknown"],
+    "filesystemWideAtomicRenameClaimed": false
+  },
+  "comparisonPrinciples": {
+    "openClaw": ["parse full patch first", "extract every destination", "workspace containment"],
+    "hermes": ["ordered path locks", "stale detection", "format preservation", "post-write hash"],
+    "t5Difference": "prepare every candidate and rollback pointer before target-by-target atomic publication"
+  },
+  "nonClaims": ["workspace_patch product tool exists", "multi-file transaction is implemented", "existing document and Excel authoring regressed"],
+  "nextOneTask": "Open S4-F1 inspect and closed preview with zero target writes."
+}

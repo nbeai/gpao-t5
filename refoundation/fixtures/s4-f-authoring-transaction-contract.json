@@ -1,0 +1,46 @@
+{
+  "schema": "t5.s4f.authoring-transaction-contract.v1",
+  "status": "CONTRACT_ONLY_PRODUCT_CHANGES_ZERO",
+  "phases": [
+    "inspect",
+    "preview",
+    "prepare",
+    "lock_and_revalidate",
+    "publish",
+    "verify",
+    "settle"
+  ],
+  "targetKinds": ["create", "modify", "delete", "move_from", "move_to", "unchanged"],
+  "settlements": [
+    "published_verified",
+    "not_published",
+    "rolled_back_verified",
+    "partial_effect_unknown",
+    "published_durability_unknown"
+  ],
+  "invariants": [
+    "all destinations are known before the first target write",
+    "all candidates validate in scratch before publication",
+    "all locks are acquired in sorted canonical path order",
+    "every preimage and parent identity is revalidated before the first publication",
+    "every published target has a durable exact rollback pointer first",
+    "a later target failure restores every earlier published target and verifies each digest",
+    "final verification reopens every target and checks cross-file revision consistency"
+  ],
+  "reuse": [
+    "S4-E2 parent identity",
+    "S4-E3 hardlink admission",
+    "S4-E4A post-effect observation",
+    "S4-E5 atomic publication",
+    "S4-E6 exact target rollback",
+    "S4-E7 physical target confinement"
+  ],
+  "nonGoals": [
+    "filesystem-wide simultaneous rename",
+    "whole-workspace shadow Git",
+    "new IDE",
+    "shell string as the authoring protocol",
+    "automatic package installation",
+    "S4-G program capsule"
+  ]
+}
