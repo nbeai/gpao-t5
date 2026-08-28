@@ -1,0 +1,18 @@
+{
+  "schema":"t5.s4g.g7-product-activation-contract.v1",
+  "status":"CONTRACT_ONLY_PRODUCT_WIRING_PENDING",
+  "protocol":["freeze_oracle_before_source","run_and_preview_unpublished","publish_verified_handle_once"],
+  "positive":"natural-language bounded multi-file deterministic transformation",
+  "negative":["greeting","short calculation","single direct file observation"],
+  "explicitProgram":"source is publishable only when the user explicitly requested the program itself",
+  "invariants":[
+    "oracle action accepts no program source",
+    "run consumes one fresh oracle handle and cannot replace its expected bytes",
+    "run returns bounded publishable previews but writes no user target",
+    "publish consumes one verified handle and runs G6 exactly once",
+    "final answer before publish cannot claim an artifact exists",
+    "simple requests add zero capsule model or tool calls"
+  ],
+  "adoption":"same-purpose correctness and completeness are non-regressing and model calls or tokens materially decrease",
+  "nonGoals":["nested Tool RPC","package runtime installation","automatic Skill promotion","business-specific router"]
+}
