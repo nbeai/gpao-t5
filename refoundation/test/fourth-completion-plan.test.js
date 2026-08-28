@@ -17,11 +17,15 @@ test('4차 정본은 Cleanroom에서 S4-A만 열고 전체 Gate를 한 문서에
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
   assert.match(plan, /현재 Gate: `S4-A SINGLE SOURCE · MINIMUM FAILURE BASELINE`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',
-    'S4-H', 'S4-I', 'S4-J', 'S4-K', 'S4-L', 'S4-HQ'];
+    'S4-H', 'S4-I', 'S4-J', 'S4-K', 'S4-UX', 'S4-L', 'S4-HQ'];
   let cursor = -1;
   for (const gate of gates) { const next = plan.indexOf(`### ${gate} —`); assert.ok(next > cursor, gate); cursor = next; }
   assert.match(plan, /최초 실패 하나로 구현을 열되[\s\S]*서로 다른 세 목적 분야/u);
   assert.match(plan, /Experience-Based Growth[\s\S]*Capability Reality & Acquisition/u);
+  assert.match(plan, /S4-UX — Interaction Continuity & Human Reassurance[\s\S]*canonical status projection/u);
+  assert.match(plan, /짧은 작업은 별도 진행 소음 없이[\s\S]*긴 작업은 실제 단계가 바뀔 때만/u);
+  assert.match(plan, /Console·Telegram에서 같은 canonical 상태/u);
+  assert.match(plan, /S4-UX의 단일 상태·진행 밀도·교정·중지·재접속 계약[\s\S]*Windows x64·ARM64/u);
   assert.match(plan, /Windows는 마지막에 처음 고려하지 않는다/u);
   assert.match(plan, /기존 모듈은 정본이 아니라 교재/u);
   assert.match(agents, /`T5-FOURTH-COMPLETION\.md` — 지금 어느 Gate/u);

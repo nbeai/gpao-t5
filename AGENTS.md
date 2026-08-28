@@ -31,7 +31,7 @@
   분리된 별도 archive 작업으로 열며 결과를 현재 제품의 성공으로 간주하지 않는다.
 - 4차 개발은 tag `t5-0.3.1-clean-baseline`에서 갈라진 `codex/t5-fourth-android-intelligence`만 사용한다.
 - Purpose, Situation, Terminal, Mutation, Authoring, Program Capsule, Reconciliation, Recovery, Experience,
-  Capability는 `T5-FOURTH-COMPLETION.md`의 현재 Gate가 열기 전에는 구현하지 않는다.
+  Capability, Interaction UX는 `T5-FOURTH-COMPLETION.md`의 현재 Gate가 열기 전에는 구현하지 않는다.
 - Reflection·Principle·Capability package의 휴면 연구 source는 교재이지 제품 정본이 아니다. 현재 실패와
   반대시험 없이 product entry로 import하거나 package payload에 되돌리지 않는다.
 

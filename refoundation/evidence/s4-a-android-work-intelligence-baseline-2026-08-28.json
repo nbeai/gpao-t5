@@ -6,6 +6,9 @@
   "baseCommit": "8aba370095d0620e49b9cd61012a1813be015539",
   "branch": "codex/t5-fourth-android-intelligence",
   "canonicalPlan": "T5-FOURTH-COMPLETION.md",
+  "ownerPlanAmendments": [
+    "S4-UX Interaction Continuity & Human Reassurance is scheduled after S4-K and before Windows physical qualification and S4-HQ."
+  ],
   "productChanges": 0,
   "baselineSelection": [
     {
@@ -112,7 +115,7 @@
     "productSourceChangedFromCleanBaseline": false
   },
   "sourceDigests": {
-    "T5-FOURTH-COMPLETION.md": "530320fc44db613640ff2e57ff452007d35d3e56dfa7972ead810be6128610c7",
+    "T5-FOURTH-COMPLETION.md": "c422aff49c7d15b230bfc053eba5f33384a60a08a32da04f65170c0085ecade9",
     "s2-a-human-console-live-scenarios.json": "3cd3b4ab7a1213fa4fd55cbe9aab3a7e7d371eff4e0450bafca492ca20fec898",
     "s2-human-performance-scenarios.json": "21bb10a831cc8858a32286d04640f8bba666dbb0ad883416b98b4d7290770a59",
     "s3-human-business-scenarios.json": "19d456f49be876547b0b333e6b547e8f41521d3c622a387349d42b43df9ced6e"

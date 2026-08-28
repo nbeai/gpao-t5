@@ -312,11 +312,46 @@ tag·credential URL·임의 lifecycle hook·검증되지 않은 package는 제�
 
 > T5는 현재 손이 부족한 이유를 정확히 알고 기존 대안이 없을 때만 검증된 능력을 안전하게 갖춰 원래 목적을 재개한다.
 
+### S4-UX — Interaction Continuity & Human Reassurance
+
+S4-B~K가 만든 머리·손·복구 현실을 새 원장이나 모델의 진행 서술 없이 현재 Work·Run·Tool·Effect·Delivery
+사건에서 사용자 언어로 투영한다. 이미 선 canonical Work reality, milestone, 경과시간, 교정·중지, 재접속 복원,
+Telegram 진행, Artifact·Effect·Delivery 영수증을 재사용한다.
+
+개발 범위:
+
+- 실제 확인·생성·검증·대기·막힘·사용자 행동 필요 사건을 의미 있는 업무 단계로 묶는다.
+- 짧은 작업은 별도 진행 소음 없이 결과를 내고, 긴 작업은 실제 단계가 바뀔 때만 상태를 갱신한다.
+- 대화 상단·메시지 아래·작업 기록의 중복 현재 상태를 하나의 canonical status projection으로 통합한다.
+- 현재까지 보존된 결과, 실제로 남은 단계, 지금 필요한 사용자 행동, 중지 가능성을 사실이 있을 때만 보여준다.
+- 실행 중 교정·중지의 접수 문구가 아니라 실제 Work 범위와 settlement 반영을 표시한다.
+- Session 이동·재접속·Console·Telegram에서 같은 canonical 상태와 terminal 결과를 유지한다.
+- 내부 Run·Tool·command·path·hash·검색어·비밀·모델 사고 원문을 사용자 상태에 투영하지 않는다.
+- 과거 표본과 현재 단계 근거 없는 ETA·percentage·`거의 완료`를 만들지 않는다.
+
+반대시험:
+
+- 같은 현재 상태가 둘 이상의 가시 표면에 중복된다.
+- 실제 새 Evidence·output·effect 없이 진행 문구만 바뀐다.
+- model 시작·heartbeat·poll을 사용자 업무 진전으로 승격한다.
+- 사용자 행동이 필요한데 계속 진행 중으로 보이거나, 교정 접수 뒤 실제 Work가 바뀌지 않는다.
+- 짧은 요청에 불필요한 상태가 누적되거나 긴 요청이 일반 문구 하나로 장시간 정지한다.
+- 재접속·Console·Telegram이 서로 다른 현재 단계·남은 일·terminal 결과를 보인다.
+
+비목표: UI 전면 재설계, 새 WorkStore·진행 원장, 모델 사고 공개, Tool 로그, 업무별 진행 대본, 가짜 ETA·
+percentage, 애니메이션으로 시간 채우기, Runtime 문구로 모델의 최종 답 교체.
+
+완료 문장:
+
+> T5는 내부 복잡성을 드러내지 않으면서 사용자가 현재 작업의 실제 진전·남은 일·필요한 행동·중지 가능성을
+> 자연스럽게 이해하도록 하고, 대화와 채널을 이동해도 같은 작업 흐름을 유지한다.
+
 ### S4-L — Windows 물리 자격
 
 Windows는 마지막에 처음 고려하지 않는다. S4-B~K의 공통 계약마다 Windows adapter 의미와 반대시험을 함께
-고정하고, 이 Gate에서 실제 Windows x64·ARM64 제품 여정을 최종 자격한다. PowerShell direct argv, ConPTY,
-Job Object, DPAPI, NTFS ACL·junction·hardlink, Windows Search·OCR·문서 render와 실제 UI 흐름을 확인한다.
+고정하고, S4-UX의 단일 상태·진행 밀도·교정·중지·재접속 계약까지 포함해 이 Gate에서 실제 Windows x64·ARM64
+제품 여정을 최종 자격한다. PowerShell direct argv, ConPTY, Job Object, DPAPI, NTFS ACL·junction·hardlink,
+Windows Search·OCR·문서 render와 실제 UI 흐름을 확인한다.
 
 macOS 성공, Linux/WSL, emulation, GitHub runner는 물리 Windows 사용자 성공을 대신하지 않는다.
 
@@ -329,6 +364,10 @@ macOS 성공, Linux/WSL, emulation, GitHub runner는 물리 Windows 사용자 �
 모든 기술 Gate가 닫힌 뒤 한 번만 실행한다. 사업 업무에 무게를 두되 개발·연구·개인 파일·능력 부족·장기
 실행·위험 경계를 포함한다. Terra와 gpt-5.5의 exact 모델 pair는 실행 시점에 고정하고 같은 목적·fixture·도구면·
 권한면으로 현재 Cleanroom T5와 비교군을 비교한다. 모델별 Prompt patch로 실패를 덮지 않는다.
+
+기능 결과와 별도로 사용자가 기다리는 동안 실제 진전·남은 일·사용자 행동 필요·교정·중지·재접속을 이해하고
+안심하며 통제할 수 있었는지 평가한다. 진행 문구의 수나 갱신 빈도는 성공 지표가 아니며 실제 runtime 사건과
+사용자 체감의 일치가 기준이다.
 
 대표 목적:
 
