@@ -12,7 +12,7 @@ test('4차 정본은 S4-G6를 닫고 S4-G7 product activation A/B만 연다', as
     readFile(new URL('AGENTS.md', root), 'utf8'),
     readFile(new URL('T5-SECOND-COMPLETION.md', root), 'utf8'),
   ]);
-  assert.match(plan, /S4_G6_PUBLICATION_CLEANUP_COMPLETE · S4_G7_PRODUCT_WIRING_REJECTED_MODEL_SELECTION_OBSERVATION · S4_J_DEFERRED_FUTURE_RESEARCH/u);
+  assert.match(plan, /S4_G6_PUBLICATION_CLEANUP_COMPLETE · S4_G7_EXEC_PROGRAM_CONTRACT_REDESIGN_ACTIVE · S4_J_DEFERRED_FUTURE_RESEARCH/u);
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
   assert.match(plan, /현재 Gate: `S4-G7 EPHEMERAL PROGRAM CAPSULE · PRODUCT ACTIVATION AND A\/B`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',

@@ -25,5 +25,14 @@
     "globalExecSchemaExpansionAdopted":false,
     "reasonForNoAdoption":"would add bytes and choice burden to simple requests before a same-purpose benefit is proven"
   },
-  "decision":"NO_SECOND_PRODUCT_PATCH; REASSESS WHETHER CAPSULE_IS_A_BACKEND_OR_AN_UNNEEDED_DUPLICATE_OF_EXEC"
+  "ownerDecision":{
+    "separateCapsuleTool":false,
+    "absorbGPrinciplesIntoExecProgramPath":true,
+    "quickJsRole":"internal backend only for eligible pure transformations",
+    "preservePythonWhenRequired":true,
+    "inferFromCommandRegex":false,
+    "applyToAllExec":false,
+    "g7Completion":"natural model-authored program execution is completed through G input, isolation, verification, publication and cleanup"
+  },
+  "decision":"OPEN_EXPLICIT_EXEC_PROGRAM_CONTRACT; NO_LANGUAGE_TRANSLATION_OR_BUSINESS_ROUTER"
 }

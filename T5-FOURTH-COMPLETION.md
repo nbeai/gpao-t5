@@ -1,6 +1,6 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_COMPLETE · S4_G3_FIXTURE_QUALIFICATION_COMPLETE · S4_G4_ACTUAL_EXECUTION_COMPLETE · S4_G5_INDEPENDENT_OBSERVER_COMPLETE · S4_G6_PUBLICATION_CLEANUP_COMPLETE · S4_G7_PRODUCT_WIRING_REJECTED_MODEL_SELECTION_OBSERVATION · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_COMPLETE · S4_G3_FIXTURE_QUALIFICATION_COMPLETE · S4_G4_ACTUAL_EXECUTION_COMPLETE · S4_G5_INDEPENDENT_OBSERVER_COMPLETE · S4_G6_PUBLICATION_CLEANUP_COMPLETE · S4_G7_EXEC_PROGRAM_CONTRACT_REDESIGN_ACTIVE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
 현재 Gate: `S4-G7 EPHEMERAL PROGRAM CAPSULE · PRODUCT ACTIVATION AND A/B`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
@@ -61,11 +61,11 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
    발행하고 나머지는 정리한다.
 4. **이미 선 실제 증거**: G6는 verified publishable만 F transaction으로 발행하고 internal·diagnostic·temporary를
    제외하며 Capsule scratch cleanup과 cleanup_unknown을 4/4로 분리했다.
-5. **현재 가장 큰 미달**: 자연어 대량 변환에서 모델이 Capsule을 자발 선택하고 단순 요청에서는 선택하지 않으며
-   G0 대비 품질 무회귀·calls/tokens/wall 이익이 있는지 제품 경로로 증명되지 않았다.
-6. **이번 변경 방식**: Capsule을 on-demand hidden tool로 연결하고 같은 G0 목적 A/B·단순 합계 음성 대조·명시적
-   프로그램 제작을 실제 모델로 비교한다.
-7. **Non-goals**: nested Tool RPC·자동 Skill·package runtime 설치·S4-H.
+5. **현재 가장 큰 미달**: 모델이 기존 exec로 작성한 temporary Python program의 source·input RecordRef·declared
+   output·stale·independent verification·cleanup을 G 계약에 결속하는 최소 실행 protocol이 없다.
+6. **이번 변경 방식**: 기존 Python source·입력·출력 의미를 바꾸지 않고 model-authored temporary program이라는
+   명시적 실행 계약이 있을 때만 G2~G6를 감싸며, pure transform이면 QuickJS를 내부 후보로 사용한다.
+7. **Non-goals**: Python→QuickJS 자동 번역·명령 문자열 정규식 추측·모든 exec 확대·업무 Router·nested Tool RPC·S4-H.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -728,6 +728,13 @@ turn 6에는 Python heredoc으로 순수 변환을 작성해 declared output 두
 언어·표준 library·filesystem 의미가 달라지고, 전역 exec schema 확장은 단순 요청 비용을 늘리므로 둘 다 채택하지
 않는다. G7은 Capsule이 별도 backend여야 하는지, 이미 선 exec의 안전·검증 원리로 흡수돼야 하는지 재판정한다.
 
+오너 결정으로 G7 완료 기준을 `모델이 Capsule Tool을 선택함`에서 `모델이 자연스럽게 프로그램을 사용하고 T5가
+그 실행을 G의 입력·격리·검증·발행·정리 계약으로 끝냄`으로 교정한다. 별도 Capsule Tool은 폐기 상태를 유지한다.
+기존 Python·exec 선택은 보존하고 model-authored temporary program 실행에만 source·RecordRef·expected output을
+명시적으로 결속한다. Runtime은 업무나 command 문자열로 의미를 추측하지 않고 실행 계약의 filesystem·network·
+child-process 요구가 pure transform일 때만 QuickJS를 내부 backend 후보로 사용한다. 요구가 맞지 않으면 자동
+언어 변환 없이 같은 Python과 Terminal 경계를 유지한다.
+
 완료 문장:
 
 > T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은 프로그램을 만들고, 고정된
@@ -928,6 +935,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 ## 10. 현재 다음 한 작업
 
 S4-C 미달은 S4-G·S4-I·S4-HQ에 이월했다. S4-D managed non-PTY와 D5C, S4-E1~E7, S4-F structured authoring은
-닫혔다. S4-G0~G6도 순서대로 닫혔다. S4-G7 첫 product wiring은 모델이 사용하지 않아 폐기했고 제품 source
-delta는 0이다. 현재 다음 한 작업은 같은 hidden-tool 방향에 문구를 더 붙이지 않고 모델·tool discovery 경계를
-재판정하는 것이다. 실제 사용자 이익이 없는 한 G 전체 완료를 주장하지 않는다.
+닫혔다. S4-G0~G6도 순서대로 닫혔다. S4-G7 별도 Tool 후보는 폐기됐고 제품 source delta는 0이다. 현재 다음 한
+작업은 기존 exec의 model-authored temporary program에만 적용되는 작은 실행 계약과 반대시험이다. 동일 Python
+source·입력·출력 의미를 보존한 A/B 전에는 G 전체 완료를 주장하지 않는다.

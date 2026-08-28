@@ -1,0 +1,16 @@
+{
+  "schema":"t5.s4g.g7-exec-program-contract.v1",
+  "status":"CONTRACT_ONLY_PRODUCT_CHANGES_ZERO",
+  "appliesWhen":"model explicitly declares a current-Work temporary program that processes bound inputs into declared outputs",
+  "doesNotApplyTo":["ordinary command","file listing","git","search","single observation","interactive program","user-requested persistent application source"],
+  "facts":["sourceBytes","sourceLanguage","inputRecordRefs","declaredOutputs","filesystemRequirement","networkRequirement","childProcessRequirement","packageRequirement","interpreterRequirement"],
+  "backendSelection":{
+    "quickjs":"JavaScript pure transform with no filesystem, network, child process or package requirement",
+    "terminal":"preserve exact source language and interpreter when requirements exceed QuickJS",
+    "automaticLanguageTranslation":false
+  },
+  "runtimeGuarantees":["stale check before and after","original inputs read-only","D execution cancellation crash output","G independent observer","F verified publication and Undo","diagnostic temporary scratch cleanup","blind retry zero"],
+  "modelResponsibilities":["program necessity","source language and bytes","required resources","output meaning","purpose completion"],
+  "forbidden":["command regex inference","business intent enum","all-exec wrapping","Python-to-JavaScript translation","backend name exposed to user"],
+  "completion":"The same model-authored source and input/output meaning complete with G safety and verification, while ordinary exec remains unchanged."
+}
