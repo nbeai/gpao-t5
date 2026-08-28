@@ -1,0 +1,44 @@
+{
+  "schema": "t5.s4e4.post-effect-scope-contract.v1",
+  "status": "CONTRACT_ONLY_PRODUCT_CHANGES_ZERO",
+  "observedRoots": ["current_managed_workspace", "declared_scratch", "declared_output"],
+  "facts": [
+    "rootIdentity",
+    "coverageComplete",
+    "entryCount",
+    "manifestDigest",
+    "createdEntries",
+    "changedEntries",
+    "deletedEntries",
+    "declaredChanges",
+    "unexpectedChanges",
+    "unknowns"
+  ],
+  "privacy": {
+    "fileContent": false,
+    "secretValues": false,
+    "unchangedEntryPathsProjected": false,
+    "changedRelativePathsMaximum": 64
+  },
+  "bounds": {
+    "maximumEntries": 4096,
+    "followSymlinks": false,
+    "hashAllFiles": false,
+    "wholeComputer": false
+  },
+  "unknownWhen": [
+    "entry_limit_exceeded",
+    "root_identity_changed",
+    "observation_changed_during_walk",
+    "unreadable_entry",
+    "late_child_window_unmeasured"
+  ],
+  "firstProductScope": "completed foreground local_change inside current managed workspace",
+  "nonGoals": [
+    "full filesystem watcher",
+    "all arbitrary shell effects confined",
+    "late detached child observation",
+    "business-specific allowed path rules",
+    "provider transmission of unchanged workspace names"
+  ]
+}
