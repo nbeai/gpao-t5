@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_BASELINE_COMPLETE · S4_D2_COMPLETE · S4_D3_COMPLETE_WITH_RSS_OBSERVATION · S4_D4_BASELINE_COMPLETE · S4_D4A_PARENT_DEATH_CONTAINMENT_ACTIVE`
-현재 Gate: `S4-D4A MACOS PARENT-DEATH CONTAINMENT · ORPHAN PREVENTION FIRST`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_BASELINE_COMPLETE · S4_D2_COMPLETE · S4_D3_COMPLETE_WITH_RSS_OBSERVATION · S4_D4_BASELINE_COMPLETE · S4_D4A_PARENT_DEATH_CONTAINMENT_COMPLETE · S4_D4B_SUCCESSOR_SETTLEMENT_ACTIVE`
+현재 Gate: `S4-D4B SUCCESSOR SETTLEMENT · INTERRUPTED WORK WITHOUT REEXECUTION`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,17 +55,16 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-D4A macOS Parent-death Containment의 orphan prevention 구현이다.
+2. **현재 Gate**: S4-D4B successor settlement 구현이다.
 3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
    없이 끝까지 관찰한다.
-4. **이미 선 실제 증거**: Runtime SIGKILL 뒤 detached managed group이 살아 late effect를 만들고 successor는
-   관측·중지하지 못했다. graceful stop·UI detach·Windows Job Object는 별도 양성 대조다.
-5. **현재 가장 큰 미달**: macOS managed non-PTY process는 Runtime parent 연결 소실을 물리적으로 감지해 exact
-   process group을 끝내는 owner가 없다.
-6. **이번 변경 방식**: 기존 command argv·cwd·env·stdin·stdout·stderr를 proxy하는 macOS process-group host와
-   별도 control FD를 사용한다. Runtime 사망으로 FD가 닫히면 host가 자기 group을 TERM→KILL 정산한다.
-7. **Non-goals**: PID 재부착·새 owner Store·Work successor settlement·PTY wrapper·Windows 재구현·S4-E·실제
-   HOME·계정·외부 효과 시험.
+4. **이미 선 실제 증거**: D4A는 macOS Runtime SIGKILL 뒤 managed non-PTY late effect 0을 만들었다. 그러나
+   successor에서 interrupted Run의 Work·execution claim은 active로 남고 partial output manifest는 live다.
+5. **현재 가장 큰 미달**: successor가 고아가 없다는 경계를 Work interrupted-resumable·claim release·effect
+   unknown·partial output reopen으로 정산하지 않는다.
+6. **이번 변경 방식**: 기존 RunLedger·WorkStore·TerminalOutputStore만 사용해 interrupted managed Run을 exact once
+   reconcile하고 자동 Tool 재실행은 열지 않는다.
+7. **Non-goals**: process reattach·새 Store·PTY containment·RSS 수리·Windows 재구현·S4-E·실제 HOME·계정·외부 효과.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -307,7 +306,7 @@ S4-C는 제품 성공으로 완료한 것이 아니다. `USER_COMPLETION_NOT_UNI
 
 > T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한 손으로 필요한 원문만 본다.
 
-### S4-D — Terminal 실행 중 output·process 미달 — D2·D3 COMPLETE, D4A PARENT-DEATH ACTIVE
+### S4-D — Terminal 실행 중 output·process 미달 — D2·D3·D4A COMPLETE, D4B ACTIVE
 
 S4-D0은 disk spool 전에 KHB-S01에서 발견된 pipeline 실행 사실을 닫았다. zsh `pipestatus`와 bash
 `PIPESTATUS`로 마지막 unconditional foreground pipeline의 전체 exit와 단계 exit를 분리한다. Runtime은 이
@@ -410,6 +409,16 @@ S4-D4A 완료 문장:
 
 > macOS Runtime이 비정상 종료돼도 T5가 시작한 managed non-PTY process group은 late effect를 만들기 전에
 > 종료되며, UI detach와 정상 Runtime에서는 기존 작업이 계속된다.
+
+S4-D4A actual은 fd3 parent-liveness channel과 macOS process-group host로 Runtime SIGKILL late effect를 0으로
+닫았다. 정상 stdout·stderr·exit·effect와 기존 stop·stdin을 보존하고 helper 부재는 실행 전 fail closed한다.
+managed background startup 비용은 no-host 4.74ms/회에서 contained 27.58ms/회로 +22.84ms였다. foreground exec와
+PTY는 이 host를 사용하지 않는다.
+
+S4-D4B 완료 문장:
+
+> successor Runtime은 사고로 끝난 managed Work를 자동 재실행하지 않고 interrupted-resumable·effect unknown으로
+> 정산하며, execution claim을 해제하고 보존된 partial output을 같은 handle로 다시 연다.
 
 - 실행 중 stdout·stderr append-only disk spool
 - 작은 memory head·tail·cursor와 bounded range read
@@ -690,6 +699,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D2·D3는 닫혔고 RSS는 별도 관측이다. S4-D4 identity 기준선 뒤
-오너 결정으로 D4A orphan prevention이 열렸다. 현재 다음 한 작업은 Runtime SIGKILL·정상 실행·graceful stop의
-RED와 macOS parent-death process-group host다. S4-E는 열지 않는다.
+S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D2·D3·D4A는 닫혔고 RSS는 별도 관측이다. 현재 다음 한 작업은
+successor의 interrupted Run·active claim·live partial output을 기존 원장으로 exact once 정산하는 D4B다. S4-E는
+열지 않는다.

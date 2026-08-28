@@ -1,0 +1,49 @@
+{
+  "schema": "t5.s4d4a.parent-death-containment.v1",
+  "recordedOn": "2026-08-29",
+  "status": "COMPLETE",
+  "sourceBaseCommit": "e6c573ff",
+  "platform": "darwin",
+  "scope": "managed non-PTY process",
+  "failureBefore": "Runtime SIGKILL left the detached process group alive and it created a late effect",
+  "implementation": {
+    "host": "refoundation/scripts/macos-parent-death-host.mjs",
+    "control": "dedicated fd3 parent-liveness channel",
+    "stdioProxy": ["stdin", "stdout", "stderr"],
+    "termination": "exact hosted process group SIGTERM then bounded SIGKILL",
+    "missingHelper": "fail closed",
+    "pidReattach": false,
+    "newStore": false
+  },
+  "qualification": {
+    "runtimeSigkillLateEffect": false,
+    "runtimeSigkillTargetAliveAfterBoundary": false,
+    "runtimeAliveNormalOutput": true,
+    "runtimeAliveNormalEffect": true,
+    "normalExitCodePreserved": true,
+    "existingStopAndInputPassed": true,
+    "ptyChanged": false,
+    "missingHelperProcessStarts": 0
+  },
+  "performance": {
+    "abBaCommandsPerArm": 40,
+    "plainMsPerCommand": 4.737558325,
+    "containedMsPerCommand": 27.576871875,
+    "addedMsPerCommand": 22.83931355,
+    "appliesToForegroundExec": false,
+    "appliesToPty": false
+  },
+  "verification": {
+    "fullCiExit": 0,
+    "integrationPassed": 192,
+    "integrationFailed": 0,
+    "mutationKills": 2
+  },
+  "nonClaims": [
+    "successor Work and claim settlement is fixed",
+    "PTY parent-death containment is implemented",
+    "physical Windows crash is qualified",
+    "detached grandchildren that deliberately escape the hosted process group are contained"
+  ],
+  "nextOneTask": "Open S4-D4B successor settlement using interrupted Run, active claim, partial output handle and unknown effect without automatic reexecution."
+}

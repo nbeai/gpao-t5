@@ -1,9 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { windowsJobHostLaunch } from './windows-process-boundary.js';
 
 const DEFAULT_OUTPUT_LIMIT = 64_000;
 const DEFAULT_SPOOL_LIMIT = 1024 * 1024;
+const DEFAULT_MACOS_PARENT_DEATH_HOST = fileURLToPath(
+  new URL('../scripts/macos-parent-death-host.mjs', import.meta.url),
+);
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -65,6 +70,7 @@ export class ManagedProcessRegistry {
     stopGraceMs = 1000,
     killGraceMs = 2000,
     windowsJobHost = null,
+    macosParentDeathHost = platform === 'darwin' ? DEFAULT_MACOS_PARENT_DEATH_HOST : null,
   } = {}) {
     this.platform = platform;
     this.spawnProcess = spawnProcess;
@@ -73,6 +79,7 @@ export class ManagedProcessRegistry {
     this.stopGraceMs = stopGraceMs;
     this.killGraceMs = killGraceMs;
     this.windowsJobHost = windowsJobHost;
+    this.macosParentDeathHost = macosParentDeathHost;
     this.records = new Map();
     this.terminalListeners = new Set();
   }
@@ -181,16 +188,37 @@ export class ManagedProcessRegistry {
     const id = randomUUID();
     const hosted = this.platform === 'win32' && this.windowsJobHost
       ? windowsJobHostLaunch({ host: this.windowsJobHost, program, args, cwd }) : null;
-    const child = this.spawnProcess(hosted?.program ?? program, hosted?.args ?? args, {
+    if (this.platform === 'darwin' && (!this.macosParentDeathHost
+      || !existsSync(this.macosParentDeathHost))) {
+      throw Object.assign(new Error('macOS parent-death host is required'), {
+        code: 'T5_MACOS_PARENT_DEATH_HOST_REQUIRED',
+      });
+    }
+    const parentDeathHosted = this.platform === 'darwin' ? {
+      program: process.execPath,
+      args: [this.macosParentDeathHost, hosted?.program ?? program, ...(hosted?.args ?? args)],
+      boundary: { kind: 'macos_parent_death_process_group', qualified: true },
+    } : null;
+    const child = this.spawnProcess(parentDeathHosted?.program ?? hosted?.program ?? program,
+      parentDeathHosted?.args ?? hosted?.args ?? args, {
       cwd,
       env,
       detached: this.platform !== 'win32',
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: parentDeathHosted ? ['pipe', 'pipe', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'],
     });
+    if (parentDeathHosted) {
+      let controlReply = '';
+      child.stdio[3].setEncoding('utf8');
+      child.stdio[3].on('data', (chunk) => {
+        controlReply += String(chunk);
+        if (controlReply.includes('complete\n')) child.stdio[3].destroy();
+      });
+      child.once('exit', () => { child.stdio?.[3]?.destroy(); });
+    }
     const record = {
       id, ownerId, child, command, cwd,
       metadata: structuredClone(metadata), terminalObserved: false, wakeClaimed: false,
-      processBoundary: hosted?.boundary ?? (this.platform === 'win32'
+      processBoundary: parentDeathHosted?.boundary ?? hosted?.boundary ?? (this.platform === 'win32'
         ? { kind: 'windows_process_tree_unqualified', qualified: false } : null),
       state: 'running', exitCode: null, signal: null, error: null,
       stopReason: null, startedAt: new Date().toISOString(), startedAtMs: Date.now(), endedAt: null, endedAtMs: null,
