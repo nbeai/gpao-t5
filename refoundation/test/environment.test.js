@@ -33,7 +33,7 @@ test('정본은 제품·현재 계획·1차 역사·작업 규율로 분리된�
   assert.match(history, /상태: `FIRST_COMPLETE_REFERENCE`/);
   assert.match(history, /Unified Attachment Hand A1, U1-G4까지 완료되어 1차 완성/);
   assert.match(agents, /`T5-FOURTH-COMPLETION\.md` — 지금 어느 Gate/);
-  assert.match(fourth, /현재 Gate: `S4-E7 MANAGED LOCAL CHANGE PHYSICAL CONFINEMENT`/u);
+  assert.match(fourth, /현재 Gate: `S4-F STRUCTURED AUTHORING · READ-ONLY BASELINE`/u);
   assert.match(fourth, /t5-0\.3\.1-clean-baseline/u);
   assert.match(agents, /현재 제품 코어·UI·검사·배포는 `refoundation\/`/);
   assert.match(agents, /t5-legacy-archive/);

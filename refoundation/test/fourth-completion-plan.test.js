@@ -6,15 +6,15 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../../', import.meta.url);
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 
-test('4차 정본은 S4-E6 rollback을 닫고 E7 physical confinement만 연다', async () => {
+test('4차 정본은 S4-E를 닫고 S4-F read-only baseline만 연다', async () => {
   const [plan, agents, second] = await Promise.all([
     readFile(new URL('T5-FOURTH-COMPLETION.md', root), 'utf8'),
     readFile(new URL('AGENTS.md', root), 'utf8'),
     readFile(new URL('T5-SECOND-COMPLETION.md', root), 'utf8'),
   ]);
-  assert.match(plan, /S4_E5_ATOMIC_PUBLICATION_COMPLETE · S4_E6_EXACT_ROLLBACK_POINTER_COMPLETE · S4_E7_MANAGED_LOCAL_CHANGE_CONFINEMENT_ACTIVE/u);
+  assert.match(plan, /S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_READ_ONLY_BASELINE_ACTIVE/u);
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
-  assert.match(plan, /현재 Gate: `S4-E7 MANAGED LOCAL CHANGE PHYSICAL CONFINEMENT`/u);
+  assert.match(plan, /현재 Gate: `S4-F STRUCTURED AUTHORING · READ-ONLY BASELINE`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',
     'S4-H', 'S4-I', 'S4-J', 'S4-K', 'S4-UX', 'S4-L', 'S4-HQ'];
   let cursor = -1;
@@ -76,7 +76,7 @@ test('4차 정본은 S4-E6 rollback을 닫고 E7 physical confinement만 연다'
   assert.match(plan, /S4-D5C 완료 문장:[\s\S]*고아 helper/u);
   assert.match(plan, /전체 약 82\.1MB[\s\S]*약 86% 감소/u);
   assert.match(plan, /PTY parent-death containment[\s\S]*S4-L/u);
-  assert.match(plan, /destination parent symlink escape[\s\S]*hardlink source admission/u);
+  assert.match(plan, /S4-E2 actual[\s\S]*S4-E3 actual/u);
   assert.match(plan, /S4-E1 actual은 여섯 계약/u);
   assert.match(plan, /S4-C carry-forward로 동일 도구면의 모델별 Hand 선택/u);
   assert.match(plan, /S4-C carry-forward로 실제 자료가 있는데 없다고 말하는지/u);

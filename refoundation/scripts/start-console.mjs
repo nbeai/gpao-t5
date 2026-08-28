@@ -96,6 +96,7 @@ const computerFileRoots = computerEnvironment.platform === 'darwin'
   : [parse(homedir()).root];
 const terminalPlatformAdapter = await makeTerminalPlatformAdapter({
   platform: computerEnvironment.platform,
+  managedWorkspace: workspace,
   protectedReadRoots: protectedTerminalReadRoots,
   protectedExecutableNames: githubCli ? ['gh'] : [],
 });

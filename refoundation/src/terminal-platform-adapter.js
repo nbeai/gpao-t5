@@ -1,6 +1,6 @@
-import { access, mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
+import { access, lstat, mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 function seatbeltString(value) {
   return String(value).replaceAll('\\', '\\\\').replaceAll('"', '\\"');
@@ -14,6 +14,31 @@ function profile(roots, protectedExecutableNames) {
     ...protectedExecutableNames.map((name) => (
       `(deny process-exec (regex #"/${seatbeltString(name)}$"))`
     )),
+  ].join('\n');
+}
+
+function pathInside(candidate, root) {
+  const value = relative(root, candidate);
+  return value === '' || (value !== '..' && !value.startsWith(`..${sep}`) && !isAbsolute(value));
+}
+
+async function localChangeProfile(workspace, lexicalWorkspace, launch) {
+  const targets = [];
+  for (const value of launch.declaredEffect?.targets ?? []) {
+    const requested = isAbsolute(value) ? resolve(value) : resolve(launch.cwd, value);
+    const target = pathInside(requested, lexicalWorkspace)
+      ? resolve(workspace, relative(lexicalWorkspace, requested)) : requested;
+    if (!pathInside(target, workspace)) throw new Error('local change target is outside managed workspace');
+    let directory = false; try { directory = (await lstat(target)).isDirectory(); } catch { directory = false; }
+    targets.push({ target, directory });
+  }
+  if (!targets.length) throw new Error('local change requires a managed target');
+  return [
+    '(version 1)', '(allow default)', '(deny file-write*)',
+    '(allow file-write* (regex #"^/dev/(null|stdout|stderr|tty|fd/[0-9]+)$"))',
+    ...targets.map(({ target, directory }) => directory
+      ? `(allow file-write* (subpath "${seatbeltString(target)}"))`
+      : `(allow file-write* (literal "${seatbeltString(target)}"))`),
   ].join('\n');
 }
 
@@ -54,6 +79,7 @@ export async function makeTerminalPlatformAdapter({
   platform = process.platform,
   protectedReadRoots = [],
   protectedExecutableNames = [],
+  managedWorkspace = null,
   sandboxExec = '/usr/bin/sandbox-exec',
   canonicalize = realpath,
   checkExecutable = access,
@@ -73,6 +99,8 @@ export async function makeTerminalPlatformAdapter({
     catch (error) { if (error?.code !== 'ENOENT') throw error; }
   }
   const canonicalRoots = [...new Set(roots)];
+  const lexicalWorkspace = managedWorkspace ? resolve(managedWorkspace) : null;
+  const canonicalWorkspace = managedWorkspace ? await canonicalize(managedWorkspace) : null;
   const rootAliases = [...new Set([
     ...protectedReadRoots.map(String).filter(Boolean), ...canonicalRoots,
   ])];
@@ -82,14 +110,18 @@ export async function makeTerminalPlatformAdapter({
   return {
     kind: 'macos_seatbelt', qualified: true, observationProbeQualified: true,
     async prepare(launch) {
+      const confinedLocalChange = launch.declaredEffect?.kind === 'local_change' && canonicalWorkspace;
       return {
         ...launch,
         program: sandboxExec,
-        args: ['-p', profile(canonicalRoots, executableNames), launch.program, ...launch.args],
+        args: ['-p', confinedLocalChange
+          ? await localChangeProfile(canonicalWorkspace, lexicalWorkspace, launch)
+          : profile(canonicalRoots, executableNames), launch.program, ...launch.args],
         confinement: {
-          kind: 'macos_seatbelt', qualified: true,
+          kind: confinedLocalChange ? 'macos_managed_local_change' : 'macos_seatbelt', qualified: true,
           protectedRootCount: canonicalRoots.length,
           protectedExecutableCount: executableNames.length, keychainCliBlocked: true,
+          ...(confinedLocalChange ? { targetWriteConfined: true } : {}),
         },
       };
     },

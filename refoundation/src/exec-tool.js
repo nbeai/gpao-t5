@@ -218,6 +218,7 @@ function makeCommandTool(options = {}, { managed }) {
           program: runtime.program,
           args: runtime.argsFor(pipelineTruth?.command ?? managedCommand),
           cwd, env: isolatedEnv(root, env, runtime), confinement: null,
+          declaredEffect: structuredClone(declaredEffect),
         };
         const brokered = await terminalCredentialBroker?.prepare?.({ commandExplanation, managed })
           ?? { matched: false };

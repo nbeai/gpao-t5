@@ -1,0 +1,25 @@
+{
+  "schema": "t5.s4e7.managed-local-change-confinement.v1",
+  "recordedOn": "2026-08-29",
+  "status": "COMPLETE_MACOS_FOREGROUND_SCOPE",
+  "sourceBaseCommit": "f89deefe",
+  "scope": "macOS foreground local_change within current managed workspace declared targets",
+  "qualification": {
+    "declaredTargetWriteSucceeded": true,
+    "undeclaredSiblingWriteSucceeded": false,
+    "outsideWriteCount": 0,
+    "existingSandboxControlsPassed": 11,
+    "existingSandboxControlsFailed": 0
+  },
+  "gate": {
+    "s4eComplete": true,
+    "completedSlices": ["E1", "E2", "E3", "E4A", "E5", "E6", "E7"]
+  },
+  "nonClaims": [
+    "arbitrary shell effects are completely confined",
+    "late detached child writes are observed on every path",
+    "physical Windows target confinement is qualified",
+    "public structured authoring tool exists"
+  ],
+  "nextOneTask": "Open S4-F read-only structured authoring baseline before exposing any workspace_patch tool."
+}
