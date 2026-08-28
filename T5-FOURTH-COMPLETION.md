@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_BOOLEAN_REJECTED_MODEL_PROVIDER_OBSERVATION · PRODUCT_CODE_LOCKED`
-현재 Gate: `S4-C SITUATION & HAND · BOOLEAN REJECTED · OWNER DECISION`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_READ_ONLY_BASELINE_ACTIVE · PRODUCT_CODE_LOCKED`
+현재 Gate: `S4-D1 LIVE OUTPUT & PROCESS REALITY · READ-ONLY BASELINE`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,19 +55,18 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-C boolean workspace presence를 폐기했고 model·provider 품질 관측으로 남겼다. 제품 코드는
-   잠겨 있다.
-3. **사용자 완료 문장**: T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한
-   손으로 필요한 원문만 본다.
-4. **이미 선 실제 증거**: boolean presence는 A03에서 attachment-only 종료를 막고 재귀 검색까지 유도했지만,
-   모델은 macOS 비호환 `find -printf`의 stage `[1,0,0]`을 해석하지 못해 계약서 두 개를 계속 놓쳤다. 목적은
-   실패했고 5 model calls·4 tool calls·52,656 tokens·20.8초가 들었다.
-5. **현재 가장 큰 미달**: 필요한 사실·Tool·stage exit가 모두 있어도 모델이 portable 방법과 결과 의미를 잘못
-   선택하는 품질 variance가 남았다. Runtime metadata 부족으로 계속 확대하지 않는다.
-6. **이번 변경 방식**: qualification 후보와 `workspace_presence` 전송 배선을 제품 source에서 제거하고 실패·비용·
-   전송 진실만 증거에 남겼다.
-7. **Non-goals**: 파일 수·이름·확장자 metadata 확대, exit 의미 Runtime 승격, 새 Prompt·Tool·Store·Intent·업무
-   schema, 모델별 patch, 다음 Gate 자동 개통, 실제 HOME·계정·외부 효과 시험.
+2. **현재 Gate**: S4-D1 Live Output & Process Reality의 read-only 기준선이다. 제품 코드는 잠겨 있다.
+3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
+   없이 끝까지 관찰한다.
+4. **이미 선 실제 증거**: 완료된 foreground output은 gzip disk chunk·exact range recall이 있고 managed process는
+   delta poll·completion wake·process-group stop이 있다. 실행 중 spool과 handle은 resident memory·registry에
+   있으며 Runtime 재시작을 건너지 못한다고 코드에 보이지만 실제 사용자 미달은 아직 재현하지 않았다.
+5. **현재 가장 큰 미달**: 1MiB 이상 stdout·stderr, 실행 중 exact range, peak memory, Runtime restart 뒤 process·
+   handle·Work·orphan·blind retry, completion wake exact once를 같은 현재 제품 실행으로 측정하지 않았다.
+6. **이번 변경 방식**: 제품 변경 0에서 기존 public Tool·Registry·Run·Work·output store를 실제 실행하고 현재
+   성공·실패·unknown을 분리한다. 구현은 사용자 목적 미달과 기존 기반의 불충분이 함께 재현될 때만 연다.
+7. **Non-goals**: disk spool·restart handle 구현, 새 process Store, 고정 poll·출력 상한, S4-C 추가 패치, 다음 Gate,
+   실제 HOME·계정·외부 효과 시험.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -212,7 +211,7 @@ call에서의 위치, 최신 교정과 거리, 앞선 assistant·ToolReceipt 크
 > T5는 모델에게 현재 사용자 원문·교정·Evidence·실행 현실을 작고 정확하게 공급하며, 목적·완료 의미와
 > 사용자 답은 모델이 판단한다.
 
-### S4-C — Situation·Hand의 실제 차이 수리 — BOOLEAN REJECTED, MODEL/PROVIDER OBSERVATION
+### S4-C — Situation·Hand의 실제 차이 수리 — CLOSED WITH MODEL/PROVIDER OBSERVATION
 
 현재 목적에 관련된 Conversation·Memory·Work·file·connection·Capability pointer를 후보화하고 모델이 선택한
 Evidence만 exact reopen한다. 기존 Information Control·Resource Situation·tool search를 우선 사용한다.
@@ -300,11 +299,16 @@ presence는 즉시 업로드 요구 대신 두 번의 workspace 검색을 유도
 이 결과는 workspace metadata 부족을 더 키울 근거가 아니라 같은 Runtime 현실에서의 model·provider 방법 선택
 품질 관측이다. 다음 metadata 후보나 모델별 Prompt를 열지 않는다.
 
+S4-C는 제품 성공으로 완료한 것이 아니다. `USER_COMPLETION_NOT_UNIVERSALLY_PROVEN`이며 S4-C 제품 구현 채택은
+0이다. A03·S01의 거짓 부재, portable command 선택, shallow observation 해석, 불필요한 Connection과 모델별
+정확성·비용 차이는 S4-K의 model·Capability 선택 현실과 S4-HQ의 실제 인간 목적에서 다시 확인한다. HQ에서
+핵심 목적이 실패하면 4차 전체 완료를 주장하지 않는다.
+
 완료 문장:
 
 > T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한 손으로 필요한 원문만 본다.
 
-### S4-D — Terminal 실행 중 output·process 미달 — D0 FACT-ONLY CORRECTED, BROADER GATE UNOPENED
+### S4-D — Terminal 실행 중 output·process 미달 — D1 READ-ONLY BASELINE ACTIVE
 
 S4-D0은 disk spool 전에 KHB-S01에서 발견된 pipeline 실행 사실을 닫았다. zsh `pipestatus`와 bash
 `PIPESTATUS`로 마지막 unconditional foreground pipeline의 전체 exit와 단계 exit를 분리한다. Runtime은 이
@@ -314,6 +318,17 @@ process, non-POSIX runtime은 관측한 척하지 않고 기존 동작을 보존
 물리 자격은 S4-L에 남는다. 전역 pipefail과 exit-code 예외 목록은 적용하지 않았다.
 
 기존 Terminal Core 위에 필요한 차이만 연결한다.
+
+S4-D1은 구현이 아니라 현재 현실 측정이다.
+
+- 1MiB를 넘는 managed stdout·stderr의 실행 중 보존 범위·exact range recall·peak memory·유실을 측정한다.
+- Runtime 종료·재시작 뒤 OS process 생존, handle 소실, orphan, Work 상태, 자동 재실행 여부를 분리한다.
+- completion wake exact once, 반복 poll·같은 cursor·증가 output·stop/completion race를 재현한다.
+- 짧은 foreground, 기존 PTY, 정상 background, 종료 후 exact output recall, process tree stop을 양성 대조한다.
+
+구현은 `현재 사용자 목적 미달 AND 기존 output store·process registry로 해결 불가 AND 실제 memory·output·
+restart 증거 AND 비교군 원리 AND 가장 작은 반대시험`이 함께 설 때만 연다. 코드 구조가 memory spool이라는
+사실만으로 disk spool을 구현하지 않는다.
 
 - 실행 중 stdout·stderr append-only disk spool
 - 작은 memory head·tail·cursor와 bounded range read
@@ -465,6 +480,9 @@ tag·credential URL·임의 lifecycle hook·검증되지 않은 package는 제�
 로컬 우선·비용 우선·품질 우선·특정 공급자·민감자료 외부 전송 금지 정책을 자연어로 정할 수 있다. STT는
 이 계약의 positive control일 수 있지만 `회의록이면 특정 API` 같은 업무 Router나 성공한 전사 재실행은 없다.
 
+S4-C carry-forward로 동일 도구면의 모델별 Hand 선택, portable command, shallow observation 해석, 목적 정확성,
+wall·calls·tokens를 Capability Reality 후보 사실에 포함한다. 이 사실은 업무 Router나 모델 강제 선택이 아니다.
+
 완료 문장:
 
 > T5는 현재 손이 부족한 이유를 정확히 알고 기존 대안이 없을 때만 검증된 능력을 안전하게 갖춰 원래 목적을 재개한다.
@@ -549,6 +567,9 @@ macOS 성공, Linux/WSL, emulation, GitHub runner는 물리 Windows 사용자 �
 - 장시간 한국어 오디오를 적합한 STT engine으로 전사하고 요약·실행 과제·전체 원문 Artifact를 분리해
   Notion에 반영·재개방하며 비용·시간·privacy·첨부 미지원 범위를 보존하기
 
+S4-C carry-forward로 실제 자료가 있는데 없다고 말하는지, shallow 검색을 전체 부재로 확대하는지, 불필요한
+Connection을 먼저 여는지, 같은 목적을 더 적합한 모델이 해결하는지를 다시 확인한다.
+
 완료 문장은 이 문서 1절의 최종 완료 문장 전체다.
 
 ## 8. S4-A 최소 기준선
@@ -588,6 +609,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-D0은 pipeline stage exit와 overall exit를 사실로만 공급하도록 교정됐다. boolean workspace presence는 A03
-목적과 경제성에 실패해 제품 source에서 제거했다. S4-C는 model·provider 품질 관측으로 남아 있으며 다음
-metadata 후보·모델별 Prompt·다음 Gate를 자동으로 열지 않는다. 현재 다음 작업은 오너의 Gate 판정이다.
+S4-C는 `CLOSED_WITH_MODEL_PROVIDER_OBSERVATION`이며 사용자 완료는 모든 모델에서 증명되지 않았다. 미달은
+S4-K와 S4-HQ에 이월했다. 현재 다음 한 작업은 제품 변경 0의 S4-D1 live output·process·restart read-only
+기준선이다. 실제 미달과 기존 기반의 불충분이 함께 서기 전에는 구현하지 않는다.

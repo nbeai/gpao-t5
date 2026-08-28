@@ -1,7 +1,7 @@
 {
   "schema": "t5.s4c.situation-hand-baseline.v1",
   "recordedOn": "2026-08-28",
-  "status": "WORKSPACE_PRESENCE_REJECTED_MODEL_PROVIDER_QUALITY_OBSERVATION",
+  "status": "CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_USER_COMPLETION_NOT_UNIVERSALLY_PROVEN",
   "sourceCommit": "35769fb0",
   "scenario": "KHB-S01",
   "productChanges": 0,
@@ -194,7 +194,7 @@
     "connectionFirst": "S4-C cross-model efficiency observation",
     "falseAbsenceDirectBlocker": "S4-D0 repaired hidden stage failure; shallow successful observation still does not prove absence",
     "s4cProductCodeAdopted": false,
-    "nextGate": "owner decision on closing S4-C as model/provider quality observation"
+    "nextGate": "S4-D1 read-only live output and process reality baseline"
   },
   "ownerResumption": {
     "productAdopted": false,
@@ -230,5 +230,15 @@
     "expandedMatrixRun": false,
     "rejectionReason": "boolean presence changed the route but did not recover the purpose and materially worsened cost"
   },
-  "nextOneTask": "Owner decides whether S4-C closes as model/provider quality observation; do not open another metadata or Prompt candidate."
+  "closure": {
+    "userCompletionUniversallyProven": false,
+    "productImplementationAdopted": 0,
+    "finalWorkspacePresenceProductSourceDelta": 0,
+    "branchProductDeltaStillIncludes": "4cd43bb8 pipeline fact-only observation",
+    "carryForward": {
+      "S4-K": ["model hand quality", "portable command choice", "shallow observation interpretation", "quality and cost"],
+      "S4-HQ": ["false local absence", "shallow-to-global absence", "unnecessary connection", "better-model same-purpose recovery"]
+    }
+  },
+  "nextOneTask": "Open S4-D1 read-only live output and process reality baseline with product changes zero."
 }

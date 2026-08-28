@@ -2,10 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('S4-C 기준선은 boolean 실패와 model provider 품질 분리를 보존한다', async () => {
+test('S4-C 기준선은 미증명·제품 구현 0·S4-K/HQ 이월을 보존한다', async () => {
   const evidence = JSON.parse(await readFile(new URL(
     '../evidence/s4-c-situation-hand-baseline-2026-08-28.json', import.meta.url), 'utf8'));
-  assert.equal(evidence.status, 'WORKSPACE_PRESENCE_REJECTED_MODEL_PROVIDER_QUALITY_OBSERVATION');
+  assert.equal(evidence.status,
+    'CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_USER_COMPLETION_NOT_UNIVERSALLY_PROVEN');
   assert.equal(evidence.productChanges, 0);
   assert.equal(evidence.currentGpt55.purposeAchieved, true);
   assert.equal(evidence.currentGpt55.connectionResultUsedInFinalAnswer, false);
@@ -34,6 +35,12 @@ test('S4-C 기준선은 boolean 실패와 model provider 품질 분리를 보존
   assert.equal(evidence.ownerResumption.liveA03.purposeAchieved, false);
   assert.equal(evidence.ownerResumption.liveA03.namesPathsContentCountsTransmitted, false);
   assert.equal(evidence.ownerResumption.expandedMatrixRun, false);
+  assert.equal(evidence.closure.userCompletionUniversallyProven, false);
+  assert.equal(evidence.closure.productImplementationAdopted, 0);
+  assert.equal(evidence.closure.finalWorkspacePresenceProductSourceDelta, 0);
+  assert.match(evidence.closure.branchProductDeltaStillIncludes, /4cd43bb8/u);
+  assert.ok(evidence.closure.carryForward['S4-K'].includes('portable command choice'));
+  assert.ok(evidence.closure.carryForward['S4-HQ'].includes('false local absence'));
   assert.match(evidence.routingDecision.falseAbsenceDirectBlocker, /shallow successful observation/u);
   assert.ok(evidence.notYetProven.includes('connection should be deferred globally'));
 });

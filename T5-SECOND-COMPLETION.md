@@ -4,7 +4,7 @@
 현재 Gate: `0.3.1 CLEAN INSTALLED PRODUCT BASELINE`
 기준 source: `fd58c2da`
 배포 상태: `legacy-free 0.3.1 clean product baseline · behavior-preserving hygiene complete`
-현재 후속 Gate: `T5-FOURTH-COMPLETION.md · S4-C`
+현재 후속 Gate: `T5-FOURTH-COMPLETION.md · S4-D1`
 
 이 문서는 T5 2차·3차와 Cleanroom의 완료 역사·증거선이다. 현재 4차 계획은
 `T5-FOURTH-COMPLETION.md`, 제품 정의는 `T5-PRODUCT.md`, 작업 규율은 `AGENTS.md`가 담당한다.
