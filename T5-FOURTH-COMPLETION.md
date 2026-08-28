@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_CONTRACT_AND_BASELINE_COMPLETE · S4_F1_CANONICAL_PARENT_CORRECTED · S4_F2_SCRATCH_PREPARE_REQUALIFIED · S4_F3_LOCK_REVALIDATE_ACTIVE`
-현재 Gate: `S4-F3 SORTED LOCK AND REVALIDATE`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_CONTRACT_AND_BASELINE_COMPLETE · S4_F1_CANONICAL_PARENT_CORRECTED · S4_F2_SCRATCH_PREPARE_REQUALIFIED · S4_F3_SORTED_LOCK_REVALIDATE_COMPLETE · S4_F4_PUBLICATION_ROLLBACK_ACTIVE`
+현재 Gate: `S4-F4 TARGET PUBLICATION AND FAILURE ROLLBACK`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,14 +55,14 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-F3 sorted target lock과 전체 preimage 재검사다.
+2. **현재 Gate**: S4-F4 target별 atomic publication과 중간 실패 rollback이다.
 3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
    없이 끝까지 관찰한다.
 4. **이미 선 실제 증거**: F baseline은 multi-file partial commit·stale overwrite·shell literal expansion을 재현했다.
-5. **현재 가장 큰 미달**: prepare 뒤 publish 전 다른 Work가 같은 target을 바꾸거나 동시에 publication을 시작할 수 있다.
-6. **이번 변경 방식**: canonical target path를 정렬해 durable lock을 잡고 모든 preimage·parent·collision을 다시
-   확인한 뒤에만 publication admission을 반환한다.
-7. **Non-goals**: publish·rollback 실행·범용 IDE·다중 파일 원자성 주장·S4-G.
+5. **현재 가장 큰 미달**: publication 중 후순위 target 실패 시 앞서 바뀐 target을 Work 안에서 자동 복원하지 않는다.
+6. **이번 변경 방식**: 모든 exact rollback pointer를 먼저 durable하게 만든 뒤 target별 E5 publication을 수행하고,
+   중간 실패 시 앞선 target을 역순 E6 restore·digest 재검증한다.
+7. **Non-goals**: filesystem 동시 rename 주장·범용 IDE·검증/settle 완료·S4-G.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -589,6 +589,10 @@ S4-F2 actual은 create·modify candidate를 managed scratch에 exact bytes로 at
 재개방한다. JSON·YAML은 문법 검증하며 TOML validator 부재는 실패로 닫는다. 한 candidate라도 실패하면 scratch
 전체를 정리하고 target write 0이다. opaque 형식은 hash만 검증하며 구조 검증 완료로 꾸미지 않는다.
 
+S4-F3 actual은 모든 canonical source/destination을 정렬해 `DurableProcessOwnership` path-digest lock을 획득한다.
+preimage·parent dev/ino·destination collision·scratch candidate hash를 모두 재검사하고 하나라도 실패하면 확보한
+lock을 역순 해제해 publication admission 0이다. 같은 target의 다른 Work는 contention으로 닫힌다.
+
 ### S4-G — Ephemeral Program Capsule
 
 기존 손으로 같은 품질을 경제적으로 달성하기 어려울 때만 현재 Work의 작은 프로그램을 만든다.
@@ -832,5 +836,5 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 ## 10. 현재 다음 한 작업
 
 S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D managed non-PTY와 D5C는 닫혔다. S4-E baseline은 세 실제 gap으로
-닫혔다. S4-E1~E7도 닫혔다. F1 canonical parent correction과 F2 재자격도 끝났다. 현재 다음 한 작업은 sorted
-canonical target lock과 전체 preimage·parent·collision을 재검사하는 S4-F3다. publish는 아직 열지 않는다.
+닫혔다. S4-E1~E7과 F1~F3도 닫혔다. 현재 다음 한 작업은 모든 rollback pointer를 먼저 만든 뒤 target별 atomic
+publication과 중간 실패 exact restore를 수행하는 S4-F4다.

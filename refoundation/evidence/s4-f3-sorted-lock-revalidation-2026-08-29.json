@@ -1,0 +1,19 @@
+{
+  "schema": "t5.s4f3.sorted-lock-revalidation.v1",
+  "recordedOn": "2026-08-29",
+  "status": "COMPLETE_INTERNAL_PRIMITIVE",
+  "sourceBaseCommit": "ce011d3d",
+  "qualification": {
+    "canonicalSortedLockOrder": true,
+    "crossProcessDurableOwnershipReused": true,
+    "sameTargetContenderAdmitted": false,
+    "stalePreimageAdmitted": false,
+    "tamperedScratchAdmitted": false,
+    "failureReleasesAllLocks": true,
+    "targetWrites": 0,
+    "focusedPassed": 3,
+    "focusedFailed": 0
+  },
+  "nonClaims": ["publication started", "multi-file transaction settled", "physical Windows lock lifecycle qualified"],
+  "nextOneTask": "Open S4-F4 target publication and failure rollback."
+}
