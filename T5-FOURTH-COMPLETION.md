@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_BASELINE_COMPLETE · S4_D2_COMPLETE · S4_D3_COMPLETE_WITH_RSS_OBSERVATION · S4_D4_READ_ONLY_IDENTITY_BASELINE_COMPLETE_IMPLEMENTATION_CLOSED`
-현재 Gate: `S4-D4 IMPLEMENTATION CLOSED · IDENTITY BOUNDARY OWNER REVIEW`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_BASELINE_COMPLETE · S4_D2_COMPLETE · S4_D3_COMPLETE_WITH_RSS_OBSERVATION · S4_D4_BASELINE_COMPLETE · S4_D4A_PARENT_DEATH_CONTAINMENT_ACTIVE`
+현재 Gate: `S4-D4A MACOS PARENT-DEATH CONTAINMENT · ORPHAN PREVENTION FIRST`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,18 +55,17 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-D4 read-only identity 기준선이 끝났고 구현 전 오너 검토 상태다.
+2. **현재 Gate**: S4-D4A macOS Parent-death Containment의 orphan prevention 구현이다.
 3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
    없이 끝까지 관찰한다.
-4. **이미 선 실제 증거**: SIGKILL 뒤 child는 PPID 1·PGID=PID로 살아 effect를 만들었다. Run start receipt와 live
-   output handle은 durable했지만 successor registry는 process 0·old handle 404였다. Work·claim은 active, Run은
-   interrupted, partial output 20자는 live manifest에서 exact reopen됐다.
-5. **현재 가장 큰 미달**: durable identity에 OS pid·process group·executable·start identity·generation이 없어서
-   successor가 살아 있는 process를 자기 것이라고 증명하거나 멈출 수 없다.
-6. **이번 변경 방식**: read-only 실제 사고로 identity 경계를 고정했고 제품 변경은 0이다. 재부착보다 고아 방지를
-   우선하며 identity 미증명 시 effect unknown·Work interrupted·blind retry 0을 유지한다.
-7. **Non-goals**: PID-only reattach, parent-death wrapper 즉시 구현, 모든 crash 복구, Windows 성공 주장, S4-E,
-   실제 HOME·계정·외부 효과 시험.
+4. **이미 선 실제 증거**: Runtime SIGKILL 뒤 detached managed group이 살아 late effect를 만들고 successor는
+   관측·중지하지 못했다. graceful stop·UI detach·Windows Job Object는 별도 양성 대조다.
+5. **현재 가장 큰 미달**: macOS managed non-PTY process는 Runtime parent 연결 소실을 물리적으로 감지해 exact
+   process group을 끝내는 owner가 없다.
+6. **이번 변경 방식**: 기존 command argv·cwd·env·stdin·stdout·stderr를 proxy하는 macOS process-group host와
+   별도 control FD를 사용한다. Runtime 사망으로 FD가 닫히면 host가 자기 group을 TERM→KILL 정산한다.
+7. **Non-goals**: PID 재부착·새 owner Store·Work successor settlement·PTY wrapper·Windows 재구현·S4-E·실제
+   HOME·계정·외부 효과 시험.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -308,7 +307,7 @@ S4-C는 제품 성공으로 완료한 것이 아니다. `USER_COMPLETION_NOT_UNI
 
 > T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한 손으로 필요한 원문만 본다.
 
-### S4-D — Terminal 실행 중 output·process 미달 — D2·D3 COMPLETE, D4 BASELINE COMPLETE IMPLEMENTATION CLOSED
+### S4-D — Terminal 실행 중 output·process 미달 — D2·D3 COMPLETE, D4A PARENT-DEATH ACTIVE
 
 S4-D0은 disk spool 전에 KHB-S01에서 발견된 pipeline 실행 사실을 닫았다. zsh `pipestatus`와 bash
 `PIPESTATUS`로 마지막 unconditional foreground pipeline의 전체 exit와 단계 exit를 분리한다. Runtime은 이
@@ -401,6 +400,16 @@ receipt에는 opaque processId와 output handle이 있었고 live manifest는 `B
 안전한 구현 방향은 PID 재부착이 아니다. launch 전 durable owner identity와 macOS parent-death process-group
 wrapper, Windows Job Object kill-on-close를 비교한다. exact identity가 증명되면 관측·stop·bounded reconcile,
 증명되지 않으면 재부착 0·effect unknown·Work interrupted·blind retry 0이다. 이 설계는 아직 채택하지 않았다.
+
+S4-D4A는 macOS managed non-PTY process에 한정한다. Runtime이 살아 있거나 UI만 닫힌 동안 control FD는 유지돼
+command가 계속 실행된다. Runtime crash·SIGKILL로 FD가 EOF가 되면 process-group host가 자신이 시작한 exact
+group을 SIGTERM 후 bounded SIGKILL로 끝낸다. 정상 command completion·stdin·stdout·stderr·exit code와 기존
+process group stop은 보존한다. helper 부재는 보호 없는 실행으로 낮추지 않고 fail closed한다.
+
+S4-D4A 완료 문장:
+
+> macOS Runtime이 비정상 종료돼도 T5가 시작한 managed non-PTY process group은 late effect를 만들기 전에
+> 종료되며, UI detach와 정상 Runtime에서는 기존 작업이 계속된다.
 
 - 실행 중 stdout·stderr append-only disk spool
 - 작은 memory head·tail·cursor와 bounded range read
@@ -681,6 +690,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D2 exact-once와 S4-D3 live output spine은 닫혔고 RSS는 별도 관측으로
-남았다. S4-D4 read-only identity 기준선도 끝났으며 현재 다음 작업은 오너의 D4 구현 경계 판정이다. S4-E는
-열지 않는다.
+S4-C 미달은 S4-K와 S4-HQ에 이월했다. S4-D2·D3는 닫혔고 RSS는 별도 관측이다. S4-D4 identity 기준선 뒤
+오너 결정으로 D4A orphan prevention이 열렸다. 현재 다음 한 작업은 Runtime SIGKILL·정상 실행·graceful stop의
+RED와 macOS parent-death process-group host다. S4-E는 열지 않는다.
