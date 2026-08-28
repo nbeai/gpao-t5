@@ -1,0 +1,111 @@
+{
+  "schema": "t5.s4d1.live-output-process-baseline.v1",
+  "recordedOn": "2026-08-28",
+  "status": "READ_ONLY_BASELINE_COMPLETE_THREE_GAPS_REPRODUCED",
+  "sourceCommit": "d9d435da",
+  "productChanges": 0,
+  "environment": {
+    "isolatedTemporaryRoot": true,
+    "realUserData": false,
+    "realAccounts": false,
+    "externalWrites": 0,
+    "platform": "darwin",
+    "architecture": "arm64",
+    "physicalWindowsRun": false
+  },
+  "largeManagedOutput": {
+    "runs": 2,
+    "requestedCharsPerRun": { "stdout": 1300012, "stderr": 1200012 },
+    "terminalState": "completed",
+    "cursorTotals": { "stdout": 1300012, "stderr": 1200012 },
+    "residentSpoolChars": { "stdout": 1048576, "stderr": 1048576 },
+    "permanentlyOmittedChars": { "stdout": 251436, "stderr": 151436, "total": 402872 },
+    "snapshotOmittedCharsIncludingOutputLimit": 2372024,
+    "tailPreserved": true,
+    "exactOutputRecallUnavailable": true,
+    "outputRecallHandlePresent": false,
+    "runningExactRangeReadAvailable": false,
+    "rssSamples": [
+      { "before": 54755328, "afterStart": 112640000, "afterTerminal": 655671296,
+        "peakObservedDelta": 600915968 },
+      { "before": 54837248, "afterStart": 152141824, "afterTerminal": 636796928,
+        "peakObservedDelta": 581959680 }
+    ],
+    "memoryClaim": "observed process RSS only; attribution to one internal allocation is not proven"
+  },
+  "cursorAndWake": {
+    "sameCursorReplaysSameDelta": true,
+    "advancedCursorPositiveControl": true,
+    "ordinaryCompletionWakeFirstClaim": "completed",
+    "ordinaryCompletionWakeSecondClaim": null,
+    "stopAfterCompletionObservedState": "completed",
+    "wakeStillClaimableAfterStopReturnedTerminal": true,
+    "duplicateWakeFamily": "terminal result observed through stop does not mark terminalObserved on the already-terminal early return"
+  },
+  "restartReality": {
+    "gracefulRuntimeShutdown": {
+      "childState": "stopped",
+      "delayedEffectOccurred": false,
+      "activeWorkContract": "interrupted_resumable"
+    },
+    "abruptRuntimeCrash": {
+      "parentExitCode": 23,
+      "childWroteMarkerAfterParentExit": true,
+      "childAliveAfterParentExit": true,
+      "successorRegistryProcessCount": 0,
+      "successorOldHandleState": "not_found",
+      "cleanup": "exact isolated process group terminated after observation"
+    },
+    "runLedgerAfterUnfinishedRun": "interrupted",
+    "automaticToolReexecutionObserved": false,
+    "workStateAfterPhysicalAbruptCrash": "not_measured"
+  },
+  "positiveControls": {
+    "testsPassed": 24,
+    "testsFailed": 0,
+    "covered": [
+      "short foreground completion",
+      "managed running handle and delta cursor",
+      "stdin and PTY resize",
+      "ordinary completion wake exact once",
+      "terminal output exact range after qualified save",
+      "process tree stop with no late child write",
+      "graceful Runtime drain to interrupted_resumable",
+      "incomplete provider tool call repaired as interrupted_unknown without automatic reexecution"
+    ]
+  },
+  "comparisonPrinciplesReused": [
+    { "system": "Codex", "sourceCommit": "a26f1806a4f4b8cfec2ea1be129963815a61e58c",
+      "principle": "serialized process interaction and explicit output omission facts" },
+    { "system": "OpenClaw", "sourceCommit": "0482cbf1c06cc82e2dffcc44c6dadfd9a701d5c7",
+      "principle": "scoped process registry and unread output delta" },
+    { "system": "OpenHands", "sourceCommit": "f48eca6ab9149b3aa532e86842c85da43e370108",
+      "principle": "paged shell output rather than context-wide output injection" }
+  ],
+  "reproducedGapFamilies": [
+    {
+      "id": "managed_live_output_exact_recall_loss",
+      "severity": "P1",
+      "userImpact": "a long command can complete but early stdout and stderr cannot be recovered exactly"
+    },
+    {
+      "id": "abrupt_runtime_crash_orphan_and_handle_loss",
+      "severity": "P1",
+      "userImpact": "the OS process can continue after Runtime death while the successor cannot observe or stop it by the old handle"
+    },
+    {
+      "id": "stop_completion_duplicate_wake",
+      "severity": "P1",
+      "userImpact": "a terminal result returned by stop can still trigger a second completion wake"
+    }
+  ],
+  "notYetProven": [
+    "disk spool is the only or smallest implementation",
+    "a live process can be safely rebound after every physical crash",
+    "the exact peak RSS belongs only to OutputSpool",
+    "the same physical behavior on Windows",
+    "abrupt crash WorkStore recovery state"
+  ],
+  "gateImpact": "S4-D implementation remains closed until the smallest red countertests and exact ownership design are separated per gap family.",
+  "nextOneTask": "Owner reviews the three reproduced P1 families; if implementation opens, start with red countertests for managed live-output loss and stop/completion duplicate wake, while restart rebind remains a separate identity design."
+}

@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_READ_ONLY_BASELINE_ACTIVE · PRODUCT_CODE_LOCKED`
-현재 Gate: `S4-D1 LIVE OUTPUT & PROCESS REALITY · READ-ONLY BASELINE`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_READ_ONLY_BASELINE_COMPLETE_THREE_P1_REPRODUCED · PRODUCT_CODE_LOCKED`
+현재 Gate: `S4-D IMPLEMENTATION CLOSED · BASELINE OWNER REVIEW`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,18 +55,18 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-D1 Live Output & Process Reality의 read-only 기준선이다. 제품 코드는 잠겨 있다.
+2. **현재 Gate**: S4-D1 read-only 기준선이 끝났고 구현 개통 전 오너 검토 상태다. 제품 코드는 잠겨 있다.
 3. **사용자 완료 문장**: T5는 대규모 출력과 장시간 작업을 한 번 실행하고 Context 폭증·고아 실행·중복 wake
    없이 끝까지 관찰한다.
-4. **이미 선 실제 증거**: 완료된 foreground output은 gzip disk chunk·exact range recall이 있고 managed process는
-   delta poll·completion wake·process-group stop이 있다. 실행 중 spool과 handle은 resident memory·registry에
-   있으며 Runtime 재시작을 건너지 못한다고 코드에 보이지만 실제 사용자 미달은 아직 재현하지 않았다.
-5. **현재 가장 큰 미달**: 1MiB 이상 stdout·stderr, 실행 중 exact range, peak memory, Runtime restart 뒤 process·
-   handle·Work·orphan·blind retry, completion wake exact once를 같은 현재 제품 실행으로 측정하지 않았다.
-6. **이번 변경 방식**: 제품 변경 0에서 기존 public Tool·Registry·Run·Work·output store를 실제 실행하고 현재
-   성공·실패·unknown을 분리한다. 구현은 사용자 목적 미달과 기존 기반의 불충분이 함께 재현될 때만 연다.
-7. **Non-goals**: disk spool·restart handle 구현, 새 process Store, 고정 poll·출력 상한, S4-C 추가 패치, 다음 Gate,
-   실제 HOME·계정·외부 효과 시험.
+4. **이미 선 실제 증거**: 1.30M stdout + 1.20M stderr에서 앞 402,872자가 resident spool에서 영구 유실됐고
+   exact recall handle이 없었다. 두 실행의 관측 RSS 증가는 601MB·582MB였다. abrupt Runtime crash 뒤 child는
+   살아 effect를 냈지만 successor registry는 old handle을 찾지 못했다. stop이 terminal을 반환한 뒤 wake도 재claim됐다.
+5. **현재 가장 큰 미달**: managed live output exact recall loss, abrupt crash orphan·handle loss, stop/completion
+   duplicate wake 세 P1이 재현됐다. 물리 Windows와 abrupt crash 뒤 exact WorkStore 상태는 미측정이다.
+6. **이번 변경 방식**: read-only 실행·기존 비교 증거·양성 대조 24개로 세 가족을 분리했고 제품 변경은 0이다.
+   구현은 gap 가족별 최소 RED와 ownership 설계가 선 뒤 별도로 연다.
+7. **Non-goals**: 즉시 disk spool 구현, 모든 crash process 재결속 주장, 세 가족 한 패치, 고정 poll·출력 상한,
+   S4-C 추가 패치, 다음 Gate, 실제 HOME·계정·외부 효과 시험.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -308,7 +308,7 @@ S4-C는 제품 성공으로 완료한 것이 아니다. `USER_COMPLETION_NOT_UNI
 
 > T5는 현재 가진 자료·기억·연결·능력과 부족한 사실을 빠르게 파악하고 가장 적합한 손으로 필요한 원문만 본다.
 
-### S4-D — Terminal 실행 중 output·process 미달 — D1 READ-ONLY BASELINE ACTIVE
+### S4-D — Terminal 실행 중 output·process 미달 — D1 BASELINE COMPLETE, IMPLEMENTATION CLOSED
 
 S4-D0은 disk spool 전에 KHB-S01에서 발견된 pipeline 실행 사실을 닫았다. zsh `pipestatus`와 bash
 `PIPESTATUS`로 마지막 unconditional foreground pipeline의 전체 exit와 단계 exit를 분리한다. Runtime은 이
@@ -329,6 +329,25 @@ S4-D1은 구현이 아니라 현재 현실 측정이다.
 구현은 `현재 사용자 목적 미달 AND 기존 output store·process registry로 해결 불가 AND 실제 memory·output·
 restart 증거 AND 비교군 원리 AND 가장 작은 반대시험`이 함께 설 때만 연다. 코드 구조가 memory spool이라는
 사실만으로 disk spool을 구현하지 않는다.
+
+S4-D1 actual 결과:
+
+- managed stdout 1,300,012자·stderr 1,200,012자에서 각 1,048,576자 tail만 남고 총 402,872자가 exact recall
+  전에 유실됐다. terminal 상태는 completed였지만 `exactOutputRecallUnavailable=true`, output handle은 없었다.
+- 동일 실행 두 번의 process RSS는 약 55MB에서 656MB·637MB까지 올라갔다. 이는 process RSS 관측이며
+  `OutputSpool` 단일 원인으로 확정하지 않는다.
+- 같은 cursor는 같은 delta를 재관측하고, cursor를 전진한 기존 양성 대조는 중복 없이 통과했다.
+- ordinary completion wake는 exact once였지만 이미 completed인 process를 `stop`으로 관측하면 terminal 결과를
+  반환한 뒤 같은 completion wake가 다시 claim됐다.
+- graceful Runtime shutdown은 process tree를 멈추고 late effect 0, Work를 interrupted-resumable로 남겼다.
+  abrupt parent exit에서는 child가 살아 marker를 썼고 successor registry는 process 0·old handle 404였다.
+- unfinished Run은 restart read에서 interrupted였고 automatic tool 재실행은 없었다. physical abrupt crash 뒤
+  exact WorkStore 상태와 Windows 물리 동작은 아직 측정하지 않았다.
+- 짧은 foreground·PTY·delta poll·일반 wake exact once·저장된 output range·process tree stop·graceful drain·
+  incomplete-call non-retry 양성 대조 24개는 실패 0이었다.
+
+현재 재사용할 비교 원리는 Codex의 serialized process interaction·omission facts, OpenClaw의 scoped registry·
+unread delta, OpenHands의 paged shell output이다. 이것만으로 disk spool이나 crash rebind 구현을 자동 승인하지 않는다.
 
 - 실행 중 stdout·stderr append-only disk spool
 - 작은 memory head·tail·cursor와 bounded range read
@@ -609,6 +628,6 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-C는 `CLOSED_WITH_MODEL_PROVIDER_OBSERVATION`이며 사용자 완료는 모든 모델에서 증명되지 않았다. 미달은
-S4-K와 S4-HQ에 이월했다. 현재 다음 한 작업은 제품 변경 0의 S4-D1 live output·process·restart read-only
-기준선이다. 실제 미달과 기존 기반의 불충분이 함께 서기 전에는 구현하지 않는다.
+S4-C는 `CLOSED_WITH_MODEL_PROVIDER_OBSERVATION`이며 미달은 S4-K와 S4-HQ에 이월했다. S4-D1 read-only 기준선은
+세 P1과 현재 양성 대조를 분리해 완료됐다. 현재 다음 작업은 오너의 구현 개통 판정이다. 개통 시 live-output
+loss와 duplicate wake의 최소 RED부터 시작하고 restart rebind는 별도 process identity 설계로 남긴다.

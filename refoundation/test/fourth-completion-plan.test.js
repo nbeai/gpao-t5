@@ -6,15 +6,15 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../../', import.meta.url);
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 
-test('4차 정본은 S4-C 미증명을 이월하고 S4-D1 read-only 기준선만 연다', async () => {
+test('4차 정본은 S4-D1 세 P1 기준선을 닫고 구현을 잠근다', async () => {
   const [plan, agents, second] = await Promise.all([
     readFile(new URL('T5-FOURTH-COMPLETION.md', root), 'utf8'),
     readFile(new URL('AGENTS.md', root), 'utf8'),
     readFile(new URL('T5-SECOND-COMPLETION.md', root), 'utf8'),
   ]);
-  assert.match(plan, /S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_READ_ONLY_BASELINE_ACTIVE · PRODUCT_CODE_LOCKED/u);
+  assert.match(plan, /S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D1_READ_ONLY_BASELINE_COMPLETE_THREE_P1_REPRODUCED · PRODUCT_CODE_LOCKED/u);
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
-  assert.match(plan, /현재 Gate: `S4-D1 LIVE OUTPUT & PROCESS REALITY · READ-ONLY BASELINE`/u);
+  assert.match(plan, /현재 Gate: `S4-D IMPLEMENTATION CLOSED · BASELINE OWNER REVIEW`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',
     'S4-H', 'S4-I', 'S4-J', 'S4-K', 'S4-UX', 'S4-L', 'S4-HQ'];
   let cursor = -1;
@@ -35,13 +35,17 @@ test('4차 정본은 S4-C 미증명을 이월하고 S4-D1 read-only 기준선만
   assert.match(plan, /첫 기준선은 KHB-S01/u);
   assert.match(plan, /connection list가 로컬 Evidence보다 먼저 호출/u);
   assert.match(plan, /find -printf[\s\S]*exit 0/u);
-  assert.match(plan, /S4-D — Terminal 실행 중 output·process 미달 — D1 READ-ONLY BASELINE ACTIVE/u);
+  assert.match(plan, /S4-D — Terminal 실행 중 output·process 미달 — D1 BASELINE COMPLETE, IMPLEMENTATION CLOSED/u);
   assert.match(plan, /전역 pipefail과 exit-code 예외 목록은 적용하지 않았다/u);
   assert.match(plan, /workspacePresence:[\s\S]*scope: current_managed_workspace[\s\S]*contentIncluded: false/u);
   assert.match(plan, /workspace_presence` 범주는 call당 161 payload bytes/u);
   assert.match(plan, /후보 코드와 전송 범주를 모두 제거/u);
   assert.match(plan, /1MiB를 넘는 managed stdout·stderr/u);
   assert.match(plan, /Runtime 종료·재시작 뒤 OS process 생존/u);
+  assert.match(plan, /총 402,872자가 exact recall/u);
+  assert.match(plan, /completion wake가 다시 claim/u);
+  assert.match(plan, /successor registry는 process 0·old handle 404/u);
+  assert.match(plan, /양성 대조 24개는 실패 0/u);
   assert.match(plan, /S4-C carry-forward로 동일 도구면의 모델별 Hand 선택/u);
   assert.match(plan, /S4-C carry-forward로 실제 자료가 있는데 없다고 말하는지/u);
   assert.match(plan, /각 local engine·model·Capability의 실제 사용 가능 여부[\s\S]*개인정보 범위/u);
