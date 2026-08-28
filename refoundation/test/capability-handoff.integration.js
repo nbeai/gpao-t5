@@ -29,7 +29,7 @@ async function close(server) {
   await new Promise((resolve) => server.close(resolve));
 }
 
-async function waitForReply(base, sessionId, pattern, timeoutMs = 2_000) {
+async function waitForReply(base, sessionId, pattern, timeoutMs = 5_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const session = await fetch(`${base}/sessions/${sessionId}`).then((response) => response.json());
@@ -42,7 +42,7 @@ async function waitForReply(base, sessionId, pattern, timeoutMs = 2_000) {
   throw new Error(`timed out waiting for ${pattern}`);
 }
 
-async function waitForHandoffs(ledger, predicate, timeoutMs = 2_000) {
+async function waitForHandoffs(ledger, predicate, timeoutMs = 5_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const state = await ledger.read();

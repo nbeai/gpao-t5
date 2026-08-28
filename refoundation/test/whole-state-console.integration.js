@@ -22,6 +22,20 @@ async function allText(root) {
   await walk(root); return output.join('\n');
 }
 
+async function bounded(promise, timeoutMs, label) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 test('설정의 전체 백업은 runtime maintenance에서 암호화 download를 만들고 canonical state를 다시 연다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-whole-console-')); const state = join(room, 'state'); const workspace = join(room, 'workspace');
   await mkdir(workspace);
@@ -106,7 +120,8 @@ test('전체 백업은 진행 중 Work를 몰래 중단하지 않고 idle 뒤 �
       body: JSON.stringify({ password: 'busy backup password' }) });
     assert.equal(backup.status, 409); assert.match((await backup.json()).error, /진행 중인 작업/u);
     const cancel = await fetch(`${base}/turn/cancel`, { method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sessionId: session.id }) }); assert.equal(cancel.status, 200); await turn;
+      body: JSON.stringify({ sessionId: session.id }) }); assert.equal(cancel.status, 200);
+    await bounded(turn, 5_000, 'cancelled busy turn settlement');
   } finally {
     await server.closeAutomations(); await server.closeMessengers(); await new Promise((resolve) => server.close(resolve));
     await rm(room, { recursive: true, force: true });

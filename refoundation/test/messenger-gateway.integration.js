@@ -995,6 +995,7 @@ test('background inbound가 stop signal 뒤 정리될 때까지 gateway stop은 
       if (firstPoll) { firstPoll = false; return [{ updateId: 120, message: { provider: 'telegram',
         messageId: '120', chatId: '555', threadId: null, userId: '42', username: 'owner',
         text: '긴 작업', isDirectMessage: true } }]; }
+      if (signal?.aborted) return [];
       await new Promise((resolve) => signal?.addEventListener('abort', resolve, { once: true }));
       return [];
     },
