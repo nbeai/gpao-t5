@@ -221,10 +221,12 @@ function exactRecord(path, stat, home, evidence = {}) {
   return { path, displayName: basename(path), locationText: locationText(path, home),
     extension: extname(path).toLowerCase(), bytes: stat.size, createdAt: stat.birthtime?.toISOString?.() ?? null,
     modifiedAt: stat.mtime.toISOString(),
-    identity: { dev: stat.dev, ino: stat.ino, size: stat.size, mtimeMs: stat.mtimeMs }, evidence };
+    identity: { dev: stat.dev, ino: stat.ino, nlink: stat.nlink,
+      size: stat.size, mtimeMs: stat.mtimeMs }, evidence };
 }
 function currentIdentity(record, stat) {
   return stat.isFile() && !stat.isSymbolicLink() && stat.dev === record.identity.dev && stat.ino === record.identity.ino
+    && stat.nlink === record.identity.nlink
     && stat.size === record.identity.size && stat.mtimeMs === record.identity.mtimeMs;
 }
 function organizationEffect(effect) {
@@ -503,6 +505,7 @@ export function makeFileRealityTool({
         const seenSources = new Set(); const seenTargets = new Set(); const changes = []; const operations = [];
         for (const placement of placements) {
           const { record, stat } = await reopen(placement.handle);
+          if (stat.nlink !== 1) throw new Error('organization source hardlink is unavailable');
           if (seenSources.has(record.path)) throw new TypeError('a file can appear only once in an organization plan');
           seenSources.add(record.path);
           const destination = await realpath(resolve(placement.destinationDirectory));

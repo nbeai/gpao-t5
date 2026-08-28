@@ -38,19 +38,16 @@ test('S4-E2: plan 뒤 destination parent symlink 교체는 managed root 밖 이�
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test('S4-E baseline: workspace source hardlink는 별도 identity 공격면으로 차단되지 않는다', async () => {
+test('S4-E3: workspace source hardlink는 plan admission에서 차단된다', async () => {
   const root = await mkdtemp(join(tmpdir(), 't5-s4e-hardlink-'));
   try {
     const workspace = join(root, 'workspace'); const destination = join(root, 'destination');
     await Promise.all([mkdir(workspace), mkdir(destination)]);
     const outside = join(root, 'outside.txt'); const source = join(workspace, 'target.txt');
     await writeFile(outside, 'shared-bytes'); await link(outside, source);
-    const { tool, plan } = await planned(root, source, destination);
-    const applied = await tool.execute(args({ action: 'apply', planId: plan.planId,
-      effect: { ...effect, targets: [source] } }));
-    assert.equal(applied.state, 'applied');
+    await assert.rejects(planned(root, source, destination), /hardlink/u);
     assert.equal(await readFile(outside, 'utf8'), 'shared-bytes');
-    assert.equal(await readFile(join(destination, 'target.txt'), 'utf8'), 'shared-bytes');
+    await assert.rejects(readFile(join(destination, 'target.txt'), 'utf8'), { code: 'ENOENT' });
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

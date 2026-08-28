@@ -1,0 +1,20 @@
+{
+  "schema": "t5.s4e3.hardlink-admission.v1",
+  "recordedOn": "2026-08-29",
+  "status": "COMPLETE",
+  "sourceBaseCommit": "e904dc7a",
+  "implementation": "File Reality source identity includes nlink and organization plan admission requires nlink exactly one",
+  "qualification": {
+    "hardlinkAdmitted": false,
+    "outsideSourceChanged": false,
+    "destinationCreated": false,
+    "focusedPassed": 15,
+    "focusedFailed": 0
+  },
+  "nonClaims": [
+    "physical Windows NTFS hardlink behavior is qualified",
+    "unexpected Terminal writes are observed",
+    "atomic publication is complete"
+  ],
+  "nextOneTask": "Open S4-E4 bounded post-effect unexpected-write scope."
+}
