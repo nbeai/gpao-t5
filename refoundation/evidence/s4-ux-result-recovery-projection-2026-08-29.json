@@ -1,0 +1,33 @@
+{
+  "schema": "t5.s4ux.result-recovery-projection.v1",
+  "recordedOn": "2026-08-29",
+  "status": "S4_UX_RESULT_RECOVERY_PUBLIC_PROJECTION_COMPLETE_BASELINE_CONTINUES",
+  "sourceBaseCommit": "bcc5b551",
+  "baseline": {
+    "resultBytesPreserved": true,
+    "nextTurnRegisteredWithoutRegeneration": true,
+    "publicPendingOutputIncludedInternalHandle": true,
+    "publicPendingOutputIncludedSha256": true,
+    "redTests": { "passed": 0, "failed": 1 }
+  },
+  "repair": {
+    "canonicalPendingOutputStoreChanged": false,
+    "publicPendingOutputFields": ["name", "bytes"],
+    "programReexecution": 0,
+    "fileRegeneration": 0,
+    "newStore": 0,
+    "newPrompt": 0,
+    "newRouter": 0
+  },
+  "verification": {
+    "recoveryCountertestPassed": true,
+    "focusedPassed": 46,
+    "focusedFailed": 0,
+    "actualProviderRun": false,
+    "dailyCheck": { "passed": 1780, "failed": 0, "skipped": 1 }
+  },
+  "gate": {
+    "complete": false,
+    "next": "ARTIFACT_VERSION_TIME_AND_CROSS_CHANNEL_CURRENTNESS_BASELINE"
+  }
+}

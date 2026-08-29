@@ -2553,8 +2553,7 @@ export function makeConsoleServer({
         failureSurface.reply = `${failureSurface.reply}\n\n만든 결과 파일은 그대로 보존했어요. 같은 대화에서 이어서 전달할 수 있어요.`;
         failureSurface.nextSafeAction = '같은 대화에서 결과 파일 전달을 이어서 요청해 주세요.';
         failureSurface.pendingOutputs = pendingOutputs.map((output) => ({
-          outputHandle: output.outputHandle, name: output.originalName,
-          bytes: output.bytes, sha256: output.sha256,
+          name: output.originalName, bytes: output.bytes,
         }));
       }
       const recoveryEvidence = recoveryEvidenceForTurn({

@@ -312,6 +312,10 @@ test('생성 뒤 Run 실패는 200 unresolved로 handle을 보존하고 다음 �
     assert.equal(failedResponse.status, 200, JSON.stringify(failed));
     assert.equal(failed.kind, 'unresolved');
     assert.equal(failed.pendingOutputs.length, 1);
+    assert.deepEqual(Object.keys(failed.pendingOutputs[0]).sort(), ['bytes', 'name']);
+    const persistedFailure = await fetch(`${app.base}/sessions/${session.id}`).then((response) => response.json());
+    assert.deepEqual(Object.keys(persistedFailure.transcript[1].result.pendingOutputs[0]).sort(),
+      ['bytes', 'name']);
 
     const recoveredResponse = await fetch(`${app.base}/turn`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
