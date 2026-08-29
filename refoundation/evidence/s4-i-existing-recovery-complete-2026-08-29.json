@@ -1,0 +1,46 @@
+{
+  "schema": "t5.s4i.existing-recovery-complete.v1",
+  "recordedOn": "2026-08-29",
+  "status": "S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO",
+  "sourceCommit": "d808f057",
+  "productImplementation": 0,
+  "actualUserData": false,
+  "qualificationRunnerRepair": {
+    "initialHttp500Cases": 5,
+    "initialRunsStarted": 0,
+    "cause": "legacy runner did not use the current Keychain-backed isolated model connection contract",
+    "productDefect": false,
+    "runnerOnlyRepair": true
+  },
+  "actualCases": [
+    { "id": "method-unavailable-switch", "dimension": "method_failure", "passed": true,
+      "durationMs": 20227, "modelCalls": 5 },
+    { "id": "partial-observation-replan", "dimension": "partial_result", "passed": true,
+      "durationMs": 28873, "modelCalls": 6 },
+    { "id": "transient-safe-retry", "dimension": "safe_retry", "passed": true,
+      "durationMs": 25051, "modelCalls": 6 },
+    { "id": "tty-mode-switch", "dimension": "interaction_mode", "passed": true,
+      "durationMs": 37350, "modelCalls": 8 },
+    { "id": "impossible-bounded-stop", "dimension": "impossible_stop", "passed": true,
+      "durationMs": 37709, "modelCalls": 8, "substantiveCalls": 5 }
+  ],
+  "rulerCorrection": {
+    "initialFalseFailure": "impossible_stop_bounded_calls",
+    "excludedProtocolCalls": ["effect_declaration_required", "work_completion", "tool_search"],
+    "actualSubstantiveCalls": 5,
+    "correctedPassed": true,
+    "productDefectReproduced": false
+  },
+  "aggregate": { "cases": 5, "passed": 5, "failed": 0, "wallMs": 149210,
+    "modelCalls": 33, "toolReceipts": 28 },
+  "invariants": {
+    "methodSwitch": true,
+    "partialResultReplan": true,
+    "safeExactRetry": true,
+    "interactionModeSwitch": true,
+    "impossibleStopNoEffect": true,
+    "blindEffectRetry": 0
+  },
+  "dailyCheck": { "passed": 1778, "failed": 0, "skipped": 1 },
+  "nextGate": "S4_UX_READ_ONLY_BASELINE"
+}

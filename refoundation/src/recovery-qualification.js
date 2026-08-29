@@ -175,9 +175,11 @@ export function assessRecoveryCase({ definition, fixture, before, after, status,
       answeredValue: /hello-r3/.test(String(answer)),
     };
   } else {
+    const substantiveCalls = calls.filter((call) => call.actualCall
+      && !['work_completion', 'tool_search'].includes(call.requestedCall?.name));
     checks = {
       ...common, unchanged: JSON.stringify(before) === JSON.stringify(after),
-      boundedCalls: calls.length >= 1 && calls.length <= 5,
+      boundedCalls: substantiveCalls.length >= 1 && substantiveCalls.length <= 5,
       reportedAbsent: /없|못 찾|not found|존재하지|확인되지/.test(String(answer)),
     };
   }

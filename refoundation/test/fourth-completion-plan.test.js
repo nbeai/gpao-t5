@@ -6,15 +6,15 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../../', import.meta.url);
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 
-test('4차 정본은 S4-H를 관측 종료하고 S4-I read-only baseline만 연다', async () => {
+test('4차 정본은 S4-I를 기존 능력으로 완료하고 S4-UX read-only baseline만 연다', async () => {
   const [plan, agents, second] = await Promise.all([
     readFile(new URL('T5-FOURTH-COMPLETION.md', root), 'utf8'),
     readFile(new URL('AGENTS.md', root), 'utf8'),
     readFile(new URL('T5-SECOND-COMPLETION.md', root), 'utf8'),
   ]);
-  assert.match(plan, /S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_READ_ONLY_BASELINE_NEXT/u);
+  assert.match(plan, /S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_READ_ONLY_BASELINE_NEXT/u);
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
-  assert.match(plan, /현재 Gate: `S4-I ADAPTATION·RECOVERY · READ-ONLY BASELINE`/u);
+  assert.match(plan, /현재 Gate: `S4-UX INTERACTION CONTINUITY · READ-ONLY BASELINE`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',
     'S4-H', 'S4-I', 'S4-J', 'S4-K', 'S4-UX', 'S4-L', 'S4-HQ'];
   let cursor = -1;
@@ -109,7 +109,8 @@ test('4차 정본은 S4-H를 관측 종료하고 S4-I read-only baseline만 연�
   assert.match(plan, /product_activation: CLOSED_WITH_OBSERVATION/u);
   assert.match(plan, /actualReadSet: UNKNOWN_BY_DESIGN/u);
   assert.match(plan, /S4-H — 범용 Reconciliation 확장 — CLOSED WITH EXISTING CAPABILITY OBSERVATION · HQ REQUIRED/u);
-  assert.match(plan, /S4-I — Adaptation·Recovery — READ-ONLY BASELINE NEXT/u);
+  assert.match(plan, /S4-I — Adaptation·Recovery — COMPLETE WITH EXISTING CAPABILITY/u);
+  assert.match(plan, /S4-UX — Interaction Continuity & Human Reassurance — READ-ONLY BASELINE NEXT/u);
   assert.match(plan, /두 행의 고유값 교환[\s\S]*요청하지 않은 개인정보 JSON/u);
   assert.match(plan, /one-to-one·one-to-many·many-to-one·ambiguous·unmatched·conflicting/u);
   assert.match(plan, /최종 Excel·ZIP을 독립 재개방/u);

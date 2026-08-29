@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_READ_ONLY_BASELINE_NEXT · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
-현재 Gate: `S4-I ADAPTATION·RECOVERY · READ-ONLY BASELINE`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_READ_ONLY_BASELINE_NEXT · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+현재 Gate: `S4-UX INTERACTION CONTINUITY · READ-ONLY BASELINE`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,16 +55,16 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-I Adaptation·Recovery의 read-only baseline이다.
-3. **사용자 완료 문장**: T5는 실패와 불확실성을 해석해 적절한 방법으로 전환하고 사용자가 바로 활용할 결과를
-   일머리 있게 전달한다.
-4. **이미 선 실제 증거**: D의 crash·cancel·output 복구, Work의 interrupted-resumable·effect unknown·blind retry 0,
-   기존 Recovery qualification과 partial-result surface가 이미 있다.
-5. **현재 가장 큰 미달**: 방법 실패·부분 결과·provider/surface 실패 뒤 현재 제품이 유용한 결과를 보존하면서
-   다른 실제 방법으로 전환하는지 current head에서 아직 한 기준선으로 재확인하지 않았다.
-6. **이번 변경 방식**: 제품 변경 0에서 기존 recovery fixture와 actual model evidence를 우선 재사용하고 현재 미달이
-   재현될 때만 최초 recovery 결함 가족 하나를 연다.
-7. **Non-goals**: H 재개발·답 템플릿·업무별 recovery workflow·blind retry·새 Store·Prompt·Router.
+2. **현재 Gate**: S4-UX Interaction Continuity의 read-only baseline이다.
+3. **사용자 완료 문장**: T5는 내부 복잡성을 드러내지 않으면서 사용자가 현재 작업의 실제 진전·남은 일·필요한
+   행동·중지 가능성을 자연스럽게 이해하고, 대화와 채널을 이동해도 같은 작업 흐름을 유지한다.
+4. **이미 선 실제 증거**: canonical Work reality·milestone·경과시간·cancel·재접속·Telegram progress·Artifact·
+   Effect·Delivery 영수증과 S3-UX 실제 자격이 있다.
+5. **현재 가장 큰 미달**: G actual에서 verified publication 뒤 attachment 실패가 반복돼 내부적으로는 성공한 결과가
+   사용자 흐름에서 장황한 복구 시도로 이어졌다. 현재 제품에서 같은 표면 문제가 남았는지 아직 재현하지 않았다.
+6. **이번 변경 방식**: 제품 변경 0에서 짧은 결과·장기 process·부분 결과·재접속의 기존 UI/원장 증거를 재사용하고
+   실제 runtime 사건과 사용자 상태가 어긋나는 최초 표면 하나만 연다.
+7. **Non-goals**: UI 전면 재설계·새 진행 원장·모델 사고 공개·가짜 ETA·업무별 진행 대본·Prompt·Router.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -861,7 +861,7 @@ KHB-A03 계약 비교는 exact revisions의 reconciliation에 들어가기 전 w
 
 > T5는 업무 분야와 무관하게 여러 자료를 연결·비교·대사하고 사실·누락·상충·불확실성을 분리한 결과를 만든다.
 
-### S4-I — Adaptation·Recovery — READ-ONLY BASELINE NEXT
+### S4-I — Adaptation·Recovery — COMPLETE WITH EXISTING CAPABILITY
 
 방법 실패와 목적 실패를 분리하고 성공한 Evidence·부분 결과·effect를 보존한다. 아직 시도하지 않은 Hand,
 대체 비용과 위험, 사용자에게 물을 사실과 T5가 더 관측할 사실, exact resume를 모델에 공급한다. update·crash·
@@ -874,6 +874,17 @@ surface가 이미 공개된 유용한 결과를 지우거나 후속 입력이 �
 
 사용자 답은 결과 중심으로 모델이 작성한다. `결과 → 근거 → 미확인 → 다음 행동`은 가능한 정보 순서이지
 고정 답변 템플릿이 아니다.
+
+S4-I current-head actual은 기존 다섯 recovery fixture를 그대로 재실행했다. 방법 unavailable 뒤 다른 command,
+partial observation 뒤 전체 재계산, 시작 전 transient 실패의 exact 동일-call 1회 retry, pipe 실패 뒤 PTY 전환,
+존재하지 않는 기록의 무효과 bounded stop이 모두 목적을 달성했다. 첫 실행의 HTTP 500 5건은 오래된 runner가
+현재 Keychain-backed model connection을 열지 못한 qualification 결함이어서 runner만 현재 secret-store 경계로
+교정했다.
+
+불가능 정지의 최초 실패도 제품 결함이 아니었다. 기존 판정기가 `effect_declaration_required`와
+`work_completion` protocol call까지 탐색 횟수로 세었다. actual evidence-producing exec 5개만 세도록 교정하면
+무효과·부재 보고·bounded stop이 모두 통과한다. 다섯 실제 Run은 149.210초·33 model calls·28 tool receipts였고
+제품 구현은 0이다. S4-I는 기존 recovery capability로 COMPLETE다.
 
 완료 문장:
 
@@ -901,7 +912,7 @@ privacy scope와 실패 대안을 정직하게 확인하는 공통 불변식으�
 S4-C carry-forward의 모델별 Hand 선택, portable command, shallow observation 해석, 목적 정확성,
 wall·calls·tokens는 S4-G·S4-I·S4-HQ에서 현재 사실과 실제 사용자 결과로 다시 확인한다.
 
-### S4-UX — Interaction Continuity & Human Reassurance
+### S4-UX — Interaction Continuity & Human Reassurance — READ-ONLY BASELINE NEXT
 
 S4-B~I가 만든 머리·손·복구 현실을 새 원장이나 모델의 진행 서술 없이 현재 Work·Run·Tool·Effect·Delivery
 사건에서 사용자 언어로 투영한다. 이미 선 canonical Work reality, milestone, 경과시간, 교정·중지, 재접속 복원,
@@ -1027,8 +1038,7 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 S4-C 미달은 S4-I·S4-HQ에 계속 이월한다. S4-D managed non-PTY와 D5C, S4-E1~E7, S4-F는 닫혔다. S4-G는 internal
 engine COMPLETE·product activation CLOSED_WITH_OBSERVATION·further development DEFERRED로 종료했고 제품 entry는
-0이다. S4-H는 current source-key·required coverage·output closure와 기존 미수금·개인 파일 evidence를 확인하고
-제품 구현 0의 existing-capability observation으로 닫았다. 계약 자료 발견과 개인 cross-source join은 HQ에 남긴다.
-현재 다음 한 작업은 S4-I read-only baseline이다. 기존 method-failure·partial-result·effect-unknown·provider/surface
-failure fixture를 current head에서 재사용해 유용한 결과 보존·다른 방법 전환·blind retry 0을 분리하고 최초 실제
-미달 하나만 연다.
+0이다. S4-H는 existing-capability observation으로 닫고 계약 발견·개인 cross-source join을 HQ에 남겼다. S4-I는
+current-head recovery 5/5와 qualification ruler 교정 뒤 제품 구현 0으로 완료했다. J는 미래 연구, K는 cross-cutting
+사실로 유지한다. 현재 다음 한 작업은 S4-UX read-only baseline이다. 짧은 결과·장기 process·부분 결과·재접속의
+canonical runtime 사건과 사용자 상태를 기존 증거에서 대조하고 현재 mismatch가 재현될 때만 최초 UX 결함 하나를 연다.

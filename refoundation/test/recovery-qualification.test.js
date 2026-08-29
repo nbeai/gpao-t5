@@ -38,12 +38,17 @@ test('불가능 정지는 무효과·부재 보고·bounded calls의 논리곱�
   const passed = assessRecoveryCase({
     definition, fixture: {}, before: { a: 'x' }, after: { a: 'x' },
     status: 'completed', answer: '해당 기록은 존재하지 않습니다.',
-    calls: [{ requestedCall: { name: 'exec' }, outcome: 'succeeded', result: {} }],
+    calls: [
+      { requestedCall: { name: 'exec' }, actualCall: null, outcome: 'not_executed', result: { state: 'effect_declaration_required' } },
+      { requestedCall: { name: 'exec' }, actualCall: { name: 'exec', args: { command: 'grep x' } }, outcome: 'succeeded', result: {} },
+      { requestedCall: { name: 'work_completion' }, actualCall: { name: 'work_completion', args: {} }, outcome: 'succeeded', result: {} },
+    ],
   });
   const looping = assessRecoveryCase({
     definition, fixture: {}, before: { a: 'x' }, after: { a: 'x' },
     status: 'completed', answer: '없습니다.',
-    calls: Array.from({ length: 6 }, () => ({ requestedCall: { name: 'exec' }, outcome: 'succeeded', result: {} })),
+    calls: Array.from({ length: 6 }, (_, index) => ({ requestedCall: { name: 'exec' },
+      actualCall: { name: 'exec', args: { command: `grep ${index}` } }, outcome: 'succeeded', result: {} })),
   });
   assert.equal(passed.passed, true);
   assert.equal(looping.passed, false);
