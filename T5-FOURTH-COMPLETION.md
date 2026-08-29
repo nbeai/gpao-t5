@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_READ_ONLY_PREPARATION · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
-현재 Gate: `S4-HQ HUMAN SCENARIOS·COMPARISON A/B · READ-ONLY PREPARATION`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_EXECUTION_STOPPED_FIRST_CRITICAL_MODEL_PROVIDER_FAILURE_OWNER_DECISION_REQUIRED · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+현재 Gate: `S4-HQ HUMAN SCENARIOS·COMPARISON A/B · STOPPED AT FIRST CRITICAL FAILURE`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,13 +55,14 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-HQ human scenarios·comparison A/B의 read-only preparation이다.
+2. **현재 Gate**: S4-HQ human scenarios·comparison A/B가 최초 critical purpose failure에서 중단된 상태다.
 3. **사용자 완료 문장**: 이 문서 1절의 4차 최종 완료 문장 전체다.
 4. **이미 선 실제 증거**: S3-HQ 6·16 실제 wave, S4-B~I·UX의 current evidence, S4-C·G·H carry-forward,
    deterministic 인간 fixture와 비교 측정기가 있다.
-5. **현재 가장 큰 미달**: current head에서 Terra·gpt-5.5 exact pair와 비교군을 같은 목적·도구·권한으로 실행한
-   최종 인간 결과가 없고, S4-C의 A03·S01과 G activation·H cross-source join이 아직 최종 재검증되지 않았다.
-6. **이번 변경 방식**: 제품 변경 0에서 기존 fixture·oracle을 우선 재사용해 최소 HQ wave와 중단선을 먼저 고정한다.
+5. **현재 가장 큰 미달**: 같은 KHB-A03에서 gpt-5.5는 정확히 성공했지만 Terra는 stage exit 사실을 받고도
+   macOS 비호환 `find -printf`의 빈 출력을 전체 자료 부재로 확대했다.
+6. **이번 변경 방식**: 제품 변경 0으로 pair 증거를 보존하고 같은 결함 가족의 Runtime·Prompt 패치를 더하지 않으며,
+   모델 지원/완료 정책에 대한 오너 결정을 기다린다.
 7. **Non-goals**: 새 대형 fixture·Prompt patch·업무 Router·새 기능 구현·Windows deferred를 PASS로 승격.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
@@ -1002,6 +1003,12 @@ S4-HQ의 macOS current-head 준비와 실행을 열지만 Windows 완료나 4차
 실행·위험 경계를 포함한다. Terra와 gpt-5.5의 exact 모델 pair는 실행 시점에 고정하고 같은 목적·fixture·도구면·
 권한면으로 현재 Cleanroom T5와 비교군을 비교한다. 모델별 Prompt patch로 실패를 덮지 않는다.
 
+current-head 첫 pair인 KHB-A03은 같은 fixture·prompt·도구·권한에서 gpt-5.5가 계약서 두 개를 portable recursive
+search로 찾아 네 변경만 정확히 설명했지만 Terra는 실패했다. Terra의 두 번째 검색은 macOS 비호환 `find -printf`였고
+Runtime은 `stageExitCodes=[1,0]`·`overallExitCode=0`을 공급했다. Terra는 다른 portable 방법으로 전환하지 않고
+“계약서가 첨부되지 않았다”고 잘못 종료했다. 이 결함은 S4-C carry-forward와 같은 가족이므로 전체 wave와 KHB-S01을
+중단했다. 제품·Prompt 변경은 0이며 모델 지원/완료 정책의 오너 결정 전에는 S4-HQ를 재개하지 않는다.
+
 기능 결과와 별도로 사용자가 기다리는 동안 실제 진전·남은 일·사용자 행동 필요·교정·중지·재접속을 이해하고
 안심하며 통제할 수 있었는지 평가한다. 진행 문구의 수나 갱신 빈도는 성공 지표가 아니며 실제 runtime 사건과
 사용자 체감의 일치가 기준이다.
@@ -1068,6 +1075,7 @@ engine COMPLETE·product activation CLOSED_WITH_OBSERVATION·further development
 current-head recovery 5/5와 qualification ruler 교정 뒤 제품 구현 0으로 완료했다. J는 미래 연구, K는 cross-cutting
 사실로 유지한다. S4-UX는 grounded progress·recoverable result 공개 경계·canonical 대화/Artifact 시간을 수리하고
 기존 실제 모델·current product 회귀로 완료했다. S4-L read-only baseline과 false-positive config 교정도 끝났다.
-오너 결정으로 물리 실행만 뒤로 미뤘다. 현재 다음 한 작업은 S4-HQ read-only preparation이다. 기존 시나리오·
-oracle·비교 증거를 재사용해 current-head 최소 wave를 고정하고 제품 변경 없이 최초 미달이 재현될 때만 해당 결함
-가족을 연다. Windows deferred가 남은 동안 4차 전체 완료는 주장하지 않는다.
+오너 결정으로 물리 실행만 뒤로 미뤘다. S4-HQ 최소 wave를 고정하고 첫 KHB-A03 pair를 실행했으나 gpt-5.5 성공·
+Terra critical purpose 실패가 갈렸다. 중단선에 따라 KHB-S01과 전체 wave를 열지 않았다. 동일 결함 가족의 세 번째
+Runtime·Prompt 패치는 금지하며 모델 지원/완료 정책의 오너 결정 전에는 개발을 더하지 않는다. Windows deferred가
+남아 4차 전체 완료도 주장하지 않는다.

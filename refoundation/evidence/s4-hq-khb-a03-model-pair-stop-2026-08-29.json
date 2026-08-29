@@ -1,0 +1,64 @@
+{
+  "schema": "t5.s4hq.khb-a03-model-pair-stop.v1",
+  "recordedOn": "2026-08-29",
+  "status": "S4_HQ_EXECUTION_STOPPED_FIRST_CRITICAL_MODEL_PROVIDER_FAILURE",
+  "sourceCommit": "2a9deee573247fe7205d55cfcde869d1b2e2b022",
+  "scenario": {
+    "id": "KHB-A03",
+    "qualificationStatus": "research_derived_hypothesis",
+    "actualUserData": false,
+    "realAccounts": false,
+    "externalWrites": 0
+  },
+  "pairControl": {
+    "sameFixture": true,
+    "samePrompt": true,
+    "sameToolSurface": true,
+    "sameAuthority": true,
+    "onlyModelChanged": true
+  },
+  "gpt55": {
+    "purposePassed": true,
+    "exactChanges": ["amount", "duration", "termination_notice", "liability"],
+    "legalValidityClaimed": false,
+    "portableRecursiveSearch": true,
+    "wallMs": 31721,
+    "modelCalls": 7,
+    "toolCalls": 7,
+    "providerTokens": 80338,
+    "connectorAttempts": 0,
+    "workspaceChanges": 0
+  },
+  "terra": {
+    "purposePassed": false,
+    "falseAbsence": true,
+    "finalClaim": "contract files were not attached",
+    "wallMs": 12952,
+    "modelCalls": 5,
+    "toolCalls": 4,
+    "providerTokens": 51739,
+    "connectorAttempts": 0,
+    "workspaceChanges": 0
+  },
+  "causalEvidence": {
+    "firstShallowSearchEmptyForBoth": true,
+    "gpt55NextMethod": "portable recursive find with -print",
+    "gpt55FilesFound": 2,
+    "terraNextMethod": "macOS-incompatible find -printf piped to head",
+    "terraStageExitCodes": [1, 0],
+    "terraOverallExitCode": 0,
+    "runtimeFactsSupplied": true,
+    "terraPortableRecoveryAttempted": false,
+    "sameFamilyAsS4C": true
+  },
+  "decision": {
+    "productChanges": 0,
+    "promptChanges": 0,
+    "runtimeMetadataChanges": 0,
+    "khbS01Run": false,
+    "remainingWaveRun": false,
+    "hqComplete": false,
+    "ownerDecisionRequired": "supported-model and fourth-completion policy"
+  },
+  "verification": { "passed": 1786, "failed": 0, "skipped": 1 }
+}
