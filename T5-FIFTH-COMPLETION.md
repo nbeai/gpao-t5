@@ -1,11 +1,11 @@
 # T5 Fifth Completion — Android Judgment & Context Runtime
 
-상태: `FIFTH_COMPLETION_ACTIVE · CJ0_COMPLETE · CJ1_STABLE_COGNITIVE_KERNEL_OPEN`
+상태: `FIFTH_COMPLETION_ACTIVE · CJ0_CJ1_COMPLETE · CJ2_DIRECT_INTELLIGENCE_OPEN`
 4차 귀환 기준: `fe51c8c5 · FOURTH_COMPLETION_COMPLETE_MACOS_PRODUCT_SCOPE`
 4차 release-only 후속선: `8c2a3b05 · 0.4.0 packaging lineage · 설치 자격 진행과 5차 개발은 분리`
 5차 구현 기준·branch·worktree: `fe51c8c5 · codex/t5-fifth-context-judgment-plan · /Users/jyp/Developer/t5-fifth-plan`
 
-이 문서는 T5 5차 개발의 단일 계획 정본 초안이다. 제품 정의는 `T5-PRODUCT.md`, 4차 완료 역사와 실제
+이 문서는 T5 5차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 4차 완료 역사와 실제
 사용자 증거는 `T5-FOURTH-COMPLETION.md`와 `refoundation/evidence/s4-hq-console-closeout-2026-08-30.json`이
 담당한다. 4차 설치 패키지 제작·검증은 별도 작업이며 이 문서 때문에 중단·변경하지 않는다.
 
@@ -455,6 +455,23 @@ candidate
 
 > T5의 System Prompt는 모델의 판단 공간을 보존하는 작은 불변 Core가 되고, 모든 instruction family는 출처·
 > 소유 경계·반대시험·적용 Context·제거 조건에 결속되며 세부 능력 계약은 필요한 순간에만 로드된다.
+
+CJ1 actual은 개별 문장을 Runtime 객체로 만들지 않고 build-time manifest에서 전역 96개 line 전부를 11개
+family로 admission했다. 각 family는 stable id·종류·근거·현재/목표 집행 위치·적용 Context·반대시험·수명·
+제거 조건에 결속된다. 첫 실제 이동은 독립적인 `tool.video_caption` 한 family로 제한했다.
+
+- Direct 고정 instruction: 30,277 → 28,650 bytes, 99 → 96 lines
+- `video_text`가 보이기 전 caption 전용 규율: 0 bytes
+- tool activation 뒤 description: 294 → 1,776 bytes
+- model/tool call 변화: activation 전 0
+- tool discovery·manual 우선·automatic fallback·caption absence·cache·retry·cleanup: 41/41 통과
+- 새 Store·Router·provider별 Prompt·Runtime 의미 판정: 0
+
+이는 모든 family를 즉시 옮겼다는 주장이 아니다. 이동 전 admission과 removal countertest를 강제하는 기반을
+완성했고, tool-specific 세부 계약이 필요한 순간에만 로드될 수 있음을 한 family로 증명했다. 나머지 family의
+projection은 CJ3·CJ4에서 실제 Context 결함과 결속될 때만 연다.
+
+근거: `refoundation/evidence/fifth-cj1-stable-cognitive-kernel-2026-08-30.json`.
 
 ---
 

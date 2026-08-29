@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "gate": "CJ1_STABLE_COGNITIVE_KERNEL",
+  "status": "COMPLETE",
+  "baselineCommit": "fbd55da5",
+  "candidateCommit": "same_commit_as_evidence",
+  "productChange": {
+    "family": "tool.video_caption",
+    "from": "global_instructions",
+    "to": "deferred_tool_description",
+    "runtimeMeaningCreated": false,
+    "newStore": false,
+    "newRouter": false,
+    "providerSpecificPrompt": false
+  },
+  "instructionAdmission": {
+    "manifest": "refoundation/config/instruction-family-manifest.json",
+    "unit": "instruction_family",
+    "individualSentenceRuntimeObjects": false,
+    "globalFamilies": 11,
+    "deferredFamilies": 1,
+    "unadmittedGlobalLines": 0,
+    "admissionKinds": [
+      "product_invariant",
+      "cross_tool_policy",
+      "tool_guidance",
+      "measured_failure_guard",
+      "interaction_style",
+      "candidate"
+    ]
+  },
+  "directComparison": {
+    "fixture": "synthetic /T5/WORKSPACE darwin arm64 posix",
+    "beforeInstructionBytes": 30277,
+    "afterInstructionBytes": 28650,
+    "reductionBytes": 1627,
+    "beforeInstructionLines": 99,
+    "afterInstructionLines": 96,
+    "modelCallDeltaBeforeActivation": 0,
+    "toolCallDeltaBeforeActivation": 0
+  },
+  "activationComparison": {
+    "tool": "video_text",
+    "beforeDescriptionBytes": 294,
+    "afterDescriptionBytes": 1776,
+    "increaseOnlyWhenVisibleBytes": 1482,
+    "semanticLanguageTranslation": false,
+    "captionFallbackContractPreserved": true
+  },
+  "countertests": {
+    "command": "node --test test/fifth-cj0-context-reality.test.js test/fifth-cj1-instruction-families.test.js test/console-capability-boundary.test.js test/youtube-caption-tool.test.js test/youtube-caption-console.test.js test/tool-search.test.js",
+    "tests": 41,
+    "passed": 41,
+    "failed": 0,
+    "proved": [
+      "all global instruction lines belong to one admitted family",
+      "caption guidance is absent before video_text activation",
+      "the same guidance is present in the deferred tool description",
+      "tool discovery still activates video_text and cli_prepare",
+      "manual preference, automatic fallback, caption absence, cache, retry, and cleanup are unchanged",
+      "CJ0 evidence remains fixed to the exact fourth-completion baseline"
+    ]
+  },
+  "nonClaims": [
+    "all global instructions have already moved to their target enforcement layer",
+    "provider live quality changed from this deterministic placement move",
+    "a fixed byte target defines completion"
+  ],
+  "completionSentence": "T5의 전역 instruction은 family 단위 admission에 결속되고, 첫 tool-specific family는 일반 대화에서 제거되어 실제 도구가 보일 때만 같은 계약으로 공급된다.",
+  "nextGate": "CJ2_DIRECT_INTELLIGENCE_AND_WORK_ADMISSION"
+}

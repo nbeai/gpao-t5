@@ -1,0 +1,179 @@
+{
+  "version": 1,
+  "fixture": {
+    "workspace": "/T5/WORKSPACE",
+    "computer": {
+      "platform": "darwin",
+      "architecture": "arm64",
+      "commandFamily": "posix",
+      "commandProgram": "/bin/zsh"
+    },
+    "interactionCoreMode": "v5"
+  },
+  "admissionKinds": [
+    "product_invariant",
+    "cross_tool_policy",
+    "tool_guidance",
+    "measured_failure_guard",
+    "interaction_style",
+    "candidate"
+  ],
+  "families": [
+    {
+      "id": "identity.t5",
+      "kind": "product_invariant",
+      "ownerSource": "T5-PRODUCT.md",
+      "currentEnforcement": "global_instructions",
+      "targetEnforcement": "global_instructions",
+      "appliesTo": ["all_model_calls"],
+      "countertests": ["console-capability-boundary.test.js"],
+      "lifecycle": "permanent_product_identity",
+      "removalCondition": "owner changes the product identity",
+      "globalLineCount": 2,
+      "globalSha256": "390f241bbf57b883cf1afa4179a90d30b81f955c67ebb7e97188bbcde7a2f365"
+    },
+    {
+      "id": "interaction.core.v5",
+      "kind": "interaction_style",
+      "ownerSource": "T5-FIFTH-COMPLETION.md#CJ1",
+      "currentEnforcement": "global_instructions",
+      "targetEnforcement": "global_instructions",
+      "appliesTo": ["all_user_conversation"],
+      "countertests": ["interaction-core.test.js", "console-capability-boundary.test.js"],
+      "lifecycle": "versioned_owner_core",
+      "removalCondition": "a newer owner-approved interaction core passes the same human comparison",
+      "globalLineCount": 8,
+      "globalSha256": "5cc3a191746d03aaa00e9b327f2b6be566df3d94700503baff783e5abb19cda9"
+    },
+    {
+      "id": "reality.file_and_work",
+      "kind": "measured_failure_guard",
+      "ownerSource": "S4-HQ file discovery, reconciliation, and absence incidents",
+      "currentEnforcement": "global_instructions",
+      "targetEnforcement": "candidate_for_contextual_projection",
+      "appliesTo": ["local_file_reality", "reconciliation", "work_discovery"],
+      "countertests": ["console-capability-boundary.test.js", "file-reality-console.test.js"],
+      "lifecycle": "retain until contextual projection proves equal recall",
+      "removalCondition": "same-purpose file and absence countertests pass without global placement",
+      "globalLineCount": 14,
+      "globalSha256": "ac75596eb51b0fe93422c83bbc5a6fde35346a319bda331cf8257b87d984817c"
+    },
+    {
+      "id": "judgment.feasibility_and_automation_design",
+      "kind": "cross_tool_policy",
+      "ownerSource": "S3/S4 human feasibility and automation incidents",
+      "currentEnforcement": "global_instructions",
+      "targetEnforcement": "candidate_for_contextual_projection",
+      "appliesTo": ["feasibility", "automation_design"],
+      "countertests": ["console-capability-boundary.test.js"],
+      "lifecycle": "evidence_bound",
+      "removalCondition": "a smaller projection passes the recorded feasibility countertests",
+      "globalLineCount": 4,
+      "globalSha256": "62eab891967ecdc3a6a90efe09b13149268a5600a2c1e842a17438e69bd974a9"
+    },
+    {
+      "id": "interaction.tool_use_and_continuity",
+      "kind": "cross_tool_policy",
+      "ownerSource": "T5 product interaction invariants and S4-HQ continuity incidents",
+      "currentEnforcement": "global_instructions",
+      "targetEnforcement": "global_instructions",
+      "appliesTo": ["all_model_calls", "tool_use", "session_continuity"],
+      "countertests": ["console-capability-boundary.test.js", "tool-search.test.js"],
+      "lifecycle": "product_invariant_with_measured_guards",
+      "removalCondition": "only by owner decision or a countertested lower layer replacement",
+      "globalLineCount": 9,
+      "globalSha256": "414575b0d3c8fce71f85b609687ff582b557fc95cd766472844fb367ed2109e4"
+    },
+    {
+      "id": "artifact.document_delivery",
+      "kind": "tool_guidance",
+      "ownerSource": "S4-F/P/HQ artifact and document incidents",
+      "currentEnforcement": "global_instructions",
+      "targetEnforcement": "candidate_for_tool_or_skill_projection",
+      "appliesTo": ["documents", "attachments", "artifacts"],
+      "countertests": ["console-capability-boundary.test.js", "attachment-console.test.js"],
+      "lifecycle": "evidence_bound",
+      "removalCondition": "tool-local guidance preserves actual authoring and delivery outcomes",
+      "globalLineCount": 10,
+      "globalSha256": "dfad9d0b6944578155f2fd5d89f285a419120e93551c2456e32e0460f59a6575"
+    },
+    {
+      "id": "web.research_and_provenance",
+      "kind": "measured_failure_guard",
+      "ownerSource": "W8/W9 and S4-HQ public web incidents",
+      "currentEnforcement": "global_instructions",
+      "targetEnforcement": "candidate_for_tool_projection",
+      "appliesTo": ["public_web_research", "source_provenance"],
+      "countertests": ["console-capability-boundary.test.js", "web-research-tool.test.js"],
+      "lifecycle": "incident_bound",
+      "removalCondition": "the original web countertests pass with a smaller tool-local projection",
+      "globalLineCount": 13,
+      "globalSha256": "ddbd81fa9bb4764032bc38ef5f9711a001d1cbeb8d035ff963401b2175ac9417"
+    },
+    {
+      "id": "browser.hand_safety",
+      "kind": "cross_tool_policy",
+      "ownerSource": "Browser Hand authority, login, download, upload, and observation incidents",
+      "currentEnforcement": "global_instructions",
+      "targetEnforcement": "candidate_for_activation_context",
+      "appliesTo": ["browser_activation", "browser_interaction"],
+      "countertests": ["console-capability-boundary.test.js", "browser-tool.test.js"],
+      "lifecycle": "safety_and_incident_bound",
+      "removalCondition": "activation-local guidance proves no authority or observation regression",
+      "globalLineCount": 16,
+      "globalSha256": "98c6a7b7c7cd2168d7e84a4ad437f2437f640c538260869ce1a831e2f5325770"
+    },
+    {
+      "id": "authority.observation_and_future_effect",
+      "kind": "product_invariant",
+      "ownerSource": "T5-PRODUCT.md authority boundaries and automation incidents",
+      "currentEnforcement": "global_instructions",
+      "targetEnforcement": "global_instructions",
+      "appliesTo": ["observation", "mutation", "future_effect"],
+      "countertests": ["console-capability-boundary.test.js", "automation-console.test.js"],
+      "lifecycle": "permanent_authority_boundary",
+      "removalCondition": "owner changes the authority contract",
+      "globalLineCount": 8,
+      "globalSha256": "22719bb25f7282cb1554f3d5b40ff53e88999cd58e3b5524a1ac2f1818892b59"
+    },
+    {
+      "id": "terminal.execution_truth",
+      "kind": "cross_tool_policy",
+      "ownerSource": "S4-D/E terminal execution and recovery evidence",
+      "currentEnforcement": "global_instructions",
+      "targetEnforcement": "candidate_for_tool_projection",
+      "appliesTo": ["terminal", "effects", "undo"],
+      "countertests": ["console-capability-boundary.test.js", "terminal-execution.test.js"],
+      "lifecycle": "safety_and_incident_bound",
+      "removalCondition": "tool-local projection preserves execution truth and recovery countertests",
+      "globalLineCount": 7,
+      "globalSha256": "9e6d320e566968cebdd2829dce2a88924ff3138b1a7aaca05094c9bbc67e0ba6"
+    },
+    {
+      "id": "computer.current_reality",
+      "kind": "product_invariant",
+      "ownerSource": "current computer and workspace runtime facts",
+      "currentEnforcement": "global_instructions",
+      "targetEnforcement": "bounded_runtime_context",
+      "appliesTo": ["computer_work"],
+      "countertests": ["console-capability-boundary.test.js"],
+      "lifecycle": "per_request_runtime_fact",
+      "removalCondition": "replaced by an equally exact bounded runtime fact projection",
+      "globalLineCount": 5,
+      "globalSha256": "45f766dbbef7ff37509c0bdb120d5900f6bc1d4fab3a0e675e6fb22de50f5454"
+    },
+    {
+      "id": "tool.video_caption",
+      "kind": "tool_guidance",
+      "ownerSource": "video_text caption-source incidents and qualification",
+      "currentEnforcement": "deferred_tool_description",
+      "targetEnforcement": "deferred_tool_description",
+      "appliesTo": ["video_text_visible"],
+      "countertests": ["youtube-caption-tool.test.js", "youtube-caption-console.test.js", "console-capability-boundary.test.js"],
+      "lifecycle": "incident_bound_tool_guidance",
+      "removalCondition": "video_text contract or recorded caption failure family no longer exists",
+      "globalLineCount": 0,
+      "globalSha256": null
+    }
+  ]
+}

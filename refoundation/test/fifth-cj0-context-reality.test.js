@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-
-import { consoleInstructions } from '../src/console-model-factory.js';
 
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 const load = (path) => readFile(new URL(path, import.meta.url), 'utf8');
+const repository = fileURLToPath(new URL('../..', import.meta.url));
+const fourthSource = (path) => execFileSync('git', ['show', `fe51c8c5:${path}`], {
+  cwd: repository, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024,
+});
 
 test('CJ0은 4차 증거 재사용과 current source known facts만으로 최초 Context 결함을 연다', async () => {
   const evidence = JSON.parse(await load('../evidence/fifth-cj0-context-reality-2026-08-30.json'));
@@ -26,24 +30,22 @@ test('CJ0은 4차 증거 재사용과 current source known facts만으로 최초
   assert.equal(evidence.firstOpenedDefect.candidateAdopted, false);
 });
 
-test('CJ0 instruction inventory와 cache·authority known facts는 current source와 일치한다', async () => {
+test('CJ0 instruction inventory와 cache·authority known facts는 exact 4차 기준선에 고정된다', async () => {
   const evidence = JSON.parse(await load('../evidence/fifth-cj0-context-reality-2026-08-30.json'));
-  const instructions = consoleInstructions('/T5/WORKSPACE', {
-    platform: 'darwin', architecture: 'arm64', userHome: '/T5/HOME',
-    commandFamily: 'posix', commandProgram: '/bin/zsh',
+  assert.deepEqual(evidence.instructionInventory, {
+    syntheticWorkspace: '/T5/WORKSPACE',
+    bytes: 30277, lines: 99, words: 4519,
+    sha256: '134056fb5690cd7d9fd1a416b86413ef21883798beeea615ceab73c04c244fb5',
   });
-  assert.equal(Buffer.byteLength(instructions), evidence.instructionInventory.bytes);
-  assert.equal(instructions.split('\n').length, evidence.instructionInventory.lines);
-  assert.equal(instructions.trim().split(/\s+/u).length, evidence.instructionInventory.words);
-  assert.equal(digest(instructions), evidence.instructionInventory.sha256);
   const files = {
-    consoleModelFactory: await load('../src/console-model-factory.js'),
-    consoleServer: await load('../src/console-server.js'), agentLoop: await load('../src/agent-loop.js'),
-    openAI: await load('../src/openai-responses-model.js'),
-    chatgptOAuth: await load('../src/chatgpt-responses-model.js'),
-    anthropic: await load('../src/anthropic-messages-model.js'),
-    gemini: await load('../src/gemini-generate-content-model.js'),
-    upstage: await load('../src/upstage-chat-completions-model.js'),
+    consoleModelFactory: fourthSource('refoundation/src/console-model-factory.js'),
+    consoleServer: fourthSource('refoundation/src/console-server.js'),
+    agentLoop: fourthSource('refoundation/src/agent-loop.js'),
+    openAI: fourthSource('refoundation/src/openai-responses-model.js'),
+    chatgptOAuth: fourthSource('refoundation/src/chatgpt-responses-model.js'),
+    anthropic: fourthSource('refoundation/src/anthropic-messages-model.js'),
+    gemini: fourthSource('refoundation/src/gemini-generate-content-model.js'),
+    upstage: fourthSource('refoundation/src/upstage-chat-completions-model.js'),
   };
   for (const [name, source] of Object.entries(files)) assert.equal(digest(source), evidence.sourceDigests[name], name);
   assert.match(files.consoleModelFactory, /call tool_search once[\s\S]*T5_DOCUMENT_CLI/u);
