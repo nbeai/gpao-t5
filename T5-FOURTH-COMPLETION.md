@@ -1,6 +1,6 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_READ_ONLY_BASELINE_NEXT · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_GROUNDED_PROGRESS_SLICE_COMPLETE_BASELINE_CONTINUES · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
 현재 Gate: `S4-UX INTERACTION CONTINUITY · READ-ONLY BASELINE`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
@@ -60,8 +60,8 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
    행동·중지 가능성을 자연스럽게 이해하고, 대화와 채널을 이동해도 같은 작업 흐름을 유지한다.
 4. **이미 선 실제 증거**: canonical Work reality·milestone·경과시간·cancel·재접속·Telegram progress·Artifact·
    Effect·Delivery 영수증과 S3-UX 실제 자격이 있다.
-5. **현재 가장 큰 미달**: G actual에서 verified publication 뒤 attachment 실패가 반복돼 내부적으로는 성공한 결과가
-   사용자 흐름에서 장황한 복구 시도로 이어졌다. 현재 제품에서 같은 표면 문제가 남았는지 아직 재현하지 않았다.
+5. **현재 가장 큰 미달**: 근거 없는 `거의 완료` 발행은 제거했다. 이제 G actual의 verified publication 뒤 attachment
+   실패처럼 내부 결과와 사용자 전달이 어긋난 표면이 current product에서도 재현되는지 아직 확인하지 않았다.
 6. **이번 변경 방식**: 제품 변경 0에서 짧은 결과·장기 process·부분 결과·재접속의 기존 UI/원장 증거를 재사용하고
    실제 runtime 사건과 사용자 상태가 어긋나는 최초 표면 하나만 연다.
 7. **Non-goals**: UI 전면 재설계·새 진행 원장·모델 사고 공개·가짜 ETA·업무별 진행 대본·Prompt·Router.
@@ -917,6 +917,12 @@ wall·calls·tokens는 S4-G·S4-I·S4-HQ에서 현재 사실과 실제 사용자
 S4-B~I가 만든 머리·손·복구 현실을 새 원장이나 모델의 진행 서술 없이 현재 Work·Run·Tool·Effect·Delivery
 사건에서 사용자 언어로 투영한다. 이미 선 canonical Work reality, milestone, 경과시간, 교정·중지, 재접속 복원,
 Telegram 진행, Artifact·Effect·Delivery 영수증을 재사용한다.
+
+S4-UX current-head 첫 반대시험은 모델이 도구 없이 답을 내놓았다는 사실만으로 Runtime이 Console SSE와 Telegram에
+`이제 거의 다 됐어요`를 발행하는 것을 재현했다. 이는 검증·publication·delivery 사실이 아니고 짧은 요청에도
+불필요했다. `model_accepted`를 완료 의미로 승격하던 발행과 해당 문구의 안전 allowlist만 제거했다. 실제 grounded
+milestone·경과시간·중지·재접속·Telegram 동일 상태는 유지됐고 집중 검사는 28/28을 통과했다. 새 원장·Prompt·
+업무 분류·추가 model/tool call은 0이다. S4-UX 전체는 아직 진행 중이다.
 
 개발 범위:
 

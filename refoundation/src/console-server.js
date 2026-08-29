@@ -2110,9 +2110,6 @@ export function makeConsoleServer({
                   ? { toolCalls: structuredClone(event.response.toolCalls) } : {}),
               },
             });
-            if (!event.response.toolCalls.length && String(event.response.text ?? '').trim()) {
-              publishProgress('trace_status', '이제 거의 다 됐어요', 'finalizing');
-            }
           } else if (event.type === 'tool_start') {
             await run.append({
               type: 'tool_started', stepId: `tool-${event.toolCallId || `${event.turn}-${event.name}`}`,

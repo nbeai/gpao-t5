@@ -8,7 +8,7 @@ import {
 test('진행 언어는 판단을 말하지 않고 실제 작업 단계에 맞는 고정 문구를 쓴다', () => {
   assert.equal(modelProgressText(1), '요청을 이해하고 있어요');
   assert.equal(modelProgressText(2), '확인한 내용을 바탕으로 다음 단계를 생각하고 있어요');
-  assert.equal(safeProgressText('이제 거의 다 됐어요'), '이제 거의 다 됐어요');
+  assert.equal(safeProgressText('이제 거의 다 됐어요'), '작업을 이어가고 있어요');
 
   const starts = [
     ['web_search', {}, '웹에서 관련 자료를 찾고 있어요'],

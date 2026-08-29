@@ -102,9 +102,9 @@ test('Telegram 턴의 안전한 진행 문구는 콘솔 SSE와 같은 Telegram �
       '컴퓨터에서 필요한 정보를 확인하고 있어요',
       '컴퓨터 작업 결과를 다시 확인하고 있어요',
       '확인한 내용을 바탕으로 다음 단계를 생각하고 있어요',
-      '이제 거의 다 됐어요',
     ];
     for (const text of expectedProgress) assert.ok(telegramProgress.includes(text), text);
+    assert.ok(!telegramProgress.includes('이제 거의 다 됐어요'));
     assert.ok(telegramProgress.includes('컴퓨터에서 확인 작업 한 단계를 마쳤어요.'));
     assert.match(eventText, /컴퓨터에서 확인 작업 한 단계를 마쳤어요/u);
     assert.doesNotMatch(eventText, /판단/u);

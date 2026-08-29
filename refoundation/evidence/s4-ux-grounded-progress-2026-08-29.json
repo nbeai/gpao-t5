@@ -1,0 +1,33 @@
+{
+  "schema": "t5.s4ux.grounded-progress.v1",
+  "recordedOn": "2026-08-29",
+  "status": "S4_UX_GROUNDED_PROGRESS_SLICE_COMPLETE_BASELINE_CONTINUES",
+  "sourceBaseCommit": "64f564a0",
+  "baseline": {
+    "defect": "model_accepted_without_tool_calls_published_almost_complete",
+    "canonicalCompletionEvidence": false,
+    "consoleSsePublished": true,
+    "telegramProgressPublished": true,
+    "shortRequestNoise": true,
+    "redTests": { "passed": 1, "failed": 2 }
+  },
+  "repair": {
+    "removedRuntimeMeaningPromotion": true,
+    "removedAlmostCompleteAllowlistEntry": true,
+    "newStore": 0,
+    "newPrompt": 0,
+    "newRouter": 0,
+    "additionalModelCalls": 0,
+    "additionalToolCalls": 0
+  },
+  "preserved": {
+    "groundedMilestones": true,
+    "canonicalElapsedTime": true,
+    "stopControl": true,
+    "reconnectProjection": true,
+    "consoleTelegramSharedProgress": true
+  },
+  "focusedVerification": { "passed": 28, "failed": 0 },
+  "dailyCheck": { "passed": 1779, "failed": 0, "skipped": 1 },
+  "gate": { "complete": false, "next": "CURRENT_PRODUCT_RESULT_PUBLICATION_AND_DELIVERY_BASELINE" }
+}
