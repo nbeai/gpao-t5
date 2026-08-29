@@ -8,6 +8,7 @@ import { executeSnapshotShellQualification } from './ephemeral-program-shell.js'
 import { cleanupWorkspaceSnapshotRoot, createWorkspaceSnapshot, removeWorkspaceSnapshot,
   snapshotProgramBindings, verifyWorkspaceSnapshotSources } from './ephemeral-program-snapshot.js';
 import { inspectDelimitedText } from './text-document-observer.js';
+import { observePythonSourceCapabilities } from './python-source-capabilities.js';
 
 const REQUIREMENTS = Object.freeze({ filesystem: true, network: false, childProcess: false, packages: false });
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
@@ -50,6 +51,7 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
   protectedReadRoots = [], createSnapshot = createWorkspaceSnapshot,
   executePython = executePythonProgramQualification, removeSnapshot = removeWorkspaceSnapshot,
   executeShell = executeSnapshotShellQualification,
+  inspectPythonCapabilities = observePythonSourceCapabilities,
   verifySources = verifyWorkspaceSnapshotSources, onPublicationSettled = null,
   onOutputHandoffCommitted = null } = {}) {
   if (!workspaceValue || !snapshotRoot || !scratchRoot || !sessionId || !workId
@@ -109,6 +111,14 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
         if (await resolvedExecutable(step.executable) === observedInterpreter.path) pythonSteps.push(step);
       }
       if (!pythonSteps.length) return null;
+      const pythonSources = (commandExplanation.heredocs ?? []).map((item) => (
+        String(commandExplanation.source).slice(item.startIndex, item.endIndex)
+      ));
+      for (const candidate of pythonSources) {
+        const requirements = inspectPythonCapabilities({ interpreter: observedInterpreter, source: candidate });
+        if (requirements.state !== 'observed' || requirements.childProcessRequired
+          || requirements.networkRequired) return null;
+      }
       const workspace = await workspacePromise;
       let canonicalCwd; try { canonicalCwd = await realpath(resolve(cwd)); } catch { return null; }
       if (canonicalCwd !== workspace) return null;

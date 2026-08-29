@@ -289,5 +289,11 @@ test('XLSX·DOCX·ZIP 같은 opaque binary publication은 text Capsule로 가로
       '(cd 결과 && zip -q bundle.zip result.xlsx)',
     ].join('\n')), cwd: workspace });
     assert.equal(directoryTarget, null);
+    const hiddenExternalRuntime = await adapter.execute({ args: { effect: { kind: 'local_change',
+      targets: [join(workspace, '결과')] } }, commandExplanation: await explainShellCommand([
+      "python3 - <<'PY'", 'import subprocess',
+      "subprocess.run(['/fixture/t5-document','create-xlsx'], check=True)", 'PY',
+    ].join('\n')), cwd: workspace });
+    assert.equal(hiddenExternalRuntime, null);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
