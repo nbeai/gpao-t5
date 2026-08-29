@@ -54,6 +54,7 @@ test('실행 중에는 중지 버튼이 있고 미완료 상태를 정형 오류
 
 test('완료 Artifact가 있는 achieved 결과는 같은 성공의 mutation 영수증을 별도 반복하지 않는다', async () => {
   const source = await readFile(new URL('../src/console-server.js', import.meta.url), 'utf8');
-  assert.match(source, /artifacts\.length && entry\.result\.objectiveOutcome === 'achieved'\) humanEffects = \[\]/u);
+  assert.match(source, /canonicalWork\.results\.find[\s\S]*objectiveOutcome/u);
+  assert.match(source, /artifacts\.length && objectiveOutcome === 'achieved'\) humanEffects = \[\]/u);
   assert.match(source, /objectiveOutcome === 'achieved' && humanEffects\.length > 1/u);
 });

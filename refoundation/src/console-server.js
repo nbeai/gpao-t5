@@ -768,6 +768,7 @@ export function makeConsoleServer({
   const connectionAuthorizationHandoffs = new Map();
   async function transcriptWithHumanReceipts(session) {
     const canonicalConversation = await conversations.read(session.id).catch(() => null);
+    const canonicalWork = await workStore.read().catch(() => ({ results: [] }));
     const canonicalEntries = canonicalConversation?.entries ?? [];
     const recordedAtFor = (entry) => {
       const runId = entry.runId ?? entry.result?.runId ?? null;
@@ -786,6 +787,9 @@ export function makeConsoleServer({
       const timedEntry = recordedAt ? { ...entry, recordedAt } : entry;
       if (entry?.role !== 'assistant' || !entry.result) return timedEntry;
       const runId = entry.runId ?? entry.result?.runId ?? null;
+      const objectiveOutcome = runId
+        ? canonicalWork.results.find((item) => item.runId === runId && item.sessionId === session.id)?.objectiveOutcome
+        : null;
       const artifacts = await Promise.all((entry.result.artifacts ?? []).map(async (artifact) => {
         if (!runId) return artifact;
         try {
@@ -849,8 +853,8 @@ export function makeConsoleServer({
             rollback: '되돌리기는 실행하지 않았어요.',
             unknowns: [`${relevantCalls.length - 16}개 변경 기록은 이 화면에서 생략했어요.`], detailsAvailable: true });
           humanEffects = [...new Map(humanEffects.map((item) => [JSON.stringify(item), item])).values()];
-          if (artifacts.length && entry.result.objectiveOutcome === 'achieved') humanEffects = [];
-          else if (entry.result.objectiveOutcome === 'achieved' && humanEffects.length > 1) {
+          if (artifacts.length && objectiveOutcome === 'achieved') humanEffects = [];
+          else if (objectiveOutcome === 'achieved' && humanEffects.length > 1) {
             const exact = humanEffects.find((item) => !(item.unknowns ?? []).length
               && ((item.confirmed ?? []).length || String(item.rollback ?? '').includes('되돌')));
             humanEffects = [exact ?? humanEffects.at(-1)];
