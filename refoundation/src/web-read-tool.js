@@ -352,6 +352,10 @@ function visibleBrowserBoundary(mode) {
   };
 }
 
+function requestedBrowserActivation(mode) {
+  return mode === 'user_interaction' ? visibleBrowserBoundary(mode) : {};
+}
+
 export function makeWebReadTool({
   fetchImpl = globalThis.fetch,
   resolveHost = defaultResolveHost,
@@ -486,12 +490,13 @@ export function makeWebReadTool({
             kind: 'pdf_text', pageCount: extracted.pageCount, shownPages: extracted.shownPages,
             requiresOcrOrVision: extracted.requiresOcrOrVision,
           };
-          if (!extracted.text) return { state: 'empty', source, content: null };
+          if (!extracted.text) return { state: 'empty', source, content: null,
+            ...requestedBrowserActivation(visibleBrowser) };
           return { state: 'read', source, content: {
             format: 'text', text: extracted.text, totalChars: extracted.totalChars,
             trust: 'untrusted_external', instructionAuthority: 'none',
             truncated: extracted.truncated, omittedChars: extracted.omittedChars,
-          } };
+          }, ...requestedBrowserActivation(visibleBrowser) };
         }
         if (type === 'text/html' || type === 'application/xhtml+xml' || (!type && /<html/i.test(body.text))) {
           const facts = htmlFacts(body.text, currentUrl);
@@ -527,7 +532,8 @@ export function makeWebReadTool({
               staticObservationExhausted: true,
             },
           };
-          if (!combinedText) return { state: 'empty', source, content: null };
+          if (!combinedText) return { state: 'empty', source, content: null,
+            ...requestedBrowserActivation(visibleBrowser) };
           if (facts.partialDynamic || (facts.dynamicShell && Boolean(embedded.text))) {
             source.coverage = {
               kind: 'partial_dynamic', observedTextChars: facts.text.length,
@@ -548,17 +554,21 @@ export function makeWebReadTool({
             kind: 'readable', observedTextChars: facts.text.length,
             observedEmbeddedChars: embedded.text.length, browserMayRevealMore: false,
           };
-          return { state: 'read', source, content: { format: 'text', ...contentWindow(combinedText, maxChars) } };
+          return { state: 'read', source, content: { format: 'text', ...contentWindow(combinedText, maxChars) },
+            ...requestedBrowserActivation(visibleBrowser) };
         }
         if (type === 'application/json' || type.endsWith('+json')) {
           let text = body.text;
           try { text = JSON.stringify(JSON.parse(text), null, 2); } catch { /* preserve observed bytes */ }
-          return { state: 'read', source, content: { format: 'json', ...contentWindow(text, maxChars) } };
+          return { state: 'read', source, content: { format: 'json', ...contentWindow(text, maxChars) },
+            ...requestedBrowserActivation(visibleBrowser) };
         }
         if (type.startsWith('text/') || type === 'application/xml' || type.endsWith('+xml')) {
-          return { state: 'read', source, content: { format: type.includes('xml') ? 'xml' : 'text', ...contentWindow(compactText(body.text), maxChars) } };
+          return { state: 'read', source, content: { format: type.includes('xml') ? 'xml' : 'text', ...contentWindow(compactText(body.text), maxChars) },
+            ...requestedBrowserActivation(visibleBrowser) };
         }
-        return { state: 'unsupported_content', source, content: null };
+        return { state: 'unsupported_content', source, content: null,
+          ...requestedBrowserActivation(visibleBrowser) };
       }
       return {
         state: 'blocked', reason: 'too_many_redirects',

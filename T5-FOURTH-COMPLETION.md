@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_G_DURABLE_BATCH_HANDOFF_COMPLETE · S4_G_GENERIC_SNAPSHOT_SHELL_PRODUCT_ACTIVATION_COMPLETE_MODEL_INDEPENDENT · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_PAUSED_AT_FIRST_CRITICAL_MODEL_PROVIDER_FAILURE_OWNER_DECISION_REQUIRED · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
-현재 Gate: `S4-HQ MODEL SUPPORT·COMPLETION POLICY · OWNER DECISION REQUIRED`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_G_DURABLE_BATCH_HANDOFF_COMPLETE · S4_G_GENERIC_SNAPSHOT_SHELL_PRODUCT_ACTIVATION_COMPLETE_MODEL_INDEPENDENT · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_P0_NEW_PROJECT_ACTUAL_PASS · S4_P2A_DEV_SERVER_OWNERSHIP_COMPLETE · S4_P3A_INTERACTIVE_BROWSER_BINDING_COMPLETE · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_PAUSED_AT_FIRST_CRITICAL_MODEL_PROVIDER_FAILURE_OWNER_DECISION_REQUIRED · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+현재 Gate: `S4-P0B EXISTING PROJECT · CURRENT PRODUCT BASELINE`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,12 +55,16 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-HQ의 supported-model·completion policy에 대한 오너 결정이다.
-3. **사용자 완료 문장**: 이 문서 1절의 4차 최종 완료 문장 전체다.
-4. **이미 선 실제 증거**: G model-independent actual 세 목적 PASS와 KHB-A03 gpt-5.5 PASS·Terra false-absence가 있다.
-5. **현재 가장 큰 미달**: G와 무관한 Terra portable discovery 실패를 4차 전체 모델 요구에서 어떻게 처리할지 미결정이다.
-6. **이번 변경 방식**: Runtime·Prompt 패치 없이 qualified default model과 comparison observation의 완료 정책을 정한다.
-7. **Non-goals**: G 재개발·업무 Router·모델별 Prompt·Terra 명령 예외·Windows deferred를 PASS로 승격.
+2. **현재 Gate**: S4-P0B의 기존 dirty project 수정·회귀·Undo 기준선이다.
+3. **사용자 완료 문장**: 사용자는 기술을 배우지 않고 프로젝트를 맡기며 T5는 자료 탐색·작성·실행·화면과
+   기능 검증·결과 전달·교정과 후속 수정을 실제로 이어간다.
+4. **이미 선 실제 증거**: D의 실행·사고 복구, E의 변경 confinement·rollback, F의 다중 파일 transaction·Undo,
+   G의 model-independent 프로그램 실행·검증·Artifact, Browser·Work·Recovery의 기존 제품 경계가 있다.
+5. **현재 가장 큰 미달**: 신규 프로젝트 여정은 통과했지만 기존 dirty project에서 사용자 변경 보존·원인 수리·
+   build/test·Browser 회귀·Undo가 한 흐름으로 current-head 자격되지 않았다.
+6. **이번 변경 방식**: 제품 변경 0의 기존 프로젝트 actual에서 현재 성공과 최초 결속 미달을 분리한다.
+7. **Non-goals**: 새 IDE·Git·Project Store, framework·업종 Router, 모든 hosting·DB·cloud, 완전 보안 VM,
+   고정 대형 품질표, G 재개발, 모델별 Prompt, Windows deferred의 PASS 승격.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -1031,6 +1035,262 @@ percentage, 애니메이션으로 시간 채우기, Runtime 문구로 모델의 
 > T5는 내부 복잡성을 드러내지 않으면서 사용자가 현재 작업의 실제 진전·남은 일·필요한 행동·중지 가능성을
 > 자연스럽게 이해하도록 하고, 대화와 채널을 이동해도 같은 작업 흐름을 유지한다.
 
+### S4-P — Durable Project Building — ACTIVE AT P0
+
+S4-P는 새 코딩 제품이나 프로젝트 제작 플랫폼을 옆에 붙이는 Gate가 아니다. 사용자가 평소 말로 홈페이지·
+대시보드·로컬 앱·업무 도구·자동화·CLI·기존 프로젝트 수정을 맡겼을 때 이미 선 Work·D·E·F·G·Browser·
+Artifact·Connection·Recovery를 하나의 지속 프로젝트 여정으로 결속하고 실제 사용자 목적에서 자격한다.
+
+진입 조건인 S4-G actual 세 목적과 adopted model-independent product path는 충족됐다. Windows 공통 계약과 adapter
+의미는 각 slice에서 유지하고 물리 자격은 오너 결정대로 S4-L에 남긴다.
+
+S4-P 사용자 완료 문장:
+
+> T5는 사용자가 기술과 개발 도구를 배우지 않아도 지속 프로젝트를 맡아 자료 탐색, 코드 작성, 실행,
+> 화면·기능 검증, 결과 전달과 재수정을 자연스럽게 이어간다. 외부 공개가 필요한 경우에는 사용자가 선택한
+> 기존 연결을 사용해 Preview부터 확인하며, 실제 실행·공개·비용·복구 상태를 과장하지 않는다.
+
+적용 대상은 홈페이지·랜딩페이지·온보딩·대시보드·로컬 웹앱·데이터 처리 도구·업무용 프로그램·CLI·자동화·
+기존 프로젝트 수정·작은 서비스 prototype이다. 웹사이트 전용 Core나 framework별 제품 의미를 만들지 않는다.
+
+재개발하지 않는 현재 기반:
+
+- Conversation·Work·revision, 실행 중 교정·취소, 재접속·Runtime restart, Model Continuity, Memory·Episode,
+  진행·부분 결과·결과 전달 settlement
+- 자연어 파일 검색·OCR·source identity·revision·`bind_sources`·대형 문서 local search·과거 Work 탐색·
+  Transmission Receipt
+- S4-D Terminal·PTY·managed process·대형 output exact recall·pipeline stage fact·command AST·crash·orphan·
+  completion settlement
+- S4-E confinement·atomic publication·rollback, S4-F multi-file authoring·verification·durable Undo,
+  S4-G program composition·execution·independent verification·Artifact handoff
+- Browser navigation·DOM·screenshot·interaction, Artifact·Attachment·output handle, 문서·표·HTML·SVG preview,
+  GitHub CLI·Existing Capability Broker, Effect·Delivery·Resource Receipt, Automation·Telegram, backup·recovery
+
+역할 경계:
+
+- 모델은 사용자 목적, 결과·기능, 기존 자료와 source의 의미, architecture·framework·방법, 코드, 도구 순서,
+  실패 의미·대안·완료와 사용자 문장을 판단한다.
+- Runtime은 project root·revision·현재 파일, 실제 runtime·CLI·package manager, 파일 변경·Undo, process·port·
+  stdout·stderr·exit, Browser DOM·화면·console·network, 연결·계정·권한·외부 effect, Artifact·전달·비용·복구
+  사실을 제공한다.
+- Runtime은 업종·홈페이지 종류·framework·provider 의미를 선택하거나 모델의 판단을 규칙으로 대체하지 않는다.
+
+project root는 코드 변경·build·server의 기본 anchor이지 T5의 전체 read scope를 강제로 제한하는 경계가 아니다.
+사용자가 맡긴 프로젝트를 우선 관측·변경하고, 사용자가 지정한 외부 로고·문서·사진은 별도 read scope로 사용하며,
+컴퓨터 전체 검색은 사용자가 그 범위를 요청했을 때만 연다. read scope·change scope·external-effect scope는 서로
+합치지 않는다.
+
+#### S4-P0 — Current Product Baseline — NEW PROJECT PASS · EXISTING PROJECT NEXT
+
+제품 source 변경 0에서 현재 T5로 다음 실제 과업을 실행한다.
+
+1. 신규 프로젝트: “우리 회사 소개와 상담 신청이 있는 홈페이지를 만들어줘. 우선 내 컴퓨터에서 실제로 보여줘.”
+2. 기존 프로젝트: “이 프로젝트의 온보딩 화면을 수정하고 기존 기능이 깨지지 않았는지 확인해줘.”
+3. 비웹 프로그램: “이 자료들을 정리하고 다음에도 사용할 수 있는 간단한 도구로 만들어줘.”
+
+기존 프로젝트 수정과 비웹 프로그램은 current-head 증거를 우선 재사용하고 현재 차이가 있는 축만 다시 실행한다.
+신규 프로젝트는 source discovery·code/file change·build/test/server·실제 화면과 핵심 기능·교정·result reopen·Undo,
+model/tool calls·tokens·wall, orphan·duplicate execution·temporary residue를 한 여정에서 측정한다. 사용자가 설명해야
+했던 기술 정보와 첫 유용한 결과까지의 시간도 보존한다.
+
+P0에서 재현되지 않은 결함은 계획만으로 만들지 않는다. 최초 결속 미달 하나만 P1 이후의 구현을 연다.
+
+첫 current-head actual은 gpt-5.5가 회사 자료와 브랜드 기준을 보존해 static 홈페이지·ZIP을 만들고 localhost
+`200 OK`, Browser navigate·두 입력·explicit submit·접수 문구·screenshot, 외부 URL 0을 모두 달성했다. 하지만
+249.510초·21 model calls·25 tool calls·924,675 provider tokens·3,764,687 request bytes를 사용했다. Preview server는
+model 답에서 실행 중이라고 했지만 D registry의 running process는 0이었고 `server.pid`·`server.log`가 사용자
+workspace에 남았다. Runtime 종료 뒤 exact PID 28635는 PPID 1로 계속 listen했으며 qualification이 exact cwd를
+확인한 뒤 종료했다. 따라서 목적 화면 성공과 lifecycle 실패를 합치지 않고 `dev_server_ownership_cleanup`을
+최초 결속 결함으로 고정한다. 다른 오래된 localhost process는 이번 범위가 아니어서 건드리지 않았다.
+
+완료 문장:
+
+> 현재 T5가 프로젝트 업무에서 이미 해내는 범위와 사용자가 실제로 막히는 최초 결속 하나가 분리됐다.
+
+#### S4-P1 — Durable Project Context
+
+새 Project DB를 만들지 않는다. P0에서 실제 유실이 확인된 경우에만 현재 Work와 기존 정본을 가리키는 최소
+pointer를 결속한다.
+
+```yaml
+project:
+  root
+  observedRevision
+  repositoryState
+  activeProcesses
+  previewLocation
+```
+
+각 값은 별도 진실로 복제하지 않는다. root는 허용 workspace, observedRevision은 source manifest·F plan,
+repositoryState는 현재 관측 Receipt, activeProcesses는 D registry, previewLocation은 current Effect·Artifact·
+Delivery 사실을 가리킨다. 사용자가 지정한 폴더를 변경 anchor로 유지하고 Git 부재를 자동 init·commit하지 않으며,
+framework·build 명령은 실제 source와 package script에서 관측한다. Memory는 브랜드·선호·과거 결정을 돕지만 현재
+revision truth가 아니다. 교정·재접속·모델 전환 뒤 같은 프로젝트를 유지하고 외부 변경은 stale로 관측한다.
+
+완료 문장:
+
+> T5는 여러 대화와 재시작을 지나도 사용자가 맡긴 프로젝트와 현재 revision을 잃지 않는다.
+
+#### S4-P2 — Project Edit & Build Loop
+
+```text
+현재 source 관측
+→ 모델이 변경 방법 결정
+→ F Preview
+→ 안전한 multi-file change
+→ build·test
+→ 실패 Evidence exact reopen
+→ 모델 교정
+→ 재시험
+→ 실제 결과·Undo
+```
+
+D·E·F·G의 현재 경계를 재사용한다. bounded hunk·diff, dirty change 보존, lockfile·generated config 설명,
+CRLF·실행권한, dev server ownership은 P0에서 실제 미달이 있을 때만 후보로 연다. 기존 `workspace_patch`로
+충분하면 새 patch Tool을 만들지 않는다. G 보호 경로가 적용되지 않은 기존 `exec`를 G 성공으로 꾸미지 않지만
+기존 자연 실행을 방해하지 않는다.
+
+완료 문장:
+
+> T5는 기존 사용자 변경을 보존하면서 프로젝트를 안전하게 수정하고, 실제 build·test 실패를 근거로 고친 뒤
+> 되돌릴 수 있다.
+
+`S4-P2A Dev Server Ownership`은 첫 P0 결함만 닫는다. foreground `exec`가 shell background child를 Runtime 밖으로
+보내지 못하게 하고, 장기 server는 기존 `terminal_session start`가 command 자체를 foreground로 소유하도록 한다.
+Runtime은 서비스·framework·port 의미를 선택하지 않고 Tree-sitter의 background topology와 exact managed process
+사실만 사용한다. `cmd & wait`처럼 shell이 모든 background job을 exact join하는 foreground 명령은 기존 취소·
+process-group 경계를 유지한다. 일반 foreground 명령·G snapshot·PTY 의미는 바꾸지 않는다.
+
+완료 문장:
+
+> T5가 프로젝트 Preview를 위해 시작한 server는 실행 중 exact process handle로 관측·중단할 수 있고 Runtime
+> 종료·취소 뒤 고아 process와 PID·log 잔여물을 남기지 않는다.
+
+P2A deterministic·Console·G 회귀는 background topology를 실행 전에 막고 `terminal_session`을 열며 실제 foreground
+server command를 managed handle과 qualified macOS parent-death group에 결속했다. 동일 P0 actual에서도 background
+exec 1회는 `managed_process_required`, managed foreground start는 exact 1회였고 5분 timeout settlement 뒤 orphan
+server·`server.pid`·`server.log`는 0이었다. 따라서 ownership 결함은 COMPLETE다. 전체 목적은 다음 Browser 결속에서
+실패했으므로 S4-P 완료로 확대하지 않는다.
+
+#### S4-P3 — Live Preview & Functional Verification
+
+기존 Browser를 D의 Terminal dev server와 결속한다.
+
+```text
+server 시작
+→ 실제 port·health 관측
+→ Browser open
+→ DOM·화면 관측
+→ 사용자 핵심 행동 실행
+→ console·network·상태 변화 확인
+→ 실패 시 source 수정
+→ 재검증
+→ server 정리
+```
+
+console error·unhandled rejection·failed request·desktop/mobile viewport·reload 뒤 상태·form validation·
+empty/loading/error/success 상태는 P0에서 실제 목적에 필요한 관측이 부족할 때만 보강한다. 모든 프로젝트에
+모든 viewport·상태·접근성 검사를 강제하지 않고 필요한 화면과 행동은 모델이 목적에 따라 선택한다.
+
+완료 문장:
+
+> T5는 코드와 build 성공에 멈추지 않고 사용자가 실제로 보게 될 화면과 핵심 동작을 직접 확인하고 고친다.
+
+`S4-P3A Interactive Browser Binding`은 interaction-scoped `web_read`가 exact destination을 확정했는데 readable
+static HTML이라는 이유만으로 Browser가 닫히는 한 결함만 수리한다. 모델이 `visibleBrowser=user_interaction`을
+명시한 경우에만 기존 Browser를 다음 Turn에 활성화한다. 정적 text가 읽혔다는 사실은 fill·submit·click·rendered
+state·visual result의 실행 증거가 아니기 때문이다. 일반 lookup·research·`visibleBrowser=never`에는 새 Tool·field·
+model call·provider bytes를 추가하지 않는다.
+
+P3A focused 65개와 동일 자연어 actual은 `web_read → Browser navigate → fill → fill → submit → snapshot`을
+통과했다. 홈페이지·회사 자료·form·source unchanged·외부 URL 0, managed server handle, PID/log residue 0,
+Runtime settlement 뒤 stopped·termination confirmed·URL 응답 0이 함께 성립했다. 233.451초·20 model calls·
+19 tool calls·733,020 tokens·3,105,193 request bytes로 최초 RED의 249.510초·21·25·924,675·3,764,687보다 모두
+감소했다. ZIP 등록은 실패했고 Artifact 0이었으나 사용자가 요청한 local Preview는 실제 URL과 Browser 기능으로
+완료됐으며 모델은 ZIP 미완료를 숨기지 않았다. P3A는 COMPLETE이고 Artifact handoff 경제성은 P0/P5 관측으로 남긴다.
+
+#### S4-P4 — Preview Publication & External Reality
+
+모든 hosting·DB·cloud나 Capability Acquisition을 만들지 않는다. 사용자가 외부 Preview를 명시적으로 요청하고
+현재 사용할 수 있는 공식 연결 또는 인증된 CLI가 있을 때만 Existing Capability Broker·credential handoff·
+Terminal credential broker·Transmission/Effect/Delivery Receipt를 조합한다.
+
+```text
+local verified revision
+→ 현재 연결·계정·프로젝트 확인
+→ Preview 준비
+→ 외부 effect 실행
+→ Preview URL 관측
+→ 실제 URL reopen
+→ 핵심 기능 smoke
+→ 사용자 전달
+```
+
+설정 준비·build·upload 실행·provider 수락·URL 접근·기능 작동·data persistence·비용을 하나의 success로 합치지
+않는다. 새 Deployment Receipt를 먼저 만들지 않고 기존 Receipt로 표현할 수 없는 실제 실패가 재현될 때만 최소
+사실을 추가한다. Production은 Preview의 자동 다음 단계가 아니며 사용자가 실제 공개를 요청한 경우에만 네 승인
+경계를 적용한다. 첫 제품 자격은 사용자가 선택한 기존 공식 연결 하나로 제한한다.
+
+완료 문장:
+
+> T5는 로컬에서 확인한 프로젝트를 사용자가 선택한 기존 외부 능력으로 Preview하고, 공개 상태와 실제 기능을
+> 다시 확인한다.
+
+#### S4-P5 — Continuity, Handoff & Rework
+
+새 운영 플랫폼 없이 기존 Work·Artifact·Recovery를 프로젝트 여정에 적용한다. 대화 중 교정, 모델 전환,
+Runtime restart, dev server 사고, partial result, Artifact 재전달, durable Undo, 후속 수정, 사용자가 요청한 경우의
+Automation·Telegram 상태 전달을 확인한다. 전체 T5 backup은 프로젝트 Git·파일 backup을 대신하지 않으며 각 범위를
+정확히 설명한다.
+
+운영 인계가 필요하면 새 기술 문서 시스템이 아니라 기존 Artifact로 프로젝트 위치·실행 방법·사용한 외부 서비스·
+data 위치·알려진 unknown·Undo/rollback·비용 확인 위치를 전달한다. settled 목적은 다시 실행하지 않고 후속 요청은
+같은 project lineage와 현재 Work/revision 현실에 연결한다.
+
+완료 문장:
+
+> T5는 프로젝트를 한 번 만들고 끝내지 않고 교정·재시작·후속 수정·결과 전달까지 같은 프로젝트 여정으로 유지한다.
+
+S4-P 전체 인간 자격:
+
+- `P-H01` 비개발자 신규 홈페이지: 실제 자료 탐색, local build, desktop/mobile 핵심 화면, 상담 입력과 결과,
+  local Preview, Production 자동 실행 0
+- `P-H02` 기존 프로젝트 수정: dirty change 보존, 실제 원인, 수정·build·test·Browser 확인·Undo
+- `P-H03` 비웹 도구: 프로그램 필요성 자율 판단, 기존 exec와 G 결속, 정확한 Artifact와 재사용 가능한 결과,
+  불필요한 Tool·Pack 생성 0
+- `P-H04` 선택적 외부 Preview: 기존 공식 연결과 사용자 계정이 있을 때만 실행하고, 없으면 거짓 연결·자동 설치
+  없이 현재 가능한 최소 대안과 미실행 사실을 보존
+
+성능 판정:
+
+```text
+목적 정확성·파일·권한·진실성 무회귀
+AND 프로젝트 연속성과 실제 화면·기능 확인 증가
+AND model/tool calls·tokens·provider bytes·wall 측정
+AND build·server·Browser 불필요 반복 감소
+AND 기존 자연 실행을 새 보호층이 방해하지 않음
+AND 결과·Undo·후속 수정이 실제 작동
+```
+
+P0 전에 고정 시간·호출·token 기준을 만들지 않는다. 안전과 실제 사용자 이익이 있는 비용 증가는 정확한 A/B와
+함께 오너가 판단한다.
+
+S4-P 비목표:
+
+- 웹사이트 전용 Core, 업종별 Template·Skill pack, framework Router
+- 모든 hosting·DB·cloud, 별도 IDE·Git·Project ERP, 새 계획 mode
+- 일반 shell 전체의 완전 보안 VM, exact actual-read tracing
+- 자동 domain 구매·결제, Production 무승인 공개, 모든 app 운영 대행
+- Agent Team 사용자 노출, macOS 전용 Core 의미, 거대한 고정 품질 검사표
+
+Windows는 drive·UNC·case path, junction·reparse, Job Object·ConPTY, PowerShell·CMD·`.cmd`, volume·file ID,
+CRLF·UTF-8·codepage, `npm.cmd`·`pnpm.cmd`, DPAPI 의미를 각 slice에 유지한다. 실제 Windows 사람 자격은 S4-L에서
+수행하며 macOS 구현을 Core 의미로 굳히지 않는다.
+
+개발 순서는 `P0 baseline → P1 project context → P2 edit/build loop → P3 live functional verification → P4 optional
+external Preview → P5 continuity/handoff → S4-P human qualification → S4-HQ`다. 각 slice는 현재 제품 실제 실패가
+열어 준 범위만 구현하며 P0가 이미 통과한 능력은 제품 변경 0으로 닫는다.
+
 ### S4-L — Windows 물리 자격
 
 Windows는 마지막에 처음 고려하지 않는다. S4-B~I의 공통 계약마다 Windows adapter 의미와 반대시험을 함께
@@ -1125,18 +1385,15 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-C 미달은 S4-I·S4-HQ에 계속 이월한다. S4-D managed non-PTY와 D5C, S4-E1~E7, S4-F는 닫혔다. S4-G internal
-engine은 COMPLETE이고 product activation은 CLOSED_WITH_OBSERVATION이다. 오너 결정으로 output handoff audit만
-재개했고 handoff 누락은 확인했지만 과거 attachment 실패의 단일 원인으로 확정하지 않았다. S4-H는
-existing-capability observation으로 닫고 계약 발견·개인 cross-source join을 HQ에 남겼다. S4-I는
-current-head recovery 5/5와 qualification ruler 교정 뒤 제품 구현 0으로 완료했다. J는 미래 연구, K는 cross-cutting
-사실로 유지한다. S4-UX는 grounded progress·recoverable result 공개 경계·canonical 대화/Artifact 시간을 수리하고
-기존 실제 모델·current product 회귀로 완료했다. S4-L read-only baseline과 false-positive config 교정도 끝났다.
-오너 결정으로 물리 실행만 뒤로 미뤘다. S4-HQ 최소 wave를 고정하고 첫 KHB-A03 pair를 실행했으나 gpt-5.5 성공·
-Terra critical purpose 실패가 갈렸다. 중단선에 따라 KHB-S01과 전체 wave를 열지 않았다. HQ는 이 상태로 보존한다.
-durable multi-output handoff batch와 Snapshot adapter의 prepare→F publication→batch·Artifact commit→cleanup·crash
-reconcile은 닫혔다. 좁은 Python activation은 deterministic 두 표현을 통과했지만 actual command shape 분산에서 실패했다.
-generic snapshot shell은 사업·개발·개인 파일 actual에서 정확성·격리·Artifact·경제성을 통과해 S4-G product
-activation COMPLETE로 닫혔다. 현재 다음 한 작업은 HQ KHB-A03에서 갈린 gpt-5.5·Terra 결과를 바탕으로 qualified
-default model과 comparison observation의 완료 정책을 오너가 결정하는 것이다. Windows deferred가 남아 4차 전체
-완료는 주장하지 않는다.
+S4-D managed non-PTY·D5C, S4-E1~E7, S4-F, S4-G model-independent product activation, S4-I, S4-UX는 닫혔다.
+S4-H는 existing-capability observation으로 닫고 남은 계약 발견·cross-source join을 HQ에 이월했다. S4-C의 모델별
+portable discovery·false absence 관측과 S4-HQ KHB-A03의 gpt-5.5 PASS·Terra critical failure는 제품·Prompt 변경 0의
+정책 대기 상태로 그대로 보존한다. Windows 물리 S4-L도 `DEFERRED_NOT_WAIVED`다.
+
+오너 결정으로 이미 선 D·E·F·G·Browser·Artifact·Work·Recovery를 실제 지속 프로젝트 여정으로 결속하는 S4-P를
+4차에 추가했다. 이 결정은 HQ의 불리한 모델 관측이나 Windows 미실행을 성공으로 바꾸지 않는다. S4-P0 신규 프로젝트
+actual은 화면·기능 목적을 달성했지만 unmanaged localhost server와 PID·log 잔여물을 재현했다. S4-P2A는 background
+차단→managed foreground server→Runtime cleanup으로 ownership을 닫았고, S4-P3A는 interaction-scoped static read
+뒤 기존 Browser를 활성화해 fill·submit·결과 관측을 닫았다. 신규 프로젝트 actual은 정확성·기능·source·외부 범위·
+lifecycle을 통과했다. 현재 다음 한 작업은 제품 변경 0의 S4-P0B 기존 dirty project 기준선이다. 현재 사용자 변경
+보존·실제 원인 수리·build/test·Browser 회귀·Undo를 측정하고 최초 미달 하나만 연다.

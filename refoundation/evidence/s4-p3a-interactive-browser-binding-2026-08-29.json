@@ -1,0 +1,395 @@
+{
+  "schema": "t5.s4p0.project-building-baseline.v1",
+  "recordedAt": "2026-08-29T14:51:01.595Z",
+  "sourceHead": "0015a4b0622c26504160ea1b35c8404f0a59740f",
+  "productChanges": 1,
+  "productSourceDirty": true,
+  "model": "gpt-5.5",
+  "actualUserData": false,
+  "actualExternalAccount": false,
+  "naturalLanguageOnly": true,
+  "purpose": {
+    "prompt": "우리 회사 소개와 상담 신청이 있는 홈페이지를 만들어줘. 작업 폴더의 회사 자료와 브랜드 기준을 사용하고 외부 이미지나 외부 폰트에 의존하지 마. 우선 내 컴퓨터에서 실제로 실행해서 화면을 확인하고, 상담자 이름과 연락처를 입력해 신청했을 때 접수 결과가 화면에 나타나는지 직접 확인해줘. 외부에는 공개하지 마. 확인이 끝나면 내가 바로 볼 수 있는 결과와 현재 실행 상태를 알려줘.",
+    "httpStatus": 200,
+    "runStatus": "completed",
+    "answer": "완료했어요.\n\n- 홈페이지 파일: `index.html`\n- 실행 중인 로컬 주소: `http://127.0.0.1:4173/index.html`\n- 공개 상태: 외부 공개 없음. 내 컴퓨터의 `127.0.0.1` 로컬 서버에서만 실행 중입니다.\n- 현재 실행 상태: 로컬 HTTP 서버가 실행 중입니다.  \n  - 서버: `python3 -m http.server 4173 --bind 127.0.0.1`\n  - 작업 폴더 기준으로 `index.html`을 제공 중입니다.\n\n직접 확인한 내용:\n- 브라우저에서 실제 페이지를 열어 회사 소개, 주요 서비스, 상담 신청 영역이 보이는 것을 확인했습니다.\n- 작업 폴더의 회사 자료를 반영했습니다:\n  - 회사명: 해솔공간\n  - 주요 서비스 3개\n  - 상담 전화, 이메일, 운영 시간\n- 브랜드 기준을 반영했습니다:\n  - 따뜻하고 차분한 톤\n  - 짙은 초록 / 모래색 중심\n  - 외부 이미지 없음\n  - 외부 폰트 의존 없음\n- 상담 신청 테스트도 했습니다.\n  - 상담자 이름과 연락처를 입력한 뒤 신청했을 때,\n  - 화면에 “상담 신청이 접수되었습니다” 접수 결과가 나타나는 것을 확인했습니다.\n\n바로 보려면 이 주소를 열면 됩니다:\n\n`http://127.0.0.1:4173/index.html`\n\n참고: 별도 다운로드용 ZIP 등록은 이번 확인 흐름에서는 완료하지 못했습니다. 지금 바로 보는 용도는 위 로컬 실행 주소가 준비되어 있습니다."
+  },
+  "checks": {
+    "turnCompleted": true,
+    "answerPresent": true,
+    "createdWebsite": true,
+    "companyContent": true,
+    "consultationForm": true,
+    "sourceUnchanged": true,
+    "localBrowserNavigation": true,
+    "formFilled": true,
+    "formSubmitted": true,
+    "successObserved": true,
+    "devServerOwned": true,
+    "temporaryResidueZero": true,
+    "externalPublicationZero": true,
+    "runtimeErrorsZero": true,
+    "runtimeCleanupVerified": true
+  },
+  "firstDefectFamily": null,
+  "performance": {
+    "wallMs": 233451,
+    "modelCalls": 20,
+    "toolCalls": 19,
+    "providerTokens": 733020,
+    "requestBytes": 3105193
+  },
+  "route": [
+    {
+      "name": "tool_search",
+      "action": null,
+      "outcome": "succeeded",
+      "state": "no_match",
+      "activatedTools": [],
+      "commandShape": null
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "succeeded",
+      "state": "completed",
+      "activatedTools": [],
+      "commandShape": {
+        "chars": 169,
+        "sha256": "dd9fd6d9cfc1b3b2dec123f0af18466db9a242749fdb8142f9ac9fe2051dbf96",
+        "steps": [
+          "find",
+          "sed",
+          "sort",
+          "head",
+          "printf",
+          "find",
+          "sed",
+          "sort",
+          "head"
+        ],
+        "operators": [
+          "pipe",
+          "pipe",
+          "pipe",
+          "and",
+          "and",
+          "pipe",
+          "pipe",
+          "pipe"
+        ],
+        "shapes": [
+          "pipeline",
+          "and"
+        ]
+      }
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "succeeded",
+      "state": "completed",
+      "activatedTools": [],
+      "commandShape": {
+        "chars": 96,
+        "sha256": "234e011dc6169168a9d92aee25adc99a888a759d6c0fe6b837583df69d89d32b",
+        "steps": [
+          "printf",
+          "cat",
+          "printf",
+          "cat"
+        ],
+        "operators": [
+          "sequence",
+          "sequence",
+          "sequence"
+        ],
+        "shapes": []
+      }
+    },
+    {
+      "name": "tool_search",
+      "action": null,
+      "outcome": "succeeded",
+      "state": "activated",
+      "activatedTools": [
+        "attachment"
+      ],
+      "commandShape": null
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "succeeded",
+      "state": "completed",
+      "activatedTools": [],
+      "commandShape": {
+        "chars": 10775,
+        "sha256": "541e6eda18f318da4961d08ca0190443e4d8c34e82688034fa6239ca9af82022",
+        "steps": [
+          "cat",
+          "mkdir",
+          "cp",
+          "ls"
+        ],
+        "operators": [
+          "newline-sequence",
+          "newline-sequence",
+          "newline-sequence"
+        ],
+        "shapes": [
+          "heredoc-body"
+        ]
+      }
+    },
+    {
+      "name": "attachment",
+      "action": "inspect",
+      "outcome": "succeeded",
+      "state": "observed",
+      "activatedTools": [],
+      "commandShape": null
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "not_executed",
+      "state": "managed_process_required",
+      "activatedTools": [
+        "terminal_session"
+      ],
+      "commandShape": {
+        "chars": 203,
+        "sha256": "b44822ddf700792578fe1b1e0e8fe6d93fa1c8162bdea1264b8c6a7c3280acc5",
+        "steps": [],
+        "operators": [],
+        "shapes": []
+      }
+    },
+    {
+      "name": "terminal_session",
+      "action": "start",
+      "outcome": "succeeded",
+      "state": "running",
+      "activatedTools": [],
+      "commandShape": null
+    },
+    {
+      "name": "web_read",
+      "action": null,
+      "outcome": "succeeded",
+      "state": "partial_dynamic",
+      "activatedTools": [
+        "browser"
+      ],
+      "commandShape": null
+    },
+    {
+      "name": "browser",
+      "action": "navigate",
+      "outcome": "succeeded",
+      "state": "observed",
+      "activatedTools": [],
+      "commandShape": null
+    },
+    {
+      "name": "browser",
+      "action": "fill",
+      "outcome": "not_executed",
+      "state": "effect_declaration_mismatch",
+      "activatedTools": [],
+      "commandShape": null
+    },
+    {
+      "name": "browser",
+      "action": "fill",
+      "outcome": "succeeded",
+      "state": "acted",
+      "activatedTools": [],
+      "commandShape": null
+    },
+    {
+      "name": "browser",
+      "action": "fill",
+      "outcome": "succeeded",
+      "state": "acted",
+      "activatedTools": [],
+      "commandShape": null
+    },
+    {
+      "name": "browser",
+      "action": "submit",
+      "outcome": "succeeded",
+      "state": "acted",
+      "activatedTools": [],
+      "commandShape": null
+    },
+    {
+      "name": "browser",
+      "action": "click",
+      "outcome": "not_executed",
+      "state": "submit_requires_explicit_action",
+      "activatedTools": [],
+      "commandShape": null
+    },
+    {
+      "name": "browser",
+      "action": "snapshot",
+      "outcome": "succeeded",
+      "state": "observed",
+      "activatedTools": [],
+      "commandShape": null
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "failed",
+      "state": "protected_program_failed",
+      "activatedTools": [],
+      "commandShape": {
+        "chars": 537,
+        "sha256": "47d59c94ac613ccb522258856b89ce45fffa4ff7b720e2423c653326e5b8ca46",
+        "steps": [
+          "python3",
+          "rm",
+          "cd",
+          "zip",
+          "ls"
+        ],
+        "operators": [
+          "newline-sequence",
+          "newline-sequence"
+        ],
+        "shapes": [
+          "heredoc-body",
+          "subshell",
+          "and"
+        ]
+      }
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "failed",
+      "state": "protected_program_failed",
+      "activatedTools": [],
+      "commandShape": {
+        "chars": 537,
+        "sha256": "47d59c94ac613ccb522258856b89ce45fffa4ff7b720e2423c653326e5b8ca46",
+        "steps": [
+          "python3",
+          "rm",
+          "cd",
+          "zip",
+          "ls"
+        ],
+        "operators": [
+          "newline-sequence",
+          "newline-sequence"
+        ],
+        "shapes": [
+          "heredoc-body",
+          "subshell",
+          "and"
+        ]
+      }
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "not_executed",
+      "state": "method_not_executed",
+      "activatedTools": [],
+      "commandShape": {
+        "chars": 495,
+        "sha256": "4ca65bbac5ee16a2ed0cdbe7f5dba7bf8e2120f52563f41539c3760a9edbe497",
+        "steps": [],
+        "operators": [],
+        "shapes": []
+      }
+    }
+  ],
+  "browser": {
+    "actions": [
+      {
+        "action": "navigate",
+        "outcome": "succeeded",
+        "state": "observed",
+        "url": "http://127.0.0.1:4173/index.html"
+      },
+      {
+        "action": "fill",
+        "outcome": "not_executed",
+        "state": "effect_declaration_mismatch",
+        "url": null
+      },
+      {
+        "action": "fill",
+        "outcome": "succeeded",
+        "state": "acted",
+        "url": "http://127.0.0.1:4173/index.html"
+      },
+      {
+        "action": "fill",
+        "outcome": "succeeded",
+        "state": "acted",
+        "url": "http://127.0.0.1:4173/index.html"
+      },
+      {
+        "action": "submit",
+        "outcome": "succeeded",
+        "state": "acted",
+        "url": "http://127.0.0.1:4173/index.html"
+      },
+      {
+        "action": "click",
+        "outcome": "not_executed",
+        "state": "submit_requires_explicit_action",
+        "url": null
+      },
+      {
+        "action": "snapshot",
+        "outcome": "succeeded",
+        "state": "observed",
+        "url": "http://127.0.0.1:4173/index.html"
+      }
+    ],
+    "externalBrowserUrls": []
+  },
+  "files": {
+    "before": [
+      "브랜드-기준.txt",
+      "회사자료.md"
+    ],
+    "after": [
+      "dist/index.html",
+      "index.html",
+      "브랜드-기준.txt",
+      "회사자료.md"
+    ],
+    "htmlFiles": [
+      "dist/index.html",
+      "index.html"
+    ]
+  },
+  "delivery": {
+    "artifactCount": 0,
+    "runningManagedProcesses": 1,
+    "localPreviewUrl": "http://127.0.0.1:4173/index.html",
+    "previewReachableAtDelivery": true,
+    "temporaryResidue": [],
+    "qualificationCleanup": [],
+    "processesAfterSettlement": [
+      {
+        "processId": "4d3766dc-b7be-4200-be23-e1ac71a3a7f3",
+        "state": "stopped",
+        "terminationConfirmed": true
+      }
+    ],
+    "previewReachableAfterSettlement": false
+  },
+  "runtimeErrors": [],
+  "baselineObserved": true,
+  "purposePassed": true,
+  "decision": "CURRENT_PRODUCT_PROJECT_JOURNEY_POSITIVE_CONTROL"
+}

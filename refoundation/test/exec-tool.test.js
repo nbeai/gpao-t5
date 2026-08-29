@@ -76,6 +76,41 @@ test('process_start만 실행 중 handle을 돌려주고 process_control로 이�
   assert.equal(stopped.terminationConfirmed, true);
 }));
 
+test('foreground shell background는 Runtime 밖 고아 process를 만들기 전에 managed foreground 경로로 돌린다', async () => rooms(async ({ workspace }) => {
+  const marker = join(workspace, 'unowned-late-effect.txt');
+  const exec = makeExecTool({ workspace });
+  const result = await exec.execute({
+    command: `(sleep 0.15; printf late > '${marker}') &`, cwd: null,
+  });
+  assert.equal(result.state, 'managed_process_required');
+  assert.equal(result.exitCode, 125);
+  assert.deepEqual(result.activatedTools, ['terminal_session']);
+  await new Promise((resolve) => setTimeout(resolve, 220));
+  await assert.rejects(() => access(marker));
+}));
+
+test('managed shell도 내부 background로 ownership을 다시 잃지 않고 실제 foreground command를 요구한다', async () => rooms(async ({ workspace }) => {
+  const start = makeProcessStartTool({ workingDirectory: workspace });
+  const result = await start.execute({ command: 'sleep 30 &', cwd: null });
+  assert.equal(result.state, 'managed_process_background_forbidden');
+  assert.equal(result.exitCode, 125);
+  assert.deepEqual(result.activatedTools, ['terminal_session']);
+  assert.equal(start.processRegistry.list('default').length, 0);
+}));
+
+test('제품 preflight는 background shell을 실행 전에 막고 기존 terminal_session을 즉시 연다', async () => rooms(async ({ workspace }) => {
+  const exec = makeExecTool({ workspace, effectPreflight: async () => ({ allowed: true }) });
+  const gate = await exec.preflight({
+    command: 'python3 -m http.server 8765 >server.log 2>&1 & echo $! >server.pid', cwd: null,
+    effect: { kind: 'local_change', targets: [workspace], confirmation: 'not_applicable', rollbackOfToolCallId: null },
+  }, {});
+  assert.equal(gate.allowed, false);
+  assert.equal(gate.outcome, 'not_executed');
+  assert.equal(gate.result.state, 'managed_process_required');
+  assert.deepEqual(gate.result.activatedTools, ['terminal_session']);
+  assert.match(gate.result.nextSafeAction, /foreground.*terminal_session start/u);
+}));
+
 test('foreground exec는 관리 spool보다 큰 출력도 전체의 처음과 끝을 보존해 자른다', async () => rooms(async ({ workspace }) => {
   const registry = new ManagedProcessRegistry({ spoolLimit: 32, outputLimit: 64 });
   const tool = makeExecTool({ workspace, processRegistry: registry, outputLimit: 64 });

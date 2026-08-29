@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -8,6 +8,7 @@ import { makeConsoleServer } from '../src/console-server.js';
 
 test('대화 surface는 canonical Conversation의 사용자·T5 recordedAt을 그대로 투영한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-conversation-time-surface-'));
+  await mkdir(join(room, 'workspace'));
   const server = makeConsoleServer({ stateDir: join(room, 'state'), workspace: join(room, 'workspace'),
     modelFactory: () => ({ async respond() { return { text: '시간 표면 답변', toolCalls: [] }; } }),
     modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }) });

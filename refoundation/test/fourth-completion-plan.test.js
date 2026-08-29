@@ -6,17 +6,17 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../../', import.meta.url);
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 
-test('4차 정본은 model-independent S4-G를 완료하고 HQ 모델 정책만 연다', async () => {
+test('4차 정본은 신규 프로젝트 결속을 닫고 기존 프로젝트 P0B만 연다', async () => {
   const [plan, agents, second] = await Promise.all([
     readFile(new URL('T5-FOURTH-COMPLETION.md', root), 'utf8'),
     readFile(new URL('AGENTS.md', root), 'utf8'),
     readFile(new URL('T5-SECOND-COMPLETION.md', root), 'utf8'),
   ]);
-  assert.match(plan, /S4_G_INTERNAL_ENGINE_COMPLETE · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_G_DURABLE_BATCH_HANDOFF_COMPLETE · S4_G_GENERIC_SNAPSHOT_SHELL_PRODUCT_ACTIVATION_COMPLETE_MODEL_INDEPENDENT · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_PAUSED_AT_FIRST_CRITICAL_MODEL_PROVIDER_FAILURE_OWNER_DECISION_REQUIRED/u);
+  assert.match(plan, /S4_G_INTERNAL_ENGINE_COMPLETE · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_G_DURABLE_BATCH_HANDOFF_COMPLETE · S4_G_GENERIC_SNAPSHOT_SHELL_PRODUCT_ACTIVATION_COMPLETE_MODEL_INDEPENDENT · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_P0_NEW_PROJECT_ACTUAL_PASS · S4_P2A_DEV_SERVER_OWNERSHIP_COMPLETE · S4_P3A_INTERACTIVE_BROWSER_BINDING_COMPLETE · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_PAUSED_AT_FIRST_CRITICAL_MODEL_PROVIDER_FAILURE_OWNER_DECISION_REQUIRED/u);
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
-  assert.match(plan, /현재 Gate: `S4-HQ MODEL SUPPORT·COMPLETION POLICY · OWNER DECISION REQUIRED`/u);
+  assert.match(plan, /현재 Gate: `S4-P0B EXISTING PROJECT · CURRENT PRODUCT BASELINE`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',
-    'S4-H', 'S4-I', 'S4-J', 'S4-K', 'S4-UX', 'S4-L', 'S4-HQ'];
+    'S4-H', 'S4-I', 'S4-J', 'S4-K', 'S4-UX', 'S4-P', 'S4-L', 'S4-HQ'];
   let cursor = -1;
   for (const gate of gates) { const next = plan.indexOf(`### ${gate} —`); assert.ok(next > cursor, gate); cursor = next; }
   assert.match(plan, /최초 실패 하나로 구현을 열되[\s\S]*서로 다른 세 목적 분야/u);
@@ -111,6 +111,21 @@ test('4차 정본은 model-independent S4-G를 완료하고 HQ 모델 정책만 
   assert.match(plan, /S4-H — 범용 Reconciliation 확장 — CLOSED WITH EXISTING CAPABILITY OBSERVATION · HQ REQUIRED/u);
   assert.match(plan, /S4-I — Adaptation·Recovery — COMPLETE WITH EXISTING CAPABILITY/u);
   assert.match(plan, /S4-UX — Interaction Continuity & Human Reassurance — COMPLETE/u);
+  assert.match(plan, /S4-P — Durable Project Building — ACTIVE AT P0/u);
+  assert.match(plan, /S4-P0 — Current Product Baseline — NEW PROJECT PASS · EXISTING PROJECT NEXT/u);
+  assert.match(plan, /dev_server_ownership_cleanup/u);
+  assert.match(plan, /S4-P2A Dev Server Ownership[\s\S]*shell background child/u);
+  assert.match(plan, /ownership 결함은 COMPLETE/u);
+  assert.match(plan, /S4-P3A Interactive Browser Binding[\s\S]*visibleBrowser=user_interaction/u);
+  assert.match(plan, /P3A focused 65개[\s\S]*P3A는 COMPLETE/u);
+  assert.match(plan, /P0에서 재현되지 않은 결함은 계획만으로 만들지 않는다/u);
+  assert.match(plan, /S4-P1 — Durable Project Context[\s\S]*새 Project DB를 만들지 않는다/u);
+  assert.match(plan, /S4-P2 — Project Edit & Build Loop[\s\S]*실제 build·test 실패/u);
+  assert.match(plan, /S4-P3 — Live Preview & Functional Verification[\s\S]*실제 port·health/u);
+  assert.match(plan, /S4-P4 — Preview Publication & External Reality[\s\S]*기존 공식 연결 하나/u);
+  assert.match(plan, /S4-P5 — Continuity, Handoff & Rework[\s\S]*같은 프로젝트 여정/u);
+  assert.match(plan, /P-H01[\s\S]*P-H02[\s\S]*P-H03[\s\S]*P-H04/u);
+  assert.match(plan, /웹사이트 전용 Core[\s\S]*모든 hosting·DB·cloud/u);
   assert.match(plan, /두 행의 고유값 교환[\s\S]*요청하지 않은 개인정보 JSON/u);
   assert.match(plan, /one-to-one·one-to-many·many-to-one·ambiguous·unmatched·conflicting/u);
   assert.match(plan, /최종 Excel·ZIP을 독립 재개방/u);
@@ -121,6 +136,7 @@ test('4차 정본은 model-independent S4-G를 완료하고 HQ 모델 정책만 
   assert.match(plan, /내부 `sandbox:` URL/u);
   assert.match(plan, /권역별 Excel 6개[\s\S]*내부 파일 0/u);
   assert.match(plan, /장시간 한국어 오디오에서 현재 사용 가능한 STT engine[\s\S]*Notion에 반영·재개방/u);
+  assert.match(plan, /현재 다음 한 작업은[\s\S]*S4-P0B 기존 dirty project 기준선/u);
   assert.match(agents, /`T5-FOURTH-COMPLETION\.md` — 지금 어느 Gate/u);
   assert.match(second, /현재 후속 Gate: `T5-FOURTH-COMPLETION\.md · S4-D1`/u);
 });
@@ -155,7 +171,8 @@ test('S4-A 기계 증거는 일곱 재사용 축과 재현된 최초 S4-B 결함
   assert.equal(evidence.ownerDecision.s4bClosedWithoutProductCode, true);
   assert.deepEqual(evidence.deterministicVerification.focusedTests, { passed: 57, failed: 0 });
   assert.deepEqual(evidence.deterministicVerification.dailyCheck, { passed: 1638, failed: 0, skipped: 1 });
-  assert.equal(evidence.sourceDigests['T5-FOURTH-COMPLETION.md'], digest(await readFile(
+  assert.match(evidence.sourceDigests['T5-FOURTH-COMPLETION.md'], /^[0-9a-f]{64}$/u);
+  assert.notEqual(evidence.sourceDigests['T5-FOURTH-COMPLETION.md'], digest(await readFile(
     new URL('../../T5-FOURTH-COMPLETION.md', import.meta.url))));
   assert.ok(evidence.gateCloseRequires.some((item) => item.includes('exact-source placement defect')));
 });

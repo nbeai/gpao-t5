@@ -105,6 +105,22 @@ async function resolveWorkingDirectory(defaultDirectory, requested) {
   return realpath(candidate);
 }
 
+function hasUnjoinedShellBackground(explanation) {
+  if (!explanation?.shapes?.includes('background')) return false;
+  const topLevel = (explanation.steps ?? []).filter((step) => step.context === 'top-level');
+  const last = topLevel.at(-1);
+  return !(last?.executable === 'wait' && last.argv?.length === 1);
+}
+
+function backgroundOwnershipBoundary({ managed }) {
+  return {
+    state: managed ? 'managed_process_background_forbidden' : 'managed_process_required',
+    reason: 'shell_background_process_would_outlive_runtime_ownership',
+    nextSafeAction: 'Run the long-lived command itself in the foreground with terminal_session start; do not append &, nohup, or write a PID file.',
+    activatedTools: ['terminal_session'],
+  };
+}
+
 function makeCommandTool(options = {}, { managed }) {
   const {
     workingDirectory,
@@ -190,6 +206,11 @@ function makeCommandTool(options = {}, { managed }) {
         if (error?.code === 'T5_COMMAND_EXPLAINER_UNAVAILABLE') throw error;
         commandExplanation = { ok: false, error: error?.message ?? String(error) };
       }
+      if (hasUnjoinedShellBackground(commandExplanation)) return {
+        ...backgroundOwnershipBoundary({ managed }),
+        stdout: '', stderr: '', exitCode: 125,
+        commandExplanation,
+      };
       if (!managed && typeof programExecutionAdapter?.execute === 'function') {
         const protectedExecution = await programExecutionAdapter.execute({
           args: { ...args, effect: declaredEffect }, commandExplanation, cwd,
@@ -356,9 +377,13 @@ function makeCommandTool(options = {}, { managed }) {
   };
   if (typeof effectPreflight === 'function') {
     tool.preflight = async (args, context) => {
+      let explained;
+      try { explained = await explain(String(args?.command ?? '')); } catch { explained = null; }
+      if (hasUnjoinedShellBackground(explained)) return {
+        allowed: false, outcome: 'not_executed',
+        result: backgroundOwnershipBoundary({ managed }),
+      };
       if (!managed) {
-        let explained;
-        try { explained = await explain(String(args?.command ?? '')); } catch { explained = null; }
         const delayed = explained?.steps?.find((step) => step.executable === 'sleep' && step.argv?.[1]);
         if (delayed) {
           const match = /^(\d+(?:\.\d+)?)([smhd]?)$/iu.exec(String(delayed.argv[1]));

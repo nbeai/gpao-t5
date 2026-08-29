@@ -1660,7 +1660,7 @@ export function makeConsoleServer({
           browserTool.description = [
             browserTool.description,
             'Do not use this tool to navigate search-engine result pages or replace ordinary public web lookup.',
-            'Use it only after the user requested page interaction and an interaction-scoped web_read showed that exact destination needs rendered or login-bound observation.',
+            'Use it only after the user requested page interaction and an interaction-scoped web_read established that exact destination. A successful static read does not replace requested fill, submit, click, rendered-state, or visual verification.',
           ].join(' ');
           browserTool.relatedTools = ['web_read'];
           browserTool.capabilityGroup = 'web_observation';
@@ -1890,7 +1890,7 @@ export function makeConsoleServer({
           || (projection.historicalRecallRequired && tool.name === 'session_search'),
       }));
       // Rendered-page interaction is not a generally discoverable shortcut. It is promoted
-      // by web_read only after an exact URL establishes a rendered/login boundary.
+      // by an interaction-scoped web_read only after the exact destination is established.
       const searchable = deferredTools.filter((tool) => tool.deferred
         && tool.name !== 'browser' && tool.name !== 'work_control');
       if (informationControl === 'research-first-v1') {
@@ -1904,7 +1904,7 @@ export function makeConsoleServer({
         prerequisites: browserConfigured ? {
           browser: {
             tool: 'web_read',
-            condition: 'The user must have requested visible page interaction. Read that exact destination with visibleBrowser=user_interaction first; ordinary lookup and source-reading failures never open a visible browser.',
+            condition: 'The user must have requested visible page interaction. Read that exact destination with visibleBrowser=user_interaction first; readable static text does not prove a requested fill, submit, click, rendered state, or visual result, while ordinary lookup never opens a visible browser.',
           },
         } : {},
       }));

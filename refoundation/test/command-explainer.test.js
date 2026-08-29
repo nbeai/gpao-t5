@@ -18,6 +18,14 @@ test('파이프와 조건 연쇄를 실제 명령 단계와 operator로 추출�
   assert.equal(Object.hasOwn(result, 'heredocs'), false);
 });
 
+test('shell background topology는 trailing ampersand와 후속 명령 모두 AST fact로 보존한다', async () => {
+  const trailing = await explainShellCommand('python3 -m http.server 8765 >server.log 2>&1 &');
+  const followed = await explainShellCommand('python3 -m http.server 8765 & echo started');
+  assert.ok(trailing.shapes.includes('background'));
+  assert.ok(followed.shapes.includes('background'));
+  assert.deepEqual(followed.operators.map((operator) => operator.kind), ['background']);
+});
+
 test('명령 치환 안의 실행도 nested step으로 보존한다', async () => {
   const result = await explainShellCommand('printf "%s\\n" "$(git rev-parse HEAD)"');
   assert.equal(result.ok, true);

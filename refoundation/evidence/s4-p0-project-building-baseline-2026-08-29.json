@@ -1,0 +1,281 @@
+{
+  "schema": "t5.s4p0.project-building-baseline.v1",
+  "recordedAt": "2026-08-29T14:21:36.170Z",
+  "sourceHead": "0015a4b0622c26504160ea1b35c8404f0a59740f",
+  "productChanges": 0,
+  "productSourceDirty": false,
+  "model": "gpt-5.5",
+  "actualUserData": false,
+  "actualExternalAccount": false,
+  "naturalLanguageOnly": true,
+  "purpose": {
+    "prompt": "우리 회사 소개와 상담 신청이 있는 홈페이지를 만들어줘. 작업 폴더의 회사 자료와 브랜드 기준을 사용하고 외부 이미지나 외부 폰트에 의존하지 마. 우선 내 컴퓨터에서 실제로 실행해서 화면을 확인하고, 상담자 이름과 연락처를 입력해 신청했을 때 접수 결과가 화면에 나타나는지 직접 확인해줘. 외부에는 공개하지 마. 확인이 끝나면 내가 바로 볼 수 있는 결과와 현재 실행 상태를 알려줘.",
+    "httpStatus": 200,
+    "runStatus": "completed",
+    "answer": "완료했어요. 작업 폴더의 `회사자료.md`와 `브랜드-기준.txt`를 사용해 해솔공간 홈페이지를 만들고, 외부 이미지·외부 폰트 의존 없이 구성했습니다.\n\n바로 보기:\n- 홈페이지 미리보기: [index.html 열기](/attachments/1c2971c7-ef26-4559-b687-914a868171c0/preview?sessionId=3cdb0953-646b-4906-af30-2da17f0d59ac)\n- 다운로드/전달용 ZIP: [haesol-homepage-local.zip](/attachments/a874d70e-ade4-4dc7-b3c1-bbbc40f3f2ab/content?sessionId=3cdb0953-646b-4906-af30-2da17f0d59ac)\n\n실제 화면 확인:\n![확인한 화면](/browser-artifacts/t5-7a6dfc2656b003cbcf85/browser-9524176c-5c81-4da1-9be2-f84bc8942cfa.png)\n\n확인한 내용:\n- 로컬 서버에서 `http://127.0.0.1:8765/index.html`로 실제 실행 확인: `200 OK`\n- 브라우저에서 상담자 이름과 연락처를 입력해 신청 접수 실행\n- 화면에 “상담 신청이 접수되었습니다” 접수 결과가 나타나는 것 확인\n- 외부 공개 없음: `127.0.0.1` 로컬 주소에서만 실행\n- 파일 안에 `http://`, `https://`, `@import`, `url(` 외부 리소스 의존 없음 확인\n\n현재 실행 상태:\n- 로컬 서버가 `127.0.0.1:8765`에서 응답 중입니다.\n- 현재 열 수 있는 주소: `http://127.0.0.1:8765/index.html`"
+  },
+  "checks": {
+    "turnCompleted": true,
+    "answerPresent": true,
+    "createdWebsite": true,
+    "companyContent": true,
+    "consultationForm": true,
+    "sourceUnchanged": true,
+    "localBrowserNavigation": true,
+    "formFilled": true,
+    "formSubmitted": true,
+    "successObserved": true,
+    "devServerOwned": false,
+    "temporaryResidueZero": false,
+    "externalPublicationZero": true,
+    "runtimeErrorsZero": true
+  },
+  "firstDefectFamily": "dev_server_ownership_cleanup",
+  "performance": {
+    "wallMs": 249510,
+    "modelCalls": 21,
+    "toolCalls": 25,
+    "providerTokens": 924675,
+    "requestBytes": 3764687
+  },
+  "route": [
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "succeeded",
+      "state": "completed"
+    },
+    {
+      "name": "tool_search",
+      "action": null,
+      "outcome": "succeeded",
+      "state": "no_match"
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "succeeded",
+      "state": "completed"
+    },
+    {
+      "name": "tool_search",
+      "action": null,
+      "outcome": "succeeded",
+      "state": "no_match"
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "succeeded",
+      "state": "completed"
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "not_executed",
+      "state": "effect_declaration_mismatch"
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "succeeded",
+      "state": "completed"
+    },
+    {
+      "name": "web_read",
+      "action": null,
+      "outcome": "succeeded",
+      "state": "partial_dynamic"
+    },
+    {
+      "name": "browser",
+      "action": "navigate",
+      "outcome": "succeeded",
+      "state": "observed"
+    },
+    {
+      "name": "browser",
+      "action": "fill",
+      "outcome": "succeeded",
+      "state": "acted"
+    },
+    {
+      "name": "browser",
+      "action": "fill",
+      "outcome": "succeeded",
+      "state": "acted"
+    },
+    {
+      "name": "browser",
+      "action": "submit",
+      "outcome": "succeeded",
+      "state": "acted"
+    },
+    {
+      "name": "browser",
+      "action": "click",
+      "outcome": "not_executed",
+      "state": "submit_requires_explicit_action"
+    },
+    {
+      "name": "browser",
+      "action": "snapshot",
+      "outcome": "succeeded",
+      "state": "observed"
+    },
+    {
+      "name": "browser",
+      "action": "screenshot",
+      "outcome": "succeeded",
+      "state": "captured"
+    },
+    {
+      "name": "attachment",
+      "action": "inspect",
+      "outcome": "succeeded",
+      "state": "observed"
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "succeeded",
+      "state": "completed"
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "not_executed",
+      "state": "approval_required"
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "failed",
+      "state": "protected_program_failed"
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "succeeded",
+      "state": "completed"
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "succeeded",
+      "state": "completed"
+    },
+    {
+      "name": "attachment",
+      "action": "register_output",
+      "outcome": "succeeded",
+      "state": "registered"
+    },
+    {
+      "name": "attachment",
+      "action": "register_output",
+      "outcome": "succeeded",
+      "state": "registered"
+    },
+    {
+      "name": "exec",
+      "action": null,
+      "outcome": "succeeded",
+      "state": "completed"
+    },
+    {
+      "name": "work_completion",
+      "action": null,
+      "outcome": "succeeded",
+      "state": "proposal_recorded"
+    }
+  ],
+  "browser": {
+    "actions": [
+      {
+        "action": "navigate",
+        "outcome": "succeeded",
+        "state": "observed",
+        "url": "http://127.0.0.1:8765/index.html"
+      },
+      {
+        "action": "fill",
+        "outcome": "succeeded",
+        "state": "acted",
+        "url": "http://127.0.0.1:8765/index.html"
+      },
+      {
+        "action": "fill",
+        "outcome": "succeeded",
+        "state": "acted",
+        "url": "http://127.0.0.1:8765/index.html"
+      },
+      {
+        "action": "submit",
+        "outcome": "succeeded",
+        "state": "acted",
+        "url": "http://127.0.0.1:8765/index.html"
+      },
+      {
+        "action": "click",
+        "outcome": "not_executed",
+        "state": "submit_requires_explicit_action",
+        "url": null
+      },
+      {
+        "action": "snapshot",
+        "outcome": "succeeded",
+        "state": "observed",
+        "url": "http://127.0.0.1:8765/index.html"
+      },
+      {
+        "action": "screenshot",
+        "outcome": "succeeded",
+        "state": "captured",
+        "url": "http://127.0.0.1:8765/index.html"
+      }
+    ],
+    "externalBrowserUrls": []
+  },
+  "files": {
+    "before": [
+      "브랜드-기준.txt",
+      "회사자료.md"
+    ],
+    "after": [
+      "haesol-homepage-local.zip",
+      "index.html",
+      "README.md",
+      "server.log",
+      "server.pid",
+      "브랜드-기준.txt",
+      "회사자료.md"
+    ],
+    "htmlFiles": [
+      "index.html"
+    ]
+  },
+  "delivery": {
+    "artifactCount": 0,
+    "runningManagedProcesses": 0,
+    "localPreviewUrl": "http://127.0.0.1:8765/index.html",
+    "previewReachableAtDelivery": true,
+    "temporaryResidue": [
+      "server.log",
+      "server.pid"
+    ],
+    "postRunAudit": {
+      "pid": 28635,
+      "ppid": 1,
+      "pgid": 28631,
+      "cwd": "/private/var/folders/c7/vw1b0dhs3dddrx6r102srgvm0000gn/T/t5-s4p0-project-yvDwLW/workspace",
+      "terminatedByQualification": true,
+      "terminationVerified": true,
+      "unrelatedExistingPid60426Touched": false
+    }
+  },
+  "runtimeErrors": [],
+  "baselineObserved": true,
+  "purposePassed": false,
+  "decision": "S4_P_FIRST_BINDING_DEFECT_REPRODUCED"
+}

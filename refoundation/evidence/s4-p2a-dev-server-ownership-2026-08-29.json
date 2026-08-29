@@ -1,0 +1,54 @@
+{
+  "schema": "t5.s4p2a.dev-server-ownership.actual.v1",
+  "recordedAt": "2026-08-29T14:42:00.000Z",
+  "sourceHead": "0015a4b0622c26504160ea1b35c8404f0a59740f",
+  "productChanges": 1,
+  "actualUserData": false,
+  "actualExternalAccount": false,
+  "model": "gpt-5.5",
+  "runId": "2ac88284-c5c6-4dce-ae1c-69247e34bd48",
+  "status": "S4_P2A_ACTUAL_LIFECYCLE_PASS_P3_BROWSER_BINDING_FAIL",
+  "performance": {
+    "wallLimitMs": 300000,
+    "modelCallsCompleted": 19,
+    "modelCallsStarted": 20,
+    "toolCalls": 19,
+    "providerTokens": 895840,
+    "requestBytes": 3561567,
+    "purposeCompleted": false
+  },
+  "ownership": {
+    "unjoinedBackgroundExecBlocked": 1,
+    "blockedState": "managed_process_required",
+    "activatedTools": ["terminal_session"],
+    "managedForegroundStarts": 1,
+    "processBoundary": "macos_parent_death_process_group",
+    "processBoundaryQualified": true,
+    "serverPidFiles": 0,
+    "serverLogFiles": 0,
+    "orphanServerAfterRuntimeSettlement": 0,
+    "outputHandleFinalized": true
+  },
+  "nextObservedDefect": {
+    "family": "interactive_browser_activation",
+    "webReadVisibleBrowser": "user_interaction",
+    "webReadState": "read",
+    "browserActivated": false,
+    "browserToolCalls": 0,
+    "browserSearchNoMatch": 2,
+    "rawChromeAttempts": 2,
+    "rawChromeFinalState": "protected_program_failed",
+    "rawChromeFailure": "timeout"
+  },
+  "otherUnclosedFacts": {
+    "diagnosticResidue": ["test.txt"],
+    "artifactDeliveryCompleted": false,
+    "finalUserAnswerProduced": false
+  },
+  "decision": {
+    "s4p2aOwnershipContractPassed": true,
+    "s4pWholeJourneyPassed": false,
+    "sameOwnershipPatchContinued": false,
+    "nextOneTask": "When an exact interaction-scoped web_read succeeds statically, activate the existing Browser because readable text does not prove requested fill, submit, rendered state, or screenshot."
+  }
+}

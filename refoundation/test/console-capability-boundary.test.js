@@ -147,7 +147,7 @@ test('공개 정보 검색은 검색엔진 화면보다 검색→URL 읽기를 �
   assert.match(instructions, /Google business or place profile.*Google Maps destination.*maps\/search\/\?api=1.*Do not use.*google\.com\/search/i);
   assert.match(instructions, /Google Maps destination.*visibleBrowser=never.*another public source.*do not open a visible browser.*explicitly asked/i);
   assert.match(instructions, /missing search candidates.*not by itself permission.*visible browser/i);
-  assert.match(instructions, /browser only when the user asked for page interaction.*login-bound.*dynamic.*static observation/i);
+  assert.match(instructions, /browser only when the user asked for page interaction.*visibleBrowser=user_interaction.*Readable static text does not prove.*fill.*submit.*rendered state/i);
   assert.match(instructions, /current or latest news.*exactly two.*current local date.*sourceLimit 4.*requested item count.*maximum of 6/i);
   assert.match(instructions, /search snippet.*topic hub.*observed publication date.*readable article body.*does not establish the latest news/i);
   assert.match(instructions, /directOriginalLabelAllowed=false.*never label.*original.*direct source.*wire-service original/i);

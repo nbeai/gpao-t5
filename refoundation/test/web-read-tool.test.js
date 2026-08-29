@@ -190,6 +190,24 @@ test('web_read는 로그인벽과 동적 껍데기를 읽기 성공으로 꾸미
   });
 });
 
+test('정적 HTML을 읽었어도 사용자가 요청한 실제 상호작용은 Browser로 이어진다', async () => {
+  const tool = makeWebReadTool({
+    fetchImpl: async () => new Response('<html><body><form><input name="name"><button type="submit">보내기</button></form></body></html>', {
+      status: 200, headers: { 'content-type': 'text/html' },
+    }),
+    resolveHost: async () => ['93.184.216.34'],
+  });
+  const ordinary = await tool.execute({ url: 'https://example.com/form', maxChars: 10_000, visibleBrowser: 'never' });
+  assert.equal(ordinary.state, 'read');
+  assert.equal(ordinary.activatedTools, undefined);
+  const interactive = await tool.execute({
+    url: 'https://example.com/form', maxChars: 10_000, visibleBrowser: 'user_interaction',
+  });
+  assert.equal(interactive.state, 'read');
+  assert.deepEqual(interactive.activatedTools, ['browser']);
+  assert.deepEqual(interactive.visibleBrowser, { mode: 'user_interaction', activated: true });
+});
+
 test('web_read는 큰 JSON을 본 범위만 돌려주고 생략량을 정확히 밝힌다', async () => {
   const payload = JSON.stringify({ rows: Array.from({ length: 200 }, (_, index) => ({ index, value: `VALUE-${index}` })) });
   const tool = makeWebReadTool({

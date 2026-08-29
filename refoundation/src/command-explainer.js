@@ -168,6 +168,9 @@ export async function explainShellCommand(sourceValue) {
     const shapes = new Set();
     function walk(node, context = 'top-level', commandId = null) {
       if (node.type === 'pipeline') shapes.add('pipeline');
+      for (let index = 0; index < node.childCount; index += 1) {
+        if (node.child(index)?.type === '&') shapes.add('background');
+      }
       if (node.type === 'list') {
         const text = node.text;
         if (text.includes('&&')) shapes.add('and');
