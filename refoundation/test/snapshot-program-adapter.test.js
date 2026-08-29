@@ -142,7 +142,7 @@ test('publication 성공 뒤 cleanup 실패는 재발행하지 않고 cleanup un
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
 
-test('Snapshot adapter는 F verified output 전체를 durable batch handle로 반환한다', async () => {
+test('Snapshot adapter는 F verified output 전체를 durable handle에 결속하고 모델에는 Artifact만 반환한다', async () => {
   const app = await room(); await mkdir(join(app.workspace, '결과')); await writeFile(join(app.workspace, 'input.txt'), 'input');
   const attachmentStore = new AttachmentStore(join(app.state, 'attachments'));
   try {
@@ -155,8 +155,9 @@ test('Snapshot adapter는 F verified output 전체를 durable batch handle로 �
     assert.equal(outcome.result.state, 'published_verified_cleaned');
     assert.equal(outcome.result.outputHandoff.state, 'artifacts_registered');
     assert.equal(outcome.result.outputs.length, 2);
-    assert.ok(outcome.result.outputs.every((output) => /^[0-9a-f-]{36}$/iu.test(output.outputHandle)));
+    assert.ok(outcome.result.outputs.every((output) => output.outputHandle == null));
     assert.equal(outcome.result.artifacts.length, 2);
+    assert.deepEqual(outcome.result.deactivatedTools, ['attachment']);
     assert.equal((await attachmentStore.pendingProducedOutputs({ sessionId: SESSION, producerRunId: RUN })).length, 0);
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });

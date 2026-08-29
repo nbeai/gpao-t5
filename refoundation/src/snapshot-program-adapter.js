@@ -203,15 +203,13 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
           manifestSha256: snapshot.manifestSha256 },
         actualReadSet: { state: 'unknown' }, outputCoverage: { independentlyVerified: true,
           outputCount: observed.length }, outputs: observed.map((item) => ({
-          ...(committedHandoff ? { outputHandle: committedHandoff.outputs.find((output) => (
-            output.sourcePath === targets.find((candidate) => candidate.relativePath === item.output.relativePath)?.absolute
-          ))?.outputHandle ?? null } : {}),
           relativePath: item.output.relativePath, kind: item.output.kind, bytes: item.output.size,
           sha256: item.output.sha256, rows: item.format.rows ?? null,
           columns: item.format.columns ?? null, preview: item.format.text.slice(0, 8_000) })),
         publication: { state: publication.state, undoHandle: publication.undoHandle },
         ...(committedHandoff ? { outputHandoff: { state: artifactBatch?.state ?? committedHandoff.state,
-          outputCount: committedHandoff.outputs.length }, artifacts: artifactBatch?.artifacts ?? [] } : {}),
+          outputCount: committedHandoff.outputs.length }, artifacts: artifactBatch?.artifacts ?? [],
+        deactivatedTools: artifactBatch?.state === 'artifacts_registered' ? ['attachment'] : [] } : {}),
         cleanup: { state: cleaned.removed ? 'cleaned' : 'unknown' },
         confinement: { workspaceOutsideRead: 0, originalWrites: 0,
           userTargetWritesBeforePublication: 0, network: 0, childProcess: 0 } } };

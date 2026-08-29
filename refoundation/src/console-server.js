@@ -2150,9 +2150,9 @@ export function makeConsoleServer({
             if (event.receipt.result?.outputHandoff?.state === 'artifacts_registered') {
               for (const [index, output] of (event.receipt.result.outputs ?? []).entries()) {
                 const artifact = event.receipt.result.artifacts?.[index];
-                if (!output?.outputHandle || !artifact?.attachmentId) continue;
-                await run.append({ type: 'output_produced', stepId: `output-${output.outputHandle}`,
-                  payload: { outputHandle: output.outputHandle, name: artifact.originalName,
+                if (!artifact?.attachmentId) continue;
+                await run.append({ type: 'output_produced', stepId: `output-${artifact.attachmentId}`,
+                  payload: { name: artifact.originalName,
                     bytes: artifact.bytes, sha256: artifact.sha256, producerRunId: run.runId,
                     verified: true, reopened: true, attachmentId: artifact.attachmentId } });
               }

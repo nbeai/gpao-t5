@@ -15,7 +15,9 @@
     "samePythonExecutions": 1,
     "FPublications": 1,
     "verifiedOutputs": 2,
-    "outputHandles": 2,
+    "durableInternalOutputHandles": 2,
+    "modelVisibleOutputHandles": 0,
+    "artifactsRegistered": 2,
     "handleHashMatchesFReadback": true
   },
   "crash": {

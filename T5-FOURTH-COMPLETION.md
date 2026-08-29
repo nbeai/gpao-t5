@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_G_OUTPUT_HANDOFF_P1_AUDIT_COMPLETE_CAUSE_NOT_UNIQUE · S4_G_DURABLE_BATCH_HANDOFF_CONTRACT_COMPLETE · S4_G_SNAPSHOT_ADAPTER_BATCH_HANDOFF_COMPLETE · S4_G_MODEL_INDEPENDENT_EXEC_ARTIFACT_INTEGRATION_COMPLETE_ACTUAL_AB_NEXT · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_PAUSED_AT_FIRST_CRITICAL_MODEL_PROVIDER_FAILURE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
-현재 Gate: `S4-G PRODUCT ACTIVATION · SAME 12-FILE ACTUAL A/B NEXT`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_G_OUTPUT_HANDOFF_P1_AUDIT_COMPLETE_CAUSE_NOT_UNIQUE · S4_G_DURABLE_BATCH_HANDOFF_CONTRACT_COMPLETE · S4_G_SNAPSHOT_ADAPTER_BATCH_HANDOFF_COMPLETE · S4_G_MODEL_INDEPENDENT_EXEC_ARTIFACT_INTEGRATION_NARROW_ONLY · S4_G_ACTUAL_ACTIVATION_VARIANCE_CONFIRMED_GENERIC_SNAPSHOT_SHELL_BACKEND_NEXT · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_PAUSED_AT_FIRST_CRITICAL_MODEL_PROVIDER_FAILURE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+현재 Gate: `S4-G MODEL-INDEPENDENT ACTIVATION · GENERIC SNAPSHOT SHELL BACKEND DESIGN`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,16 +55,16 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-G model-independent Console integration의 동일 12파일 actual A/B다.
+2. **현재 Gate**: S4-G model-independent activation을 generic snapshot shell backend로 재설계하는 단계다.
 3. **사용자 완료 문장**: T5는 어떤 모델이 기존 exec로 검증 가능한 작은 프로그램을 작성해도 같은 G 격리·검증·
    발행 계약을 적용하고 결과를 재시도 없이 사용자 Artifact로 전달한다.
 4. **이미 선 실제 증거**: G3~G6 engine, snapshot actual 1회, F publication·Undo·cleanup, 기존 AttachmentStore와
    current output handoff deterministic audit가 있다.
-5. **현재 가장 큰 미달**: heredoc·`python -c` 두 모델 표현의 제품 통합은 통과했지만 이전 12파일 기준선 대비
-   calls·tokens·wall 경제성이 실제 gpt-5.5에서 회복됐는지 아직 측정하지 않았다.
-6. **이번 변경 방식**: 동일 12파일·527행·gpt-5.5를 한 번만 실행해 정확성·attachment 실패·calls·tokens·wall을
-   이전 자연 경로와 실패 후보에 직접 비교하고 첫 결과로 채택/폐기를 결정한다.
-7. **Non-goals**: QuickJS/Python 재설계·업무 Router·모델별 activation·전체 exec sandbox화·HQ 모델 실패 수리.
+5. **현재 가장 큰 미달**: 같은 gpt-5.5도 단독 Python 표현에서는 G가 활성화됐지만 복합 shell 표현에서는 exact
+   program step 조건을 벗어나 G activation이 0이었다.
+6. **이번 변경 방식**: heredoc·`-c`·`mkdir` 사례를 더하지 않고 exact shell command 전체를 writable snapshot에서
+   격리 실행한 뒤 declared output만 독립 검증·F 발행하는 단일 backend 원리를 먼저 자격한다.
+7. **Non-goals**: 명령 allowlist 증식·업무 Router·모델별 activation·Prompt patch·HQ 모델 실패 수리.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -825,7 +825,8 @@ commit된 handle은 filePath와 path authorization 없이 기존 `attachment.reg
 adapter·Console 제품 integration은 아직 0이다.
 
 Snapshot adapter integration은 candidate output 검증 뒤 batch prepare, F `published_verified` 뒤 durable publication
-receipt, handle batch commit, snapshot cleanup 순서를 결속했다. output마다 F readback과 같은 handle이 반환된다. F 뒤
+receipt, handle batch commit, Artifact batch 등록, snapshot cleanup 순서를 결속했다. output마다 F readback과 같은
+handle은 ledger에만 남고 모델에는 verified Artifact만 반환된다. F 뒤
 handoff 전 crash에서는 successor가 `publication_verified` batch와 postimage를 재검사해 handle만 commit했고 Python·F
 재실행은 0이었다. F verified receipt 없이 postimage만 맞는 경우는 success로 승격하지 않았다. Snapshot adapter
 integration은 완료됐고 Console exec integration은 0이다.
@@ -834,8 +835,20 @@ Console product integration은 model identity나 업무 이름을 보지 않고 
 `local_change` target 사실로 기존 exec 아래 Snapshot backend를 선택한다. literal heredoc과 `python -c`를 쓰는 서로 다른
 두 fixture model identity가 모두 Python 1회→F→batch→Artifact 2개→Work completion으로 끝났고 모델의 attachment
 호출은 0이었다. verified output은 Runtime이 한 batch 사건으로 Artifact에 등록하며 Run에도 `output_produced`를 남긴다.
-같은 handle을 모델이 다시 등록해도 기존 Artifact를 reuse한다. macOS 제품 payload에서 Snapshot·Python·contract source를
+같은 Run의 attachment 손은 등록 완료 사실로 비활성화한다. macOS 제품 payload에서 Snapshot·Python·contract source를
 더 이상 qualification-only로 제거하지 않는다. actual gpt-5.5 경제성 A/B 전까지 product activation 완료는 주장하지 않는다.
+
+첫 actual product run은 G activation 1·정확성·원본·Artifact를 통과하고 attachment 실패를 4→0으로 줄였으며
+121.860초·13 model calls·12 tool calls·324,141 tokens였다. 그러나 내부 outputHandle이 모델에 보이면서 이미 등록된
+Artifact를 attachment로 두 번 다시 확인했다. handle을 ledger에만 남기고 attachment를 비활성화한 두 번째 actual에서
+같은 gpt-5.5는 이번에는 복합 shell 형태를 사용했다. exact heredoc은 관측됐지만 command step이 하나가 아니어서 G
+activation은 0이었고 148.284초·15·15·381,147 tokens였다. 결과 정확성·원본·잔여물 0은 유지됐지만 경제성 기준은
+실패했다. 같은 activation 가족에 `mkdir`·`cd` 예외를 더하지 않는다.
+
+따라서 현재 좁은 Python adapter는 모델 독립 제품 activation으로 완료되지 않았다. 다음 구조 후보는 모델이 요청한
+exact shell command 전체를 writable immutable-source snapshot에서 실행하고, workspace 밖 write·network를 물리 차단한
+뒤 declared output과 source universe를 독립 검증해 기존 F·batch Artifact로 발행하는 generic snapshot shell backend다.
+이 후보의 격리·child tree·unexpected write·일반 exec 비개입을 먼저 qualification하며 제품 배선은 아직 열지 않는다.
 
 완료 문장:
 
@@ -1108,6 +1121,6 @@ current-head recovery 5/5와 qualification ruler 교정 뒤 제품 구현 0으�
 오너 결정으로 물리 실행만 뒤로 미뤘다. S4-HQ 최소 wave를 고정하고 첫 KHB-A03 pair를 실행했으나 gpt-5.5 성공·
 Terra critical purpose 실패가 갈렸다. 중단선에 따라 KHB-S01과 전체 wave를 열지 않았다. HQ는 이 상태로 보존한다.
 durable multi-output handoff batch와 Snapshot adapter의 prepare→F publication→batch·Artifact commit→cleanup·crash
-reconcile은 닫혔다. 기존 Console exec 아래 model-independent activation도 heredoc·`python -c` 두 표현에서 통과했다.
-현재 다음 한 작업은 동일 12파일·527행 gpt-5.5 actual A/B 한 번이다. 정확성·attachment 실패 0·기존 자연 경로 수준의
-calls·tokens·wall이 함께 서야 G product activation을 완료한다. Windows deferred가 남아 4차 전체 완료는 주장하지 않는다.
+reconcile은 닫혔다. 좁은 Python activation은 deterministic 두 표현을 통과했지만 actual command shape 분산에서 실패했다.
+현재 다음 한 작업은 exact shell command 전체를 writable snapshot에서 실행하는 generic backend의 qualification이다.
+같은 activation 가족에 세 번째 문법 패치를 붙이지 않는다. Windows deferred가 남아 4차 전체 완료는 주장하지 않는다.

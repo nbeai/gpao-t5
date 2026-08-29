@@ -1,0 +1,43 @@
+{
+  "schema": "t5.s4g.actual-activation-variance.v1",
+  "recordedOn": "2026-08-29",
+  "status": "S4_G_ACTUAL_ACTIVATION_VARIANCE_CONFIRMED_GENERIC_SNAPSHOT_SHELL_BACKEND_NEXT",
+  "model": "gpt-5.5",
+  "fixture": { "inputFiles": 12, "inputRows": 527, "summaryRows": 4, "errorRows": 47 },
+  "activatedRun": {
+    "sourceHead": "a3a1d2fb",
+    "purposePassed": true,
+    "snapshotExecutions": 1,
+    "attachmentFailures": 0,
+    "wallMs": 121860,
+    "modelCalls": 13,
+    "toolCalls": 12,
+    "providerTokens": 324141
+  },
+  "shapeVarianceRun": {
+    "sourceHead": "working-tree-no-handle",
+    "purposePassed": true,
+    "snapshotExecutions": 0,
+    "exactHeredocObserved": true,
+    "singleProgramStep": false,
+    "attachmentFailures": 0,
+    "wallMs": 148284,
+    "modelCalls": 15,
+    "toolCalls": 15,
+    "providerTokens": 381147
+  },
+  "invariants": {
+    "sourceUnchanged": true,
+    "resultExact": true,
+    "residualFiles": 0,
+    "residualProcesses": 0,
+    "externalWrites": 0
+  },
+  "decision": {
+    "narrowPythonActivationComplete": false,
+    "addThirdSyntaxPatch": false,
+    "rebuildGEngine": false,
+    "nextCandidate": "generic exact shell command in writable snapshot",
+    "productActivationComplete": false
+  }
+}
