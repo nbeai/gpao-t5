@@ -924,7 +924,7 @@ function renderArtifacts(box, records = []) {
           : record.previewKind === 'image' || record.previewKind === 'vector' ? '🖼' : '📄'));
       const title = el('artifact-title');
       title.appendChild(el('artifact-name', record.originalName));
-      title.appendChild(el('meta', `${fileSize(record.bytes)} · 결과물${record.artifactVersion ? ` · 버전 ${record.artifactVersion}` : ''}`));
+      title.appendChild(el('meta', `${fileSize(record.bytes)} · 결과물${record.artifactVersion ? ` · 버전 ${record.artifactVersion}` : ''}${record.createdAt ? ` · ${formatCanonicalTime(record.createdAt)}` : ''}`));
       head.appendChild(title); surface.appendChild(head);
 
       let preview;
@@ -972,7 +972,7 @@ function renderArtifacts(box, records = []) {
     card.appendChild(el(null, '📄'));
     const info = document.createElement('div');
     info.appendChild(el(null, record.originalName));
-    info.appendChild(el('meta', `${fileSize(record.bytes)} · 다운로드`));
+    info.appendChild(el('meta', `${fileSize(record.bytes)} · 다운로드${record.createdAt ? ` · ${formatCanonicalTime(record.createdAt)}` : ''}`));
     card.appendChild(info); row.appendChild(card);
     appendHumanArtifactReceipt(row, record.humanReceipt);
     box.appendChild(row);
@@ -1036,7 +1036,7 @@ async function openArtifactDetail(record, mode = 'preview') {
         const show = document.createElement('button'); show.type = 'button';
         show.textContent = `버전 ${version.artifactVersion} · ${version.originalName}`;
         show.onclick = () => { dialog.close(); openArtifactDetail(version, 'preview'); };
-        item.appendChild(show); item.appendChild(el('meta', fileSize(version.bytes))); list.appendChild(item);
+        item.appendChild(show); item.appendChild(el('meta', `${fileSize(version.bytes)}${version.createdAt ? ` · ${formatCanonicalTime(version.createdAt)}` : ''}`)); list.appendChild(item);
       }
       body.appendChild(list);
     } catch (error) { body.appendChild(el('msg bot error', error?.message ?? '버전 기록을 불러오지 못했어요.')); }
@@ -3420,11 +3420,13 @@ async function 대화투영(s) {
   wrap.innerHTML = '';
   (s.transcript || []).forEach((e, i) => {
     if (e.role === 'user') {
-      const box = turnBox(); box.appendChild(el('who right', '사용자')); box.appendChild(el('msg me', e.text));
+      const box = turnBox(); const who = el('who right', '사용자'); appendMessageTime(who, e.recordedAt);
+      box.appendChild(who); box.appendChild(el('msg me', e.text));
       renderMessageAttachments(box, e.attachments);
     }
     else if (e.role === 'assistant') renderResult(e.result, {
       ...projectionOptions(i, 마지막, active), activeRecoveryIds, activeConnectionHandoffIds,
+      recordedAt: e.recordedAt,
     });
   });
   renderSessionActivity(s.activity ?? sessionActivityById.get(s.id));
@@ -3458,6 +3460,17 @@ function formatActivityElapsed(elapsedMs) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return seconds ? `${minutes}분 ${seconds}초` : `${minutes}분`;
+}
+function formatCanonicalTime(recordedAt) {
+  const value = new Date(recordedAt);
+  if (!Number.isFinite(value.getTime())) return '';
+  return value.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+function appendMessageTime(who, recordedAt) {
+  const text = formatCanonicalTime(recordedAt); if (!text) return;
+  const time = document.createElement('time'); time.className = 'meta';
+  time.dateTime = new Date(recordedAt).toISOString(); time.title = new Date(recordedAt).toLocaleString();
+  time.textContent = text; who.appendChild(time);
 }
 function paintActivityTrace(trace) {
   const text = trace.dataset.activityText ?? '';
@@ -3826,7 +3839,8 @@ function renderResult(r, opts = {}) {
   if (r.kind === 'clarify') { sysline(r.question); return; }
   if (r.kind === 'gated') { return; }   // 조용히 무시된 외부 이벤트 — 사용자 화면에 남기지 않음
   if (r.kind === 'error') {
-    const box = turnBox(); box.appendChild(el('who', 'GPAO-T5'));
+    const box = turnBox(); const who = el('who', 'GPAO-T5'); appendMessageTime(who, opts.recordedAt);
+    box.appendChild(who);
     const message = failureMessage(r);
     box.appendChild(message); renderConversationRecovery(box, r, opts); return;
   }
@@ -3891,7 +3905,7 @@ function renderResult(r, opts = {}) {
   }
 
   const box = turnBox();
-  box.appendChild(el('who', 'GPAO-T5'));
+  const who = el('who', 'GPAO-T5'); appendMessageTime(who, opts.recordedAt); box.appendChild(who);
   // 답변은 마크다운으로 그린다(원문 기호가 화면에 찍히지 않게). 안전은 renderMarkdown 이 진다 —
   // 먼저 전부 escape 하고 우리가 만든 태그만 넣는다(수집한 페이지의 HTML 이 섞여도 글자로 보인다).
   const 답문 = r.reply?.trim() ? r.reply : (r.nextSafeAction ?? '');

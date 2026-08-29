@@ -1,0 +1,38 @@
+{
+  "schema": "t5.s4ux.interaction-continuity-complete.v1",
+  "recordedOn": "2026-08-29",
+  "status": "S4_UX_INTERACTION_CONTINUITY_COMPLETE",
+  "sourceBaseCommit": "34603a15",
+  "repairs": [
+    "model acceptance is not promoted to almost complete",
+    "recoverable result public projection excludes output handle and digest",
+    "canonical Conversation and Artifact times reach the user surface"
+  ],
+  "reusedActualModelEvidence": {
+    "source": "s3-ux-live-qualification-2026-08-27.json",
+    "models": ["gpt-5.6-terra", "gpt-5.5"],
+    "correctedOraclePassed": "4/4"
+  },
+  "currentProductCoverage": {
+    "groundedMilestone": true,
+    "shortResultNoiseRemoved": true,
+    "longProcessElapsedAndStop": true,
+    "partialResultPreserved": true,
+    "correctionAndCancel": true,
+    "reconnectProjection": true,
+    "consoleTelegramContinuity": true,
+    "artifactVersionMonotonic": true,
+    "canonicalMessageAndArtifactTime": true,
+    "internalIdentityInWorkReality": 0,
+    "additionalModelCalls": 0,
+    "additionalToolCalls": 0
+  },
+  "timeProjectionFocused": { "passed": 46, "failed": 0 },
+  "dailyCheck": { "passed": 1782, "failed": 0, "skipped": 1 },
+  "notClaimed": [
+    "current-head external provider journey rerun",
+    "physical Windows UI qualification",
+    "S4-HQ human scenario completion"
+  ],
+  "nextGate": "S4_L_WINDOWS_PHYSICAL_QUALIFICATION_READ_ONLY_BASELINE"
+}

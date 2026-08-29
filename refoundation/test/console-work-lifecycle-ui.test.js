@@ -19,6 +19,16 @@ test('진행 표면은 서버 startedAt을 사용해 3초 뒤부터 실제 경�
   assert.match(html, /setActivityTrace\(trace, JSON\.parse\(e\.data\)\.text/u);
 });
 
+test('대화와 결과 버전 시간은 canonical recordedAt·createdAt을 사용자 timezone으로 표시한다', async () => {
+  const html = await readFile(consoleHtml, 'utf8');
+  assert.match(html, /function formatCanonicalTime\(recordedAt\)/u);
+  assert.match(html, /toLocaleTimeString/u);
+  assert.match(html, /appendMessageTime\(who, e\.recordedAt\)/u);
+  assert.match(html, /opts\.recordedAt/u);
+  assert.match(html, /record\.createdAt/u);
+  assert.match(html, /version\.createdAt/u);
+});
+
 test('초기 세션 목록만 180ms 뒤 고정 형태 스켈레톤을 보이고 오래된 응답은 버린다', async () => {
   const html = await readFile(consoleHtml, 'utf8');
   assert.match(html, /\.session-skeleton/u);

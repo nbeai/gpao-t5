@@ -759,9 +759,25 @@ export function makeConsoleServer({
   const pendingSurfaceMetrics = new Map();
   const connectionAuthorizationHandoffs = new Map();
   async function transcriptWithHumanReceipts(session) {
+    const canonicalConversation = await conversations.read(session.id).catch(() => null);
+    const canonicalEntries = canonicalConversation?.entries ?? [];
+    const recordedAtFor = (entry) => {
+      const runId = entry.runId ?? entry.result?.runId ?? null;
+      if (!runId) return null;
+      if (entry.role === 'user') {
+        return canonicalEntries.find((item) => item.messageId === `${runId}:user`)?.recordedAt ?? null;
+      }
+      if (entry.role !== 'assistant') return null;
+      const matches = canonicalEntries.filter((item) => item.runId === runId
+        && item.message?.role === 'assistant');
+      const exact = matches.findLast((item) => item.message.content === entry.result?.reply);
+      return (exact ?? matches.at(-1))?.recordedAt ?? null;
+    };
     return Promise.all((session.transcript ?? []).map(async (entry) => {
-      if (entry?.role !== 'assistant' || !entry.result) return entry;
-      const runId = entry.runId ?? entry.result.runId ?? null;
+      const recordedAt = recordedAtFor(entry);
+      const timedEntry = recordedAt ? { ...entry, recordedAt } : entry;
+      if (entry?.role !== 'assistant' || !entry.result) return timedEntry;
+      const runId = entry.runId ?? entry.result?.runId ?? null;
       const artifacts = await Promise.all((entry.result.artifacts ?? []).map(async (artifact) => {
         if (!runId) return artifact;
         try {
@@ -815,7 +831,7 @@ export function makeConsoleServer({
             unknowns: ['현재 변경 기록을 다시 확인해 주세요.'], detailsAvailable: true }];
         }
       }
-      return { ...entry, result: { ...entry.result, ...(artifacts.length ? { artifacts } : {}),
+      return { ...timedEntry, result: { ...entry.result, ...(artifacts.length ? { artifacts } : {}),
         ...(humanEffects.length ? { humanEffects } : {}) } };
     }));
   }

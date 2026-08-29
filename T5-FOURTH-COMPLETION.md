@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_GROUNDED_PROGRESS_AND_RESULT_RECOVERY_PROJECTION_COMPLETE_BASELINE_CONTINUES · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
-현재 Gate: `S4-UX INTERACTION CONTINUITY · READ-ONLY BASELINE`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_L_READ_ONLY_BASELINE_NEXT · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+현재 Gate: `S4-L WINDOWS PHYSICAL QUALIFICATION · READ-ONLY BASELINE`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,16 +55,15 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-UX Interaction Continuity의 read-only baseline이다.
-3. **사용자 완료 문장**: T5는 내부 복잡성을 드러내지 않으면서 사용자가 현재 작업의 실제 진전·남은 일·필요한
-   행동·중지 가능성을 자연스럽게 이해하고, 대화와 채널을 이동해도 같은 작업 흐름을 유지한다.
-4. **이미 선 실제 증거**: canonical Work reality·milestone·경과시간·cancel·재접속·Telegram progress·Artifact·
-   Effect·Delivery 영수증과 S3-UX 실제 자격이 있다.
-5. **현재 가장 큰 미달**: 근거 없는 `거의 완료`와 실패 뒤 pending-result 내부 identity 노출은 제거했다. 이제 같은
-   결과의 version·시간·Console/Telegram 최신성 및 실제 provider 결과 전달을 current head에서 함께 확인해야 한다.
-6. **이번 변경 방식**: 제품 변경 0에서 짧은 결과·장기 process·부분 결과·재접속의 기존 UI/원장 증거를 재사용하고
-   실제 runtime 사건과 사용자 상태가 어긋나는 최초 표면 하나만 연다.
-7. **Non-goals**: UI 전면 재설계·새 진행 원장·모델 사고 공개·가짜 ETA·업무별 진행 대본·Prompt·Router.
+2. **현재 Gate**: S4-L Windows physical qualification의 read-only baseline이다.
+3. **사용자 완료 문장**: 같은 T5 머리와 사용자 약속이 macOS와 Windows의 실제 OS 손에서 각각 성립한다.
+4. **이미 선 실제 증거**: Windows x64·ARM64 package contract, direct argv, ConPTY, Job Object, DPAPI, file/app helper,
+   CI runner와 deferred physical manifest가 있다.
+5. **현재 가장 큰 미달**: GitHub runner·source contract는 있지만 실제 Windows x64·ARM64 사용자 제품 여정은 아직
+   물리 자격되지 않았다.
+6. **이번 변경 방식**: 제품 변경 0에서 기존 Windows evidence·runner·deferred manifest를 전부 대조해 실제 장비에서
+   실행 가능한 범위와 현재 blocker를 먼저 고정한다.
+7. **Non-goals**: macOS 성공·Linux/WSL·emulation을 Windows PASS로 승격, 새 Windows 기능 구현, UI 재설계.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -912,7 +911,7 @@ privacy scope와 실패 대안을 정직하게 확인하는 공통 불변식으�
 S4-C carry-forward의 모델별 Hand 선택, portable command, shallow observation 해석, 목적 정확성,
 wall·calls·tokens는 S4-G·S4-I·S4-HQ에서 현재 사실과 실제 사용자 결과로 다시 확인한다.
 
-### S4-UX — Interaction Continuity & Human Reassurance — READ-ONLY BASELINE NEXT
+### S4-UX — Interaction Continuity & Human Reassurance — COMPLETE
 
 S4-B~I가 만든 머리·손·복구 현실을 새 원장이나 모델의 진행 서술 없이 현재 Work·Run·Tool·Effect·Delivery
 사건에서 사용자 언어로 투영한다. 이미 선 canonical Work reality, milestone, 경과시간, 교정·중지, 재접속 복원,
@@ -930,6 +929,12 @@ canonical output handle은 Store에 안전하게 보존되고 다음 턴이 프�
 identity는 Store에만 남기고 공개 pending-result는 파일명·크기만 투영하도록 줄였다. 결과 보존·등록·재전달·
 Console/Telegram 집중 검사는 46/46을 통과했고 새 recovery Store나 재실행은 0이다. 실제 provider 재실행은 이
 slice에서 하지 않았으므로 S4-UX 전체 완료 근거로 사용하지 않는다.
+
+세 번째 반대시험은 canonical Conversation에 있던 사용자·T5 `recordedAt`과 Attachment의 `createdAt`을 session/UI가
+버리는 것을 재현했다. 새 시계를 만들지 않고 exact canonical 시간을 대화와 결과 버전 카드에 결속해 사용자 timezone으로
+표시한다. 기존 artifact family의 단조 version과 재접속 projection은 유지됐다. S3-UX actual 두 모델 4/4, current-head
+grounded progress·partial result preservation·cancel·reconnect·Console/Telegram·Artifact 회귀, 세 current 반대시험을
+합쳐 S4-UX는 COMPLETE다. current-head 외부 provider 전체 여정은 새로 실행하지 않았으며 S4-HQ actual에서 재확인한다.
 
 개발 범위:
 
@@ -1053,5 +1058,6 @@ S4-C 미달은 S4-I·S4-HQ에 계속 이월한다. S4-D managed non-PTY와 D5C, 
 engine COMPLETE·product activation CLOSED_WITH_OBSERVATION·further development DEFERRED로 종료했고 제품 entry는
 0이다. S4-H는 existing-capability observation으로 닫고 계약 발견·개인 cross-source join을 HQ에 남겼다. S4-I는
 current-head recovery 5/5와 qualification ruler 교정 뒤 제품 구현 0으로 완료했다. J는 미래 연구, K는 cross-cutting
-사실로 유지한다. 현재 다음 한 작업은 S4-UX read-only baseline이다. 짧은 결과·장기 process·부분 결과·재접속의
-canonical runtime 사건과 사용자 상태를 기존 증거에서 대조하고 현재 mismatch가 재현될 때만 최초 UX 결함 하나를 연다.
+사실로 유지한다. S4-UX는 grounded progress·recoverable result 공개 경계·canonical 대화/Artifact 시간을 수리하고
+기존 실제 모델·current product 회귀로 완료했다. 현재 다음 한 작업은 S4-L read-only baseline이다. 기존 Windows
+evidence·runner·deferred physical manifest를 대조해 실제 x64·ARM64 자격에서 미실행인 항목과 blocker만 고정한다.
