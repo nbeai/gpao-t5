@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_EXECUTION_STOPPED_FIRST_CRITICAL_MODEL_PROVIDER_FAILURE_OWNER_DECISION_REQUIRED · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
-현재 Gate: `S4-HQ HUMAN SCENARIOS·COMPARISON A/B · STOPPED AT FIRST CRITICAL FAILURE`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_G_OUTPUT_HANDOFF_P1_AUDIT_COMPLETE_CAUSE_NOT_UNIQUE_BATCH_CONTRACT_NEXT · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_PAUSED_AT_FIRST_CRITICAL_MODEL_PROVIDER_FAILURE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+현재 Gate: `S4-G OUTPUT HANDOFF · DURABLE BATCH CONTRACT NEXT`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,15 +55,16 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-HQ human scenarios·comparison A/B가 최초 critical purpose failure에서 중단된 상태다.
-3. **사용자 완료 문장**: 이 문서 1절의 4차 최종 완료 문장 전체다.
-4. **이미 선 실제 증거**: S3-HQ 6·16 실제 wave, S4-B~I·UX의 current evidence, S4-C·G·H carry-forward,
-   deterministic 인간 fixture와 비교 측정기가 있다.
-5. **현재 가장 큰 미달**: 같은 KHB-A03에서 gpt-5.5는 정확히 성공했지만 Terra는 stage exit 사실을 받고도
-   macOS 비호환 `find -printf`의 빈 출력을 전체 자료 부재로 확대했다.
-6. **이번 변경 방식**: 제품 변경 0으로 pair 증거를 보존하고 같은 결함 가족의 Runtime·Prompt 패치를 더하지 않으며,
-   모델 지원/완료 정책에 대한 오너 결정을 기다린다.
-7. **Non-goals**: 새 대형 fixture·Prompt patch·업무 Router·새 기능 구현·Windows deferred를 PASS로 승격.
+2. **현재 Gate**: S4-G verified output을 기존 Artifact pipeline에 결속하는 durable batch contract다.
+3. **사용자 완료 문장**: T5는 어떤 모델이 기존 exec로 검증 가능한 작은 프로그램을 작성해도 같은 G 격리·검증·
+   발행 계약을 적용하고 결과를 재시도 없이 사용자 Artifact로 전달한다.
+4. **이미 선 실제 증거**: G3~G6 engine, snapshot actual 1회, F publication·Undo·cleanup, 기존 AttachmentStore와
+   current output handoff deterministic audit가 있다.
+5. **현재 가장 큰 미달**: G publication은 outputHandle을 만들지 않지만 handle 부재만으로 attachment 실패가 확정되지는
+   않는다. 다중 output의 durable·crash-safe handoff 계약도 아직 없다.
+6. **이번 변경 방식**: 새 Tool·Store·Prompt 없이 기존 Attachment ledger에 batch prepare·commit·reconcile 계약을 먼저
+   반대시험으로 고정하고 제품 배선은 그 뒤 한 번만 연다.
+7. **Non-goals**: QuickJS/Python 재설계·업무 Router·모델별 activation·전체 exec sandbox화·HQ 모델 실패 수리.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -802,11 +803,19 @@ source digest, cleanup, residual 0을 모두 통과했어도 161.854초·16 mode
 표본의 93.989초·10·10·208,713 tokens보다 크게 나빴다. verified publication 뒤 attachment registration 실패가
 연쇄돼 불필요한 왕복도 증가했다. 따라서 실제 두 목적을 더 실행하지 않고 final product wiring을 제거했다.
 
-오너 종료 규칙에 따라 S4-G는 `internal_engine: COMPLETE`,
-`product_activation: CLOSED_WITH_OBSERVATION`, `further_development: DEFERRED`로 종료한다.
+오너 결정으로 G의 엔진을 다시 만들지 않고 output handoff P1 audit만 재개했다. current deterministic replay에서
+Snapshot→F는 결과 두 개를 `published_verified_cleaned`로 발행했지만 `outputs`에 outputHandle이 없고
+AttachmentStore produced-output도 0임을 재현했다. 그러나 exact filePath가 현재 요청/Run에 승인된 경우에는
+outputHandle 없이도 `register_output`이 성공했다. 반대로 filePath가 없으면 `filePath or outputHandle is required`,
+승인되지 않은 path면 `output path is not authorized`로 실패했다. 따라서 handoff 누락은 확정됐지만 과거 네 실패의
+유일 원인이 handle 부재였다는 주장은 기각한다. 제품 변경은 0이다.
+
+S4-G는 여전히 `internal_engine: COMPLETE`, `product_activation: CLOSED_WITH_OBSERVATION`이다. 다음 한 조각은
+모델과 무관하게 verified multi-output 전체를 기존 Attachment ledger에 prepare·commit·reconcile하는 durable batch
+contract다. 이 계약과 crash 반대시험이 통과하기 전 제품 entry를 다시 열지 않는다.
 `actualReadSet: UNKNOWN_BY_DESIGN`, `sourceUniverse: COMPLETE_IMMUTABLE`,
 `outputCoverage: INDEPENDENTLY_VERIFIED`다. G 관련 source는 qualification-only payload 제외선으로 옮기고 별도
-Tool·Prompt·Router·filesystem observer·snapshot activation을 더 개발하지 않는다.
+Tool·Prompt·Router·filesystem observer를 만들지 않는다.
 
 완료 문장:
 
@@ -1069,13 +1078,14 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-C 미달은 S4-I·S4-HQ에 계속 이월한다. S4-D managed non-PTY와 D5C, S4-E1~E7, S4-F는 닫혔다. S4-G는 internal
-engine COMPLETE·product activation CLOSED_WITH_OBSERVATION·further development DEFERRED로 종료했고 제품 entry는
-0이다. S4-H는 existing-capability observation으로 닫고 계약 발견·개인 cross-source join을 HQ에 남겼다. S4-I는
+S4-C 미달은 S4-I·S4-HQ에 계속 이월한다. S4-D managed non-PTY와 D5C, S4-E1~E7, S4-F는 닫혔다. S4-G internal
+engine은 COMPLETE이고 product activation은 CLOSED_WITH_OBSERVATION이다. 오너 결정으로 output handoff audit만
+재개했고 handoff 누락은 확인했지만 과거 attachment 실패의 단일 원인으로 확정하지 않았다. S4-H는
+existing-capability observation으로 닫고 계약 발견·개인 cross-source join을 HQ에 남겼다. S4-I는
 current-head recovery 5/5와 qualification ruler 교정 뒤 제품 구현 0으로 완료했다. J는 미래 연구, K는 cross-cutting
 사실로 유지한다. S4-UX는 grounded progress·recoverable result 공개 경계·canonical 대화/Artifact 시간을 수리하고
 기존 실제 모델·current product 회귀로 완료했다. S4-L read-only baseline과 false-positive config 교정도 끝났다.
 오너 결정으로 물리 실행만 뒤로 미뤘다. S4-HQ 최소 wave를 고정하고 첫 KHB-A03 pair를 실행했으나 gpt-5.5 성공·
-Terra critical purpose 실패가 갈렸다. 중단선에 따라 KHB-S01과 전체 wave를 열지 않았다. 동일 결함 가족의 세 번째
-Runtime·Prompt 패치는 금지하며 모델 지원/완료 정책의 오너 결정 전에는 개발을 더하지 않는다. Windows deferred가
-남아 4차 전체 완료도 주장하지 않는다.
+Terra critical purpose 실패가 갈렸다. 중단선에 따라 KHB-S01과 전체 wave를 열지 않았다. HQ는 이 상태로 보존한다.
+현재 다음 한 작업은 기존 Attachment ledger 위 durable multi-output handoff batch contract다. 새 Tool·Store·Prompt·
+Router 없이 prepare·commit·crash reconcile을 먼저 닫는다. Windows deferred가 남아 4차 전체 완료는 주장하지 않는다.
