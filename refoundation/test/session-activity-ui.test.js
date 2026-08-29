@@ -35,7 +35,7 @@ test('Work 현실 패널은 canonical version과 showPanel을 따르고 사용�
   assert.match(html, /\.trace\[hidden\] \{ display:none; \}/u);
   assert.match(renderer, /activeLocalTurns > 0 && liveTrace/u);
   assert.match(renderer, /work-reality-panel'\)\?\.remove/u);
-  assert.match(renderer, /liveTrace\.hidden = false/u);
+  assert.match(renderer, /liveTrace\.hidden = liveTrace\.dataset\.hasToolActivity !== 'true'/u);
   assert.match(html, /trace\.hidden = false/u);
   assert.match(html, /멈춤\.hidden = false/u);
 });

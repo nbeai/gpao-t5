@@ -42,3 +42,66 @@ test('보관·휴지통은 복구 가능하고 기본 목록에서만 빠진다'
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('여러 대화의 보관·삭제·복원은 한 상태 전이로 적용되고 실제 변경만 반환한다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-console-bulk-lifecycle-'));
+  try {
+    const store = new ConsoleSessionStore(dir);
+    const first = await store.create();
+    const second = await store.create();
+    const third = await store.create();
+
+    const archived = await store.bulkTransition({ ids: [first.id, second.id], action: 'archive' });
+    assert.equal(archived.action, 'archive');
+    assert.equal(archived.count, 2);
+    assert.deepEqual(archived.sessions.map((session) => session.id), [first.id, second.id]);
+    assert.deepEqual((await store.list({ archived: true })).map((session) => session.id), [second.id, first.id]);
+
+    const archivedAgain = await store.bulkTransition({ ids: [first.id, second.id], action: 'archive' });
+    assert.deepEqual(archivedAgain, { action: 'archive', count: 0, sessions: [] });
+
+    const deleted = await store.bulkTransition({ ids: [first.id, third.id], action: 'delete' });
+    assert.equal(deleted.count, 2);
+    assert.deepEqual((await store.list({ deleted: true })).map((session) => session.id), [third.id, first.id]);
+    assert.deepEqual((await store.list({ archived: true })).map((session) => session.id), [second.id]);
+
+    const restored = await store.bulkTransition({ ids: [first.id, second.id, third.id], action: 'restore' });
+    assert.equal(restored.count, 3);
+    assert.deepEqual((await store.list()).map((session) => session.id), [third.id, second.id, first.id]);
+    assert.equal((await store.list({ archived: true })).length, 0);
+    assert.equal((await store.list({ deleted: true })).length, 0);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('여러 대화 전이는 action·범위·중복·모든 id를 먼저 검증하고 실패 시 일부도 바꾸지 않는다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-console-bulk-validation-'));
+  try {
+    const store = new ConsoleSessionStore(dir);
+    const first = await store.create();
+    const second = await store.create();
+    const original = await store.read();
+    const unknown = '00000000-0000-4000-8000-000000000000';
+
+    const invalidInputs = [
+      { ids: [first.id], action: 'remove' },
+      { ids: [], action: 'archive' },
+      { ids: Array.from({ length: 101 }, (_, index) => `id-${index}`), action: 'archive' },
+      { ids: [first.id, first.id], action: 'delete' },
+      { ids: [first.id, 'not-a-session-id'], action: 'restore' },
+    ];
+    for (const input of invalidInputs) {
+      await assert.rejects(store.bulkTransition(input), TypeError);
+      assert.deepEqual(await store.read(), original);
+    }
+
+    await assert.rejects(
+      store.bulkTransition({ ids: [first.id, unknown, second.id], action: 'archive' }),
+      /bulk session not found/u,
+    );
+    assert.deepEqual(await store.read(), original);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

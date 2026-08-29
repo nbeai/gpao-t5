@@ -2,7 +2,23 @@ import { randomUUID } from 'node:crypto';
 import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+const MAX_BULK_SESSIONS = 100;
+const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const BULK_ACTIONS = new Set(['archive', 'delete', 'restore']);
+
 function clone(value) { return value == null ? value : structuredClone(value); }
+
+function bulkTransitionInput(ids, action) {
+  if (!Array.isArray(ids) || ids.length < 1 || ids.length > MAX_BULK_SESSIONS) {
+    throw new TypeError(`bulk session ids must contain between 1 and ${MAX_BULK_SESSIONS} items`);
+  }
+  if (!BULK_ACTIONS.has(action)) throw new TypeError('unsupported bulk session action');
+  if (ids.some((id) => typeof id !== 'string' || !SESSION_ID.test(id))) {
+    throw new TypeError('bulk session id is invalid');
+  }
+  if (new Set(ids).size !== ids.length) throw new TypeError('bulk session ids must be unique');
+  return { ids: [...ids], action };
+}
 
 function sessionOrigin(value) {
   if (value == null) return null;
@@ -198,6 +214,38 @@ export class ConsoleSessionStore {
       session.updatedAt = Date.now();
       await this.write(state);
       return clone(session);
+    });
+  }
+
+  async bulkTransition({ ids, action } = {}) {
+    const input = bulkTransitionInput(ids, action);
+    return this.serialize(async () => {
+      const state = await this.read();
+      const byId = new Map(state.sessions.map((session) => [session.id, session]));
+      const selected = input.ids.map((id) => byId.get(id));
+      if (selected.some((session) => !session)) throw new Error('bulk session not found');
+
+      const now = Date.now();
+      const changed = [];
+      for (const session of selected) {
+        const before = `${session.archivedAt ?? ''}:${session.deletedAt ?? ''}`;
+        if (input.action === 'archive') session.archivedAt ??= now;
+        if (input.action === 'delete') {
+          session.deletedAt ??= now;
+          delete session.archivedAt;
+        }
+        if (input.action === 'restore') {
+          delete session.deletedAt;
+          delete session.archivedAt;
+        }
+        const after = `${session.archivedAt ?? ''}:${session.deletedAt ?? ''}`;
+        if (before !== after) {
+          session.updatedAt = now;
+          changed.push(clone(session));
+        }
+      }
+      if (changed.length) await this.write(state);
+      return { action: input.action, count: changed.length, sessions: changed };
     });
   }
 }

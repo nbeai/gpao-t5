@@ -13,10 +13,23 @@ export class SessionActivityStore {
     const at = this.now();
     const activity = {
       sessionId: String(sessionId), runId: String(runId), status: 'running',
-      phase: String(phase), text: safeProgressText(text), startedAt: at, updatedAt: at,
+      phase: String(phase), text: safeProgressText(text), steps: [], startedAt: at, updatedAt: at,
     };
     this.bySession.set(activity.sessionId, activity);
     return clone(activity);
+  }
+
+  record({ sessionId, runId, fact } = {}) {
+    const current = this.bySession.get(String(sessionId ?? ''));
+    if (!current || current.runId !== String(runId ?? '') || current.status !== 'running') return null;
+    if (!fact || fact.schema !== 't5.public-activity-fact.v1'
+      || typeof fact.text !== 'string' || typeof fact.dedupeKey !== 'string') return null;
+    if (current.steps.some((step) => step.dedupeKey === fact.dedupeKey)) return clone(current);
+    current.steps.push({ kind: String(fact.kind), text: fact.text, dedupeKey: fact.dedupeKey,
+      occurredAt: fact.occurredAt ?? null });
+    if (current.steps.length > 6) current.steps.splice(0, current.steps.length - 6);
+    current.updatedAt = this.now();
+    return clone(current);
   }
 
   update({ sessionId, runId, text, phase = 'working' } = {}) {
