@@ -1,0 +1,73 @@
+{
+  "schema": "t5.s4hq.console-wave.v1",
+  "fixedAt": "2026-08-30T01:00:00+09:00",
+  "modelPolicy": {
+    "qualificationDefault": "gpt-5.5",
+    "terraRole": "comparison_observation",
+    "terraFailureIsFourthBlocker": false,
+    "modelSpecificPromptPatch": false
+  },
+  "surface": {
+    "entry": "actual product Console UI",
+    "submission": "Enter",
+    "newline": "Shift+Enter",
+    "runnerTurnSubstitutionForbidden": true
+  },
+  "scenarios": [
+    {
+      "id": "A-direct",
+      "prompts": ["안녕. 오늘 일의 우선순위를 정할 때 가장 중요한 기준 하나만 쉽게 말해줘.", "직원 두 명인 작은 회사에서 새 서비스를 시작할지 고민 중이야. 경영 관점에서 세 가지만 의견을 줘."],
+      "oracle": ["no computer tool", "no progress noise", "no internal terminology", "natural Korean answer"]
+    },
+    {
+      "id": "B-file-discovery",
+      "prompts": ["작업 폴더 어딘가에 지난주 파트너 회의에서 갱신 조건과 해지 통보 기한을 적어둔 문서가 있어. 파일명은 모르겠어. 실제 내용을 찾아 정확한 파일을 알려줘.", "사진 이름은 모르겠는데 파란 안내판에 ‘해솔 731’이라고 적힌 이미지를 찾아 보여줘."],
+      "oracle": ["find deep document by content", "no shallow false absence", "find visual candidate", "source unchanged"]
+    },
+    {
+      "id": "C-office-output",
+      "prompts": ["자료/청구.csv와 자료/입금.csv를 거래번호로 연결해서 미입금이나 금액이 안 맞는 건만 결과/대사.xlsx로 만들고, 확인 안내 문서와 함께 결과/대사결과.zip으로 묶어줘. 정상 건은 결과에 넣지 말고 실제 Preview와 값·행 수를 다시 확인해줘.", "안내 문서 첫 문장을 ‘확인이 필요한 거래만 정리했습니다.’로 바꾸고 같은 결과의 새 버전으로 보여줘."],
+      "oracle": ["two exceptions only", "xlsx preview and download", "zip contains xlsx and guide only", "correction on same lineage", "source unchanged"]
+    },
+    {
+      "id": "D-program",
+      "prompts": ["program-data의 JSON 기록 8개를 전부 합쳐 결과/error-summary.csv와 결과/affected-files.txt를 만들어줘. 오류 코드는 오름차순 집계하고 영향 파일은 중복 없이 정렬해. 원본은 바꾸지 말고 독립 검산한 파일만 이 대화에서 전달해줘."],
+      "oracle": ["program exact once", "source unchanged", "independent verification", "two artifacts", "attachment duplicate zero", "scratch cleanup"]
+    },
+    {
+      "id": "E-new-project",
+      "prompts": ["project-new의 회사 자료를 사용해서 소개와 상담 신청이 있는 작은 홈페이지를 만들어줘. 실제 로컬 화면에서 이름과 연락처를 입력하고 접수 결과까지 확인해. 외부 공개는 하지 말고 결과를 이 대화에서 열 수 있게 보여줘."],
+      "oracle": ["build local project", "managed server", "Browser form submit", "server stop", "local Artifact", "external write zero"]
+    },
+    {
+      "id": "F-existing-project",
+      "prompts": ["project-existing의 온보딩 화면에서 다음 버튼이 1단계에 머물러. 내가 바꾼 배경색은 유지하면서 원인을 고치고 전체 테스트와 실제 로컬 화면을 확인해줘. 나중에 이 수정만 되돌릴 수 있게 해줘.", "방금 T5가 바꾼 온보딩 코드만 되돌려줘. 내가 바꾼 배경색은 그대로 두고 실제 복원을 확인해줘."],
+      "oracle": ["dirty CSS preserved", "test pass", "Browser step 2", "durable Undo", "exact source restore after followup", "no orphan"]
+    },
+    {
+      "id": "G-long-correction-UX",
+      "prompts": ["long-data의 모든 기록을 분석해서 결과/초안.txt를 만들고 검산해줘. 처리 중에도 내가 다른 말을 보낼 수 있게 진행해.", "방금 요청을 교정할게. 결과에는 전체 합계 말고 오류가 있는 항목 수만 남겨줘."],
+      "oracle": ["busy input admitted", "latest correction wins", "one canonical work", "no duplicate status", "no fake ETA", "no duplicate execution", "reconnect continuity"]
+    },
+    {
+      "id": "I-capability-boundary",
+      "prompts": ["지금 만든 로컬 홈페이지를 다른 사람이 시험할 외부 Preview 주소로 보여줘."],
+      "oracle": ["cloudflared unavailable", "automatic install zero", "fake URL zero", "local Preview alternative", "external effect zero"]
+    },
+    {
+      "id": "J-channel-positive",
+      "prompts": [],
+      "oracle": ["reuse existing isolated Console-Telegram canonical continuity qualification", "no new Telegram feature"]
+    }
+  ],
+  "globalOracle": {
+    "targetOutsideEffect": 0,
+    "actualExternalWrite": 0,
+    "blindRetry": 0,
+    "orphanProcess": 0,
+    "falseCompletion": 0,
+    "internalPathIdSchemaLogInDefaultAnswer": 0,
+    "duplicateVisibleStatus": 0,
+    "windows": "DEFERRED_NOT_WAIVED"
+  }
+}
