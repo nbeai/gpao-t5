@@ -815,7 +815,12 @@ export function makeConsoleServer({
             if (event.type !== 'tool_completed') return false;
             const receipt = event.payload?.receipt; const effect = receipt?.requestedCall?.args?.effect
               ?? receipt?.actualCall?.args?.effect;
+            const noEffect = ['unavailable', 'not_executed', 'capability_boundary']
+              .includes(receipt?.result?.state)
+              || (receipt?.result?.providerAccepted === false
+                && receipt?.result?.externallyReachable === false);
             return (effect && effect.kind !== 'observe')
+              && !noEffect
               || (receipt?.requestedCall?.name === 'terminal_session'
                 && receipt?.result?.effectObservation);
           });
@@ -4503,7 +4508,13 @@ export function makeConsoleServer({
       }
       if (req.method === 'POST' && url.pathname === '/sessions/bulk') {
         const input = await body(req);
-        const transitioned = await sessions.bulkTransition({ ids: input?.ids, action: input?.action });
+        let transitioned;
+        try { transitioned = await sessions.bulkTransition({ ids: input?.ids, action: input?.action }); }
+        catch (error) {
+          if (error instanceof TypeError) error.status = 400;
+          else if (error?.message === 'bulk session not found') error.status = 404;
+          throw error;
+        }
         const summary = transitioned.action === 'archive'
           ? `대화 ${transitioned.count}개를 목록에서 숨겼어요.`
           : transitioned.action === 'delete'
