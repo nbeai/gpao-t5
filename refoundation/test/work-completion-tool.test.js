@@ -178,6 +178,10 @@ test('visual 후보를 사용한 achieved는 선택 이미지 exact reopen과 de
     action: 'inspect' } }, result: { state: 'observed', delivery: { state: 'registered_selected_visual' } } };
   const recovered = evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [visual, selected] });
   assert.equal(recovered.verifiedOutcome, 'achieved');
+  const attachmentSelected = { outcome: 'succeeded', requestedCall: { name: 'attachment', args: {
+    action: 'register_existing_file' } }, result: { state: 'registered', artifact: { mimeType: 'image/png' } } };
+  assert.equal(evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [visual, attachmentSelected] })
+    .verifiedOutcome, 'achieved');
 });
 
 test('같은 operation이 회복돼도 approval·unknown·handoff blocker는 절대 회복하지 않는다', () => {

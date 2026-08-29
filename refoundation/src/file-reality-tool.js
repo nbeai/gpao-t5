@@ -252,6 +252,7 @@ export function makeFileRealityTool({
   ocrProbe = null,
   contactSheetBuilder = buildLocalImageContactSheet,
   registerSelectedImage = null,
+  onVisualCandidatesObserved = null,
   enforceComputerRoots = false,
   now = Date.now,
 } = {}) {
@@ -611,6 +612,10 @@ export function makeFileRealityTool({
           if (!IMAGE_EXTENSIONS.has(record.extension) || record.bytes > 20 * 1024 * 1024) throw new Error('visual candidate is not a supported image');
           selected.push({ handle, record }); }
         for (const item of selected) visualizedHandles.add(item.handle);
+        if (typeof onVisualCandidatesObserved === 'function') await onVisualCandidatesObserved(
+          selected.map((item) => ({ path: item.record.path, handle: item.handle,
+            displayName: item.record.displayName })),
+        );
         const sheet = await contactSheetBuilder(selected.map((item) => ({ path: item.record.path })));
         return { state: 'observed', candidates: selected.map((item, index) => ({ visualRef: sheet.labels[index],
           handle: item.handle, displayName: item.record.displayName, locationText: item.record.locationText,

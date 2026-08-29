@@ -47,9 +47,12 @@ function blockerForReceipt(receipt, index, receipts) {
     if (receipt.result.requiredEvidence === 'selected_visual_exact_reopen'
       && receipts.slice(index + 1).some((candidate) => (
         candidate?.outcome === 'succeeded'
-        && (candidate?.actualCall?.name ?? candidate?.requestedCall?.name) === 'file_reality'
-        && (candidate?.actualCall?.args?.action ?? candidate?.requestedCall?.args?.action) === 'inspect'
-        && candidate?.result?.delivery?.state === 'registered_selected_visual'
+        && (((candidate?.actualCall?.name ?? candidate?.requestedCall?.name) === 'file_reality'
+          && (candidate?.actualCall?.args?.action ?? candidate?.requestedCall?.args?.action) === 'inspect'
+          && candidate?.result?.delivery?.state === 'registered_selected_visual')
+          || ((candidate?.actualCall?.name ?? candidate?.requestedCall?.name) === 'attachment'
+            && (candidate?.actualCall?.args?.action ?? candidate?.requestedCall?.args?.action) === 'register_existing_file'
+            && String(candidate?.result?.artifact?.mimeType ?? '').startsWith('image/')))
       ))) return null;
     return 'requested_evidence_missing';
   }

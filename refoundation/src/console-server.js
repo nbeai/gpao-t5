@@ -1258,6 +1258,7 @@ export function makeConsoleServer({
     const modelRequest = attachmentBlock ? `${text}\n\n${attachmentBlock}` : text;
     const imageInputs = await modelImageInputs({ store: attachments, sessionId, records: currentAttachments });
     const outputCandidates = new Set();
+    const visualCandidatePaths = new Set();
     const outputKey = (path) => resolve(workspace, String(path ?? '')).normalize('NFC');
     await conversations.ensure({ sessionId, legacyMessages: historyFrom(session) });
     await memories.ensure();
@@ -1643,6 +1644,9 @@ export function makeConsoleServer({
             messageId: `${run.runId}:output:${artifact.attachmentId}`, runId: run.runId });
           return artifact;
         },
+        onVisualCandidatesObserved: (items) => {
+          for (const item of items) visualCandidatePaths.add(resolve(item.path).normalize('NFC'));
+        },
         ...(fileIndexSearch ? { indexSearch: fileIndexSearch } : {}) }));
       const nativeComputer = makeNativeComputerTool({ revealPath: reveal, platform: computer.platform });
       if (nativeComputer) offeredTools.unshift(nativeComputer);
@@ -1660,8 +1664,11 @@ export function makeConsoleServer({
         }),
         authorizeOutputPath: (candidate) => (
           requestContainsWorkspacePath(text, candidate, workspace) || outputCandidates.has(outputKey(candidate))
+          || visualCandidatePaths.has(resolve(String(candidate ?? '')).normalize('NFC'))
         ),
-        authorizeExistingFilePath: (candidate) => personalFileDeliveryAllowed(candidate, workspace, text),
+        authorizeExistingFilePath: (candidate) => visualCandidatePaths.has(
+          resolve(String(candidate ?? '')).normalize('NFC'),
+        ) || personalFileDeliveryAllowed(candidate, workspace, text),
         observeImagePixels: async (modelAttachments) => {
           visualObservationCount += 1; const index = visualObservationCount;
           await run.append({ type: 'visual_observation_model_started', stepId: `visual-observation-${index}`, payload: { index } });
