@@ -1,16 +1,17 @@
 # T5 Fifth Completion — Android Judgment & Context Runtime
 
-상태: `OWNER_REVIEW_DRAFT · IMPLEMENTATION_NOT_AUTHORIZED`
+상태: `FIFTH_COMPLETION_ACTIVE · CJ0_COMPLETE · CJ1_STABLE_COGNITIVE_KERNEL_OPEN`
 4차 귀환 기준: `fe51c8c5 · FOURTH_COMPLETION_COMPLETE_MACOS_PRODUCT_SCOPE`
 4차 release-only 후속선: `8c2a3b05 · 0.4.0 packaging lineage · 설치 자격 진행과 5차 개발은 분리`
-5차 구현 기준·branch·worktree: `OWNER_APPROVAL_AFTER_DRAFT_REVIEW`
+5차 구현 기준·branch·worktree: `fe51c8c5 · codex/t5-fifth-context-judgment-plan · /Users/jyp/Developer/t5-fifth-plan`
 
 이 문서는 T5 5차 개발의 단일 계획 정본 초안이다. 제품 정의는 `T5-PRODUCT.md`, 4차 완료 역사와 실제
 사용자 증거는 `T5-FOURTH-COMPLETION.md`와 `refoundation/evidence/s4-hq-console-closeout-2026-08-30.json`이
 담당한다. 4차 설치 패키지 제작·검증은 별도 작업이며 이 문서 때문에 중단·변경하지 않는다.
 
-오너가 이 초안을 승인하기 전에는 5차 제품 코드, Prompt, Tool schema, Store, provider adapter, UI를 변경하지
-않는다. 승인 뒤에도 4차 완성선을 자동 병합·덮어쓰기하지 않고 별도 branch와 worktree에서 시작한다.
+오너는 5차 전체 계획 완료를 승인했다. 4차 완성선을 자동 병합·덮어쓰기하지 않고 현재 별도 branch와
+worktree에서 CJ0부터 순서대로 진행한다. 돈 지출·새 외부 상대 전송·비밀값 입력·백업 없는 파괴는 기존 제품
+경계를 유지하며, 이 승인으로 의미·권한·외부 효과 범위를 새로 넓히지 않는다.
 
 `Android`는 사용자의 상황을 이해하고 필요한 순간에 적절한 눈·기억·손을 사용하는 지능의 비유다. 모바일
 운영체제를 뜻하지 않는다. 4차가 강한 몸·손·안전·복구를 완성했다면 5차는 그 능력을 언제, 왜, 얼마나 사용할지
@@ -397,6 +398,25 @@ CJ0 신규 live는 기존 증거에 없는 다음 축만 연다.
 > 최소 신규 관측으로 분리됐다.
 
 CJ1 개통 조건은 전역 instruction family 하나가 실제 품질·비용 미달과 결속되는 것이다.
+
+CJ0 actual은 4차 synthetic actual 세 Run을 재사용했다. 신규 live·제품 변경은 0이다.
+
+- Direct는 1 model call·Tool 0·3.225초로 정확히 답했지만 첫 request에 instruction 30,693 bytes와 Tool
+  definition 20,781 bytes·14개가 함께 전송됐다.
+- 신규 프로젝트는 19 model calls·20 tools·596,925 tokens·2,637,449 request bytes였고 current Run 최대
+  104,750 bytes, repeated ToolReceipt 최대 88,363 bytes였다.
+- 기존 프로젝트는 25 model calls·24 tools·688,770 tokens·3,358,623 request bytes였고 current Run 최대
+  115,269 bytes, repeated ToolReceipt 최대 86,236 bytes였다.
+- current source의 synthetic `consoleInstructions`는 30,277 bytes·99 lines·4,519 words다.
+- `runtimeContext→instructions`, current time의 user content 후접합, ordinary Work·Working Memory, Tool schema
+  변화, Anthropic cache_control 부재, OpenAI prompt_cache_key/native compaction 부재를 source known fact로
+  확정했다.
+
+첫 결함은 `direct_turn_global_instruction_and_tool_surface`다. 사용자 결과는 성공했으므로 Direct path·Work·Tool을
+동시에 바꾸지 않는다. CJ1에서 global instruction family 하나만 분류·이동 후보로 열고 동일 Direct·Agentic
+positive control을 비교한다.
+
+근거: `refoundation/evidence/fifth-cj0-context-reality-2026-08-30.json`.
 
 ---
 
@@ -943,23 +963,23 @@ FIFTH_COMPLETION:
 
 ---
 
-## 14. 오너 승인 전 체크리스트
+## 14. 오너 승인 기록
 
-오너가 다음을 승인해야 구현을 시작한다.
+오너는 다음 전체 규율과 CJ0~CJ7 완료 목표를 승인했다.
 
-- [ ] 5차 제품 한 문장과 최종 완료 문장
-- [ ] 4차 `fe51c8c5` 귀환선과 release/package 분리
-- [ ] CJ0~CJ7 순서
-- [ ] Instruction Family build-time 관리와 전역 instruction admission
-- [ ] Direct 최적화의 Agent positive control
-- [ ] Memory 선택의 추가 model call 비강제
-- [ ] Tool 발견률과 Tool economy의 동시 평가
-- [ ] Evidence projection과 provider wire rebuild 분리
-- [ ] provider별 continuation/native compaction/rebuild A/B
-- [ ] CJ7 taxonomy가 Runtime Intent enum이 아님
-- [ ] 같은 결함 가족 세 번째 patch 금지
-- [ ] 5차 전체 중단·4차 귀환 조건
-- [ ] 전체 인간 비교는 CJ7 뒤 한 번만 수행
-- [ ] Windows `DEFERRED_NOT_WAIVED`
+- [x] 5차 제품 한 문장과 최종 완료 문장
+- [x] 4차 `fe51c8c5` 귀환선과 release/package 분리
+- [x] CJ0~CJ7 순서
+- [x] Instruction Family build-time 관리와 전역 instruction admission
+- [x] Direct 최적화의 Agent positive control
+- [x] Memory 선택의 추가 model call 비강제
+- [x] Tool 발견률과 Tool economy의 동시 평가
+- [x] Evidence projection과 provider wire rebuild 분리
+- [x] provider별 continuation/native compaction/rebuild A/B
+- [x] CJ7 taxonomy가 Runtime Intent enum이 아님
+- [x] 같은 결함 가족 세 번째 patch 금지
+- [x] 5차 전체 중단·4차 귀환 조건
+- [x] 전체 인간 비교는 CJ7 뒤 한 번만 수행
+- [x] Windows `DEFERRED_NOT_WAIVED`
 
-승인 전 다음 행동은 계획서 검토와 교정뿐이다. 제품 구현은 0이다.
+CJ0는 제품 변경 0으로 시작한다. 각 Gate의 candidate는 동일 목적 A/B 전 product default가 아니다.

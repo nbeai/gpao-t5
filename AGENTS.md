@@ -4,9 +4,9 @@
 간주하지 않는다. 현재 T5의 목적과 진행 상태는 아래 문서만 먼저 읽는다.
 
 1. `T5-PRODUCT.md` — 무엇을 만드는가
-2. `T5-FOURTH-COMPLETION.md` — 지금 어느 Gate를 어떤 범위로 통과하는가
+2. `T5-FIFTH-COMPLETION.md` — 지금 어느 Gate를 어떤 범위로 통과하는가
 
-`T5-SECOND-COMPLETION.md`, `T5-THIRD-ACTIVATION-PREPARATION.md`, `T5-THIRD-ALPHA.md`,
+`T5-FOURTH-COMPLETION.md`, `T5-SECOND-COMPLETION.md`, `T5-THIRD-ACTIVATION-PREPARATION.md`, `T5-THIRD-ALPHA.md`,
 `T5-REFOUNDATION.md`는 완료 역사·실패·증거 참조다. 현재 Gate가 직접 가리킨 과거 근거가 필요할 때만
 해당 부분을 읽고, 현재 계획이나 작업 범위를 그 문서에서 추론하지 않는다.
 
@@ -29,12 +29,12 @@
 - 현재 콘솔 디자인과 대화 UX는 R4에서 재사용한다. 새 코어 개발을 이유로 UI를 다시 디자인하지 않는다.
 - legacy 조사는 archive에서 읽기 전용으로만 수행한다. 수정·재실행이 필요하면 현재 제품 작업과
   분리된 별도 archive 작업으로 열며 결과를 현재 제품의 성공으로 간주하지 않는다.
-- 4차 개발은 tag `t5-0.3.1-clean-baseline`에서 갈라진 `codex/t5-fourth-android-intelligence`만 사용한다.
-- Purpose, Situation, Terminal, Mutation, Authoring, Program Capsule, Reconciliation, Recovery,
-  Interaction UX는 `T5-FOURTH-COMPLETION.md`의 현재 Gate가 열기 전에는 구현하지 않는다.
-- Experience-Based Growth와 Capability Acquisition은 오너 결정으로 4차 필수 Gate에서 제외했다. 제품 entry는
-  0이며 미래 연구로만 보존한다. Capability Reality는 새 획득 엔진이 아니라 S4-G·S4-I·S4-HQ에서 현재 손과
-  부족·대안의 사실을 정직하게 확인하는 공통 불변식으로만 유지한다.
+- 4차 `fe51c8c5`는 불변 귀환선이다. 5차 개발은 `codex/t5-fifth-context-judgment-plan`과
+  `/Users/jyp/Developer/t5-fifth-plan`만 사용한다.
+- Context, Judgment, Direct Intelligence, Memory selection, Tool economy, Evidence refinement, provider wire,
+  compaction, Natural Timing은 `T5-FIFTH-COMPLETION.md`의 현재 Gate가 열기 전에는 구현하지 않는다.
+- Experience-Based Growth·Capability Acquisition·새 provider 확대는 5차 자동 범위가 아니다. 현재 provider의
+  portable Context·Adapter qualification이 선 뒤 오너가 별도 범위를 승인한다.
 - Reflection·Principle·Capability package의 휴면 연구 source는 교재이지 제품 정본이 아니다. 현재 실패와
   반대시험 없이 product entry로 import하거나 package payload에 되돌리지 않는다.
 

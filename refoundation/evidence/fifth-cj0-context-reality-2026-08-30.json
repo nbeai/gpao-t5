@@ -1,0 +1,118 @@
+{
+  "schema": "t5.fifth.cj0-context-reality.v1",
+  "recordedAt": "2026-08-30T04:00:00+09:00",
+  "productSourceHead": "fe51c8c5",
+  "planHead": "d3071e3b",
+  "status": "CJ0_COMPLETE_CJ1_OPEN",
+  "productChanges": 0,
+  "newLiveRuns": 0,
+  "evidenceOrder": [
+    "reuse_fourth_exact_runs",
+    "recalculate_current_context_metrics",
+    "confirm_source_known_facts",
+    "open_one_context_defect_family"
+  ],
+  "instructionInventory": {
+    "syntheticWorkspace": "/T5/WORKSPACE",
+    "bytes": 30277,
+    "lines": 99,
+    "words": 4519,
+    "sha256": "134056fb5690cd7d9fd1a416b86413ef21883798beeea615ceab73c04c244fb5"
+  },
+  "reusedRuns": [
+    {
+      "category": "direct",
+      "runId": "043cf154-b4f5-41b4-b344-8d7243538c5e",
+      "modelCalls": 1,
+      "toolCalls": 0,
+      "totalTokens": 9750,
+      "cachedTokens": 8704,
+      "requestBytes": 52732,
+      "instructionBytes": 30693,
+      "toolDefinitions": 14,
+      "toolDefinitionBytes": 20781,
+      "maxCurrentRunBytes": 2,
+      "maxRepeatedToolReceiptBytes": 0,
+      "wallMs": 3225,
+      "userOutcome": "passed"
+    },
+    {
+      "category": "new_project",
+      "runId": "47a133ef-b6df-4a29-ad49-7d774d532397",
+      "modelCalls": 19,
+      "toolCalls": 20,
+      "totalTokens": 596925,
+      "cachedTokens": 371712,
+      "requestBytes": 2637449,
+      "firstInstructionBytes": 30693,
+      "maxInstructionBytes": 30836,
+      "toolDefinitionBytes": 20781,
+      "maxCurrentRunBytes": 104750,
+      "maxRepeatedToolReceiptBytes": 88363,
+      "wallMs": 153069,
+      "userOutcome": "passed"
+    },
+    {
+      "category": "existing_project",
+      "runId": "832933ba-109b-4d6b-970b-33c20fba3141",
+      "modelCalls": 25,
+      "toolCalls": 24,
+      "totalTokens": 688770,
+      "cachedTokens": 453504,
+      "requestBytes": 3358623,
+      "firstInstructionBytes": 30693,
+      "maxInstructionBytes": 32657,
+      "toolDefinitionBytes": 20781,
+      "maxCurrentRunBytes": 115269,
+      "maxRepeatedToolReceiptBytes": 86236,
+      "wallMs": 174033,
+      "userOutcome": "passed"
+    }
+  ],
+  "knownFacts": {
+    "globalInstructionsContainToolGuidance": true,
+    "ordinaryTurnCreatesOrReusesWork": true,
+    "workingMemoryCanProjectOnOrdinaryTurn": true,
+    "runtimeContextAppendedToInstructionsByAdapters": true,
+    "currentTimeAppendedAfterCurrentUserRequest": true,
+    "visibleToolSchemasChangeAfterActivation": true,
+    "anthropicCacheControlUsed": false,
+    "openAIPromptCacheKeyUsed": false,
+    "openAIProviderNativeCompactionUsed": false,
+    "authorityClassification": {
+      "runtimeContextToInstructions": "cache_and_stable_prefix",
+      "toolSchemaChanges": "cache_and_wire_surface",
+      "currentTimeAfterUserContent": "user_authority_and_focus"
+    }
+  },
+  "sourceDigests": {
+    "consoleModelFactory": "870bacc75211d29db6e177c77f873539138389f492fd4ece1c431554ea53cee5",
+    "consoleServer": "96af397924ce363633828ddae066717e5216ef0f162b23fb25bf6f6db61208a7",
+    "agentLoop": "2a7a4e0227f48d524c7543a9e0cccd5349a3833ec6327110edd0a9264ccbfae3",
+    "openAI": "a89e2dcab2a91329aa93564ef6e7412e5f1ed20b8d5e68e8777847375e2e77c7",
+    "chatgptOAuth": "1c2a9db98612335b57e7d9c371f4ba15b366ecac83ed0054229c099c2b03c9cf",
+    "anthropic": "e1498b72a17123962496dd905d09b511d609aab285e9da3d01dde8964ce87674",
+    "gemini": "b244e1510a544518d729ec86d29b5bcd9af5bd5b4b725dde65e2fe3765b9b2d1",
+    "upstage": "550542dd749234d9fc68f2167055b999ce0a05fa1ee46158148a4755ab68c954"
+  },
+  "firstOpenedDefect": {
+    "family": "direct_turn_global_instruction_and_tool_surface",
+    "observedUserOutcome": "correct_direct_answer",
+    "observedCost": "one model call still carried 30693 instruction bytes and 20781 tool-definition bytes",
+    "nextGate": "CJ1_STABLE_COGNITIVE_KERNEL",
+    "candidateAdopted": false
+  },
+  "liveAxesStillMissing": [
+    "blind_direct_intelligence_quality_comparison",
+    "memory_precision_and_recall_comparison",
+    "provider_wire_cache_continuation_rebuild_comparison"
+  ],
+  "nonGoals": [
+    "prompt_rewrite",
+    "intent_router",
+    "new_memory_store",
+    "new_work_store",
+    "provider_specific_business_prompt",
+    "product_behavior_change"
+  ]
+}

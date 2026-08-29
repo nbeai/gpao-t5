@@ -4,9 +4,9 @@ import test from 'node:test';
 
 const root = new URL('../../', import.meta.url);
 
-test('5차 정본 초안은 4차 귀환선과 CJ0~CJ7·오너 승인 경계를 함께 보존한다', async () => {
+test('5차 정본은 4차 귀환선과 CJ0~CJ7·오너 승인 경계를 함께 보존한다', async () => {
   const plan = await readFile(new URL('T5-FIFTH-COMPLETION.md', root), 'utf8');
-  assert.match(plan, /OWNER_REVIEW_DRAFT · IMPLEMENTATION_NOT_AUTHORIZED/u);
+  assert.match(plan, /FIFTH_COMPLETION_ACTIVE · CJ0_COMPLETE · CJ1_STABLE_COGNITIVE_KERNEL_OPEN/u);
   assert.match(plan, /fe51c8c5 · FOURTH_COMPLETION_COMPLETE_MACOS_PRODUCT_SCOPE/u);
   assert.match(plan, /Android Judgment & Context Runtime/u);
   const gates = ['CJ0', 'CJ1', 'CJ2', 'CJ3', 'CJ4', 'CJ5', 'CJ6', 'CJ7'];
@@ -24,5 +24,5 @@ test('5차 정본 초안은 4차 귀환선과 CJ0~CJ7·오너 승인 경계를 �
   assert.match(plan, /같은 결함 가족의 세 번째 patch 금지/u);
   assert.match(plan, /전체 인간 비교는 CJ7 뒤 한 번만 수행/u);
   assert.match(plan, /Windows `DEFERRED_NOT_WAIVED`/u);
-  assert.match(plan, /승인 전 다음 행동은 계획서 검토와 교정뿐이다\. 제품 구현은 0이다/u);
+  assert.match(plan, /CJ0는 제품 변경 0으로 시작한다/u);
 });
