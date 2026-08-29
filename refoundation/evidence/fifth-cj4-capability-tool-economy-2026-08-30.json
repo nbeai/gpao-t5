@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "gate": "CJ4_CAPABILITY_JUDGMENT_AND_TOOL_ECONOMY",
+  "status": "COMPLETE_WITH_CJ5_CARRY",
+  "baselineCommit": "c492c5cd",
+  "candidateCommit": "same_commit_as_evidence",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "modes": { "currentCore": "current-core-v1", "adopted": "directory-first-v1" },
+  "adoptedEntry": "refoundation/scripts/start-console.mjs",
+  "directoryContract": {
+    "alwaysVisible": ["tool_search", "exec", "web_read", "attachment"],
+    "visibleWithMemoryPointers": ["memory"],
+    "visibleWithHistoricalRecallHandles": ["purpose_history_or_session_search"],
+    "visibleWithUndoHandles": ["workspace_patch"],
+    "visibleAfterFirstAcceptedToolCall": ["work_completion"],
+    "businessIntentRouter": false,
+    "requestRegex": false
+  },
+  "samePurposeComparison": [
+    {
+      "purpose": "direct_management_opinion",
+      "baseline": { "passed": true, "modelCalls": 1, "toolCalls": 0, "tokens": 9554, "requestBytes": 50887, "wallMs": 5722.345, "firstTools": 14, "firstToolBytes": 20253 },
+      "candidate": { "passed": true, "modelCalls": 1, "toolCalls": 0, "tokens": 7375, "requestBytes": 37835, "wallMs": 4218.256, "firstTools": 4, "firstToolBytes": 7509 }
+    },
+    {
+      "purpose": "current_connection_truth",
+      "baseline": { "passed": true, "modelCalls": 3, "toolCalls": 2, "tokens": 28537, "requestBytes": 149072, "wallMs": 10124.148 },
+      "candidate": { "passed": true, "modelCalls": 3, "toolCalls": 2, "tokens": 25130, "requestBytes": 133272, "wallMs": 10476.797 }
+    },
+    {
+      "purpose": "personal_memory_exact_reopen",
+      "baseline": { "passed": true, "modelCalls": 4, "toolCalls": 3, "tokens": 35142, "requestBytes": 192705, "wallMs": 12569.856, "firstTools": 14, "firstToolBytes": 20253 },
+      "candidate": { "passed": true, "modelCalls": 4, "toolCalls": 3, "tokens": 31554, "requestBytes": 171452, "wallMs": 10927.003, "firstTools": 5, "firstToolBytes": 8322, "sourceReopened": true }
+    }
+  ],
+  "aggregate": {
+    "baseline": { "modelCalls": 8, "toolCalls": 5, "tokens": 73233, "requestBytes": 392664, "wallMs": 28416.349 },
+    "candidate": { "modelCalls": 8, "toolCalls": 5, "tokens": 64059, "requestBytes": 342559, "wallMs": 25622.056 },
+    "delta": { "modelCalls": 0, "toolCalls": 0, "tokens": -9174, "requestBytes": -50105, "wallMs": -2794.293 }
+  },
+  "candidateIterations": [
+    { "id": "directory_first_v1", "result": "PARTIAL", "observation": "Memory pointer was visible while its opener was hidden, adding one tool_search round trip" },
+    { "id": "directory_first_pointer_openers", "result": "PASS_ADOPTED", "observation": "factual pointer presence exposes only its exact opener; Memory returned to baseline calls and improved bytes, tokens, and wall" }
+  ],
+  "focusedCountertests": { "tests": 19, "passed": 19, "failed": 0 },
+  "carryToCJ5": {
+    "id": "agentic_final_without_completion_proposal",
+    "observedPurpose": "current_connection_truth",
+    "userOutcome": "passed",
+    "workCompletionCalled": false,
+    "rule": "do not add a Tool-selection patch; evaluate final completion context and settlement in CJ5"
+  },
+  "nonClaims": [
+    "every hidden capability has zero discovery cost",
+    "all model providers choose the same Tool",
+    "the connection Work completion observation is already closed",
+    "Tool count reduction alone proves product quality"
+  ],
+  "completionSentence": "T5의 설치 제품은 평상시 작은 capability directory와 세 기본 손만 보여주고, canonical pointer나 실제 Tool 선택이 발생할 때 필요한 schema와 completion 손을 결속해 같은 세 목적을 더 적은 wire 비용으로 완료한다.",
+  "nextGate": "CJ5_COMPLETION_CONTEXT"
+}

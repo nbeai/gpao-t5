@@ -6,7 +6,7 @@ const root = new URL('../../', import.meta.url);
 
 test('5차 정본은 4차 귀환선과 CJ0~CJ7·오너 승인 경계를 함께 보존한다', async () => {
   const plan = await readFile(new URL('T5-FIFTH-COMPLETION.md', root), 'utf8');
-  assert.match(plan, /FIFTH_COMPLETION_ACTIVE · CJ0_CJ3_COMPLETE · CJ4_CAPABILITY_JUDGMENT_OPEN/u);
+  assert.match(plan, /FIFTH_COMPLETION_ACTIVE · CJ0_CJ4_COMPLETE · CJ5_COMPLETION_CONTEXT_OPEN/u);
   assert.match(plan, /fe51c8c5 · FOURTH_COMPLETION_COMPLETE_MACOS_PRODUCT_SCOPE/u);
   assert.match(plan, /Android Judgment & Context Runtime/u);
   const gates = ['CJ0', 'CJ1', 'CJ2', 'CJ3', 'CJ4', 'CJ5', 'CJ6', 'CJ7'];

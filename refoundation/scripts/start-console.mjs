@@ -235,6 +235,7 @@ const runtimeStopReady = new Promise((resolveStop) => { resolveRuntimeStopReques
 const server = makeConsoleServer({
   stateDir,
   workspace,
+  capabilitySurfaceMode: 'directory-first-v1',
   modelFactory: (context) => access.model(context),
   modelStatus: () => access.status(),
   modelConnections,

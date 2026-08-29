@@ -1,6 +1,6 @@
 # T5 Fifth Completion — Android Judgment & Context Runtime
 
-상태: `FIFTH_COMPLETION_ACTIVE · CJ0_CJ3_COMPLETE · CJ4_CAPABILITY_JUDGMENT_OPEN`
+상태: `FIFTH_COMPLETION_ACTIVE · CJ0_CJ4_COMPLETE · CJ5_COMPLETION_CONTEXT_OPEN`
 4차 귀환 기준: `fe51c8c5 · FOURTH_COMPLETION_COMPLETE_MACOS_PRODUCT_SCOPE`
 4차 release-only 후속선: `8c2a3b05 · 0.4.0 packaging lineage · 설치 자격 진행과 5차 개발은 분리`
 5차 구현 기준·branch·worktree: `fe51c8c5 · codex/t5-fifth-context-judgment-plan · /Users/jyp/Developer/t5-fifth-plan`
@@ -635,6 +635,25 @@ C: stable capability directory + 선택된 schema
 완료 문장:
 
 > T5는 현재 목적에 가장 적합한 능력을 놓치지 않고 선택하며, 관련 없는 Tool을 생각·호출·반복 전송하지 않는다.
+
+CJ4 actual은 `current-core-v1`과 default-off `directory-first-v1`을 gpt-5.5의 같은 세 사용자 목적으로
+비교했다. directory-first는 `tool_search + exec + web_read + attachment`만 기본으로 보이고, canonical Memory·
+historical recall·Undo pointer가 있을 때 exact opener를 함께 보이며 첫 실제 Tool 선택 뒤 `work_completion`을 연다.
+
+- 직접 의견: 1 model·Tool 0 유지, 첫 schema 14/20,253B → 4/7,509B
+- 연결 현실: 3 model·2 Tool 유지, 정확성 유지
+- Memory exact reopen: 4 model·3 Tool 유지, 첫 schema 5/8,322B, source reopen 유지
+- 세 목적 합계: tokens 73,233 → 64,059, request 392,664B → 342,559B, wall 28.4s → 25.6s
+- 실제 사용자 자료·외부 쓰기·업무 Router·정규식: 0
+
+첫 후보는 Memory pointer와 opener를 분리해 불필요한 `tool_search` 1회를 만들었으므로 PARTIAL이었다. 두 번째이자
+마지막 후보는 의미가 아니라 canonical pointer 존재 사실에 exact opener를 결속해 호출 무회귀와 비용 개선을
+동시에 회복했다. 설치 제품 entry에 이를 채택했다.
+
+연결 확인에서는 사용자 결과가 정확했지만 model이 `work_completion`을 호출하지 않은 관측이 남았다. Tool 선택
+조건을 더 붙이지 않고 `agentic_final_without_completion_proposal`을 CJ5로 이월한다.
+
+근거: `refoundation/evidence/fifth-cj4-capability-tool-economy-2026-08-30.json`.
 
 ---
 

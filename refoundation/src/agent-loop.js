@@ -255,7 +255,7 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [],
  *   activeOptimizationMode?:'off'|'model-selected-v1',
  *   takeAdmittedWorkInputs?:()=>Promise<Array<{inputId:string,text:string,attachmentIds?:string[],source?:object,currentWork?:object,modelAttachments?:object[]}>>,
  *   applyAdmittedWorkInputs?:(inputs:Array<{inputId:string}>)=>Promise<unknown>,
- *   onToolCallsAccepted?:(facts:{turn:number,toolCalls:Array<object>})=>Promise<unknown>|unknown,
+ *   onToolCallsAccepted?:(facts:{turn:number,toolCalls:Array<object>})=>Promise<{activateTools?:string[]}|void>|{activateTools?:string[]}|void,
  *   onEvent?:(event:object)=>void|Promise<void>,
  * }} input
  */
@@ -576,9 +576,14 @@ export async function runAgent({
       return { status: 'completed', answer: response.text, transcript, receipts, modelCalls, modelTurns };
     }
 
-    await onToolCallsAccepted?.({
+    const toolCallAdmission = await onToolCallsAccepted?.({
       turn: modelTurns, toolCalls: structuredClone(response.toolCalls),
     });
+    for (const name of toolCallAdmission?.activateTools ?? []) {
+      if (!registry.has(name)) throw new Error(`admission activation tool is unavailable: ${name}`);
+      activeTools.add(name);
+    }
+    definitions = [...activeTools].map((name) => toolDefinition(registry.get(name)));
 
     const parallelSelected = activeOptimizationMode === 'model-selected-v1'
       && response.toolCalls.length > 1 && response.toolCalls.every((call) => (

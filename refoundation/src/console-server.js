@@ -339,6 +339,7 @@ export function makeConsoleServer({
   skillCatalogMode = 'on-demand',
   conversationProjection = 'historical-tool-receipt-v1',
   informationControl = 'research-first-v1',
+  capabilitySurfaceMode = 'current-core-v1',
   conversationRelevance = 'user-source-latest-v1',
   resourceSituationMode = 'current-v1',
   activeOptimizationMode = 'model-selected-v1',
@@ -398,6 +399,9 @@ export function makeConsoleServer({
   if (typeof modelFactory !== 'function') throw new TypeError('modelFactory is required');
   if (!['full', 'historical-tool-receipt-v1'].includes(conversationProjection)) {
     throw new TypeError('unsupported conversation projection');
+  }
+  if (!['current-core-v1', 'directory-first-v1'].includes(capabilitySurfaceMode)) {
+    throw new TypeError('unsupported capability surface mode');
   }
   if (!['inline', 'on-demand'].includes(skillCatalogMode)) {
     throw new TypeError('unsupported skill catalog mode');
@@ -1982,7 +1986,7 @@ export function makeConsoleServer({
         startConnection: (id) => startConnectionForTool(id, { runId: run.runId }),
         performConnection: (id, actionId) => performConnectionAction(id, actionId, { sessionId }),
       }));
-      const coreToolNames = [
+      const currentCoreToolNames = [
         'connection', 'native_computer', 'memory', 'memory_claim', 'memory_control', 'skill',
         ...(options.trigger === 'automation' ? [] : ['work_completion']),
         ...(pendingLearningTrials.length ? ['learning_trial'] : []),
@@ -2006,6 +2010,16 @@ export function makeConsoleServer({
         ...(options.trigger !== 'automation' ? ['automation'] : []),
         ...(options.trigger === 'automation' ? ['automation_outcome'] : []),
       ];
+      const coreToolNames = capabilitySurfaceMode === 'directory-first-v1'
+        && options.trigger !== 'automation'
+        ? [
+          'exec', 'web_read', 'attachment',
+          ...(memoryCandidates || temporalMemoryCandidates ? ['memory'] : []),
+          ...(projection.historicalRecallRequired
+            ? [purposeHistory ? 'purpose_history' : 'session_search'] : []),
+          ...(projectUndoHandles.length ? ['workspace_patch'] : []),
+        ]
+        : currentCoreToolNames;
       const deferredTools = deferTools(offeredTools, {
         coreNames: coreToolNames, includeAttachment: attachmentIds.length > 0,
       }).map((tool) => ({
@@ -2072,7 +2086,11 @@ export function makeConsoleServer({
         focusToolSurface: informationControl === 'research-first-v1',
         resourceSituationMode,
         activeOptimizationMode,
-        onToolCallsAccepted: async () => { await ensureActiveWork(); },
+        onToolCallsAccepted: async () => {
+          await ensureActiveWork();
+          return capabilitySurfaceMode === 'directory-first-v1'
+            && options.trigger !== 'automation' ? { activateTools: ['work_completion'] } : undefined;
+        },
         onToolActivity: async ({ toolCallId, name, stream, deltaChars, totalChars, state }) => {
           if (observedToolActivity.has(toolCallId) || !['stdout', 'stderr'].includes(stream)
             || !Number.isSafeInteger(deltaChars) || deltaChars < 1
