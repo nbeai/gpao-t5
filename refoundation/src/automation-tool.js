@@ -113,10 +113,12 @@ export function makeAutomationTool({ store, scheduler, sessionId, authorizeEffec
       if (args.action === 'create') {
         const contract = context.automationRequirements;
         if (!contract) return { state: 'automation_requirements_unverified' };
+        const resolvedWorkBinding = typeof workBinding === 'function'
+          ? await workBinding() : workBinding;
         const job = await store.create({ name: args.name, prompt: args.prompt, sessionId,
           scheduleKind: args.scheduleKind, schedule: args.schedule, timezone: args.timezone,
           requirements: contract, delivery: contract.delivery, authorityEnvelope: contract.authorityEnvelope,
-          workBinding });
+          workBinding: resolvedWorkBinding });
         await scheduler.jobsChanged();
         return { state: 'scheduled', job, userSafeSummary: `${job.name} 자동화를 예약했어요.` };
       }

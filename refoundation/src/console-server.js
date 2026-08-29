@@ -1412,13 +1412,18 @@ export function makeConsoleServer({
     if (options.externalSignal?.aborted) abortFromExternal();
     else options.externalSignal?.addEventListener('abort', abortFromExternal, { once: true });
     let resolveCancelTerminal; let rejectCancelTerminal;
+    let resolveWorkAdmissionReady; let rejectWorkAdmissionReady;
+    const workAdmissionReady = new Promise((resolveAdmission, rejectAdmission) => {
+      resolveWorkAdmissionReady = resolveAdmission; rejectWorkAdmissionReady = rejectAdmission;
+    });
+    workAdmissionReady.catch(() => {});
     const cancelTerminal = new Promise((resolveTerminal, rejectTerminal) => {
       resolveCancelTerminal = resolveTerminal; rejectCancelTerminal = rejectTerminal;
     });
     cancelTerminal.catch(() => {});
     const runningEntry = { controller, runId: run.runId, cancelTerminal,
       resolveCancelTerminal, rejectCancelTerminal, admission: null, childSettlementReceipt: null,
-      cancellationSettled: false };
+      cancellationSettled: false, workAdmissionReady };
     running.set(sessionId, runningEntry);
     let runFinished = false;
     let resourceRunStatus = 'unknown';
@@ -1556,7 +1561,34 @@ export function makeConsoleServer({
           }), runId: run.runId,
         });
       }
-      let activeWork = null;
+      let activeWork = null; let workBound = false; let workAdmissionPromise = null;
+      const admitActiveWork = async () => {
+        if (options.observationOnly) return null;
+        if (!activeWork) activeWork = await workStore.activeForSession(sessionId);
+        if (!activeWork) activeWork = await workStore.create({
+          sessionId, sourceMessageId: `${run.runId}:user`,
+        });
+        if (!workBound) {
+          await run.append({ type: 'work_bound', stepId: 'work', payload: {
+            workId: activeWork.workId, revision: activeWork.revision,
+          } });
+          await workStore.claimExecution({ workId: activeWork.workId,
+            revision: activeWork.revision, runId: run.runId });
+          if (options.admittedInput) await workStore.claimInputExecution({
+            inputId: options.admittedInput.inputId, runId: run.runId,
+          });
+          workBound = true;
+          await publishWorkReality(sessionId, emit).catch((error) => onError?.(error));
+        }
+        return activeWork;
+      };
+      const ensureActiveWork = () => {
+        if (!workAdmissionPromise) workAdmissionPromise = admitActiveWork().catch((error) => {
+          workAdmissionPromise = null; throw error;
+        });
+        return workAdmissionPromise;
+      };
+      resolveWorkAdmissionReady(ensureActiveWork);
       if (!options.observationOnly) {
         if (options.admittedInput?.workId) {
           const state = await workStore.read(); activeWork = state.works.find((work) => (
@@ -1565,18 +1597,7 @@ export function makeConsoleServer({
           )) ?? null;
           if (!activeWork) throw new Error('admitted input exact Work is not active');
         } else activeWork = await workStore.activeForSession(sessionId);
-        if (!activeWork) activeWork = await workStore.create({
-          sessionId, sourceMessageId: `${run.runId}:user`,
-        });
-        await run.append({ type: 'work_bound', stepId: 'work', payload: {
-          workId: activeWork.workId, revision: activeWork.revision,
-        } });
-        await workStore.claimExecution({ workId: activeWork.workId,
-          revision: activeWork.revision, runId: run.runId });
-        if (options.admittedInput) await workStore.claimInputExecution({
-          inputId: options.admittedInput.inputId, runId: run.runId,
-        });
-        await publishWorkReality(sessionId, emit).catch((error) => onError?.(error));
+        if (activeWork) await ensureActiveWork();
       } else await run.append({ type: 'work_observation', stepId: 'work', payload: {
         originRunId: options.metadata?.originRunId ?? null,
       } });
@@ -1590,14 +1611,21 @@ export function makeConsoleServer({
       const workspacePatchTool = makeWorkspacePatchTool({ workspace,
         stateRoot: join(stateDir, 'authoring', sessionId), sessionId });
       const programRuntimeRoot = join(dirname(stateDir), 'program-runtime', sessionId);
-      const programExecutionAdapter = computer.platform === 'darwin' && activeWork ? makeSnapshotProgramAdapter({
-        workspace, snapshotRoot: join(programRuntimeRoot, 'snapshots'),
-        scratchRoot: join(programRuntimeRoot, 'scratch'), sessionId,
-        workId: activeWork.workId, revision: activeWork.revision, runId: run.runId,
-        processRegistry: processes, workspacePatchTool, attachmentStore: attachments,
-        executionPath: terminalEnvironment?.PATH ?? process.env.PATH ?? '/usr/bin:/bin',
-        protectedReadRoots: [...protectedFileRoots, stateDir],
-      }) : null;
+      let snapshotProgramAdapter = null;
+      const programExecutionAdapter = computer.platform === 'darwin' && !options.observationOnly ? {
+        async execute(args) {
+          const work = await ensureActiveWork();
+          if (!snapshotProgramAdapter) snapshotProgramAdapter = makeSnapshotProgramAdapter({
+            workspace, snapshotRoot: join(programRuntimeRoot, 'snapshots'),
+            scratchRoot: join(programRuntimeRoot, 'scratch'), sessionId,
+            workId: work.workId, revision: work.revision, runId: run.runId,
+            processRegistry: processes, workspacePatchTool, attachmentStore: attachments,
+            executionPath: terminalEnvironment?.PATH ?? process.env.PATH ?? '/usr/bin:/bin',
+            protectedReadRoots: [...protectedFileRoots, stateDir],
+          });
+          return snapshotProgramAdapter.execute(args);
+        },
+      } : null;
       const terminal = makeTerminalHand({
         workingDirectory: workspace, computer, processRegistry: processes, ownerId: sessionId,
         yieldMs: processYieldMs, originRunId: run.runId, effectPreflight,
@@ -1839,7 +1867,10 @@ export function makeConsoleServer({
       }));
       if (options.trigger !== 'automation') offeredTools.unshift(makeAutomationTool({
           store: automationStore, scheduler: automationScheduler, sessionId,
-          workBinding: activeWork ? { workId: activeWork.workId, revision: activeWork.revision } : null,
+          workBinding: async () => {
+            const work = await ensureActiveWork();
+            return work ? { workId: work.workId, revision: work.revision } : null;
+          },
           authorizeEffect: (args) => effectPreflight({ toolName: 'automation', args, ownerId: sessionId }),
           inspectRequirements: async ({ requiredTools, delivery }) => {
             const available = new Set(offeredTools.map((tool) => tool.name));
@@ -2041,6 +2072,7 @@ export function makeConsoleServer({
         focusToolSurface: informationControl === 'research-first-v1',
         resourceSituationMode,
         activeOptimizationMode,
+        onToolCallsAccepted: async () => { await ensureActiveWork(); },
         onToolActivity: async ({ toolCallId, name, stream, deltaChars, totalChars, state }) => {
           if (observedToolActivity.has(toolCallId) || !['stdout', 'stderr'].includes(stream)
             || !Number.isSafeInteger(deltaChars) || deltaChars < 1
@@ -2648,6 +2680,7 @@ export function makeConsoleServer({
         workId: settledWork?.workId ?? null, workRevision: settledWork?.claimedRevision ?? null,
         channelDelivery: surfaceResult.channelDelivery ?? null };
     } catch (error) {
+      rejectWorkAdmissionReady(error);
       if (controller.signal.aborted) {
         if (!runFinished) {
           await run.finish('cancelled', { reason: 'user_recovered_or_cancelled' }).catch(() => {});
@@ -4534,6 +4567,8 @@ export function makeConsoleServer({
         const input = await body(req);
         const entry = running.get(input.sessionId);
         if (!entry) { json(res, 409, { ok: false, error: '현재 멈출 작업이 없어요.' }); return; }
+        const ensureActiveWork = await entry.workAdmissionReady;
+        await ensureActiveWork();
         const disposition = input.hard === true ? 'hard_cancelled' : 'interrupted_resumable';
         const admission = await workCancellation.admit({ sessionId: input.sessionId,
           runId: entry.runId, disposition, requestId: input.requestId ?? null });
@@ -4582,6 +4617,11 @@ export function makeConsoleServer({
         if (running.has(input.sessionId) || alreadyPending) {
           const session = await sessions.load(input.sessionId);
           if (!session) { json(res, 404, { error: '대화를 찾지 못했어요.' }); return; }
+          const runningEntry = running.get(input.sessionId);
+          if (runningEntry) {
+            const ensureActiveWork = await runningEntry.workAdmissionReady;
+            await ensureActiveWork();
+          }
           await conversations.ensure({ sessionId: input.sessionId, legacyMessages: historyFrom(session) });
           const messageId = randomUUID();
           const admittedAttachmentIds = [...new Set((input.attachmentIds ?? []).map(String))];

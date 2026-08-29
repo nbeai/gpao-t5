@@ -1,6 +1,6 @@
 # T5 Fifth Completion — Android Judgment & Context Runtime
 
-상태: `FIFTH_COMPLETION_ACTIVE · CJ0_CJ1_COMPLETE · CJ2_DIRECT_INTELLIGENCE_OPEN`
+상태: `FIFTH_COMPLETION_ACTIVE · CJ0_CJ2_COMPLETE · CJ3_EVIDENCE_PROJECTION_OPEN`
 4차 귀환 기준: `fe51c8c5 · FOURTH_COMPLETION_COMPLETE_MACOS_PRODUCT_SCOPE`
 4차 release-only 후속선: `8c2a3b05 · 0.4.0 packaging lineage · 설치 자격 진행과 5차 개발은 분리`
 5차 구현 기준·branch·worktree: `fe51c8c5 · codex/t5-fifth-context-judgment-plan · /Users/jyp/Developer/t5-fifth-plan`
@@ -513,6 +513,22 @@ Work는 의미 Router가 아니라 다음 실제 사건에서 열린다.
 
 > T5는 생각과 대화만 필요한 순간에는 강한 모델의 지능을 가볍게 전달하고, 실제 Work가 시작될 때만 기존
 > 실행·진행·취소·복구 상태를 연다.
+
+CJ2 actual은 의미 분류 없이 Work admission의 물리적 순서를 바꿨다. 새 요청은 첫 model response 전에 Work를
+만들지 않는다. 모델이 실제 Tool call을 반환하거나, 기존 active Work·실행 중 새 입력·취소처럼 identity가 필요한
+사건이 발생할 때 single promise로 Work를 exact once 생성·claim한 뒤 Tool을 실행한다.
+
+- 직접 답변: model 1·Tool 0·Work 0·claim 0·Working Memory projection 0
+- agentic 양성 대조: 첫 Tool 전에 `work_bound` exact 1, completion·settlement 유지
+- 실행 중 교정·독립 Work·cancel·surface crash·delivery recovery: 무회귀
+- G same-language Python 세 model identity와 기존 Terminal/managed process: 무회귀
+- Intent Router·정규식·별도 model call·새 Store: 0
+- 집중 검사: 52/52
+
+일반 UI의 짧은 요청 수신 표시까지 없앴다는 주장은 하지 않는다. 제거한 것은 모델 판단 전에 만들어지던 Work와
+모델 Context의 무의미한 Working Memory다.
+
+근거: `refoundation/evidence/fifth-cj2-direct-work-admission-2026-08-30.json`.
 
 ---
 

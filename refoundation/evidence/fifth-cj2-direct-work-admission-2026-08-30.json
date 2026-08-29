@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "gate": "CJ2_DIRECT_INTELLIGENCE_AND_WORK_ADMISSION",
+  "status": "COMPLETE",
+  "baselineCommit": "7a4ee13f",
+  "candidateCommit": "same_commit_as_evidence",
+  "openedDefect": {
+    "family": "work_created_before_model_action",
+    "baseline": {
+      "directModelCalls": 1,
+      "directToolCalls": 0,
+      "workCreatedBeforeFirstModelResponse": true,
+      "workingMemoryProjected": true,
+      "unresolvedWorkRetained": true
+    }
+  },
+  "admissionContract": {
+    "meaningRouter": false,
+    "requestRegex": false,
+    "extraIntentModelCall": false,
+    "admitOn": [
+      "model_accepted_nonempty_tool_calls",
+      "preexisting_active_work",
+      "admitted_work_input",
+      "busy_user_input",
+      "user_cancel"
+    ],
+    "concurrency": "single promise exact once per Run",
+    "toolExecutionBeforeAdmission": 0
+  },
+  "directPositiveControl": {
+    "request": "안녕",
+    "answer": "바로 답했습니다.",
+    "modelCalls": 1,
+    "toolCalls": 0,
+    "workCreated": 0,
+    "executionClaims": 0,
+    "workBoundEvents": 0,
+    "workingMemoryProjection": 0
+  },
+  "agenticPositiveControl": {
+    "request": "현재 연결 상태를 확인해줘",
+    "firstTool": "connection list",
+    "workCreated": 1,
+    "workBoundEvents": 1,
+    "workBoundBeforeToolStarted": true,
+    "completionToolPreserved": true
+  },
+  "continuityCountertests": {
+    "tests": 52,
+    "passed": 52,
+    "failed": 0,
+    "covered": [
+      "busy input admission during first model response",
+      "cancel and process-tree settlement",
+      "same-Work correction and independent Work transition",
+      "surface crash and delivery recovery",
+      "automation work binding",
+      "same-language Python G execution for three model identities",
+      "existing console terminal and managed process paths"
+    ]
+  },
+  "productChanges": [
+    "agent loop announces accepted Tool calls before physical dispatch",
+    "console creates and claims Work only at a factual admission event",
+    "program and automation bindings resolve the admitted Work lazily"
+  ],
+  "nonClaims": [
+    "all initial Tool schemas are removed from direct calls",
+    "generic request activity animation is eliminated",
+    "Runtime classifies natural-language intent"
+  ],
+  "completionSentence": "T5는 생각과 대화만 필요한 새 요청에는 Work를 만들거나 Working Memory를 투영하지 않고, 실제 Tool 요청·교정·취소가 발생한 순간 기존 실행·복구 상태를 정확히 한 번 연다.",
+  "nextGate": "CJ3_EVIDENCE_PROJECTION"
+}

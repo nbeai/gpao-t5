@@ -255,6 +255,7 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [],
  *   activeOptimizationMode?:'off'|'model-selected-v1',
  *   takeAdmittedWorkInputs?:()=>Promise<Array<{inputId:string,text:string,attachmentIds?:string[],source?:object,currentWork?:object,modelAttachments?:object[]}>>,
  *   applyAdmittedWorkInputs?:(inputs:Array<{inputId:string}>)=>Promise<unknown>,
+ *   onToolCallsAccepted?:(facts:{turn:number,toolCalls:Array<object>})=>Promise<unknown>|unknown,
  *   onEvent?:(event:object)=>void|Promise<void>,
  * }} input
  */
@@ -276,6 +277,7 @@ export async function runAgent({
   activeOptimizationMode = 'model-selected-v1',
   takeAdmittedWorkInputs = null,
   applyAdmittedWorkInputs = null,
+  onToolCallsAccepted = null,
   onEvent,
   onToolActivity = null,
 }) {
@@ -573,6 +575,10 @@ export async function runAgent({
       }
       return { status: 'completed', answer: response.text, transcript, receipts, modelCalls, modelTurns };
     }
+
+    await onToolCallsAccepted?.({
+      turn: modelTurns, toolCalls: structuredClone(response.toolCalls),
+    });
 
     const parallelSelected = activeOptimizationMode === 'model-selected-v1'
       && response.toolCalls.length > 1 && response.toolCalls.every((call) => (
