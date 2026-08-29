@@ -1,0 +1,46 @@
+{
+  "schema": "t5.s4h.readonly-baseline.v1",
+  "recordedOn": "2026-08-29",
+  "status": "CURRENT_HEAD_POSITIVE_CONTROL_ORACLE_REPAIRED_NO_IMPLEMENTATION_OPENED",
+  "sourceCommit": "9fa2768e",
+  "productChanges": 0,
+  "fixture": {
+    "purpose": "source-keyed application reconciliation",
+    "similarNames": 2,
+    "applicationOrderReversed": true,
+    "missingRequiredFields": 1,
+    "privateJsonCanary": true,
+    "requestedOutputs": ["서울.csv", "미확인.csv"]
+  },
+  "runs": [
+    { "model": "gpt-5.5", "wallMs": 122014, "modelCalls": 12, "toolCalls": 12,
+      "providerTokens": 233034, "requestBytes": 1111802 },
+    { "model": "gpt-5.5", "wallMs": 155969, "modelCalls": 17, "toolCalls": 18,
+      "providerTokens": 392273, "requestBytes": 1861594 }
+  ],
+  "observedOutput": {
+    "acceptedHeader": ["record_key", "name", "unique_code", "amount", "contact"],
+    "acceptedRows": [
+      ["REQ-002", "김서연", "UNIQUE-002", "200000", "010-0000-0002"],
+      ["REQ-003", "박하늘", "UNIQUE-003", "300000", "010-0000-0003"]
+    ],
+    "unknownHeader": ["record_key", "name", "unique_code", "amount", "contact", "missing_fields"],
+    "unknownRows": [["REQ-001", "김서윤", "UNIQUE-001", "100000", "", "contact"]]
+  },
+  "verification": {
+    "sourceKeyJoinExact": true,
+    "requiredFieldCoverageExact": true,
+    "outputClosure": true,
+    "privateCanaryAbsent": true,
+    "sourceUnchanged": true,
+    "runtimeErrors": 0
+  },
+  "oracleCorrection": {
+    "originalFalseFailure": "required_field_coverage",
+    "problem": "The oracle discarded source amount and the explicit blank contact while expecting a four-column gap row.",
+    "corrected": true,
+    "productDefectReproduced": false
+  },
+  "dailyCheck": { "passed": 1774, "failed": 0, "skipped": 1 },
+  "nextOneTask": "s4_h_cross_domain_qualification_product_changes_zero"
+}

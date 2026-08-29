@@ -1,6 +1,6 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_H_READ_ONLY_BASELINE_NEXT · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_H_READ_ONLY_BASELINE_CURRENT_HEAD_POSITIVE_ORACLE_REPAIRED · S4_H_CROSS_DOMAIN_QUALIFICATION_NEXT · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
 현재 Gate: `S4-H RECONCILIATION · READ-ONLY BASELINE`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
@@ -60,10 +60,10 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
    분리한 결과를 만든다.
 4. **이미 선 실제 증거**: 기존 `bind_sources`·source manifest·Document reopen·F transaction은 exact source와
    output identity를 보존하며, G internal engine은 완료·제품 activation은 관측 종료됐다.
-5. **현재 가장 큰 미달**: 0.3.1 실제 다중 자료 결과에서 source-key가 다른 두 행의 고유값 교환, 필수값 한 건
-   미확인, 요청하지 않은 개인정보 JSON 포함이 관측됐다.
-6. **이번 변경 방식**: 제품 변경 0에서 현재 head가 같은 결함을 재현하는지 먼저 확인하고, source identity·
-   cardinality·field coverage·output closure 중 최초 실제 미달 하나만 연다.
+5. **현재 가장 큰 미달**: 첫 current-head source-key baseline은 정확성 결함을 재현하지 않았지만 122~156초·
+   12~18 tool calls로 비쌌다. 서로 다른 분야에서도 기존 능력이 정확한지 아직 자격하지 않았다.
+6. **이번 변경 방식**: 제품 변경 0에서 계약·미수금·개인 파일의 기존 작은 목적을 재사용해 source identity·
+   cardinality·field coverage·output closure가 같은 원리로 성립하는지만 확인한다.
 7. **Non-goals**: G 재개발·업무별 schema·영구 entity truth·행 순서/이름 기반 merge·새 Store·Prompt·Router.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
@@ -814,7 +814,7 @@ Tool·Prompt·Router·filesystem observer·snapshot activation을 더 개발하�
 > T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은 프로그램을 만들고, 고정된
 > 입력과 범위에서 시험·실행하며, 프로그램과 독립적으로 검증한 사용자 결과만 발행하고 나머지는 정리한다.
 
-### S4-H — 범용 Reconciliation 확장 — READ-ONLY BASELINE NEXT
+### S4-H — 범용 Reconciliation 확장 — CURRENT POSITIVE · CROSS-DOMAIN QUALIFICATION NEXT
 
 기존 `bind_sources`·source manifest·document reopen 위에서 실제 실패만 넓힌다. 서로 다른 자료의 대상 후보,
 field mapping, 중복·누락·충돌, 날짜·수량·금액, partial coverage, 원본 행·셀·페이지 lineage, 결과 재계산과
@@ -836,6 +836,17 @@ field mapping, 중복·누락·충돌, 날짜·수량·금액, partial coverage,
 
 같은 이메일이라는 이유만으로 다른 기간의 고유값을 복사하거나 출처 없는 identity를 merge하지 않는다. 필수값
 하나가 미확인이면 전체 검증 완료로 말하지 않고 확인된 행과 남은 한 행을 분리한다.
+
+S4-H read-only current-head actual은 비슷한 이름의 신청원본 순서를 뒤집고, 한 행의 필수 연락처를 비우고,
+요청하지 않은 개인정보 JSON canary를 둔 작은 source-key fixture를 두 번 실행했다. 두 실행 모두
+`REQ-001→UNIQUE-001`, `REQ-002→UNIQUE-002`, `REQ-003→UNIQUE-003`을 정확히 보존했고 완성 2행·미확인 1행,
+결과 CSV 두 개만 만들며 private canary와 원본 변경은 0이었다.
+
+최초 oracle은 미확인 결과를 `record_key·name·unique_code·missing_field` 네 열로 과도하게 축소해 정상 결과를
+`required_field_coverage` 실패로 오판했다. 실제 결과는 `amount·빈 contact·missing_fields=contact`까지 보존해
+더 완전했다. oracle을 source-preserving 여섯 열로 교정한 뒤 current-head는 세 결함 가족 모두 positive control이다.
+제품 구현은 0이다. 불리한 비용은 첫 실행 122.014초·12 model/tool calls·233,034 tokens, 두 번째 155.969초·
+17 model calls·18 tool calls·392,273 tokens로 보존한다.
 
 재고·계약·미수금 실패의 공통 원인이 같은 대상·시간·상태 연결일 때 하나의 source-backed reconciliation
 원리를 고친다. 세 전용 기능을 만들지 않고 ambiguous identity를 자동 merge하지 않는다.
@@ -1010,6 +1021,7 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 S4-C 미달은 S4-I·S4-HQ에 계속 이월한다. S4-D managed non-PTY와 D5C, S4-E1~E7, S4-F는 닫혔다. S4-G는 internal
 engine COMPLETE·product activation CLOSED_WITH_OBSERVATION·further development DEFERRED로 종료했고 제품 entry는
-0이다. 현재 다음 한 작업은 S4-H read-only baseline이다. 기존 0.3.1 다중 자료 결과의 source-key join·필수값
-coverage·개인정보 output closure 결함을 현재 head에서 제품 변경 없이 한 번 재현하고 최초 reconciliation 계약
-미달 하나만 연다.
+0이다. S4-H 첫 read-only baseline은 oracle을 교정한 current-head positive control이며 구현을 열지 않았다.
+현재 다음 한 작업은 제품 변경 0의 cross-domain qualification이다. 기존 계약 비교·미수금·개인 파일의 작은
+목적을 재사용하고 source identity·ambiguous/unmatched·required coverage·output closure가 같은 원리로 성립하는지
+확인한다. 실제 차이가 없으면 H를 기존 능력으로 닫고, 차이가 나면 최초 결함 가족 하나만 구현으로 연다.

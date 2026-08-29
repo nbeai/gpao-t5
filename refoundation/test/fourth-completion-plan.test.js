@@ -12,7 +12,7 @@ test('4차 정본은 S4-G를 관측 종료하고 S4-H read-only baseline만 연�
     readFile(new URL('AGENTS.md', root), 'utf8'),
     readFile(new URL('T5-SECOND-COMPLETION.md', root), 'utf8'),
   ]);
-  assert.match(plan, /S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_H_READ_ONLY_BASELINE_NEXT/u);
+  assert.match(plan, /S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_H_READ_ONLY_BASELINE_CURRENT_HEAD_POSITIVE_ORACLE_REPAIRED · S4_H_CROSS_DOMAIN_QUALIFICATION_NEXT/u);
   assert.match(plan, /t5-0\.3\.1-clean-baseline · 8aba3700/u);
   assert.match(plan, /현재 Gate: `S4-H RECONCILIATION · READ-ONLY BASELINE`/u);
   const gates = ['S4-0', 'S4-A', 'S4-B', 'S4-C', 'S4-D', 'S4-E', 'S4-F', 'S4-G',
@@ -108,7 +108,7 @@ test('4차 정본은 S4-G를 관측 종료하고 S4-H read-only baseline만 연�
   assert.match(plan, /161\.854초·16 model calls·16 tool calls·419,448 tokens/u);
   assert.match(plan, /product_activation: CLOSED_WITH_OBSERVATION/u);
   assert.match(plan, /actualReadSet: UNKNOWN_BY_DESIGN/u);
-  assert.match(plan, /S4-H — 범용 Reconciliation 확장 — READ-ONLY BASELINE NEXT/u);
+  assert.match(plan, /S4-H — 범용 Reconciliation 확장 — CURRENT POSITIVE · CROSS-DOMAIN QUALIFICATION NEXT/u);
   assert.match(plan, /두 행의 고유값 교환[\s\S]*요청하지 않은 개인정보 JSON/u);
   assert.match(plan, /one-to-one·one-to-many·many-to-one·ambiguous·unmatched·conflicting/u);
   assert.match(plan, /최종 Excel·ZIP을 독립 재개방/u);
