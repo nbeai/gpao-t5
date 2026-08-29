@@ -1,0 +1,55 @@
+{
+  "schema": "t5.s4hq.console-closeout.v1",
+  "recordedAt": "2026-08-30T03:00:00+09:00",
+  "productSourceHead": "527a11d3",
+  "scope": "macOS product Console; Windows DEFERRED_NOT_WAIVED by owner decision",
+  "surface": "actual product Console UI in Codex in-app Browser",
+  "model": "gpt-5.5",
+  "result": "S4_HQ_COMPLETE_MACOS_PRODUCT_SCOPE",
+  "journeys": [
+    { "id": "A", "status": "PASS_REUSED_UNCHANGED", "evidence": "043cf154-b4f5-41b4-b344-8d7243538c5e", "result": "direct Korean answer, one model call, tool zero" },
+    { "id": "B", "status": "PASS", "runId": "097f2f9d-8383-4f85-a2e8-c34955c40473", "wallMs": 28988, "modelCalls": 7, "toolCalls": 6, "providerTokens": 83428, "requestBytes": 488125, "result": "C2 exact selection, IMG_0042.png inline image, Preview, download and existing-file receipt" },
+    { "id": "C", "status": "PASS", "runId": "46270469-fdac-476e-83d1-f3c4482863a0", "wallMs": 197223, "modelCalls": 14, "toolCalls": 17, "providerTokens": 435025, "requestBytes": 1875809, "result": "two exceptions only, XLSX reopened values and row counts, ZIP with XLSX and one guide, source unchanged" },
+    { "id": "D", "status": "PASS_REUSED_CURRENT_CONTRACT", "evidence": "226ea153-c8c6-4789-af79-c349fe343f4a", "result": "program exact once, immutable source universe, independent output verification, two Artifacts and cleanup" },
+    { "id": "E", "status": "PASS", "runId": "47a133ef-b6df-4a29-ad49-7d774d532397", "wallMs": 153069, "modelCalls": 19, "toolCalls": 20, "providerTokens": 596925, "requestBytes": 2637449, "result": "local site, form interaction and success, network zero, managed server stop, HTML Preview and Artifact" },
+    { "id": "F", "status": "PASS", "runId": "832933ba-109b-4d6b-970b-33c20fba3141", "wallMs": 174033, "modelCalls": 25, "toolCalls": 24, "providerTokens": 688770, "requestBytes": 3358623, "result": "dirty CSS preserved, exact source fix, full test, Browser steps 1 to 3, screenshot exact reopen and server stop; durable Undo remains qualified by current P evidence" },
+    { "id": "G", "status": "PASS_REUSED_COMPOSED_CURRENT_EVIDENCE", "evidence": ["5f0f8ca4-838a-4eb1-816d-38fc7e96d701", "5b3360ce-1b83-444a-9382-1a6761cf6a7f", "226ea153-c8c6-4789-af79-c349fe343f4a"], "result": "busy correction and reconnect continuity plus current protected publication and cleanup; no repeated full human scenario" },
+    { "id": "H", "status": "PASS", "result": "reconnected achieved Artifact result shows one Artifact receipt; unavailable capability shows no mutation warning; one Work status line" },
+    { "id": "I", "status": "PASS", "runId": "fef2a6c6-d51b-4b5a-a309-77b1469abdbe", "wallMs": 16966, "modelCalls": 4, "toolCalls": 3, "providerTokens": 103018, "requestBytes": 448710, "result": "public tunnel unavailable, external reachability false, automatic install zero, internal Attachment and localhost explicitly not external, local Preview preserved" },
+    { "id": "J", "status": "PASS_REUSED_UNCHANGED", "result": "isolated Console-Telegram continuity, file delivery, restart, unknown ACK and exact-once 13 of 13" }
+  ],
+  "repairs": {
+    "programRouting": "Python AST capability observation routes child-process or network dependent programs away from G without file-extension or business rules",
+    "browserEvidence": "current Run browser screenshots are exact authorized visual evidence for Attachment inspection",
+    "previewReality": "preview_publication remains on-demand even when unavailable and returns typed external reachability facts",
+    "visualDelivery": "current Run visual candidate authority is shared only with exact Attachment delivery",
+    "resultUX": "canonical Work completion projects one achieved result/effect receipt and zero-effect unavailable capabilities create no mutation warning"
+  },
+  "performance": {
+    "newProjectPrevious": { "wallMs": 246619, "modelCalls": 28, "toolCalls": 29, "providerTokens": 1031895, "requestBytes": 4728478 },
+    "newProjectCurrent": { "wallMs": 153069, "modelCalls": 19, "toolCalls": 20, "providerTokens": 596925, "requestBytes": 2637449 },
+    "interpretation": "all measured lanes improved; exact causal share across provider variance is not claimed"
+  },
+  "safety": {
+    "actualExternalWrites": 0,
+    "automaticInstalls": 0,
+    "fakeExternalUrls": 0,
+    "orphanProcesses": 0,
+    "blindRetries": 0,
+    "targetOutsideEffects": 0,
+    "initialIsolationIncidentPreservedIn": "s4-hq-console-wave-2026-08-30.json",
+    "incidentCorrected": true
+  },
+  "reusePolicy": {
+    "repeatedFullHumanWave": false,
+    "reason": "owner requested avoiding unnecessary repeated broad tests; only failed representative journeys were rerun",
+    "standardFullCIRequired": true
+  },
+  "verification": {
+    "unit": { "passed": 1866, "failed": 0, "skipped": 1 },
+    "productIntegration": { "passed": 201, "failed": 0, "skipped": 2 },
+    "mutation": { "killed": 2, "survived": 0 }
+  },
+  "windows": "DEFERRED_NOT_WAIVED",
+  "fourthCompletion": "COMPLETE_MACOS_PRODUCT_SCOPE"
+}

@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_G_DURABLE_BATCH_HANDOFF_COMPLETE · S4_G_GENERIC_SNAPSHOT_SHELL_PRODUCT_ACTIVATION_COMPLETE_MODEL_INDEPENDENT · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_P_DURABLE_PROJECT_BUILDING_COMPLETE_MACOS_PRODUCT_SCOPE · S4_P4_CONDITIONAL_EXISTING_OFFICIAL_CLI · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_ACTUAL_CONSOLE_WAVE_OPEN_BLOCKED_BY_C_B_F_H_I · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
-현재 Gate: `S4-HQ ACTUAL CONSOLE P0/P1 REPAIR · FOURTH COMPLETION NOT YET CLAIMABLE`
+상태: `FOURTH_COMPLETION_COMPLETE_MACOS_PRODUCT_SCOPE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_G_DURABLE_BATCH_HANDOFF_COMPLETE · S4_G_GENERIC_SNAPSHOT_SHELL_PRODUCT_ACTIVATION_COMPLETE_MODEL_INDEPENDENT · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_P_DURABLE_PROJECT_BUILDING_COMPLETE_MACOS_PRODUCT_SCOPE · S4_P4_CONDITIONAL_EXISTING_OFFICIAL_CLI · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_COMPLETE_MACOS_PRODUCT_SCOPE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+현재 Gate: `FOURTH COMPLETION SEALED · MACOS PRODUCT SCOPE · WINDOWS DEFERRED_NOT_WAIVED`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,17 +55,14 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: gpt-5.5 기본 모델로 실행한 S4-HQ actual Console wave의 P0/P1 수리다.
+2. **현재 Gate**: S4-HQ macOS 제품 범위 봉인이 완료됐다.
 3. **사용자 완료 문장**: 사용자는 기술을 배우지 않고 프로젝트를 맡기며 T5는 자료 탐색·작성·실행·화면과
    기능 검증·결과 전달·교정과 후속 수정을 실제로 이어간다.
-4. **이미 선 실제 증거**: actual Console에서 A 직접 대화, B 깊은 문서, D 보호 프로그램, E 신규 홈페이지,
-   F durable Undo, J 격리 Console↔Telegram은 성립했고 전체 CI도 통과했다.
-5. **현재 가장 큰 미달**: C 문서·ZIP 실패, B 이미지 delivery 분산, F 첫 턴 과잉 검증 failure surface,
-   H receipt 잡음, I internal Preview의 external 오표현과 높은 비용이다.
-6. **이번 변경 방식**: 실제 Run·Prompt·Receipt에서 재현된 같은 결함 가족만 구조적으로 수리하고 동일 Console
-   목적을 다시 실행한다. 성공하지 않은 여정은 PASS로 바꾸지 않는다.
-7. **Non-goals**: 새 IDE·Git·Project Store, framework·업종 Router, 모델별 Prompt, 새 external hosting,
-   G activation 조건의 세 번째 patch, Windows deferred의 PASS 승격, 5차 제품 구현.
+4. **이미 선 실제 증거**: A~J는 실제 Console과 기존 current evidence 재사용으로 닫혔고 C·B·F·H·I 실패 축은
+   targeted requalification에서 통과했다. 전체 CI가 최종 봉인을 담당한다.
+5. **현재 가장 큰 미달**: 4차 macOS 완료 blocker는 없다. Windows 물리 자격은 `DEFERRED_NOT_WAIVED`다.
+6. **이번 변경 방식**: 이 정본과 closeout evidence를 clean commit으로 봉인하고 4차 제품 코드를 더 열지 않는다.
+7. **Non-goals**: 5차 제품 구현, Windows PASS 주장, 새 external hosting, 반복 전체 인간 wave, 추가 기능 개발.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -1410,6 +1407,45 @@ single Work status와 superseded mutation warning 정리다. 실제 사용자 �
 
 근거: `refoundation/evidence/s4-hq-console-wave-2026-08-30.json`.
 
+첫 wave blocker는 기능 추가가 아니라 교차로 계약으로 닫았다. Python source를 실행하지 않는 AST capability
+observer가 child process·network 요구를 사실로 분리한다. 이 요구가 있거나 Python source capability가 정확히
+관측되지 않으면 G로 가로채지 않고 기존 Document/managed exec 경로를 유지한다. 파일 확장자·업무명·모델명
+Router는 없다. Browser screenshot은 같은 Run의 exact managed visual evidence로만 Attachment 재개방을 허용하고,
+File Reality가 시각화한 exact 후보만 같은 Run의 Attachment 전달 권한으로 공유한다.
+
+외부 Preview capability는 설치돼 있을 때만 실행하지만, 부재 시에도 on-demand typed Tool로
+`externallyReachable=false`, `automaticInstallPerformed=false`, `internalAttachmentPreviewIsExternal=false`를
+공급한다. 모델은 내부 Attachment·localhost를 외부 URL로 승격하지 않고 현재 local Preview와 미실행 사실만
+전달했다. achieved Work의 Artifact·Effect는 canonical Work outcome을 읽어 하나의 결과 영수증으로 투영하고,
+실행되지 않은 unavailable capability는 mutation 경고를 만들지 않는다.
+
+오너 지시에 따라 A~J 전체 인간 wave를 다시 반복하지 않고 실패한 C·B·F·H·I와 E 성능만 targeted
+requalification했다.
+
+| 여정 | 최종 판정 | closeout 결과 |
+|---|---|---|
+| A | PASS_REUSED | 직접 답변 1 model call·tool 0의 unchanged 양성 대조를 재사용했다. |
+| B | PASS | C2 exact 선택 뒤 IMG_0042.png inline image·Preview·download·기존 파일 영수증을 전달했다. |
+| C | PASS | 예외 2행만 XLSX로 만들고 실제 값·행 수를 재개방했으며 XLSX+안내 2개만 든 ZIP을 전달했다. |
+| D | PASS_REUSED_CURRENT_CONTRACT | same-language program exact once·immutable source·독립 검증·Artifact·cleanup을 재사용했다. |
+| E | PASS | local site·form success·network 0·server stop·Artifact가 성립했고 wall 246.6→153.1초, model 28→19, tool 29→20, tokens 1,031,895→596,925로 개선됐다. |
+| F | PASS | dirty CSS 보존·source fix·test·Browser 1→2→3·screenshot exact reopen·server stop과 durable Undo 계약이 성립했다. |
+| G | PASS_REUSED_COMPOSED | busy correction·재접속과 current protected publication·cleanup 증거를 결합해 반복 전체 실행을 생략했다. |
+| H | PASS | 재접속 결과는 Artifact 영수증 한 줄, unavailable capability는 mutation 경고 0, Work status 한 줄이다. |
+| I | PASS | 외부 capability 부재·외부 도달 0·자동 설치 0·내부/localhost 비외부·local 대안을 정확히 답했다. |
+| J | PASS_REUSED | 격리 Console↔Telegram·파일·restart·unknown ACK·exact-once 13/13을 재사용했다. |
+
+최종 전체 CI는 unit 1,866/1,866(1 skip), product integration 201/201(2 Windows skip), mutation 2/2를 통과했다.
+
+target 밖 effect·실제 외부 write·자동 설치·가짜 외부 URL·orphan·blind retry는 0이다. 최초 HQ isolation 사고는
+이전 evidence에 그대로 보존하고 수정 후 모든 closeout 실행은 synthetic HOME·DATA·WORKSPACE와 빈 messenger·
+connector에서 수행했다. Windows는 오너 결정대로 `DEFERRED_NOT_WAIVED`이며 macOS 성공으로 Windows PASS를
+주장하지 않는다.
+
+S4-HQ는 `COMPLETE_MACOS_PRODUCT_SCOPE`로 닫고 4차도 같은 범위로 봉인한다.
+
+완료 근거: `refoundation/evidence/s4-hq-console-closeout-2026-08-30.json`.
+
 기능 결과와 별도로 사용자가 기다리는 동안 실제 진전·남은 일·사용자 행동 필요·교정·중지·재접속을 이해하고
 안심하며 통제할 수 있었는지 평가한다. 진행 문구의 수나 갱신 빈도는 성공 지표가 아니며 실제 runtime 사건과
 사용자 체감의 일치가 기준이다.
@@ -1470,28 +1506,10 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-D managed non-PTY·D5C, S4-E1~E7, S4-F, S4-G model-independent product activation, S4-I, S4-UX는 닫혔다.
-S4-H는 existing-capability observation으로 닫고 남은 계약 발견·cross-source join을 HQ에 이월했다. S4-C의 모델별
-portable discovery·false absence 관측과 S4-HQ KHB-A03의 gpt-5.5 PASS·Terra critical failure는 제품·Prompt 변경 0의
-정책 대기 상태로 그대로 보존한다. Windows 물리 S4-L도 `DEFERRED_NOT_WAIVED`다.
+4차 macOS 제품 범위는 S4-HQ closeout과 전체 CI 뒤 clean commit으로 봉인한다. 더 이상 4차 제품 기능이나
+추가 인간 시나리오를 열지 않는다. S4-C의 model/provider variance와 `actualReadSet: UNKNOWN_BY_DESIGN`, conditional
+external Preview, 실제 외부 계정 미실행은 정직한 비주장으로 남으며 완료 기능을 거짓 확장하지 않는다.
 
-오너 결정으로 이미 선 D·E·F·G·Browser·Artifact·Work·Recovery를 실제 지속 프로젝트 여정으로 결속하는 S4-P를
-4차에 추가했다. 이 결정은 HQ의 불리한 모델 관측이나 Windows 미실행을 성공으로 바꾸지 않는다. S4-P0 신규 프로젝트
-actual은 화면·기능 목적을 달성했지만 unmanaged localhost server와 PID·log 잔여물을 재현했다. S4-P2A는 background
-차단→managed foreground server→Runtime cleanup으로 ownership을 닫았고, S4-P3A는 interaction-scoped static read
-뒤 기존 Browser를 활성화해 fill·submit·결과 관측을 닫았다. P0B·P1·P2는 dirty source·build/test·Browser·durable
-Undo·Runtime restart를 통과했고 P4 conditional Quick Preview와 P5 continuity도 닫혔다. S4-P 전체는 완료됐다. 현재
-다음 한 작업은 보존된 S4-HQ KHB-A03 모델 pair 결과를 바탕으로 qualified default model과 comparison observation의
-완료 정책을 오너가 결정하는 것이다. Windows deferred가 남아 4차 전체 완료는 주장하지 않는다.
+Windows는 오너 결정대로 `DEFERRED_NOT_WAIVED`다. macOS 완료는 Windows PASS가 아니다.
 
-위 문장은 actual Console wave 전 상태다. 오너는 gpt-5.5를 4차 qualification 기본 모델, Terra를 comparison
-observation으로 결정했고 HQ를 재개했다. current-head actual 결과 A·E·J와 F Undo는 성립했지만 C·I는 FAIL,
-B·D·F·G는 PARTIAL, H는 FAIL이다. 다음 한 작업은 같은 G activation 조건의 세 번째 patch가 아니라 다음 두 구조
-가정의 재판정이다.
-
-1. binary Document CLI를 포함한 복합 Python/shell을 text-only protected program과 어떤 실행 계약으로 분리할지
-2. 이미 충분한 Browser·Capability 사실 뒤 model over-verification과 internal Preview 오표현을 Runtime 의미
-   선택·Prompt patch 없이 어떤 provider/model 지원 경계로 닫을지
-
-이 재판정과 동일 Console 목적 재시험이 PASS하기 전에는 S4-HQ·4차 완료·5차 제품 구현을 열지 않는다.
-Windows는 계속 `DEFERRED_NOT_WAIVED`다.
+다음 차수는 별도 정본의 오너 승인 전 제품 구현을 시작하지 않는다.

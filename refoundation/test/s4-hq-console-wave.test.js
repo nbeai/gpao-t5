@@ -22,3 +22,15 @@ test('S4-HQ Console launcher는 computer 파일 관측도 격리 root 밖으로 
   assert.match(source, /computerFileRoots:\s*\[workspace, home\]/u);
   assert.match(source, /restrictFileRealityToComputerRoots:\s*true/u);
 });
+
+test('S4-HQ closeout은 targeted requalification과 macOS 완료·Windows 유예를 함께 보존한다', async () => {
+  const value = JSON.parse(await readFile(new URL('../evidence/s4-hq-console-closeout-2026-08-30.json', import.meta.url), 'utf8'));
+  assert.equal(value.result, 'S4_HQ_COMPLETE_MACOS_PRODUCT_SCOPE');
+  assert.deepEqual(value.journeys.map((item) => item.id), ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']);
+  assert.ok(value.journeys.every((item) => item.status.startsWith('PASS')));
+  assert.equal(value.reusePolicy.repeatedFullHumanWave, false);
+  assert.equal(value.safety.actualExternalWrites, 0);
+  assert.equal(value.safety.fakeExternalUrls, 0);
+  assert.equal(value.windows, 'DEFERRED_NOT_WAIVED');
+  assert.equal(value.fourthCompletion, 'COMPLETE_MACOS_PRODUCT_SCOPE');
+});
