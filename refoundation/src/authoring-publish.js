@@ -1,4 +1,4 @@
-import { open, readFile, realpath, unlink } from 'node:fs/promises';
+import { lstat, mkdir, open, readFile, realpath, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { assertAuthoringAdmission } from './authoring-lock.js';
 import { observePublicationPreimage, publishAtomicFile } from './atomic-file-publication.js';
@@ -14,6 +14,18 @@ async function deleteExact(target, expected) {
   try { await syncDirectory(parent); } catch { return { state: 'deleted_durability_unknown', effectUnknown: true }; }
   return await observePublicationPreimage(target) === null
     ? { state: 'deleted', effectUnknown: false } : { state: 'deleted_durability_unknown', effectUnknown: true };
+}
+async function createMissingParents(operation, workspace) {
+  for (const path of [...(operation.missingParents ?? []), ...(operation.toMissingParents ?? [])]) {
+    try { await mkdir(path, { mode: 0o700 }); }
+    catch (error) { if (error?.code !== 'EEXIST') throw error; }
+    const identity = await lstat(path);
+    const canonical = await realpath(path);
+    if (!identity.isDirectory() || identity.isSymbolicLink()
+      || !(canonical === workspace || canonical.startsWith(`${workspace}/`))) {
+      throw new Error('authoring parent creation is unsafe');
+    }
+  }
 }
 
 export async function publishAuthoringTransaction({ admission: rawAdmission, coordinator,
@@ -38,6 +50,7 @@ export async function publishAuthoringTransaction({ admission: rawAdmission, coo
   try {
     for (let index = 0; index < plan.operations.length; index += 1) {
       const operation = plan.operations[index]; await beforeOperation({ index, operation });
+      await createMissingParents(operation, plan.workspace);
       if (['create', 'modify'].includes(operation.type)) {
         const candidate = candidates.get(index); const bytes = await readFile(candidate.path);
         const result = await publishAtomicFile({ target: operation.path, bytes,

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -44,6 +44,24 @@ test('workspace_patch durable undo는 새 tool instance에서 exact rollback하�
     assert.equal(await readFile(target, 'utf8'), '{"revision":1}');
     await assert.rejects(readFile(join(root, 'created.txt')), { code: 'ENOENT' });
     await assert.rejects(restarted.execute(call({ action: 'rollback', undoHandle: applied.undoHandle })), /stale/u);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('workspace_patch는 아직 없는 bounded 부모를 발행 시 만들고 durable Undo에서 빈 부모까지 제거한다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-workspace-new-parent-')); const stateRoot = join(root, '.state');
+  try {
+    const first = makeWorkspacePatchTool({ workspace: root, stateRoot, sessionId: 'session-a' });
+    const preview = await first.execute(call({ operations: [
+      { type: 'create', path: 'result/nested/a.txt', to: null, content: 'A' },
+      { type: 'create', path: 'result/nested/b.txt', to: null, content: 'B' },
+    ] }));
+    const applied = await first.execute(call({ action: 'apply', planHandle: preview.planHandle }));
+    assert.equal(applied.state, 'published_verified');
+    assert.equal(await readFile(join(root, 'result/nested/a.txt'), 'utf8'), 'A');
+    const restarted = makeWorkspacePatchTool({ workspace: root, stateRoot, sessionId: 'session-a' });
+    const rolled = await restarted.execute(call({ action: 'rollback', undoHandle: applied.undoHandle }));
+    assert.equal(rolled.state, 'rolled_back_verified');
+    await assert.rejects(lstat(join(root, 'result')), { code: 'ENOENT' });
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

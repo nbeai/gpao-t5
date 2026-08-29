@@ -22,7 +22,7 @@ function pathInside(candidate, root) {
   return value === '' || (value !== '..' && !value.startsWith(`..${sep}`) && !isAbsolute(value));
 }
 
-async function localChangeProfile(workspace, lexicalWorkspace, launch) {
+async function localChangeProfile(workspace, lexicalWorkspace, launch, scratch) {
   const targets = [];
   for (const value of launch.declaredEffect?.targets ?? []) {
     const requested = isAbsolute(value) ? resolve(value) : resolve(launch.cwd, value);
@@ -30,12 +30,25 @@ async function localChangeProfile(workspace, lexicalWorkspace, launch) {
       ? resolve(workspace, relative(lexicalWorkspace, requested)) : requested;
     if (!pathInside(target, workspace)) throw new Error('local change target is outside managed workspace');
     let directory = false; try { directory = (await lstat(target)).isDirectory(); } catch { directory = false; }
-    targets.push({ target, directory });
+    targets.push({ target, directory, missingParents: [] });
   }
   if (!targets.length) throw new Error('local change requires a managed target');
+  for (const item of targets) {
+    item.directory ||= targets.some((candidate) => candidate.target !== item.target
+      && pathInside(candidate.target, item.target));
+    let parent = item.directory ? item.target : resolve(item.target, '..');
+    while (pathInside(parent, workspace) && parent !== workspace) {
+      try { await lstat(parent); break; }
+      catch (error) { if (error?.code !== 'ENOENT') throw error;
+        item.missingParents.unshift(parent); parent = resolve(parent, '..'); }
+    }
+  }
   return [
     '(version 1)', '(allow default)', '(deny file-write*)',
     '(allow file-write* (regex #"^/dev/(null|stdout|stderr|tty|fd/[0-9]+)$"))',
+    `(allow file-write* (subpath "${seatbeltString(scratch)}"))`,
+    ...[...new Set(targets.flatMap((item) => item.missingParents))]
+      .map((path) => `(allow file-write-create (literal "${seatbeltString(path)}"))`),
     ...targets.map(({ target, directory }) => directory
       ? `(allow file-write* (subpath "${seatbeltString(target)}"))`
       : `(allow file-write* (literal "${seatbeltString(target)}"))`),
@@ -111,12 +124,21 @@ export async function makeTerminalPlatformAdapter({
     kind: 'macos_seatbelt', qualified: true, observationProbeQualified: true,
     async prepare(launch) {
       const confinedLocalChange = launch.declaredEffect?.kind === 'local_change' && canonicalWorkspace;
+      let temporary = null; let scratch = null;
+      if (confinedLocalChange) {
+        temporary = await mkdtemp(join(tmpdir(), 't5-terminal-change-'));
+        scratch = await mkdir(join(temporary, 'scratch'), { mode: 0o700 }).then(() => (
+          realpath(join(temporary, 'scratch'))
+        ));
+      }
       return {
         ...launch,
         program: sandboxExec,
         args: ['-p', confinedLocalChange
-          ? await localChangeProfile(canonicalWorkspace, lexicalWorkspace, launch)
+          ? await localChangeProfile(canonicalWorkspace, lexicalWorkspace, launch, scratch)
           : profile(canonicalRoots, executableNames), launch.program, ...launch.args],
+        ...(confinedLocalChange ? { env: { ...launch.env, TMPDIR: scratch, TMP: scratch, TEMP: scratch,
+          TMPPREFIX: join(scratch, 'zsh') }, cleanup: () => rm(temporary, { recursive: true, force: true }) } : {}),
         confinement: {
           kind: confinedLocalChange ? 'macos_managed_local_change' : 'macos_seatbelt', qualified: true,
           protectedRootCount: canonicalRoots.length,

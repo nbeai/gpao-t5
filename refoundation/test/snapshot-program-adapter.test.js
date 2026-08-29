@@ -87,6 +87,25 @@ test('사업·개발·개인 파일 세 목적은 same Python exact 1회→host 
   }
 });
 
+test('same Python protected path는 아직 없는 declared output 부모를 F로 발행하고 Undo에서 제거한다', async () => {
+  const app = await room();
+  try {
+    await writeFile(join(app.workspace, 'input.json'), '{"count":2}');
+    const { outcome } = await execute(app, [
+      'import json', 'from pathlib import Path',
+      "Path('result').mkdir(exist_ok=True)",
+      "value=json.loads(Path('input.json').read_text())",
+      "Path('result/summary.csv').write_text('count\\n'+str(value['count'])+'\\n')",
+    ].join('\n'), ['result/summary.csv']);
+    assert.equal(outcome.result.state, 'published_verified_cleaned');
+    assert.equal(await readFile(join(app.workspace, 'result/summary.csv'), 'utf8'), 'count\n2\n');
+    const rolled = await app.workspacePatchTool.execute({ action: 'rollback', planHandle: null,
+      undoHandle: outcome.result.publication.undoHandle, operations: [] });
+    assert.equal(rolled.state, 'rolled_back_verified');
+    await assert.rejects(readFile(join(app.workspace, 'result/summary.csv')), { code: 'ENOENT' });
+  } finally { await rm(app.root, { recursive: true, force: true }); }
+});
+
 test('guest exit 0은 missing·unexpected·invalid output을 성공으로 만들지 않는다', async () => {
   for (const [name, source, reason] of [
     ['missing', 'pass', 'declared_output_missing_or_unsafe'],

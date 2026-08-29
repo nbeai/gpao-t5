@@ -12,12 +12,21 @@ const inside = (candidate, root) => { const value = relative(root, candidate);
 async function targetPath(workspace, value) {
   const lexical = resolve(workspace, String(value ?? ''));
   if (!inside(lexical, workspace) || lexical === workspace) throw new Error('authoring target escaped workspace');
-  let parent; try { parent = await realpath(dirname(lexical)); }
+  let candidate = dirname(lexical); const missingParents = [];
+  while (candidate !== workspace) {
+    try { await lstat(candidate); break; }
+    catch (error) { if (error?.code !== 'ENOENT') throw error;
+      missingParents.unshift(candidate); candidate = dirname(candidate); }
+  }
+  let parent; try { parent = await realpath(candidate); }
   catch { throw new Error('authoring parent is unavailable'); }
   if (!inside(parent, workspace)) throw new Error('authoring parent escaped workspace');
   const stat = await lstat(parent);
   if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('authoring parent is unavailable');
-  return { path: join(parent, basename(lexical)), parentIdentity: { dev: stat.dev, ino: stat.ino } };
+  const path = resolve(parent, relative(candidate, lexical));
+  return { path, parentPath: parent, missingParents: missingParents.map((item) => (
+    resolve(parent, relative(candidate, item))
+  )), parentIdentity: { dev: stat.dev, ino: stat.ino } };
 }
 
 export async function buildAuthoringPreview({ workspace: rootValue, operations, makeId = randomUUID } = {}) {
@@ -43,7 +52,10 @@ export async function buildAuthoringPreview({ workspace: rootValue, operations, 
     const bytes = contentRequired ? (Buffer.isBuffer(input.content)
       ? Buffer.from(input.content) : Buffer.from(String(input.content))) : null;
     prepared.push({ type: input.type, path, to, preimage, bytes,
+      parentPath: sourceTarget.parentPath, missingParents: sourceTarget.missingParents,
       parentIdentity: sourceTarget.parentIdentity,
+      toParentPath: destinationTarget?.parentPath ?? null,
+      toMissingParents: destinationTarget?.missingParents ?? [],
       toParentIdentity: destinationTarget?.parentIdentity ?? null,
       candidate: bytes ? { bytes: bytes.length, sha256: sha256(bytes) } : null });
   }

@@ -43,6 +43,25 @@ test('macOS local_change profile은 managed target만 쓰고 sibling write를 �
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 
+test('macOS local_change는 declared file의 없는 부모와 heredoc temp만 열고 sibling은 계속 차단한다', async (context) => {
+  if (process.platform !== 'darwin') return context.skip('macOS Seatbelt qualification');
+  const room = await mkdtemp(join(tmpdir(), 't5-platform-new-parent-'));
+  try {
+    const target = join(room, 'result', 'nested', 'target.txt'); const sibling = join(room, 'result', 'sibling.txt');
+    const adapter = await makeTerminalPlatformAdapter({ platform: 'darwin', managedWorkspace: room });
+    const launch = await adapter.prepare({ program: '/bin/zsh', cwd: room, env: process.env,
+      args: ['-c', `mkdir -p result/nested; cat <<'EOF' > result/nested/target.txt\nok\nEOF\nprintf no > result/sibling.txt`],
+      declaredEffect: { kind: 'local_change', targets: [target] } });
+    try {
+      const { spawn } = await import('node:child_process');
+      const child = spawn(launch.program, launch.args, { cwd: room, env: launch.env, stdio: ['ignore', 'pipe', 'pipe'] });
+      const [code] = await new Promise((resolve) => child.once('close', (...args) => resolve(args)));
+      assert.notEqual(code, 0); assert.equal(await readFile(target, 'utf8'), 'ok\n');
+      await assert.rejects(readFile(sibling, 'utf8'), { code: 'ENOENT' });
+    } finally { await launch.cleanup(); }
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
 test('macOS observation profile은 file·network·signal·Apple event 경계를 함께 닫는다', async () => {
   const adapter = await makeTerminalPlatformAdapter({
     platform: 'darwin', checkExecutable: async () => {}, canonicalize: async (value) => value,

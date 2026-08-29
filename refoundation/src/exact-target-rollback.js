@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { lstat, mkdir, open, readFile, realpath, unlink } from 'node:fs/promises';
+import { lstat, mkdir, open, readFile, realpath, rmdir, unlink } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { observePublicationPreimage, publishAtomicFile } from './atomic-file-publication.js';
 
@@ -9,10 +9,20 @@ const inside = (candidate, root) => { const value = relative(root, candidate);
 async function syncDirectory(path) {
   const handle = await open(path, 'r'); try { await handle.sync(); } finally { await handle.close(); }
 }
+async function absentParentChain(target) {
+  const result = []; let candidate = dirname(target);
+  while (true) {
+    try { await lstat(candidate); return result; }
+    catch (error) { if (error?.code !== 'ENOENT') throw error;
+      result.push(candidate); const next = dirname(candidate);
+      if (next === candidate) throw new Error('rollback target parent is unavailable'); candidate = next; }
+  }
+}
 
 export async function createExactTargetRollbackPointer({ target: targetValue, rollbackRoot: rootValue,
   makeId = randomUUID } = {}) {
   const target = resolve(targetValue); const rollbackRoot = resolve(rootValue);
+  const absentParents = await absentParentChain(target);
   await mkdir(rollbackRoot, { recursive: true, mode: 0o700 });
   const canonicalRoot = await realpath(rollbackRoot); const preimage = await observePublicationPreimage(target);
   let backupName = null;
@@ -25,7 +35,8 @@ export async function createExactTargetRollbackPointer({ target: targetValue, ro
     }
   }
   return Object.freeze({ schema: 't5.exact-target-rollback.v1', pointerId: makeId(), target,
-    rollbackRoot: canonicalRoot, backupName, preimage, createdAt: new Date().toISOString() });
+    rollbackRoot: canonicalRoot, backupName, preimage, absentParents: Object.freeze(absentParents),
+    createdAt: new Date().toISOString() });
 }
 
 export async function restoreExactTargetRollback(options = {}) {
@@ -58,6 +69,10 @@ export async function restoreExactTargetRollback(options = {}) {
     return { state: 'rollback_durability_unknown', effectUnknown: true };
   }
   if (await observePublicationPreimage(target) !== null) return { state: 'rollback_durability_unknown', effectUnknown: true };
+  for (const path of pointer.absentParents ?? []) {
+    try { await rmdir(path); }
+    catch (error) { if (!['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(error?.code)) throw error; }
+  }
   return { state: 'removed_created_target', target, effectUnknown: false };
 }
 

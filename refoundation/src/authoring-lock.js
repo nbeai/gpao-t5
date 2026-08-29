@@ -20,7 +20,8 @@ export class AuthoringLockCoordinator {
 
   async acquireAndRevalidate(rawPrepared) {
     const prepared = assertPreparedAuthoring(rawPrepared); const plan = prepared.plan;
-    const targets = [...new Set(plan.operations.flatMap((item) => [item.path, item.to].filter(Boolean)))].sort();
+    const targets = [...new Set(plan.operations.flatMap((item) => [item.path, item.to,
+      ...(item.missingParents ?? []), ...(item.toMissingParents ?? [])].filter(Boolean)))].sort();
     const claims = [];
     try {
       for (const path of targets) {
@@ -34,17 +35,25 @@ export class AuthoringLockCoordinator {
       for (const operation of plan.operations) {
         const current = await observePublicationPreimage(operation.path);
         if (!same(current, operation.preimage)) throw new Error('authoring preimage changed after preview');
-        const parent = await lstat(dirname(operation.path));
+        const parent = await lstat(operation.parentPath ?? dirname(operation.path));
         if (!parent.isDirectory() || parent.isSymbolicLink()
           || parent.dev !== operation.parentIdentity.dev || parent.ino !== operation.parentIdentity.ino) {
           throw new Error('authoring parent changed after preview');
         }
+        for (const path of operation.missingParents ?? []) {
+          if (await lstat(path).then(() => true).catch((error) => error?.code === 'ENOENT'
+            ? false : Promise.reject(error))) throw new Error('authoring missing parent changed after preview');
+        }
         if (operation.to) {
           if (await observePublicationPreimage(operation.to)) throw new Error('authoring destination collision');
-          const toParent = await lstat(dirname(operation.to));
+          const toParent = await lstat(operation.toParentPath ?? dirname(operation.to));
           if (!toParent.isDirectory() || toParent.isSymbolicLink()
             || toParent.dev !== operation.toParentIdentity.dev || toParent.ino !== operation.toParentIdentity.ino) {
             throw new Error('authoring destination parent changed after preview');
+          }
+          for (const path of operation.toMissingParents ?? []) {
+            if (await lstat(path).then(() => true).catch((error) => error?.code === 'ENOENT'
+              ? false : Promise.reject(error))) throw new Error('authoring destination parent changed after preview');
           }
         }
       }
