@@ -100,6 +100,9 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
         || !args.effect.targets.length || commandExplanation?.ok !== true
         || commandExplanation.hasParseError || !commandExplanation.steps?.length) return null;
       if (args.effect.targets.some((target) => kindFor(String(target)) == null)) return null;
+      if (commandExplanation.steps.some((step) => (step.argv ?? []).some((value) => (
+        String(value).includes('/') && kindFor(String(value)) == null
+      )))) return null;
       const observedInterpreter = await interpreter();
       const pythonSteps = [];
       for (const step of commandExplanation.steps) {

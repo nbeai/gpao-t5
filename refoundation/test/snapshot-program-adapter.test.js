@@ -263,5 +263,12 @@ test('XLSX·DOCX·ZIP 같은 opaque binary publication은 text Capsule로 가로
     const result = await adapter.execute({ args: { effect: { kind: 'local_change',
       targets: ['result.xlsx', 'guide.docx', 'bundle.zip'] } }, commandExplanation: explanation, cwd: workspace });
     assert.equal(result, null);
+    const directoryTarget = await adapter.execute({ args: { effect: { kind: 'local_change',
+      targets: [join(workspace, '결과')] } }, commandExplanation: await explainShellCommand([
+      "python3 - <<'PY'", "from pathlib import Path", "Path('결과/spec.json').write_text('{}')", 'PY',
+      '"$T5_DOCUMENT_CLI" create-xlsx --spec "$PWD/결과/spec.json" --output "$PWD/결과/result.xlsx"',
+      '(cd 결과 && zip -q bundle.zip result.xlsx)',
+    ].join('\n')), cwd: workspace });
+    assert.equal(directoryTarget, null);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
