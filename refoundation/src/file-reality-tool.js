@@ -251,11 +251,13 @@ export function makeFileRealityTool({
   indexSearch = defaultIndexSearch,
   ocrProbe = null,
   contactSheetBuilder = buildLocalImageContactSheet,
+  registerSelectedImage = null,
   enforceComputerRoots = false,
   now = Date.now,
 } = {}) {
   if (!workspace || !home) throw new TypeError('file reality workspace and home are required');
   const handles = new Map();
+  const visualizedHandles = new Set();
   const volatilePlans = new Map();
   const canonicalProtectedRoots = Promise.all(protectedRoots.map(async (item) => {
     try { return await realpath(resolve(item)); } catch { return resolve(item); }
@@ -468,12 +470,16 @@ export function makeFileRealityTool({
         if (content == null && typeof ocrProbe === 'function' && IMAGE_EXTENSIONS.has(record.extension)) {
           ocr = await ocrProbe(record.path, { timeoutMs: 5_000 }); if (ocr?.state === 'observed') content = ocr.text;
         }
+        const artifact = visualizedHandles.has(requestedHandles[0])
+          && IMAGE_EXTENSIONS.has(record.extension) && typeof registerSelectedImage === 'function'
+          ? await registerSelectedImage({ path: record.path, sha256, displayName: record.displayName }) : null;
         return { state: 'observed', file: { handle: requestedHandles[0], displayName: record.displayName,
           locationText: record.locationText, extension: record.extension, bytes: record.bytes,
           modifiedAt: record.modifiedAt, sha256 },
         content: content == null ? null : content.slice(0, 48_000), contentTruncated: content != null && content.length > 48_000,
         ocr: ocr?.state === 'observed' ? { engine: ocr.engine, width: ocr.width, height: ocr.height,
-          observationCount: ocr.observations.length, truncated: ocr.truncated } : null };
+          observationCount: ocr.observations.length, truncated: ocr.truncated } : null,
+        ...(artifact ? { artifact, delivery: { state: 'registered_selected_visual' } } : {}) };
       }
       if (action === 'compare') {
         if (!Array.isArray(requestedHandles) || requestedHandles.length < 2) throw new TypeError('two or more file handles are required');
@@ -604,6 +610,7 @@ export function makeFileRealityTool({
         for (const handle of [...new Set(requestedHandles.map(String))]) { const { record } = await reopen(handle);
           if (!IMAGE_EXTENSIONS.has(record.extension) || record.bytes > 20 * 1024 * 1024) throw new Error('visual candidate is not a supported image');
           selected.push({ handle, record }); }
+        for (const item of selected) visualizedHandles.add(item.handle);
         const sheet = await contactSheetBuilder(selected.map((item) => ({ path: item.record.path })));
         return { state: 'observed', candidates: selected.map((item, index) => ({ visualRef: sheet.labels[index],
           handle: item.handle, displayName: item.record.displayName, locationText: item.record.locationText,

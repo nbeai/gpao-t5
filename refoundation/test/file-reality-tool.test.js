@@ -244,9 +244,14 @@ test('선택한 이미지 후보만 contact sheet로 모델에 한 번 공급하
   const room = await fixture(); const one = join(room.elsewhere, 'a.png'); const two = join(room.elsewhere, 'b.jpg');
   await Promise.all([writeFile(one, 'a'), writeFile(two, 'b')]);
   try {
+    const registered = [];
     const tool = makeFileRealityTool({ workspace: room.workspace, home: room.root, platform: 'test', computerRoots: [room.root],
       indexSearch: async () => [one, two], contactSheetBuilder: async (items) => ({ png: Buffer.from('sheet'), width: 720,
-        height: 272, labels: items.map((_, index) => `C${index + 1}`) }) });
+        height: 272, labels: items.map((_, index) => `C${index + 1}`) }),
+      registerSelectedImage: async (facts) => { registered.push(facts); return {
+        attachmentId: 'artifact-selected-image', originalName: facts.displayName,
+        bytes: 1, sha256: facts.sha256, mimeType: 'image/jpeg', direction: 'output',
+      }; } });
     const found = await tool.execute({ action: 'image_candidates', query: null, scope: 'path', path: room.elsewhere, handles: null,
       maxCandidates: 10, placements: null, planId: null, effect: null, sourceUses: null, purpose: null,
       unknowns: null, standardization: null });
@@ -256,6 +261,11 @@ test('선택한 이미지 후보만 contact sheet로 모델에 한 번 공급하
       effect: null, sourceUses: null, purpose: null, unknowns: null, standardization: null });
     assert.deepEqual(result.candidates.map((item) => item.visualRef), ['C1', 'C2']);
     assert.equal(result._modelAttachments.length, 1); assert.match(result._modelAttachments[0].image_url, /^data:image\/png;base64,/u);
+    const inspected = await tool.execute({ action: 'inspect', query: null, scope: null, path: null,
+      handles: [images[1].handle], maxCandidates: null, placements: null, planId: null,
+      effect: null, sourceUses: null, purpose: null, unknowns: null, standardization: null });
+    assert.equal(registered.length, 1); assert.equal(inspected.artifact.attachmentId, 'artifact-selected-image');
+    assert.equal(inspected.delivery.state, 'registered_selected_visual');
     const tools = [tool]; let calls = 0;
     const run = await runAgent({ request: '사진 후보 보여줘', tools, model: { async respond(input) { calls += 1;
       if (calls === 1) return { text: '', toolCalls: [{ id: 'visual', name: 'file_reality', args: { action: 'visual_candidates',
