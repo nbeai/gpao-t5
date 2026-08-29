@@ -125,6 +125,7 @@ function makeCommandTool(options = {}, { managed }) {
     terminalOutputStore,
     mutationObserver,
     protectedBrowserRoots = [],
+    programExecutionAdapter = null,
   } = options;
   const defaultDirectory = workingDirectory ?? workspace;
   if (!defaultDirectory || !isAbsolute(defaultDirectory)) throw new TypeError('absolute workingDirectory is required');
@@ -188,6 +189,15 @@ function makeCommandTool(options = {}, { managed }) {
       catch (error) {
         if (error?.code === 'T5_COMMAND_EXPLAINER_UNAVAILABLE') throw error;
         commandExplanation = { ok: false, error: error?.message ?? String(error) };
+      }
+      if (!managed && typeof programExecutionAdapter?.execute === 'function') {
+        const protectedExecution = await programExecutionAdapter.execute({
+          args: { ...args, effect: declaredEffect }, commandExplanation, cwd,
+          signal: context.signal, toolCallId: context.toolCallId,
+        });
+        if (protectedExecution?.handled === true) {
+          return { ...protectedExecution.result, commandExplanation };
+        }
       }
       let attributedCapabilities = [];
       if (typeof capabilityAttribution === 'function') {

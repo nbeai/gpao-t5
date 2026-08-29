@@ -203,6 +203,19 @@ export class AttachmentStore {
         );
       } else if (event.type === 'discarded') {
         records.delete(event.payload.attachmentId);
+      } else if (event.type === 'output_batch_artifacts_registered') {
+        for (const value of event.payload.records ?? []) {
+          const persisted = clone(value); const objectRelativePath = String(persisted.objectRelativePath ?? '');
+          if (!/^objects\/[0-9a-f]{64}\/content(?:\.[A-Za-z0-9]{1,16})?$/u.test(objectRelativePath)
+            || !objectRelativePath.startsWith(`objects/${persisted.sha256}/`)) {
+            throw new Error('attachment object identity is invalid');
+          }
+          records.set(persisted.attachmentId, { ...persisted, objectRelativePath,
+            storedPath: resolve(this.directory, objectRelativePath), links: [{
+              messageId: `${event.payload.registeringRunId}:output:${persisted.attachmentId}`,
+              runId: event.payload.registeringRunId,
+            }] });
+        }
       }
     }
     return records;
@@ -225,6 +238,13 @@ export class AttachmentStore {
           output.state = 'registered';
           output.attachmentId = event.payload.attachmentId;
           output.registeringRunId = event.payload.registeringRunId;
+        }
+      } else if (event.type === 'output_batch_artifacts_registered') {
+        for (const registration of event.payload.registrations ?? []) {
+          const output = outputs.get(registration.outputHandle); if (output) {
+            output.state = 'registered'; output.attachmentId = registration.attachmentId;
+            output.registeringRunId = event.payload.registeringRunId;
+          }
         }
       }
     }
@@ -252,6 +272,11 @@ export class AttachmentStore {
         const batch = batches.get(batchId); if (batch) batch.state = 'not_published';
       } else if (event.type === 'output_batch_reconciliation_unknown') {
         const batch = batches.get(batchId); if (batch) batch.state = 'partial_effect_unknown';
+      } else if (event.type === 'output_batch_artifacts_registered') {
+        const batch = batches.get(batchId); if (batch) {
+          batch.state = 'artifacts_registered';
+          batch.artifactIds = (event.payload.records ?? []).map((record) => record.attachmentId);
+        }
       }
     }
     return batches;
@@ -354,6 +379,76 @@ export class AttachmentStore {
     });
   }
 
+  async registerProducedOutputBatch({ sessionId, workspace, runId, batchId } = {}) {
+    const owner = safeUuid(sessionId, 'session'); const registeringRunId = safeUuid(runId, 'run');
+    const id = safeUuid(batchId, 'output batch');
+    return this.serialize(async () => {
+      await this.ensure(); const events = await this.events();
+      const batch = this.producedOutputBatchesFrom(events).get(id);
+      if (!batch || batch.sessionId !== owner || batch.producerRunId !== registeringRunId) {
+        throw new Error('output batch identity mismatch');
+      }
+      const records = this.recordsFrom(events);
+      if (batch.state === 'artifacts_registered') return { batchId: id, state: 'artifacts_registered',
+        artifacts: batch.artifactIds.map((attachmentId) => {
+          const record = records.get(attachmentId); return { ...clone(record), ...publicRecord(record) };
+        }) };
+      if (batch.state !== 'committed') throw new Error('output batch is not committed');
+      if (await realpath(workspace) !== batch.workspace) throw new Error('output batch workspace mismatch');
+      const outputs = batch.outputs;
+      const observed = [];
+      for (const output of outputs) observed.push(await this.readWorkspaceOutput({ workspace,
+        filePath: output.sourcePath, expectedSha256: output.sha256 }));
+      const used = [...records.values()].filter((record) => record.sessionId === owner)
+        .reduce((sum, record) => sum + record.bytes, 0);
+      const added = observed.reduce((sum, item) => sum + item.size, 0);
+      if (used + added > this.maxSessionBytes) throw Object.assign(
+        new Error('session attachment limit exceeded'), { status: 413 });
+      const createdAt = new Date().toISOString(); const batchRecords = [];
+      for (const [index, item] of observed.entries()) {
+        const content = await readFile(item.path); const output = outputs[index];
+        if (content.length !== output.bytes || createHash('sha256').update(content).digest('hex') !== output.sha256) {
+          throw new Error('output file identity changed after qualification');
+        }
+        const detected = detectAttachmentType(content, output.originalName);
+        const objectDirectory = join(this.objects, output.sha256);
+        const storedPath = join(objectDirectory, `content${detected.extension}`);
+        await mkdir(objectDirectory, { recursive: true, mode: 0o700 }); await chmod(objectDirectory, 0o700);
+        try {
+          const identity = await lstat(storedPath);
+          if (!identity.isFile() || identity.isSymbolicLink() || identity.nlink !== 1
+            || createHash('sha256').update(await readFile(storedPath)).digest('hex') !== output.sha256) {
+            throw new Error('managed attachment object identity mismatch');
+          }
+        } catch (error) {
+          if (error?.code !== 'ENOENT') throw error;
+          const temporary = join(this.incoming, randomUUID());
+          await writeFile(temporary, content, { mode: 0o600 }); await chmod(temporary, 0o600);
+          await rename(temporary, storedPath); await chmod(storedPath, 0o600);
+        }
+        const attachmentId = randomUUID();
+        batchRecords.push({ attachmentId, sessionId: owner, direction: 'output',
+          originalName: output.originalName, declaredMime: null, mimeType: detected.mimeType,
+          kind: detected.kind, ...(detected.encoding ? { encoding: detected.encoding } : {}),
+          ...(detected.encodingEvidence ? { encodingEvidence: detected.encodingEvidence } : {}),
+          bytes: output.bytes, sha256: output.sha256,
+          objectRelativePath: relative(this.directory, storedPath).split(sep).join('/'), createdAt,
+          artifactFamilyId: attachmentId, artifactVersion: 1, sourcePath: output.sourcePath });
+      }
+      const registrations = batchRecords.map((record, index) => ({
+        outputHandle: outputs[index].outputHandle, attachmentId: record.attachmentId,
+      }));
+      await this.append('output_batch_artifacts_registered', {
+        batchId: id, registeringRunId, records: batchRecords, registrations,
+      });
+      return { batchId: id, state: 'artifacts_registered', artifacts: batchRecords.map((record) => {
+        const live = { ...clone(record), storedPath: resolve(this.directory, record.objectRelativePath),
+          links: [{ messageId: `${registeringRunId}:output:${record.attachmentId}`, runId: registeringRunId }] };
+        return { ...live, ...publicRecord(live) };
+      }) };
+    });
+  }
+
   async markProducedOutputBatchPublicationVerified({ sessionId, runId, toolCallId,
     batchId, publication } = {}) {
     const owner = safeUuid(sessionId, 'session'); const producerRunId = safeUuid(runId, 'run');
@@ -376,7 +471,7 @@ export class AttachmentStore {
     const owner = safeUuid(sessionId, 'session');
     return clone([...this.producedOutputBatchesFrom(await this.events()).values()]
       .filter((batch) => batch.sessionId === owner
-        && ['prepared', 'publication_verified'].includes(batch.state)
+        && ['prepared', 'publication_verified', 'committed'].includes(batch.state)
         && (producerRunId == null || batch.producerRunId === String(producerRunId)))
       .map((batch) => ({ batchId: batch.batchId, producerRunId: batch.producerRunId,
         toolCallId: batch.toolCallId, state: batch.state, outputCount: batch.specs.length })));

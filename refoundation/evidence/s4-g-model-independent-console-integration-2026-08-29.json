@@ -1,0 +1,37 @@
+{
+  "schema": "t5.s4g.model-independent-console-integration.v1",
+  "recordedOn": "2026-08-29",
+  "status": "S4_G_MODEL_INDEPENDENT_EXEC_ARTIFACT_INTEGRATION_COMPLETE_ACTUAL_AB_NEXT",
+  "sourceBaseCommit": "a9b15fa4",
+  "activationFacts": [
+    "exact program bytes",
+    "resolved Python interpreter",
+    "managed workspace cwd",
+    "declared local_change targets",
+    "filesystem-only no-network no-child requirements"
+  ],
+  "notUsedForActivation": ["model identity", "business domain", "intent enum", "prompt phrase"],
+  "deterministicModels": [
+    { "id": "provider-a-model", "sourceTransport": "literal_heredoc", "passed": true },
+    { "id": "provider-b-model", "sourceTransport": "python_c", "passed": true }
+  ],
+  "result": {
+    "pythonExecutionsPerRun": 1,
+    "FPublicationsPerRun": 1,
+    "artifactsPerRun": 2,
+    "modelAttachmentCalls": 0,
+    "runOutputProducedEvents": 2,
+    "sourceChanged": false,
+    "ordinaryExecSchemaChanged": false
+  },
+  "payload": {
+    "snapshotAdapterIncluded": true,
+    "pythonBackendIncluded": true,
+    "snapshotSourceIncluded": true,
+    "execProgramContractIncluded": true,
+    "quickJsStillQualificationOnly": true
+  },
+  "verification": { "focusedPassed": 61, "dailyPassed": 1804, "failed": 0, "skipped": 1 },
+  "nonClaims": ["actual gpt-5.5 economy passed", "Windows G backend qualified", "S4-G product activation complete"],
+  "next": "same 12-file 527-row gpt-5.5 actual A/B once"
+}

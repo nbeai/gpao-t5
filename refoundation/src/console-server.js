@@ -13,6 +13,7 @@ import { makeTerminalHand } from './exec-tool.js';
 import { IsolatedCommandExplainer } from './isolated-command-explainer.js';
 import { ManagedMutationObserver } from './managed-mutation-observer.js';
 import { makeWorkspacePatchTool } from './workspace-patch-tool.js';
+import { makeSnapshotProgramAdapter } from './snapshot-program-adapter.js';
 import { TerminalOutputStore } from './terminal-output-store.js';
 import { discoverComputerEnvironment, publicComputerFacts } from './computer-environment.js';
 import { makePathRevealer } from './path-revealer.js';
@@ -1519,6 +1520,17 @@ export function makeConsoleServer({
       ].join('\n') });
       const model = await modelFactory({ sessionId, workspace, computer: computerFacts });
       const managedCliStore = await managedCliStorePromise;
+      const workspacePatchTool = makeWorkspacePatchTool({ workspace,
+        stateRoot: join(stateDir, 'authoring', sessionId), sessionId });
+      const programRuntimeRoot = join(dirname(stateDir), 'program-runtime', sessionId);
+      const programExecutionAdapter = computer.platform === 'darwin' && activeWork ? makeSnapshotProgramAdapter({
+        workspace, snapshotRoot: join(programRuntimeRoot, 'snapshots'),
+        scratchRoot: join(programRuntimeRoot, 'scratch'), sessionId,
+        workId: activeWork.workId, revision: activeWork.revision, runId: run.runId,
+        processRegistry: processes, workspacePatchTool, attachmentStore: attachments,
+        executionPath: terminalEnvironment?.PATH ?? process.env.PATH ?? '/usr/bin:/bin',
+        protectedReadRoots: [...protectedFileRoots, stateDir],
+      }) : null;
       const terminal = makeTerminalHand({
         workingDirectory: workspace, computer, processRegistry: processes, ownerId: sessionId,
         yieldMs: processYieldMs, originRunId: run.runId, effectPreflight,
@@ -1529,6 +1541,7 @@ export function makeConsoleServer({
         terminalOutputStore: terminalOutputs,
         explainCommand: (command) => terminalCommandExplainer.explain(command),
         mutationObserver: managedMutationObserver,
+        programExecutionAdapter,
         capabilityAttribution: async (facts) => [
           ...await managedCliStore.attributeCommand(facts.commandExplanation),
           ...(typeof terminalCapabilityAttribution === 'function'
@@ -1550,8 +1563,7 @@ export function makeConsoleServer({
       const skillSnapshot = mergeSkillSnapshots([bundledSkillSnapshot, managedSkillSnapshot]);
       const capabilitySnapshot = await capabilityCatalogPromise;
       const offeredTools = [...terminal.tools];
-      offeredTools.unshift(makeWorkspacePatchTool({ workspace,
-        stateRoot: join(stateDir, 'authoring', sessionId), sessionId }));
+      offeredTools.unshift(workspacePatchTool);
       offeredTools.unshift(makeFileRealityTool({ workspace, home: computer.userHome, platform: computer.platform,
         computerRoots: computerFileRoots ?? [homedir()], protectedRoots: [...protectedFileRoots, stateDir],
         organizationRoot: join(stateDir, 'file-organization'), sourceManifestStore: fileSourceManifests, sessionId,
@@ -2135,6 +2147,16 @@ export function makeConsoleServer({
             });
             publishProgress('tool_progress', toolProgressText(event.name, event.args), 'tool');
           } else if (event.type === 'tool_end') {
+            if (event.receipt.result?.outputHandoff?.state === 'artifacts_registered') {
+              for (const [index, output] of (event.receipt.result.outputs ?? []).entries()) {
+                const artifact = event.receipt.result.artifacts?.[index];
+                if (!output?.outputHandle || !artifact?.attachmentId) continue;
+                await run.append({ type: 'output_produced', stepId: `output-${output.outputHandle}`,
+                  payload: { outputHandle: output.outputHandle, name: artifact.originalName,
+                    bytes: artifact.bytes, sha256: artifact.sha256, producerRunId: run.runId,
+                    verified: true, reopened: true, attachmentId: artifact.attachmentId } });
+              }
+            }
             if (event.receipt.result?.effectObservation?.changed === true) {
               const beforeByPath = new Map((event.receipt.result.effectObservation.before?.targets ?? [])
                 .map((target) => [outputKey(target.path), target]));
@@ -2215,9 +2237,12 @@ export function makeConsoleServer({
         receipt.result?.state === 'approval_required'
         && activeApprovalIds.has(receipt.result?.pendingId)
       ));
-      const outputArtifacts = result.receipts.filter((receipt) => (
-        receipt.outcome === 'succeeded' && receipt.result?.artifact
-      )).map((receipt) => attachmentSurface(receipt.result.artifact));
+      const artifactCandidates = result.receipts.flatMap((receipt) => receipt.outcome === 'succeeded'
+        ? [receipt.result?.artifact, ...(receipt.result?.artifacts ?? [])].filter(Boolean) : [])
+        .map((artifact) => attachmentSurface(artifact));
+      const outputArtifacts = [...new Map(artifactCandidates.map((artifact) => (
+        [artifact.attachmentId, artifact]
+      ))).values()];
       const browserHandoffReceipt = [...result.receipts].reverse().find((receipt) => (
         receipt.requestedCall?.name === 'browser'
         && receipt.requestedCall?.args?.action === 'login_start'

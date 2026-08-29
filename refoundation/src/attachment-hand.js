@@ -391,6 +391,11 @@ export function makeAttachmentTool({
         }
         let produced = args.outputHandle
           ? await store.producedOutput({ sessionId, outputHandle: args.outputHandle }) : null;
+        if (produced?.state === 'registered' && produced.attachmentId) {
+          const artifact = await store.get({ sessionId, attachmentId: produced.attachmentId });
+          return { state: 'registered', effect: 'reuse', artifact, reused: true,
+            outputHandle: produced.outputHandle, producerRunId: produced.producerRunId };
+        }
         if (!produced && args.filePath && runId) {
           const requestedPath = await realpath(resolve(workspace, args.filePath))
             .catch(() => resolve(workspace, args.filePath));

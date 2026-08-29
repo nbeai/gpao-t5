@@ -153,10 +153,11 @@ test('Snapshot adapter는 F verified output 전체를 durable batch handle로 �
     ].join('\n'), ['결과/one.txt', '결과/two.txt'], { attachmentStore, runId: RUN,
       toolCallId: 'exec-batch' });
     assert.equal(outcome.result.state, 'published_verified_cleaned');
-    assert.equal(outcome.result.outputHandoff.state, 'committed');
+    assert.equal(outcome.result.outputHandoff.state, 'artifacts_registered');
     assert.equal(outcome.result.outputs.length, 2);
     assert.ok(outcome.result.outputs.every((output) => /^[0-9a-f-]{36}$/iu.test(output.outputHandle)));
-    assert.equal((await attachmentStore.pendingProducedOutputs({ sessionId: SESSION, producerRunId: RUN })).length, 2);
+    assert.equal(outcome.result.artifacts.length, 2);
+    assert.equal((await attachmentStore.pendingProducedOutputs({ sessionId: SESSION, producerRunId: RUN })).length, 0);
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
 
@@ -203,8 +204,35 @@ test('F verified 뒤 handoff 전 crash는 successor가 Python·F 없이 batch ha
     const successor = makeSnapshotProgramAdapter({ ...app.options, attachmentStore, runId: RUN });
     const recovered = await successor.recovery;
     assert.equal(recovered.handoffs[0].state, 'committed'); assert.equal(recovered.handoffs[0].reconciled, true);
-    assert.equal((await attachmentStore.pendingProducedOutputs({ sessionId: SESSION, producerRunId: RUN })).length, 1);
+    assert.equal(recovered.handoffs[0].artifactBatch.state, 'artifacts_registered');
+    assert.equal((await attachmentStore.pendingProducedOutputs({ sessionId: SESSION, producerRunId: RUN })).length, 0);
+    assert.equal((await attachmentStore.list({ sessionId: SESSION })).length, 1);
     assert.equal(executions, 1); assert.deepEqual(await readdir(app.options.snapshotRoot), []);
+  } finally { await rm(app.root, { recursive: true, force: true }); }
+});
+
+test('batch commit 뒤 Artifact 전 crash는 successor가 프로그램 없이 Artifact만 등록한다', async () => {
+  const app = await room(); await mkdir(join(app.workspace, '결과')); await writeFile(join(app.workspace, 'input.txt'), 'input');
+  const attachmentStore = new AttachmentStore(join(app.state, 'attachments')); let executions = 0;
+  try {
+    const crash = Object.assign(new Error('simulated artifact crash'), { simulateCrash: true });
+    const first = makeSnapshotProgramAdapter({ ...app.options, attachmentStore, runId: RUN,
+      executePython: async (input) => { executions += 1;
+        const { executePythonProgramQualification } = await import('../src/ephemeral-program-python.js');
+        return executePythonProgramQualification(input); },
+      onOutputHandoffCommitted: async () => { throw crash; } });
+    const shell = command("from pathlib import Path\nPath('결과/out.txt').write_text('ok')");
+    const explanation = await explainShellCommand(shell);
+    await assert.rejects(() => first.execute({ args: { effect: { kind: 'local_change', targets: ['결과/out.txt'] } },
+      commandExplanation: explanation, cwd: app.workspace,
+      toolCallId: 'exec-crash-artifact' }), /simulated artifact crash/u);
+    assert.equal(executions, 1);
+    assert.equal((await attachmentStore.pendingProducedOutputs({ sessionId: SESSION, producerRunId: RUN })).length, 1);
+    const successor = makeSnapshotProgramAdapter({ ...app.options, attachmentStore, runId: RUN });
+    const recovered = await successor.recovery;
+    assert.equal(recovered.handoffs[0].artifactBatch.state, 'artifacts_registered');
+    assert.equal((await attachmentStore.list({ sessionId: SESSION })).length, 1);
+    assert.equal(executions, 1);
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
 

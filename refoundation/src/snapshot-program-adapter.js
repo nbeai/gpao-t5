@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { lstat, realpath } from 'node:fs/promises';
 import { extname, isAbsolute, relative, resolve, sep } from 'node:path';
 
@@ -8,6 +9,7 @@ import { cleanupWorkspaceSnapshotRoot, createWorkspaceSnapshot, removeWorkspaceS
 import { inspectDelimitedText } from './text-document-observer.js';
 
 const REQUIREMENTS = Object.freeze({ filesystem: true, network: false, childProcess: false, packages: false });
+const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 
 function inside(candidate, root) { const value = relative(root, candidate); return value === ''
   || (value !== '..' && !value.startsWith(`..${sep}`) && !isAbsolute(value)); }
@@ -44,7 +46,8 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
   executionPath = process.env.PATH ?? '/usr/bin:/bin', pythonPath = '/usr/bin/python3',
   protectedReadRoots = [], createSnapshot = createWorkspaceSnapshot,
   executePython = executePythonProgramQualification, removeSnapshot = removeWorkspaceSnapshot,
-  verifySources = verifyWorkspaceSnapshotSources, onPublicationSettled = null } = {}) {
+  verifySources = verifyWorkspaceSnapshotSources, onPublicationSettled = null,
+  onOutputHandoffCommitted = null } = {}) {
   if (!workspaceValue || !snapshotRoot || !scratchRoot || !sessionId || !workId
     || !Number.isSafeInteger(revision) || !processRegistry || !workspacePatchTool?.execute) {
     throw new TypeError('snapshot program adapter dependencies are incomplete');
@@ -61,9 +64,15 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
       sessionId, producerRunId: runId,
     });
     const handoffs = [];
-    for (const batch of pending) handoffs.push(await attachmentStore.reconcileProducedOutputBatch({
-      sessionId, workspace, runId, toolCallId: batch.toolCallId, batchId: batch.batchId,
-    }));
+    for (const batch of pending) {
+      const handoff = batch.state === 'committed' ? batch
+        : await attachmentStore.reconcileProducedOutputBatch({ sessionId, workspace, runId,
+          toolCallId: batch.toolCallId, batchId: batch.batchId });
+      const artifactBatch = handoff.state === 'committed'
+        ? await attachmentStore.registerProducedOutputBatch({ sessionId, workspace,
+          runId, batchId: batch.batchId }) : null;
+      handoffs.push({ ...handoff, ...(artifactBatch ? { artifactBatch } : {}) });
+    }
     return { ...cleaned, handoffs };
   })();
   let interpreterPromise = null;
@@ -84,20 +93,30 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
   return { recovery,
     async execute({ args, commandExplanation, cwd = null, signal = null, toolCallId = null } = {}) {
       if (args?.effect?.kind !== 'local_change' || !Array.isArray(args.effect.targets)
-        || !args.effect.targets.length || !Array.isArray(commandExplanation?.heredocs)
-        || commandExplanation.heredocs.length === 0) return null;
-      const first = commandExplanation.heredocs[0];
-      const owner = commandExplanation.steps?.find((step) => step.id === first.commandId);
-      if (!owner) return null;
+        || !args.effect.targets.length || commandExplanation?.ok !== true
+        || commandExplanation.hasParseError || commandExplanation.steps?.length !== 1
+        || commandExplanation.operators?.length || commandExplanation.steps[0].context !== 'top-level') return null;
+      const owner = commandExplanation.steps[0];
       const observedInterpreter = await interpreter();
       if (await resolvedExecutable(owner.executable) !== observedInterpreter.path) return null;
       const workspace = await workspacePromise;
       let canonicalCwd; try { canonicalCwd = await realpath(resolve(cwd)); } catch { return null; }
       if (canonicalCwd !== workspace) return null;
-      if (commandExplanation.ok !== true || commandExplanation.hasParseError
-        || commandExplanation.heredocs.length !== 1 || first.literal !== true
-        || commandExplanation.steps.length !== 1 || commandExplanation.operators?.length
-        || owner.context !== 'top-level') return failed('exact_single_literal_python_source_required');
+      let source; let sourceSha256;
+      if (Array.isArray(commandExplanation.heredocs) && commandExplanation.heredocs.length) {
+        if (commandExplanation.heredocs.length !== 1
+          || commandExplanation.heredocs[0].commandId !== owner.id
+          || commandExplanation.heredocs[0].literal !== true) {
+          return failed('exact_single_literal_python_source_required');
+        }
+        const first = commandExplanation.heredocs[0];
+        source = String(commandExplanation.source).slice(first.startIndex, first.endIndex);
+        sourceSha256 = first.sha256;
+      } else {
+        const argv = owner.argv ?? []; const codeIndex = argv.indexOf('-c');
+        if (codeIndex !== 1 || argv.length !== 3 || typeof argv[2] !== 'string' || !argv[2].trim()) return null;
+        source = argv[2]; sourceSha256 = sha256(source);
+      }
       await recovery;
       if (signal?.aborted) return failed('cancelled_before_snapshot');
       const targets = [];
@@ -115,7 +134,6 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
       try { ({ snapshot } = await createSnapshot({ workspace, snapshotRoot })); }
       catch { return failed('snapshot_generation_failed'); }
       const cleanup = async () => removeSnapshot(snapshot).catch(() => ({ removed: false }));
-      const source = String(commandExplanation.source).slice(first.startIndex, first.endIndex);
       try {
         const bound = snapshotProgramBindings(snapshot, { sessionId, workId,
           excludeRelativePaths: targets.map((item) => item.relativePath) });
@@ -170,11 +188,16 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
           outputBatch });
         if (outputBatch) committedHandoff = await attachmentStore.commitProducedOutputBatch({ sessionId,
           workspace, runId, toolCallId, batchId: outputBatch.batchId });
+        if (committedHandoff && typeof onOutputHandoffCommitted === 'function') {
+          await onOutputHandoffCommitted({ snapshot, publication, outputBatch, committedHandoff });
+        }
+        const artifactBatch = committedHandoff ? await attachmentStore.registerProducedOutputBatch({
+          sessionId, workspace, runId, batchId: outputBatch.batchId }) : null;
         const cleaned = await cleanup();
         return { handled: true, result: { state: cleaned.removed
           ? 'published_verified_cleaned' : 'published_verified_cleanup_unknown', exitCode: 0,
         fallbackToExec: false, duplicateExecution: false, sourceLanguage: 'python', translated: false,
-        actualExecutions: 1, sourceSha256: first.sha256,
+        actualExecutions: 1, sourceSha256,
         sourceUniverse: { coverage: 'complete', immutableGeneration: true,
           filesAndDigestsVerified: true, fileCount: snapshot.files.length,
           manifestSha256: snapshot.manifestSha256 },
@@ -187,8 +210,8 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
           sha256: item.output.sha256, rows: item.format.rows ?? null,
           columns: item.format.columns ?? null, preview: item.format.text.slice(0, 8_000) })),
         publication: { state: publication.state, undoHandle: publication.undoHandle },
-        ...(committedHandoff ? { outputHandoff: { state: committedHandoff.state,
-          outputCount: committedHandoff.outputs.length } } : {}),
+        ...(committedHandoff ? { outputHandoff: { state: artifactBatch?.state ?? committedHandoff.state,
+          outputCount: committedHandoff.outputs.length }, artifacts: artifactBatch?.artifacts ?? [] } : {}),
         cleanup: { state: cleaned.removed ? 'cleaned' : 'unknown' },
         confinement: { workspaceOutsideRead: 0, originalWrites: 0,
           userTargetWritesBeforePublication: 0, network: 0, childProcess: 0 } } };

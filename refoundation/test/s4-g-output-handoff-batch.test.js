@@ -81,6 +81,54 @@ test('batch outputHandle은 path authorization이나 모델의 filePath 재구�
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
 
+test('committed batch는 모델 호출 없이 Artifact 전량을 한 사건으로 등록하고 재시작에 멱등이다', async () => {
+  const app = await fixture();
+  try {
+    const prepared = await app.store.prepareProducedOutputBatch({ sessionId: SESSION,
+      workspace: app.workspace, runId: RUN, toolCallId: 'exec-artifacts', outputs: app.paths.map((filePath, index) => ({
+        filePath, expectedSha256: sha(app.contents[index]), expectedBytes: app.contents[index].length,
+      })) });
+    await Promise.all(app.paths.map((path, index) => writeFile(path, app.contents[index])));
+    await markPublished(app.store, prepared, 'exec-artifacts');
+    await app.store.commitProducedOutputBatch({ sessionId: SESSION,
+      workspace: app.workspace, runId: RUN, toolCallId: 'exec-artifacts', batchId: prepared.batchId });
+    const registered = await app.store.registerProducedOutputBatch({ sessionId: SESSION,
+      workspace: app.workspace, runId: RUN, batchId: prepared.batchId });
+    assert.equal(registered.state, 'artifacts_registered'); assert.equal(registered.artifacts.length, 2);
+    assert.ok(registered.artifacts.every((artifact) => artifact.direction === 'output'));
+    assert.ok(registered.artifacts.every((artifact) => artifact.links.length === 1
+      && artifact.links[0].runId === RUN));
+    assert.equal((await app.store.pendingProducedOutputs({ sessionId: SESSION, producerRunId: RUN })).length, 0);
+    const events = (await readFile(join(app.directory, 'ledger.jsonl'), 'utf8'))
+      .split('\n').filter(Boolean).map(JSON.parse);
+    assert.equal(events.filter((event) => event.type === 'output_batch_artifacts_registered').length, 1);
+    const restored = new AttachmentStore(app.directory);
+    const repeated = await restored.registerProducedOutputBatch({ sessionId: SESSION,
+      workspace: app.workspace, runId: RUN, batchId: prepared.batchId });
+    assert.deepEqual(repeated.artifacts.map((artifact) => artifact.attachmentId),
+      registered.artifacts.map((artifact) => artifact.attachmentId));
+  } finally { await rm(app.root, { recursive: true, force: true }); }
+});
+
+test('batch commit 뒤 target이 바뀌면 Artifact 사건과 일부 등록을 만들지 않는다', async () => {
+  const app = await fixture();
+  try {
+    const prepared = await app.store.prepareProducedOutputBatch({ sessionId: SESSION,
+      workspace: app.workspace, runId: RUN, toolCallId: 'exec-stale', outputs: app.paths.map((filePath, index) => ({
+        filePath, expectedSha256: sha(app.contents[index]), expectedBytes: app.contents[index].length,
+      })) });
+    await Promise.all(app.paths.map((path, index) => writeFile(path, app.contents[index])));
+    await markPublished(app.store, prepared, 'exec-stale');
+    await app.store.commitProducedOutputBatch({ sessionId: SESSION,
+      workspace: app.workspace, runId: RUN, toolCallId: 'exec-stale', batchId: prepared.batchId });
+    await writeFile(app.paths[1], 'changed');
+    await assert.rejects(app.store.registerProducedOutputBatch({ sessionId: SESSION,
+      workspace: app.workspace, runId: RUN, batchId: prepared.batchId }), /identity changed/u);
+    assert.equal((await app.store.list({ sessionId: SESSION })).length, 0);
+    assert.equal((await app.store.pendingProducedOutputs({ sessionId: SESSION, producerRunId: RUN })).length, 2);
+  } finally { await rm(app.root, { recursive: true, force: true }); }
+});
+
 test('F 뒤 crash는 successor가 postimage 전량일 때 handoff만 commit한다', async () => {
   const app = await fixture();
   try {
