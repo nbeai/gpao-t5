@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "gate": "CJ6_LONG_HORIZON_CONTINUITY_WIRE_CONTEXT_CACHE",
+  "status": "COMPLETE_PROVIDER_POLICIES_SELECTED",
+  "baselineCommit": "1047692f",
+  "candidateCommit": "same_commit_as_evidence",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "portableCanonicalContext": "Conversation, latest correction, Work, Effect, Artifact, Delivery, and exact reopen handles",
+  "providerLocalEphemeral": "opaque reasoning output, adapter input accumulator, and provider cache",
+  "chatgptOAuth": {
+    "model": "gpt-5.5",
+    "largeEvidence2x2": {
+      "appendFull": { "passed": true, "tokens": 29447, "requestBytes": 162745, "wallMs": 4982.313 },
+      "appendProjected": { "passed": true, "tokens": 29447, "requestBytes": 162745, "wallMs": 8145.39 },
+      "rebuildFull": { "passed": true, "tokens": 29440, "requestBytes": 162499, "wallMs": 6534.503 },
+      "rebuildProjected": { "passed": true, "tokens": 26745, "requestBytes": 140680, "wallMs": 5205.742 }
+    },
+    "representativeThreePurpose": {
+      "appendProjectedLogicalMode": { "passed": true, "modelCalls": 8, "toolCalls": 5, "tokens": 64059, "requestBytes": 342559, "wallMs": 25622.056 },
+      "rebuildProjected": { "passed": true, "modelCalls": 9, "toolCalls": 6, "tokens": 74069, "requestBytes": 384096, "wallMs": 28762.278 }
+    },
+    "selected": "append-continuation",
+    "reason": "rebuild improved a large-output microcase but lost the representative three-purpose Pareto through an extra completion round trip"
+  },
+  "openAIAPI": {
+    "model": "gpt-5.6-terra",
+    "comparisonRole": "provider_observation_not_default_quality_claim",
+    "largeEvidence2x2": {
+      "appendFull": { "passed": true, "tokens": 29481, "requestBytes": 165439, "wallMs": 6085.902 },
+      "appendProjected": { "passed": true, "tokens": 29472, "requestBytes": 165439, "wallMs": 4426.728 },
+      "rebuildFull": { "passed": true, "tokens": 29452, "requestBytes": 162427, "wallMs": 5342.702 },
+      "rebuildProjected": { "passed": true, "tokens": 26741, "requestBytes": 140608, "wallMs": 3451.236 }
+    },
+    "selected": "append-continuation",
+    "reason": "the rebuild microcase was positive but no broader Terra quality evidence justifies discarding opaque reasoning by default"
+  },
+  "anthropic": {
+    "liveConnectionAvailable": false,
+    "currentWire": "canonical messages rebuilt per call",
+    "cacheControl": false,
+    "selected": "current_existing_adapter",
+    "nonClaim": "no Anthropic cache or quality improvement measured"
+  },
+  "geminiUpstage": {
+    "liveConnectionsAvailable": false,
+    "currentWire": "canonical messages serialized per call",
+    "selected": "current_existing_adapters",
+    "nonClaim": "no provider cache or quality improvement measured"
+  },
+  "modelFallback": {
+    "selected": "portable_canonical_rebuild",
+    "providerRawTranscriptUsed": false,
+    "priorToolEffectsReexecutionAuthorized": false,
+    "providerLocalReasoningTransferred": false
+  },
+  "productDecision": {
+    "defaultChanged": false,
+    "chatgptOAuth": "append-continuation",
+    "openAI": "append-continuation",
+    "canonicalRebuild": "qualified_nondefault_adapter_mode",
+    "currentRunLogicalProjection": "qualified_nondefault_agent_mode",
+    "thirdConditionalPatchAttempted": false
+  },
+  "countertests": { "adapterAndContinuityTests": 22, "passed": 22, "failed": 0 },
+  "nonClaims": [
+    "canonical rebuild is globally superior",
+    "logical projection alone changes append wire",
+    "Anthropic, Gemini, or Upstage cache behavior was live qualified",
+    "provider-local reasoning is portable canonical truth"
+  ],
+  "completionSentence": "T5는 portable canonical context와 provider-local reasoning/cache를 분리하고, ChatGPT OAuth와 OpenAI API에서는 대표 품질을 지키는 append를 유지하며 fallback은 canonical truth로만 이어간다; rebuild 이익은 실제로 확인했지만 전역 기본값으로 과장하지 않는다.",
+  "nextGate": "CJ7_NATURAL_TIMING_AND_INTERVENTION"
+}

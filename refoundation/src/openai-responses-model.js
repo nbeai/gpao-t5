@@ -111,9 +111,13 @@ export function makeOpenAIResponsesModel({
   reasoningEffort = 'medium',
   fetchImpl = globalThis.fetch,
   dump,
+  wireContextMode = 'append-continuation',
 } = {}) {
   if (typeof apiKey !== 'string' || !apiKey.trim()) throw new TypeError('OpenAI API key is required');
   if (typeof fetchImpl !== 'function') throw new TypeError('fetch implementation is required');
+  if (!['append-continuation', 'canonical-rebuild'].includes(wireContextMode)) {
+    throw new TypeError('unsupported OpenAI wire context mode');
+  }
 
   const key = apiKey.trim();
   const input = [];
@@ -129,7 +133,14 @@ export function makeOpenAIResponsesModel({
       runtimeContext = '',
     } = {}) {
       const requestInstructions = runtimeContext ? `${instructions}\n\n${runtimeContext}` : instructions;
-      if (!started) {
+      if (wireContextMode === 'canonical-rebuild') {
+        input.splice(0, input.length, ...initialInput(messages));
+        returnedToolCalls.clear();
+        for (const message of messages) {
+          if (message?.role === 'tool' && message.toolCallId) returnedToolCalls.add(message.toolCallId);
+        }
+        takeUnseenUserMessages(messages, seenUsers); started = true;
+      } else if (!started) {
         input.push(...initialInput(messages));
         takeUnseenUserMessages(messages, seenUsers);
         for (const message of messages) {
@@ -221,7 +232,8 @@ export function makeOpenAIResponsesModel({
       await settleProviderSuccess(resourceObserver, resourceHandle, {
         usage: json.usage ?? null, responseId: json.id ?? null,
       });
-      input.push(...structuredClone(json.output)); lastResponseStart = responseStart;
+      if (wireContextMode === 'append-continuation') input.push(...structuredClone(json.output));
+      lastResponseStart = wireContextMode === 'append-continuation' ? responseStart : null;
       return {
         text: outputText(json.output),
         toolCalls: functionCalls(json.output),
@@ -230,6 +242,7 @@ export function makeOpenAIResponsesModel({
         usage: json.usage ?? null,
         contextReceipt,
         transmissionReceipt: settleTransmissionReceipt(transmissionReceipt, 'response_received'),
+        wireContextMode,
       };
     },
     supersedeLastResponse() {

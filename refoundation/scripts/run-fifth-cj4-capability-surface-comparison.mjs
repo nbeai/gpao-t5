@@ -15,6 +15,8 @@ const connectionId = process.env.T5_FIFTH_MODEL_CONNECTION_ID ?? 'chatgpt_oauth:
 const sourceState = JSON.parse(await readFile(sourceFile, 'utf8'));
 const selected = sourceState.connections.find((connection) => connection.id === connectionId);
 if (!selected?.secretRef) throw new Error('exact secret-backed model connection is required');
+const wireContextMode = process.env.T5_FIFTH_WIRE_CONTEXT_MODE ?? 'append-continuation';
+const currentRunEvidenceMode = process.env.T5_FIFTH_CURRENT_RUN_EVIDENCE_MODE ?? 'full';
 
 async function listen(server) {
   await new Promise((resolve, reject) => {
@@ -57,8 +59,10 @@ async function runMode(mode) {
     connections: [selected], activeId: selected.id, roleBindings: {} }), { mode: 0o600 });
   await chmod(connectionFile, 0o600);
   const access = makeConsoleModelAccess({ connectionFile, stateDir,
-    secretStore: makePlatformSecretStore({ platform: process.platform }) });
+    secretStore: makePlatformSecretStore({ platform: process.platform }),
+    wireContextPolicy: { [selected.provider]: wireContextMode } });
   const server = makeConsoleServer({ stateDir, workspace, capabilitySurfaceMode: mode,
+    currentRunEvidenceMode,
     modelFactory: (input) => access.model(input), modelStatus: () => access.status(),
     learningReviewMode: 'off', memoryFlushMode: 'off' });
   let base;
@@ -122,7 +126,8 @@ const selectedModes = (process.env.T5_FIFTH_CJ4_MODES ?? 'current-core-v1,direct
 const modes = [];
 for (const mode of selectedModes) modes.push(await runMode(mode));
 const output = { schema: 't5.fifth-cj4-capability-surface-comparison.v1',
-  model: selected.modelId, provider: selected.provider, actualUserData: false,
+  model: selected.modelId, provider: selected.provider, wireContextMode, currentRunEvidenceMode,
+  actualUserData: false,
   externalWrites: 0, modes, passed: modes.every((mode) => mode.passed) };
 process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
 if (!output.passed) process.exitCode = 1;

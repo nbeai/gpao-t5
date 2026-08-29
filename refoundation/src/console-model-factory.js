@@ -111,6 +111,7 @@ export function consoleInstructions(workspace, computer = {}, { interactionCoreM
 
 export function makeConsoleModelAccess({
   connectionFile, stateDir, fetchImpl = globalThis.fetch, secretStore = null,
+  wireContextPolicy = {},
 } = {}) {
   if (!connectionFile || !stateDir) throw new TypeError('connectionFile and stateDir are required');
   const catalog = makeStoredModelCredentialCatalog({ file: connectionFile, secretStore });
@@ -144,6 +145,7 @@ export function makeConsoleModelAccess({
           return Object.assign(makeChatGptResponsesModel({
             credentials: makeStoredChatGptCredentialSource({ file: connectionFile, fetchImpl, secretStore }),
             model: selected.modelId, instructions, fetchImpl,
+            wireContextMode: wireContextPolicy.chatgpt_oauth ?? 'append-continuation',
             ...(diagnostics ? {
               dump: makePromptDumper({ directory: join(candidateDump, 'prompt') }),
               observeResponse: ({ status, raw }) => responseDumper({
@@ -160,7 +162,8 @@ export function makeConsoleModelAccess({
           }) } : {}),
         };
         if (selected.provider === 'openai') return Object.assign(
-          makeOpenAIResponsesModel({ ...common, endpoint: `${base}/responses` }), { capabilities: selected.capabilityManifest });
+          makeOpenAIResponsesModel({ ...common, endpoint: `${base}/responses`,
+            wireContextMode: wireContextPolicy.openai ?? 'append-continuation' }), { capabilities: selected.capabilityManifest });
         if (selected.provider === 'anthropic') return Object.assign(
           makeAnthropicMessagesModel({ ...common, endpoint: `${base}/v1/messages` }), { capabilities: selected.capabilityManifest });
         if (selected.provider === 'gemini') return Object.assign(

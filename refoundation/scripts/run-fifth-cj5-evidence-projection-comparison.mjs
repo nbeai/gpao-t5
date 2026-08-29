@@ -13,6 +13,10 @@ const connectionId = process.env.T5_FIFTH_MODEL_CONNECTION_ID ?? 'chatgpt_oauth:
 const sourceState = JSON.parse(await readFile(sourceFile, 'utf8'));
 const selected = sourceState.connections.find((connection) => connection.id === connectionId);
 if (!selected?.secretRef) throw new Error('exact secret-backed model connection is required');
+const wireContextMode = process.env.T5_FIFTH_WIRE_CONTEXT_MODE ?? 'append-continuation';
+if (!['append-continuation', 'canonical-rebuild'].includes(wireContextMode)) {
+  throw new Error('unsupported qualification wire context mode');
+}
 const room = await mkdtemp(join(tmpdir(), 't5-fifth-cj5-'));
 const connectionFile = join(room, 'model-connection.json'); const stateDir = join(room, 'state');
 await mkdir(stateDir, { recursive: true });
@@ -20,7 +24,8 @@ await writeFile(connectionFile, JSON.stringify({ version: sourceState.version,
   connections: [selected], activeId: selected.id, roleBindings: {} }), { mode: 0o600 });
 await chmod(connectionFile, 0o600);
 const access = makeConsoleModelAccess({ connectionFile, stateDir,
-  secretStore: makePlatformSecretStore({ platform: process.platform }) });
+  secretStore: makePlatformSecretStore({ platform: process.platform }),
+  wireContextPolicy: { [selected.provider]: wireContextMode } });
 const workspace = join(room, 'workspace'); await mkdir(workspace, { recursive: true });
 
 const fillers = { one: 'A'.repeat(24_000), two: 'B'.repeat(24_000) };
@@ -66,7 +71,8 @@ async function arm(mode) {
 try {
   const full = await arm('full'); const projected = await arm('settled-tool-facts-v1');
   const output = { schema: 't5.fifth-cj5-evidence-projection-comparison.v1',
-    model: selected.modelId, provider: selected.provider, actualUserData: false, externalWrites: 0,
+    model: selected.modelId, provider: selected.provider, wireContextMode,
+    actualUserData: false, externalWrites: 0,
     full, projected, delta: {
       modelCalls: projected.modelCalls - full.modelCalls,
       toolCalls: projected.toolCalls - full.toolCalls,

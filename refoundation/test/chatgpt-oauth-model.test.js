@@ -495,3 +495,32 @@ test('새 OAuth adapter는 이전 Run의 function call과 output을 첫 요청�
   assert.doesNotMatch(JSON.stringify(response.contextReceipt), /value-7391|파일 값을/);
   assert.deepEqual(observedContexts, [response.contextReceipt]);
 });
+
+test('OAuth canonical rebuild는 provider-local reasoning 대신 현재 canonical messages로 매 요청을 다시 만든다', async () => {
+  const requests = []; let call = 0;
+  const credentials = { async get() { return {
+    access: ACCESS, accountId: 'acct-rebuild', modelId: 'gpt-account-model', expiresAt: Date.now() + 600_000,
+  }; } };
+  const model = makeChatGptResponsesModel({ credentials, wireContextMode: 'canonical-rebuild',
+    fetchImpl: async (_url, init) => {
+      requests.push(JSON.parse(init.body)); call += 1;
+      return sseResponse([{ type: 'response.completed', response: {
+        id: `rebuild-${call}`, model: 'gpt-account-model', output: [
+          { type: 'reasoning', id: `reason-${call}`, encrypted_content: 'opaque-provider-reasoning' },
+          { type: 'message', role: 'assistant', status: 'completed',
+            content: [{ type: 'output_text', text: call === 1 ? '첫 답' : '교정 답' }] },
+        ],
+      } }]);
+    } });
+  await model.respond({ messages: [{ role: 'user', content: '첫 요청' }], tools: [] });
+  const second = await model.respond({ messages: [
+    { role: 'user', content: '첫 요청' }, { role: 'assistant', content: '첫 답' },
+    { role: 'user', content: '현재 교정' },
+  ], tools: [] });
+  assert.equal(second.wireContextMode, 'canonical-rebuild');
+  assert.equal(JSON.stringify(requests[1].input).includes('opaque-provider-reasoning'), false);
+  assert.deepEqual(requests[1].input.map((item) => item.type === 'message' ? [item.role,
+    item.content[0].text] : item.type), [
+    ['user', '첫 요청'], ['assistant', '첫 답'], ['user', '현재 교정'],
+  ]);
+});

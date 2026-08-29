@@ -1,6 +1,6 @@
 # T5 Fifth Completion — Android Judgment & Context Runtime
 
-상태: `FIFTH_COMPLETION_ACTIVE · CJ0_CJ5_COMPLETE · CJ6_WIRE_CONTEXT_OPEN`
+상태: `FIFTH_COMPLETION_ACTIVE · CJ0_CJ6_COMPLETE · CJ7_NATURAL_TIMING_OPEN`
 4차 귀환 기준: `fe51c8c5 · FOURTH_COMPLETION_COMPLETE_MACOS_PRODUCT_SCOPE`
 4차 release-only 후속선: `8c2a3b05 · 0.4.0 packaging lineage · 설치 자격 진행과 5차 개발은 분리`
 5차 구현 기준·branch·worktree: `fe51c8c5 · codex/t5-fifth-context-judgment-plan · /Users/jyp/Developer/t5-fifth-plan`
@@ -766,6 +766,22 @@ Compaction 후보 시점:
 
 > T5는 긴 대화와 작업을 줄여도 사용자 결정·교정·현재 목적·실행 결과를 잃지 않으며, 같은 provider에서는
 > 실제로 유리한 native 연속성을 사용하고 다른 provider로도 portable canonical context로 정확히 이어간다.
+
+CJ6 actual은 logical projection과 wire 재구성을 2×2로 분리했다. ChatGPT OAuth와 OpenAI API 모두 append에서는
+projection만으로 request bytes가 줄지 않았고, canonical rebuild+projection에서 대출력 microcase는 약 21.8KB·
+2.7K tokens 감소했다. 그러나 gpt-5.5의 직접 의견·연결 현실·Memory 세 목적 합계에서는 always-rebuild가 model
+8→9, Tool 5→6, tokens 64,059→74,069, request 342,559B→384,096B로 악화됐다.
+
+따라서 같은 가정에 조건을 더 붙이는 세 번째 patch 없이 다음으로 확정했다.
+
+- ChatGPT OAuth/gpt-5.5: append continuation 유지
+- OpenAI API/Terra: rebuild microcase는 양성이지만 broader 품질 근거가 없어 append 유지
+- Anthropic: 현재 canonical serialization 유지, `cache_control` 개선 미주장
+- Gemini·Upstage: 현재 adapter 유지, cache 개선 미주장
+- model fallback: provider-local reasoning을 옮기지 않고 portable canonical context로 rebuild, Tool 재실행 0
+- canonical rebuild와 logical projection: 검증된 non-default 비교 모드
+
+근거: `refoundation/evidence/fifth-cj6-provider-wire-context-2026-08-30.json`.
 
 ---
 

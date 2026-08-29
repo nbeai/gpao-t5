@@ -133,9 +133,13 @@ export function makeChatGptResponsesModel({
   maxAttempts = 3,
   retryDelayMs = 250,
   wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  wireContextMode = 'append-continuation',
 } = {}) {
   if (!credentials || typeof credentials.get !== 'function') throw new TypeError('OAuth credentials source is required');
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1) throw new TypeError('maxAttempts must be positive');
+  if (!['append-continuation', 'canonical-rebuild'].includes(wireContextMode)) {
+    throw new TypeError('unsupported ChatGPT OAuth wire context mode');
+  }
   const input = [];
   const returned = new Set();
   const seenUsers = new Map();
@@ -151,7 +155,14 @@ export function makeChatGptResponsesModel({
       const credential = await credentials.get();
       const requestModel = model ?? credential.modelId;
       if (!requestModel) throw new Error('ChatGPT OAuth connection has no model id');
-      if (!started) {
+      if (wireContextMode === 'canonical-rebuild') {
+        input.splice(0, input.length, ...initialInput(messages));
+        returned.clear();
+        for (const message of messages) {
+          if (message?.role === 'tool' && message.toolCallId) returned.add(message.toolCallId);
+        }
+        takeUnseenUserMessages(messages, seenUsers); started = true;
+      } else if (!started) {
         input.push(...initialInput(messages));
         takeUnseenUserMessages(messages, seenUsers);
         for (const message of messages) {
@@ -254,7 +265,8 @@ export function makeChatGptResponsesModel({
           await settleProviderSuccess(resourceObserver, resourceHandle, {
             usage: parsed.usage ?? null, responseId: parsed.id ?? null,
           });
-          input.push(...structuredClone(parsed.output)); lastResponseStart = responseStart;
+          if (wireContextMode === 'append-continuation') input.push(...structuredClone(parsed.output));
+          lastResponseStart = wireContextMode === 'append-continuation' ? responseStart : null;
           return {
             text: parsed.text,
             toolCalls: callsFromOutput(parsed.output),
@@ -263,6 +275,7 @@ export function makeChatGptResponsesModel({
             usage: parsed.usage,
             contextReceipt,
             transmissionReceipt: settleTransmissionReceipt(transmissionReceipt, 'response_received'),
+            wireContextMode,
           };
         }
         await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_attempt_failed', {

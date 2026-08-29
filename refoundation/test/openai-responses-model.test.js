@@ -237,3 +237,26 @@ test('새 Responses adapter는 이전 Run의 function call과 output을 첫 요�
   assert.doesNotMatch(JSON.stringify(response.contextReceipt), /value-7391|파일 값을/);
   assert.deepEqual(observedContexts, [response.contextReceipt]);
 });
+
+test('OpenAI canonical rebuild는 opaque reasoning을 버리고 현재 canonical messages만 재구성한다', async () => {
+  const requests = []; let call = 0;
+  const model = makeOpenAIResponsesModel({ apiKey: SECRET, model: 'gpt-test',
+    wireContextMode: 'canonical-rebuild', fetchImpl: async (_url, init) => {
+      requests.push(JSON.parse(init.body)); call += 1;
+      return jsonResponse({ id: `rebuild-${call}`, model: 'gpt-test', output: [
+        { type: 'reasoning', id: `reason-${call}`, encrypted_content: 'opaque-provider-reasoning' },
+        { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: call === 1 ? 'first' : 'corrected' }] },
+      ], usage: { input_tokens: 10, output_tokens: 2, total_tokens: 12 } });
+    } });
+  await model.respond({ messages: [{ role: 'user', content: 'first request' }], tools: [] });
+  const second = await model.respond({ messages: [
+    { role: 'user', content: 'first request' }, { role: 'assistant', content: 'first' },
+    { role: 'user', content: 'current correction' },
+  ], tools: [] });
+  assert.equal(second.wireContextMode, 'canonical-rebuild');
+  assert.equal(JSON.stringify(requests[1].input).includes('opaque-provider-reasoning'), false);
+  assert.deepEqual(requests[1].input, [
+    { role: 'user', content: 'first request' }, { role: 'assistant', content: 'first' },
+    { role: 'user', content: 'current correction' },
+  ]);
+});
