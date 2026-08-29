@@ -108,6 +108,7 @@ import { makeMessengerGateway, MessengerStateStore } from './messenger-gateway.j
 import {
   modelProgressText, safeProgressText, toolCompletedProgressText, toolProgressText,
 } from './progress-language.js';
+import { projectPublicActivityFact } from './public-activity-projection.js';
 import { SessionActivityStore } from './session-activity-store.js';
 import { userSafeTurnFailure } from './turn-failure.js';
 import {
@@ -446,6 +447,9 @@ export function makeConsoleServer({
   if (!/^[0-9a-f-]{36}$/iu.test(runtimeInstanceId)) throw new TypeError('runtimeInstanceId is invalid');
   const sessions = new ConsoleSessionStore(stateDir);
   const conversations = new ConversationLedger(join(stateDir, 'conversations'));
+  const uiSessionSearch = makeSessionSearchTool({
+    ledger: conversations, sessions, currentSessionId: null,
+  });
   const workStore = new WorkStore(join(stateDir, 'work'), {
     makeId: workStoreMakeId,
     now: () => runtimeNow().toISOString(),
@@ -846,6 +850,11 @@ export function makeConsoleServer({
             unknowns: [`${relevantCalls.length - 16}개 변경 기록은 이 화면에서 생략했어요.`], detailsAvailable: true });
           humanEffects = [...new Map(humanEffects.map((item) => [JSON.stringify(item), item])).values()];
           if (artifacts.length && entry.result.objectiveOutcome === 'achieved') humanEffects = [];
+          else if (entry.result.objectiveOutcome === 'achieved' && humanEffects.length > 1) {
+            const exact = humanEffects.find((item) => !(item.unknowns ?? []).length
+              && ((item.confirmed ?? []).length || String(item.rollback ?? '').includes('되돌')));
+            humanEffects = [exact ?? humanEffects.at(-1)];
+          }
         } catch (error) {
           onError?.(error); humanEffects = [{ title: '변경 확인 상태를 불러오지 못했어요.', confirmed: [],
             rollback: '되돌리기는 실행하지 않았어요.',
@@ -1360,6 +1369,14 @@ export function makeConsoleServer({
         sessionId, runId: run.runId, status: activityStatus,
       });
       if (activity) broadcastEvent('session_activity', { ...activity, done: true });
+    };
+    const publishActivityFact = (event) => {
+      const fact = projectPublicActivityFact(event);
+      if (!fact) return null;
+      const activity = sessionActivities.record({ sessionId, runId: run.runId, fact });
+      emit('activity_event', fact);
+      if (activity) broadcastEvent('session_activity', { ...activity, done: false });
+      return fact;
     };
     if (attachmentIds.length) {
       const messageId = `${run.runId}:user`;
@@ -2258,6 +2275,9 @@ export function makeConsoleServer({
               type: 'tool_completed', stepId: `tool-${event.receipt.toolCallId}`,
               payload: { turn: event.turn, receipt: event.receipt },
             });
+            publishActivityFact({ type: 'tool_completed',
+              recordedAt: new Date(runtimeNow()).toISOString(),
+              payload: { turn: event.turn, receipt: event.receipt } });
             await conversations.appendMessage({
               sessionId,
               messageId: `${run.runId}:tool:${event.receipt.toolCallId || `${event.turn}:${event.name}`}`,
@@ -4301,6 +4321,17 @@ export function makeConsoleServer({
           })).public,
         }))) }); return;
       }
+      if (req.method === 'POST' && url.pathname === '/search') {
+        const input = await body(req);
+        if (!input || typeof input !== 'object' || Array.isArray(input)
+          || Object.keys(input).some((key) => !['query', 'limit'].includes(key))) {
+          throw Object.assign(new Error('대화 검색 요청이 올바르지 않아요.'), { status: 400 });
+        }
+        const result = await uiSessionSearch.execute({ action: 'search', query: input.query,
+          sessionId: null, messageId: null, limit: input.limit ?? 10, window: null,
+          includeTools: false, workId: null, runId: null });
+        privateJson(res, 200, result); return;
+      }
       if (req.method === 'GET' && url.pathname === '/runs') {
         const runs = await runLedger.list({ sessionId: url.searchParams.get('sessionId') ?? undefined });
         json(res, 200, { runs: runs.map((run) => ({
@@ -4465,6 +4496,17 @@ export function makeConsoleServer({
         const input = await body(req);
         const session = await sessions.restore(input.sessionId);
         json(res, session ? 200 : 404, session ? { ok: true, id: session.id } : { error: '세션을 찾지 못했어요.' }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/sessions/bulk') {
+        const input = await body(req);
+        const transitioned = await sessions.bulkTransition({ ids: input?.ids, action: input?.action });
+        const summary = transitioned.action === 'archive'
+          ? `대화 ${transitioned.count}개를 목록에서 숨겼어요.`
+          : transitioned.action === 'delete'
+            ? `대화 ${transitioned.count}개를 휴지통으로 옮겼어요.`
+            : `대화 ${transitioned.count}개를 목록으로 되돌렸어요.`;
+        json(res, 200, { ok: true, ...transitioned,
+          nextSessionId: (await sessions.list())[0]?.id ?? null, userSafeSummary: summary }); return;
       }
       if (req.method === 'POST' && url.pathname === '/turn/cancel') {
         const input = await body(req);
