@@ -37,6 +37,10 @@ function classify({ receipt, artifact, produced, previous, run }) {
     && receipt.result?.delivery?.state === 'registered_selected_visual'
     && receipt.result?.artifact?.attachmentId === artifact.attachmentId
     && sameBytes(receipt.result.artifact, artifact)) return 'existing_file';
+  if (receipt.requestedCall?.name === 'file_reality' && action === 'deliver'
+    && receipt.result?.delivery?.state === 'registered_selected_file'
+    && receipt.result?.artifact?.attachmentId === artifact.attachmentId
+    && sameBytes(receipt.result.artifact, artifact)) return 'existing_file';
   if (effect === 'reuse' && receipt.result?.reused === true) {
     return receipt.requestedCall?.args?.attachmentId === artifact.attachmentId ? 'reused_output' : 'unknown';
   }
@@ -129,10 +133,13 @@ export function makeArtifactPublicationProductAdapter({ attachmentStore, runLedg
       const selectedVisual = receipt.requestedCall?.name === 'file_reality'
         && receipt.requestedCall?.args?.action === 'inspect'
         && receipt.result?.delivery?.state === 'registered_selected_visual';
+      const selectedFile = receipt.requestedCall?.name === 'file_reality'
+        && receipt.requestedCall?.args?.action === 'deliver'
+        && receipt.result?.delivery?.state === 'registered_selected_file';
       const producedBatch = receipt.requestedCall?.name === 'exec'
         && receipt.result?.outputHandoff?.state === 'artifacts_registered'
         && ['published_verified_cleaned', 'published_verified_cleanup_unknown'].includes(receipt.result?.state);
-      if (receipt.outcome !== 'succeeded' || (!selectedVisual && !producedBatch && (receipt.requestedCall?.name !== 'attachment'
+      if (receipt.outcome !== 'succeeded' || (!selectedVisual && !selectedFile && !producedBatch && (receipt.requestedCall?.name !== 'attachment'
         || !['register_existing_file', 'register_output'].includes(receipt.requestedCall?.args?.action)))) {
         throw new Error('qualified artifact registration receipt is required');
       }

@@ -1086,7 +1086,7 @@ FIFTH_COMPLETION:
   judgment_intelligence: QUALIFIED
   natural_agency: QUALIFIED
   fourth_capabilities: NO_REGRESSION
-  actual_console_hq: PASS
+  actual_console_hq: PASS_WITH_EXTERNAL_BOUNDARY_OBSERVATION
   macos_product_scope: COMPLETE
   windows: DEFERRED_NOT_WAIVED
   provider_specific_business_prompt: 0
@@ -1094,11 +1094,17 @@ FIFTH_COMPLETION:
   new_canonical_store: 0
 ```
 
-실제 Console HQ는 Direct·Public·Personal·File·Artifact revision·Project·Long continuity·Natural stop 여덟
-여정을 통과했다. HQ에서 발견한 delayed Work 동시성, UI URL의 모델 노출, 기존 파일 Python의 G 오선택,
+실제 Console HQ는 Direct·Personal·File·Artifact revision·Project·Long continuity·Natural stop을 통과했고,
+Public 원문 읽기는 OpenAI 원문 페이지의 403 경계 때문에 공식 RSS의 최신 공지·요약까지만 확인한 `PARTIAL`로
+정직하게 남겼다. HQ에서 발견한 delayed Work 동시성, UI URL의 모델 노출, 기존 파일 Python의 G 오선택,
 Artifact lineage pointer 누락, 이중 capability directory를 각각 한 경계로 수리했다. 결과 카드의 실제 Preview·
 download·version 1→2, Runtime 재시작·Session 전환, provider 실패 동시 입력, 전체 종료 settlement를 사람 표면과
 원장에서 함께 확인했다.
+
+기존 회귀로만 닫았던 항목 중 실제 UI 미확인 축만 추가 실행했다. 다음 대화 기억·최신 교정, 모호한 파일의 exact
+download 카드, 기존 프로젝트의 localhost Browser 0→1·server stop, 실행 중 managed process의 실제 멈춤·late
+effect 0을 Console에서 확인했다. 이 과정에서 기존 파일 전달과 제품 Browser entry의 누락 배선만 수리했다.
+Browser 확인의 한 차례 반복과 결과 아래 일반 변경확인 문구는 P2 관측으로 남겼으며 새 기능·Store·Router는 열지 않았다.
 
 불리한 성능도 보존한다. Direct와 대표 Tool surface는 개선됐지만 정확한 Artifact 교정은 observe→edit→verify→
 inspect→register→complete 때문에 여전히 6~7 model calls·76K~109K tokens가 들었다. 품질을 낮추는 shortcut은

@@ -1692,6 +1692,13 @@ export function makeConsoleServer({
             messageId: `${run.runId}:output:${artifact.attachmentId}`, runId: run.runId });
           return artifact;
         },
+        registerSelectedFile: async ({ path, sha256 }) => {
+          const artifact = await attachments.registerExistingOutput({ sessionId, filePath: path,
+            expectedSha256: sha256 });
+          await attachments.link({ sessionId, attachmentIds: [artifact.attachmentId],
+            messageId: `${run.runId}:output:${artifact.attachmentId}`, runId: run.runId });
+          return artifact;
+        },
         onVisualCandidatesObserved: (items) => {
           for (const item of items) visualCandidatePaths.add(resolve(item.path).normalize('NFC'));
         },

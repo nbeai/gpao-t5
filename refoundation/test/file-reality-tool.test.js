@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -47,6 +47,29 @@ test('컴퓨터 scope는 위치·파일명을 몰라도 내용 단서로 workspa
       handles: [found.handle], maxCandidates: null });
     assert.match(inspected.content, /새봄상사 제안 금액 3000000원/u);
     assert.doesNotMatch(JSON.stringify(whole), /새봄상사 제안 금액/u);
+  } finally { await rm(room.root, { recursive: true, force: true }); }
+});
+
+test('모호한 검색의 exact handle은 사용자가 파일 전달을 요청했을 때만 기존 Artifact로 등록된다', async () => {
+  const room = await fixture(); const registered = [];
+  try {
+    const tool = makeFileRealityTool({ workspace: room.workspace, home: room.root,
+      platform: 'test', computerRoots: [room.root], protectedRoots: [room.protectedRoot],
+      indexSearch: async () => [room.target],
+      registerSelectedFile: async (facts) => { registered.push(facts); return {
+        attachmentId: 'selected-file-1', originalName: '무작위문서.txt', bytes: 67,
+      }; },
+    });
+    const found = await tool.execute({ action: 'search', query: '새봄상사 파란 표 3000000',
+      scope: 'computer', path: null, handles: null, maxCandidates: 10 });
+    assert.equal(registered.length, 0, 'search and inspect do not imply delivery');
+    const delivered = await tool.execute({ action: 'deliver', query: null, scope: null, path: null,
+      handles: [found.candidates[0].handle], maxCandidates: null });
+    assert.equal(delivered.state, 'delivered');
+    assert.equal(delivered.artifact.attachmentId, 'selected-file-1');
+    assert.equal(delivered.delivery.state, 'registered_selected_file');
+    assert.equal(registered.length, 1); assert.equal(registered[0].path, await realpath(room.target));
+    assert.match(registered[0].sha256, /^[0-9a-f]{64}$/u);
   } finally { await rm(room.root, { recursive: true, force: true }); }
 });
 

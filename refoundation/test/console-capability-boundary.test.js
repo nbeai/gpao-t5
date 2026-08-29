@@ -154,9 +154,11 @@ test('공개 정보 검색은 검색엔진 화면보다 검색→URL 읽기를 �
   assert.match(instructions, /previous conversation.*use session_search.*empty memory result is not evidence.*past event did not occur/i);
 });
 
-test('제품 콘솔은 관리 Chrome host를 만들거나 종료 대상으로 보유하지 않는다', async () => {
+test('제품 콘솔은 기존 Browser driver를 연결하되 별도 Chrome host를 보유하지 않는다', async () => {
   const source = await import('node:fs/promises').then(({ readFile }) => readFile(
     new URL('../scripts/start-console.mjs', import.meta.url), 'utf8',
   ));
-  assert.doesNotMatch(source, /browserHost|makeAgentBrowserDriver|makePersistentBrowserHost/u);
+  assert.match(source, /makeAgentBrowserDriver/u);
+  assert.match(source, /browserDriverFactory/u);
+  assert.doesNotMatch(source, /browserHost|makePersistentBrowserHost/u);
 });

@@ -18,6 +18,7 @@ import { makeBingSearchProvider } from '../src/bing-search-provider.js';
 import { makeNaverSearchProvider } from '../src/naver-search-provider.js';
 import { naverReadableUrlResolver } from '../src/naver-readable-url.js';
 import { makeConsoleServer } from '../src/console-server.js';
+import { makeAgentBrowserDriver, sessionNameForOwner } from '../src/agent-browser-driver.js';
 import { resolveConsoleWorkspace } from '../src/console-config.js';
 import { discoverComputerEnvironment, discoverMacOSComputerFileRoots } from '../src/computer-environment.js';
 import { resolveTerminalShellEnvironment } from '../src/terminal-shell-environment.js';
@@ -249,6 +250,11 @@ const server = makeConsoleServer({
   computerFileRoots,
   protectedFileRoots: protectedTerminalReadRoots,
   processRegistry,
+  browserDriverFactory: (sessionId) => makeAgentBrowserDriver({
+    ownerId: sessionId,
+    clientInstanceId: runtimeGenerationId,
+    outputDirectory: join(stateDir, 'browser', sessionNameForOwner(sessionId), 'artifacts'),
+  }),
   webSearchProviders,
   webReadOptions: { urlResolvers: [naverReadableUrlResolver] },
   quickPreviewProgram: cloudflaredCli,

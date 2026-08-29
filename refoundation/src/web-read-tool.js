@@ -418,6 +418,7 @@ export function makeWebReadTool({
             state: 'blocked', reason: safe === false ? 'private_network' : 'dns_unverified',
             source: { requestedUrl, finalUrl: currentUrl, redirects, trust: 'untrusted_external', ...(readStrategy ? { readStrategy } : {}) },
             content: null,
+            ...requestedBrowserActivation(visibleBrowser),
           };
         }
         const timeout = AbortSignal.timeout(timeoutMs);

@@ -14,11 +14,12 @@ test('일반 대화 UI는 전용 T5 브라우저 handoff를 표시하지 않는�
   assert.doesNotMatch(html, /T5 브라우저 로그인 모두 지우기/u);
 });
 
-test('제품 진입점은 전용 browser host·driver를 만들지 않는다', async () => {
+test('제품 진입점은 기존 관리 Browser driver를 Console에 연결하고 별도 host를 만들지 않는다', async () => {
   const source = await readFile(resolve(root, 'refoundation/scripts/start-console.mjs'), 'utf8');
-  assert.doesNotMatch(source, /makeAgentBrowserDriver/u);
+  assert.match(source, /makeAgentBrowserDriver/u);
+  assert.match(source, /browserDriverFactory/u);
+  assert.match(source, /clientInstanceId: runtimeGenerationId/u);
   assert.doesNotMatch(source, /makePersistentBrowserHost/u);
   assert.doesNotMatch(source, /browserHost/u);
-  assert.doesNotMatch(source, /agent-browser/u);
   assert.doesNotMatch(source, /makeUserChrome|chrome-devtools-mcp/u);
 });

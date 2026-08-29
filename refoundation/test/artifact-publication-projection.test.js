@@ -11,7 +11,7 @@ import { RunLedger } from '../src/run-ledger.js';
 import { WorkStore } from '../src/work-store.js';
 
 const SESSION = '11111111-1111-4111-8111-111111111111';
-async function fixture({ existing = true, sourceProvenance = null, selectedVisual = false,
+async function fixture({ existing = true, sourceProvenance = null, selectedVisual = false, selectedFile = false,
   producedBatch = false } = {}) {
   const room = await mkdtemp(join(tmpdir(), 't5-artifact-publication-')); const workspace = join(room, 'workspace');
   await mkdir(workspace); const file = join(workspace, '결과.xlsx'); await writeFile(file, 'exact-bytes');
@@ -25,12 +25,13 @@ async function fixture({ existing = true, sourceProvenance = null, selectedVisua
   let result = await tool.execute({ action: existing ? 'register_existing_file' : 'register_output', filePath: file });
   const registeredArtifact = result.artifact;
   if (selectedVisual) result = { ...result, delivery: { state: 'registered_selected_visual' } };
+  if (selectedFile) result = { ...result, delivery: { state: 'registered_selected_file' } };
   if (sourceProvenance) result = { ...result, sourceProvenance };
   if (producedBatch) result = { state: 'published_verified_cleaned',
     outputHandoff: { state: 'artifacts_registered', outputCount: 1 }, artifacts: [result.artifact] };
   await writer.append({ type: 'tool_completed', payload: { receipt: { outcome: 'succeeded',
-    requestedCall: { name: producedBatch ? 'exec' : selectedVisual ? 'file_reality' : 'attachment', args: { action: selectedVisual
-      ? 'inspect' : existing ? 'register_existing_file' : 'register_output',
+    requestedCall: { name: producedBatch ? 'exec' : selectedVisual || selectedFile ? 'file_reality' : 'attachment', args: { action: selectedVisual
+      ? 'inspect' : selectedFile ? 'deliver' : existing ? 'register_existing_file' : 'register_output',
       filePath: file } }, result } } });
   await work.recordResultReady({ runId: writer.runId, sessionId: SESSION,
     workId: current.workId, revision: current.revision, resultDigest: 'a'.repeat(64),
@@ -60,6 +61,16 @@ test('G protected exec batch가 직접 등록한 Artifact는 generated output �
 
 test('file_reality가 exact visual inspect에서 등록한 선택 이미지는 기존 파일 영수증으로 materialize한다', async () => {
   const f = await fixture({ selectedVisual: true });
+  const adapter = makeArtifactPublicationProductAdapter({ attachmentStore: f.attachments,
+    runLedger: f.runs, workStore: f.work });
+  const publication = await adapter.materialize({ sessionId: SESSION, runId: f.writer.runId,
+    attachmentId: f.result.artifact.attachmentId });
+  assert.equal(publication.classification, 'existing_file');
+  assert.match(projectHumanArtifactReceipt(publication).title, /기존 파일 그대로/u);
+});
+
+test('file_reality가 exact deliver로 등록한 선택 문서도 기존 파일 영수증으로 materialize한다', async () => {
+  const f = await fixture({ selectedFile: true });
   const adapter = makeArtifactPublicationProductAdapter({ attachmentStore: f.attachments,
     runLedger: f.runs, workStore: f.work });
   const publication = await adapter.materialize({ sessionId: SESSION, runId: f.writer.runId,

@@ -257,3 +257,19 @@ test('web_read는 public URL이 private 주소로 해석되거나 redirect되면
   assert.equal(result.state, 'blocked');
   assert.equal(result.reason, 'private_network');
 });
+
+test('사용자가 exact localhost 상호작용을 요청하면 fetch 차단은 유지하고 Browser만 활성화한다', async () => {
+  let calls = 0;
+  const tool = makeWebReadTool({
+    fetchImpl: async () => { calls += 1; return new Response('should not run'); },
+    resolveHost: async () => ['127.0.0.1'],
+  });
+  const result = await tool.execute({
+    url: 'http://127.0.0.1:4174/', maxChars: 1000, visibleBrowser: 'user_interaction',
+  });
+  assert.equal(calls, 0);
+  assert.equal(result.state, 'blocked');
+  assert.equal(result.reason, 'private_network');
+  assert.deepEqual(result.activatedTools, ['browser']);
+  assert.deepEqual(result.visibleBrowser, { mode: 'user_interaction', activated: true });
+});

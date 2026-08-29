@@ -252,6 +252,7 @@ export function makeFileRealityTool({
   ocrProbe = null,
   contactSheetBuilder = buildLocalImageContactSheet,
   registerSelectedImage = null,
+  registerSelectedFile = null,
   onVisualCandidatesObserved = null,
   enforceComputerRoots = false,
   now = Date.now,
@@ -320,7 +321,7 @@ export function makeFileRealityTool({
   };
   return {
     name: 'file_reality',
-    description: 'Find real local files when the user remembers only approximate names, contents, dates, amounts, people, projects, or prior context; search either the whole requested computer scope, the current workspace, or one exact folder. Return bounded opaque candidates and evidence without sending the whole filesystem or file contents to the model. Inspect selected candidates, compare exact duplicates or possible versions, and preview an exact organization plan with collision facts before any file is changed. Never declare a final version from the filename alone.',
+    description: 'Find real local files when the user remembers only approximate names, contents, dates, amounts, people, projects, or prior context; search either the whole requested computer scope, the current workspace, or one exact folder. Return bounded opaque candidates and evidence without sending the whole filesystem or file contents to the model. Inspect selected candidates, use deliver on one exact verified handle when the user asked to receive that file, compare exact duplicates or possible versions, and preview an exact organization plan with collision facts before any file is changed. Never declare a final version from the filename alone.',
     searchTerms: [
       'find local file whole computer vague name content duplicate latest version',
       '컴퓨터 전체 파일 찾기 이름 위치 모름 내용 단서 중복 최종본 버전',
@@ -330,7 +331,7 @@ export function makeFileRealityTool({
     ],
     relatedTools: ['attachment'],
     parameters: { type: 'object', additionalProperties: false, properties: {
-      action: { type: 'string', enum: ['search', 'image_candidates', 'inspect', 'compare', 'plan', 'apply', 'rollback', 'bind_sources', 'visual_candidates'] },
+      action: { type: 'string', enum: ['search', 'image_candidates', 'inspect', 'deliver', 'compare', 'plan', 'apply', 'rollback', 'bind_sources', 'visual_candidates'] },
       query: { type: ['string', 'null'], maxLength: 500 },
       scope: { type: ['string', 'null'], enum: ['computer', 'workspace', 'path', null] },
       path: { type: ['string', 'null'], maxLength: 4096 },
@@ -481,6 +482,19 @@ export function makeFileRealityTool({
         ocr: ocr?.state === 'observed' ? { engine: ocr.engine, width: ocr.width, height: ocr.height,
           observationCount: ocr.observations.length, truncated: ocr.truncated } : null,
         ...(artifact ? { artifact, delivery: { state: 'registered_selected_visual' } } : {}) };
+      }
+      if (action === 'deliver') {
+        if (!Array.isArray(requestedHandles) || requestedHandles.length !== 1) {
+          throw new TypeError('one file handle is required');
+        }
+        if (typeof registerSelectedFile !== 'function') throw new Error('selected file delivery is unavailable');
+        const { record } = await reopen(requestedHandles[0]); const sha256 = await streamSha256(record.path);
+        const artifact = await registerSelectedFile({ path: record.path, sha256,
+          displayName: record.displayName });
+        return { state: 'delivered', file: { handle: requestedHandles[0],
+          displayName: record.displayName, locationText: record.locationText,
+          extension: record.extension, bytes: record.bytes, modifiedAt: record.modifiedAt, sha256 },
+        artifact, delivery: { state: 'registered_selected_file' } };
       }
       if (action === 'compare') {
         if (!Array.isArray(requestedHandles) || requestedHandles.length < 2) throw new TypeError('two or more file handles are required');

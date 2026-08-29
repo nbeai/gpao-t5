@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "gate": "FIFTH_INTEGRATED_HUMAN_QUALIFICATION",
-  "status": "PASS_MACOS_PRODUCT_SCOPE",
+  "status": "PASS_MACOS_PRODUCT_SCOPE_WITH_EXTERNAL_BOUNDARY_OBSERVATION",
   "baselineCommit": "7c3b954f",
   "completionCommit": "same_commit_as_evidence",
   "model": "gpt-5.5",
@@ -12,12 +12,12 @@
   "windows": "DEFERRED_NOT_WAIVED",
   "journeys": [
     { "id": "H1", "name": "direct intelligence", "status": "PASS", "facts": "Enter sends, Shift+Enter adds newline; greeting is one model call, zero Tool/Work, natural Korean" },
-    { "id": "H2", "name": "current public grounding", "status": "PASS", "evidence": "fifth-cj7-natural-timing-2026-08-30.json" },
-    { "id": "H3", "name": "personal context", "status": "PASS", "evidence": "fifth-cj3-relevant-memory-conversation-2026-08-30.json and fifth-cj4-capability-tool-economy-2026-08-30.json" },
-    { "id": "H4", "name": "ambiguous file discovery", "status": "PASS_REUSED_CURRENT_REGRESSION", "evidence": "full unit and product integration file reality/OCR/visual candidate journeys" },
+    { "id": "H2", "name": "current public grounding", "status": "PARTIAL_EXTERNAL_BOUNDARY", "facts": "actual Console selected the latest official OpenAI RSS item dated 2026-08-26 and did not pretend to have read the full article after the exact OpenAI page returned 403" },
+    { "id": "H3", "name": "personal context", "status": "PASS_ACTUAL_CONSOLE", "facts": "new conversation recalled HQ-PRICE-7391 from the exact prior user message; a later current-turn correction used only HQ-PRICE-CURRENT-8520" },
+    { "id": "H4", "name": "ambiguous file discovery", "status": "PASS_ACTUAL_CONSOLE", "facts": "natural clues selected exact x9.txt, reopened 74 bytes, and rendered a working download card without exposing an internal path" },
     { "id": "H5", "name": "artifact authoring and revision", "status": "PASS", "facts": "actual hq-card.html preview/download/reopen; exact text correction; final card version 2 with versions 1 and 2 visible" },
-    { "id": "H6", "name": "project continuity", "status": "PASS_REUSED_CURRENT_REGRESSION", "evidence": "S4-P current-source unit and product integration journeys" },
-    { "id": "H7", "name": "long continuity", "status": "PASS_COMPOSITE", "facts": "actual Runtime restart and session switching preserved the canonical conversation and cards; long checkpoint, fallback, cancellation, and busy-input integrations passed" },
+    { "id": "H6", "name": "project continuity", "status": "PASS_ACTUAL_CONSOLE", "facts": "owner-note stayed exact, source fix and npm test passed, product Browser observed 0 then clicked to 1, managed server stopped, and the port no longer responded" },
+    { "id": "H7", "name": "long continuity", "status": "PASS_ACTUAL_CONSOLE_AND_COMPOSITE", "facts": "actual Runtime restart and session switching preserved canonical state; clicking Stop during a managed 25-second process produced no late file, no orphan child, and no late success" },
     { "id": "H8", "name": "natural stop and UX", "status": "PASS", "facts": "thought and missing-destination requests used zero Tools; current public and artifact work stopped after completion; no duplicate final progress" }
   ],
   "actualConsoleMeasurements": [
@@ -27,6 +27,11 @@
     { "purpose": "successful_existing_file_revision_after_boundary_repair", "modelCalls": 6, "toolCalls": 5, "tokens": 76422, "requestBytes": 367014, "changedEffects": 1 },
     { "purpose": "successful_exact_version_lineage", "modelCalls": 7, "toolCalls": 6, "tokens": 109338, "requestBytes": 478963, "changedEffects": 1 },
     { "purpose": "managed_wait_and_artifact", "modelCalls": 4, "toolCalls": 3, "tokens": 36368, "requestBytes": 181302, "changedEffects": 1 }
+    ,{ "purpose": "current_public_grounding_extension", "modelCalls": 11, "toolCalls": 11, "tokens": 208601, "requestBytes": 1017564, "changedEffects": 0 }
+    ,{ "purpose": "memory_exact_recall_extension", "modelCalls": 5, "toolCalls": 6, "tokens": 44204, "requestBytes": 237159, "changedEffects": 0 }
+    ,{ "purpose": "ambiguous_existing_file_delivery_extension", "modelCalls": 13, "toolCalls": 12, "tokens": 202676, "requestBytes": 1000176, "changedEffects": 0 }
+    ,{ "purpose": "managed_process_stop_extension", "modelCalls": 3, "toolCalls": 3, "tokens": 25124, "requestBytes": 130438, "changedEffects": 0 }
+    ,{ "purpose": "existing_project_browser_extension", "modelCalls": 17, "toolCalls": 16, "tokens": 259378, "requestBytes": 1362874, "changedEffects": 0 }
   ],
   "firstFailuresAndRepairs": [
     {
@@ -58,6 +63,18 @@
       "failure": "visual work called tool_search before the already bounded skill directory",
       "repair": "skill directory is one of the small always-visible product hands",
       "result": "one redundant model/tool discovery round trip removed; direct and tool discovery countertests pass"
+    },
+    {
+      "id": "ambiguous_file_not_delivered",
+      "failure": "the model found and reopened the exact existing file but the product had no exact-handle delivery action, so the user received only a path and copied content",
+      "repair": "file_reality can register only its exact reopened handle through the existing AttachmentStore and artifact publication projection",
+      "result": "actual Console shows the correct existing-file download card; no new Store or publication system"
+    },
+    {
+      "id": "product_browser_entry_missing",
+      "failure": "the installed-product-equivalent start-console entry omitted the existing managed Browser driver, and private-network web_read prevented exact localhost interaction activation",
+      "repair": "wire the existing driver at product entry and keep private fetch blocked while allowing an explicit user_interaction boundary to activate Browser",
+      "result": "actual Console performs web_read boundary, Browser navigate, click, 0-to-1 snapshot, managed server stop, and port-closed verification"
     }
   ],
   "uxObservations": {
@@ -66,6 +83,7 @@
     "reconnect": "PASS same sessions and cards after Runtime restart",
     "sessionSwitching": "PASS results remain in their originating conversation",
     "historicalPreRepairMessages": "preserved honestly; fixes affect new Runs without rewriting old conversation truth"
+    ,"extensionP2Observations": "project Browser verification repeated one navigate/click/snapshot cycle; a generic change-review status remained below the correct final answer; neither changed purpose truth or cleanup and neither was patched"
   },
   "performanceTruth": {
     "directImproved": true,
@@ -75,9 +93,10 @@
     "postSkillExposureVisualArtifactLiveRerun": "not_repeated_to_avoid_overqualification"
   },
   "finalRegression": {
-    "unit": { "tests": 1886, "passed": 1885, "failed": 0, "skippedWindows": 1 },
+    "unit": { "tests": 1894, "passed": 1893, "failed": 0, "skippedWindows": 1 },
     "productIntegration": { "tests": 203, "passed": 201, "failed": 0, "skippedWindows": 2 },
-    "mutation": { "mutantsKilled": 2, "survived": 0 }
+    "mutation": { "mutantsKilled": 2, "survived": 0 },
+    "environmentNote": "the first constrained tool-sandbox invocation was invalid because localhost listen, Python discovery, and macOS Seatbelt were denied; the exact qualification command was rerun outside that wrapper. One integration cleanup ENOTEMPTY race passed alone and on the final full integration rerun; no product or fixture patch was made for it"
   },
   "forbiddenSystems": {
     "intentRouter": 0,
