@@ -17,7 +17,7 @@ function previewUrl(text) {
 export function makeQuickPreviewTool({ program, processRegistry, ownerId,
   authorizeEffect, fetchImpl = globalThis.fetch, waitMs = 1_000,
 } = {}) {
-  if (!program || !processRegistry || !ownerId || typeof fetchImpl !== 'function') {
+  if (!processRegistry || !ownerId || typeof fetchImpl !== 'function') {
     throw new TypeError('quick preview runtime is incomplete');
   }
   const previews = new Map();
@@ -25,7 +25,9 @@ export function makeQuickPreviewTool({ program, processRegistry, ownerId,
     name: 'preview_publication', deferred: true, capabilityGroup: 'external_preview',
     searchTerms: ['share local website public preview URL temporary tunnel external demo',
       '로컬 홈페이지 외부 미리보기 주소 임시 터널 공유'],
-    description: 'Expose one already-running localhost HTTP project through an installed Cloudflare Quick Tunnel for a temporary public preview. This is a public external transmission for testing only, not production, stable hosting, authentication, or an SLA. No package is installed. Start returns an observed trycloudflare.com URL only after exact reopen; stop ends that preview process.',
+    description: program
+      ? 'Expose one already-running localhost HTTP project through an installed Cloudflare Quick Tunnel for a temporary public preview. This is a public external transmission for testing only, not production, stable hosting, authentication, or an SLA. No package is installed. Start returns an observed trycloudflare.com URL only after exact reopen; stop ends that preview process.'
+      : 'Report that external Preview is currently unavailable because no qualified public-tunnel capability is installed. An internal Attachment preview or localhost URL is not externally reachable. Do not install a replacement, create a wrapper ZIP, or describe a T5 Attachment link as external Preview.',
     parameters: { type: 'object', additionalProperties: false, properties: {
       action: { type: 'string', enum: ['start', 'status', 'stop'] },
       localUrl: { type: ['string', 'null'] },
@@ -34,6 +36,9 @@ export function makeQuickPreviewTool({ program, processRegistry, ownerId,
     }, required: ['action', 'localUrl', 'processId', 'effect'] },
     async execute(args = {}, context = {}) {
       if (args.action === 'start') {
+        if (!program) return { state: 'unavailable', reason: 'external_preview_capability_unavailable',
+          externallyReachable: false, providerAccepted: false, automaticInstallPerformed: false,
+          internalAttachmentPreviewIsExternal: false, localPreviewStillAvailable: true };
         const origin = localOrigin(args.localUrl);
         if (args.processId != null || args.effect?.kind !== 'external_send'
           || !args.effect.targets?.includes('https://trycloudflare.com')) {

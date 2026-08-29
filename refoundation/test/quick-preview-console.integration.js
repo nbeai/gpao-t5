@@ -65,9 +65,17 @@ test('공식 Preview CLI가 없으면 제품은 숨은 대체 설치나 거짓 �
       if (turn === 1) return { text: '', toolCalls: [{ id: 'find-preview', name: 'tool_search', args: {
         query: '로컬 홈페이지 외부 미리보기 주소 임시 터널 공유',
       } }] };
+      if (turn === 2) {
+        assert.equal(tools.some((tool) => tool.name === 'preview_publication'), true);
+        return { text: '', toolCalls: [{ id: 'preview-absence', name: 'preview_publication', args: {
+          action: 'start', localUrl: 'http://127.0.0.1:4183/', processId: null, effect,
+        } }] };
+      }
       const receipt = JSON.parse(messages.at(-1).content);
-      assert.equal(receipt.result.activatedTools.includes('preview_publication'), false);
-      assert.equal(tools.some((tool) => tool.name === 'preview_publication'), false);
+      assert.equal(receipt.result.state, 'unavailable');
+      assert.equal(receipt.result.externallyReachable, false);
+      assert.equal(receipt.result.automaticInstallPerformed, false);
+      assert.equal(receipt.result.internalAttachmentPreviewIsExternal, false);
       return { text: '현재 외부 Preview 수단은 준비되어 있지 않아 로컬 결과만 제공할 수 있어요.', toolCalls: [] };
     } }),
   });

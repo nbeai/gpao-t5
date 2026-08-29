@@ -168,6 +168,18 @@ test('같은 executable operation의 exact registered artifact만 앞선 verific
   }
 });
 
+test('visual 후보를 사용한 achieved는 선택 이미지 exact reopen과 delivery 뒤에만 성립한다', () => {
+  const visual = { outcome: 'succeeded', requestedCall: { name: 'file_reality', args: {
+    action: 'visual_candidates' } }, result: { state: 'observed', verificationMissing: true,
+    requiredEvidence: 'selected_visual_exact_reopen' } };
+  const blocked = evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [visual] });
+  assert.equal(blocked.verifiedOutcome, 'unresolved');
+  const selected = { outcome: 'succeeded', requestedCall: { name: 'file_reality', args: {
+    action: 'inspect' } }, result: { state: 'observed', delivery: { state: 'registered_selected_visual' } } };
+  const recovered = evaluateWorkCompletion({ proposedOutcome: 'achieved', receipts: [visual, selected] });
+  assert.equal(recovered.verifiedOutcome, 'achieved');
+});
+
 test('같은 operation이 회복돼도 approval·unknown·handoff blocker는 절대 회복하지 않는다', () => {
   const base = [operationBegin('operation-a'), operationReceipt('operation-a', 'open'),
     { outcome: 'succeeded', result: { state: 'approval_required' } },

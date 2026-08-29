@@ -44,6 +44,13 @@ function blockerForReceipt(receipt, index, receipts) {
   }
   if (receipt?.result?.delivery?.sent === false || receipt?.result?.delivered === false) return 'delivery_missing';
   if (receipt?.result?.verificationMissing === true) {
+    if (receipt.result.requiredEvidence === 'selected_visual_exact_reopen'
+      && receipts.slice(index + 1).some((candidate) => (
+        candidate?.outcome === 'succeeded'
+        && (candidate?.actualCall?.name ?? candidate?.requestedCall?.name) === 'file_reality'
+        && (candidate?.actualCall?.args?.action ?? candidate?.requestedCall?.args?.action) === 'inspect'
+        && candidate?.result?.delivery?.state === 'registered_selected_visual'
+      ))) return null;
     return 'requested_evidence_missing';
   }
   return null;

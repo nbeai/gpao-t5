@@ -1715,6 +1715,10 @@ export function makeConsoleServer({
           const executeBrowser = browserTool.execute.bind(browserTool);
           browserTool.execute = async (args, context) => {
             const observed = await executeBrowser(args, context);
+            if (args.action === 'screenshot' && observed?.state === 'captured' && observed.file?.path) {
+              outputCandidates.add(outputKey(observed.file.path));
+              return { ...observed, currentRunVisualEvidence: { state: 'available', exactFile: true } };
+            }
             if (args.action !== 'download' || observed?.state !== 'acted' || !observed.file?.path) return observed;
             try {
               const bytes = await readFile(observed.file.path);
@@ -1738,7 +1742,7 @@ export function makeConsoleServer({
           offeredTools.unshift(browserTool);
         }
       }
-      if (quickPreviewProgram) offeredTools.unshift(makeQuickPreviewTool({
+      offeredTools.unshift(makeQuickPreviewTool({
         program: quickPreviewProgram, processRegistry: processes, ownerId: sessionId,
         fetchImpl: quickPreviewFetchImpl,
         authorizeEffect: (args, authorityContext) => effectPreflight({

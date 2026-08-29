@@ -617,6 +617,7 @@ export function makeFileRealityTool({
           bytes: item.record.bytes, modifiedAt: item.record.modifiedAt })),
         contactSheet: { candidateCount: selected.length, width: sheet.width, height: sheet.height,
           pixelsSuppliedToModel: true },
+        verificationMissing: true, requiredEvidence: 'selected_visual_exact_reopen',
         _modelAttachments: [{ type: 'input_image', detail: 'high', image_url: `data:image/png;base64,${sheet.png.toString('base64')}` }] };
       }
       throw new TypeError('file reality action is invalid');

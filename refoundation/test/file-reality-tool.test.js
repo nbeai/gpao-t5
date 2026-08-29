@@ -260,6 +260,8 @@ test('선택한 이미지 후보만 contact sheet로 모델에 한 번 공급하
       handles: images.map((item) => item.handle), maxCandidates: null, placements: null, planId: null,
       effect: null, sourceUses: null, purpose: null, unknowns: null, standardization: null });
     assert.deepEqual(result.candidates.map((item) => item.visualRef), ['C1', 'C2']);
+    assert.equal(result.verificationMissing, true);
+    assert.equal(result.requiredEvidence, 'selected_visual_exact_reopen');
     assert.equal(result._modelAttachments.length, 1); assert.match(result._modelAttachments[0].image_url, /^data:image\/png;base64,/u);
     const inspected = await tool.execute({ action: 'inspect', query: null, scope: null, path: null,
       handles: [images[1].handle], maxCandidates: null, placements: null, planId: null,

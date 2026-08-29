@@ -50,3 +50,15 @@ test('Quick Preview는 외부 주소·비밀 URL·승인 없는 전송을 실행
     processId: null, effect });
   assert.equal(blocked.state, 'approval_required'); assert.equal(registry.list('session-preview').length, 0);
 });
+
+test('공식 외부 Preview capability 부재는 internal attachment와 구분된 typed 사실이다', async () => {
+  const registry = new ManagedProcessRegistry({ platform: process.platform });
+  const tool = makeQuickPreviewTool({ program: null, processRegistry: registry,
+    ownerId: 'session-preview', fetchImpl: async () => new Response('') });
+  const result = await tool.execute({ action: 'start', localUrl: 'http://127.0.0.1:4183/',
+    processId: null, effect });
+  assert.deepEqual(result, { state: 'unavailable', reason: 'external_preview_capability_unavailable',
+    externallyReachable: false, providerAccepted: false, automaticInstallPerformed: false,
+    internalAttachmentPreviewIsExternal: false, localPreviewStillAvailable: true });
+  assert.equal(registry.list('session-preview').length, 0);
+});
