@@ -164,11 +164,19 @@ async function runFacts(run) {
     && receipt.actualCall == null && receipt.result?.state === 'program_continuation_required');
   const continuationResults = receipts.filter((receipt) => receipt.actualCall?.name === 'program_continue'
     && receipt.result?.state === 'published_verified_cleaned');
+  const snapshotResults = receipts.filter((receipt) => receipt.actualCall?.name === 'exec'
+    && ['published_verified_cleaned', 'published_verified_cleanup_unknown'].includes(receipt.result?.state)
+    && receipt.result?.sourceUniverse?.coverage === 'complete');
   let sourceDigestMatched = false;
   if (continuationRequest) {
     const explanation = await explainShellCommand(continuationRequest.requestedCall.args?.command ?? '');
     sourceDigestMatched = explanation.heredocs?.length === 1
       && explanation.heredocs[0].sha256 === continuationRequest.result?.source?.sha256;
+  }
+  if (snapshotResults.length === 1) {
+    const explanation = await explainShellCommand(snapshotResults[0].requestedCall?.args?.command ?? '');
+    sourceDigestMatched = explanation.heredocs?.length === 1
+      && explanation.heredocs[0].sha256 === snapshotResults[0].result?.sourceSha256;
   }
   const callFacts = await Promise.all(receipts.map(async (receipt) => {
     const requested = receipt.requestedCall ?? {}; const args = requested.args ?? {};
@@ -196,13 +204,16 @@ async function runFacts(run) {
     programRelatedToolCalls: programIndexes.length,
     outputReopenedAfterProgram: lastProgramIndex >= 0 && serializedCalls
       .some((value, index) => index > lastProgramIndex && outputPattern.test(value)),
-    capsuleContractObserved: continuationResults.length === 1,
+    capsuleContractObserved: continuationResults.length + snapshotResults.length === 1,
     protectedContinuationRequested: Boolean(continuationRequest),
     protectedContinuationCompleted: continuationResults.length === 1,
     protectedSourceDigestMatched: sourceDigestMatched,
     originalExecActualCalls: receipts.filter((receipt) => receipt.requestedCall?.name === 'exec'
       && receipt.result?.state === 'program_continuation_required' && receipt.actualCall != null).length,
     continuationExecutions: continuationResults.length,
+    snapshotExecutions: snapshotResults.length,
+    snapshotCleanupTerminal: snapshotResults.length === 1
+      ? snapshotResults[0].result?.cleanup?.state ?? null : null,
     callFacts,
     packageInstallRequested: serializedCalls.some((value) => packagePattern.test(value)),
     networkRequested: calls.some((call, index) => ['web_search', 'web_read', 'web_research', 'browser'].includes(call.name)
@@ -297,6 +308,8 @@ async function main() {
         protectedSourceDigestMatched: facts.protectedSourceDigestMatched,
         originalExecActualCalls: facts.originalExecActualCalls,
         continuationExecutions: facts.continuationExecutions,
+        snapshotExecutions: facts.snapshotExecutions,
+        snapshotCleanupTerminal: facts.snapshotCleanupTerminal,
         callFacts: facts.callFacts },
       verification: { ...verification, sourceUnchanged, residualFiles: residual.length,
         programResidualFiles: programResiduals.length, residualManagedProcesses,
@@ -310,8 +323,8 @@ async function main() {
       ...(keep ? { retainedFixtureRoot: root } : {}),
     };
     result.decision = verification.passed && sourceUnchanged
-      && facts.protectedContinuationCompleted && facts.protectedSourceDigestMatched
-      && facts.originalExecActualCalls === 0 && facts.continuationExecutions === 1
+      && facts.snapshotExecutions === 1 && facts.protectedSourceDigestMatched
+      && facts.snapshotCleanupTerminal === 'cleaned'
       && residual.length === 0 && residualManagedProcesses === 0
       ? 'PRODUCT_CHANGE_ZERO_CANDIDATE' : 'G1_EVIDENCE_CANDIDATE_REQUIRES_OWNER_REVIEW';
     const serialized = `${JSON.stringify(result, null, 2)}\n`;

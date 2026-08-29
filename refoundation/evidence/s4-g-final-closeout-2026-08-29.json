@@ -1,0 +1,80 @@
+{
+  "schema": "t5.s4g.final-closeout.v1",
+  "recordedOn": "2026-08-29",
+  "status": "S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION",
+  "sourceBaseCommit": "fb036607",
+  "ownerDecision": {
+    "exactActualReadSetRequired": false,
+    "furtherFilesystemTracingDevelopment": false,
+    "successOrObservationCloseRequired": true
+  },
+  "finalTruth": {
+    "internalEngine": "COMPLETE",
+    "productActivation": "CLOSED_WITH_OBSERVATION",
+    "furtherDevelopment": "DEFERRED",
+    "actualReadSet": "UNKNOWN_BY_DESIGN",
+    "sourceUniverse": "COMPLETE_IMMUTABLE",
+    "outputCoverage": "INDEPENDENTLY_VERIFIED"
+  },
+  "deterministicQualification": {
+    "purposes": ["business", "development", "personal_file"],
+    "passed": 3,
+    "failed": 0,
+    "samePythonExactExecutionsPerPurpose": 1,
+    "sourceOutsideReadWrite": 0,
+    "network": 0,
+    "childProcess": 0,
+    "guestExitOrManifestAloneAccepted": false,
+    "missingUnexpectedDuplicateInvalidOutputAccepted": false,
+    "partialMultiFilePublication": 0,
+    "diagnosticTemporaryUserProjection": 0,
+    "exactReopenAndFormat": true,
+    "undoVerified": true,
+    "publicationCleanupSeparated": true,
+    "cleanupOnlyCrashRecovery": true,
+    "ordinaryExecSchemaChanged": false,
+    "ordinaryExecModelToolCallsChanged": false
+  },
+  "actualProductQualification": {
+    "model": "gpt-5.5",
+    "purpose": "business_12_csv_527_rows",
+    "purposePassed": true,
+    "summaryRows": 4,
+    "errorRows": 47,
+    "sourceUnchanged": true,
+    "snapshotExecutions": 1,
+    "sourceDigestMatched": true,
+    "cleanup": "cleaned",
+    "residualFiles": 0,
+    "residualProcesses": 0,
+    "wallMs": 161854,
+    "modelCalls": 16,
+    "toolCalls": 16,
+    "providerTokens": 419448,
+    "requestBytes": 1888088,
+    "attachmentRegistrationFailures": 4,
+    "remainingTwoActualPurposesRun": false,
+    "stopReason": "first actual purpose violated economic and unnecessary-call acceptance"
+  },
+  "comparisons": {
+    "g0Baseline": { "wallMs": 107840, "modelCalls": 13, "toolCalls": 12, "providerTokens": 323691 },
+    "unchangedProductDiagnostic": { "wallMs": 101754, "modelCalls": 11, "toolCalls": 11, "providerTokens": 251526 },
+    "lastActivationZeroObservation": { "wallMs": 93989, "modelCalls": 10, "toolCalls": 10, "providerTokens": 208713 },
+    "finalCandidateEconomicallyAccepted": false
+  },
+  "finalProductState": {
+    "snapshotAdapterEntry": 0,
+    "execWiring": 0,
+    "newTool": 0,
+    "newStore": 0,
+    "newPrompt": 0,
+    "newRouter": 0,
+    "qualificationSourceExcludedFromPayload": true
+  },
+  "verificationAfterRemoval": {
+    "dailyCheckPassed": 1772,
+    "dailyCheckFailed": 0,
+    "dailyCheckSkipped": 1
+  },
+  "nextGate": "S4_H_READ_ONLY_BASELINE"
+}

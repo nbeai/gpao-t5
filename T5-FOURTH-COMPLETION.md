@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G0_READ_ONLY_BASELINE_COMPLETE · S4_G1_CAPSULE_CONTRACT_COMPLETE · S4_G2_SOURCE_PREPARATION_COMPLETE · S4_G3_FIXTURE_QUALIFICATION_COMPLETE · S4_G4_ACTUAL_EXECUTION_COMPLETE · S4_G5_INDEPENDENT_OBSERVER_COMPLETE · S4_G6_PUBLICATION_CLEANUP_COMPLETE · S4_G7_PREBOUND_TRANSIENT_REJECTED · S4_G7_ACTUAL_READ_OBSERVER_PREREQUISITE_MEASURED · S4_G7_READONLY_SNAPSHOT_GENERATION_QUALIFIED_PRODUCT0_READSET_FALSE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
-현재 Gate: `S4-G7 EPHEMERAL PROGRAM CAPSULE · PRODUCT ACTIVATION AND A/B`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_H_READ_ONLY_BASELINE_NEXT · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+현재 Gate: `S4-H RECONCILIATION · READ-ONLY BASELINE`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,17 +55,16 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-G7 ephemeral program capsule의 product activation and A/B다.
-3. **사용자 완료 문장**: T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은
-   프로그램을 만들고, 고정된 입력과 범위에서 시험·실행하며, 프로그램과 독립적으로 검증한 사용자 결과만
-   발행하고 나머지는 정리한다.
-4. **이미 선 실제 증거**: G6는 verified publishable만 F transaction으로 발행하고 internal·diagnostic·temporary를
-   제외하며 Capsule scratch cleanup과 cleanup_unknown을 4/4로 분리했다.
-5. **현재 가장 큰 미달**: 모델이 기존 exec로 작성한 temporary Python program의 source·input RecordRef·declared
-   output·stale·independent verification·cleanup을 G 계약에 결속하는 최소 실행 protocol이 없다.
-6. **이번 변경 방식**: 기존 Python source·입력·출력 의미를 바꾸지 않고 model-authored temporary program이라는
-   명시적 실행 계약이 있을 때만 G2~G6를 감싸며, pure transform이면 QuickJS를 내부 후보로 사용한다.
-7. **Non-goals**: Python→QuickJS 자동 번역·명령 문자열 정규식 추측·모든 exec 확대·업무 Router·nested Tool RPC·S4-H.
+2. **현재 Gate**: S4-H 범용 Reconciliation의 read-only baseline이다.
+3. **사용자 완료 문장**: T5는 업무 분야와 무관하게 여러 자료를 연결·비교·대사하고 사실·누락·상충·불확실성을
+   분리한 결과를 만든다.
+4. **이미 선 실제 증거**: 기존 `bind_sources`·source manifest·Document reopen·F transaction은 exact source와
+   output identity를 보존하며, G internal engine은 완료·제품 activation은 관측 종료됐다.
+5. **현재 가장 큰 미달**: 0.3.1 실제 다중 자료 결과에서 source-key가 다른 두 행의 고유값 교환, 필수값 한 건
+   미확인, 요청하지 않은 개인정보 JSON 포함이 관측됐다.
+6. **이번 변경 방식**: 제품 변경 0에서 현재 head가 같은 결함을 재현하는지 먼저 확인하고, source identity·
+   cardinality·field coverage·output closure 중 최초 실제 미달 하나만 연다.
+7. **Non-goals**: G 재개발·업무별 schema·영구 entity truth·행 순서/이름 기반 merge·새 Store·Prompt·Router.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -792,12 +791,30 @@ user target write 0으로 정확한 합계를 만들었다. 하지만 program이
 읽지 않은 파일을 OS 사실로 분리하지 못하므로 snapshot은 `exactActualReadSet=false`다. 제품 entry·exec schema·
 model calls·provider bytes 변화는 0이며, output은 아직 unverified scratch candidate라 G7 완료나 제품 채택이 아니다.
 
+G7 final deterministic qualification은 사업·개발·개인 파일 세 목적에서 snapshot source universe→same-language
+Python exact 1회→host output observer→F multi-file publication→exact reopen→durable Undo→cleanup을 통과했다.
+missing·unexpected·duplicate·invalid output, outside read/write, network, child, cleanup unknown, settlement-cleanup
+crash, 일반 exec·일반 heredoc 비개입을 함께 닫았다. `actualReadSet`은 `unknown`으로 유지하고 전체 immutable
+source universe와 output coverage만 완료 사실로 사용한다.
+
+하지만 첫 실제 gpt-5.5 12파일·527행 제품 자격은 결과 4행·오류 47행, source unchanged, snapshot execution 1,
+source digest, cleanup, residual 0을 모두 통과했어도 161.854초·16 model calls·16 tool calls·419,448 tokens·
+1,888,088 request bytes를 사용했다. 제품 변경 0 진단의 101.754초·11·11·251,526 tokens와 마지막 activation 0
+표본의 93.989초·10·10·208,713 tokens보다 크게 나빴다. verified publication 뒤 attachment registration 실패가
+연쇄돼 불필요한 왕복도 증가했다. 따라서 실제 두 목적을 더 실행하지 않고 final product wiring을 제거했다.
+
+오너 종료 규칙에 따라 S4-G는 `internal_engine: COMPLETE`,
+`product_activation: CLOSED_WITH_OBSERVATION`, `further_development: DEFERRED`로 종료한다.
+`actualReadSet: UNKNOWN_BY_DESIGN`, `sourceUniverse: COMPLETE_IMMUTABLE`,
+`outputCoverage: INDEPENDENTLY_VERIFIED`다. G 관련 source는 qualification-only payload 제외선으로 옮기고 별도
+Tool·Prompt·Router·filesystem observer·snapshot activation을 더 개발하지 않는다.
+
 완료 문장:
 
 > T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은 프로그램을 만들고, 고정된
 > 입력과 범위에서 시험·실행하며, 프로그램과 독립적으로 검증한 사용자 결과만 발행하고 나머지는 정리한다.
 
-### S4-H — 범용 Reconciliation 확장
+### S4-H — 범용 Reconciliation 확장 — READ-ONLY BASELINE NEXT
 
 기존 `bind_sources`·source manifest·document reopen 위에서 실제 실패만 넓힌다. 서로 다른 자료의 대상 후보,
 field mapping, 중복·누락·충돌, 날짜·수량·금액, partial coverage, 원본 행·셀·페이지 lineage, 결과 재계산과
@@ -991,9 +1008,8 @@ candidate failure를 현재 source에서 한 번 재현한다. S4-B 완료 시�
 
 ## 10. 현재 다음 한 작업
 
-S4-C 미달은 S4-G·S4-I·S4-HQ에 이월했다. S4-D managed non-PTY와 D5C, S4-E1~E7, S4-F structured authoring은
-닫혔다. S4-G0~G6도 순서대로 닫혔다. S4-G7 별도 Tool 후보는 폐기됐고 제품 source delta는 0이다. 현재 다음 한
-작업은 제품 변경 0의 snapshot output observer·F publication qualification이다. 전체 snapshot source universe와
-실제 output closed set·형식·hash·원본 unchanged를 독립 관측하고 verified publishable만 F transaction으로
-발행·Undo·cleanup할 수 있는지 세 목적 fixture에서 확인한다. actual read set이라고 부르지 않으며, 전체 tree
-비용과 과결속 trade-off가 사용자 이익보다 크면 제품 후보를 열지 않는다.
+S4-C 미달은 S4-I·S4-HQ에 계속 이월한다. S4-D managed non-PTY와 D5C, S4-E1~E7, S4-F는 닫혔다. S4-G는 internal
+engine COMPLETE·product activation CLOSED_WITH_OBSERVATION·further development DEFERRED로 종료했고 제품 entry는
+0이다. 현재 다음 한 작업은 S4-H read-only baseline이다. 기존 0.3.1 다중 자료 결과의 source-key join·필수값
+coverage·개인정보 output closure 결함을 현재 head에서 제품 변경 없이 한 번 재현하고 최초 reconciliation 계약
+미달 하나만 연다.

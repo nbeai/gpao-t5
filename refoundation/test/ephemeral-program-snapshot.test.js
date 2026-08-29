@@ -75,7 +75,6 @@ test('동일 Python source는 snapshot universe를 RecordRef로 받아 원본 wr
       'import csv', 'from pathlib import Path', 'total = 0',
       "for path in sorted(Path('입력').glob('*.csv')):",
       "    for row in csv.DictReader(path.open()): total += int(row['amount'])",
-      "Path('결과').mkdir()",
       "Path('결과/합계.csv').write_text('total\\n' + str(total) + '\\n')",
     ].join('\n');
     const contract = admitExecProgramContract({ workId: WORK, revision: 1, temporary: true,
@@ -86,7 +85,8 @@ test('동일 Python source는 snapshot universe를 RecordRef로 받아 원본 wr
     const interpreter = await observePythonInterpreter({ path: '/usr/bin/python3' });
     const result = await executePythonProgramQualification({ contract, interpreter,
       sourceReader: bound.sourceReader, processRegistry: new ManagedProcessRegistry({ platform: 'darwin' }),
-      scratchRoot: join(app.root, 'program-scratch'), protectedReadRoots: [app.workspace] });
+      scratchRoot: join(app.root, 'program-scratch'), protectedReadRoots: [app.workspace],
+      directories: snapshot.directories });
     assert.equal(result.receipt.state, 'actual_output_unverified');
     assert.equal(result.execution.contract.source, source); assert.equal(result.receipt.translated, false);
     assert.match(result.execution.outputs[0].bytes.toString('utf8'), /30/u);

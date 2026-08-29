@@ -92,7 +92,7 @@ export async function executePythonProgramQualification({ contract: rawContract,
   sourceReader, processRegistry, scratchRoot: rootValue, protectedReadRoots = [],
   sandboxExec = '/usr/bin/sandbox-exec', childPath = DEFAULT_CHILD, timeoutMs = 10_000,
   maxOutputBytes = 16 * 1024 * 1024, publish = publishAtomicFile,
-  platform = process.platform, signal = null } = {}) {
+  platform = process.platform, signal = null, directories = [] } = {}) {
   const contract = assertExecProgramContract(rawContract);
   if (platform !== 'darwin') throw new Error('physical macOS Python qualification required');
   if (!INTERPRETERS.has(interpreter) || interpreter.path !== contract.interpreter) {
@@ -134,6 +134,17 @@ export async function executePythonProgramQualification({ contract: rawContract,
     if (before.state !== 'reopened') return { execution: null, receipt: {
       state: 'actual_failed_no_effect', reason: `input_${before.state}`, userTargetWrites: 0 } };
     const sourcePath = join(scratch, 'program.py');
+    if (!Array.isArray(directories) || directories.length > 4096) {
+      throw new TypeError('Python snapshot directories are invalid');
+    }
+    for (const value of [...new Set(directories.map(String))]) {
+      const normalized = value.replaceAll('\\', '/');
+      if (!normalized || normalized.startsWith('/') || /^[A-Za-z]:\//u.test(normalized)
+        || normalized.split('/').some((part) => !part || part === '.' || part === '..')) {
+        throw new TypeError('Python snapshot directory escaped');
+      }
+      await mkdir(join(scratch, normalized), { recursive: true, mode: 0o700 });
+    }
     await publishExact(sourcePath, Buffer.from(contract.source), publish);
     for (const item of before.values) {
       await publishExact(join(scratch, item.binding.relativePath), item.bytes, publish);

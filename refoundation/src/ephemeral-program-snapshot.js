@@ -97,6 +97,8 @@ export async function createWorkspaceSnapshot({ workspace: workspaceValue, snaps
       sourceIdentity: { dev: item.identity.dev, ino: item.identity.ino, size: item.identity.size,
         mtimeMs: item.identity.mtimeMs },
     }));
+    const directories = entries.filter((item) => item.kind === 'directory')
+      .map((item) => item.relativePath);
     const manifestSha256 = sha256Bytes(JSON.stringify(files.map(({ relativePath, bytes, sha256 }) => (
       { relativePath, bytes, sha256 }
     ))));
@@ -105,7 +107,7 @@ export async function createWorkspaceSnapshot({ workspace: workspaceValue, snaps
     )))).reduce((sum, value) => sum + value, 0);
     const snapshot = Object.freeze({ schema: 't5.workspace-snapshot-qualification.v1',
       generation, workspace, directory, files, manifestSha256, logicalBytes,
-      reportedFileBlocksBytes, recordedAt: now().toISOString(), state: 'snapshot_read_only' });
+      directories, reportedFileBlocksBytes, recordedAt: now().toISOString(), state: 'snapshot_read_only' });
     SNAPSHOTS.add(snapshot);
     return { snapshot, receipt: { state: 'snapshot_read_only', fileCount: files.length,
       directoryCount: entries.length - files.length, logicalBytes, reportedFileBlocksBytes, manifestSha256,
@@ -117,12 +119,13 @@ export async function createWorkspaceSnapshot({ workspace: workspaceValue, snaps
   }
 }
 
-export function snapshotProgramBindings(snapshot, { sessionId, workId } = {}) {
+export function snapshotProgramBindings(snapshot, { sessionId, workId, excludeRelativePaths = [] } = {}) {
   if (!SNAPSHOTS.has(snapshot) || snapshot.state !== 'snapshot_read_only') {
     throw new TypeError('qualified workspace snapshot required');
   }
   const records = new Map();
-  const bindings = snapshot.files.map((file, index) => {
+  const excluded = new Set(excludeRelativePaths.map(String));
+  const bindings = snapshot.files.filter((file) => !excluded.has(file.relativePath)).map((file, index) => {
     const recordRef = makeRecordReference({ sourceKind: 'local_file', sourceStore: 'workspace_snapshot',
       sourceId: `${snapshot.generation}:${index}`, sourceRevision: snapshot.manifestSha256,
       sha256: file.sha256, occurredAt: null, recordedAt: snapshot.recordedAt,
@@ -142,6 +145,34 @@ export function snapshotProgramBindings(snapshot, { sessionId, workId } = {}) {
     catch (error) { return { state: error?.code === 'ENOENT' ? 'missing' : 'unknown',
       source: null, accounting: { digestMatched: null } }; }
   } } };
+}
+
+export async function verifyWorkspaceSnapshotSources(snapshot) {
+  if (!SNAPSHOTS.has(snapshot) || snapshot.state !== 'snapshot_read_only') {
+    throw new TypeError('qualified workspace snapshot required');
+  }
+  for (const file of snapshot.files) {
+    const path = join(snapshot.workspace, file.relativePath); const current = await lstat(path);
+    if (!current.isFile() || current.isSymbolicLink() || current.nlink !== 1
+      || current.dev !== file.sourceIdentity.dev || current.ino !== file.sourceIdentity.ino
+      || current.size !== file.sourceIdentity.size || current.mtimeMs !== file.sourceIdentity.mtimeMs
+      || await sha256File(path) !== file.sha256) return { state: 'source_universe_changed', verified: false };
+  }
+  return { state: 'source_universe_verified', verified: true, fileCount: snapshot.files.length,
+    manifestSha256: snapshot.manifestSha256 };
+}
+
+export async function cleanupWorkspaceSnapshotRoot(rootValue) {
+  const root = resolve(rootValue); let entries;
+  try { entries = await readdir(root, { withFileTypes: true }); }
+  catch (error) { if (error?.code === 'ENOENT') return { state: 'snapshot_root_clean', removed: 0 };
+    throw error; }
+  let removed = 0;
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !/^snapshot_[A-Za-z0-9_]{8,200}$/u.test(entry.name)) continue;
+    if (await removeGeneration(join(root, entry.name))) removed += 1;
+  }
+  return { state: 'snapshot_root_clean', removed };
 }
 
 export async function removeWorkspaceSnapshot(snapshot) {
