@@ -2,9 +2,32 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  projectHistoricalConversation, projectHistoricalConversationEntries,
+  projectCurrentRunMessages, projectHistoricalConversation, projectHistoricalConversationEntries,
   repairIncompleteToolCallMessages,
 } from '../src/conversation-projection.js';
+
+test('현재 Run은 최신 ToolReceipt를 exact로 두고 이전 대출력만 factual projection한다', () => {
+  const first = terminalReceipt(); first.result.stdout = `FIRST-7391\n${'x'.repeat(20_000)}`;
+  const second = terminalReceipt(); second.toolCallId = 'call-2';
+  second.requestedCall.id = 'call-2'; second.result.stdout = `SECOND-8520\n${'y'.repeat(20_000)}`;
+  const messages = [
+    { role: 'user', content: '두 값을 확인해' },
+    { role: 'assistant', content: '', toolCalls: [first.requestedCall] },
+    { role: 'tool', toolCallId: 'call-1', name: 'exec', content: JSON.stringify(first) },
+    { role: 'assistant', content: '', toolCalls: [second.requestedCall] },
+    { role: 'tool', toolCallId: 'call-2', name: 'exec', content: JSON.stringify(second) },
+  ];
+  const canonical = structuredClone(messages);
+  const projected = projectCurrentRunMessages(messages);
+  const oldReceipt = JSON.parse(projected[2].content);
+  assert.equal(oldReceipt.schema, 't5.historical-tool-receipt.v1');
+  assert.equal(oldReceipt.result.exitCode, 0); assert.equal(oldReceipt.result.effect.changed, false);
+  assert.match(oldReceipt.result.stdout, /FIRST-7391/u);
+  assert.match(oldReceipt.result.stdout, /historical characters omitted/u);
+  assert.equal(projected[4].content, messages[4].content, 'newest receipt must remain exact');
+  assert.deepEqual(messages, canonical, 'canonical current Run transcript must remain unchanged');
+  assert.ok(Buffer.byteLength(projected[2].content) < Buffer.byteLength(messages[2].content) / 4);
+});
 
 function terminalReceipt() {
   return {

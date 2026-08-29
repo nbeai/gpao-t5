@@ -298,3 +298,24 @@ export function projectHistoricalConversationEntries(entries = [], {
     recoverable: projected.flatMap((entry) => entry.recoverable),
   };
 }
+
+/**
+ * Keep the newest Tool result exact for the model's immediate decision while projecting only
+ * older Terminal/Browser receipts. The caller retains the canonical transcript unchanged.
+ */
+export function projectCurrentRunMessages(messages = [], {
+  largeOutputMode = 'recoverable',
+  maxInlineOutputChars = DEFAULT_MAX_INLINE_HISTORICAL_OUTPUT_CHARS,
+  previewChars = DEFAULT_HISTORICAL_OUTPUT_PREVIEW_CHARS,
+} = {}) {
+  const latestToolIndex = messages.findLastIndex((message) => message?.role === 'tool');
+  if (latestToolIndex < 0) return clone(messages);
+  return messages.map((message, index) => {
+    if (index >= latestToolIndex || message?.role !== 'tool') return clone(message);
+    return projectToolMessage(message, {
+      messageId: `current-run:${String(message.toolCallId ?? index)}`,
+      largeOutputMode, maxInlineOutputChars, previewChars,
+      preserveInteractionState: false,
+    }).message;
+  });
+}

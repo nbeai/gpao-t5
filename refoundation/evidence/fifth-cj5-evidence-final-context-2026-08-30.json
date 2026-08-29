@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "gate": "CJ5_EVIDENCE_REFINEMENT_AND_FINAL_RESPONSE",
+  "status": "COMPLETE_LOGICAL_PROJECTION_QUALIFIED_PRODUCT_DEFAULT_NOT_ADOPTED",
+  "baselineCommit": "219a6cb1",
+  "candidateCommit": "same_commit_as_evidence",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "contract": {
+    "canonicalReceiptsChanged": false,
+    "newestToolReceiptExact": true,
+    "olderTerminalBrowserReceiptsProjected": true,
+    "effectExitUnknownCursorPreserved": true,
+    "staleBrowserInteractionIdentityRemoved": true,
+    "providerWireRebuildClaimed": false
+  },
+  "samePurposeComparison": {
+    "purpose": "read_two_large_observations_and_report_both_markers",
+    "full": { "passed": true, "modelCalls": 3, "toolCalls": 2, "tokens": 29447, "requestBytes": 162745, "wallMs": 4982.313 },
+    "projected": { "passed": true, "modelCalls": 3, "toolCalls": 2, "tokens": 29447, "requestBytes": 162745, "wallMs": 8145.39 },
+    "canonicalFirstReceiptBytes": 24450,
+    "delta": { "modelCalls": 0, "toolCalls": 0, "tokens": 0, "requestBytes": 0, "wallMs": 3163.077 }
+  },
+  "decision": {
+    "logicalProjection": "QUALIFIED_FOR_CJ6_AB",
+    "installedProductDefault": "full",
+    "candidateAdopted": false,
+    "reason": "ChatGPT OAuth append continuation retained prior provider Tool input, so local logical projection produced no actual wire or token reduction"
+  },
+  "cj4CompletionObservation": {
+    "id": "agentic_final_without_completion_proposal",
+    "classification": "USER_RESULT_COMPLETE_WORK_RESUMABLE",
+    "falseUserCompletion": false,
+    "forcedExtraCompletionTurnAdopted": false,
+    "carryTo": ["CJ7", "FIFTH_HQ"]
+  },
+  "countertests": { "tests": 28, "passed": 28, "failed": 0 },
+  "nonClaims": [
+    "logical projection reduced ChatGPT OAuth wire context",
+    "the slower projected wall measurement is a causal product regression",
+    "all Tool families are safely compacted",
+    "canonical receipts were deleted or rewritten"
+  ],
+  "completionSentence": "T5는 canonical 실행 진실과 최신 Tool 결과를 보존하면서 이전 Terminal·Browser 결과를 factual projection할 수 있지만, ChatGPT OAuth continuation의 실제 wire가 줄었다고 과장하지 않고 provider별 결정을 CJ6로 넘긴다.",
+  "nextGate": "CJ6_LONG_HORIZON_WIRE_CONTEXT_CACHE"
+}

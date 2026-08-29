@@ -2,6 +2,7 @@ import { availableParallelism } from 'node:os';
 import { evidenceFingerprint } from './resource-evidence.js';
 import { compactDuplicateEvidence } from './information-control.js';
 import { measureModelInformation } from './information-context.js';
+import { projectCurrentRunMessages } from './conversation-projection.js';
 import { resourceSituationBlock, resourceSituationTransitionKey } from './resource-situation.js';
 import {
   observeResourceOptimizationChoice,
@@ -253,6 +254,7 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [],
  *   resourceSituationMode?:'off'|'current-v1',
  *   runtimeContextProvider?:((facts:{turn:number})=>Promise<string|null>|string|null)|null,
  *   activeOptimizationMode?:'off'|'model-selected-v1',
+ *   currentRunEvidenceMode?:'full'|'settled-tool-facts-v1',
  *   takeAdmittedWorkInputs?:()=>Promise<Array<{inputId:string,text:string,attachmentIds?:string[],source?:object,currentWork?:object,modelAttachments?:object[]}>>,
  *   applyAdmittedWorkInputs?:(inputs:Array<{inputId:string}>)=>Promise<unknown>,
  *   onToolCallsAccepted?:(facts:{turn:number,toolCalls:Array<object>})=>Promise<{activateTools?:string[]}|void>|{activateTools?:string[]}|void,
@@ -275,6 +277,7 @@ export async function runAgent({
   resourceSituationMode = 'current-v1',
   runtimeContextProvider = null,
   activeOptimizationMode = 'model-selected-v1',
+  currentRunEvidenceMode = 'full',
   takeAdmittedWorkInputs = null,
   applyAdmittedWorkInputs = null,
   onToolCallsAccepted = null,
@@ -295,6 +298,9 @@ export async function runAgent({
   }
   if (!['off', 'model-selected-v1'].includes(activeOptimizationMode)) {
     throw new TypeError('unsupported active optimization mode');
+  }
+  if (!['full', 'settled-tool-facts-v1'].includes(currentRunEvidenceMode)) {
+    throw new TypeError('unsupported current Run evidence mode');
   }
 
   const registry = new Map();
@@ -365,9 +371,11 @@ export async function runAgent({
         ? { modelAttachments: structuredClone(input.modelAttachments) } : {}) });
     }
     await onEvent?.({ type: 'model_start', turn: modelTurns });
+    const modelTranscript = currentRunEvidenceMode === 'settled-tool-facts-v1'
+      ? projectCurrentRunMessages(transcript) : transcript;
     const informationFacts = measureModelInformation({
-      history: historyInformation, currentRequest: transcript[prior.length],
-      currentRunMessages: transcript.slice(prior.length + 1),
+      history: historyInformation, currentRequest: modelTranscript[prior.length],
+      currentRunMessages: modelTranscript.slice(prior.length + 1),
       tools: definitions, toolExposures,
       requiredRecoveryTools: definitions.map((definition) => definition.name).filter((name) => (
         name === 'tool_search' || name === requiredCompletionName()
@@ -413,7 +421,7 @@ export async function runAgent({
     }
     const runtimeContext = [observedRuntimeContext, situationBlock].filter(Boolean).join('\n\n');
     const response = normalizeResponse(await model.respond({
-      messages: structuredClone(transcript),
+      messages: structuredClone(modelTranscript),
       tools: structuredClone(definitions),
       ...(runtimeContext ? { runtimeContext } : {}),
       ...(completionReminderSent && requiredCompletionName() && !completionSatisfied() ? {

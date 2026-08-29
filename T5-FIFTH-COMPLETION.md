@@ -1,6 +1,6 @@
 # T5 Fifth Completion — Android Judgment & Context Runtime
 
-상태: `FIFTH_COMPLETION_ACTIVE · CJ0_CJ4_COMPLETE · CJ5_COMPLETION_CONTEXT_OPEN`
+상태: `FIFTH_COMPLETION_ACTIVE · CJ0_CJ5_COMPLETE · CJ6_WIRE_CONTEXT_OPEN`
 4차 귀환 기준: `fe51c8c5 · FOURTH_COMPLETION_COMPLETE_MACOS_PRODUCT_SCOPE`
 4차 release-only 후속선: `8c2a3b05 · 0.4.0 packaging lineage · 설치 자격 진행과 5차 개발은 분리`
 5차 구현 기준·branch·worktree: `fe51c8c5 · codex/t5-fifth-context-judgment-plan · /Users/jyp/Developer/t5-fifth-plan`
@@ -699,6 +699,21 @@ CJ5에서 final context를 무조건 rebuild하지 않는다. continuation에 �
 
 > T5는 실행의 모든 진실을 원장에 보존하면서 모델에게는 현재 판단과 사용자 답에 필요한 Evidence만 제공하고,
 > 논리적 축소를 실제 wire 축소로 과장하지 않는다.
+
+CJ5 actual은 canonical transcript를 바꾸지 않고 최신 ToolReceipt는 exact로, 그보다 오래된 Terminal·Browser
+Receipt만 exit·effect·unknown·cursor·head/tail 사실으로 projection하는 후보를 자격했다. 두 24KB 관측에서 두
+marker를 모두 답하고 model 3·Tool 2를 유지했다.
+
+그러나 ChatGPT OAuth append continuation A/B의 실제 결과는 tokens 29,447→29,447, request bytes
+162,745→162,745로 wire 이익 0이었다. projected arm의 wall은 4.98s→8.15s였으나 단일 provider 분산을 causal
+회귀로 단정하지 않는다. 핵심은 이미 provider에 들어간 Tool input이 로컬 logical projection만으로 사라지지
+않았다는 사실이다.
+
+따라서 logical projection은 CJ6 비교 후보로 보존하되 설치 제품 기본값은 `full`로 유지했다. CJ4에서 관측한
+completion 미호출은 사용자 결과가 정확히 전달된 read-only Work의 resumable 상태였으며, 이를 없애려고 모든
+Tool Work에 추가 model turn을 강제하지 않는다. natural stop 품질은 CJ7·최종 HQ에서 다시 본다.
+
+근거: `refoundation/evidence/fifth-cj5-evidence-final-context-2026-08-30.json`.
 
 ---
 

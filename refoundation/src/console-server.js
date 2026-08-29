@@ -343,6 +343,7 @@ export function makeConsoleServer({
   conversationRelevance = 'user-source-latest-v1',
   resourceSituationMode = 'current-v1',
   activeOptimizationMode = 'model-selected-v1',
+  currentRunEvidenceMode = 'full',
   parallelCapacity = null,
   largeToolOutputMode = 'recoverable',
   conversationCheckpointMode = 'in-place-v0',
@@ -420,6 +421,9 @@ export function makeConsoleServer({
   }
   if (!['off', 'model-selected-v1'].includes(activeOptimizationMode)) {
     throw new TypeError('unsupported active optimization mode');
+  }
+  if (!['full', 'settled-tool-facts-v1'].includes(currentRunEvidenceMode)) {
+    throw new TypeError('unsupported current Run evidence mode');
   }
   if (parallelCapacity != null && (!Number.isInteger(parallelCapacity) || parallelCapacity < 1)) {
     throw new TypeError('parallelCapacity must be positive');
@@ -2086,6 +2090,7 @@ export function makeConsoleServer({
         focusToolSurface: informationControl === 'research-first-v1',
         resourceSituationMode,
         activeOptimizationMode,
+        currentRunEvidenceMode,
         onToolCallsAccepted: async () => {
           await ensureActiveWork();
           return capabilitySurfaceMode === 'directory-first-v1'
