@@ -1,0 +1,146 @@
+{
+  "schema": "t5.s4hq.console-wave.actual.v1",
+  "recordedAt": "2026-08-30T02:10:00+09:00",
+  "sourceHead": "432551ca",
+  "surface": "actual product Console UI in Codex in-app Browser",
+  "model": "gpt-5.5",
+  "isolation": {
+    "home": "synthetic",
+    "workspace": "synthetic",
+    "state": "synthetic",
+    "messengerCredentialsLoaded": 0,
+    "connectorServicesLoaded": 0,
+    "actualExternalWrites": 0,
+    "qualificationIncident": {
+      "state": "contained_and_corrected",
+      "cause": "HQ launcher omitted bounded computerFileRoots and file_reality used the process home",
+      "observedActualUserFiles": true,
+      "actualUserImagePixelsTransmittedToProvider": true,
+      "actualUserFileWrites": 0,
+      "runId": "ddd36f09-f01c-42ab-aa26-54ed0cfdf8fb",
+      "correctionCommit": "eaca561c"
+    }
+  },
+  "journeys": [
+    {
+      "id": "A",
+      "status": "PASS",
+      "runId": "043cf154-b4f5-41b4-b344-8d7243538c5e",
+      "wallMs": 3225,
+      "modelCalls": 1,
+      "toolCalls": 0,
+      "providerTokens": 9750,
+      "requestBytes": 52732,
+      "result": "natural direct answer without tool or internal terminology"
+    },
+    {
+      "id": "B",
+      "status": "PARTIAL",
+      "runs": [
+        { "runId": "56f179a6-1763-494f-a242-1623e4874eae", "purpose": "deep document", "status": "PASS", "wallMs": 20623, "modelCalls": 5, "toolCalls": 4, "providerTokens": 55144, "requestBytes": 294970 },
+        { "runId": "32817ebe-8b6a-455a-bba0-291ffa9f4043", "purpose": "visual file", "status": "FAIL_DELIVERY_VARIANCE", "wallMs": 36723, "modelCalls": 7, "toolCalls": 6, "providerTokens": 81333, "requestBytes": 483094 }
+      ],
+      "result": "deep content discovery was exact; visual candidate was identified but the final current-head sample did not publish the image Artifact"
+    },
+    {
+      "id": "C",
+      "status": "FAIL",
+      "runId": "5a5c33ae-70cd-43fc-b021-dc9c28b3c8fa",
+      "wallMs": 148909,
+      "modelCalls": 11,
+      "toolCalls": 13,
+      "providerTokens": 278593,
+      "requestBytes": 1401200,
+      "result": "binary document authoring remained intercepted by repeated protected_program_internal_failure; no verified XLSX and ZIP delivery"
+    },
+    {
+      "id": "D",
+      "status": "PARTIAL",
+      "runId": "226ea153-c8c6-4789-af79-c349fe343f4a",
+      "wallMs": 52281,
+      "modelCalls": 7,
+      "toolCalls": 6,
+      "providerTokens": 137002,
+      "requestBytes": 620457,
+      "result": "protected program exact once, immutable sources, independent verification, two Artifacts and cleanup passed; model used results instead of the requested 결과 directory"
+    },
+    {
+      "id": "E",
+      "status": "PASS_WITH_PERFORMANCE_REGRESSION",
+      "runId": "08d28314-9665-4ef7-aeaf-7fe9ec58994e",
+      "wallMs": 246619,
+      "modelCalls": 28,
+      "toolCalls": 29,
+      "providerTokens": 1031895,
+      "requestBytes": 4728478,
+      "result": "new local site, managed server, Browser form submit, success state, network zero, server stop and HTML Artifact passed"
+    },
+    {
+      "id": "F",
+      "status": "PARTIAL",
+      "runs": [
+        { "runId": "e7acb31a-d592-41c9-953e-19ef28602aa6", "purpose": "fix and verify", "status": "PARTIAL_FINAL_SURFACE_FAILED", "wallMs": 105957, "modelCalls": 19, "toolCalls": 18, "providerTokens": 443864, "requestBytes": 2099290 },
+        { "runId": "488f6d57-a9e5-4e9b-aee1-4c8b7d971921", "purpose": "durable Undo", "status": "PASS", "wallMs": 59503, "modelCalls": 11, "toolCalls": 10, "providerTokens": 274488, "requestBytes": 1217726 }
+      ],
+      "result": "dirty CSS preservation, source fix, full test, Browser step 2 and exact later Undo passed; the first turn ended in a runaway failure surface after redundant screenshot reinspection"
+    },
+    {
+      "id": "G",
+      "status": "PARTIAL",
+      "runIds": ["5f0f8ca4-838a-4eb1-816d-38fc7e96d701", "5b3360ce-1b83-444a-9382-1a6761cf6a7f"],
+      "result": "busy correction admission and reconnect continuity passed; output publication failed and duplicate/noisy status was observed"
+    },
+    {
+      "id": "H",
+      "status": "FAIL",
+      "result": "success surfaces exposed redundant Artifact and mutation receipts; failed attempts remained visible after later success; work reality showed multiple simultaneous lines before the singular projection correction"
+    },
+    {
+      "id": "I",
+      "status": "FAIL",
+      "runId": "72e0a8cc-b29e-40e5-8d37-80f856a59b44",
+      "wallMs": 103298,
+      "modelCalls": 17,
+      "toolCalls": 16,
+      "providerTokens": 696553,
+      "requestBytes": 2986148,
+      "result": "cloudflared, ngrok and lt absence was observed and external effect stayed zero, but an internal Attachment preview was described as external Preview and an unnecessary executable ZIP was created"
+    },
+    {
+      "id": "J",
+      "status": "PASS",
+      "qualification": "13/13 isolated Console-Telegram continuity and exact-once recovery tests"
+    }
+  ],
+  "repairs": [
+    "confine HQ computer file roots",
+    "canonicalize HQ workspace",
+    "leave opaque binary authoring on the document path",
+    "create and undo only bounded missing output parents",
+    "normalize local-change backup hint without treating it as authority",
+    "prepare durable output handoff before parent publication",
+    "materialize selected visual and protected-program Artifact receipts",
+    "project one canonical Work status and suppress superseded mutation warnings"
+  ],
+  "verification": {
+    "unit": { "passed": 1844, "failed": 0, "skipped": 1 },
+    "productIntegration": { "passed": 199, "failed": 0, "skipped": 2 },
+    "mutation": { "killed": 2, "survived": 0 },
+    "telegramFocused": { "passed": 13, "failed": 0 }
+  },
+  "gate": {
+    "status": "OPEN_BLOCKED_BY_ACTUAL_CONSOLE_OUTCOMES",
+    "fourthCompletionClaimAllowed": false,
+    "fifthDevelopmentAllowed": false,
+    "windows": "DEFERRED_NOT_WAIVED",
+    "blockers": [
+      "C office output does not complete",
+      "B visual delivery is not stable",
+      "F first-turn final surface fails after successful verification",
+      "H result receipt density is not yet singular",
+      "I confuses internal Attachment preview with external Preview",
+      "performance is materially above the accepted P actuals",
+      "one HQ isolation incident transmitted actual user image pixels before correction"
+    ]
+  }
+}
