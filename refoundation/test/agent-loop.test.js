@@ -165,6 +165,26 @@ test('런타임은 모델의 최종 답을 덧붙이거나 교정하지 않는�
   }]);
 });
 
+test('Tool의 model projection은 canonical Receipt를 바꾸지 않고 다음 model input만 줄인다', async () => {
+  let turn = 0; let observedToolMessage;
+  const model = { async respond(input) {
+    turn += 1;
+    if (turn === 1) return { text: '', toolCalls: [{ id: 'artifact', name: 'attachment', args: {} }] };
+    observedToolMessage = input.messages.find((message) => message.role === 'tool');
+    return { text: '결과를 준비했습니다.', toolCalls: [] };
+  } };
+  const tool = { name: 'attachment', description: 'fixture', parameters: { type: 'object' },
+    projectResultForModel: (result) => ({ state: result.state, artifact: { originalName: result.artifact.originalName } }),
+    async execute() { return { state: 'registered', artifact: {
+      originalName: 'result.html', downloadUrl: '/private-download', sessionId: 'private-session',
+    } }; } };
+  const result = await runAgent({ request: '결과를 만들어줘', model, tools: [tool] });
+  assert.match(observedToolMessage.content, /result\.html/u);
+  assert.doesNotMatch(observedToolMessage.content, /private-download|private-session/u);
+  assert.equal(result.receipts[0].result.artifact.downloadUrl, '/private-download');
+  assert.equal(result.receipts[0].result.artifact.sessionId, 'private-session');
+});
+
 test('agent loop 이벤트는 Model Step과 전체 ToolReceipt를 원장에 넘길 수 있다', async () => withWorkspace(async (workspace) => {
   const events = [];
   let turn = 0;

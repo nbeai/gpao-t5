@@ -16,6 +16,7 @@ async function run({ mode, request = '간단히 답해줘', respond }) {
   const calls = [];
   const server = makeConsoleServer({ stateDir: join(room, 'state'), workspace,
     capabilitySurfaceMode: mode,
+    workAdmissionMode: 'action-v1',
     modelFactory: () => ({ async respond(input) {
       calls.push({ messages: structuredClone(input.messages), tools: structuredClone(input.tools) });
       return respond(input, calls.length);
@@ -46,7 +47,7 @@ test('directory-first 후보는 Direct의 schema를 최소 손과 capability dir
   const candidate = await run({ mode: 'directory-first-v1', respond });
   assert.equal(baseline.result.reply, '직접 답변'); assert.equal(candidate.result.reply, '직접 답변');
   assert.deepEqual(candidate.calls[0].tools.map((tool) => tool.name).toSorted(), [
-    'attachment', 'exec', 'tool_search', 'web_read',
+    'attachment', 'exec', 'skill', 'tool_search', 'web_read',
   ]);
   assert.ok(candidate.calls[0].tools.length < baseline.calls[0].tools.length);
   assert.ok(toolBytes(candidate.calls[0]) < toolBytes(baseline.calls[0]));

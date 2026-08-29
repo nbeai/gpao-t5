@@ -102,6 +102,12 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
         || !args.effect.targets.length || commandExplanation?.ok !== true
         || commandExplanation.hasParseError || !commandExplanation.steps?.length) return null;
       if (args.effect.targets.some((target) => kindFor(String(target)) == null)) return null;
+      for (const value of args.effect.targets) {
+        try {
+          const existing = await lstat(resolve(workspaceValue, String(value)));
+          if (existing.isFile() && !existing.isSymbolicLink()) return null;
+        } catch (error) { if (error?.code !== 'ENOENT') return null; }
+      }
       if (commandExplanation.steps.some((step) => (step.argv ?? []).some((value) => (
         String(value).includes('/') && kindFor(String(value)) == null
       )))) return null;

@@ -120,7 +120,7 @@ test('일반 사용자 콘솔은 검색·URL 읽기를 바로 보이고 화면 �
   const source = await import('node:fs/promises').then(({ readFile }) => readFile(
     new URL('../src/console-server.js', import.meta.url), 'utf8',
   ));
-  const coreBlock = /const coreToolNames = \[([\s\S]*?)\];/u.exec(source)?.[1] ?? '';
+  const coreBlock = /const currentCoreToolNames = \[([\s\S]*?)\];/u.exec(source)?.[1] ?? '';
   assert.match(coreBlock, /'web_search'/u);
   assert.match(coreBlock, /'web_read'/u);
   assert.match(coreBlock, /'web_research'/u);

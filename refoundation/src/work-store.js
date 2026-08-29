@@ -209,6 +209,7 @@ export class WorkStore {
           state: 'executing', workId: event.workId, revision: event.revision,
           executionRunId: event.runId, settlementDisposition: null,
           settlementWorkId: null, settlementRevision: null, settlementReason: null,
+          failureSurfaceRunId: event.runId,
         });
       }
       if (event.type === 'input_executed') {
@@ -854,19 +855,23 @@ export class WorkStore {
     return this.serialize(async () => {
       const state = await this.read();
       const claim = state.claims.find((item) => item.runId === runId && item.state === 'active');
-      if (!claim) return [];
       const presented = state.inputs.filter((input) => input.state === 'presented'
         && input.presentedRunId === runId);
-      for (const input of presented) {
-        if (input.baseWorkId !== claim.workId || input.baseRevision !== claim.revision) {
+      const admitted = state.inputs.filter((input) => input.state === 'admitted'
+        && input.source?.admissionTime?.activeRunId === runId);
+      if (!claim && presented.length) throw new Error('presented failure input has no Run claim');
+      for (const input of [...presented, ...admitted]) {
+        if (input.state === 'presented'
+          && (input.baseWorkId !== claim.workId || input.baseRevision !== claim.revision)) {
           throw new Error('presented input and Run claim identity mismatch');
         }
         await this.appendUnlocked('input_failure_surface_claimed', {
-          inputId: input.inputId, runId, workId: claim.workId, revision: claim.revision,
+          inputId: input.inputId, runId,
+          workId: claim?.workId ?? null, revision: claim?.revision ?? null,
         });
       }
-      return presented.map((input) => ({ inputId: input.inputId, runId,
-        workId: claim.workId, revision: claim.revision, state: 'executing' }));
+      return [...presented, ...admitted].map((input) => ({ inputId: input.inputId, runId,
+        workId: claim?.workId ?? null, revision: claim?.revision ?? null, state: 'executing' }));
     });
   }
   async completeInputExecution({ inputId, runId }) {

@@ -99,7 +99,7 @@ import {
   webPreviewContentSecurityPolicy,
 } from './artifact-preview.js';
 import {
-  attachmentContext, makeAttachmentTool, modelImageInputs,
+  attachmentContext, makeAttachmentTool, modelImageInputs, outputArtifactCandidateProjection,
 } from './attachment-hand.js';
 import { ExecutableOutputOperationStore } from './executable-output-operation.js';
 import { workspaceRuntimeContextBlock } from './workspace-runtime-context.js';
@@ -340,6 +340,7 @@ export function makeConsoleServer({
   conversationProjection = 'historical-tool-receipt-v1',
   informationControl = 'research-first-v1',
   capabilitySurfaceMode = 'current-core-v1',
+  workAdmissionMode = 'eager-v0',
   conversationRelevance = 'user-source-latest-v1',
   resourceSituationMode = 'current-v1',
   activeOptimizationMode = 'model-selected-v1',
@@ -403,6 +404,9 @@ export function makeConsoleServer({
   }
   if (!['current-core-v1', 'directory-first-v1'].includes(capabilitySurfaceMode)) {
     throw new TypeError('unsupported capability surface mode');
+  }
+  if (!['eager-v0', 'action-v1'].includes(workAdmissionMode)) {
+    throw new TypeError('unsupported Work admission mode');
   }
   if (!['inline', 'on-demand'].includes(skillCatalogMode)) {
     throw new TypeError('unsupported skill catalog mode');
@@ -1261,6 +1265,9 @@ export function makeConsoleServer({
     const currentAttachments = await Promise.all(attachmentIds.map((attachmentId) => (
       attachments.get({ sessionId, attachmentId })
     )));
+    const outputArtifactCandidates = outputArtifactCandidateProjection(
+      await attachments.list({ sessionId }),
+    );
     const attachmentProjection = currentAttachments.map(attachmentSurface);
     const attachmentBlock = attachmentContext(currentAttachments);
     const modelRequest = attachmentBlock ? `${text}\n\n${attachmentBlock}` : text;
@@ -1431,8 +1438,12 @@ export function makeConsoleServer({
     cancelTerminal.catch(() => {});
     const runningEntry = { controller, runId: run.runId, cancelTerminal,
       resolveCancelTerminal, rejectCancelTerminal, admission: null, childSettlementReceipt: null,
-      cancellationSettled: false, workAdmissionReady };
+      cancellationSettled: false, workAdmissionReady, pendingAdmissions: new Set() };
     running.set(sessionId, runningEntry);
+    const messengerRunReady = messengerForegroundRunReady.get(sessionId);
+    if (messengerRunReady && !messengerRunReady.settled) {
+      messengerRunReady.settled = true; messengerRunReady.resolve(runningEntry);
+    }
     let runFinished = false;
     let resourceRunStatus = 'unknown';
     let surfacePersisted = false;
@@ -1554,6 +1565,7 @@ export function makeConsoleServer({
       if (memoryCandidates) history.push(memoryCandidates);
       if (temporalMemoryCandidates) history.push(temporalMemoryCandidates);
       if (forgetCandidates) history.push(forgetCandidates);
+      if (outputArtifactCandidates) history.push(outputArtifactCandidates);
       if (!options.admittedInput) {
         await conversations.appendMessage({
           sessionId, messageId: `${run.runId}:user`, runId: run.runId,
@@ -1605,7 +1617,7 @@ export function makeConsoleServer({
           )) ?? null;
           if (!activeWork) throw new Error('admitted input exact Work is not active');
         } else activeWork = await workStore.activeForSession(sessionId);
-        if (activeWork) await ensureActiveWork();
+        if (activeWork || workAdmissionMode === 'eager-v0') await ensureActiveWork();
       } else await run.append({ type: 'work_observation', stepId: 'work', payload: {
         originRunId: options.metadata?.originRunId ?? null,
       } });
@@ -2017,7 +2029,7 @@ export function makeConsoleServer({
       const coreToolNames = capabilitySurfaceMode === 'directory-first-v1'
         && options.trigger !== 'automation'
         ? [
-          'exec', 'web_read', 'attachment',
+          'exec', 'web_read', 'attachment', 'skill',
           ...(memoryCandidates || temporalMemoryCandidates ? ['memory'] : []),
           ...(projection.historicalRecallRequired
             ? [purposeHistory ? 'purpose_history' : 'session_search'] : []),
@@ -2768,6 +2780,7 @@ export function makeConsoleServer({
       let failureState = await workStore.read();
       const existingResult = failureState.results.find((item) => item.runId === run.runId);
       if (!existingResult) {
+        await Promise.allSettled([...runningEntry.pendingAdmissions]);
         await workStore.claimPresentedInputsForFailure(run.runId);
         failureState = await workStore.read();
       }
@@ -2897,7 +2910,8 @@ export function makeConsoleServer({
   }
 
   const messengerForegroundSessions = new Set();
-  async function admitMessengerWorkInput(message, notify) {
+  const messengerForegroundRunReady = new Map();
+  async function admitMessengerWorkInput(message, notify, activeRunId = null) {
     const session = await sessions.load(message.sessionId);
     if (!session) throw Object.assign(new Error('session not found'), { status: 404 });
     await conversations.ensure({ sessionId: message.sessionId, legacyMessages: historyFrom(session) });
@@ -2907,7 +2921,7 @@ export function makeConsoleServer({
       channel: message.provider, chatId: message.chatId, threadId: message.threadId ?? null,
       senderId: message.userId ?? null, sourceMessageId: message.messageId ?? null,
       replyIdentity: structuredClone(message.replyIdentity ?? null),
-      admissionTime: { activeRun: true, currentResultProduced: false },
+      admissionTime: { activeRun: true, activeRunId, currentResultProduced: false },
     };
     const prepared = await workStore.prepareInputAdmission({
       sessionId: message.sessionId, messageId, origin: message.provider,
@@ -2984,10 +2998,27 @@ export function makeConsoleServer({
         broadcastEvent('messenger_progress', { sessionId: message.sessionId, text, done: false });
       };
       if (running.has(message.sessionId) || messengerForegroundSessions.has(message.sessionId)) {
-        await admitMessengerWorkInput(message, notify);
+        let activeEntry = running.get(message.sessionId) ?? null;
+        if (!activeEntry) activeEntry = await messengerForegroundRunReady.get(message.sessionId)?.promise;
+        if (activeEntry) {
+          const ensureActiveWork = await activeEntry.workAdmissionReady;
+          await ensureActiveWork();
+        }
+        const admission = admitMessengerWorkInput(message, notify, activeEntry?.runId ?? null);
+        activeEntry?.pendingAdmissions.add(admission);
+        try { await admission; }
+        finally { activeEntry?.pendingAdmissions.delete(admission); }
         const delivery = await deliver({ text: '현재 작업에 반영할 내용을 받았어요.' });
         return { text: null, delivery };
       }
+      let resolveMessengerRun; let rejectMessengerRun;
+      const messengerRunPromise = new Promise((resolveRun, rejectRun) => {
+        resolveMessengerRun = resolveRun; rejectMessengerRun = rejectRun;
+      });
+      messengerRunPromise.catch(() => {});
+      const messengerRunReady = { promise: messengerRunPromise,
+        resolve: resolveMessengerRun, reject: rejectMessengerRun, settled: false };
+      messengerForegroundRunReady.set(message.sessionId, messengerRunReady);
       messengerForegroundSessions.add(message.sessionId);
       try {
         const issueNote = (message.attachmentIssues ?? []).length
@@ -3017,6 +3048,9 @@ export function makeConsoleServer({
         });
         return { text: null, delivery: completed.channelDelivery ?? null };
       } catch (error) {
+        if (!messengerRunReady.settled) {
+          messengerRunReady.settled = true; messengerRunReady.reject(error);
+        }
         const failure = error?.surfaceResult;
         broadcastEvent('messenger_progress', {
           sessionId: message.sessionId,
@@ -3024,6 +3058,7 @@ export function makeConsoleServer({
         });
         throw error;
       } finally {
+        messengerForegroundRunReady.delete(message.sessionId);
         messengerForegroundSessions.delete(message.sessionId);
       }
     },
@@ -5244,6 +5279,8 @@ export function makeConsoleServer({
   server.drainActiveWork = async () => {
     const entries = [...running.entries()];
     const settled = await Promise.allSettled(entries.map(async ([sessionId, entry]) => {
+      const ensureActiveWork = await entry.workAdmissionReady;
+      await ensureActiveWork();
       if (!entry.admission) entry.admission = await workCancellation.admit({
         sessionId, runId: entry.runId, disposition: 'interrupted_resumable',
       });

@@ -11,6 +11,7 @@ test('전체 종료는 명시 확인 뒤 한 번만 Runtime drain을 요청하�
   await mkdir(workspace);
   let stopRequests = 0;
   const server = makeConsoleServer({ stateDir: join(room, 'state'), workspace,
+    workAdmissionMode: 'action-v1',
     requestRuntimeStop: async (reason) => { assert.equal(reason, 'user_full_stop'); stopRequests += 1; },
     modelFactory: () => ({ async respond() { return { text: 'unused', toolCalls: [] }; } }) });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
@@ -30,6 +31,7 @@ test('전체 종료 drain은 실행 중 Work를 기존 interrupted-resumable 원
   const room = await mkdtemp(join(tmpdir(), 't5-runtime-drain-work-')); const workspace = join(room, 'workspace');
   await mkdir(workspace);
   const server = makeConsoleServer({ stateDir: join(room, 'state'), workspace,
+    workAdmissionMode: 'action-v1',
     modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
     modelFactory: () => ({ respond({ signal }) { return new Promise((resolve, reject) => {
       const abort = () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));

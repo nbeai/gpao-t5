@@ -8,12 +8,43 @@ import { strToU8, zipSync } from 'fflate';
 
 import { AttachmentStore } from '../src/attachment-store.js';
 import {
-  attachmentContext, makeAttachmentTool, modelImageInputs,
+  attachmentContext, makeAttachmentTool, modelImageInputs, outputArtifactCandidateProjection,
+  projectAttachmentResultForModel,
 } from '../src/attachment-hand.js';
 import { createDocumentDataFixture } from '../src/document-data-qualification.js';
 import { createGeneratedCompatibilityFixtures } from '../src/document-compatibility-baseline.js';
 
 const SESSION = '33333333-3333-4333-8333-333333333333';
+
+test('Artifact의 UI URL과 Session 경로는 canonical에 남아도 모델 결과 projection에서는 빠진다', () => {
+  const canonical = { state: 'registered', artifact: {
+    attachmentId: 'artifact-1', sessionId: SESSION, originalName: 'result.html', bytes: 42,
+    artifactVersion: 1, downloadUrl: '/attachments/artifact-1/content?sessionId=secret-session',
+    previewUrl: '/attachments/artifact-1/preview?sessionId=secret-session',
+    sourceUrl: '/attachments/artifact-1/source?sessionId=secret-session',
+    versionsUrl: '/attachments/artifact-1/versions?sessionId=secret-session',
+    storedPath: '/managed/private/result.html', sourcePath: '/workspace/result.html',
+    objectRelativePath: 'objects/private/content.html',
+  } };
+  const projected = projectAttachmentResultForModel(canonical);
+  assert.equal(projected.artifact.attachmentId, 'artifact-1');
+  assert.equal(projected.artifact.originalName, 'result.html'); assert.equal(projected.artifact.bytes, 42);
+  assert.equal(projected.artifact.artifactVersion, 1);
+  assert.doesNotMatch(JSON.stringify(projected), /sessionId|Url|Path|objects\/private/u);
+  assert.match(JSON.stringify(canonical), /downloadUrl|secret-session|managed\/private/u);
+});
+
+test('현재 Session 결과 후보는 version identity만 주고 path·URL·hash·content를 복제하지 않는다', () => {
+  const projected = outputArtifactCandidateProjection([
+    { direction: 'input', attachmentId: 'input-1', originalName: 'source.txt' },
+    { direction: 'output', attachmentId: 'output-1', originalName: 'result.html', kind: 'web',
+      bytes: 42, artifactFamilyId: 'family-1', artifactVersion: 2,
+      createdAt: '2026-08-30T00:00:00.000Z', sourcePath: '/private/source',
+      downloadUrl: '/private-download', sha256: 'a'.repeat(64), content: 'SECRET-CONTENT' },
+  ]);
+  assert.match(projected.content, /output-1.*result\.html.*family-1.*artifactVersion.*2/u);
+  assert.doesNotMatch(projected.content, /input-1|private|SECRET-CONTENT|a{64}/u);
+});
 
 test('요청한 기존 파일은 변환 없이 exact bytes로 output artifact가 된다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-existing-file-delivery-'));

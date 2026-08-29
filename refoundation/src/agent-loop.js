@@ -719,7 +719,10 @@ export async function runAgent({
       const visualAttachments = receipt._modelAttachments ?? [];
       delete receipt._modelAttachments;
       receipts.push(receipt);
-      const currentToolMessage = toolMessage(receipt);
+      const resultProjector = registry.get(requested.name)?.projectResultForModel;
+      const modelReceipt = typeof resultProjector === 'function'
+        ? { ...receipt, result: resultProjector(receipt.result) } : receipt;
+      const currentToolMessage = toolMessage(modelReceipt);
       const currentEvidenceFingerprint = evidenceFingerprint(receipt);
       const evidenceSeen = currentEvidenceFingerprint
         ? evidenceFamilies.has(currentEvidenceFingerprint) : false;

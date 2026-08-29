@@ -62,6 +62,7 @@ async function runMode(mode) {
     secretStore: makePlatformSecretStore({ platform: process.platform }),
     wireContextPolicy: { [selected.provider]: wireContextMode } });
   const server = makeConsoleServer({ stateDir, workspace, capabilitySurfaceMode: mode,
+    workAdmissionMode: 'action-v1',
     currentRunEvidenceMode,
     modelFactory: (input) => access.model(input), modelStatus: () => access.status(),
     learningReviewMode: 'off', memoryFlushMode: 'off' });

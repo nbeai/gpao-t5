@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "gate": "FIFTH_INTEGRATED_HUMAN_QUALIFICATION",
+  "status": "PASS_MACOS_PRODUCT_SCOPE",
+  "baselineCommit": "7c3b954f",
+  "completionCommit": "same_commit_as_evidence",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "surface": "actual installed-product-equivalent Console UI in browser",
+  "isolated": { "home": true, "state": true, "workspace": true, "actualUserData": false },
+  "externalEffects": 0,
+  "windows": "DEFERRED_NOT_WAIVED",
+  "journeys": [
+    { "id": "H1", "name": "direct intelligence", "status": "PASS", "facts": "Enter sends, Shift+Enter adds newline; greeting is one model call, zero Tool/Work, natural Korean" },
+    { "id": "H2", "name": "current public grounding", "status": "PASS", "evidence": "fifth-cj7-natural-timing-2026-08-30.json" },
+    { "id": "H3", "name": "personal context", "status": "PASS", "evidence": "fifth-cj3-relevant-memory-conversation-2026-08-30.json and fifth-cj4-capability-tool-economy-2026-08-30.json" },
+    { "id": "H4", "name": "ambiguous file discovery", "status": "PASS_REUSED_CURRENT_REGRESSION", "evidence": "full unit and product integration file reality/OCR/visual candidate journeys" },
+    { "id": "H5", "name": "artifact authoring and revision", "status": "PASS", "facts": "actual hq-card.html preview/download/reopen; exact text correction; final card version 2 with versions 1 and 2 visible" },
+    { "id": "H6", "name": "project continuity", "status": "PASS_REUSED_CURRENT_REGRESSION", "evidence": "S4-P current-source unit and product integration journeys" },
+    { "id": "H7", "name": "long continuity", "status": "PASS_COMPOSITE", "facts": "actual Runtime restart and session switching preserved the canonical conversation and cards; long checkpoint, fallback, cancellation, and busy-input integrations passed" },
+    { "id": "H8", "name": "natural stop and UX", "status": "PASS", "facts": "thought and missing-destination requests used zero Tools; current public and artifact work stopped after completion; no duplicate final progress" }
+  ],
+  "actualConsoleMeasurements": [
+    { "purpose": "greeting", "modelCalls": 1, "toolCalls": 0, "tokens": 7047, "requestBytes": 37220, "changedEffects": 0 },
+    { "purpose": "initial_visual_artifact_before_hq_repairs", "modelCalls": 8, "toolCalls": 7, "tokens": 91100, "requestBytes": 443139, "changedEffects": 1 },
+    { "purpose": "failed_existing_file_revision_before_boundary_repair", "modelCalls": 5, "toolCalls": 4, "tokens": 73227, "requestBytes": 340210, "changedEffects": 0 },
+    { "purpose": "successful_existing_file_revision_after_boundary_repair", "modelCalls": 6, "toolCalls": 5, "tokens": 76422, "requestBytes": 367014, "changedEffects": 1 },
+    { "purpose": "successful_exact_version_lineage", "modelCalls": 7, "toolCalls": 6, "tokens": 109338, "requestBytes": 478963, "changedEffects": 1 },
+    { "purpose": "managed_wait_and_artifact", "modelCalls": 4, "toolCalls": 3, "tokens": 36368, "requestBytes": 181302, "changedEffects": 1 }
+  ],
+  "firstFailuresAndRepairs": [
+    {
+      "id": "delayed_work_concurrency",
+      "failure": "busy Telegram input could remain admitted or Runtime drain could wait forever before Work existed",
+      "repair": "product action-v1 admission, eager-v0 compatibility, exact foreground-run readiness, pending admission settlement, and drain-time factual Work admission",
+      "result": "focused 18/18; provider call exact once; failure surface exact once; auto replay zero; drain settles"
+    },
+    {
+      "id": "artifact_internal_link_in_answer",
+      "failure": "model rebuilt a sandbox Markdown link from UI-only artifact URLs",
+      "repair": "canonical attachment Receipt remains full while model projection excludes Session/path/UI URL fields",
+      "result": "new final answers contain no internal URL and the Runtime card still previews/downloads"
+    },
+    {
+      "id": "existing_file_python_intercepted_by_g",
+      "failure": "G snapshot backend intercepted an ordinary existing-file edit and could not use that target as its own source",
+      "repair": "existing regular declared targets remain on the established E/F edit and Undo path; G keeps new-output program generation",
+      "result": "G three-purpose regression and E/F edit regression pass; actual Console correction succeeds"
+    },
+    {
+      "id": "artifact_lineage_pointer_missing",
+      "failure": "old assistant/tool projection hid the exact prior attachment identity, so a requested revision became a new version-1 family",
+      "repair": "bounded current-Session output pointers expose identity/name/kind/bytes/version/time without content/path/URL/hash",
+      "result": "actual Console selects the newest exact artifact and shows version 2 with both versions"
+    },
+    {
+      "id": "double_capability_directory",
+      "failure": "visual work called tool_search before the already bounded skill directory",
+      "repair": "skill directory is one of the small always-visible product hands",
+      "result": "one redundant model/tool discovery round trip removed; direct and tool discovery countertests pass"
+    }
+  ],
+  "uxObservations": {
+    "resultCards": "PASS name, bytes, preview, download, source, version",
+    "progress": "PASS one session-scoped human status; no fake ETA or internal thought",
+    "reconnect": "PASS same sessions and cards after Runtime restart",
+    "sessionSwitching": "PASS results remain in their originating conversation",
+    "historicalPreRepairMessages": "preserved honestly; fixes affect new Runs without rewriting old conversation truth"
+  },
+  "performanceTruth": {
+    "directImproved": true,
+    "toolSurfaceAggregateImproved": true,
+    "artifactRevisionStillHeavy": true,
+    "artifactRevisionNote": "correct observe-edit-verify-inspect-register-complete flow used 6-7 model calls and 76k-109k tokens; no quality shortcut was adopted",
+    "postSkillExposureVisualArtifactLiveRerun": "not_repeated_to_avoid_overqualification"
+  },
+  "finalRegression": {
+    "unit": { "tests": 1886, "passed": 1885, "failed": 0, "skippedWindows": 1 },
+    "productIntegration": { "tests": 203, "passed": 201, "failed": 0, "skippedWindows": 2 },
+    "mutation": { "mutantsKilled": 2, "survived": 0 }
+  },
+  "forbiddenSystems": {
+    "intentRouter": 0,
+    "newMemoryOrRagStore": 0,
+    "newWorkStore": 0,
+    "providerSpecificBusinessPrompt": 0,
+    "answerPostprocessing": 0,
+    "automaticProviderQualityFallback": 0
+  },
+  "nonClaims": [
+    "Windows physical qualification is complete",
+    "all models have equal judgment quality",
+    "canonical rebuild is the product default",
+    "artifact authoring is as cheap as direct conversation",
+    "old pre-repair conversation text was rewritten"
+  ],
+  "completionSentence": "T5는 실제 Console에서 평범한 대화는 가볍게 답하고, 공개·개인·파일·행동 현실이 필요할 때만 관련 손과 Context를 열며, 결과를 Preview·download·version으로 전달하고 교정·재시작·동시 입력 뒤에도 정확한 사용자 목적을 이어간다."
+}

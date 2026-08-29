@@ -1,6 +1,6 @@
 # T5 Fifth Completion — Android Judgment & Context Runtime
 
-상태: `FIFTH_COMPLETION_ACTIVE · CJ0_CJ7_COMPLETE · FIFTH_HQ_OPEN`
+상태: `FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE · WINDOWS_DEFERRED_NOT_WAIVED`
 4차 귀환 기준: `fe51c8c5 · FOURTH_COMPLETION_COMPLETE_MACOS_PRODUCT_SCOPE`
 4차 release-only 후속선: `8c2a3b05 · 0.4.0 packaging lineage · 설치 자격 진행과 5차 개발은 분리`
 5차 구현 기준·branch·worktree: `fe51c8c5 · codex/t5-fifth-context-judgment-plan · /Users/jyp/Developer/t5-fifth-plan`
@@ -1077,6 +1077,34 @@ FIFTH_COMPLETION:
 
 > 5차는 Context를 줄인 차수가 아니라 T5가 현재 사용자와 상황을 더 정확히 이해하고, 필요한 기억과 현실을
 > 놓치지 않으며, 해야 할 때만 가장 적합한 수단을 사용하고, 충분하면 자연스럽게 멈추는 지능 완성 차수다.
+
+### 실제 종료 판정
+
+```yaml
+FIFTH_COMPLETION:
+  context_runtime: QUALIFIED
+  judgment_intelligence: QUALIFIED
+  natural_agency: QUALIFIED
+  fourth_capabilities: NO_REGRESSION
+  actual_console_hq: PASS
+  macos_product_scope: COMPLETE
+  windows: DEFERRED_NOT_WAIVED
+  provider_specific_business_prompt: 0
+  intent_router: 0
+  new_canonical_store: 0
+```
+
+실제 Console HQ는 Direct·Public·Personal·File·Artifact revision·Project·Long continuity·Natural stop 여덟
+여정을 통과했다. HQ에서 발견한 delayed Work 동시성, UI URL의 모델 노출, 기존 파일 Python의 G 오선택,
+Artifact lineage pointer 누락, 이중 capability directory를 각각 한 경계로 수리했다. 결과 카드의 실제 Preview·
+download·version 1→2, Runtime 재시작·Session 전환, provider 실패 동시 입력, 전체 종료 settlement를 사람 표면과
+원장에서 함께 확인했다.
+
+불리한 성능도 보존한다. Direct와 대표 Tool surface는 개선됐지만 정확한 Artifact 교정은 observe→edit→verify→
+inspect→register→complete 때문에 여전히 6~7 model calls·76K~109K tokens가 들었다. 품질을 낮추는 shortcut은
+채택하지 않았고 이 비용을 완료에서 숨기지 않는다.
+
+근거: `refoundation/evidence/fifth-hq-console-closeout-2026-08-30.json`.
 
 ---
 

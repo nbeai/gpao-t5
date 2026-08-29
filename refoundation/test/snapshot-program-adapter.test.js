@@ -106,6 +106,20 @@ test('same Python protected path는 아직 없는 declared output 부모를 F로
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
 
+test('기존 regular target을 읽어 고치는 Python은 G가 가로채지 않고 일반 E/F 편집 경로에 남긴다', async () => {
+  const app = await room();
+  try {
+    const target = join(app.workspace, 'existing.txt'); await writeFile(target, 'before');
+    const { outcome } = await execute(app, [
+      'from pathlib import Path',
+      "p=Path('existing.txt')",
+      "p.write_text(p.read_text().replace('before','after'))",
+    ].join('\n'), [target]);
+    assert.equal(outcome, null);
+    assert.equal(await readFile(target, 'utf8'), 'before');
+  } finally { await rm(app.root, { recursive: true, force: true }); }
+});
+
 test('guest exit 0은 missing·unexpected·invalid output을 성공으로 만들지 않는다', async () => {
   for (const [name, source, reason] of [
     ['missing', 'pass', 'declared_output_missing_or_unsafe'],

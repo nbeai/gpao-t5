@@ -35,7 +35,7 @@ test('정본은 제품·현재 계획·1차 역사·작업 규율로 분리된�
   assert.match(history, /Unified Attachment Hand A1, U1-G4까지 완료되어 1차 완성/);
   assert.match(agents, /`T5-FIFTH-COMPLETION\.md` — 지금 어느 Gate/);
   assert.match(fourth, /현재 Gate: `FOURTH COMPLETION SEALED · MACOS PRODUCT SCOPE · WINDOWS DEFERRED_NOT_WAIVED`/u);
-  assert.match(fifth, /상태: `FIFTH_COMPLETION_ACTIVE · CJ0_CJ7_COMPLETE · FIFTH_HQ_OPEN`/u);
+  assert.match(fifth, /상태: `FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE · WINDOWS_DEFERRED_NOT_WAIVED`/u);
   assert.match(fourth, /t5-0\.3\.1-clean-baseline/u);
   assert.match(agents, /현재 제품 코어·UI·검사·배포는 `refoundation\/`/);
   assert.match(agents, /t5-legacy-archive/);

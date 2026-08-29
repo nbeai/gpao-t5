@@ -11,7 +11,7 @@
   "modes": { "currentCore": "current-core-v1", "adopted": "directory-first-v1" },
   "adoptedEntry": "refoundation/scripts/start-console.mjs",
   "directoryContract": {
-    "alwaysVisible": ["tool_search", "exec", "web_read", "attachment"],
+    "alwaysVisible": ["tool_search", "exec", "web_read", "attachment", "skill"],
     "visibleWithMemoryPointers": ["memory"],
     "visibleWithHistoricalRecallHandles": ["purpose_history_or_session_search"],
     "visibleWithUndoHandles": ["workspace_patch"],

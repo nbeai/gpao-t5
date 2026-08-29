@@ -12,6 +12,7 @@ async function fixture(respond) {
   await mkdir(workspace, { recursive: true });
   const calls = []; const errors = [];
   const server = makeConsoleServer({ stateDir, workspace,
+    workAdmissionMode: 'action-v1',
     modelFactory: () => ({ async respond(input) {
       calls.push({ messages: structuredClone(input.messages), tools: structuredClone(input.tools) });
       return respond(input, calls.length);

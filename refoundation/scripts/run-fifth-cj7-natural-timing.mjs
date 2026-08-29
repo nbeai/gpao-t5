@@ -23,6 +23,7 @@ await chmod(connectionFile, 0o600);
 const access = makeConsoleModelAccess({ connectionFile, stateDir,
   secretStore: makePlatformSecretStore({ platform: process.platform }) });
 const server = makeConsoleServer({ stateDir, workspace, capabilitySurfaceMode: 'directory-first-v1',
+  workAdmissionMode: 'action-v1',
   modelFactory: (input) => access.model(input), modelStatus: () => access.status(),
   webSearchProviders: [{ id: 'cj7-public', label: 'CJ7 public fixture',
     async available() { return { available: true }; },

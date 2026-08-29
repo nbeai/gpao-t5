@@ -64,6 +64,7 @@ test('Telegram에서 생긴 대화에 콘솔로 이어 말하면 같은 Telegram
   };
   const server = makeConsoleServer({
     stateDir: room, workspace: room, messengerProviderFactory: () => provider,
+    workAdmissionMode: 'action-v1',
     modelFactory: () => ({ respond: async () => ({ text: '같은 대화로 답했어요.', toolCalls: [] }) }),
     modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
   });
@@ -210,6 +211,7 @@ test('provider 실패 전에 함께 제시된 Telegram 발화는 failure surface
   };
   const server = makeConsoleServer({
     stateDir: room, workspace: room, messengerProviderFactory: () => provider,
+    workAdmissionMode: 'action-v1',
     modelFactory: (context) => context.purpose === 'transition_decision' ? ({ async respond() {
       transitionCalls += 1; return { text: '', toolCalls: [{ id: 'provider-failure-followup',
         name: 'transition_decision', args: { choice: 'steer_current', targetHandle: null,
@@ -248,16 +250,19 @@ test('provider 실패 전에 함께 제시된 Telegram 발화는 failure surface
     assert.equal(first.state, 'completed');
     assert.equal(first.messageIds?.length, 1);
     assert.equal(second.state, 'completed');
-    assert.equal(modelCalls,1, errors.map((error) => error?.stack ?? error).join('\n'));
-    assert.equal(transitionCalls,1);
+    const work = await server.workStore.read();
+    assert.equal(modelCalls, 1, JSON.stringify({ transitionCalls, deliveries,
+      claims: work.claims, inputs: work.inputs, events: work.events.map((event) => event.type),
+      errors: errors.map((error) => error?.message ?? String(error)) }));
+    assert.equal(transitionCalls, 0,
+      'provider failure before input presentation closes the admitted input on one failure surface without a semantic transition call');
     assert.equal(deliveries.length, 2);
     assert.match(deliveries[Number(first.messageIds[0]) - 701],/응답을 만드는 단계에서 중단/u);
-    const work = await server.workStore.read();
-    assert.ok(work.claims.some((claim) => claim.state === 'released'));
     assert.equal(work.claims.length, 1);
+    assert.equal(work.claims[0].state, 'released');
     assert.equal(work.inputs[0].state, 'executed');
-    assert.equal(work.events.filter((event) => event.type === 'input_execution_claimed'
-      || event.type === 'input_failure_surface_claimed').length, 1);
+    assert.equal(work.events.filter((event) => event.type === 'input_execution_claimed').length, 0);
+    assert.equal(work.events.filter((event) => event.type === 'input_failure_surface_claimed').length, 1);
   } finally {
     await server.closeMessengers();
     await new Promise((resolveClose) => server.close(resolveClose));
