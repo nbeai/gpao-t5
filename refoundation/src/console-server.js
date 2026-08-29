@@ -811,7 +811,11 @@ export function makeConsoleServer({
               || (receipt?.requestedCall?.name === 'terminal_session'
                 && receipt?.result?.effectObservation);
           });
-          humanEffects = await Promise.all(calls.slice(0, 16).map(async (event) => {
+          const verifiedPublications = calls.filter((event) => (
+            event.payload?.receipt?.result?.publication?.state === 'published_verified'
+          ));
+          const relevantCalls = verifiedPublications.length ? verifiedPublications : calls;
+          humanEffects = await Promise.all(relevantCalls.slice(0, 16).map(async (event) => {
             try {
               const value = await effectForensics.materialize({ sessionId: session.id, runId,
                 toolCallId: event.payload.receipt.toolCallId });
@@ -825,7 +829,7 @@ export function makeConsoleServer({
               const result = event.payload.receipt.result;
               if (result?.publication?.state === 'published_verified'
                 && result?.outputCoverage?.independentlyVerified === true) return {
-                title: '요청한 결과 파일을 만들었어요.',
+                title: '되돌릴 수 있는 변경으로 기록했어요.',
                 confirmed: [`결과 파일 ${result.outputCoverage.outputCount}개를 다시 확인했어요.`,
                   '원본은 직접 바꾸지 않고 결과만 발행했어요.'],
                 rollback: result.publication.undoHandle ? '이 변경은 되돌릴 수 있어요.' : '되돌리기 상태를 확인해 주세요.',
@@ -837,9 +841,9 @@ export function makeConsoleServer({
                 unknowns: ['이 작업의 전후 상태를 정확히 결속하지 못했어요.'], detailsAvailable: true };
             }
           }));
-          if (calls.length > 16) humanEffects.push({ title: '추가 변경 기록이 있어요.', confirmed: [],
+          if (relevantCalls.length > 16) humanEffects.push({ title: '추가 변경 기록이 있어요.', confirmed: [],
             rollback: '되돌리기는 실행하지 않았어요.',
-            unknowns: [`${calls.length - 16}개 변경 기록은 이 화면에서 생략했어요.`], detailsAvailable: true });
+            unknowns: [`${relevantCalls.length - 16}개 변경 기록은 이 화면에서 생략했어요.`], detailsAvailable: true });
           humanEffects = [...new Map(humanEffects.map((item) => [JSON.stringify(item), item])).values()];
         } catch (error) {
           onError?.(error); humanEffects = [{ title: '변경 확인 상태를 불러오지 못했어요.', confirmed: [],
