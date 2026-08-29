@@ -14,9 +14,11 @@ test('Windows Terminal Gate는 Linux·WSL 복제 없이 GitHub runner와 격리 
   assert.equal(value.githubWindowsRunner.required.some((item) => /grandchild cancellation/u.test(item)), true);
   assert.equal(value.isolatedWindowsVm.requiredBeforeHumanProductPass.some((item) => /Terra and gpt-5.5/u.test(item)), true);
   assert.equal(value.completion.githubRunnerPass, true);
-  assert.equal(value.completion.windowsRuntimeComplete, true);
+  assert.equal(value.completion.githubRunnerCurrentHeadPass, false);
+  assert.equal(value.completion.isolatedVmMachinePass, false);
+  assert.equal(value.completion.windowsRuntimeComplete, false);
   assert.equal(value.completion.windowsHumanModelSurfacePass, false);
-  assert.equal(value.completion.verdict, 'PASS_WITH_OBSERVATION');
+  assert.equal(value.completion.verdict, 'RUNNER_PASS_VM_HUMAN_PENDING');
 });
 
 test('Windows CI는 MSVC Job host·DPAPI·ConPTY 실제 시험을 모두 실행한다', async () => {

@@ -1,0 +1,45 @@
+{
+  "schema": "t5.s4l.windows-read-only-baseline.v1",
+  "recordedOn": "2026-08-29",
+  "status": "S4_L_READ_ONLY_BASELINE_OPEN_PHYSICAL_QUALIFICATION_PENDING",
+  "sourceBaseCommit": "6bd3bef3",
+  "productChanges": 0,
+  "historicalExactHeadEvidence": {
+    "source": "s3-terminal-windows-github-qualification-2026-08-26.json",
+    "sourceCommit": "41b14aa0b7b011222f9d1976b415b1e27ed139d9",
+    "windowsServerX64Executed": true,
+    "arm64CrossCompiled": true,
+    "arm64Executed": false,
+    "jobObject": true,
+    "conpty": true,
+    "dpapi": true
+  },
+  "currentHeadTruth": {
+    "githubRunnerRerun": false,
+    "physicalX64Journey": false,
+    "physicalArm64Journey": false,
+    "terraJourney": false,
+    "gpt55Journey": false,
+    "humanUiJourney": false,
+    "windowsSearchActual": false,
+    "signedInstallerJourney": false
+  },
+  "qualificationMetadataCorrection": {
+    "previousIsolatedVmMachinePass": true,
+    "correctedIsolatedVmMachinePass": false,
+    "previousWindowsRuntimeComplete": true,
+    "correctedWindowsRuntimeComplete": false,
+    "productBehaviorChanged": false
+  },
+  "verification": {
+    "windowsFocused": { "passed": 30, "failed": 0, "skipped": 2 },
+    "dailyCheck": { "passed": 1783, "failed": 0, "skipped": 1 }
+  },
+  "forbiddenSubstitutionsPreserved": [
+    "macOS pass for Windows pass",
+    "Linux or WSL passthrough for Windows product behavior",
+    "x64 emulation labeled x64 native",
+    "ARM64 cross-build labeled ARM64 execution"
+  ],
+  "nextOneTask": "resolve an owner-provided isolated physical Windows x64 and ARM64 qualification environment before S4-L implementation or PASS"
+}
