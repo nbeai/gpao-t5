@@ -1,6 +1,6 @@
 # T5 Fifth Completion — Android Judgment & Context Runtime
 
-상태: `FIFTH_COMPLETION_ACTIVE · CJ0_CJ6_COMPLETE · CJ7_NATURAL_TIMING_OPEN`
+상태: `FIFTH_COMPLETION_ACTIVE · CJ0_CJ7_COMPLETE · FIFTH_HQ_OPEN`
 4차 귀환 기준: `fe51c8c5 · FOURTH_COMPLETION_COMPLETE_MACOS_PRODUCT_SCOPE`
 4차 release-only 후속선: `8c2a3b05 · 0.4.0 packaging lineage · 설치 자격 진행과 5차 개발은 분리`
 5차 구현 기준·branch·worktree: `fe51c8c5 · codex/t5-fifth-context-judgment-plan · /Users/jyp/Developer/t5-fifth-plan`
@@ -840,6 +840,22 @@ qualification taxonomy다.
 
 > T5는 개입해야 할 때 정확히 개입하고, 생각·질문·확인·행동·대기·종료 중 현재 상황에 맞는 하나를
 > 자연스럽게 선택한다.
+
+CJ7 actual은 taxonomy를 Runtime에 넣지 않고 사후 자격에만 사용했다. 현재 exact head의 실제 gpt-5.5 Console과
+격리 workspace에서 다음을 확인했다.
+
+- 생각·감정 표현: ANSWER, model 1·Tool 0
+- 새 상대 전송의 목적지 누락: ASK, model 1·Tool 0·외부 전송 0
+- 명확한 로컬 파일 요청: ACT, exec→attachment→completion, exact reopen
+- 최신 공개 코드: GROUND_PUBLIC, tool_search→search→exact read→completion
+- 개인 현재 코드: GROUND_PERSONAL, CJ4 exact Memory source reopen 재사용
+- 충분한 공개 결과: STOP, 같은 source 반복 0
+
+첫 공개 fixture는 public DNS resolver가 없어 `dns_unverified`였고 모델은 snippet을 답으로 꾸미지 않았다. 제품·
+Prompt 변경 0으로 기존 web_read countertest와 같은 public resolver를 fixture에 넣은 뒤 동일 oracle이 통과했다.
+실제 사용자 자료·외부 쓰기·workspace 밖 effect는 모두 0이다.
+
+근거: `refoundation/evidence/fifth-cj7-natural-timing-2026-08-30.json`.
 
 ---
 

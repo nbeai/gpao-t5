@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "gate": "CJ7_NATURAL_TIMING_AND_INTERVENTION",
+  "status": "COMPLETE",
+  "baselineCommit": "6c317fed",
+  "candidateCommit": "same_commit_as_evidence",
+  "productSourceChanges": 0,
+  "taxonomyRuntimeEnum": false,
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "targetOutsideWorkspaceEffects": 0,
+  "actual": [
+    {
+      "id": "thought_no_action",
+      "taxonomy": "ANSWER",
+      "status": "PASS",
+      "modelCalls": 1,
+      "toolCalls": 0,
+      "tokens": 7571,
+      "requestBytes": 37298,
+      "wallMs": 10939.664
+    },
+    {
+      "id": "missing_delivery_question",
+      "taxonomy": "ASK",
+      "status": "PASS",
+      "modelCalls": 1,
+      "toolCalls": 0,
+      "tokens": 7224,
+      "requestBytes": 37294,
+      "wallMs": 3820.973,
+      "externalSend": 0
+    },
+    {
+      "id": "clear_local_artifact",
+      "taxonomy": "ACT",
+      "status": "PASS",
+      "modelCalls": 4,
+      "toolCalls": 3,
+      "tools": ["exec", "attachment", "work_completion"],
+      "tokens": 36665,
+      "requestBytes": 181554,
+      "wallMs": 11604.984,
+      "artifact": { "name": "cj7-result.txt", "bytes": 15, "reopenedExact": true }
+    },
+    {
+      "id": "current_public_grounding",
+      "taxonomy": "GROUND_PUBLIC",
+      "status": "PASS",
+      "modelCalls": 5,
+      "toolCalls": 4,
+      "tools": ["tool_search", "web_search", "web_read", "work_completion"],
+      "tokens": 40454,
+      "requestBytes": 220359,
+      "wallMs": 15677.831,
+      "exactPublicMarker": "CJ7-PUBLIC-4488"
+    },
+    {
+      "id": "personal_memory_exact_reopen",
+      "taxonomy": "GROUND_PERSONAL",
+      "status": "PASS_REUSED_CJ4_CURRENT_LINEAGE",
+      "sourceReopened": true
+    },
+    {
+      "id": "sufficient_result_stop",
+      "taxonomy": "STOP",
+      "status": "PASS",
+      "evidence": "public grounding stopped after exact readable source and completion; no repeated source read"
+    }
+  ],
+  "fixtureCorrection": {
+    "firstPublicAttempt": "FAIL_DNS_FIXTURE_NOT_PRODUCT",
+    "modelBehavior": "correctly refused to promote a search snippet after dns_unverified",
+    "productOrPromptChanges": 0,
+    "fixtureChange": "added the same public DNS resolver used by existing web_read countertests",
+    "rerun": "PASS"
+  },
+  "judgmentEquation": {
+    "rightMoment": true,
+    "rightDepth": true,
+    "rightContext": true,
+    "rightMethod": true,
+    "rightScope": true,
+    "rightStop": true
+  },
+  "nonClaims": [
+    "the taxonomy is a Runtime intent classifier",
+    "all models have equal judgment quality",
+    "a single fixture proves every public website",
+    "Windows physical qualification is complete"
+  ],
+  "completionSentence": "T5는 생각에는 행동하지 않고, 빠진 사용자 결정을 한 질문으로 남기며, 명확한 로컬 행동은 Artifact까지 수행하고, 최신 공개·개인 사실이 필요할 때만 exact source를 연 뒤 충분하면 멈춘다.",
+  "nextGate": "FIFTH_INTEGRATED_HUMAN_QUALIFICATION"
+}
