@@ -238,6 +238,11 @@ export class AttachmentStore {
       if (event.type === 'output_batch_prepared') batches.set(batchId, {
         ...clone(event.payload.batch), state: 'prepared', outputs: [],
       });
+      else if (event.type === 'output_batch_publication_verified') {
+        const batch = batches.get(batchId); if (batch) {
+          batch.state = 'publication_verified'; batch.publication = clone(event.payload.publication);
+        }
+      }
       else if (event.type === 'output_batch_committed') {
         const batch = batches.get(batchId); if (batch) {
           batch.state = 'committed'; batch.outputs = clone(event.payload.outputs ?? []);
@@ -344,9 +349,37 @@ export class AttachmentStore {
     return this.serialize(async () => {
       const batch = this.producedOutputBatchesFrom(await this.events()).get(id);
       this.assertBatchOwner(batch, { sessionId: owner, runId: producerRunId, toolCallId });
-      if (batch.state !== 'prepared') return this.batchResult(batch);
+      if (batch.state !== 'publication_verified') return this.batchResult(batch);
       return this.commitPreparedOutputBatch(batch, { workspace, reconciled: false });
     });
+  }
+
+  async markProducedOutputBatchPublicationVerified({ sessionId, runId, toolCallId,
+    batchId, publication } = {}) {
+    const owner = safeUuid(sessionId, 'session'); const producerRunId = safeUuid(runId, 'run');
+    const id = safeUuid(batchId, 'output batch');
+    if (publication?.state !== 'published_verified' || !String(publication.undoHandle ?? '').trim()) {
+      throw new TypeError('verified publication receipt is required');
+    }
+    return this.serialize(async () => {
+      const batch = this.producedOutputBatchesFrom(await this.events()).get(id);
+      this.assertBatchOwner(batch, { sessionId: owner, runId: producerRunId, toolCallId });
+      if (batch.state === 'publication_verified' || batch.state === 'committed') return this.batchResult(batch);
+      if (batch.state !== 'prepared') throw new Error('output batch is not awaiting publication');
+      const receipt = { state: 'published_verified', undoHandle: String(publication.undoHandle) };
+      await this.append('output_batch_publication_verified', { batchId: id, publication: receipt });
+      return this.batchResult({ ...batch, state: 'publication_verified', publication: receipt });
+    });
+  }
+
+  async preparedProducedOutputBatches({ sessionId, producerRunId = null } = {}) {
+    const owner = safeUuid(sessionId, 'session');
+    return clone([...this.producedOutputBatchesFrom(await this.events()).values()]
+      .filter((batch) => batch.sessionId === owner
+        && ['prepared', 'publication_verified'].includes(batch.state)
+        && (producerRunId == null || batch.producerRunId === String(producerRunId)))
+      .map((batch) => ({ batchId: batch.batchId, producerRunId: batch.producerRunId,
+        toolCallId: batch.toolCallId, state: batch.state, outputCount: batch.specs.length })));
   }
 
   async reconcileProducedOutputBatch({ sessionId, workspace, runId, toolCallId, batchId } = {}) {
@@ -355,7 +388,7 @@ export class AttachmentStore {
     return this.serialize(async () => {
       const batch = this.producedOutputBatchesFrom(await this.events()).get(id);
       this.assertBatchOwner(batch, { sessionId: owner, runId: producerRunId, toolCallId });
-      if (batch.state !== 'prepared') return this.batchResult(batch);
+      if (!['prepared', 'publication_verified'].includes(batch.state)) return this.batchResult(batch);
       if (await realpath(workspace) !== batch.workspace) throw new Error('output batch workspace mismatch');
       const observations = await Promise.all(batch.specs.map((spec) => (
         this.observeOutputTarget({ workspace, filePath: spec.sourcePath })
@@ -363,13 +396,15 @@ export class AttachmentStore {
       const post = observations.map((value, index) => value.exists
         && value.sha256 === batch.specs[index].expectedSha256
         && value.bytes === batch.specs[index].expectedBytes);
-      if (post.every(Boolean)) return this.commitPreparedOutputBatch(batch, { workspace, reconciled: true });
+      if (post.every(Boolean) && batch.state === 'publication_verified') {
+        return this.commitPreparedOutputBatch(batch, { workspace, reconciled: true });
+      }
       const pre = observations.map((value, index) => {
         const expected = batch.specs[index].preimage;
         return expected.exists === value.exists && (!expected.exists
           || (expected.sha256 === value.sha256 && expected.bytes === value.bytes));
       });
-      if (pre.every(Boolean)) {
+      if (pre.every(Boolean) && batch.state === 'prepared') {
         await this.append('output_batch_not_published', { batchId: id });
         return this.batchResult({ ...batch, state: 'not_published', outputs: [] });
       }

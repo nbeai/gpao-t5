@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
+import { AttachmentStore } from '../src/attachment-store.js';
 import { explainShellCommand } from '../src/command-explainer.js';
 import { ManagedProcessRegistry } from '../src/managed-process.js';
 import { makeSnapshotProgramAdapter } from '../src/snapshot-program-adapter.js';
@@ -11,6 +12,7 @@ import { makeWorkspacePatchTool } from '../src/workspace-patch-tool.js';
 
 const SESSION = '11111111-1111-4111-8111-111111111111';
 const WORK = '22222222-2222-4222-8222-222222222222';
+const RUN = '33333333-3333-4333-8333-333333333333';
 const command = (source) => `python3 - <<'PY'\n${source}\nPY`;
 
 async function room() {
@@ -26,10 +28,11 @@ async function room() {
 }
 
 async function execute(app, source, targets, overrides = {}) {
-  const adapter = makeSnapshotProgramAdapter({ ...app.options, ...overrides });
+  const { toolCallId = null, ...adapterOverrides } = overrides;
+  const adapter = makeSnapshotProgramAdapter({ ...app.options, ...adapterOverrides });
   const shell = command(source);
   return { adapter, outcome: await adapter.execute({ args: { effect: { kind: 'local_change', targets } },
-    commandExplanation: await explainShellCommand(shell), cwd: app.workspace }) };
+    commandExplanation: await explainShellCommand(shell), cwd: app.workspace, toolCallId }) };
 }
 
 test('사업·개발·개인 파일 세 목적은 same Python exact 1회→host observer→F→Undo→cleanup으로 닫힌다', async () => {
@@ -139,6 +142,24 @@ test('publication 성공 뒤 cleanup 실패는 재발행하지 않고 cleanup un
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
 
+test('Snapshot adapter는 F verified output 전체를 durable batch handle로 반환한다', async () => {
+  const app = await room(); await mkdir(join(app.workspace, '결과')); await writeFile(join(app.workspace, 'input.txt'), 'input');
+  const attachmentStore = new AttachmentStore(join(app.state, 'attachments'));
+  try {
+    const { outcome } = await execute(app, [
+      'from pathlib import Path',
+      "Path('결과/one.txt').write_text('one')",
+      "Path('결과/two.txt').write_text('two')",
+    ].join('\n'), ['결과/one.txt', '결과/two.txt'], { attachmentStore, runId: RUN,
+      toolCallId: 'exec-batch' });
+    assert.equal(outcome.result.state, 'published_verified_cleaned');
+    assert.equal(outcome.result.outputHandoff.state, 'committed');
+    assert.equal(outcome.result.outputs.length, 2);
+    assert.ok(outcome.result.outputs.every((output) => /^[0-9a-f-]{36}$/iu.test(output.outputHandle)));
+    assert.equal((await attachmentStore.pendingProducedOutputs({ sessionId: SESSION, producerRunId: RUN })).length, 2);
+  } finally { await rm(app.root, { recursive: true, force: true }); }
+});
+
 test('settlement 뒤 crash는 successor가 snapshot cleanup만 하고 Python·F transaction을 반복하지 않는다', async () => {
   const app = await room(); await mkdir(join(app.workspace, '결과')); await writeFile(join(app.workspace, 'input.txt'), 'input'); let executions = 0;
   try {
@@ -158,6 +179,32 @@ test('settlement 뒤 crash는 successor가 snapshot cleanup만 하고 Python·F 
     const recovered = await successor.recovery;
     assert.ok(recovered.removed >= 1); assert.equal(executions, 1);
     assert.deepEqual(await readdir(app.options.snapshotRoot), []);
+  } finally { await rm(app.root, { recursive: true, force: true }); }
+});
+
+test('F verified 뒤 handoff 전 crash는 successor가 Python·F 없이 batch handoff만 재개한다', async () => {
+  const app = await room(); await mkdir(join(app.workspace, '결과')); await writeFile(join(app.workspace, 'input.txt'), 'input');
+  const attachmentStore = new AttachmentStore(join(app.state, 'attachments')); let executions = 0;
+  try {
+    const crash = Object.assign(new Error('simulated handoff crash'), { simulateCrash: true });
+    const first = makeSnapshotProgramAdapter({ ...app.options, attachmentStore, runId: RUN,
+      executePython: async (input) => { executions += 1;
+        const { executePythonProgramQualification } = await import('../src/ephemeral-program-python.js');
+        return executePythonProgramQualification(input); },
+      onPublicationSettled: async () => { throw crash; } });
+    const shell = command("from pathlib import Path\nPath('결과/out.txt').write_text('ok')");
+    const explanation = await explainShellCommand(shell);
+    await assert.rejects(() => first.execute({ args: { effect: { kind: 'local_change', targets: ['결과/out.txt'] } },
+      commandExplanation: explanation, cwd: app.workspace, toolCallId: 'exec-crash-handoff' }), /simulated handoff crash/u);
+    assert.equal(executions, 1);
+    assert.equal((await attachmentStore.pendingProducedOutputs({ sessionId: SESSION, producerRunId: RUN })).length, 0);
+    assert.equal((await attachmentStore.preparedProducedOutputBatches({ sessionId: SESSION,
+      producerRunId: RUN }))[0].state, 'publication_verified');
+    const successor = makeSnapshotProgramAdapter({ ...app.options, attachmentStore, runId: RUN });
+    const recovered = await successor.recovery;
+    assert.equal(recovered.handoffs[0].state, 'committed'); assert.equal(recovered.handoffs[0].reconciled, true);
+    assert.equal((await attachmentStore.pendingProducedOutputs({ sessionId: SESSION, producerRunId: RUN })).length, 1);
+    assert.equal(executions, 1); assert.deepEqual(await readdir(app.options.snapshotRoot), []);
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
 

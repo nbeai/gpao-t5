@@ -39,7 +39,8 @@ async function operationFor(target, content) {
 }
 
 export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshotRoot, scratchRoot,
-  sessionId, workId, revision, processRegistry, workspacePatchTool,
+  sessionId, workId, revision, runId = null, processRegistry, workspacePatchTool,
+  attachmentStore = null,
   executionPath = process.env.PATH ?? '/usr/bin:/bin', pythonPath = '/usr/bin/python3',
   protectedReadRoots = [], createSnapshot = createWorkspaceSnapshot,
   executePython = executePythonProgramQualification, removeSnapshot = removeWorkspaceSnapshot,
@@ -48,8 +49,23 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
     || !Number.isSafeInteger(revision) || !processRegistry || !workspacePatchTool?.execute) {
     throw new TypeError('snapshot program adapter dependencies are incomplete');
   }
+  if ((attachmentStore == null) !== (runId == null)) {
+    throw new TypeError('snapshot output handoff requires AttachmentStore and Run identity together');
+  }
   const workspacePromise = realpath(resolve(workspaceValue));
-  const recovery = cleanupWorkspaceSnapshotRoot(snapshotRoot);
+  const recovery = (async () => {
+    const cleaned = await cleanupWorkspaceSnapshotRoot(snapshotRoot);
+    if (!attachmentStore) return cleaned;
+    const workspace = await workspacePromise;
+    const pending = await attachmentStore.preparedProducedOutputBatches({
+      sessionId, producerRunId: runId,
+    });
+    const handoffs = [];
+    for (const batch of pending) handoffs.push(await attachmentStore.reconcileProducedOutputBatch({
+      sessionId, workspace, runId, toolCallId: batch.toolCallId, batchId: batch.batchId,
+    }));
+    return { ...cleaned, handoffs };
+  })();
   let interpreterPromise = null;
   const interpreter = () => (interpreterPromise ??= observePythonInterpreter({ path: pythonPath }));
   const resolvedExecutable = async (value) => {
@@ -66,7 +82,7 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
   } });
 
   return { recovery,
-    async execute({ args, commandExplanation, cwd = null, signal = null } = {}) {
+    async execute({ args, commandExplanation, cwd = null, signal = null, toolCallId = null } = {}) {
       if (args?.effect?.kind !== 'local_change' || !Array.isArray(args.effect.targets)
         || !args.effect.targets.length || !Array.isArray(commandExplanation?.heredocs)
         || commandExplanation.heredocs.length === 0) return null;
@@ -122,6 +138,17 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
           observed.push({ output, format }); }
         if (signal?.aborted) { const cleaned = await cleanup();
           return failed('cancelled_before_publication', { publication: 'not_started', cleanup: cleaned }); }
+        let outputBatch = null;
+        if (attachmentStore) {
+          if (!String(toolCallId ?? '').trim()) { const cleaned = await cleanup();
+            return failed('output_handoff_tool_identity_missing', { publication: 'not_started', cleanup: cleaned }); }
+          outputBatch = await attachmentStore.prepareProducedOutputBatch({ sessionId,
+            workspace, runId, toolCallId, outputs: observed.map((item) => {
+              const target = targets.find((candidate) => candidate.relativePath === item.output.relativePath);
+              return { filePath: target.absolute, expectedSha256: item.output.sha256,
+                expectedBytes: item.output.size };
+            }) });
+        }
         const operations = [];
         for (const item of observed) { const target = targets.find((candidate) => (
           candidate.relativePath === item.output.relativePath
@@ -131,8 +158,18 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
         const publication = await workspacePatchTool.execute({ action: 'apply', planHandle: preview.planHandle,
           undoHandle: null, operations: [] });
         if (publication.state !== 'published_verified') { const cleaned = await cleanup();
-          return failed('publication_not_verified', { publication, cleanup: cleaned }); }
-        if (typeof onPublicationSettled === 'function') await onPublicationSettled({ snapshot, publication });
+          const handoff = outputBatch ? await attachmentStore.reconcileProducedOutputBatch({ sessionId,
+            workspace, runId, toolCallId, batchId: outputBatch.batchId }) : null;
+          return failed('publication_not_verified', { publication, handoff, cleanup: cleaned }); }
+        let committedHandoff = null;
+        if (outputBatch) {
+          await attachmentStore.markProducedOutputBatchPublicationVerified({ sessionId, runId, toolCallId,
+            batchId: outputBatch.batchId, publication });
+        }
+        if (typeof onPublicationSettled === 'function') await onPublicationSettled({ snapshot, publication,
+          outputBatch });
+        if (outputBatch) committedHandoff = await attachmentStore.commitProducedOutputBatch({ sessionId,
+          workspace, runId, toolCallId, batchId: outputBatch.batchId });
         const cleaned = await cleanup();
         return { handled: true, result: { state: cleaned.removed
           ? 'published_verified_cleaned' : 'published_verified_cleanup_unknown', exitCode: 0,
@@ -143,10 +180,15 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
           manifestSha256: snapshot.manifestSha256 },
         actualReadSet: { state: 'unknown' }, outputCoverage: { independentlyVerified: true,
           outputCount: observed.length }, outputs: observed.map((item) => ({
+          ...(committedHandoff ? { outputHandle: committedHandoff.outputs.find((output) => (
+            output.sourcePath === targets.find((candidate) => candidate.relativePath === item.output.relativePath)?.absolute
+          ))?.outputHandle ?? null } : {}),
           relativePath: item.output.relativePath, kind: item.output.kind, bytes: item.output.size,
           sha256: item.output.sha256, rows: item.format.rows ?? null,
           columns: item.format.columns ?? null, preview: item.format.text.slice(0, 8_000) })),
         publication: { state: publication.state, undoHandle: publication.undoHandle },
+        ...(committedHandoff ? { outputHandoff: { state: committedHandoff.state,
+          outputCount: committedHandoff.outputs.length } } : {}),
         cleanup: { state: cleaned.removed ? 'cleaned' : 'unknown' },
         confinement: { workspaceOutsideRead: 0, originalWrites: 0,
           userTargetWritesBeforePublication: 0, network: 0, childProcess: 0 } } };

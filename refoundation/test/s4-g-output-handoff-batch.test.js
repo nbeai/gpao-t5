@@ -17,6 +17,10 @@ const attachmentArgs = (overrides = {}) => ({ action: 'register_output', attachm
   resultRelativePath: null, expectedResultJson: null, expectedStdoutIncludes: null,
   operationHandle: null, outputHandle: null, sourceManifestId: null, query: null,
   pageHandles: null, ...overrides });
+const markPublished = (store, prepared, toolCallId) => store.markProducedOutputBatchPublicationVerified({
+  sessionId: SESSION, runId: RUN, toolCallId, batchId: prepared.batchId,
+  publication: { state: 'published_verified', undoHandle: `undo_${toolCallId}` },
+});
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 't5-s4g-handoff-batch-'));
@@ -37,6 +41,7 @@ test('G handoff batch는 다중 postimage 전체를 한 commit으로 durable out
       })) });
     assert.equal(prepared.state, 'prepared'); assert.equal(prepared.outputCount, 2);
     await Promise.all(app.paths.map((path, index) => writeFile(path, app.contents[index])));
+    await markPublished(app.store, prepared, 'exec-g');
 
     const committed = await app.store.commitProducedOutputBatch({ sessionId: SESSION,
       workspace: app.workspace, runId: RUN, toolCallId: 'exec-g', batchId: prepared.batchId });
@@ -60,8 +65,9 @@ test('batch outputHandle은 path authorization이나 모델의 filePath 재구�
     const prepared = await app.store.prepareProducedOutputBatch({ sessionId: SESSION,
       workspace: app.workspace, runId: RUN, toolCallId: 'exec-register', outputs: app.paths.map((filePath, index) => ({
         filePath, expectedSha256: sha(app.contents[index]), expectedBytes: app.contents[index].length,
-      })) });
+    })) });
     await Promise.all(app.paths.map((path, index) => writeFile(path, app.contents[index])));
+    await markPublished(app.store, prepared, 'exec-register');
     const committed = await app.store.commitProducedOutputBatch({ sessionId: SESSION,
       workspace: app.workspace, runId: RUN, toolCallId: 'exec-register', batchId: prepared.batchId });
     const tool = makeAttachmentTool({ store: app.store, sessionId: SESSION,
@@ -81,13 +87,29 @@ test('F 뒤 crash는 successor가 postimage 전량일 때 handoff만 commit한�
     const prepared = await app.store.prepareProducedOutputBatch({ sessionId: SESSION,
       workspace: app.workspace, runId: RUN, toolCallId: 'exec-crash', outputs: app.paths.map((filePath, index) => ({
         filePath, expectedSha256: sha(app.contents[index]), expectedBytes: app.contents[index].length,
-      })) });
+    })) });
     await Promise.all(app.paths.map((path, index) => writeFile(path, app.contents[index])));
+    await markPublished(app.store, prepared, 'exec-crash');
     const successor = new AttachmentStore(app.directory);
     const recovered = await successor.reconcileProducedOutputBatch({ sessionId: SESSION,
       workspace: app.workspace, runId: RUN, toolCallId: 'exec-crash', batchId: prepared.batchId });
     assert.equal(recovered.state, 'committed'); assert.equal(recovered.reconciled, true);
     assert.equal(recovered.outputs.length, 2);
+  } finally { await rm(app.root, { recursive: true, force: true }); }
+});
+
+test('postimage가 모두 맞아도 F verified receipt가 없으면 output identity를 만들지 않는다', async () => {
+  const app = await fixture();
+  try {
+    const prepared = await app.store.prepareProducedOutputBatch({ sessionId: SESSION,
+      workspace: app.workspace, runId: RUN, toolCallId: 'exec-unverified', outputs: app.paths.map((filePath, index) => ({
+        filePath, expectedSha256: sha(app.contents[index]), expectedBytes: app.contents[index].length,
+      })) });
+    await Promise.all(app.paths.map((path, index) => writeFile(path, app.contents[index])));
+    const result = await new AttachmentStore(app.directory).reconcileProducedOutputBatch({ sessionId: SESSION,
+      workspace: app.workspace, runId: RUN, toolCallId: 'exec-unverified', batchId: prepared.batchId });
+    assert.equal(result.state, 'partial_effect_unknown');
+    assert.equal((await app.store.pendingProducedOutputs({ sessionId: SESSION, producerRunId: RUN })).length, 0);
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
 
@@ -127,8 +149,9 @@ test('foreign Session·workspace는 prepared batch를 commit하거나 reconcile�
     const prepared = await app.store.prepareProducedOutputBatch({ sessionId: SESSION,
       workspace: app.workspace, runId: RUN, toolCallId: 'exec-owner', outputs: app.paths.map((filePath, index) => ({
         filePath, expectedSha256: sha(app.contents[index]), expectedBytes: app.contents[index].length,
-      })) });
+    })) });
     await Promise.all(app.paths.map((path, index) => writeFile(path, app.contents[index])));
+    await markPublished(app.store, prepared, 'exec-owner');
     await assert.rejects(app.store.commitProducedOutputBatch({ sessionId: FOREIGN_SESSION,
       workspace: app.workspace, runId: RUN, toolCallId: 'exec-owner', batchId: prepared.batchId }),
     /identity mismatch/u);

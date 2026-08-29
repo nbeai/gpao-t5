@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_G_OUTPUT_HANDOFF_P1_AUDIT_COMPLETE_CAUSE_NOT_UNIQUE · S4_G_DURABLE_BATCH_HANDOFF_CONTRACT_COMPLETE_PRODUCT_INTEGRATION_ZERO · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_PAUSED_AT_FIRST_CRITICAL_MODEL_PROVIDER_FAILURE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
-현재 Gate: `S4-G OUTPUT HANDOFF · SNAPSHOT ADAPTER INTEGRATION NEXT`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_G_OUTPUT_HANDOFF_P1_AUDIT_COMPLETE_CAUSE_NOT_UNIQUE · S4_G_DURABLE_BATCH_HANDOFF_CONTRACT_COMPLETE · S4_G_SNAPSHOT_ADAPTER_BATCH_HANDOFF_COMPLETE_CONSOLE_INTEGRATION_ZERO · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_PAUSED_AT_FIRST_CRITICAL_MODEL_PROVIDER_FAILURE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+현재 Gate: `S4-G PRODUCT ACTIVATION · MODEL-INDEPENDENT EXEC INTEGRATION NEXT`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,15 +55,15 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-G durable batch handoff를 Snapshot adapter의 F publication에 결속하는 단계다.
+2. **현재 Gate**: S4-G Snapshot backend를 기존 Console exec 아래에 모델 독립적으로 결속하는 단계다.
 3. **사용자 완료 문장**: T5는 어떤 모델이 기존 exec로 검증 가능한 작은 프로그램을 작성해도 같은 G 격리·검증·
    발행 계약을 적용하고 결과를 재시도 없이 사용자 Artifact로 전달한다.
 4. **이미 선 실제 증거**: G3~G6 engine, snapshot actual 1회, F publication·Undo·cleanup, 기존 AttachmentStore와
    current output handoff deterministic audit가 있다.
-5. **현재 가장 큰 미달**: 기존 Attachment ledger의 batch prepare·commit·reconcile은 섰지만 Snapshot adapter와
-   Console exec는 아직 이를 호출하지 않는다.
-6. **이번 변경 방식**: candidate output 검증 뒤 batch prepare, F verified 뒤 batch commit, cleanup 전 handle 반환을
-   Snapshot adapter에 결속하고 crash에서는 successor reconcile만 수행한다.
+5. **현재 가장 큰 미달**: Snapshot adapter가 F→batch handle→crash reconcile까지 닫았지만 Console exec는 아직
+   adapter를 호출하지 않고 verified handle을 Artifact로 자동 등록하지 않는다.
+6. **이번 변경 방식**: 업무 의미나 모델 identity가 아니라 exact program bytes·interpreter·cwd·effect target 사실만으로
+   exec backend를 선택하고 verified handle을 기존 Artifact pipeline에 한 번 결속한다.
 7. **Non-goals**: QuickJS/Python 재설계·업무 Router·모델별 activation·전체 exec sandbox화·HQ 모델 실패 수리.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
@@ -824,6 +824,12 @@ commit된 handle은 filePath와 path authorization 없이 기존 `attachment.reg
 등록됐다. foreign Session·workspace도 batch를 commit/reconcile하지 못한다. 집중 검사는 32/32이며 Snapshot
 adapter·Console 제품 integration은 아직 0이다.
 
+Snapshot adapter integration은 candidate output 검증 뒤 batch prepare, F `published_verified` 뒤 durable publication
+receipt, handle batch commit, snapshot cleanup 순서를 결속했다. output마다 F readback과 같은 handle이 반환된다. F 뒤
+handoff 전 crash에서는 successor가 `publication_verified` batch와 postimage를 재검사해 handle만 commit했고 Python·F
+재실행은 0이었다. F verified receipt 없이 postimage만 맞는 경우는 success로 승격하지 않았다. Snapshot adapter
+integration은 완료됐고 Console exec integration은 0이다.
+
 완료 문장:
 
 > T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은 프로그램을 만들고, 고정된
@@ -1094,7 +1100,7 @@ current-head recovery 5/5와 qualification ruler 교정 뒤 제품 구현 0으�
 기존 실제 모델·current product 회귀로 완료했다. S4-L read-only baseline과 false-positive config 교정도 끝났다.
 오너 결정으로 물리 실행만 뒤로 미뤘다. S4-HQ 최소 wave를 고정하고 첫 KHB-A03 pair를 실행했으나 gpt-5.5 성공·
 Terra critical purpose 실패가 갈렸다. 중단선에 따라 KHB-S01과 전체 wave를 열지 않았다. HQ는 이 상태로 보존한다.
-durable multi-output handoff batch contract는 기존 Attachment ledger에서 닫혔다. 현재 다음 한 작업은 candidate 검증 뒤
-prepare→F publication→batch commit→cleanup 순서를 Snapshot adapter에 결속하고 handle 전량을 tool result에 반환하는
-것이다. Console 제품 activation은 이 adapter 통합과 crash 반대시험 뒤에만 연다. Windows deferred가 남아 4차 전체
-완료는 주장하지 않는다.
+durable multi-output handoff batch와 Snapshot adapter의 prepare→F publication→batch commit→cleanup·crash reconcile은
+닫혔다. 현재 다음 한 작업은 모델 identity·업무 Router 없이 exact program execution facts로 기존 Console exec 아래
+Snapshot backend를 선택하고 verified handle을 Artifact로 자동 등록하는 제품 integration이다. Windows deferred가 남아
+4차 전체 완료는 주장하지 않는다.

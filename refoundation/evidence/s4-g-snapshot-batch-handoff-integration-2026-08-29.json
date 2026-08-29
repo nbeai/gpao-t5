@@ -1,0 +1,36 @@
+{
+  "schema": "t5.s4g.snapshot-batch-handoff-integration.v1",
+  "recordedOn": "2026-08-29",
+  "status": "S4_G_SNAPSHOT_ADAPTER_BATCH_HANDOFF_COMPLETE_CONSOLE_INTEGRATION_ZERO",
+  "sourceBaseCommit": "72a6add3",
+  "ordering": [
+    "candidate_outputs_independently_verified",
+    "output_batch_prepared",
+    "F_published_verified",
+    "batch_publication_verified",
+    "output_batch_committed",
+    "snapshot_cleanup"
+  ],
+  "normal": {
+    "samePythonExecutions": 1,
+    "FPublications": 1,
+    "verifiedOutputs": 2,
+    "outputHandles": 2,
+    "handleHashMatchesFReadback": true
+  },
+  "crash": {
+    "point": "after_F_verified_before_batch_commit",
+    "successorReconciled": true,
+    "pythonReexecutions": 0,
+    "FRepublications": 0,
+    "duplicateHandles": 0
+  },
+  "truthBoundary": {
+    "postimageWithoutFVerifiedReceiptAccepted": false,
+    "partialHandles": 0,
+    "actualReadSet": "UNKNOWN_BY_DESIGN"
+  },
+  "focusedVerification": { "passed": 15, "failed": 0 },
+  "productIntegration": { "consoleExec": 0, "modelCallsChanged": 0, "toolSchemaChanged": false },
+  "next": "model-independent existing Console exec integration"
+}
