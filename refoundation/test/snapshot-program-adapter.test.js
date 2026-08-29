@@ -250,3 +250,18 @@ test('일반 exec·일반 heredoc·다른 cwd는 snapshot backend에 들어가�
     }
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
+
+test('XLSX·DOCX·ZIP 같은 opaque binary publication은 text Capsule로 가로채지 않는다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-snapshot-binary-nonentry-'));
+  try {
+    const workspace = join(root, 'workspace'); await mkdir(workspace);
+    const adapter = makeSnapshotProgramAdapter({ workspace, snapshotRoot: join(root, 'snapshots'),
+      scratchRoot: join(root, 'scratch'), sessionId: SESSION, workId: WORK, revision: 1,
+      processRegistry: new ManagedProcessRegistry({ platform: process.platform }),
+      workspacePatchTool: makeWorkspacePatchTool({ workspace, stateRoot: join(root, 'authoring'), sessionId: SESSION }) });
+    const explanation = await explainShellCommand("python3 -c 'print(1)' && t5-document create-xlsx");
+    const result = await adapter.execute({ args: { effect: { kind: 'local_change',
+      targets: ['result.xlsx', 'guide.docx', 'bundle.zip'] } }, commandExplanation: explanation, cwd: workspace });
+    assert.equal(result, null);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

@@ -17,6 +17,8 @@ function inside(candidate, root) { const value = relative(root, candidate); retu
 
 function kindFor(path) {
   const extension = extname(path).toLowerCase();
+  if (['.xlsx', '.xls', '.docx', '.doc', '.pdf', '.zip', '.png', '.jpg', '.jpeg', '.gif', '.webp',
+    '.mp3', '.mp4', '.mov', '.wav'].includes(extension)) return null;
   return extension === '.csv' ? 'text/csv' : extension === '.json' ? 'application/json' : 'text/plain';
 }
 
@@ -97,6 +99,7 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
       if (args?.effect?.kind !== 'local_change' || !Array.isArray(args.effect.targets)
         || !args.effect.targets.length || commandExplanation?.ok !== true
         || commandExplanation.hasParseError || !commandExplanation.steps?.length) return null;
+      if (args.effect.targets.some((target) => kindFor(String(target)) == null)) return null;
       const observedInterpreter = await interpreter();
       const pythonSteps = [];
       for (const step of commandExplanation.steps) {
