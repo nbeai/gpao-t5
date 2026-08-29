@@ -1,6 +1,6 @@
 # T5 Fifth Completion — Android Judgment & Context Runtime
 
-상태: `FIFTH_COMPLETION_ACTIVE · CJ0_CJ2_COMPLETE · CJ3_EVIDENCE_PROJECTION_OPEN`
+상태: `FIFTH_COMPLETION_ACTIVE · CJ0_CJ3_COMPLETE · CJ4_CAPABILITY_JUDGMENT_OPEN`
 4차 귀환 기준: `fe51c8c5 · FOURTH_COMPLETION_COMPLETE_MACOS_PRODUCT_SCOPE`
 4차 release-only 후속선: `8c2a3b05 · 0.4.0 packaging lineage · 설치 자격 진행과 5차 개발은 분리`
 5차 구현 기준·branch·worktree: `fe51c8c5 · codex/t5-fifth-context-judgment-plan · /Users/jyp/Developer/t5-fifth-plan`
@@ -572,6 +572,24 @@ control은 유지하고 실제 precision·recall 실패가 있는 축만 후보�
 
 > T5는 사용자를 기억하지만 매 순간 모든 기억을 말하지 않고, 현재 선택을 실제로 바꾸는 기억과 대화만
 > 정확한 출처·현재성·scope로 사용한다.
+
+CJ3 actual은 새 Memory·RAG·Store 없이 기존 구조를 현재 제품 계약으로 재자격했다. 오래된 assistant·Tool 구간은
+기본 Context에서 bounded handle로 바뀌고 사용자 원문·교정은 inline으로 남는다. Memory content는 자동 주입되지
+않고 content-free subject·temporal pointer에서 모델이 선택한 claim만 exact source reopen 뒤 공급된다.
+
+- Terra 78만 자 격리 대화: 지속 사실 2개 선택, 일회성·해결된 오류·assistant 추정·비밀 4개 제외
+- checkpoint의 provenance 없는 자동 Memory write: 0, 의도된 `memory_flush_skipped`
+- gpt-5.5 현재/과거 Memory: 2/2 exact source reopen, 외부 쓰기 0
+- 최신 사용자 교정·private channel scope·natural remember/correct/read/retract/restore: 무회귀
+- Conversation·Memory·purpose-history 집중 검사: 19/19
+- 제품 source 변경: 0
+
+처음 live runner의 FAIL은 구형 `memory.items`와 폐기된 자동 flush 완료를 요구한 oracle 결함이었다. 이를 제품
+성공으로 덮지 않고, long-conversation 선택과 durable temporal Memory 자격을 분리하고 설치 제품과 같은 Keychain
+연결·현재 temporal surface를 읽도록 runner만 교정했다. 임의의 대화를 자동으로 장기 Memory에 승격했다는 주장은
+하지 않는다.
+
+근거: `refoundation/evidence/fifth-cj3-relevant-memory-conversation-2026-08-30.json`.
 
 ---
 

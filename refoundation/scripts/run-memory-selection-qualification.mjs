@@ -8,6 +8,7 @@ import { makeConsoleModelAccess } from '../src/console-model-factory.js';
 import { makeConsoleServer } from '../src/console-server.js';
 import { ConsoleSessionStore } from '../src/console-session-store.js';
 import { ConversationLedger } from '../src/conversation-ledger.js';
+import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 
 const keep = process.argv.includes('--keep');
 const modelIndex = process.argv.indexOf('--model-id');
@@ -87,6 +88,9 @@ async function turn(base, sessionId, text) {
     ? await fetch(`${base}/runs/${surface.runId}`).then((result) => result.json()) : null;
   const modelEvents = run?.events?.filter((event) => event.type === 'model_completed') ?? [];
   const toolEvents = run?.events?.filter((event) => event.type === 'tool_completed') ?? [];
+  const memoryFlushEvent = run?.events?.find((event) => (
+    ['memory_flush_completed', 'memory_flush_skipped', 'memory_flush_failed'].includes(event.type)
+  )) ?? null;
   const usage = modelEvents.reduce((sum, event) => ({ inputTokens: sum.inputTokens
     + Number(event.payload?.response?.usage?.input_tokens ?? 0), outputTokens: sum.outputTokens
     + Number(event.payload?.response?.usage?.output_tokens ?? 0), totalTokens: sum.totalTokens
@@ -96,7 +100,8 @@ async function turn(base, sessionId, text) {
     httpStatus: response.status, runId: surface.runId ?? null,
     runStatus: run?.status ?? 'unknown', answer: String(surface.reply ?? ''),
     checkpointCompleted: run?.events?.some((event) => event.type === 'checkpoint_completed') ?? false,
-    memoryFlushCompleted: run?.events?.some((event) => event.type === 'memory_flush_completed') ?? false,
+    memoryFlushState: memoryFlushEvent?.type?.replace('memory_flush_', '') ?? 'not_required',
+    memoryFlushReason: memoryFlushEvent?.payload?.reason ?? null,
     memoryToolCalls: run?.events?.filter((event) => (
       event.type === 'tool_completed' && event.payload?.receipt?.requestedCall?.name === 'memory'
     )).length ?? null,
@@ -115,7 +120,8 @@ if (requestedModelId) {
 }
 const previousHome = process.env.T5_REFOUNDATION_HOME;
 process.env.T5_REFOUNDATION_HOME = isolatedHome;
-const access = makeConsoleModelAccess({ connectionFile, stateDir });
+const access = makeConsoleModelAccess({ connectionFile, stateDir,
+  secretStore: makePlatformSecretStore({ platform: process.platform }) });
 const computerEnvironment = discoverComputerEnvironment({ userHome: workspace });
 const server = makeConsoleServer({
   stateDir, workspace, memoryFlushMode: 'pre-checkpoint-v0',
@@ -136,36 +142,29 @@ try {
     '내가 명시한 장기 선호 코드와 지속할 작업 결정 코드만 정확히 말해.',
   ].join(' '));
   const memory = await fetch(`${base}/memory/state`).then((response) => response.json());
-  const stored = memory.items.map((item) => item.content).join('\n');
+  const storedRecords = [
+    ...(memory.current ?? []).map((item) => ({ kind: item.kind, content: item.value,
+      state: 'current', sourceCount: item.sources?.length ?? 0 })),
+    ...(memory.legacy ?? []).map((item) => ({ kind: item.kind, content: item.value,
+      state: 'legacy', sourceCount: null })),
+  ];
   selection.passed = selection.httpStatus === 200 && selection.runStatus === 'completed'
-    && selection.checkpointCompleted && selection.memoryFlushCompleted
-    && keepCodes.every((code) => stored.includes(code))
-    && rejectCodes.every((code) => !stored.includes(code));
-
-  const recallSession = await sessions.create();
-  const recall = await turn(base, recallSession.id,
-    '내가 명시한 평소 답변 첫 줄 선호 코드를 기억에서 확인해서 정확히 말해.');
-  recall.passed = recall.httpStatus === 200 && recall.runStatus === 'completed'
-    && recall.memoryToolCalls >= 1 && recall.answer.includes('SAFE-PREF-7391')
-    && rejectCodes.every((code) => !recall.answer.includes(code));
-
-  const conflictSession = await sessions.create();
-  const conflict = await turn(base, conflictSession.id, [
-    '저장된 평소 답변 선호는 이번 요청에 적용하지 마.',
-    '이번 답은 CURRENT-WINS-7733만 정확히 써.',
-  ].join(' '));
-  conflict.passed = conflict.httpStatus === 200 && conflict.runStatus === 'completed'
-    && conflict.answer.trim() === 'CURRENT-WINS-7733'
-    && !conflict.answer.includes('SAFE-PREF-7391');
+    && selection.checkpointCompleted
+    && keepCodes.every((code) => selection.answer.includes(code))
+    && rejectCodes.every((code) => !selection.answer.includes(code))
+    && selection.memoryFlushState === 'skipped'
+    && selection.memoryFlushReason === 'record_provenance_and_sensitivity_required'
+    && storedRecords.length === 0;
 
   const result = {
     schema: 't5.memory-selection-qualification.v1', recordedAt: new Date().toISOString(),
     model: (await access.status()).modelId, actualUserData: false,
     sourceSessionId: source.id, seededConversationChars: 780000,
     expectedStoredCodes: keepCodes, expectedRejectedCodes: rejectCodes,
-    storedItems: memory.items.map((item) => ({ kind: item.kind, content: item.content })),
-    selection, recall, conflict,
-    passed: selection.passed && recall.passed && conflict.passed,
+    storedItems: storedRecords,
+    selection,
+    durableMemoryQualification: 'run-s3m4-temporal-recall-sample.mjs',
+    passed: selection.passed,
     room: keep ? room : null,
   };
   console.log(JSON.stringify(result, null, 2));

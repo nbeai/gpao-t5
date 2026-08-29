@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "gate": "CJ3_RELEVANT_MEMORY_AND_CONVERSATION",
+  "status": "COMPLETE",
+  "baselineCommit": "fa9bab37",
+  "productSourceChanges": 0,
+  "qualificationRunnerChangesOnly": true,
+  "existingProductContract": {
+    "conversation": "all user messages and corrections remain inline; old assistant/tool spans become bounded exact-reopen handles",
+    "memory": "content-free subject and temporal candidates; selected claim content appears only after exact source reopen",
+    "scope": "private temporal sources do not cross channels",
+    "authority": "current user correction wins over stored or historical meaning",
+    "automaticCheckpointMemoryWrites": false,
+    "automaticCheckpointMemoryWriteReason": "record_provenance_and_sensitivity_required"
+  },
+  "terraLongConversationObservation": {
+    "model": "gpt-5.6-terra",
+    "actualUserData": false,
+    "seededConversationChars": 780000,
+    "runId": "3dff5485-2d34-416a-9fc7-111c53d49563",
+    "checkpointCompleted": true,
+    "selectedRequiredFacts": ["SAFE-PREF-7391", "WORK-DECISION-4488"],
+    "excludedFacts": ["ONCE-ONLY-8426", "TEMP-ERROR-5521", "SPECULATION-6612", "SECRET-9911"],
+    "modelCalls": 9,
+    "toolCalls": 0,
+    "totalTokens": 245569,
+    "wallMs": 52871.967,
+    "unverifiedAutomaticMemoryWrites": 0,
+    "originalRunnerStatus": "FAIL_STALE_PRE_TEMPORAL_ORACLE",
+    "recalculatedCurrentContractStatus": "PASS"
+  },
+  "gpt55ExactRecall": {
+    "model": "gpt-5.5",
+    "secretReferenceOnly": true,
+    "isolatedState": true,
+    "externalWrites": 0,
+    "cases": [
+      {
+        "id": "current",
+        "status": "PASS",
+        "sourceReopened": true,
+        "wallMs": 10911.460417,
+        "requestBytes": 188245,
+        "tokens": 35196
+      },
+      {
+        "id": "historical",
+        "status": "PASS",
+        "sourceReopened": true,
+        "wallMs": 9899.261709,
+        "requestBytes": 192574,
+        "tokens": 35270
+      }
+    ]
+  },
+  "deterministicCountertests": {
+    "tests": 19,
+    "passed": 19,
+    "failed": 0,
+    "covered": [
+      "all user corrections retained and old assistant/tool spans omitted behind handles",
+      "temporal current, historical, and unknown remain distinct",
+      "different-channel private memory is absent",
+      "natural remember, correct, read, retract, restore, and new-Session continuity",
+      "memory read fails closed unless every source reopens exactly",
+      "purpose history search exposes bounded candidates and reopens only selected sources"
+    ]
+  },
+  "runnerCorrections": [
+    "use the same platform secret store as the installed product",
+    "read temporal current and legacy surfaces instead of only legacy memory.items",
+    "treat provenance-safe checkpoint write skipping as the current contract",
+    "separate long-conversation selection from durable temporal source-reopen qualification"
+  ],
+  "nonClaims": [
+    "T5 silently promotes arbitrary long-conversation summaries into durable Memory",
+    "the model read every historical message in a single provider request",
+    "provider-local continuation is canonical Memory",
+    "all Context bytes are already optimized"
+  ],
+  "completionSentence": "T5는 오래된 assistant와 Tool 본문을 기본 Context에서 빼면서 사용자 원문과 교정을 보존하고, 현재 선택에 필요한 Memory만 scope와 시간 상태가 있는 pointer에서 exact source reopen으로 사용한다.",
+  "nextGate": "CJ4_CAPABILITY_JUDGMENT_AND_TOOL_ECONOMY"
+}
