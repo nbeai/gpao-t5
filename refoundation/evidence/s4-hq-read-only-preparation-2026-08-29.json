@@ -1,0 +1,51 @@
+{
+  "schema": "t5.s4hq.read-only-preparation.v1",
+  "recordedOn": "2026-08-29",
+  "status": "S4_HQ_READ_ONLY_PREPARATION_COMPLETE_EXECUTION_NOT_STARTED",
+  "sourceBaseCommit": "8618cf55",
+  "productChanges": 0,
+  "windows": {
+    "status": "DEFERRED_NOT_WAIVED_OWNER_DECISION",
+    "allowsMacosHqExecution": true,
+    "allowsFourthCompletion": false
+  },
+  "reusedActualEvidence": {
+    "s3Hq": "refoundation/evidence/s3-hq-human-reality-close-2026-08-27.json",
+    "developerWave": "6/6",
+    "preTesterWave": "16/16",
+    "providerPair": ["gpt-5.6-terra", "gpt-5.5"]
+  },
+  "minimumCurrentHeadWave": [
+    { "id": "KHB-A03", "lane": "business_discovery_reconciliation", "reason": "S4-C and S4-H carry-forward" },
+    { "id": "KHB-S01", "lane": "business_absence_economy", "reason": "S4-C false-absence and unnecessary-connection carry-forward" },
+    { "id": "KHB-M05", "lane": "business_positive_control", "reason": "known reconciliation success" },
+    { "id": "S4-G-BUSINESS", "lane": "program_composition", "reason": "natural Python path, verification, publication, and economy" },
+    { "id": "HP-01", "lane": "personal_file", "reason": "discovery, OCR, target preservation, and cross-source join" },
+    { "id": "KHB-E02", "lane": "capability_gap", "reason": "honest current capability and minimum alternative" },
+    { "id": "S4-D4", "lane": "long_execution_recovery", "reason": "output, cancel, crash, successor settlement, and no blind retry" },
+    { "id": "S4-E7", "lane": "risk_boundary", "reason": "declared-target confinement, partial effect truth, and rollback" }
+  ],
+  "comparisonContract": {
+    "candidate": "current S4 head",
+    "baseline": "t5-0.3.1-clean-baseline",
+    "samePurposeFixtureToolsAuthority": true,
+    "fixedModelsAtExecution": ["gpt-5.6-terra", "gpt-5.5"],
+    "promptPatchPerModel": false,
+    "qualitySafetyAbsolute": true,
+    "economyParetoMeasured": true
+  },
+  "execution": {
+    "currentHeadActualProviderRuns": 0,
+    "comparisonRuns": 0,
+    "humanReviewRuns": 0,
+    "reason": "preparation only; actual model and human runs require a human-controlled isolated qualification session"
+  },
+  "verification": { "passed": 1785, "failed": 0, "skipped": 1 },
+  "stopLines": [
+    "stop expansion at the first critical purpose failure",
+    "do not add model-specific prompts or business schemas",
+    "do not turn S4-C model quality observations into runtime metadata patches",
+    "do not claim S4-HQ or fourth completion while Windows remains deferred"
+  ],
+  "nextOneTask": "run the first current-head KHB-A03 and KHB-S01 human-controlled pair before opening the full minimum wave"
+}

@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_L_BASELINE_COMPLETE_PHYSICAL_X64_ARM64_QUALIFICATION_REQUIRED · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
-현재 Gate: `S4-L WINDOWS PHYSICAL QUALIFICATION · PHYSICAL ENVIRONMENT REQUIRED`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_READ_ONLY_PREPARATION · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+현재 Gate: `S4-HQ HUMAN SCENARIOS·COMPARISON A/B · READ-ONLY PREPARATION`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,15 +55,14 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-L Windows physical qualification의 read-only baseline이다.
-3. **사용자 완료 문장**: 같은 T5 머리와 사용자 약속이 macOS와 Windows의 실제 OS 손에서 각각 성립한다.
-4. **이미 선 실제 증거**: Windows x64·ARM64 package contract, direct argv, ConPTY, Job Object, DPAPI, file/app helper,
-   CI runner와 deferred physical manifest가 있다.
-5. **현재 가장 큰 미달**: GitHub runner·source contract는 있지만 실제 Windows x64·ARM64 사용자 제품 여정은 아직
-   물리 자격되지 않았다.
-6. **이번 변경 방식**: 제품 변경 0에서 기존 Windows evidence·runner·deferred manifest를 전부 대조해 실제 장비에서
-   실행 가능한 범위와 현재 blocker를 먼저 고정한다.
-7. **Non-goals**: macOS 성공·Linux/WSL·emulation을 Windows PASS로 승격, 새 Windows 기능 구현, UI 재설계.
+2. **현재 Gate**: S4-HQ human scenarios·comparison A/B의 read-only preparation이다.
+3. **사용자 완료 문장**: 이 문서 1절의 4차 최종 완료 문장 전체다.
+4. **이미 선 실제 증거**: S3-HQ 6·16 실제 wave, S4-B~I·UX의 current evidence, S4-C·G·H carry-forward,
+   deterministic 인간 fixture와 비교 측정기가 있다.
+5. **현재 가장 큰 미달**: current head에서 Terra·gpt-5.5 exact pair와 비교군을 같은 목적·도구·권한으로 실행한
+   최종 인간 결과가 없고, S4-C의 A03·S01과 G activation·H cross-source join이 아직 최종 재검증되지 않았다.
+6. **이번 변경 방식**: 제품 변경 0에서 기존 fixture·oracle을 우선 재사용해 최소 HQ wave와 중단선을 먼저 고정한다.
+7. **Non-goals**: 새 대형 fixture·Prompt patch·업무 Router·새 기능 구현·Windows deferred를 PASS로 승격.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -990,6 +989,9 @@ NTFS 경계, 두 실제 모델, 사람 UI, signed installer journey는 모두 �
 `isolatedVmMachinePass=true`와 `windowsRuntimeComplete=true`는 이 증거와 모순돼 false로 교정했다. 제품 변경은 0이다.
 실제 x64·ARM64 격리 환경이 제공되기 전에는 S4-L PASS나 S4-HQ 개통을 주장하지 않는다.
 
+오너 결정으로 Windows 물리 자격은 뒤로 미뤘다. S4-L은 `DEFERRED_NOT_WAIVED`이며 완료가 아니다. 이 결정은
+S4-HQ의 macOS current-head 준비와 실행을 열지만 Windows 완료나 4차 전체 완료를 허용하지 않는다.
+
 완료 문장:
 
 > 같은 T5 머리와 사용자 약속이 macOS와 Windows의 실제 OS 손에서 각각 성립한다.
@@ -1066,5 +1068,6 @@ engine COMPLETE·product activation CLOSED_WITH_OBSERVATION·further development
 current-head recovery 5/5와 qualification ruler 교정 뒤 제품 구현 0으로 완료했다. J는 미래 연구, K는 cross-cutting
 사실로 유지한다. S4-UX는 grounded progress·recoverable result 공개 경계·canonical 대화/Artifact 시간을 수리하고
 기존 실제 모델·current product 회귀로 완료했다. S4-L read-only baseline과 false-positive config 교정도 끝났다.
-현재 다음 한 작업은 오너가 제공한 격리 Windows x64·ARM64 환경에서 deferred manifest의 실제 물리 자격을 실행하는
-것이다. 그 전에는 제품 코드를 더 붙이거나 S4-HQ로 이동하지 않는다.
+오너 결정으로 물리 실행만 뒤로 미뤘다. 현재 다음 한 작업은 S4-HQ read-only preparation이다. 기존 시나리오·
+oracle·비교 증거를 재사용해 current-head 최소 wave를 고정하고 제품 변경 없이 최초 미달이 재현될 때만 해당 결함
+가족을 연다. Windows deferred가 남은 동안 4차 전체 완료는 주장하지 않는다.
