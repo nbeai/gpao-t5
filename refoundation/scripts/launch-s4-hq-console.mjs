@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
@@ -17,7 +17,7 @@ import { resolveTerminalShellEnvironment } from '../src/terminal-shell-environme
 import { makeTerminalPlatformAdapter } from '../src/terminal-platform-adapter.js';
 
 const option = (name) => { const index = process.argv.indexOf(name); return index < 0 ? null : process.argv[index + 1]; };
-const root = resolve(option('--root') ?? '');
+const root = await realpath(resolve(option('--root') ?? ''));
 if (!root) throw new TypeError('--root is required');
 const home = join(root, 'home'); const stateDir = join(root, 'state'); const workspace = join(root, 'workspace');
 const control = join(root, 'control'); await Promise.all([home, stateDir, workspace, control]
