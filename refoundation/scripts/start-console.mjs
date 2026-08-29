@@ -76,6 +76,7 @@ const terminalEnvironment = await resolveTerminalShellEnvironment({
 const connectionFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
   ?? windowsProduct?.connectionFile ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
 const githubCli = await findExecutable('gh', terminalEnvironment.PATH ?? '');
+const cloudflaredCli = await findExecutable('cloudflared', terminalEnvironment.PATH ?? '');
 const localSyncCapability = makeLocalSyncCapability({
   platform: computerEnvironment.platform, home: homedir(), env: process.env,
 });
@@ -98,7 +99,7 @@ const terminalPlatformAdapter = await makeTerminalPlatformAdapter({
   platform: computerEnvironment.platform,
   managedWorkspace: workspace,
   protectedReadRoots: protectedTerminalReadRoots,
-  protectedExecutableNames: githubCli ? ['gh'] : [],
+  protectedExecutableNames: [githubCli ? 'gh' : null, cloudflaredCli ? 'cloudflared' : null].filter(Boolean),
 });
 const terminalCredentialBroker = makeTerminalCredentialBroker({
   registrations: githubCli ? [makeGitHubCliRegistration(githubCli)] : [],
@@ -248,6 +249,7 @@ const server = makeConsoleServer({
   processRegistry,
   webSearchProviders,
   webReadOptions: { urlResolvers: [naverReadableUrlResolver] },
+  quickPreviewProgram: cloudflaredCli,
   videoTextFetchImpl: globalThis.fetch,
   workspaceConnectionServices,
   messengerCredentialStore,

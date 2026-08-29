@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -55,8 +55,15 @@ test('제품 entry는 발견된 GitHub CLI 등록을 Terminal broker에 주입�
   ));
   assert.match(source, /findExecutable\('gh', terminalEnvironment\.PATH/u);
   assert.match(source, /makeGitHubCliRegistration\(githubCli\)/u);
-  assert.match(source, /protectedExecutableNames: githubCli \? \['gh'\] : \[\]/u);
+  assert.match(source, /protectedExecutableNames: \[githubCli \? 'gh' : null, cloudflaredCli \? 'cloudflared' : null\]\.filter\(Boolean\)/u);
   assert.match(source, /terminalCredentialBroker,/u);
+});
+
+test('제품 entry는 설치된 cloudflared만 Quick Preview에 연결하고 일반 PATH 실행은 보호한다', async () => {
+  const source = await readFile(new URL('../scripts/start-console.mjs', import.meta.url), 'utf8');
+  assert.match(source, /findExecutable\('cloudflared'/u);
+  assert.match(source, /quickPreviewProgram: cloudflaredCli/u);
+  assert.match(source, /cloudflaredCli \? 'cloudflared' : null/u);
 });
 
 test('macOS 일반 shell의 command·절대경로 gh는 막히고 broker direct argv만 실행된다', async (context) => {

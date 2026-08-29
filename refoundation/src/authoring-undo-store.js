@@ -15,12 +15,18 @@ export class AuthoringUndoStore {
   async ensure() { await mkdir(this.directory, { recursive: true, mode: 0o700 }); await chmod(this.directory, 0o700); }
   path(handle, suffix = 'ready') { return join(this.directory, `${safe(handle)}.${suffix}.json`); }
   async save({ sessionId, settlement }) {
-    await this.ensure(); const handle = `undo_${String(this.makeId()).replaceAll('-', '_')}`;
     const transaction = settlement.verification.transaction;
     const targets = transaction.applied.map((item) => ({ pointer: item.pointer,
       expectedPostimage: item.expectedPostimage }));
+    return this.saveTargets({ sessionId, planId: transaction.admission.prepared.plan.planId, targets });
+  }
+  async saveTargets({ sessionId, planId, targets }) {
+    if (!Array.isArray(targets) || !targets.length || targets.length > 32) {
+      throw new TypeError('authoring undo targets are invalid');
+    }
+    await this.ensure(); const handle = `undo_${String(this.makeId()).replaceAll('-', '_')}`;
     const manifest = { schema: 't5.authoring-undo.v1', handle, sessionId, state: 'ready',
-      planId: transaction.admission.prepared.plan.planId, targets,
+      planId: String(planId ?? 'external_local_change'), targets,
       createdAt: new Date().toISOString() };
     const temporary = this.path(handle, `tmp_${process.pid}_${randomUUID()}`);
     await writeFile(temporary, JSON.stringify(manifest), { mode: 0o600 });

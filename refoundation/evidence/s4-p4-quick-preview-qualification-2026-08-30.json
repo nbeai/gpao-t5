@@ -1,0 +1,53 @@
+{
+  "schema": "t5.s4p4.quick-preview-qualification.v1",
+  "recordedAt": "2026-08-30T00:45:00+09:00",
+  "status": "S4_P4_COMPLETE_CONDITIONAL_EXISTING_OFFICIAL_CLI",
+  "provider": "Cloudflare Quick Tunnel",
+  "officialSources": [
+    "https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/",
+    "https://developers.cloudflare.com/workers/local-development/local-dev-tunnels/"
+  ],
+  "productContract": {
+    "automaticInstall": false,
+    "accountRequired": false,
+    "domainRequired": false,
+    "origin": "exact_localhost_http_url",
+    "externalEffect": "external_send",
+    "providerAcceptance": "one_exact_trycloudflare_url_observed_from_managed_process",
+    "urlReopenRequired": true,
+    "browserSmokeActivated": true,
+    "processOwned": true,
+    "stopEndsPreview": true,
+    "production": false,
+    "stableUrl": false,
+    "sla": false,
+    "billingObserved": false,
+    "documentedTier": "free_quick_tunnel",
+    "limitations": { "maxConcurrentRequests": 200, "serverSentEvents": false }
+  },
+  "qualification": {
+    "fakeOfficialCli": true,
+    "loopbackOrigin": true,
+    "actualExternalAccount": false,
+    "actualExternalWrite": false,
+    "startUrlReopenStopPassed": true,
+    "naturalLanguageOnDemandPassed": true,
+    "missingCliHonestyPassed": true,
+    "secretInArgs": false,
+    "blindRestart": false
+  },
+  "ownerHost": {
+    "cloudflaredInstalled": false,
+    "actualPublicUrlRun": false,
+    "reason": "existing_official_preview_cli_unavailable"
+  },
+  "nonClaims": [
+    "production hosting",
+    "stable public URL",
+    "Cloudflare account connection",
+    "SLA or measured billing",
+    "all hosting providers",
+    "physical Windows quick tunnel"
+  ],
+  "next": "S4-P5 continuity, handoff and rework closeout"
+}

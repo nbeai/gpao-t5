@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { observePublicationPreimage, publishAtomicFile } from '../src/atomic-file-publication.js';
-import { createExactTargetRollbackPointer, restoreExactTargetRollback } from '../src/exact-target-rollback.js';
+import { createExactTargetRollbackPointer, discardExactTargetRollbackPointer,
+  restoreExactTargetRollback } from '../src/exact-target-rollback.js';
 
 test('exact rollback pointer는 기존 target 하나의 bytes·digest·mode만 복원한다', async () => {
   const root = await mkdtemp(join(tmpdir(), 't5-exact-rollback-')); const target = join(root, 'target.txt');
@@ -26,6 +27,16 @@ test('새 target rollback은 exact postimage일 때만 생성 파일을 제거�
     assert.equal((await restoreExactTargetRollback({ pointer, expectedPostimage: published.postimage })).state,
       'removed_created_target');
     assert.equal(await observePublicationPreimage(target), null);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('변경되지 않은 target의 unused rollback backup은 물리 정리된다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-exact-discard-')); const target = join(root, 'target.txt');
+  try {
+    await writeFile(target, 'old'); const pointer = await createExactTargetRollbackPointer({
+      target, rollbackRoot: join(root, 'rollback') });
+    assert.equal((await discardExactTargetRollbackPointer(pointer)).state, 'discarded');
+    await assert.rejects(() => readFile(join(pointer.rollbackRoot, pointer.backupName)), { code: 'ENOENT' });
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

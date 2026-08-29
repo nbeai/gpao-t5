@@ -136,7 +136,8 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
         return failed('declared_output_duplicated');
       }
       let snapshot;
-      try { ({ snapshot } = await createSnapshot({ workspace, snapshotRoot })); }
+      try { ({ snapshot } = await createSnapshot({ workspace, snapshotRoot,
+        excludeTopLevelNames: ['.git'] })); }
       catch { return failed('snapshot_generation_failed'); }
       const cleanup = async () => removeSnapshot(snapshot).catch(() => ({ removed: false }));
       try {
@@ -213,7 +214,10 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
         actualExecutions: 1, sourceSha256, executionBackend: simplePython ? 'python_exact' : 'snapshot_shell_exact',
         sourceUniverse: { coverage: 'complete', immutableGeneration: true,
           filesAndDigestsVerified: true, fileCount: snapshot.files.length,
-          manifestSha256: snapshot.manifestSha256 },
+          manifestSha256: snapshot.manifestSha256,
+          ...(snapshot.excludedTopLevelNames?.length ? {
+            excludedTopLevelNames: [...snapshot.excludedTopLevelNames],
+          } : {}) },
         actualReadSet: { state: 'unknown' }, outputCoverage: { independentlyVerified: true,
           outputCount: observed.length }, outputs: observed.map((item) => ({
           relativePath: item.output.relativePath, kind: item.output.kind, bytes: item.output.size,

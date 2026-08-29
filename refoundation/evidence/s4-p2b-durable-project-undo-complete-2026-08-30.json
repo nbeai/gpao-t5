@@ -1,0 +1,267 @@
+{
+  "schema": "t5.s4p0b.existing-project-baseline.v1",
+  "recordedAt": "2026-08-29T15:17:16.869Z",
+  "sourceHead": "300d1347785ee06be93b37e88191c758cb8175e3",
+  "productChanges": 1,
+  "actualUserData": false,
+  "actualExternalAccount": false,
+  "model": "gpt-5.5",
+  "checks": {
+    "baselineFailed": true,
+    "firstTurnCompleted": true,
+    "sourceFixed": true,
+    "testsPassedAfterFix": true,
+    "userDirtyPreservedAfterFix": true,
+    "browserNavigated": true,
+    "browserClickedNext": true,
+    "browserObservedStep2": true,
+    "undoHandleCreated": true,
+    "secondTurnCompleted": true,
+    "durableRollbackUsed": true,
+    "sourceExactRestored": true,
+    "userDirtyPreservedAfterUndo": true,
+    "originalFailureRestored": true,
+    "runtimeErrorsZero": true,
+    "managedProcessStopped": true
+  },
+  "firstDefectFamily": null,
+  "purposePassed": true,
+  "firstTurn": {
+    "prompt": "이 프로젝트의 온보딩 화면에서 다음 버튼을 눌러도 첫 단계에 머물러 있어. 원인을 찾아 고치고 전체 테스트를 실행한 뒤 실제 로컬 화면에서 다음 버튼을 눌러 단계 2로 바뀌는지 확인해줘. 내가 이미 바꿔둔 배경색은 유지하고 다른 파일을 불필요하게 바꾸지 마. 수정은 나중에 되돌릴 수 있게 하고 외부에는 공개하지 마.",
+    "answer": "완료했어.\n\n- 원인: `src/onboarding.js`의 `nextStep()`이 `Math.min(current, 3)`이라서 현재 단계가 그대로 반환되고 있었음.\n- 수정: `Math.min(current + 1, 3)`으로 바꿔서 1→2→3까지만 진행되게 고쳤어.\n- 테스트: `npm test` 전체 실행 결과 통과.\n  - 1개 테스트, 1개 통과, 실패 0개\n- 실제 로컬 화면 확인:\n  - 로컬 서버로 `http://127.0.0.1:4183/public/index.html`을 열고\n  - “다음” 버튼을 실제로 클릭한 뒤\n  - 화면 텍스트가 `온보딩 단계 2`로 바뀐 것을 확인했어.\n- 배경색:\n  - 네가 이미 바꿔둔 `public/theme.css`의 `background:#f5e6c8`는 그대로 유지했어.\n  - T5가 새로 수정한 파일은 `src/onboarding.js`뿐이야.\n- 되돌리기:\n  - 이번 수정은 Git diff로 남아 있어서 `src/onboarding.js`만 되돌릴 수 있어.\n- 외부 공개:\n  - 외부로 배포하거나 전송하지 않았고, 로컬에서만 확인했어.",
+    "performance": {
+      "wallMs": 90132,
+      "modelCalls": 17,
+      "toolCalls": 16,
+      "providerTokens": 341812,
+      "requestBytes": 1624302
+    },
+    "route": [
+      {
+        "name": "exec",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "completed",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "exec",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "completed",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "exec",
+        "action": null,
+        "outcome": "failed",
+        "state": "failed",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "exec",
+        "action": null,
+        "outcome": "failed",
+        "state": null,
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "exec",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "published_verified_cleaned",
+        "hasUndoHandle": true,
+        "activatedTools": []
+      },
+      {
+        "name": "exec",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "completed",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "tool_search",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "no_match",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "tool_search",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "activated",
+        "hasUndoHandle": false,
+        "activatedTools": [
+          "terminal_session"
+        ]
+      },
+      {
+        "name": "terminal_session",
+        "action": "start",
+        "outcome": "succeeded",
+        "state": "running",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "web_read",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "dynamic_required",
+        "hasUndoHandle": false,
+        "activatedTools": [
+          "browser"
+        ]
+      },
+      {
+        "name": "browser",
+        "action": "navigate",
+        "outcome": "succeeded",
+        "state": "observed",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "browser",
+        "action": "click",
+        "outcome": "succeeded",
+        "state": "acted",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "browser",
+        "action": "snapshot",
+        "outcome": "succeeded",
+        "state": "observed",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "terminal_session",
+        "action": "stop",
+        "outcome": "succeeded",
+        "state": "stopped",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "exec",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "completed",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "work_completion",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "proposal_recorded",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      }
+    ],
+    "browser": [
+      {
+        "action": "navigate",
+        "outcome": "succeeded",
+        "state": "observed"
+      },
+      {
+        "action": "click",
+        "outcome": "succeeded",
+        "state": "acted"
+      },
+      {
+        "action": "snapshot",
+        "outcome": "succeeded",
+        "state": "observed"
+      }
+    ]
+  },
+  "secondTurn": {
+    "prompt": "방금 T5가 수정한 온보딩 코드만 되돌려줘. 내가 바꾼 배경색은 그대로 두고 실제로 원래 코드가 복원됐는지 확인해줘.",
+    "answer": "되돌렸고 확인까지 했어.\n\n- 되돌린 파일: `src/onboarding.js`만\n- 복원된 코드:\n\n```js\nexport function nextStep(current) {\n  return Math.min(current, 3);\n}\n```\n\n- 배경색은 그대로 유지됨:\n  - `public/theme.css`에 `background:#f5e6c8` 남아 있음\n- 현재 변경 상태:\n  - `src/onboarding.js`는 더 이상 변경 파일로 남아 있지 않음\n  - `public/theme.css`만 변경 상태로 남아 있음 — 네가 바꾼 배경색 변경분만 남은 상태야.",
+    "performance": {
+      "wallMs": 14016,
+      "modelCalls": 4,
+      "toolCalls": 3,
+      "providerTokens": 70345,
+      "requestBytes": 319908
+    },
+    "route": [
+      {
+        "name": "workspace_patch",
+        "action": "rollback",
+        "outcome": "succeeded",
+        "state": "rolled_back_verified",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "exec",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "completed",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "work_completion",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "proposal_recorded",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      }
+    ]
+  },
+  "files": {
+    "before": [
+      "package.json",
+      "public/app.js",
+      "public/index.html",
+      "public/theme.css",
+      "src/onboarding.js",
+      "test/onboarding.test.js"
+    ],
+    "after": [
+      "package.json",
+      "public/app.js",
+      "public/index.html",
+      "public/theme.css",
+      "src/onboarding.js",
+      "test/onboarding.test.js"
+    ],
+    "userDirtySha256": "77ba04ffe9a49a89365bbf30079f73ba27eba04182ce3724d1f89c07825029f6",
+    "sourceOriginalSha256": "e8665c3b453eb424e31c8b2832b367b90f9a368870e495f320bf51dd5f09565c",
+    "sourceFixedSha256": "0549a8361ea4a42baec0dd82da6b44af1eee355d7f258b89d13271f539e6029d",
+    "sourceRestoredSha256": "e8665c3b453eb424e31c8b2832b367b90f9a368870e495f320bf51dd5f09565c"
+  },
+  "process": {
+    "atDelivery": [
+      {
+        "processId": "14c766ef-14aa-428c-8022-39bc840c40f2",
+        "state": "stopped"
+      }
+    ],
+    "afterSettlement": [
+      {
+        "processId": "14c766ef-14aa-428c-8022-39bc840c40f2",
+        "state": "stopped",
+        "terminationConfirmed": true
+      }
+    ]
+  },
+  "runtimeErrors": [],
+  "decision": "CURRENT_PRODUCT_EXISTING_PROJECT_POSITIVE_CONTROL"
+}

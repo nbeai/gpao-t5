@@ -1,0 +1,272 @@
+{
+  "schema": "t5.s4p0b.existing-project-baseline.v1",
+  "recordedAt": "2026-08-29T15:09:08.252Z",
+  "sourceHead": "300d1347785ee06be93b37e88191c758cb8175e3",
+  "productChanges": 0,
+  "actualUserData": false,
+  "actualExternalAccount": false,
+  "model": "gpt-5.5",
+  "checks": {
+    "baselineFailed": true,
+    "firstTurnCompleted": true,
+    "sourceFixed": true,
+    "testsPassedAfterFix": true,
+    "userDirtyPreservedAfterFix": true,
+    "browserNavigated": true,
+    "browserClickedNext": true,
+    "browserObservedStep2": true,
+    "undoHandleCreated": false,
+    "secondTurnCompleted": true,
+    "durableRollbackUsed": false,
+    "sourceExactRestored": true,
+    "userDirtyPreservedAfterUndo": true,
+    "originalFailureRestored": true,
+    "runtimeErrorsZero": true,
+    "managedProcessStopped": true
+  },
+  "firstDefectFamily": "durable_project_undo_activation",
+  "purposePassed": false,
+  "firstTurn": {
+    "prompt": "이 프로젝트의 온보딩 화면에서 다음 버튼을 눌러도 첫 단계에 머물러 있어. 원인을 찾아 고치고 전체 테스트를 실행한 뒤 실제 로컬 화면에서 다음 버튼을 눌러 단계 2로 바뀌는지 확인해줘. 내가 이미 바꿔둔 배경색은 유지하고 다른 파일을 불필요하게 바꾸지 마. 수정은 나중에 되돌릴 수 있게 하고 외부에는 공개하지 마.",
+    "answer": "수정 완료했고 확인까지 했습니다.\n\n- 원인: `src/onboarding.js`의 `nextStep()`이 `Math.min(current, 3)`이라서 현재 단계 1을 그대로 반환하고 있었습니다.\n- 수정: `Math.min(current + 1, 3)`로 바꿔 다음 단계로 진행되게 했습니다.\n- 변경한 파일: `src/onboarding.js` 1개만 수정했습니다.\n- 사용자가 이미 바꿔둔 `public/theme.css` 배경색 변경은 그대로 유지했고 건드리지 않았습니다.\n- 전체 테스트: `npm test` 통과했습니다. `1 pass / 0 fail`\n- 실제 로컬 화면 확인: 로컬 서버를 띄워 `http://127.0.0.1:4183/public/index.html`에서 “다음” 버튼을 눌렀고, 화면 텍스트가 `온보딩 단계 1`에서 `온보딩 단계 2`로 바뀌는 것을 확인했습니다.\n- 로컬 서버는 확인 후 중지했습니다.\n- 외부 공개나 전송은 하지 않았습니다.\n\n되돌릴 때는 이번 수정분만 `src/onboarding.js`에서 되돌리면 되고, 배경색 변경은 별도 변경으로 남아 있습니다.",
+    "performance": {
+      "wallMs": 88817,
+      "modelCalls": 17,
+      "toolCalls": 17,
+      "providerTokens": 332902,
+      "requestBytes": 1603786
+    },
+    "route": [
+      {
+        "name": "exec",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "completed",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "exec",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "completed",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "exec",
+        "action": null,
+        "outcome": "failed",
+        "state": "failed",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "exec",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "published_verified_cleaned",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "exec",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "completed",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "tool_search",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "no_match",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "tool_search",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "activated",
+        "hasUndoHandle": false,
+        "activatedTools": [
+          "terminal_session"
+        ]
+      },
+      {
+        "name": "terminal_session",
+        "action": "start",
+        "outcome": "succeeded",
+        "state": "running",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "web_read",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "read",
+        "hasUndoHandle": false,
+        "activatedTools": [
+          "browser"
+        ]
+      },
+      {
+        "name": "exec",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "completed",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "browser",
+        "action": "navigate",
+        "outcome": "succeeded",
+        "state": "observed",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "browser",
+        "action": "snapshot",
+        "outcome": "succeeded",
+        "state": "observed",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "browser",
+        "action": "click",
+        "outcome": "succeeded",
+        "state": "acted",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "browser",
+        "action": "snapshot",
+        "outcome": "succeeded",
+        "state": "observed",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "terminal_session",
+        "action": "stop",
+        "outcome": "succeeded",
+        "state": "stopped",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "exec",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "completed",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "work_completion",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "proposal_recorded",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      }
+    ],
+    "browser": [
+      {
+        "action": "navigate",
+        "outcome": "succeeded",
+        "state": "observed"
+      },
+      {
+        "action": "snapshot",
+        "outcome": "succeeded",
+        "state": "observed"
+      },
+      {
+        "action": "click",
+        "outcome": "succeeded",
+        "state": "acted"
+      },
+      {
+        "action": "snapshot",
+        "outcome": "succeeded",
+        "state": "observed"
+      }
+    ]
+  },
+  "secondTurn": {
+    "prompt": "방금 T5가 수정한 온보딩 코드만 되돌려줘. 내가 바꾼 배경색은 그대로 두고 실제로 원래 코드가 복원됐는지 확인해줘.",
+    "answer": "되돌렸습니다.\n\n확인 결과:\n\n- `src/onboarding.js`가 원래 코드로 복원됨:\n```js\nexport function nextStep(current) {\n  return Math.min(current, 3);\n}\n```\n\n- 현재 변경 파일은 `public/theme.css`만 남아 있습니다.\n- 배경색 변경은 그대로 유지되어 있습니다:\n```diff\n- body{background:#ffffff;...}\n+ body{background:#f5e6c8;...}\n```\n\n즉, 방금 T5가 수정했던 온보딩 코드만 되돌렸고, 사용자가 바꾼 배경색은 유지됐습니다.",
+    "performance": {
+      "wallMs": 15746,
+      "modelCalls": 3,
+      "toolCalls": 2,
+      "providerTokens": 53672,
+      "requestBytes": 241786
+    },
+    "route": [
+      {
+        "name": "exec",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "completed",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      },
+      {
+        "name": "work_completion",
+        "action": null,
+        "outcome": "succeeded",
+        "state": "proposal_recorded",
+        "hasUndoHandle": false,
+        "activatedTools": []
+      }
+    ]
+  },
+  "files": {
+    "before": [
+      "package.json",
+      "public/app.js",
+      "public/index.html",
+      "public/theme.css",
+      "src/onboarding.js",
+      "test/onboarding.test.js"
+    ],
+    "after": [
+      "package.json",
+      "public/app.js",
+      "public/index.html",
+      "public/theme.css",
+      "src/onboarding.js",
+      "test/onboarding.test.js"
+    ],
+    "userDirtySha256": "77ba04ffe9a49a89365bbf30079f73ba27eba04182ce3724d1f89c07825029f6",
+    "sourceOriginalSha256": "e8665c3b453eb424e31c8b2832b367b90f9a368870e495f320bf51dd5f09565c",
+    "sourceFixedSha256": "0549a8361ea4a42baec0dd82da6b44af1eee355d7f258b89d13271f539e6029d",
+    "sourceRestoredSha256": "e8665c3b453eb424e31c8b2832b367b90f9a368870e495f320bf51dd5f09565c"
+  },
+  "process": {
+    "atDelivery": [
+      {
+        "processId": "a8cc6b8b-03f4-4e8b-8b1c-e4fe9aa4bc6c",
+        "state": "stopped"
+      }
+    ],
+    "afterSettlement": [
+      {
+        "processId": "a8cc6b8b-03f4-4e8b-8b1c-e4fe9aa4bc6c",
+        "state": "stopped",
+        "terminationConfirmed": true
+      }
+    ]
+  },
+  "runtimeErrors": [],
+  "decision": "S4_P0B_FIRST_BINDING_DEFECT_REPRODUCED"
+}

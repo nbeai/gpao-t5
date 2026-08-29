@@ -60,3 +60,15 @@ export async function restoreExactTargetRollback(options = {}) {
   if (await observePublicationPreimage(target) !== null) return { state: 'rollback_durability_unknown', effectUnknown: true };
   return { state: 'removed_created_target', target, effectUnknown: false };
 }
+
+export async function discardExactTargetRollbackPointer(pointer) {
+  if (pointer?.schema !== 't5.exact-target-rollback.v1' || !pointer.rollbackRoot) {
+    throw new TypeError('exact rollback pointer is invalid');
+  }
+  if (!pointer.backupName) return { state: 'discarded', removed: 0 };
+  const rollbackRoot = await realpath(pointer.rollbackRoot);
+  const backup = resolve(rollbackRoot, pointer.backupName);
+  if (!inside(backup, rollbackRoot)) throw new Error('rollback backup escaped managed root');
+  try { await unlink(backup); return { state: 'discarded', removed: 1 }; }
+  catch (error) { if (error?.code === 'ENOENT') return { state: 'discarded', removed: 0 }; throw error; }
+}

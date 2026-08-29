@@ -164,6 +164,18 @@ test('큰 historical stdout은 head·tail·message ref만 보이고 중간 원�
   assert.ok(Buffer.byteLength(projection.messages[0].content) < Buffer.byteLength(originalContent) * 0.2);
 });
 
+test('G/F publication의 durable Undo handle은 다음 모델에 opaque rollback pointer로 남는다', () => {
+  const receipt = terminalReceipt();
+  receipt.result.publication = { state: 'published_verified', undoHandle: 'undo_opaque_731' };
+  const projected = projectHistoricalConversation([{
+    role: 'tool', toolCallId: 'call-1', name: 'exec', content: JSON.stringify(receipt),
+  }]);
+  const compact = JSON.parse(projected[0].content);
+  assert.deepEqual(compact.result.publication, {
+    state: 'published_verified', undoHandle: 'undo_opaque_731',
+  });
+});
+
 test('재시작 때 tool result가 없는 function call은 provider projection에만 unknown interruption을 채운다', () => {
   const messages = [
     { role: 'user', content: '긴 작업을 해줘' },

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
+import { realpath } from 'node:fs/promises';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { buildAuthoringPreview } from './authoring-plan.js';
 import { prepareAuthoringPlan } from './authoring-prepare.js';
 import { AuthoringLockCoordinator } from './authoring-lock.js';
@@ -8,12 +9,17 @@ import { verifyAuthoringTransaction } from './authoring-verify.js';
 import { settleAuthoringTransaction } from './authoring-settle.js';
 import { AuthoringUndoStore } from './authoring-undo-store.js';
 import { executeAuthoringUndo } from './authoring-undo.js';
+import { createExactTargetRollbackPointer, discardExactTargetRollbackPointer } from './exact-target-rollback.js';
+import { observePublicationPreimage } from './atomic-file-publication.js';
+
+const inside = (candidate, root) => { const value = relative(root, candidate); return value !== ''
+  && value !== '..' && !value.startsWith(`..${sep}`) && !isAbsolute(value); };
 
 export function makeWorkspacePatchTool({ workspace, stateRoot, sessionId = 'local', makeId = randomUUID } = {}) {
   if (!workspace || !stateRoot || !sessionId) throw new TypeError('workspace patch roots required');
   const plans = new Map(); const locks = new AuthoringLockCoordinator(join(stateRoot, 'locks'));
   const undoStore = new AuthoringUndoStore(join(stateRoot, 'undo'));
-  return {
+  const tool = {
     name: 'workspace_patch',
     description: 'Preview, apply, or roll back a closed multi-file create, modify, delete, or move transaction inside the managed workspace without shell quoting. Preview first; apply only its fresh plan handle, and roll back only its durable undo handle.',
     searchTerms: ['multi file edit patch structured authoring create modify delete move transaction rollback',
@@ -64,4 +70,36 @@ export function makeWorkspacePatchTool({ workspace, stateRoot, sessionId = 'loca
       return { ...settled.receipt, undoHandle: undo.handle };
     },
   };
+  tool.prepareExternalUndo = async ({ targets }) => {
+    if (!Array.isArray(targets) || !targets.length || targets.length > 32) return null;
+    const root = await realpath(resolve(workspace)); const absolute = targets.map((target) => resolve(root, String(target)));
+    if (new Set(absolute).size !== absolute.length || absolute.some((target) => !inside(target, root))) return null;
+    const pointers = [];
+    try {
+      for (const target of absolute) pointers.push(await createExactTargetRollbackPointer({ target,
+        rollbackRoot: join(stateRoot, 'rollback') }));
+      return { pointers };
+    } catch {
+      await Promise.all(pointers.map((pointer) => discardExactTargetRollbackPointer(pointer).catch(() => {})));
+      return null;
+    }
+  };
+  tool.settleExternalUndo = async (capture) => {
+    if (!capture?.pointers?.length) return null;
+    const changed = [];
+    for (const pointer of capture.pointers) {
+      const expectedPostimage = await observePublicationPreimage(pointer.target);
+      if (JSON.stringify(expectedPostimage) !== JSON.stringify(pointer.preimage)) {
+        changed.push({ pointer, expectedPostimage });
+      } else await discardExactTargetRollbackPointer(pointer);
+    }
+    if (!changed.length) return null;
+    const saved = await undoStore.saveTargets({ sessionId, planId: 'foreground_local_change', targets: changed });
+    return { undoHandle: saved.handle, undoTargets: saved.targetCount };
+  };
+  tool.discardExternalUndo = async (capture) => {
+    if (!capture?.pointers?.length) return;
+    await Promise.all(capture.pointers.map((pointer) => discardExactTargetRollbackPointer(pointer).catch(() => {})));
+  };
+  return tool;
 }

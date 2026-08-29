@@ -64,6 +64,21 @@ test('snapshot source symlink·hardlink와 generation 중 원본 변경은 candi
   }
 });
 
+test('프로젝트 snapshot은 요청된 repository metadata를 읽지 않고 제외 사실을 보존한다', async () => {
+  const app = await room();
+  try {
+    await mkdir(join(app.workspace, '.git'));
+    await writeFile(join(app.workspace, '.git', 'index'), 'volatile-index');
+    const { snapshot, receipt } = await createWorkspaceSnapshot({ workspace: app.workspace,
+      snapshotRoot: app.snapshots, makeId: () => '12345678', excludeTopLevelNames: ['.git'] });
+    assert.deepEqual(snapshot.excludedTopLevelNames, ['.git']);
+    assert.deepEqual(receipt.excludedTopLevelNames, ['.git']);
+    assert.equal(snapshot.files.some((item) => item.relativePath.startsWith('.git')), false);
+    await assert.rejects(() => readFile(join(snapshot.directory, '.git', 'index')), { code: 'ENOENT' });
+    await removeWorkspaceSnapshot(snapshot);
+  } finally { await rm(app.root, { recursive: true, force: true }); }
+});
+
 test('동일 Python source는 snapshot universe를 RecordRef로 받아 원본 write 없이 실행된다', async () => {
   const app = await room();
   try {

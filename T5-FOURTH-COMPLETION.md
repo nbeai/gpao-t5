@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_G_DURABLE_BATCH_HANDOFF_COMPLETE · S4_G_GENERIC_SNAPSHOT_SHELL_PRODUCT_ACTIVATION_COMPLETE_MODEL_INDEPENDENT · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_P0_NEW_PROJECT_ACTUAL_PASS · S4_P2A_DEV_SERVER_OWNERSHIP_COMPLETE · S4_P3A_INTERACTIVE_BROWSER_BINDING_COMPLETE · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_PAUSED_AT_FIRST_CRITICAL_MODEL_PROVIDER_FAILURE_OWNER_DECISION_REQUIRED · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
-현재 Gate: `S4-P0B EXISTING PROJECT · CURRENT PRODUCT BASELINE`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_G_DURABLE_BATCH_HANDOFF_COMPLETE · S4_G_GENERIC_SNAPSHOT_SHELL_PRODUCT_ACTIVATION_COMPLETE_MODEL_INDEPENDENT · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_P_DURABLE_PROJECT_BUILDING_COMPLETE_MACOS_PRODUCT_SCOPE · S4_P4_CONDITIONAL_EXISTING_OFFICIAL_CLI · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_PAUSED_AT_FIRST_CRITICAL_MODEL_PROVIDER_FAILURE_OWNER_DECISION_REQUIRED · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+현재 Gate: `S4-HQ MODEL SUPPORT·COMPLETION POLICY · OWNER DECISION REQUIRED`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,14 +55,15 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: S4-P0B의 기존 dirty project 수정·회귀·Undo 기준선이다.
+2. **현재 Gate**: S4-P 완료 뒤 보존된 S4-HQ supported-model·completion policy 오너 결정이다.
 3. **사용자 완료 문장**: 사용자는 기술을 배우지 않고 프로젝트를 맡기며 T5는 자료 탐색·작성·실행·화면과
    기능 검증·결과 전달·교정과 후속 수정을 실제로 이어간다.
-4. **이미 선 실제 증거**: D의 실행·사고 복구, E의 변경 confinement·rollback, F의 다중 파일 transaction·Undo,
-   G의 model-independent 프로그램 실행·검증·Artifact, Browser·Work·Recovery의 기존 제품 경계가 있다.
-5. **현재 가장 큰 미달**: 신규 프로젝트 여정은 통과했지만 기존 dirty project에서 사용자 변경 보존·원인 수리·
-   build/test·Browser 회귀·Undo가 한 흐름으로 current-head 자격되지 않았다.
-6. **이번 변경 방식**: 제품 변경 0의 기존 프로젝트 actual에서 현재 성공과 최초 결속 미달을 분리한다.
+4. **이미 선 실제 증거**: S4-P의 신규·기존·비웹·optional Preview 네 목적 PASS와 KHB-A03 gpt-5.5 PASS·Terra
+   false-absence가 있다.
+5. **현재 가장 큰 미달**: P와 무관한 Terra portable discovery 실패를 4차 전체 모델 요구에서 어떻게 처리할지
+   미결정이다.
+6. **이번 변경 방식**: Runtime·Prompt 패치 없이 qualified default model과 comparison observation의 완료 정책을
+   정한다.
 7. **Non-goals**: 새 IDE·Git·Project Store, framework·업종 Router, 모든 hosting·DB·cloud, 완전 보안 VM,
    고정 대형 품질표, G 재개발, 모델별 Prompt, Windows deferred의 PASS 승격.
 
@@ -1035,7 +1036,7 @@ percentage, 애니메이션으로 시간 채우기, Runtime 문구로 모델의 
 > T5는 내부 복잡성을 드러내지 않으면서 사용자가 현재 작업의 실제 진전·남은 일·필요한 행동·중지 가능성을
 > 자연스럽게 이해하도록 하고, 대화와 채널을 이동해도 같은 작업 흐름을 유지한다.
 
-### S4-P — Durable Project Building — ACTIVE AT P0
+### S4-P — Durable Project Building — COMPLETE
 
 S4-P는 새 코딩 제품이나 프로젝트 제작 플랫폼을 옆에 붙이는 Gate가 아니다. 사용자가 평소 말로 홈페이지·
 대시보드·로컬 앱·업무 도구·자동화·CLI·기존 프로젝트 수정을 맡겼을 때 이미 선 Work·D·E·F·G·Browser·
@@ -1080,7 +1081,7 @@ project root는 코드 변경·build·server의 기본 anchor이지 T5의 전체
 컴퓨터 전체 검색은 사용자가 그 범위를 요청했을 때만 연다. read scope·change scope·external-effect scope는 서로
 합치지 않는다.
 
-#### S4-P0 — Current Product Baseline — NEW PROJECT PASS · EXISTING PROJECT NEXT
+#### S4-P0 — Current Product Baseline — COMPLETE
 
 제품 source 변경 0에서 현재 T5로 다음 실제 과업을 실행한다.
 
@@ -1102,6 +1103,13 @@ model 답에서 실행 중이라고 했지만 D registry의 running process는 0
 workspace에 남았다. Runtime 종료 뒤 exact PID 28635는 PPID 1로 계속 listen했으며 qualification이 exact cwd를
 확인한 뒤 종료했다. 따라서 목적 화면 성공과 lifecycle 실패를 합치지 않고 `dev_server_ownership_cleanup`을
 최초 결속 결함으로 고정한다. 다른 오래된 localhost process는 이번 범위가 아니어서 건드리지 않았다.
+
+수리 후 신규 홈페이지 actual은 정확성·Browser form·외부 범위·managed server lifecycle을 통과했다. P0B 기존
+project actual은 사용자의 dirty CSS를 exact 보존하면서 source bug를 고치고 `npm test`, managed localhost,
+Browser click·step 2를 통과했다. 최초에는 durable Undo가 없어 다음 Turn이 수동 exec로 복원했지만 P2 수리 뒤
+`workspace_patch rollback`이 exact preimage만 복원했다. 비웹 재사용 도구는 S4-G 사업·개발·개인 세 actual의
+model-independent program→verification→Artifact 증거를 재사용한다. 따라서 P0는 세 목적의 current capability와
+최초 결속 미달을 모두 분리해 COMPLETE다.
 
 완료 문장:
 
@@ -1131,6 +1139,13 @@ revision truth가 아니다. 교정·재접속·모델 전환 뒤 같은 프로�
 
 > T5는 여러 대화와 재시작을 지나도 사용자가 맡긴 프로젝트와 현재 revision을 잃지 않는다.
 
+P1 actual은 기존 프로젝트 수정 뒤 Console Runtime을 완전히 종료·재생성하고 같은 Session에서 Undo를 요청했다.
+새 Runtime은 동일 workspace root, canonical Conversation·Work revision, F Undo manifest를 다시 열어 exact
+`workspace_patch rollback`을 수행했다. source preimage는 byte-exact 복원됐고 사용자 dirty CSS는 유지됐다. Git
+프로젝트의 `.git` 제어 metadata가 COW source generation과 경합한 최초 실패는 `.git`을 업무 source snapshot에서만
+제외하고 제외 사실을 `excludedTopLevelNames`로 보존해 닫았다. repository state는 기존 Terminal Receipt가 관측하며
+새 Project DB·Git Store는 0이다. 기존 model continuity actual을 함께 재사용해 P1은 COMPLETE다.
+
 #### S4-P2 — Project Edit & Build Loop
 
 ```text
@@ -1154,6 +1169,12 @@ CRLF·실행권한, dev server ownership은 P0에서 실제 미달이 있을 때
 
 > T5는 기존 사용자 변경을 보존하면서 프로젝트를 안전하게 수정하고, 실제 build·test 실패를 근거로 고친 뒤
 > 되돌릴 수 있다.
+
+P2 actual은 failing test→source 원인→exact file change→전체 test PASS→managed server→Browser click·step 2→
+server stop→다음 Turn Undo를 관통했다. G/F publication뿐 아니라 일반 foreground `local_change`도 declared target
+전부가 managed workspace의 exact file일 때 E6 preimage를 먼저 보존하고 F Undo manifest에 결속한다. URL·directory·
+범위 불명확 target에는 Undo를 발명하지 않으며 unchanged target의 unused backup은 정리한다. Runtime restart 뒤에도
+exact postimage가 맞을 때만 rollback하고 사용자 dirty sibling은 보존했다. P2는 COMPLETE다.
 
 `S4-P2A Dev Server Ownership`은 첫 P0 결함만 닫는다. foreground `exec`가 shell background child를 Runtime 밖으로
 보내지 못하게 하고, 장기 server는 기존 `terminal_session start`가 command 자체를 foreground로 소유하도록 한다.
@@ -1209,6 +1230,10 @@ Runtime settlement 뒤 stopped·termination confirmed·URL 응답 0이 함께 �
 감소했다. ZIP 등록은 실패했고 Artifact 0이었으나 사용자가 요청한 local Preview는 실제 URL과 Browser 기능으로
 완료됐으며 모델은 ZIP 미완료를 숨기지 않았다. P3A는 COMPLETE이고 Artifact handoff 경제성은 P0/P5 관측으로 남긴다.
 
+신규 홈페이지의 form submit·success 상태와 기존 프로젝트의 next-button 상태 전환을 서로 다른 실제 목적에서
+확인했고, 두 여정 모두 managed server ownership·Browser observation·cleanup을 통과했다. 모든 viewport·상태를
+고정 행렬로 강제하지 않고 사용자 핵심 행동을 모델이 선택하는 현재 계약 안에서 S4-P3는 COMPLETE다.
+
 #### S4-P4 — Preview Publication & External Reality
 
 모든 hosting·DB·cloud나 Capability Acquisition을 만들지 않는다. 사용자가 외부 Preview를 명시적으로 요청하고
@@ -1236,6 +1261,16 @@ local verified revision
 > T5는 로컬에서 확인한 프로젝트를 사용자가 선택한 기존 외부 능력으로 Preview하고, 공개 상태와 실제 기능을
 > 다시 확인한다.
 
+P4는 공식 Cloudflare Quick Tunnel 하나로 제한한다. 설치된 `cloudflared`만 on-demand 발견하며 자동 설치·계정·
+domain 준비는 0이다. exact localhost HTTP origin과 `external_send` 경계가 있을 때 managed process로 Quick Tunnel을
+시작하고 출력에서 단일 `*.trycloudflare.com` URL을 관측한 뒤 exact reopen이 성공해야 `preview_ready`다. URL은
+누구나 접근 가능하고 process 수명에만 결속된 임시 주소이며 Production·stable URL·SLA로 승격하지 않는다. stop·
+Runtime crash는 tunnel process를 끝내고 blind restart는 없다.
+
+fake official CLI와 loopback origin의 start→provider URL→reopen→natural-language delivery→stop, 승인 전 실행 0,
+CLI 부재 honesty를 통과했다. 현재 오너 Mac에는 `cloudflared`가 없어 actual public URL 실행은 0이며 local Preview만
+제공한다. 이는 conditional 사용자 완료 문장과 일치하므로 P4는 `COMPLETE_CONDITIONAL_EXISTING_OFFICIAL_CLI`다.
+
 #### S4-P5 — Continuity, Handoff & Rework
 
 새 운영 플랫폼 없이 기존 Work·Artifact·Recovery를 프로젝트 여정에 적용한다. 대화 중 교정, 모델 전환,
@@ -1250,6 +1285,12 @@ data 위치·알려진 unknown·Undo/rollback·비용 확인 위치를 전달한
 완료 문장:
 
 > T5는 프로젝트를 한 번 만들고 끝내지 않고 교정·재시작·후속 수정·결과 전달까지 같은 프로젝트 여정으로 유지한다.
+
+P5는 P1 Runtime restart project/Undo actual, P2 dirty project rework, G Artifact crash recovery, I recovery, UX model·
+surface continuity, D4 successor settlement를 재사용해 닫았다. 같은 프로젝트 후속 수정·모델 전환·Runtime restart,
+partial output reopen·Artifact 재전달·durable Undo는 프로그램·F transaction·외부 effect blind retry 없이 이어진다.
+운영 인계는 기존 Artifact에 project 위치·실행·외부 service·data·unknown·Undo·cost 사실을 담는 방식만 사용하며
+새 Project Store·인계 시스템은 0이다. P5는 `COMPLETE_WITH_EXISTING_CAPABILITY`다.
 
 S4-P 전체 인간 자격:
 
@@ -1274,6 +1315,19 @@ AND 결과·Undo·후속 수정이 실제 작동
 
 P0 전에 고정 시간·호출·token 기준을 만들지 않는다. 안전과 실제 사용자 이익이 있는 비용 증가는 정확한 A/B와
 함께 오너가 판단한다.
+
+S4-P 인간 자격 actual:
+
+- P-H01 신규 홈페이지는 자료 반영·form submit·success state·managed local Preview·외부 공개 0을 통과했다.
+- P-H02 기존 dirty project는 root cause·source fix·test·Browser click·사용자 변경 보존·Runtime restart Undo를 통과했다.
+- P-H03 비웹 도구는 S4-G의 사업·개발·개인 세 model-independent actual과 verified Artifact를 재사용한다.
+- P-H04는 설치된 공식 Quick Tunnel positive control과 현재 host CLI 부재의 정직한 local 대안을 통과했다.
+
+신규 프로젝트 final은 RED 대비 wall 249.510→233.451초, model calls 21→20, tool calls 25→19, provider tokens
+924,675→733,020, request bytes 3,764,687→3,105,193으로 모두 개선됐다. 기존 project restart 여정은 fix 73.752초와
+restart Undo 19.212초, 19 model calls·20 tool calls·358,801 tokens에서 목적·안전·연속성을 통과했다. S4-P는
+`DURABLE_PROJECT_BUILDING_COMPLETE_MACOS_PRODUCT_SCOPE`로 닫으며 Windows 물리 자격과 실제 외부 계정 write는
+완료로 꾸미지 않는다.
 
 S4-P 비목표:
 
@@ -1394,6 +1448,7 @@ portable discovery·false absence 관측과 S4-HQ KHB-A03의 gpt-5.5 PASS·Terra
 4차에 추가했다. 이 결정은 HQ의 불리한 모델 관측이나 Windows 미실행을 성공으로 바꾸지 않는다. S4-P0 신규 프로젝트
 actual은 화면·기능 목적을 달성했지만 unmanaged localhost server와 PID·log 잔여물을 재현했다. S4-P2A는 background
 차단→managed foreground server→Runtime cleanup으로 ownership을 닫았고, S4-P3A는 interaction-scoped static read
-뒤 기존 Browser를 활성화해 fill·submit·결과 관측을 닫았다. 신규 프로젝트 actual은 정확성·기능·source·외부 범위·
-lifecycle을 통과했다. 현재 다음 한 작업은 제품 변경 0의 S4-P0B 기존 dirty project 기준선이다. 현재 사용자 변경
-보존·실제 원인 수리·build/test·Browser 회귀·Undo를 측정하고 최초 미달 하나만 연다.
+뒤 기존 Browser를 활성화해 fill·submit·결과 관측을 닫았다. P0B·P1·P2는 dirty source·build/test·Browser·durable
+Undo·Runtime restart를 통과했고 P4 conditional Quick Preview와 P5 continuity도 닫혔다. S4-P 전체는 완료됐다. 현재
+다음 한 작업은 보존된 S4-HQ KHB-A03 모델 pair 결과를 바탕으로 qualified default model과 comparison observation의
+완료 정책을 오너가 결정하는 것이다. Windows deferred가 남아 4차 전체 완료는 주장하지 않는다.

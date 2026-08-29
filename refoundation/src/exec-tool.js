@@ -140,6 +140,7 @@ function makeCommandTool(options = {}, { managed }) {
     terminalCredentialBroker,
     terminalOutputStore,
     mutationObserver,
+    mutationUndoCoordinator,
     protectedBrowserRoots = [],
     programExecutionAdapter = null,
   } = options;
@@ -237,11 +238,19 @@ function makeCommandTool(options = {}, { managed }) {
 
       const onAbort = () => { registry.stopOwner(ownerId, 'aborted').catch(() => {}); };
       context.signal?.addEventListener('abort', onAbort, { once: true });
-      let launch;
+      let launch; let externalUndo = null; let externalUndoSettled = false;
       try {
         const effectBefore = await observeDeclaredEffect(declaredEffect, cwd);
         const mutationBefore = !managed && declaredEffect.kind === 'local_change' && mutationObserver
           ? await mutationObserver.observe() : null;
+        if (!managed && declaredEffect.kind === 'local_change'
+          && typeof mutationUndoCoordinator?.prepareExternalUndo === 'function') {
+          externalUndo = await mutationUndoCoordinator.prepareExternalUndo({
+            targets: declaredEffect.targets.map((target) => (
+              isAbsolute(target) ? target : resolve(cwd, target)
+            )),
+          });
+        }
         const managedCommand = commandWithManagedPath(command, pathPrepend, runtime.family);
         const pipelineTruth = !managed && runtime.family === 'posix'
           ? preparePipelineTruth({ command: managedCommand, commandExplanation, shellProgram: runtime.program }) : null;
@@ -315,13 +324,21 @@ function makeCommandTool(options = {}, { managed }) {
         }
         const effectAfter = result.state === 'running' || result.state === 'stop_requested'
           ? null : await observeDeclaredEffect(declaredEffect, cwd);
+        const effectObservation = compareEffectObservations(
+          declaredEffect, effectBefore, effectAfter,
+        );
+        let durableUndo = null;
+        if (externalUndo && ['completed', 'failed', 'stopped'].includes(result.state)
+          && typeof mutationUndoCoordinator?.settleExternalUndo === 'function') {
+          durableUndo = await mutationUndoCoordinator.settleExternalUndo(externalUndo);
+          externalUndoSettled = true;
+        }
         result = {
           ...result,
           ...(launch.confinement ? { confinement: launch.confinement } : {}),
           ...(capabilitiesUsed.length ? { capabilitiesUsed: structuredClone(capabilitiesUsed) } : {}),
-          effectObservation: compareEffectObservations(
-            declaredEffect, effectBefore, effectAfter,
-          ),
+          effectObservation,
+          ...(durableUndo ?? {}),
         };
         if (mutationBefore) {
           const mutationAfter = result.state === 'completed' || result.state === 'failed'
@@ -370,6 +387,10 @@ function makeCommandTool(options = {}, { managed }) {
         }
         return { ...result, commandExplanation };
       } finally {
+        if (externalUndo && !externalUndoSettled
+          && typeof mutationUndoCoordinator?.discardExternalUndo === 'function') {
+          await mutationUndoCoordinator.discardExternalUndo(externalUndo).catch(() => {});
+        }
         await launch?.cleanup?.().catch(() => {});
         context.signal?.removeEventListener('abort', onAbort);
       }

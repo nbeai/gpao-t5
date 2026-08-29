@@ -92,6 +92,7 @@ import { makeVisualReferenceTool } from './visual-reference-tool.js';
 import { makeWebReadTool } from './web-read-tool.js';
 import { makeBrowserObservationTool } from './browser-observation-tool.js';
 import { makeBrowserObservationRegistry } from './browser-action-state.js';
+import { makeQuickPreviewTool } from './quick-preview-tool.js';
 import { AttachmentStore } from './attachment-store.js';
 import {
   injectArtifactPreviewBridge, readWebBundleEntry, renderAttachmentPreview, webBundleManifest,
@@ -354,6 +355,8 @@ export function makeConsoleServer({
   webReadOptions = {},
   browserDriverFactory,
   browserHost,
+  quickPreviewProgram = null,
+  quickPreviewFetchImpl = globalThis.fetch,
   workspaceConnectionInspectors = [],
   workspaceConnectionServices = [], messengerCredentialStore = null,
   connectionPollIntervalMs = 2_000,
@@ -1126,6 +1129,25 @@ export function makeConsoleServer({
     };
   }
 
+  function activeProjectUndoHandles(conversation) {
+    const active = new Set();
+    for (const entry of conversation?.entries ?? []) {
+      const message = entry?.message;
+      if (message?.role !== 'tool' || typeof message.content !== 'string') continue;
+      let receipt;
+      try { receipt = JSON.parse(message.content); } catch { continue; }
+      if (!receipt || typeof receipt !== 'object') continue;
+      const handle = receipt.result?.undoHandle ?? receipt.result?.publication?.undoHandle;
+      if (receipt.outcome === 'succeeded' && typeof handle === 'string' && handle) active.add(handle);
+      const call = receipt.actualCall ?? receipt.requestedCall;
+      if (receipt.outcome === 'succeeded' && call?.name === 'workspace_patch'
+        && call.args?.action === 'rollback' && typeof call.args?.undoHandle === 'string') {
+        active.delete(call.args.undoHandle);
+      }
+    }
+    return [...active];
+  }
+
   async function effectPreflight({ toolName, args, ownerId, requiredEffect = null }) {
     const effect = args?.effect;
     if (!effect?.kind) return {
@@ -1259,6 +1281,7 @@ export function makeConsoleServer({
       };
       canonicalConversation.messages = canonicalConversation.entries.map((entry) => structuredClone(entry.message));
     }
+    const projectUndoHandles = activeProjectUndoHandles(canonicalConversation);
     let projection = projectConversation(sessionId, canonicalConversation, memoryPortfolio);
     const run = await runLedger.start({ sessionId, request: text, metadata: {
       priorConversationMessages: projection.messages.length,
@@ -1541,6 +1564,7 @@ export function makeConsoleServer({
         terminalOutputStore: terminalOutputs,
         explainCommand: (command) => terminalCommandExplainer.explain(command),
         mutationObserver: managedMutationObserver,
+        mutationUndoCoordinator: workspacePatchTool,
         programExecutionAdapter,
         capabilityAttribution: async (facts) => [
           ...await managedCliStore.attributeCommand(facts.commandExplanation),
@@ -1691,6 +1715,14 @@ export function makeConsoleServer({
           offeredTools.unshift(browserTool);
         }
       }
+      if (quickPreviewProgram) offeredTools.unshift(makeQuickPreviewTool({
+        program: quickPreviewProgram, processRegistry: processes, ownerId: sessionId,
+        fetchImpl: quickPreviewFetchImpl,
+        authorizeEffect: (args, authorityContext) => effectPreflight({
+          toolName: 'preview_publication', args, ownerId: sessionId,
+          requiredEffect: authorityContext?.requiredEffect ?? null,
+        }),
+      }));
       offeredTools.unshift(webReadTool);
       const webSearchAvailable = (await Promise.all(webSearchProviders.map(async (provider) => {
         try { return (await provider.available())?.available === true; }
@@ -1868,6 +1900,7 @@ export function makeConsoleServer({
         // Keep rendered-page interaction deferred until those lighter hands establish
         // that login, dynamic content, or an actual page interaction is required.
         'exec', 'web_read', 'web_research',
+        ...(projectUndoHandles.length ? ['workspace_patch'] : []),
         ...(informationControl === 'wide-web-v0' ? ['web_search'] : []),
         // 사용자가 이미지를 찾아 보여 달라고 했는데 링크나 진행 문장으로 끝나는 것은 결과가 아니다.
         // 기존 visual_reference를 기본 Web Hand에 두어 관리 preview와 출처까지 한 Run에서 완성한다.
@@ -1919,7 +1952,13 @@ export function makeConsoleServer({
         `local=${localNow.toLocaleString('sv-SE', { timeZone: localTimeZone })}`,
         `timeZone=${localTimeZone}`,
       ].join('\n');
-      const runtimeContexts = [localTimeContext, browserRuntimeContext, options.runtimeContext]
+      const projectUndoContext = projectUndoHandles.length ? [
+        '[T5 CURRENT REVERSIBLE PROJECT CHANGE — observed in this Session, not user text]',
+        `durableUndoHandles=${JSON.stringify(projectUndoHandles.slice(-4))}`,
+        'Each handle restores only its exact verified postimage through workspace_patch rollback; stale targets are not overwritten.',
+        'Decide from the current user request whether any handle should be used.',
+      ].join('\n') : '';
+      const runtimeContexts = [localTimeContext, browserRuntimeContext, projectUndoContext, options.runtimeContext]
         .filter(Boolean).join('\n\n');
       const agentRequest = `${modelRequest}\n\n${runtimeContexts}`;
       const observedToolActivity = new Set();

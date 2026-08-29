@@ -1,0 +1,91 @@
+{
+  "schema": "t5.s4p.durable-project-building-complete.v1",
+  "recordedAt": "2026-08-30T00:50:00+09:00",
+  "status": "S4_P_DURABLE_PROJECT_BUILDING_COMPLETE_MACOS_PRODUCT_SCOPE",
+  "completionSentence": "T5는 사용자가 기술과 개발 도구를 배우지 않아도 지속 프로젝트를 맡아 자료 탐색, 코드 작성, 실행, 화면·기능 검증, 결과 전달과 재수정을 자연스럽게 이어간다. 외부 공개가 필요한 경우에는 사용자가 선택한 기존 연결을 사용해 Preview부터 확인하며, 실제 실행·공개·비용·복구 상태를 과장하지 않는다.",
+  "stages": {
+    "P0": "COMPLETE",
+    "P1": "COMPLETE",
+    "P2": "COMPLETE",
+    "P3": "COMPLETE",
+    "P4": "COMPLETE_CONDITIONAL_EXISTING_OFFICIAL_CLI",
+    "P5": "COMPLETE_WITH_EXISTING_CAPABILITY"
+  },
+  "humanQualification": {
+    "P-H01": {
+      "purpose": "non-developer new website with local functional preview",
+      "evidence": "refoundation/evidence/s4-p3a-interactive-browser-binding-2026-08-29.json",
+      "passed": true
+    },
+    "P-H02": {
+      "purpose": "dirty existing project root-cause repair, test, Browser regression and restart Undo",
+      "evidence": "refoundation/evidence/s4-p1-runtime-project-continuity-final-2026-08-30.json",
+      "passed": true
+    },
+    "P-H03": {
+      "purpose": "reusable non-web program with independent verification and Artifact",
+      "evidence": "refoundation/evidence/s4-g-product-activation-complete-2026-08-29.json",
+      "passed": true
+    },
+    "P-H04": {
+      "purpose": "optional external temporary Preview through one existing official CLI",
+      "evidence": "refoundation/evidence/s4-p4-quick-preview-qualification-2026-08-30.json",
+      "passed": true,
+      "ownerHostActual": "official_cli_unavailable_honestly_stopped"
+    }
+  },
+  "performance": {
+    "newProject": {
+      "red": { "wallMs": 249510, "modelCalls": 21, "toolCalls": 25, "providerTokens": 924675, "requestBytes": 3764687 },
+      "final": { "wallMs": 233451, "modelCalls": 20, "toolCalls": 19, "providerTokens": 733020, "requestBytes": 3105193 },
+      "paretoImproved": true
+    },
+    "existingProjectRestartJourney": {
+      "fixWallMs": 73752,
+      "undoAfterRestartWallMs": 19212,
+      "modelCalls": 19,
+      "toolCalls": 20,
+      "providerTokens": 358801,
+      "purposePassed": true
+    }
+  },
+  "userCapabilities": [
+    "create a new local project from natural language and real local source material",
+    "run a managed dev server without orphan process or PID/log residue",
+    "verify rendered UI and core form or button behavior in the managed Browser",
+    "repair an existing dirty project while preserving user changes",
+    "run tests, reopen failures, repair and retest",
+    "undo the exact T5 change after another turn and Runtime restart",
+    "continue the same project without a new Project DB",
+    "share a temporary public Preview when the official Quick Tunnel CLI already exists",
+    "stop honestly at local Preview when that CLI is unavailable"
+  ],
+  "architecture": {
+    "newProjectStore": false,
+    "newGitSystem": false,
+    "frameworkRouter": false,
+    "hostingCatalog": false,
+    "automaticPackageInstall": false,
+    "businessSchema": false,
+    "runtimeMeaningSelection": false
+  },
+  "safety": {
+    "externalProductionWithoutRequest": false,
+    "orphanProjectProcess": false,
+    "blindProgramRetry": false,
+    "blindPublicationRetry": false,
+    "dirtyUserChangeLoss": false,
+    "staleUndoOverwrite": false,
+    "secretInPreviewArgs": false
+  },
+  "nonClaims": [
+    "all frameworks or hosting providers",
+    "production deployment",
+    "stable public URL or SLA",
+    "automatic cloudflared installation",
+    "actual external account write qualification",
+    "physical Windows project journey"
+  ],
+  "windows": "DEFERRED_NOT_WAIVED_S4_L",
+  "next": "Resume S4-HQ supported-model completion policy and human comparison wave"
+}

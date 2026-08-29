@@ -3,7 +3,7 @@ const BROWSER_TOOLS = new Set(['browser']);
 const RESULT_KEYS = [
   'state', 'stdout', 'stderr', 'truncated', 'omittedChars', 'exitCode', 'processExitCode',
   'signal', 'error', 'stopped', 'stopReason', 'terminationConfirmed', 'processId', 'cursor',
-  'cwd', 'pendingId', 'reason', 'command', 'toolName', 'inputAccepted', 'cols', 'rows',
+  'cwd', 'pendingId', 'reason', 'command', 'toolName', 'inputAccepted', 'cols', 'rows', 'undoHandle',
 ];
 export const DEFAULT_MAX_INLINE_HISTORICAL_OUTPUT_CHARS = 8_000;
 export const DEFAULT_HISTORICAL_OUTPUT_PREVIEW_CHARS = 1_000;
@@ -44,6 +44,10 @@ function compactResult(result, options) {
   for (const key of RESULT_KEYS) {
     if (result[key] !== undefined) compact[key] = clone(result[key]);
   }
+  if (typeof result.publication?.undoHandle === 'string') compact.publication = {
+    state: result.publication.state ?? null,
+    undoHandle: result.publication.undoHandle,
+  };
   const observed = compactEffect(result.effectObservation?.declared, result.effectObservation?.changed);
   if (observed) compact.effect = observed;
   else {

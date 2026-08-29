@@ -29,10 +29,15 @@ async function removeGeneration(directory) {
 
 export async function createWorkspaceSnapshot({ workspace: workspaceValue, snapshotRoot: rootValue,
   maxEntries = 4096, maxLogicalBytes = 512 * 1024 * 1024,
+  excludeTopLevelNames = [],
   clone = (source, target) => execFile('/bin/cp', ['-c', source, target], {
     timeout: 10_000, maxBuffer: 16 * 1024, env: { PATH: '/usr/bin:/bin', LANG: 'C', LC_ALL: 'C' },
   }),
   makeId = randomUUID, now = () => new Date() } = {}) {
+  if (!Array.isArray(excludeTopLevelNames) || excludeTopLevelNames.some((name) => (
+    typeof name !== 'string' || !name || name === '.' || name === '..' || name.includes('/') || name.includes('\\')
+  ))) throw new TypeError('snapshot top-level exclusions are invalid');
+  const excludedNames = new Set(excludeTopLevelNames);
   const started = performance.now(); const workspace = await realpath(resolve(workspaceValue));
   const workspaceIdentity = await lstat(workspace);
   if (!workspaceIdentity.isDirectory() || workspaceIdentity.isSymbolicLink()) {
@@ -50,9 +55,12 @@ export async function createWorkspaceSnapshot({ workspace: workspaceValue, snaps
   if (!/^snapshot_[A-Za-z0-9_]{8,200}$/u.test(generation)) throw new Error('snapshot generation is invalid');
   const directory = join(await realpath(snapshotRoot), generation); await mkdir(directory, { mode: 0o700 });
   try {
-    const entries = []; let logicalBytes = 0;
+    const entries = []; const excludedTopLevel = []; let logicalBytes = 0;
     const walk = async (sourceDirectory, relativeDirectory = '') => {
       for (const entry of await readdir(sourceDirectory, { withFileTypes: true })) {
+        if (!relativeDirectory && excludedNames.has(entry.name)) {
+          excludedTopLevel.push(entry.name); continue;
+        }
         const sourcePath = join(sourceDirectory, entry.name);
         const relativePath = join(relativeDirectory, entry.name).replaceAll('\\', '/');
         const identity = await lstat(sourcePath);
@@ -107,11 +115,13 @@ export async function createWorkspaceSnapshot({ workspace: workspaceValue, snaps
     )))).reduce((sum, value) => sum + value, 0);
     const snapshot = Object.freeze({ schema: 't5.workspace-snapshot-qualification.v1',
       generation, workspace, directory, files, manifestSha256, logicalBytes,
-      directories, reportedFileBlocksBytes, recordedAt: now().toISOString(), state: 'snapshot_read_only' });
+      directories, excludedTopLevelNames: excludedTopLevel.sort(), reportedFileBlocksBytes,
+      recordedAt: now().toISOString(), state: 'snapshot_read_only' });
     SNAPSHOTS.add(snapshot);
     return { snapshot, receipt: { state: 'snapshot_read_only', fileCount: files.length,
       directoryCount: entries.length - files.length, logicalBytes, reportedFileBlocksBytes, manifestSha256,
       wallMs: Number((performance.now() - started).toFixed(3)), exactActualReadSet: false,
+      ...(excludedTopLevel.length ? { excludedTopLevelNames: excludedTopLevel.sort() } : {}),
       originalWrites: 0, providerBytes: 0 } };
   } catch (error) {
     if (!await removeGeneration(directory)) throw new Error('snapshot cleanup is unknown');

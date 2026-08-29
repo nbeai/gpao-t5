@@ -23,9 +23,6 @@ test('실제 Console은 workspace_patch preview→apply→최종 답을 한 Run�
           query: '여러 파일 구조화 수정 생성 transaction rollback',
         } }] };
       }
-      if (turn === 5) return { text: '', toolCalls: [{ id: 'find-undo', name: 'tool_search', args: {
-        query: 'workspace patch rollback undo 여러 파일 원복',
-      } }] };
       assert.ok(tools.some((tool) => tool.name === 'workspace_patch'));
       if (turn === 2) return { text: '', toolCalls: [{ id: 'preview', name: 'workspace_patch', args: {
         action: 'preview', planHandle: null, undoHandle: null, operations: [
@@ -41,7 +38,10 @@ test('실제 Console은 workspace_patch preview→apply→최종 답을 한 Run�
         action: 'apply', planHandle: receipt.result.planHandle, undoHandle: null, operations: [],
       } }] };
       }
-      if (turn === 6) {
+      if (turn === 5) {
+        const currentRequest = [...messages].reverse().find((item) => item.role === 'user')?.content ?? '';
+        assert.match(currentRequest, /T5 CURRENT REVERSIBLE PROJECT CHANGE/u);
+        assert.match(currentRequest, /durableUndoHandles=\["undo_/u);
         const receipts = [...messages].reverse().filter((item) => item.role === 'tool'
           && item.name === 'workspace_patch').map((item) => JSON.parse(item.content));
         const undoHandle = receipts.find((item) => item.result?.undoHandle)?.result.undoHandle;
@@ -49,7 +49,7 @@ test('실제 Console은 workspace_patch preview→apply→최종 답을 한 Run�
           action: 'rollback', planHandle: null, undoHandle, operations: [],
         } }] };
       }
-      if (turn === 7) return { text: '두 파일을 이전 상태로 복원했어요.', toolCalls: [] };
+      if (turn === 6) return { text: '두 파일을 이전 상태로 복원했어요.', toolCalls: [] };
       return { text: '두 파일을 함께 적용하고 다시 확인했어요.', toolCalls: [] };
     } }),
     onError: () => {},

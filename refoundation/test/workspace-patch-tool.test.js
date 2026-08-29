@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { makeWorkspacePatchTool } from '../src/workspace-patch-tool.js';
+import { makeExecTool } from '../src/exec-tool.js';
 
 const call = (overrides = {}) => ({ action: 'preview', planHandle: null, undoHandle: null,
   operations: [], ...overrides });
@@ -43,6 +44,24 @@ test('workspace_patch durable undo는 새 tool instance에서 exact rollback하�
     assert.equal(await readFile(target, 'utf8'), '{"revision":1}');
     await assert.rejects(readFile(join(root, 'created.txt')), { code: 'ENOENT' });
     await assert.rejects(restarted.execute(call({ action: 'rollback', undoHandle: applied.undoHandle })), /stale/u);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('foreground local_change도 exact declared file이면 기존 F Undo로 다음 tool instance에서 복원된다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-foreground-undo-')); const stateRoot = join(root, '.state');
+  try {
+    const target = join(root, 'source.js'); const dirty = join(root, 'theme.css');
+    await writeFile(target, 'old-source'); await writeFile(dirty, 'user-dirty');
+    const patch = makeWorkspacePatchTool({ workspace: root, stateRoot, sessionId: 'session-a' });
+    const exec = makeExecTool({ workspace: root, mutationUndoCoordinator: patch });
+    const changed = await exec.execute({ command: "printf 'new-source' > source.js", cwd: null,
+      effect: { kind: 'local_change', targets: ['source.js'], confirmation: 'not_applicable', rollbackOfToolCallId: null } });
+    assert.equal(changed.state, 'completed'); assert.ok(changed.undoHandle);
+    assert.equal(await readFile(target, 'utf8'), 'new-source'); assert.equal(await readFile(dirty, 'utf8'), 'user-dirty');
+    const restarted = makeWorkspacePatchTool({ workspace: root, stateRoot, sessionId: 'session-a' });
+    const rolled = await restarted.execute(call({ action: 'rollback', undoHandle: changed.undoHandle }));
+    assert.equal(rolled.state, 'rolled_back_verified'); assert.equal(await readFile(target, 'utf8'), 'old-source');
+    assert.equal(await readFile(dirty, 'utf8'), 'user-dirty');
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

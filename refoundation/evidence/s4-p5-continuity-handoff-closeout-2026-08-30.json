@@ -1,0 +1,46 @@
+{
+  "schema": "t5.s4p5.continuity-handoff-closeout.v1",
+  "recordedAt": "2026-08-30T00:46:00+09:00",
+  "status": "S4_P5_COMPLETE_WITH_EXISTING_CAPABILITY",
+  "projectContinuity": {
+    "runtimeRestart": "refoundation/evidence/s4-p1-runtime-project-continuity-final-2026-08-30.json",
+    "dirtyProjectUndo": "refoundation/evidence/s4-p2b-durable-project-undo-complete-2026-08-30.json",
+    "artifactCrashRecovery": "refoundation/evidence/s4-g-product-activation-complete-2026-08-29.json",
+    "interactionContinuity": "refoundation/evidence/s4-ux-interaction-continuity-complete-2026-08-29.json",
+    "managedCrashSettlement": "refoundation/evidence/s4-d4b-successor-settlement-2026-08-29.json"
+  },
+  "checks": {
+    "sameProjectAfterCorrection": true,
+    "sameProjectAfterRuntimeRestart": true,
+    "sourceRevisionReopened": true,
+    "userDirtyChangePreserved": true,
+    "durableUndoAfterRestart": true,
+    "programBlindRetry": false,
+    "filePublicationBlindRetry": false,
+    "partialOutputReopen": true,
+    "artifactRedeliveryWithoutRebuild": true,
+    "modelContinuityReceipt": true,
+    "consoleTelegramCanonicalState": true,
+    "backupScopeDistinctFromProjectFiles": true
+  },
+  "handoff": {
+    "usesExistingArtifact": true,
+    "requiredFacts": [
+      "project location",
+      "run method",
+      "external services",
+      "data location",
+      "known unknowns",
+      "Undo or rollback",
+      "cost observation"
+    ],
+    "newDocumentationSystem": false,
+    "newProjectStore": false
+  },
+  "nonClaims": [
+    "whole-state backup replaces Git or project backup",
+    "all external services persist across Runtime restart",
+    "physical Windows project continuity"
+  ],
+  "next": "S4-P human qualification and final closeout"
+}
