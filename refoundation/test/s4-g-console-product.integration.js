@@ -16,7 +16,7 @@ async function listen(server) {
   return `http://127.0.0.1:${server.address().port}`;
 }
 
-for (const modelId of ['provider-a-model', 'provider-b-model']) test(
+for (const modelId of ['provider-a-model', 'provider-b-model', 'provider-c-compound-model']) test(
   `기존 exec의 exact Python은 모델 identity와 무관하게 G→Artifact로 끝난다: ${modelId}`, async () => {
     const root = await mkdtemp(join(tmpdir(), 't5-s4g-console-product-'));
     const workspace = join(root, 'workspace'); const stateDir = join(root, 'state');
@@ -33,7 +33,9 @@ for (const modelId of ['provider-a-model', 'provider-b-model']) test(
             "Path('summary.csv').write_text('rows\\n'+str(len(rows))+'\\n')",
             "Path('names.txt').write_text('\\n'.join(rows)+'\\n')"];
           const command = modelId === 'provider-a-model' ? ["python3 - <<'PY'", ...lines, 'PY'].join('\n')
-            : `python3 -c ${JSON.stringify(lines.join(';'))}`;
+            : modelId === 'provider-b-model' ? `python3 -c ${JSON.stringify(lines.join(';'))}`
+              : ["mkdir -p .generated", "python3 - <<'PY'", ...lines,
+                "Path('.generated/trace.txt').write_text('internal')", 'PY', 'test -s summary.csv'].join('\n');
           return { text: '', toolCalls: [{ id: `exec-${modelId}`, name: 'exec', args: {
           command,
           cwd: null, effect: effect(['summary.csv', 'names.txt']),

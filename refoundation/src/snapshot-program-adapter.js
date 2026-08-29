@@ -4,6 +4,7 @@ import { extname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 import { admitExecProgramContract } from './exec-program-contract.js';
 import { executePythonProgramQualification, observePythonInterpreter } from './ephemeral-program-python.js';
+import { executeSnapshotShellQualification } from './ephemeral-program-shell.js';
 import { cleanupWorkspaceSnapshotRoot, createWorkspaceSnapshot, removeWorkspaceSnapshot,
   snapshotProgramBindings, verifyWorkspaceSnapshotSources } from './ephemeral-program-snapshot.js';
 import { inspectDelimitedText } from './text-document-observer.js';
@@ -46,6 +47,7 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
   executionPath = process.env.PATH ?? '/usr/bin:/bin', pythonPath = '/usr/bin/python3',
   protectedReadRoots = [], createSnapshot = createWorkspaceSnapshot,
   executePython = executePythonProgramQualification, removeSnapshot = removeWorkspaceSnapshot,
+  executeShell = executeSnapshotShellQualification,
   verifySources = verifyWorkspaceSnapshotSources, onPublicationSettled = null,
   onOutputHandoffCommitted = null } = {}) {
   if (!workspaceValue || !snapshotRoot || !scratchRoot || !sessionId || !workId
@@ -94,28 +96,31 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
     async execute({ args, commandExplanation, cwd = null, signal = null, toolCallId = null } = {}) {
       if (args?.effect?.kind !== 'local_change' || !Array.isArray(args.effect.targets)
         || !args.effect.targets.length || commandExplanation?.ok !== true
-        || commandExplanation.hasParseError || commandExplanation.steps?.length !== 1
-        || commandExplanation.operators?.length || commandExplanation.steps[0].context !== 'top-level') return null;
-      const owner = commandExplanation.steps[0];
+        || commandExplanation.hasParseError || !commandExplanation.steps?.length) return null;
       const observedInterpreter = await interpreter();
-      if (await resolvedExecutable(owner.executable) !== observedInterpreter.path) return null;
+      const pythonSteps = [];
+      for (const step of commandExplanation.steps) {
+        if (await resolvedExecutable(step.executable) === observedInterpreter.path) pythonSteps.push(step);
+      }
+      if (!pythonSteps.length) return null;
       const workspace = await workspacePromise;
       let canonicalCwd; try { canonicalCwd = await realpath(resolve(cwd)); } catch { return null; }
       if (canonicalCwd !== workspace) return null;
-      let source; let sourceSha256;
-      if (Array.isArray(commandExplanation.heredocs) && commandExplanation.heredocs.length) {
-        if (commandExplanation.heredocs.length !== 1
-          || commandExplanation.heredocs[0].commandId !== owner.id
-          || commandExplanation.heredocs[0].literal !== true) {
-          return failed('exact_single_literal_python_source_required');
-        }
+      let source = null; let sourceSha256 = sha256(commandExplanation.source); let simplePython = false;
+      const owner = commandExplanation.steps.length === 1 && !commandExplanation.operators?.length
+        && commandExplanation.steps[0].context === 'top-level' ? commandExplanation.steps[0] : null;
+      if (owner && await resolvedExecutable(owner.executable) === observedInterpreter.path
+        && Array.isArray(commandExplanation.heredocs) && commandExplanation.heredocs.length === 1
+        && commandExplanation.heredocs[0].commandId === owner.id
+        && commandExplanation.heredocs[0].literal === true) {
         const first = commandExplanation.heredocs[0];
         source = String(commandExplanation.source).slice(first.startIndex, first.endIndex);
-        sourceSha256 = first.sha256;
-      } else {
+        sourceSha256 = first.sha256; simplePython = true;
+      } else if (owner && await resolvedExecutable(owner.executable) === observedInterpreter.path) {
         const argv = owner.argv ?? []; const codeIndex = argv.indexOf('-c');
-        if (codeIndex !== 1 || argv.length !== 3 || typeof argv[2] !== 'string' || !argv[2].trim()) return null;
-        source = argv[2]; sourceSha256 = sha256(source);
+        if (codeIndex === 1 && argv.length === 3 && typeof argv[2] === 'string' && argv[2].trim()) {
+          source = argv[2]; sourceSha256 = sha256(source); simplePython = true;
+        }
       }
       await recovery;
       if (signal?.aborted) return failed('cancelled_before_snapshot');
@@ -135,15 +140,23 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
       catch { return failed('snapshot_generation_failed'); }
       const cleanup = async () => removeSnapshot(snapshot).catch(() => ({ removed: false }));
       try {
-        const bound = snapshotProgramBindings(snapshot, { sessionId, workId,
-          excludeRelativePaths: targets.map((item) => item.relativePath) });
-        const contract = admitExecProgramContract({ workId, revision, temporary: true,
-          sourceLanguage: 'python', source, inputs: bound.bindings,
-          outputs: targets.map(({ relativePath, kind, category }) => ({ relativePath, kind, category })),
-          requirements: REQUIREMENTS, interpreter: observedInterpreter.path });
-        const executed = await executePython({ contract, interpreter: observedInterpreter,
-          sourceReader: bound.sourceReader, processRegistry, scratchRoot, protectedReadRoots,
-          maxOutputBytes: 262_144, signal, directories: snapshot.directories });
+        let executed;
+        if (simplePython) {
+          const bound = snapshotProgramBindings(snapshot, { sessionId, workId,
+            excludeRelativePaths: targets.map((item) => item.relativePath) });
+          const contract = admitExecProgramContract({ workId, revision, temporary: true,
+            sourceLanguage: 'python', source, inputs: bound.bindings,
+            outputs: targets.map(({ relativePath, kind, category }) => ({ relativePath, kind, category })),
+            requirements: REQUIREMENTS, interpreter: observedInterpreter.path });
+          executed = await executePython({ contract, interpreter: observedInterpreter,
+            sourceReader: bound.sourceReader, processRegistry, scratchRoot, protectedReadRoots,
+            maxOutputBytes: 262_144, signal, directories: snapshot.directories });
+        } else {
+          executed = await executeShell({ command: commandExplanation.source, snapshot,
+            outputs: targets.map(({ relativePath, kind, category }) => ({ relativePath, kind, category })),
+            processRegistry, ownerId: workId, scratchRoot, protectedReadRoots,
+            executionPath, signal, maxOutputBytes: 262_144 });
+        }
         if (!executed.execution) { const cleaned = await cleanup();
           return failed(executed.receipt.reason, { publication: 'not_started', cleanup: cleaned }); }
         const sourceCoverage = await verifySources(snapshot);
@@ -197,7 +210,7 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
         return { handled: true, result: { state: cleaned.removed
           ? 'published_verified_cleaned' : 'published_verified_cleanup_unknown', exitCode: 0,
         fallbackToExec: false, duplicateExecution: false, sourceLanguage: 'python', translated: false,
-        actualExecutions: 1, sourceSha256,
+        actualExecutions: 1, sourceSha256, executionBackend: simplePython ? 'python_exact' : 'snapshot_shell_exact',
         sourceUniverse: { coverage: 'complete', immutableGeneration: true,
           filesAndDigestsVerified: true, fileCount: snapshot.files.length,
           manifestSha256: snapshot.manifestSha256 },
@@ -212,7 +225,8 @@ export function makeSnapshotProgramAdapter({ workspace: workspaceValue, snapshot
         deactivatedTools: artifactBatch?.state === 'artifacts_registered' ? ['attachment'] : [] } : {}),
         cleanup: { state: cleaned.removed ? 'cleaned' : 'unknown' },
         confinement: { workspaceOutsideRead: 0, originalWrites: 0,
-          userTargetWritesBeforePublication: 0, network: 0, childProcess: 0 } } };
+          userTargetWritesBeforePublication: 0, network: 0,
+          childProcess: simplePython ? 0 : 'managed_process_group' } } };
       } catch (error) {
         if (error?.simulateCrash === true) throw error;
         const cleaned = await cleanup(); return failed('protected_program_internal_failure',

@@ -1,7 +1,7 @@
 # T5 Fourth Completion — Android Work Intelligence
 
-상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE_PRODUCT_ACTIVATION_CLOSED_WITH_OBSERVATION_FURTHER_DEFERRED · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_G_OUTPUT_HANDOFF_P1_AUDIT_COMPLETE_CAUSE_NOT_UNIQUE · S4_G_DURABLE_BATCH_HANDOFF_CONTRACT_COMPLETE · S4_G_SNAPSHOT_ADAPTER_BATCH_HANDOFF_COMPLETE · S4_G_MODEL_INDEPENDENT_EXEC_ARTIFACT_INTEGRATION_NARROW_ONLY · S4_G_ACTUAL_ACTIVATION_VARIANCE_CONFIRMED · S4_G_GENERIC_SNAPSHOT_SHELL_BACKEND_QUALIFIED_PRODUCT_INTEGRATION_ZERO · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_PAUSED_AT_FIRST_CRITICAL_MODEL_PROVIDER_FAILURE · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
-현재 Gate: `S4-G MODEL-INDEPENDENT ACTIVATION · GENERIC SNAPSHOT SHELL ADAPTER INTEGRATION NEXT`
+상태: `FOURTH_COMPLETION_ACTIVE · S4_0_COMPLETE · S4_A_COMPLETE · S4_B_COMPLETE_MODEL_OBSERVATION · S4_D0_FACT_ONLY_CORRECTED · S4_C_CLOSED_WITH_MODEL_PROVIDER_OBSERVATION_NOT_UNIVERSALLY_PROVEN · S4_D_TERMINAL_MANAGED_NON_PTY_COMPLETE · S4_D5C_PRODUCT_ISOLATION_COMPLETE · S4_E_MANAGED_MUTATION_CONFINEMENT_COMPLETE · S4_F_STRUCTURED_AUTHORING_COMPLETE · S4_G_INTERNAL_ENGINE_COMPLETE · S4_G_ACTUAL_READSET_UNKNOWN_BY_DESIGN_SOURCE_UNIVERSE_COMPLETE_IMMUTABLE_OUTPUT_COVERAGE_INDEPENDENTLY_VERIFIED · S4_G_DURABLE_BATCH_HANDOFF_COMPLETE · S4_G_GENERIC_SNAPSHOT_SHELL_PRODUCT_ACTIVATION_COMPLETE_MODEL_INDEPENDENT · S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED_PRODUCT_IMPLEMENTATION_ZERO · S4_I_COMPLETE_EXISTING_RECOVERY_CAPABILITY_PRODUCT_IMPLEMENTATION_ZERO · S4_UX_INTERACTION_CONTINUITY_COMPLETE · S4_L_DEFERRED_NOT_WAIVED_OWNER_DECISION · S4_HQ_PAUSED_AT_FIRST_CRITICAL_MODEL_PROVIDER_FAILURE_OWNER_DECISION_REQUIRED · S4_J_DEFERRED_FUTURE_RESEARCH · S4_K_ACQUISITION_DEFERRED_CAPABILITY_REALITY_CROSSCUTTING`
+현재 Gate: `S4-HQ MODEL SUPPORT·COMPLETION POLICY · OWNER DECISION REQUIRED`
 출발 기준: `t5-0.3.1-clean-baseline · 8aba3700`
 개발선: `codex/t5-fourth-android-intelligence · /Users/jyp/Developer/t5-fourth`
 
@@ -55,16 +55,12 @@ Runtime은 업무 이름, 사용자 문장, 서비스 이름의 정규식으로 
 ## 3. 현재 Gate의 작업 시작 일곱 줄
 
 1. **제품 약속**: 사용자는 평소 말로 목적만 맡기고 T5가 현실에서 실제로 끝낸다.
-2. **현재 Gate**: qualified generic snapshot shell backend를 기존 Snapshot adapter에 결속하는 단계다.
-3. **사용자 완료 문장**: T5는 어떤 모델이 기존 exec로 검증 가능한 작은 프로그램을 작성해도 같은 G 격리·검증·
-   발행 계약을 적용하고 결과를 재시도 없이 사용자 Artifact로 전달한다.
-4. **이미 선 실제 증거**: G3~G6 engine, snapshot actual 1회, F publication·Undo·cleanup, 기존 AttachmentStore와
-   current output handoff deterministic audit가 있다.
-5. **현재 가장 큰 미달**: generic shell backend는 복합 command·network·outside-write 반례를 통과했지만 기존
-   Snapshot adapter와 Console exec는 아직 복합 command를 이 backend로 보내지 않는다.
-6. **이번 변경 방식**: 단일 Python source가 exact하면 기존 좁은 backend, 그 밖의 local_change 복합 command는
-   generic shell backend로 보내고 둘 다 같은 F·batch Artifact 계약을 사용한다.
-7. **Non-goals**: 명령 allowlist 증식·업무 Router·모델별 activation·Prompt patch·HQ 모델 실패 수리.
+2. **현재 Gate**: S4-HQ의 supported-model·completion policy에 대한 오너 결정이다.
+3. **사용자 완료 문장**: 이 문서 1절의 4차 최종 완료 문장 전체다.
+4. **이미 선 실제 증거**: G model-independent actual 세 목적 PASS와 KHB-A03 gpt-5.5 PASS·Terra false-absence가 있다.
+5. **현재 가장 큰 미달**: G와 무관한 Terra portable discovery 실패를 4차 전체 모델 요구에서 어떻게 처리할지 미결정이다.
+6. **이번 변경 방식**: Runtime·Prompt 패치 없이 qualified default model과 comparison observation의 완료 정책을 정한다.
+7. **Non-goals**: G 재개발·업무 Router·모델별 Prompt·Terra 명령 예외·Windows deferred를 PASS로 승격.
 
 이 일곱 줄이 Git·실행·증거에서 확인되지 않으면 구현하지 않는다.
 
@@ -856,6 +852,18 @@ output을 정확히 회수했고 원본 write는 0이었다. network와 scratch 
 삼키고 다른 output을 만들어도 boundary-denied 실행은 발행하지 않았다. Python cache·diagnostic 같은 내부 파일은
 개수만 관측하고 scratch와 함께 제거했다. 제품 integration은 0이며 qualification source는 payload에서 제외한다.
 
+generic backend를 Snapshot adapter와 Console exec에 결속한 뒤 같은 12파일·527행 gpt-5.5 actual은 정확한 4행 요약·
+47행 오류·source unchanged·snapshot execution 1·cleanup·잔여 0을 통과했다. 99.612초·10 model calls·9 tool calls·
+196,925 tokens로 자연 경로 101.754초·11·11·251,526 tokens보다 wall·calls·tokens가 모두 개선됐고 attachment call·
+failure는 0이었다. 사업 actual은 PASS다. 개발·개인 파일 두 actual을 통과하기 전 G 전체 완료는 주장하지 않는다.
+
+후속 actual에서 개발 목적은 50.445초·9 model calls·8 tool calls·133,139 tokens, 개인 파일 목적은 60.488초·
+10·9·167,435 tokens였다. 둘 다 snapshot execution 1·Artifact 2·attachment call 0·source unchanged·외부 효과 0으로
+정확히 통과했다. deterministic 세 목적, 두 model identity·세 command shape, 두 crash 구간, actual 세 목적과 사업
+자연 경로 대비 Pareto 개선이 모두 섰다. S4-G는 `internal_engine: COMPLETE`, `product_activation: COMPLETE`,
+`actualReadSet: UNKNOWN_BY_DESIGN`, `sourceUniverse: COMPLETE_IMMUTABLE`,
+`outputCoverage: INDEPENDENTLY_VERIFIED`로 닫는다.
+
 완료 문장:
 
 > T5는 기존 손으로 같은 품질을 경제적으로 달성하기 어려운 현재 Work에서만 작은 프로그램을 만들고, 고정된
@@ -1128,6 +1136,7 @@ current-head recovery 5/5와 qualification ruler 교정 뒤 제품 구현 0으�
 Terra critical purpose 실패가 갈렸다. 중단선에 따라 KHB-S01과 전체 wave를 열지 않았다. HQ는 이 상태로 보존한다.
 durable multi-output handoff batch와 Snapshot adapter의 prepare→F publication→batch·Artifact commit→cleanup·crash
 reconcile은 닫혔다. 좁은 Python activation은 deterministic 두 표현을 통과했지만 actual command shape 분산에서 실패했다.
-generic snapshot shell backend는 복합 command·network·outside-write qualification을 통과했다. 현재 다음 한 작업은
-이를 기존 Snapshot adapter의 복합 local_change 경로에 결속해 좁은 Python과 같은 F·batch Artifact 계약으로 끝내는
-것이다. 같은 activation 가족에 세 번째 문법 패치를 붙이지 않는다. Windows deferred가 남아 4차 전체 완료는 주장하지 않는다.
+generic snapshot shell은 사업·개발·개인 파일 actual에서 정확성·격리·Artifact·경제성을 통과해 S4-G product
+activation COMPLETE로 닫혔다. 현재 다음 한 작업은 HQ KHB-A03에서 갈린 gpt-5.5·Terra 결과를 바탕으로 qualified
+default model과 comparison observation의 완료 정책을 오너가 결정하는 것이다. Windows deferred가 남아 4차 전체
+완료는 주장하지 않는다.

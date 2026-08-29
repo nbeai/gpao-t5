@@ -1,0 +1,47 @@
+{
+  "schema": "t5.s4g.product-activation-complete.v1",
+  "recordedOn": "2026-08-29",
+  "status": "S4_G_GENERIC_SNAPSHOT_SHELL_PRODUCT_ACTIVATION_COMPLETE_MODEL_INDEPENDENT",
+  "finalTruth": {
+    "internalEngine": "COMPLETE",
+    "productActivation": "COMPLETE",
+    "actualReadSet": "UNKNOWN_BY_DESIGN",
+    "sourceUniverse": "COMPLETE_IMMUTABLE",
+    "outputCoverage": "INDEPENDENTLY_VERIFIED"
+  },
+  "activation": {
+    "modelIdentityUsed": false,
+    "businessRouterUsed": false,
+    "promptPatchUsed": false,
+    "sourceTransports": ["literal_heredoc", "python_c", "compound_exact_shell"],
+    "artifactRegistrationRequiresModel": false
+  },
+  "actualPurposes": [
+    { "purpose": "business", "passed": true, "wallMs": 99612, "modelCalls": 10,
+      "toolCalls": 9, "providerTokens": 196925, "snapshotExecutions": 1,
+      "attachmentCalls": 0, "artifactCount": 2, "sourceUnchanged": true },
+    { "purpose": "development", "passed": true, "wallMs": 50445, "modelCalls": 9,
+      "toolCalls": 8, "providerTokens": 133139, "snapshotExecutions": 1,
+      "attachmentCalls": 0, "artifactCount": 2, "sourceUnchanged": true },
+    { "purpose": "personal_file", "passed": true, "wallMs": 60488, "modelCalls": 10,
+      "toolCalls": 9, "providerTokens": 167435, "snapshotExecutions": 1,
+      "attachmentCalls": 0, "artifactCount": 2, "sourceUnchanged": true }
+  ],
+  "businessComparison": {
+    "natural": { "wallMs": 101754, "modelCalls": 11, "toolCalls": 11, "providerTokens": 251526 },
+    "finalG": { "wallMs": 99612, "modelCalls": 10, "toolCalls": 9, "providerTokens": 196925 },
+    "qualityAndSafetyNoRegression": true,
+    "paretoImproved": true
+  },
+  "safety": {
+    "outsideWrite": 0,
+    "network": 0,
+    "sourceChanges": 0,
+    "residualFiles": 0,
+    "residualProcesses": 0,
+    "pythonOrFReexecutionAfterCrash": 0,
+    "partialArtifactPublication": 0
+  },
+  "verification": { "focusedPassed": 28, "dailyPassed": 1810, "failed": 0, "skipped": 1 },
+  "notClaimed": ["Windows G physical qualification", "all models achieve every user purpose", "S4-HQ complete"]
+}

@@ -37,7 +37,6 @@ export const QUALIFICATION_ONLY_SOURCE = Object.freeze([
   'src/ephemeral-program-preparation.js',
   'src/ephemeral-program-publication.js',
   'src/ephemeral-program-quickjs.js',
-  'src/ephemeral-program-shell.js',
   'src/human-scenarios.js',
   'src/incident-reference-fixture.js',
   'src/korean-web-baseline.js',

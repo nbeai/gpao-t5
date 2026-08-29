@@ -1,0 +1,27 @@
+{
+  "schema": "t5.s4g.generic-shell-business-actual.v1",
+  "recordedOn": "2026-08-29",
+  "status": "S4_G_GENERIC_SNAPSHOT_SHELL_BUSINESS_ACTUAL_PASS",
+  "model": "gpt-5.5",
+  "fixture": { "inputFiles": 12, "inputRows": 527, "summaryRows": 4, "errorRows": 47 },
+  "result": {
+    "purposePassed": true,
+    "snapshotExecutions": 1,
+    "sourceUnchanged": true,
+    "attachmentCalls": 0,
+    "attachmentFailures": 0,
+    "residualFiles": 0,
+    "residualProcesses": 0,
+    "runtimeErrors": 0
+  },
+  "performance": { "wallMs": 99612, "modelCalls": 10, "toolCalls": 9,
+    "providerTokens": 196925, "requestBytes": 896341 },
+  "comparisons": {
+    "natural": { "wallMs": 101754, "modelCalls": 11, "toolCalls": 11, "providerTokens": 251526 },
+    "pollutedG": { "wallMs": 161854, "modelCalls": 16, "toolCalls": 16, "providerTokens": 419448 },
+    "wallImprovedVsNatural": true,
+    "callsImprovedVsNatural": true,
+    "tokensImprovedVsNatural": true
+  },
+  "next": ["development actual", "personal-file actual"]
+}
