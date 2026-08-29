@@ -59,6 +59,24 @@ test('G handoff batch는 다중 postimage 전체를 한 commit으로 durable out
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
 
+test('G handoff batch는 아직 없는 bounded output 부모도 publication 전 preimage로 준비한다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-s4g-handoff-missing-parent-'));
+  try {
+    const workspace = join(root, 'workspace'); await mkdir(workspace);
+    const output = join(workspace, 'result', 'summary.csv'); const content = Buffer.from('count\n2\n');
+    const store = new AttachmentStore(join(root, 'attachments'));
+    const prepared = await store.prepareProducedOutputBatch({ sessionId: SESSION,
+      workspace, runId: RUN, toolCallId: 'exec-new-parent', outputs: [{ filePath: output,
+        expectedSha256: sha(content), expectedBytes: content.length }] });
+    assert.equal(prepared.state, 'prepared');
+    await mkdir(join(workspace, 'result')); await writeFile(output, content);
+    await markPublished(store, prepared, 'exec-new-parent');
+    const committed = await store.commitProducedOutputBatch({ sessionId: SESSION,
+      workspace, runId: RUN, toolCallId: 'exec-new-parent', batchId: prepared.batchId });
+    assert.equal(committed.state, 'committed'); assert.equal(committed.outputs.length, 1);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test('batch outputHandle은 path authorization이나 모델의 filePath 재구성 없이 Artifact로 등록된다', async () => {
   const app = await fixture();
   try {

@@ -283,12 +283,26 @@ export class AttachmentStore {
   }
 
   async observeOutputTarget({ workspace, filePath } = {}) {
-    const root = await realpath(workspace);
-    const requested = resolve(String(workspace), String(filePath ?? ''));
-    const parent = await realpath(dirname(requested)); const path = resolve(parent, basename(requested));
+    const lexicalRoot = resolve(String(workspace)); const root = await realpath(lexicalRoot);
+    const lexicalRequested = resolve(lexicalRoot, String(filePath ?? ''));
+    const lexicalCandidate = relative(lexicalRoot, lexicalRequested);
+    const requested = lexicalCandidate !== '..' && !lexicalCandidate.startsWith(`..${sep}`)
+      ? resolve(root, lexicalCandidate) : lexicalRequested;
+    const lexicalRel = relative(root, requested);
+    if (lexicalRel === '..' || lexicalRel.startsWith(`..${sep}`) || !lexicalRel) {
+      throw new Error('output path is outside workspace');
+    }
+    let candidate = dirname(requested); let parentMissing = false;
+    while (candidate !== root) {
+      try { await lstat(candidate); break; }
+      catch (error) { if (error?.code !== 'ENOENT') throw error;
+        parentMissing = true; candidate = dirname(candidate); }
+    }
+    const parent = await realpath(candidate); const path = resolve(parent, relative(candidate, requested));
     const rel = relative(root, path); const parentRel = relative(root, parent);
     if (rel === '..' || rel.startsWith(`..${sep}`) || !rel) throw new Error('output path is outside workspace');
     if (parentRel === '..' || parentRel.startsWith(`..${sep}`)) throw new Error('output parent is outside workspace');
+    if (parentMissing) return { path, exists: false, bytes: null, sha256: null };
     let stat;
     try { stat = await lstat(path); }
     catch (error) { if (error?.code === 'ENOENT') return { path, exists: false, bytes: null, sha256: null }; throw error; }
