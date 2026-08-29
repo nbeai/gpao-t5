@@ -1,0 +1,56 @@
+{
+  "schema": "t5.s4h.existing-capability-closeout.v1",
+  "recordedOn": "2026-08-29",
+  "status": "S4_H_CLOSED_WITH_EXISTING_CAPABILITY_OBSERVATION_HQ_REQUIRED",
+  "sourceCommit": "6504e7e3",
+  "productImplementation": 0,
+  "currentActual": {
+    "sourceKeyJoinExact": true,
+    "requiredFieldCoverageExact": true,
+    "outputClosure": true,
+    "privateCanaryAbsent": true,
+    "sourceUnchanged": true,
+    "oracleFalseFailureRepaired": true
+  },
+  "crossDomainEvidence": [
+    {
+      "purpose": "owner_office_application_reconciliation",
+      "source": "refoundation/evidence/s4-h-readonly-baseline-2026-08-29.json",
+      "status": "actual_positive"
+    },
+    {
+      "purpose": "receivables",
+      "source": "refoundation/evidence/s4-c-situation-hand-baseline-2026-08-28.json",
+      "scenario": "KHB-M05",
+      "status": "actual_positive",
+      "purposeAchieved": true,
+      "resultCorrect": true,
+      "messagesSent": 0
+    },
+    {
+      "purpose": "personal_file",
+      "source": "refoundation/evidence/file-intelligence-live-performance-baseline-2026-08-27.json",
+      "status": "exact_file_purposes_positive_cross_source_join_not_claimed"
+    }
+  ],
+  "carryForward": [
+    {
+      "scenario": "KHB-A03",
+      "reason": "workspace evidence discovery failed before exact contract reconciliation",
+      "owner": "S4_C_AND_S4_HQ"
+    },
+    {
+      "scenario": "personal_cross_source_join",
+      "reason": "exact file retrieval passed but cross-source reconciliation was not independently qualified",
+      "owner": "S4_HQ"
+    },
+    {
+      "scenario": "reconciliation_economy",
+      "reason": "current accurate baseline used 122-156 seconds and 12-18 tool calls",
+      "owner": "S4_HQ_COMPARATIVE_ECONOMY"
+    }
+  ],
+  "completionClaim": "existing capability observed; universal user completion requires HQ",
+  "dailyCheck": { "passed": 1776, "failed": 0, "skipped": 1 },
+  "nextGate": "S4_I_READ_ONLY_BASELINE"
+}
