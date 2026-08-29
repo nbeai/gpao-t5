@@ -15,3 +15,9 @@ test('S4-HQ Console wave는 A~J와 실제 UI·성능·외부 effect oracle을 �
   assert.equal(value.globalOracle.actualExternalWrite, 0);
   assert.equal(value.globalOracle.windows, 'DEFERRED_NOT_WAIVED');
 });
+
+test('S4-HQ Console launcher는 computer 파일 관측도 격리 root 밖으로 보내지 않는다', async () => {
+  const source = await readFile(new URL('../scripts/launch-s4-hq-console.mjs', import.meta.url), 'utf8');
+  assert.match(source, /computerFileRoots:\s*\[workspace, home\]/u);
+  assert.match(source, /restrictFileRealityToComputerRoots:\s*true/u);
+});

@@ -47,6 +47,7 @@ const adapter = await makeTerminalPlatformAdapter({ platform: computer.platform,
 const broker = makeTerminalCredentialBroker({ registrations: githubCli ? [makeGitHubCliRegistration(githubCli)] : [],
   generalTerminalIsolationQualified: adapter.qualified === true });
 const server = makeConsoleServer({ stateDir, workspace, computerEnvironment: computer, terminalEnvironment,
+  computerFileRoots: [workspace, home], restrictFileRealityToComputerRoots: true,
   terminalPlatformAdapter: adapter, terminalCredentialBroker: broker,
   modelFactory: (context) => access.model(context), modelStatus: () => access.status(),
   browserDriverFactory: (sessionId) => makeAgentBrowserDriver({ ownerId: sessionId,
