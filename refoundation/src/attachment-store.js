@@ -215,6 +215,10 @@ export class AttachmentStore {
         outputs.set(event.payload.output.outputHandle, {
           ...clone(event.payload.output), state: 'produced', attachmentId: null,
         });
+      } else if (event.type === 'output_batch_committed') {
+        for (const item of event.payload.outputs ?? []) outputs.set(item.outputHandle, {
+          ...clone(item), state: 'produced', attachmentId: null,
+        });
       } else if (event.type === 'output_registered_from_provenance') {
         const output = outputs.get(event.payload.outputHandle);
         if (output) {
@@ -225,6 +229,154 @@ export class AttachmentStore {
       }
     }
     return outputs;
+  }
+
+  producedOutputBatchesFrom(events) {
+    const batches = new Map();
+    for (const event of events) {
+      const batchId = event.payload?.batchId;
+      if (event.type === 'output_batch_prepared') batches.set(batchId, {
+        ...clone(event.payload.batch), state: 'prepared', outputs: [],
+      });
+      else if (event.type === 'output_batch_committed') {
+        const batch = batches.get(batchId); if (batch) {
+          batch.state = 'committed'; batch.outputs = clone(event.payload.outputs ?? []);
+          batch.reconciled = event.payload.reconciled === true;
+        }
+      } else if (event.type === 'output_batch_not_published') {
+        const batch = batches.get(batchId); if (batch) batch.state = 'not_published';
+      } else if (event.type === 'output_batch_reconciliation_unknown') {
+        const batch = batches.get(batchId); if (batch) batch.state = 'partial_effect_unknown';
+      }
+    }
+    return batches;
+  }
+
+  async observeOutputTarget({ workspace, filePath } = {}) {
+    const root = await realpath(workspace);
+    const requested = resolve(String(workspace), String(filePath ?? ''));
+    const parent = await realpath(dirname(requested)); const path = resolve(parent, basename(requested));
+    const rel = relative(root, path); const parentRel = relative(root, parent);
+    if (rel === '..' || rel.startsWith(`..${sep}`) || !rel) throw new Error('output path is outside workspace');
+    if (parentRel === '..' || parentRel.startsWith(`..${sep}`)) throw new Error('output parent is outside workspace');
+    let stat;
+    try { stat = await lstat(path); }
+    catch (error) { if (error?.code === 'ENOENT') return { path, exists: false, bytes: null, sha256: null }; throw error; }
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) {
+      throw new Error('output path must be a regular single-link file');
+    }
+    if (stat.size > this.maxFileBytes) throw new Error('attachment file size limit exceeded');
+    const bytes = await readFile(path); return { path, exists: true, bytes: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex') };
+  }
+
+  batchResult(batch, { reconciled = batch.reconciled === true } = {}) {
+    return { batchId: batch.batchId, state: batch.state, outputCount: batch.specs.length,
+      outputs: clone(batch.outputs ?? []), reconciled };
+  }
+
+  assertBatchOwner(batch, { sessionId, runId, toolCallId }) {
+    if (!batch || batch.sessionId !== sessionId || batch.producerRunId !== runId
+      || batch.toolCallId !== String(toolCallId ?? '')) throw new Error('output batch identity mismatch');
+  }
+
+  async commitPreparedOutputBatch(batch, { workspace, reconciled }) {
+    if (await realpath(workspace) !== batch.workspace) throw new Error('output batch workspace mismatch');
+    const observed = [];
+    for (const spec of batch.specs) {
+      const value = await this.observeOutputTarget({ workspace, filePath: spec.sourcePath });
+      if (!value.exists || value.sha256 !== spec.expectedSha256 || value.bytes !== spec.expectedBytes) {
+        throw new Error('output batch postimage mismatch');
+      }
+      observed.push(value);
+    }
+    const createdAt = new Date().toISOString();
+    const outputs = observed.map((value) => ({ outputHandle: randomUUID(),
+      sessionId: batch.sessionId, producerRunId: batch.producerRunId, toolCallId: batch.toolCallId,
+      sourcePath: value.path, originalName: safeName(value.path), bytes: value.bytes,
+      sha256: value.sha256, createdAt }));
+    await this.append('output_batch_committed', { batchId: batch.batchId, outputs, reconciled });
+    return { ...this.batchResult({ ...batch, state: 'committed', outputs, reconciled }), reconciled };
+  }
+
+  async prepareProducedOutputBatch({ sessionId, workspace, runId, toolCallId, outputs } = {}) {
+    const owner = safeUuid(sessionId, 'session'); const producerRunId = safeUuid(runId, 'run');
+    if (!Array.isArray(outputs) || outputs.length < 1 || outputs.length > 32) {
+      throw new TypeError('output batch requires one to thirty-two outputs');
+    }
+    return this.serialize(async () => {
+      const events = await this.events(); const batches = this.producedOutputBatchesFrom(events);
+      const existing = [...batches.values()].find((batch) => batch.sessionId === owner
+        && batch.producerRunId === producerRunId && batch.toolCallId === String(toolCallId ?? ''));
+      const specs = [];
+      for (const output of outputs) {
+        const expectedSha256 = String(output?.expectedSha256 ?? '');
+        const expectedBytes = Number(output?.expectedBytes);
+        if (!/^[a-f0-9]{64}$/u.test(expectedSha256) || !Number.isSafeInteger(expectedBytes)
+          || expectedBytes < 0 || expectedBytes > this.maxFileBytes) throw new TypeError('output batch identity is invalid');
+        const preimage = await this.observeOutputTarget({ workspace, filePath: output.filePath });
+        specs.push({ ordinal: specs.length, sourcePath: preimage.path,
+          expectedSha256, expectedBytes, preimage });
+      }
+      if (new Set(specs.map((spec) => spec.sourcePath)).size !== specs.length) {
+        throw new Error('output batch path is duplicated');
+      }
+      if (existing) {
+        const same = JSON.stringify(existing.specs.map(({ ordinal, sourcePath, expectedSha256, expectedBytes }) => (
+          { ordinal, sourcePath, expectedSha256, expectedBytes }
+        ))) === JSON.stringify(specs.map(({ ordinal, sourcePath, expectedSha256, expectedBytes }) => (
+          { ordinal, sourcePath, expectedSha256, expectedBytes }
+        )));
+        if (!same) throw new Error('output batch request collision');
+        return this.batchResult(existing);
+      }
+      const batch = { batchId: randomUUID(), sessionId: owner, producerRunId,
+        toolCallId: String(toolCallId ?? ''), workspace: await realpath(workspace), specs,
+        preparedAt: new Date().toISOString() };
+      await this.append('output_batch_prepared', { batchId: batch.batchId, batch });
+      return this.batchResult({ ...batch, state: 'prepared', outputs: [] });
+    });
+  }
+
+  async commitProducedOutputBatch({ sessionId, workspace, runId, toolCallId, batchId } = {}) {
+    const owner = safeUuid(sessionId, 'session'); const producerRunId = safeUuid(runId, 'run');
+    const id = safeUuid(batchId, 'output batch');
+    return this.serialize(async () => {
+      const batch = this.producedOutputBatchesFrom(await this.events()).get(id);
+      this.assertBatchOwner(batch, { sessionId: owner, runId: producerRunId, toolCallId });
+      if (batch.state !== 'prepared') return this.batchResult(batch);
+      return this.commitPreparedOutputBatch(batch, { workspace, reconciled: false });
+    });
+  }
+
+  async reconcileProducedOutputBatch({ sessionId, workspace, runId, toolCallId, batchId } = {}) {
+    const owner = safeUuid(sessionId, 'session'); const producerRunId = safeUuid(runId, 'run');
+    const id = safeUuid(batchId, 'output batch');
+    return this.serialize(async () => {
+      const batch = this.producedOutputBatchesFrom(await this.events()).get(id);
+      this.assertBatchOwner(batch, { sessionId: owner, runId: producerRunId, toolCallId });
+      if (batch.state !== 'prepared') return this.batchResult(batch);
+      if (await realpath(workspace) !== batch.workspace) throw new Error('output batch workspace mismatch');
+      const observations = await Promise.all(batch.specs.map((spec) => (
+        this.observeOutputTarget({ workspace, filePath: spec.sourcePath })
+      )));
+      const post = observations.map((value, index) => value.exists
+        && value.sha256 === batch.specs[index].expectedSha256
+        && value.bytes === batch.specs[index].expectedBytes);
+      if (post.every(Boolean)) return this.commitPreparedOutputBatch(batch, { workspace, reconciled: true });
+      const pre = observations.map((value, index) => {
+        const expected = batch.specs[index].preimage;
+        return expected.exists === value.exists && (!expected.exists
+          || (expected.sha256 === value.sha256 && expected.bytes === value.bytes));
+      });
+      if (pre.every(Boolean)) {
+        await this.append('output_batch_not_published', { batchId: id });
+        return this.batchResult({ ...batch, state: 'not_published', outputs: [] });
+      }
+      await this.append('output_batch_reconciliation_unknown', { batchId: id,
+        postimageMatches: post, preimageMatches: pre });
+      return this.batchResult({ ...batch, state: 'partial_effect_unknown', outputs: [] });
+    });
   }
 
   async readWorkspaceOutput({ workspace, filePath, expectedSha256 = null } = {}) {

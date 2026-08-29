@@ -1,0 +1,29 @@
+{
+  "schema": "t5.s4g.durable-batch-handoff-contract.v1",
+  "recordedOn": "2026-08-29",
+  "status": "S4_G_DURABLE_BATCH_HANDOFF_CONTRACT_COMPLETE_PRODUCT_INTEGRATION_ZERO",
+  "sourceBaseCommit": "9c909db7",
+  "store": "existing AttachmentStore ledger",
+  "newStore": 0,
+  "contract": {
+    "prepareWholeOutputSet": true,
+    "expectedHashAndBytesBound": true,
+    "preimageBound": true,
+    "singleBatchCommitEvent": true,
+    "restartIdempotentHandles": true,
+    "allPostimagesCommit": true,
+    "allPreimagesNotPublished": true,
+    "mixedImagesPartialEffectUnknown": true,
+    "partialHandles": 0,
+    "handleOnlyArtifactRegistration": true
+  },
+  "focusedVerification": { "passed": 32, "failed": 0 },
+  "dailyCheck": { "passed": 1795, "failed": 0, "skipped": 1 },
+  "productIntegration": {
+    "snapshotAdapter": 0,
+    "consoleExec": 0,
+    "modelCallsChanged": 0,
+    "toolSchemaChanged": false
+  },
+  "next": "bind prepare-F-commit-cleanup to SnapshotProgramAdapter"
+}
