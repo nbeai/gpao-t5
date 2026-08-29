@@ -50,13 +50,15 @@ export const EFFECT_SCHEMA = {
 export function normalizeTerminalEffect(effect) {
   const source = effect && typeof effect === 'object' ? effect : { kind: 'observe', targets: [] };
   const kind = String(source.kind ?? 'observe');
-  const confirmation = source.confirmation ?? (
+  const suppliedConfirmation = source.confirmation ?? (
     kind === 'destructive'
       ? (source.backupAvailable === true ? 'backup_available' : 'backup_unavailable')
       : kind === 'external_send'
         ? (source.recipientNew === true ? 'new_recipient' : 'known_recipient')
         : 'not_applicable'
   );
+  const confirmation = kind === 'local_change' && suppliedConfirmation === 'backup_available'
+    ? 'not_applicable' : suppliedConfirmation;
   const valid = (
     (kind === 'destructive' && ['backup_available', 'backup_unavailable'].includes(confirmation))
     || (kind === 'external_send' && ['known_recipient', 'new_recipient'].includes(confirmation))

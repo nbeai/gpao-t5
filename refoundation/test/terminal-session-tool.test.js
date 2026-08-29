@@ -143,6 +143,11 @@ test('모델 effect 표면은 strict 네 필드이고 런타임은 기존 권한
     kind: 'external_send', targets: ['existing-chat'], confirmation: 'known_recipient',
   });
   assert.equal(known.recipientNew, false);
+  const managedLocal = normalizeTerminalEffect({
+    kind: 'local_change', targets: ['source.js'], confirmation: 'backup_available',
+  });
+  assert.equal(managedLocal.confirmation, 'not_applicable');
+  assert.equal(managedLocal.backupAvailable, false);
   assert.throws(() => normalizeTerminalEffect({
     kind: 'observe', targets: [], confirmation: 'new_recipient',
   }), { code: 'T5_EFFECT_CONFIRMATION_MISMATCH' });
