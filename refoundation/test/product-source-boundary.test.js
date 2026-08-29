@@ -28,7 +28,7 @@ test('qualification-only 목록은 동적 worker와 platform source를 제거하
   ]) assert.doesNotMatch(boundary, new RegExp(`'src/${required.replaceAll('.', '\\.')}'`, 'u'));
   for (const qualification of [
     'document-data-qualification.js', 'terminal-performance.js',
-    's3-human-business-scenarios.js', 'web-variance-analysis.js',
+    's3-human-business-scenarios.js', 'web-variance-analysis.js', 'ephemeral-program-shell.js',
   ]) assert.match(boundary, new RegExp(qualification.replaceAll('.', '\\.'), 'u'));
 });
 

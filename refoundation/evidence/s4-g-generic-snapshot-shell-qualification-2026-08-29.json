@@ -1,0 +1,24 @@
+{
+  "schema": "t5.s4g.generic-snapshot-shell-qualification.v1",
+  "recordedOn": "2026-08-29",
+  "status": "S4_G_GENERIC_SNAPSHOT_SHELL_BACKEND_QUALIFIED_PRODUCT_INTEGRATION_ZERO",
+  "sourceBaseCommit": "7ae7fddf",
+  "execution": {
+    "exactCommandPreserved": true,
+    "compoundShellPassed": true,
+    "writableCowSnapshot": true,
+    "declaredOutputRecovered": true,
+    "sourceWorkspaceWrites": 0,
+    "temporaryFilesProjected": 0,
+    "temporaryFilesCleaned": true
+  },
+  "boundaries": {
+    "networkDenied": true,
+    "outsideWriteDenied": true,
+    "deniedEffectSwallowedByShellStillPublishes": false,
+    "childTreeOwnedByManagedProcess": true
+  },
+  "productIntegration": { "snapshotAdapter": 0, "consoleExec": 0, "payloadIncluded": false },
+  "focusedVerification": { "passed": 2, "failed": 0 },
+  "next": "bind compound local_change command to Snapshot adapter generic shell backend"
+}
