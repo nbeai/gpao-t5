@@ -11,7 +11,7 @@ import { RunLedger } from '../src/run-ledger.js';
 import { WorkStore } from '../src/work-store.js';
 
 const SESSION = '11111111-1111-4111-8111-111111111111';
-async function fixture({ existing = true, sourceProvenance = null } = {}) {
+async function fixture({ existing = true, sourceProvenance = null, selectedVisual = false } = {}) {
   const room = await mkdtemp(join(tmpdir(), 't5-artifact-publication-')); const workspace = join(room, 'workspace');
   await mkdir(workspace); const file = join(workspace, '결과.xlsx'); await writeFile(file, 'exact-bytes');
   const attachments = new AttachmentStore(join(room, 'attachments'));
@@ -22,9 +22,11 @@ async function fixture({ existing = true, sourceProvenance = null } = {}) {
   const tool = makeAttachmentTool({ store: attachments, sessionId: SESSION, workspace, runId: writer.runId,
     authorizeExistingFilePath: () => true, authorizeOutputPath: () => true });
   let result = await tool.execute({ action: existing ? 'register_existing_file' : 'register_output', filePath: file });
+  if (selectedVisual) result = { ...result, delivery: { state: 'registered_selected_visual' } };
   if (sourceProvenance) result = { ...result, sourceProvenance };
   await writer.append({ type: 'tool_completed', payload: { receipt: { outcome: 'succeeded',
-    requestedCall: { name: 'attachment', args: { action: existing ? 'register_existing_file' : 'register_output',
+    requestedCall: { name: selectedVisual ? 'file_reality' : 'attachment', args: { action: selectedVisual
+      ? 'inspect' : existing ? 'register_existing_file' : 'register_output',
       filePath: file } }, result } } });
   await work.recordResultReady({ runId: writer.runId, sessionId: SESSION,
     workId: current.workId, revision: current.revision, resultDigest: 'a'.repeat(64),
@@ -41,6 +43,16 @@ test('실제 store readback·Run link·Work surface를 결속해 기존 파일 �
   assert.equal(publication.classification, 'existing_file'); assert.equal(publication.storage.exactReadback, true);
   const value = projectHumanArtifactReceipt(publication); assert.match(value.title, /기존 파일 그대로/u);
   assert.doesNotMatch(JSON.stringify(value), /11111111|[a-f0-9]{64}|\/workspace|attachmentId|runId/u);
+});
+
+test('file_reality가 exact visual inspect에서 등록한 선택 이미지는 기존 파일 영수증으로 materialize한다', async () => {
+  const f = await fixture({ selectedVisual: true });
+  const adapter = makeArtifactPublicationProductAdapter({ attachmentStore: f.attachments,
+    runLedger: f.runs, workStore: f.work });
+  const publication = await adapter.materialize({ sessionId: SESSION, runId: f.writer.runId,
+    attachmentId: f.result.artifact.attachmentId });
+  assert.equal(publication.classification, 'existing_file');
+  assert.match(projectHumanArtifactReceipt(publication).title, /기존 파일 그대로/u);
 });
 
 test('outputHandle 없는 직접 register_output은 generated로 승격하지 않는다', async () => {

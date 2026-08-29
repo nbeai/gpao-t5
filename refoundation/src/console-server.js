@@ -829,6 +829,7 @@ export function makeConsoleServer({
           if (calls.length > 16) humanEffects.push({ title: '추가 변경 기록이 있어요.', confirmed: [],
             rollback: '되돌리기는 실행하지 않았어요.',
             unknowns: [`${calls.length - 16}개 변경 기록은 이 화면에서 생략했어요.`], detailsAvailable: true });
+          humanEffects = [...new Map(humanEffects.map((item) => [JSON.stringify(item), item])).values()];
         } catch (error) {
           onError?.(error); humanEffects = [{ title: '변경 확인 상태를 불러오지 못했어요.', confirmed: [],
             rollback: '되돌리기는 실행하지 않았어요.',

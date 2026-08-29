@@ -3555,15 +3555,14 @@ function renderWorkReality(reality, { reconnect = false, sessionId = null } = {}
     const host = turns.length ? turns[turns.length - 1] : turnBox();
     const panel = el('trace'); panel.id = 'work-reality-panel';
     panel.setAttribute('role', 'status'); panel.setAttribute('aria-live', 'polite');
-    const lines = [
-      reality.milestone?.text,
-      reality.activity?.text ?? reality.statusText,
-      ...(reality.inputs ?? []).map((item) => item.text),
-      ...(reconnect ? (reality.recap ?? []) : []),
-      reality.userActionNeeded ? '계속하려면 사용자 확인이 필요해요.' : null,
-      reality.result?.deliveryText,
-    ].filter(Boolean);
-    for (const line of [...new Set(lines)].slice(0, 6)) panel.appendChild(el(null, line));
+    const line = reality.userActionNeeded ? '계속하려면 사용자 확인이 필요해요.'
+      : reality.result?.deliveryText
+        ?? (reality.inputs ?? []).at(-1)?.text
+        ?? reality.activity?.text
+        ?? reality.milestone?.text
+        ?? reality.statusText
+        ?? (reconnect ? (reality.recap ?? []).at(-1) : null);
+    if (line) panel.appendChild(el(null, line));
     host.appendChild(panel);
     const trace = document.getElementById('session-activity-trace');
     if (trace) trace.hidden = true;

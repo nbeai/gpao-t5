@@ -29,6 +29,10 @@ function deliveryState(result) {
 }
 function classify({ receipt, artifact, produced, previous, run }) {
   const action = receipt.requestedCall?.args?.action; const effect = receipt.result?.effect;
+  if (receipt.requestedCall?.name === 'file_reality' && action === 'inspect'
+    && receipt.result?.delivery?.state === 'registered_selected_visual'
+    && receipt.result?.artifact?.attachmentId === artifact.attachmentId
+    && sameBytes(receipt.result.artifact, artifact)) return 'existing_file';
   if (effect === 'reuse' && receipt.result?.reused === true) {
     return receipt.requestedCall?.args?.attachmentId === artifact.attachmentId ? 'reused_output' : 'unknown';
   }
@@ -117,8 +121,11 @@ export function makeArtifactPublicationProductAdapter({ attachmentStore, runLedg
         && event.payload?.receipt?.result?.artifact?.attachmentId === attachmentId);
       if (matches.length !== 1) throw new Error('exact artifact tool receipt is required');
       const receipt = matches[0].payload.receipt;
-      if (receipt.outcome !== 'succeeded' || receipt.requestedCall?.name !== 'attachment'
-        || !['register_existing_file', 'register_output'].includes(receipt.requestedCall?.args?.action)) {
+      const selectedVisual = receipt.requestedCall?.name === 'file_reality'
+        && receipt.requestedCall?.args?.action === 'inspect'
+        && receipt.result?.delivery?.state === 'registered_selected_visual';
+      if (receipt.outcome !== 'succeeded' || (!selectedVisual && (receipt.requestedCall?.name !== 'attachment'
+        || !['register_existing_file', 'register_output'].includes(receipt.requestedCall?.args?.action)))) {
         throw new Error('qualified artifact registration receipt is required');
       }
       const result = workState.results.find((item) => item.runId === runId && item.sessionId === sessionId);
