@@ -29,6 +29,10 @@ function deliveryState(result) {
 }
 function classify({ receipt, artifact, produced, previous, run }) {
   const action = receipt.requestedCall?.args?.action; const effect = receipt.result?.effect;
+  if (receipt.requestedCall?.name === 'exec'
+    && receipt.result?.outputHandoff?.state === 'artifacts_registered'
+    && receipt.result?.artifacts?.some((item) => item.attachmentId === artifact.attachmentId
+      && sameBytes(item, artifact))) return 'generated_output';
   if (receipt.requestedCall?.name === 'file_reality' && action === 'inspect'
     && receipt.result?.delivery?.state === 'registered_selected_visual'
     && receipt.result?.artifact?.attachmentId === artifact.attachmentId
@@ -118,13 +122,17 @@ export function makeArtifactPublicationProductAdapter({ attachmentStore, runLedg
       const observedSha = createHash('sha256').update(content.bytes).digest('hex');
       const exactReadback = stableRead && content.bytes.length === artifact.bytes && observedSha === artifact.sha256;
       const matches = run.events.filter((event) => event.type === 'tool_completed'
-        && event.payload?.receipt?.result?.artifact?.attachmentId === attachmentId);
+        && (event.payload?.receipt?.result?.artifact?.attachmentId === attachmentId
+          || event.payload?.receipt?.result?.artifacts?.some((item) => item.attachmentId === attachmentId)));
       if (matches.length !== 1) throw new Error('exact artifact tool receipt is required');
       const receipt = matches[0].payload.receipt;
       const selectedVisual = receipt.requestedCall?.name === 'file_reality'
         && receipt.requestedCall?.args?.action === 'inspect'
         && receipt.result?.delivery?.state === 'registered_selected_visual';
-      if (receipt.outcome !== 'succeeded' || (!selectedVisual && (receipt.requestedCall?.name !== 'attachment'
+      const producedBatch = receipt.requestedCall?.name === 'exec'
+        && receipt.result?.outputHandoff?.state === 'artifacts_registered'
+        && ['published_verified_cleaned', 'published_verified_cleanup_unknown'].includes(receipt.result?.state);
+      if (receipt.outcome !== 'succeeded' || (!selectedVisual && !producedBatch && (receipt.requestedCall?.name !== 'attachment'
         || !['register_existing_file', 'register_output'].includes(receipt.requestedCall?.args?.action)))) {
         throw new Error('qualified artifact registration receipt is required');
       }

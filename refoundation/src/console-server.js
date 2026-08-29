@@ -821,7 +821,18 @@ export function makeConsoleServer({
                 rollbackToolCallId: event.payload.receipt.toolCallId });
               return { ...base, rollback: projectHumanEffectRollbackReceipt(rollback).summary };
             } catch (error) {
-              onError?.(error); return { title: '변경 확인 상태를 다시 살펴봐야 해요.', confirmed: [],
+              onError?.(error);
+              const result = event.payload.receipt.result;
+              if (result?.publication?.state === 'published_verified'
+                && result?.outputCoverage?.independentlyVerified === true) return {
+                title: '요청한 결과 파일을 만들었어요.',
+                confirmed: [`결과 파일 ${result.outputCoverage.outputCount}개를 다시 확인했어요.`,
+                  '원본은 직접 바꾸지 않고 결과만 발행했어요.'],
+                rollback: result.publication.undoHandle ? '이 변경은 되돌릴 수 있어요.' : '되돌리기 상태를 확인해 주세요.',
+                unknowns: result.cleanup?.state === 'cleaned' ? [] : ['임시 파일 정리 상태를 다시 확인해 주세요.'],
+                detailsAvailable: true,
+              };
+              return { title: '변경 확인 상태를 다시 살펴봐야 해요.', confirmed: [],
                 rollback: '되돌리기는 실행하지 않았어요.',
                 unknowns: ['이 작업의 전후 상태를 정확히 결속하지 못했어요.'], detailsAvailable: true };
             }
