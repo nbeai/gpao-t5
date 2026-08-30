@@ -1480,6 +1480,127 @@ Small laptop:   1024×700
 
 ---
 
+#### UX-R — Comparative UX Research & T5 Translation
+
+비교군의 화면을 느낌으로 섞지 않는다. 각 제품에서 T5의 특정 사용자 문제를 실제로 더 잘 푸는 원리만 측정하고,
+T5의 canonical state와 일반 사용자 언어에 맞게 다시 설계한다.
+
+참고 역할:
+
+| 비교군 | 주로 확인할 UX | T5가 복제하지 않을 것 |
+|---|---|---|
+| ChatGPT | 사용자 bubble+assistant flat response, 긴 글, composer, 모바일 리듬 | cloud 전용 상태·브랜드·아이콘 |
+| ChatGPT Work | 장기 작업·파일·앱·승인·결과 재진입 | Chat/Work 모드 선택 요구 |
+| Codex | 작업 접수감·실제 과정·stream→final·Stop·병행 작업 통제 | branch·diff·commit·subagent·개발 environment panel |
+| Claude | 긴 산문·인용·코드·절제된 정보 밀도 | Claude 브랜드·고유 motion |
+| Claude Cowork | 파일·Preview·desktop delegation·사용자 개입 | 범용 Computer Use를 기본 손으로 전제 |
+| Hermes | Skill·Memory·candidate·active·remove/restore 관리 | 개발자용 설정 밀도·자동 Skill 잡동사니 |
+| OpenClaw | channel·Session·Plugin 상태와 대규모 목록 | Plugin marketplace·기술 용어·광범위 권한 기본값 |
+
+오너가 제공한 Codex 실제 화면은 local-only 참고자료로 보존한다. 개인 대화·프로젝트 이름이 포함된 화면이므로 Git
+evidence·제품 package에 넣지 않는다.
+
+- `/Users/jyp/Developer/t5-total-hq/references/codex-workspace-ux-reference-1.png`
+- `/Users/jyp/Developer/t5-total-hq/references/codex-workspace-ux-reference-2.png`
+
+이 두 화면에서 직접 참고할 것은 다음뿐이다.
+
+- assistant flat reading surface
+- 제목·문단·목록·인용의 긴 글 위계
+- persistent composer와 화면 하단 안정성
+- 45초 작업도 먹통으로 느끼지 않게 하는 경과·과정 리듬
+- main conversation과 context/action 영역의 분리 원리
+
+우측 개발 환경 패널 자체는 T5 참고 대상이 아니다. T5에 필요한 대응 개념은 `현재 작업·확인한 자료·결과물·
+실제로 바뀐 것·남은 미확인·멈춤·Undo`이며, 이것도 항상 보이는 개발자 패널이 아니라 필요할 때 여는 일반 사용자
+결과/과정 표면으로 설계한다.
+
+##### 비교 자료 수집
+
+가능한 경우 실제 제품의 동일 fixture 화면을 다음 상태에서 확보한다.
+
+1. 짧은 직접 답
+2. 긴 heading·list·table·code 답
+3. 20초 이상 작업 중
+4. stream 출력 중
+5. 단일·다중 결과 파일
+6. 사용자 행동 필요·실패·중지
+7. 대화 목록 30개 이상
+8. narrow viewport·dark mode
+
+공개 제품은 screenshot과 Browser computed style을 측정한다. 로그인·개인자료·credential·cookie·local storage를
+수집하지 않는다. proprietary product의 minified CSS·class명·asset·DOM 전체를 source로 복사하지 않는다.
+
+OpenClaw·Hermes처럼 공개 source를 볼 때도 다음을 먼저 기록한다.
+
+- exact repository·commit
+- license
+- 해당 CSS/component가 실제 제품 entry에서 사용되는지
+- 가져올 원리와 T5에서 바꿀 부분
+
+license가 허용해도 literal CSS copy보다 T5 semantic token과 current DOM에 맞춘 재구현을 우선한다.
+
+##### Computed-style 측정표
+
+각 비교군과 current T5에 대해 같은 viewport에서 다음을 기록한다.
+
+```text
+app canvas/background
+sidebar width·row height·selected state
+conversation reading max-width
+assistant body font-size·line-height·color
+heading h1/h2/h3 size·margin
+paragraph·list·blockquote spacing
+user bubble max-width·padding·radius·contrast
+assistant container background·border·shadow
+code/table overflow·copy affordance
+message action size·visibility·focus
+progress position·height·density·elapsed time
+artifact thumbnail·row/card·primary actions
+composer min/max height·padding·attachment chip
+desktop/narrow breakpoint
+light/dark contrast
+motion duration·reduced-motion behavior
+```
+
+측정은 디자인 정답이 아니다. T5 candidate는 다음 사용자 성과로 선택한다.
+
+- 긴 답의 핵심 문장을 찾는 시간
+- progress와 final을 혼동하지 않는 비율
+- Preview·Download·Reveal·Undo 발견 시간과 click 수
+- 실행 중 교정·Stop 성공률
+- 대화 pin·group·검색 성공 시간
+- 한국어 가독성·신뢰·다시 사용 의향
+
+##### Prototype 규율
+
+제품 코드를 바로 여러 방향으로 흔들지 않는다.
+
+```text
+current screenshot/DOM fixture
+→ isolated static prototype B: T5 hybrid layout
+→ current vs B blind visual/task comparison
+→ B가 실패하면 원인이 다른 한 후보 C만 허용
+→ 채택된 token/layout만 current UI에 이식
+```
+
+Prototype은 canonical API·Store를 흉내 내는 새 제품이 아니다. current sanitized session/activity/artifact fixture를
+읽는 정적 HTML/CSS 비교물이며 source tree·package entry에 들어가지 않는다.
+
+##### 저작권·정체성 경계
+
+- ChatGPT·Codex·Claude의 CSS·SVG·아이콘·animation·copy를 그대로 사용하지 않는다.
+- 비교군 제품명·색·로고·특유 모양을 T5 UI에 남기지 않는다.
+- T5의 warm neutral·일반 사용자 언어·결과 진실·Undo가 최종 디자인 정체성이다.
+- “ChatGPT처럼 보임”이 아니라 “같은 시간에 더 쉽게 읽고 행동함”을 합격으로 쓴다.
+
+완료 문장:
+
+> 비교군의 실제 화면·computed style·사용자 과업을 같은 기준으로 측정했고, T5 candidate는 브랜드나 CSS 복제가
+> 아니라 읽기·진행 이해·결과 사용·통제감의 반복 우위로 선택됐다.
+
+---
+
 #### UX-1 — Hybrid Conversation Layout
 
 대화는 완전 평면도, 모든 메시지 말풍선도 아닌 비대칭 구조를 사용한다.
@@ -1584,11 +1705,27 @@ Responsive:
 - composer가 결과와 본문을 가리지 않음
 - result action은 줄바꿈돼도 순서와 primary action이 유지됨
 
+Theme:
+
+- light/dark가 같은 semantic token 관계를 사용
+- dark mode가 단순 색 반전으로 image·code·Artifact contrast를 깨뜨리지 않음
+- system preference와 사용자의 명시 선택을 분리해 보존
+- theme 전환이 대화·progress·preview 상태를 다시 만들거나 scroll을 바꾸지 않음
+
 Motion:
 
 - 상태 전환 120~200ms 수준의 짧은 motion
 - progress shimmer·무한 pulse를 작업 진전으로 사용하지 않음
 - `prefers-reduced-motion`에서 기능 손실 0
+
+Rendering performance:
+
+- stream delta마다 전체 transcript를 다시 렌더하지 않음
+- progress elapsed 갱신이 대화 목록과 Artifact 전체 repaint를 유발하지 않음
+- Markdown streaming render는 읽을 수 있는 간격으로 throttle하되 first useful result를 늦추지 않음
+- 300·3,000 Session과 긴 대화에서 initial paint·scroll·search를 별도 측정
+- 새 UI framework·대형 icon/font package를 추가하지 않음
+- CSS/JS bytes·DOM node·layout shift·long task를 current와 비교하고 설명 없는 회귀를 허용하지 않음
 
 완료 문장:
 
@@ -1696,6 +1833,8 @@ Metadata priority:
 - delivery unknown과 local preservation을 구분
 - internal URL·absolute path·attachmentId·hash·Run ID 비노출
 - achieved Artifact가 있으면 같은 success의 mutation receipt 반복 0
+- 파일명·사용자 content는 textContent/sanitized renderer만 사용하고 action label·tooltip의 HTML injection을 막음
+- external source link와 local action은 시각·키보드 의미를 구분
 
 Visual quality:
 
@@ -1838,6 +1977,8 @@ group:
 - 색만으로 success·warning·failure 구분하지 않음
 - 200% zoom과 reduced motion
 - macOS·Windows system font의 한글 glyph·line metric
+- light/dark 모두 동일한 keyboard·screen reader 의미
+- loading·empty·partial·error·offline·reconnect 상태가 빈 화면이나 색 하나로만 표현되지 않음
 
 실제 Console Mission:
 
@@ -1854,6 +1995,7 @@ A/B:
 
 - current exact UI vs candidate
 - 같은 fixture·같은 canonical state
+- UX-R에서 선택한 T5 prototype과 current source
 - task completion time가 아니라 다음 UX 성과를 비교
 
 ```text
@@ -1909,6 +2051,7 @@ Human score 1~5:
 
 ```text
 UX-0 current baseline
+→ UX-R comparative measurement·isolated T5 prototype
 → UX-1 assistant flat layout
 → UX-2 typography/responsive
 → UX-3 progress→final transition
