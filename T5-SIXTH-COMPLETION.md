@@ -1,9 +1,9 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_MACOS_SOURCE_CANDIDATE_COMPLETE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_ADMISSION_HARDENED · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · S6_J_COMPLETE · S6_WA_COMPLETE_MACOS_WINDOWS_EXPLICIT · S6_UX_PRODUCT_CANDIDATE_COMPLETE_ACTUAL_CONSOLE · FIFTH_BASELINE_F42E4DB7 · WINDOWS_DEFERRED_NOT_WAIVED · INSTALLER_NOT_BUILT`
+상태: `SIXTH_MACOS_SOURCE_CANDIDATE_COMPLETE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_ADMISSION_HARDENED · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · S6_J_COMPLETE · S6_WA_COMPLETE_MACOS_WINDOWS_EXPLICIT · S6_UX_PRODUCT_CANDIDATE_COMPLETE_ACTUAL_CONSOLE · TOTAL_HUMAN_HQ_EXECUTION_ACTIVE · MACOS_6_0_PACKAGE_PENDING_AFTER_HQ · WINDOWS_PREPHYSICAL_PLANNED_AFTER_PACKAGE · FIFTH_BASELINE_F42E4DB7 · WINDOWS_DEFERRED_NOT_WAIVED · INSTALLER_NOT_BUILT`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
-현재 Gate: `SIXTH MACOS SOURCE SEALED · WINDOWS PHYSICAL QUALIFICATION DEFERRED_NOT_WAIVED`
-현재 작업: `NONE · NEXT OWNER STEP IS PHYSICAL WINDOWS X64_AND_ARM64 QUALIFICATION`
+현재 Gate: `TOTAL HUMAN HQ → OPTIONAL OWNER LIVE RECHECK → MACOS 6.0 PACKAGE → WINDOWS PRE-PHYSICAL READINESS`
+현재 작업: `TOTAL_HQ_EXECUTION · DO_NOT_OPEN_WINDOWS_WORK_OR_BUILD_PACKAGE_BEFORE_HQ_CLOSE`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -2466,6 +2466,224 @@ UX-0 current baseline
 
 한 slice는 실제 사용자 목적 하나·screenshot A/B·focused regression 뒤 clean commit으로 닫는다. 같은 시각/행동
 결함 가족의 두 후보가 실제 사용자 성과를 높이지 못하면 세 번째 장식 patch를 붙이지 않는다.
+
+---
+
+### S6-RP — Owner-Ordered Release & Windows Preparation Sequence
+
+현재 상태: `OWNER_ORDER_LOCKED · TOTAL_HQ_ACTIVE · PACKAGE_AND_WINDOWS_WORK_NOT_OPEN`
+
+오너가 2026-08-30 다음 실행 순서를 확정했다. 뒤 단계가 중요하다는 이유로 앞 단계를 병렬 구현하거나 건너뛰지
+않는다.
+
+```text
+1. 현재 별도 총괄 인간 HQ를 끝낸다.
+2. HQ Evidence에 실제 사용자 ambiguity가 남을 때만 오너 보좌 세션이 Console live를 한 번 더 확인한다.
+3. 관련 P0/P1 최소 수리·Mission 1회 재시험·source 재봉인 뒤 macOS 정식 version 6.0 package를 완성한다.
+4. 6.0 package가 설치 제품으로 봉인된 뒤 개발 세션이 S6-WP0 Windows Pre-Physical Readiness를 수행한다.
+5. WP0 보고 뒤 Windows 설치본 제작·물리 시험의 정확한 범위는 오너가 다시 결정한다.
+```
+
+#### RP-1 — 총괄 인간 HQ 종료
+
+[T5 총괄 인간 제품 HQ](/Users/jyp/Developer/t5-total-hq/T5-TOTAL-HUMAN-HQ.md)의 현재 macOS core Mission을
+실제 Console에서 실행한다. 시험 Agent는 제품을 수정하지 않고, 재현된 P0/P1만 단일 Repair Owner가 순차 수리한다.
+
+종료 조건:
+
+- 필수 macOS Mission P0/P1 0
+- UX T0~T5·first useful·결과 사용성·통제감 Evidence
+- 속도 carry와 external boundary 비주장 보존
+- 수리한 Mission만 1회 재시험
+- 전체 CI 1회·clean product tree·source candidate commit
+
+#### RP-2 — 선택적 Console Live 재확인
+
+총괄 HQ 뒤 다음 중 하나가 남을 때만 오너 보좌 세션이 같은 설치 후보의 실제 Console을 한 번 더 사용한다.
+
+- 화면 Evidence와 Work·Effect·Artifact 원장이 다르게 보임
+- 입력·진행·Stop·final 전환의 인간 체감 판정이 모호함
+- 수리된 P0/P1이 여러 사용자 표면에 영향을 줌
+- package 전 실제 사용자 시작점에서만 확인 가능한 미달
+
+이미 PASS한 전체 Mission을 반복하지 않는다. 기능 탐색·새 개발·비교군 확대를 열지 않고 모호한 사용자 경계만
+확인한다.
+
+#### RP-3 — macOS 정식 version 6.0 package
+
+HQ와 선택적 live 확인이 종료된 exact source commit만 사용한다. 사용자 표시 version은 `6.0`, package 내부
+semantic version은 `6.0.0`으로 통일하며 과거 `0.3.x·0.4.x·0.5.x` builder 값을 재사용하지 않는다.
+
+필수:
+
+- Apple Silicon·Intel Universal app/runtime/helper
+- exact source commit·payload manifest·SHA-256
+- Product Cleanroom·휴면/qualification/research source 제외
+- 기존 사용자 상태를 보존하는 upgrade
+- 신규 clean install
+- 실패 시 이전 설치 복원·Runtime drain·singleton
+- Developer ID 서명·Apple notarization·staple·Gatekeeper
+- 실제 설치→Console 시작→직접 답·파일/Artifact 핵심 smoke→앱 재시작
+- 제거 범위와 사용자 state 보존 확인
+
+`티파이브개발 연구/`는 사용자 소유 비정본 미추적 자료이며 source package·payload·Git stage에 포함하지 않는다.
+설치본 제작은 기능 개발 Gate가 아니며 package 실패를 Core 변경으로 우회하지 않는다.
+
+완료 문장:
+
+> 6차 exact macOS source가 version 6.0 Universal 설치 패키지로 서명·공증·staple되고, clean install·upgrade·실제
+> Console 핵심 여정·재시작·실패 복원이 같은 사용자 상태와 제품 의미로 성립한다.
+
+#### S6-WP0 — Windows Pre-Physical Readiness
+
+현재 상태: `PLANNED · MUST_START_AFTER_MACOS_6_0_PACKAGE · PHYSICAL_PASS_NOT_CLAIMED`
+
+목적:
+
+> 물리 Windows에서 처음 컴파일·경로·dependency·adapter 결함을 찾지 않도록, macOS 6.0 봉인 뒤 현재 source의
+> Windows reachability·공통 의미·package 계약을 제품 변경 0 감사부터 최대한 닫고, 실제 OS만이 증명할 blocker만
+> 물리 시험으로 가져간다.
+
+WP0는 Windows 설치본 제작이나 물리 PASS가 아니다. 공통 Core를 모델별·업무별로 다시 만들지 않고 macOS에서 선
+T5 의미가 Windows adapter에서 어디까지 준비됐는지 확인한다.
+
+##### WP0-1 — Feature/Adapter Reachability Matrix
+
+6차 최종 기능을 다음 상태로 inventory한다.
+
+```text
+COMMON_CORE_COMPLETE
+WINDOWS_ADAPTER_IMPLEMENTED
+CONTRACT_TESTED_ONLY
+WINDOWS_RUNNER_REQUIRED
+PHYSICAL_WINDOWS_REQUIRED
+NOT_IMPLEMENTED
+NOT_APPLICABLE
+```
+
+필수 행:
+
+- Console·Conversation·Memory·Work·Run·Context·model connection
+- File search·content·OCR·visual·exact handle·Reveal
+- Document read/render/authoring·QualityReceipt·Artifact·Undo
+- Terminal foreground/background·PowerShell/CMD·ConPTY·large output·cancel·restart
+- D process ownership·Job Object·wake·crash settlement
+- E declared-target confinement·NTFS identity·rollback
+- F transaction·atomic publication·Undo
+- G same-language program·source universe·output verification·cleanup
+- Browser·download/upload/login handoff
+- Capability·Skill·CLI·MCP·Experience Growth
+- DPAPI·Transmission·backup/restore/delete
+- Telegram·Automation·external Delivery
+- package·install·upgrade·uninstall·Startup·singleton
+- UX·narrow window·keyboard·IME·Preview·Download·Reveal
+
+##### WP0-2 — POSIX Assumption & Common-Core Audit
+
+공유 product path의 다음 가정을 전수 분류한다.
+
+- `/bin/sh·/bin/zsh·/usr/bin`, `find·grep·sed·awk`
+- `/Users·/tmp·/private/tmp`, `/` absolute path, `:` PATH delimiter
+- `chmod·mode·uid·gid·inode·dev·nlink`
+- `SIGTERM·SIGKILL·process group·fork`
+- symlink만 보고 junction·reparse를 놓치는 identity
+- case-sensitive filename·trailing dot/space·reserved device name
+- atomic rename·file lock·fsync·cross-volume 가정
+- shell string·quote·environment expansion
+
+각 finding은 `macos_only_valid·windows_adapter_exists·shared_core_defect·runner_required·physical_required` 중 하나로
+닫는다. 실제 사용자 Mission 없는 hypothetical portability rewrite를 만들지 않는다.
+
+##### WP0-3 — Windows Filesystem & Path Countertests
+
+물리 Windows 전 가능한 contract 시험:
+
+- drive letter·root·UNC·한글·공백·긴 경로
+- x64·ARM64·case-insensitive duplicate
+- reserved names `CON·NUL·COM1`
+- trailing dot·space
+- junction·reparse·hardlink·target replacement
+- volume boundary·locked file·stale identity
+- OneDrive/local sync path semantics
+- Explorer exact file/directory reveal invocation
+
+fixture path 문자열 통과를 실제 NTFS PASS로 표현하지 않는다.
+
+##### WP0-4 — Known Pre-Physical Product Gaps
+
+현재 head에서 이미 확인된 후보를 다시 실제 source와 대조한다.
+
+1. `terminal-platform-adapter`의 non-darwin passthrough와 Windows declared-target confinement 부재
+2. G `programExecutionAdapter`의 macOS-only product admission
+3. `local-image-ocr`의 Windows `unavailable` 경계
+4. Windows package builder의 과거 `0.3.1` version·unsigned ZIP 경계
+5. Windows Search·folder picker·file/app activity helper의 source contract와 physical reality 차이
+6. Browser host·document render·native dependency의 win32 x64/ARM64 payload
+7. DPAPI·Job Object·ConPTY actual이 macOS에서 skip되는 범위
+
+이 목록은 자동 구현 지시가 아니다. Feature/Adapter matrix와 actual 사용자 영향에서 Windows 공개 blocker인 항목만
+후보화한다.
+
+##### WP0-5 — Windows Runner Before Physical Device
+
+가능한 실제 Windows runner/VM에서 먼저 확인한다.
+
+- x64·ARM64 package dependency resolution과 native helper compile
+- PowerShell·CMD direct argv·Unicode·exit/stdout/stderr
+- Job Object child tree·ConPTY input/resize·cancel
+- DPAPI fixture account
+- Windows package manifest·architecture·digest
+- install·upgrade·rollback·uninstall·state preservation
+- current unit·product integration·mutation 중 Windows 적용 범위
+
+GitHub runner·VM·emulation은 물리 PASS를 대신하지 않는다. `runner_pass`와 `physical_pass`를 별도 Evidence로 남긴다.
+
+##### WP0-6 — Model-Independent Platform Contract
+
+모델에 공급되는 최소 Windows 현실을 확인한다.
+
+```yaml
+platform: win32
+architecture: x64 | arm64
+commandFamily: powershell | cmd
+commandProgram: exact observed executable
+availableHands:
+qualifiedBoundaries:
+unavailableCapabilities:
+```
+
+대표 기본 모델과 보조 모델은 같은 사용자 목적에서 Windows 현실을 보고 각기 다른 실행 방법을 선택할 수 있다.
+Runtime·Prompt를 모델별로 코딩하지 않는다. 합성 platform fixture는 Tool 선택·거짓 capability 부재/존재를 확인할
+뿐 실제 Windows effect PASS를 만들지 않는다.
+
+##### WP0-7 — Repair Discipline & Exit
+
+- WP0 read-only inventory를 먼저 봉인한다.
+- Windows-only adapter 미달만 한 가족씩 순차 수리한다.
+- 공유 Core 변경은 가장 작은 macOS 관련 회귀를 다시 확인한다.
+- 같은 결함 가족 세 번째 patch 금지.
+- 전체 CI 반복 금지; focused regression 뒤 WP0 종료 시 한 번.
+- 연구실의 Computer Use·Document·Method Runtime·실천지능을 Windows 보강 명분으로 개통하지 않는다.
+- Windows 설치본·서명·배포는 오너의 다음 결정 전 시작하지 않는다.
+
+WP0 종료 산출:
+
+```yaml
+sourceCommit:
+macos60PackageIdentity:
+featureAdapterMatrix:
+staticFindings:
+repairedPrePhysicalGaps:
+runnerResults:
+physicalBlockers:
+windowsInstallerDecision: OWNER_PENDING
+```
+
+완료 문장:
+
+> 6차 version 6.0의 공통 의미와 Windows adapter·package source가 물리 시험 전 가능한 범위에서 자격되고,
+> 남은 항목은 NTFS·DPAPI·ConPTY·Job Object·Windows Search·UAC·Defender·실제 설치·UX처럼 물리 Windows만이
+> 증명할 blocker로 축소됐으며 Windows 설치본 제작은 오너 결정 전 열리지 않는다.
 
 ---
 
