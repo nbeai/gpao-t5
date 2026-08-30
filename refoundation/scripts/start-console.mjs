@@ -28,7 +28,7 @@ import {
 } from '../src/github-cli-broker.js';
 import { makeTerminalCredentialBroker } from '../src/terminal-credential-broker.js';
 import { makeRegisteredCliConnectionInspector } from '../src/existing-capability-inspectors.js';
-import { makeLocalSyncCapability } from '../src/local-sync-capability.js';
+import { discoverLocalSyncRoots, makeLocalSyncCapability } from '../src/local-sync-capability.js';
 import { makeNativeComputerInspector } from '../src/native-computer-tool.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 import {
@@ -93,9 +93,14 @@ const protectedTerminalReadRoots = [
   ] : []),
   ...(windowsProduct ? [windowsProduct.credentialDirectory] : []),
 ];
-const computerFileRoots = computerEnvironment.platform === 'darwin'
+const observedLocalSyncRoots = await discoverLocalSyncRoots({ platform: computerEnvironment.platform,
+  home: homedir(), env: process.env });
+const standardComputerFileRoots = computerEnvironment.platform === 'darwin'
   ? await discoverMacOSComputerFileRoots(homedir())
   : [parse(homedir()).root];
+const computerFileRoots = [...new Set([
+  ...observedLocalSyncRoots.map((item) => item.path), ...standardComputerFileRoots,
+])];
 const terminalPlatformAdapter = await makeTerminalPlatformAdapter({
   platform: computerEnvironment.platform,
   managedWorkspace: workspace,

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -7,7 +7,7 @@ import test from 'node:test';
 import { makeConsoleServer } from '../src/console-server.js';
 import { makeRegisteredCliConnectionInspector } from '../src/existing-capability-inspectors.js';
 import { makeGitHubCliRegistration, githubCliCredentialRoots } from '../src/github-cli-broker.js';
-import { makeLocalSyncCapability } from '../src/local-sync-capability.js';
+import { discoverLocalSyncRoots, makeLocalSyncCapability } from '../src/local-sync-capability.js';
 import { makeNativeComputerInspector, makeNativeComputerTool } from '../src/native-computer-tool.js';
 import { makeTerminalCredentialBroker } from '../src/terminal-credential-broker.js';
 
@@ -104,6 +104,21 @@ test('동기화 폴더는 로컬 파일 reality로만 보이고 계정·원격 s
   });
   assert.equal(used[0].kind, 'local_file');
   assert.equal(used[0].capabilityAdmission.credential.owner, 'none');
+});
+
+test('제품이 이미 관측한 iCloud Drive root는 일반 Library 없이 computer 파일 범위에 결속할 수 있다', async () => {
+  const home = '/Users/person';
+  const cloud = `${home}/Library/Mobile Documents/com~apple~CloudDocs`;
+  const roots = await discoverLocalSyncRoots({ platform: 'darwin', home,
+    readDirectory: async () => [],
+    inspect: async (path) => { if (path !== cloud) throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+      return { isDirectory: () => true }; },
+    canonicalize: async (path) => path });
+  assert.deepEqual(roots.map((item) => ({ providerId: item.providerId, path: item.path })), [
+    { providerId: 'icloud-drive', path: cloud },
+  ]);
+  const source = await readFile(new URL('../scripts/start-console.mjs', import.meta.url), 'utf8');
+  assert.match(source, /observedLocalSyncRoots[\s\S]*\.map\(\(item\) => item\.path\)[\s\S]*standardComputerFileRoots/u);
 });
 
 test('OS 파일 관리자는 fixed action만 실행하고 경로를 capability Receipt에 복사하지 않는다', async () => {

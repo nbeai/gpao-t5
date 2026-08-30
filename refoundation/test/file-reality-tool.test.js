@@ -50,6 +50,25 @@ test('컴퓨터 scope는 위치·파일명을 몰라도 내용 단서로 workspa
   } finally { await rm(room.root, { recursive: true, force: true }); }
 });
 
+test('사용자 가시 동기화 root의 Unicode 파일명 일치는 content mention보다 먼저 보인다', async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 't5-file-sync-title-')));
+  const workspace = join(root, 'workspace'); const sync = join(root, 'iCloud Drive');
+  const standard = join(root, 'Documents'); await Promise.all([mkdir(workspace), mkdir(sync), mkdir(standard)]);
+  await writeFile(join(sync, '250403_권혁수님_코칭.txt'), '코칭 기록');
+  await writeFile(join(standard, '설문모음.txt'), '34번 권혁수 사장님 응답');
+  try {
+    const tool = makeFileRealityTool({ workspace, home: root, platform: 'test',
+      computerRoots: [sync, standard], indexSearch: async () => [] });
+    const result = await tool.execute({ action: 'search', query: '권혁수', scope: 'computer', path: null,
+      handles: null, maxCandidates: 10 });
+    assert.match(result.candidates[0].displayName.normalize('NFC'), /권혁수/u);
+    assert.deepEqual(result.candidates[0].evidence.matchedNameTerms, ['권혁수']);
+    assert.deepEqual(result.candidates[1].evidence.matchedContentTerms, ['권혁수']);
+    assert.equal(result.coverage.filenameScope, 'complete');
+    assert.equal(result.coverage.contentScope, 'complete');
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test('모호한 검색의 exact handle은 사용자가 파일 전달을 요청했을 때만 기존 Artifact로 등록된다', async () => {
   const room = await fixture(); const registered = [];
   try {

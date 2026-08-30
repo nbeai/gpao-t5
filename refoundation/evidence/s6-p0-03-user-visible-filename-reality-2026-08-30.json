@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_P0_03_USER_VISIBLE_FILENAME_REALITY",
+  "status": "STRUCTURAL_AND_READONLY_ACTUAL_QUALIFIED_MODEL_CONSOLE_PENDING",
+  "baselineCommit": "f42e4db7",
+  "productBoundary": {
+    "reusedCapability": "discoverLocalSyncRoots",
+    "qualifiedProviders": ["icloud-drive", "dropbox", "google-drive", "onedrive"],
+    "wholeLibraryAllowed": false,
+    "remoteSyncClaimed": false,
+    "filenameBeforeContent": true,
+    "unicodeNormalized": true,
+    "coverageLanes": ["filenameScope", "contentScope", "visualScope"],
+    "newIndex": false,
+    "newStore": false
+  },
+  "ownerReadOnlyObservation": {
+    "rootKind": "icloud_drive_local_files",
+    "exactFilenameMatches": 2,
+    "filenameEntriesVisited": 1635,
+    "filenameScope": "complete",
+    "contentScope": "partial",
+    "elapsedMsApprox": 7750,
+    "actualUserDataWritten": false,
+    "externalWrites": 0
+  },
+  "regression": {
+    "focusedTests": 33,
+    "failed": 0,
+    "contentSearchPreserved": true,
+    "recentReportsPreserved": true,
+    "ocrAndVisualPreserved": true,
+    "staleHandleAndRollbackPreserved": true,
+    "capabilityTruthPreserved": true
+  },
+  "privacy": {
+    "personalNamesCopied": false,
+    "personalFileNamesCopied": false,
+    "personalPathsCopied": false,
+    "fileContentsCopied": false
+  },
+  "remaining": ["actual model Console filename/content lane and false-absence qualification"]
+}

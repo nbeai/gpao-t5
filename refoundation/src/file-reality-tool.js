@@ -181,6 +181,32 @@ async function walkFiles(roots, { maxFiles, deadline, excludedDirectoryNames, pr
   if (pending.length || files.length >= maxFiles || Date.now() >= deadline) truncated = true;
   return { files, visited, unreadable, truncated };
 }
+
+async function walkMatchingNames(roots, query, { limit = 500, deadline, excludedDirectoryNames, protectedRoots }) {
+  const matches = []; let visited = 0; let unreadable = 0; let truncated = false;
+  const pending = [...roots].map((item) => resolve(item)).reverse();
+  while (pending.length && matches.length < limit && Date.now() < deadline) {
+    const directory = pending.pop(); if (protectedPath(directory, protectedRoots)) continue;
+    let opened; try { opened = await opendir(directory); } catch { unreadable += 1; continue; }
+    const directories = [];
+    try {
+      for await (const entry of opened) {
+        if (Date.now() >= deadline || matches.length >= limit) { truncated = true; break; }
+        const path = join(directory, entry.name); visited += 1;
+        if (entry.isSymbolicLink()) continue;
+        if (entry.isDirectory()) {
+          if (!excludedDirectoryNames.has(entry.name) && !protectedPath(path, protectedRoots)) directories.push(path);
+        } else if (entry.isFile()) {
+          const evidence = lexicalEvidence(query, entry.name, '');
+          if (evidence.matchedName.length || evidence.nameSimilarity >= 0.5) matches.push(path);
+        }
+      }
+    } catch { unreadable += 1; }
+    for (let index = directories.length - 1; index >= 0; index -= 1) pending.push(directories[index]);
+  }
+  if (pending.length || matches.length >= limit || Date.now() >= deadline) truncated = true;
+  return { matches, visited, unreadable, truncated };
+}
 async function recentUserDocuments({ home, roots, protectedRoots, deadline, query }) {
   const output = [];
   for (const [locationClass, name] of STANDARD_USER_DOCUMENT_LOCATIONS) {
@@ -392,6 +418,8 @@ export function makeFileRealityTool({
           ? recentUserDocuments({ home, roots, protectedRoots: exactProtectedRoots,
             deadline: startedAt + 1_500, query: clue })
           : Promise.resolve([]);
+        const filenameWalk = await walkMatchingNames(roots, clue, { limit: 500, deadline: startedAt + 2_000,
+          excludedDirectoryNames: DEFAULT_EXCLUDED_DIRECTORY_NAMES, protectedRoots: exactProtectedRoots });
         const indexed = await indexSearch({ query: clue, roots, platform, limit: 500 });
         const walk = await walkFiles(roots, { maxFiles: 200_000, deadline,
           excludedDirectoryNames: DEFAULT_EXCLUDED_DIRECTORY_NAMES, protectedRoots: exactProtectedRoots });
@@ -400,7 +428,7 @@ export function makeFileRealityTool({
           let candidate; try { candidate = await realpath(resolve(item)); } catch { continue; }
           if (roots.some((root) => pathInside(candidate, root))) indexedSet.add(candidate);
         }
-        const paths = [...new Set([...indexedSet, ...walk.files])];
+        const paths = [...new Set([...filenameWalk.matches, ...indexedSet, ...walk.files])];
         const ranked = []; const imagePool = []; let contentProbes = 0; let ocrProbes = 0;
         for (const candidate of paths) {
           if (now() >= deadline && !indexedSet.has(resolve(candidate))) break;
@@ -443,7 +471,9 @@ export function makeFileRealityTool({
             score: image.lexical.score + evidence.score + (image.indexed ? 10 : 0) });
           }
         }
-        ranked.sort((left, right) => right.score - left.score
+        const nameTier = (item) => item.record.evidence.matchedNameTerms?.length ? 2
+          : item.record.evidence.nameSimilarity >= 0.5 ? 1 : 0;
+        ranked.sort((left, right) => nameTier(right) - nameTier(left) || right.score - left.score
           || right.record.modifiedAt.localeCompare(left.record.modifiedAt)
           || left.record.displayName.localeCompare(right.record.displayName));
         const candidates = ranked.slice(0, limit).map(({ record, score }) => ({
@@ -460,7 +490,14 @@ export function makeFileRealityTool({
           coverage: { roots: roots.length, unavailableRoots: rootState.unavailableRoots,
             indexedCandidates: indexedSet.size, filesystemFilesVisited: walk.files.length,
             filesystemEntriesVisited: walk.visited, unreadableDirectories: walk.unreadable,
-            contentProbes, ocrProbes, truncated: walk.truncated || now() >= deadline, elapsedMs: Math.max(0, now() - startedAt) },
+            contentProbes, ocrProbes,
+            filenameEntriesVisited: filenameWalk.visited,
+            filenameUnreadableDirectories: filenameWalk.unreadable,
+            filenameScope: filenameWalk.truncated ? 'partial' : 'complete',
+            contentScope: walk.truncated || now() >= deadline || contentProbes >= 2_000 ? 'partial' : 'complete',
+            visualScope: typeof ocrProbe !== 'function' ? 'unavailable'
+              : walk.truncated || imagePool.length > ocrProbes ? 'partial' : 'complete',
+            truncated: walk.truncated || now() >= deadline, elapsedMs: Math.max(0, now() - startedAt) },
           contentIncluded: false };
       }
       if (action === 'inspect') {

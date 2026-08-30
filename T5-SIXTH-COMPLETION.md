@@ -571,6 +571,8 @@ surface·기존 Console lifecycle을 통과했다. 실제 Browser Console click�
 
 #### P0-03 — User-Visible Storage Scope & Filename-First Recall
 
+현재 상태: `SYNC_ROOT_AND_FILENAME_TRUTH_QUALIFIED · ACTUAL_MODEL_CONSOLE_PENDING`
+
 사람 이름 관련 파일 찾기의 현재 실제 결과는 실패였다.
 
 현재 Run:
@@ -638,6 +640,21 @@ inspect schema는 action별 실제 cardinality와 provider strict schema가 일�
 > 사용자가 이름·문구·대략적인 위치로 파일을 찾으면 T5는 Desktop·Documents·Downloads와 실제로 관측된 로컬
 > 동기화 폴더를 같은 컴퓨터 범위에서 빠르게 확인하고, 파일명에 직접 맞는 결과와 내용에 관련된 결과를 구분해
 > 빠짐없이 보여주며, 확인하지 못한 범위를 없다고 말하지 않는다.
+
+첫 후보는 기존 `discoverLocalSyncRoots`가 관측한 iCloud·Dropbox·Google Drive·OneDrive local root를 standard
+computer roots 앞에 결속하고, 전체 Library는 계속 제외한다. File Reality는 content walk 전에 Unicode-normalized
+filename depth-first 관측을 수행하고 filename 직접 일치를 content mention보다 먼저 정렬한다. coverage는
+`filenameScope·contentScope·visualScope`로 분리한다.
+
+실제 오너 iCloud Drive read-only 재자격은 개인 이름·경로·내용을 출력·evidence에 저장하지 않은 상태에서
+filename match 2/2, filenameScope complete, 1,635 entries, 약 7.75초를 관측했다. 기존 content lane은 partial로
+정직하게 남았다. focused 33/33에서 모호한 content 검색·최근 보고서·OCR·중복·stale handle·정리·rollback·
+Capability truth를 보존했다.
+
+근거: `refoundation/evidence/s6-p0-03-user-visible-filename-reality-2026-08-30.json`.
+
+실제 모델 Console에서 filename lane과 content lane을 함께 자연스럽게 설명하고 false absence 0인지 최종 확인하기
+전에는 P0-03 전체 완료로 봉인하지 않는다.
 
 #### P0-04 — Product Self-Version Truth
 
