@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_WA_WHOLE_ANDROID_SEAM_AUDIT",
+  "status": "BASELINE_COMPLETE_MACOS_P0_P1_REPAIRED_WINDOWS_EXPLICIT_UX_DELTA_PENDING",
+  "auditHead": "7a640b6e",
+  "candidateCommit": "same_commit_as_evidence",
+  "productRepairFamiliesAfterReadOnlyAudit": 4,
+  "seams": [
+    { "id": 1, "name": "Composer to durable input and conditional Work admission", "scoreAfter": 4 },
+    { "id": 2, "name": "Context to provider wire", "scoreAfter": 4 },
+    { "id": 3, "name": "Hand discovery to actual Tool", "scoreAfter": 4 },
+    { "id": 4, "name": "Tool authority effect receipt", "scoreAfter": 4 },
+    { "id": 5, "name": "Terminal output wake recovery", "scoreAfter": 4 },
+    { "id": 6, "name": "File roots search handle inspect", "scoreAfter": 4 },
+    { "id": 7, "name": "Exact file Artifact Preview Download Reveal", "scoreAfter": 3, "remaining": "Reveal is S6-UX surface work" },
+    { "id": 8, "name": "Source bind authoring verify Artifact Undo", "scoreAfter": 4 },
+    { "id": 9, "name": "Web Browser action readback", "scoreAfter": 4 },
+    { "id": 10, "name": "Capability qualification activation Work resume", "scoreAfter": 4 },
+    { "id": 11, "name": "Experience proposal field use rollback", "scoreAfter": 4 },
+    { "id": 12, "name": "Console Telegram Automation Delivery", "scoreAfter": 4 },
+    { "id": 13, "name": "Backup restore surface rebuild", "scoreAfter": 4 },
+    { "id": 14, "name": "Runtime progress stream final UX", "scoreAfter": 4 },
+    { "id": 15, "name": "Session pin group search lifecycle", "scoreAfter": 3, "remaining": "manual groups are S6-UX metadata work" },
+    { "id": 16, "name": "macOS Windows common meaning", "scoreAfter": 2, "remaining": "Windows physical write confinement qualification" }
+  ],
+  "repairs": [
+    {
+      "id": "INITIAL_INPUT_DURABLE_ADMISSION",
+      "before": "stream-start acknowledged a volatile pending stream before Conversation and input admission existed",
+      "after": "Conversation, Attachment link, Session surface, and the initial input are durable before HTTP success; Direct keeps Work 0 and the same input binds to a Work revision only when a Hand is needed; restart consumes the same identity once"
+    },
+    {
+      "id": "TERMINAL_WAKE_SURFACE_RECOVERY",
+      "before": "wake claim was irreversible before successor surface",
+      "after": "surface failure releases the claim, retries once, then retains a pending wake without rerunning the process"
+    },
+    {
+      "id": "TELEGRAM_TEXT_ACK_UNKNOWN",
+      "before": "sendMessage transport loss became retryable failure",
+      "after": "post-dispatch transport loss is effect unknown and retry unsafe; definitive HTTP errors retain their existing meaning"
+    },
+    {
+      "id": "CAPABILITY_POSTEFFECT_SETTLEMENT",
+      "before": "physical Skill mutation could precede a failed lifecycle append",
+      "after": "learned activation and install remove a new candidate on ledger failure; remove/restore return the exact prior active or archived state; rollback lifecycle failure restores the active revision; unrecoverable rollback becomes effect unknown"
+    }
+  ],
+  "butterfly": {
+    "changedFacts": ["initial input ACK timing", "terminal wake persistence", "Telegram transport ACK", "Skill lifecycle append"],
+    "wrongUserEffectAmplificationAfterRepair": 0,
+    "unknownPreserved": true,
+    "blindRetry": false
+  },
+  "knot": {
+    "canonicalStrand": ["Message", "Conversation", "Work/revision", "Run", "Tool", "Effect", "Artifact/version", "Delivery", "UX"],
+    "duplicateOwners": 0,
+    "orphanMacosEffectsOrArtifacts": 0,
+    "blindRetryCycles": 0,
+    "intentionalCutsPreserved": ["cancel", "forget", "rollback", "Session delete/restore", "Skill archive/restore"]
+  },
+  "verification": {
+    "totalFocused": { "passed": 97, "failed": 0 },
+    "refoundationCheck": { "environment": "local_product_permissions", "status": "PASS" }
+  },
+  "completion": {
+    "p0UnresolvedMacos": 0,
+    "p1UnresolvedMacos": 0,
+    "duplicateTruthOwner": 0,
+    "orphanEffectOrArtifact": 0,
+    "blindRetryCycle": 0,
+    "crossSurfaceContradiction": 0,
+    "windowsUnqualified": "EXPLICIT_PHYSICAL_BLOCKER"
+  },
+  "nextGate": "S6_UX_IMPLEMENTATION_AND_DELTA_EDGE_AUDIT",
+  "completionSentence": "작은 identity·revision·ACK·timing 오류가 사용자 결과로 증폭되던 네 seam을 최초 진실 경계에서 제한했고, macOS 기준 seam은 중복·orphan·blind retry 없이 S6-UX delta 재감사로 이어진다."
+}

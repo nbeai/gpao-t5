@@ -435,6 +435,12 @@ export class ManagedProcessRegistry {
     };
   }
 
+  releaseTerminalWake(processId) {
+    const record = this.records.get(String(processId ?? ''));
+    if (!record || !terminal(record.state) || record.terminalObserved || !record.wakeClaimed) return false;
+    record.wakeClaimed = false; return true;
+  }
+
   forget(processId, ownerId) {
     const record = this.#owned(processId, ownerId);
     if (!terminal(record.state)) throw Object.assign(new Error('cannot forget a running process'), { status: 409 });

@@ -120,6 +120,23 @@ test('첫 명령이 실패하면 원문을 본 모델이 다른 명령으로 전
   assert.equal(result.modelTurns, 3);
 }));
 
+test('Tool 실행 뒤 효과를 모르면 generic Receipt도 unknown·retry unsafe를 보존한다', async () => {
+  let turn = 0;
+  const model = { async respond(input) {
+    turn += 1;
+    if (turn === 1) return { text: '', toolCalls: [{ id: 'unknown-effect', name: 'mutation', args: {} }] };
+    const receipt = JSON.parse(input.messages.at(-1).content);
+    assert.equal(receipt.outcome, 'unknown'); assert.equal(receipt.result.effectUnknown, true);
+    assert.equal(receipt.result.retrySafe, false); return { text: '실제 상태를 다시 확인해야 합니다.', toolCalls: [] };
+  } };
+  const tool = { name: 'mutation', description: 'fixture', parameters: { type: 'object' }, async execute() {
+    const error = new Error('post-effect settlement failed'); error.effectUnknown = true; error.retrySafe = false;
+    throw error;
+  } };
+  const result = await runAgent({ request: '상태를 바꿔줘', model, tools: [tool] });
+  assert.equal(result.receipts[0].outcome, 'unknown'); assert.equal(result.receipts[0].result.retrySafe, false);
+});
+
 test('취소되면 같은 응답에 남은 도구 호출을 시작하지 않는다', async () => {
   const controller = new AbortController();
   const executed = [];

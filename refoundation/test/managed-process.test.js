@@ -130,6 +130,8 @@ test('process_start가 running으로 반환된 뒤 생긴 terminal 상태는 한
     assert.equal(wake.ownerId, 'session-wake');
     assert.equal(wake.metadata.originRunId, 'run-origin');
     assert.equal(registry.claimTerminalWake(started.processId), null);
+    assert.equal(registry.releaseTerminalWake(started.processId), true);
+    assert.equal(registry.claimTerminalWake(started.processId).stdout, 'wake-output');
   } finally {
     clearTimeout(terminalTimeout);
     unsubscribe();

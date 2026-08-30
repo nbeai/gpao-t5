@@ -39,7 +39,7 @@ test('두 세션을 동시에 실행해도 목록·재진입 상세가 각 진�
   const room = await mkdtemp(join(tmpdir(), 't5-session-activity-'));
   const releases = new Map();
   const server = makeConsoleServer({
-    stateDir: room, workspace: room,
+    stateDir: room, workspace: room, workAdmissionMode: 'action-v1',
     modelFactory: async ({ sessionId }) => ({
       respond: async () => new Promise((resolve) => releases.set(sessionId, resolve)),
     }),
@@ -58,7 +58,8 @@ test('두 세션을 동시에 실행해도 목록·재진입 상세가 각 진�
     const byId = new Map(list.sessions.map((session) => [session.id, session]));
     assert.equal(byId.get(a.id).activity.status, 'running');
     assert.equal(byId.get(b.id).activity.status, 'running');
-    assert.equal(byId.get(a.id).workReality.showPanel, true);
+    assert.equal(byId.get(a.id).workReality.showPanel, false,
+      'direct conversation keeps progress in activity without inventing a Work panel');
     const detailA = await fetch(`${base}/sessions/${a.id}`).then((response) => response.json());
     assert.equal(detailA.activity.sessionId, a.id);
     assert.deepEqual(detailA.workReality, byId.get(a.id).workReality);
@@ -70,10 +71,10 @@ test('두 세션을 동시에 실행해도 목록·재진입 상세가 각 진�
     assert.equal(afterB.sessions.find((session) => session.id === b.id).activity, null);
     assert.equal(afterB.sessions.find((session) => session.id === b.id).workReality.showPanel, false);
     assert.equal(afterB.sessions.find((session) => session.id === a.id).activity.status, 'running');
-
     releases.get(a.id)({ text: '첫 번째 완료', toolCalls: [] });
     await streamA;
   } finally {
+    for (const release of releases.values()) release({ text: '정리', toolCalls: [] });
     await new Promise((resolve) => server.close(resolve));
   }
 });

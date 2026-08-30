@@ -204,6 +204,11 @@ export class WorkStore {
             settlementDisposition: null, settlementWorkId: null, settlementRevision: null,
             settlementReason: null });
       }
+      if (event.type === 'input_execution_bound_to_work') {
+        const input = inputs.get(event.inputId); if (input) Object.assign(input, {
+          workId: event.workId, revision: event.revision,
+        });
+      }
       if (event.type === 'input_failure_surface_claimed') {
         const input = inputs.get(event.inputId); if (input) Object.assign(input, {
           state: 'executing', workId: event.workId, revision: event.revision,
@@ -850,6 +855,24 @@ export class WorkStore {
       throw new Error('work input and Run claim identity mismatch');
     }
     await this.append('input_execution_claimed', { inputId, runId }); return { inputId, runId };
+  }
+  async claimDirectInputExecution({ inputId, runId }) {
+    const state = await this.read(); const input = state.inputs.find((item) => item.inputId === inputId);
+    if (!input || input.state !== 'admitted' || input.source?.admissionTime?.activeRun !== false) {
+      throw new Error('direct input is not durably admitted');
+    }
+    await this.append('input_execution_claimed', { inputId, runId, direct: true });
+    return { inputId, runId };
+  }
+  async bindDirectInputExecution({ inputId, runId, workId, revision }) {
+    const state = await this.read(); const input = state.inputs.find((item) => item.inputId === inputId);
+    const claim = state.claims.find((item) => item.runId === runId && item.state === 'active');
+    if (!input || input.state !== 'executing' || input.executionRunId !== runId
+      || !claim || claim.workId !== workId || claim.revision !== revision) {
+      throw new Error('direct input Work binding mismatch');
+    }
+    await this.append('input_execution_bound_to_work', { inputId, runId, workId, revision });
+    return { inputId, runId, workId, revision };
   }
   async claimPresentedInputsForFailure(runId) {
     return this.serialize(async () => {

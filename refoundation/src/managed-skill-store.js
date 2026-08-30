@@ -1,4 +1,4 @@
-import { appendFile, chmod, mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
+import { appendFile, chmod, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { EFFECT_SCHEMA } from './exec-tool.js';
@@ -35,7 +35,8 @@ export class ManagedSkillStore {
         await this.append('learned_activated', { name, proposalId, contentDigest: revisionDigest });
       } catch (error) {
         const source = published ? join(this.active, name) : temporary;
-        await rename(source, join(this.trash, `${name}-failed-${Date.now()}`)).catch(() => {});
+        try { await rm(source, { recursive: true, force: true }); }
+        catch { error.effectUnknown = true; error.retrySafe = false; }
         throw error;
       }
       return { state: 'activated', name, proposalId, digest: revisionDigest, recoverable: true,
@@ -49,16 +50,35 @@ export class ManagedSkillStore {
     if ((await this.installedNames()).includes(name)) return { state: 'already_installed', ...metadata, content };
     const temporary = join(this.root, `.install-${name}-${process.pid}`); await mkdir(temporary, { mode: 0o700 });
     await writeFile(join(temporary, 'SKILL.md'), content, { mode: 0o600 }); await chmod(join(temporary, 'SKILL.md'), 0o600);
-    await rename(temporary, join(this.active, name)); await this.append('installed', { name, contentDigest: metadata.contentDigest });
+    await rename(temporary, join(this.active, name));
+    try { await this.append('installed', { name, contentDigest: metadata.contentDigest }); }
+    catch (error) {
+      try { await rm(join(this.active, name), { recursive: true, force: true }); }
+      catch { error.effectUnknown = true; error.retrySafe = false; }
+      throw error;
+    }
     return { state: 'installed', ...metadata, policy, content }; }); }
   async remove(name) { return this.serialize(async () => { await this.ensure(); if (!(await this.installedNames()).includes(name)) throw new Error('managed skill is not installed');
-    const target = join(this.trash, `${name}-${Date.now()}`); await rename(join(this.active, name), target); await this.append('removed', { name, trashName: target.split('/').at(-1) });
+    const target = join(this.trash, `${name}-${Date.now()}`); await rename(join(this.active, name), target);
+    try { await this.append('removed', { name, trashName: target.split('/').at(-1) }); }
+    catch (error) {
+      try { await rename(target, join(this.active, name)); }
+      catch { error.effectUnknown = true; error.retrySafe = false; }
+      throw error;
+    }
     return { state: 'removed', name, recoverable: true }; }); }
   async restore(name) { return this.serialize(async () => { await this.ensure(); if ((await this.installedNames()).includes(name)) throw new Error('managed skill is already installed');
     const candidates = (await readdir(this.trash)).filter((entry) => entry.startsWith(`${name}-`)).sort().reverse();
-    if (!candidates.length) throw new Error('removed managed skill not found'); await rename(join(this.trash, candidates[0]), join(this.active, name));
-    await this.append('restored', { name, trashName: candidates[0] }); return { state: 'restored', name }; }); }
-  async restoreExact(name, revision) { return this.serialize(async () => { await this.ensure(); if ((await this.installedNames()).includes(name)) throw new Error('managed skill is already installed'); const candidates = (await readdir(this.trash)).filter((entry) => entry.startsWith(`${name}-`)).sort().reverse(); for (const candidate of candidates) { let content; try { content = await readFile(join(this.trash, candidate, 'SKILL.md')); } catch { continue; } const digest = createHash('sha256').update(content).digest('hex'); if (digest !== revision?.digest) continue; await rename(join(this.trash, candidate), join(this.active, name)); await this.append('restored', { name, digest, trashName: candidate }); return { state: 'restored', name, digest }; } throw new Error('exact removed managed skill not found'); }); }
+    if (!candidates.length) throw new Error('removed managed skill not found'); const source = join(this.trash, candidates[0]);
+    await rename(source, join(this.active, name));
+    try { await this.append('restored', { name, trashName: candidates[0] }); }
+    catch (error) {
+      try { await rename(join(this.active, name), source); }
+      catch { error.effectUnknown = true; error.retrySafe = false; }
+      throw error;
+    }
+    return { state: 'restored', name }; }); }
+  async restoreExact(name, revision) { return this.serialize(async () => { await this.ensure(); if ((await this.installedNames()).includes(name)) throw new Error('managed skill is already installed'); const candidates = (await readdir(this.trash)).filter((entry) => entry.startsWith(`${name}-`)).sort().reverse(); for (const candidate of candidates) { let content; try { content = await readFile(join(this.trash, candidate, 'SKILL.md')); } catch { continue; } const digest = createHash('sha256').update(content).digest('hex'); if (digest !== revision?.digest) continue; const source = join(this.trash, candidate); await rename(source, join(this.active, name)); try { await this.append('restored', { name, digest, trashName: candidate }); } catch (error) { try { await rename(join(this.active, name), source); } catch { error.effectUnknown = true; error.retrySafe = false; } throw error; } return { state: 'restored', name, digest }; } throw new Error('exact removed managed skill not found'); }); }
 }
 
 export function makeSkillAcquisitionTool({ store, catalogSnapshot, authorizeEffect } = {}) {

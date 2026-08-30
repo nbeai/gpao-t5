@@ -1,9 +1,9 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_ADMISSION_HARDENED · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · S6_J_COMPLETE · S6_WA_OWNER_APPROVED_READ_ONLY_AUDIT_BEFORE_UX_HQ · S6_UX_OWNER_APPROVED_NEXT_BEFORE_FINAL_HQ · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
+상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_ADMISSION_HARDENED · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · S6_J_COMPLETE · S6_WA_BASELINE_COMPLETE_P1_REPAIRED_UX_DELTA_PENDING · S6_UX_IMPLEMENTATION_ACTIVE_BEFORE_FINAL_HQ · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
-현재 Gate: `S6-HQ · FINAL ANDROID HUMAN QUALIFICATION`
-현재 작업: `S6_HQ_MACOS_CORE_WAVE · SPEED_CARRY_AND_EXTERNAL_PHYSICAL_BLOCKER`
+현재 Gate: `S6-UX · CONVERSATIONAL WORKSPACE AND RESULT EXPERIENCE`
+현재 작업: `S6_UX_IMPLEMENTATION · WA_DELTA_EDGE_REAUDIT_BEFORE_FINAL_HQ`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -1399,7 +1399,22 @@ Artifact v1·내부 path 비노출은 그대로 통과했다. 일반 Direct의 C
 
 ### S6-WA — Whole Android Seam Audit
 
-현재 상태: `OWNER_APPROVED · READ_ONLY_AUDIT_NOT_STARTED · PRODUCT_CHANGE_0 · BEFORE_S6_UX_AND_FINAL_HQ`
+현재 상태: `BASELINE_AUDIT_COMPLETE · MACOS_P0_0 · FOUR_P1_REPAIRED · UX_DELTA_REAUDIT_PENDING · WINDOWS_PHYSICAL_EXPLICIT`
+
+`7a640b6e` exact head에서 여섯 read-only lane으로 16개 seam을 감사한 뒤, 단일 통합 책임자가 실제 증폭이
+있는 네 P1만 순차 수리했다.
+
+- Console 최초 입력은 HTTP ACK 전 Conversation·Attachment·input에 durable하게 남고, Direct는 Work 0,
+  Hand가 필요할 때만 같은 input이 Work revision에 결속된다.
+- managed process wake는 successor surface 실패로 소멸하지 않고 claim을 놓아 다시 전달할 수 있다.
+- Telegram `sendMessage` dispatch 후 ACK 유실은 retryable failure가 아니라 effect unknown·retry unsafe다.
+- learned/managed Skill의 physical mutation 뒤 ledger append가 실패하면 신규 candidate는 제거하고 기존
+  active/archive는 exact 원상 복구하며, 복구 자체가 실패할 때만 effect unknown으로 남긴다.
+
+focused 반대시험 97/97과 sandbox 밖 `refoundation:check`의 제품 경계를 재확인했다. S6-UX 이후에는
+전체 inventory를 다시 열지 않고 UX가 바꾼 edge만 재감사한다.
+
+근거: `refoundation/evidence/s6-wa-whole-android-seam-audit-2026-08-30.json`.
 
 T5와 같은 유기적 시스템의 실제 성능은 개별 모듈의 최고 점수가 아니라 가장 약한 핵심 연결부와 그 결함의 증폭
 범위에 의해 결정된다. 이 Gate는 전체 코드를 다시 설계하거나 여러 Agent가 동시에 고치는 대청소가 아니다.

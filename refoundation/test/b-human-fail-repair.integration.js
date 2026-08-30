@@ -130,7 +130,8 @@ test('재시작은 완성된 prepared envelope만 exact inputId로 commit하고 
     const recovered = await server.recoverPreparedAdmissions();
     assert.deepEqual(recovered.map((item) => item.state).toSorted(), ['aborted', 'admitted']);
     const state = await server.workStore.read();
-    assert.equal(state.inputs.find((item) => item.inputId === complete.inputId).state, 'admitted');
+    const recoveredInput = state.inputs.find((item) => item.inputId === complete.inputId);
+    assert.equal(recoveredInput.state, 'admitted'); assert.equal(state.works.length, 0);
     assert.equal(state.inputs.find((item) => item.inputId === partial.inputId).state, 'aborted');
     assert.equal((await server.conversationLedger.read(session.id)).messages.some(
       (message) => message.content === '완성된 준비 입력'), true);

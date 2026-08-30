@@ -155,6 +155,11 @@ export function makeTelegramMessengerProvider({
     } catch (error) {
       if (error instanceof TelegramMessengerError) throw error;
       if (externalSignal?.aborted) throw new TelegramMessengerError('telegram_poll_stopped');
+      if (method === 'sendMessage') {
+        const unknown = new TelegramMessengerError('telegram_delivery_unknown');
+        unknown.effectUnknown = true; unknown.retrySafe = false; unknown.deliveryState = 'unknown';
+        throw unknown;
+      }
       throw new TelegramMessengerError('telegram_network_failed', { retriable: true });
     } finally {
       clearTimeout(timer);
@@ -445,7 +450,9 @@ export function makeTelegramMessengerProvider({
             }, signal);
           }
         } catch (error) {
-          error.deliveryState = messageIds.length ? 'partial' : 'not_confirmed';
+          error.deliveryState = error.effectUnknown === true
+            ? (messageIds.length ? 'partial_unknown' : 'unknown')
+            : (messageIds.length ? 'partial' : 'not_confirmed');
           error.deliveredMessageIds = [...messageIds];
           throw error;
         }

@@ -520,7 +520,8 @@ export function makeConsoleServer({
       if (!confirmedDeferredDelivery(queued, state)) return false;
       queued = await workStore.activateScheduledInput(queued.inputId);
     }
-    if (queued.state === 'admitted') queued = await workStore.attachAdmittedInputToCurrentWork(queued.inputId);
+    const directInitial = queued.state === 'admitted' && queued.source?.admissionTime?.activeRun === false;
+    if (queued.state === 'admitted' && !directInitial) queued = await workStore.attachAdmittedInputToCurrentWork(queued.inputId);
     if (queued.state === 'classified') queued = await workStore.activateExactInputWork(queued.inputId);
     const conversation = await conversations.read(sessionId); const entry = conversation.entries
       .find((candidate) => candidate.messageId === queued.messageId);
@@ -532,6 +533,7 @@ export function makeConsoleServer({
         trigger: telegramSource ? 'messenger_followup' : 'work_followup',
         attachmentIds: queued.attachmentIds,
         admittedInput: { inputId: queued.inputId, messageId: queued.messageId,
+          ...(directInitial ? { direct: true } : {}),
           ...(queued.workId ? { workId: queued.workId, revision: queued.revision } : {}) },
         ...(telegramSource ? {
           metadata: {
@@ -709,7 +711,8 @@ export function makeConsoleServer({
         complete = messagePresent && linksPresent;
       } catch { complete = false; }
       if (complete) {
-        await workStore.commitInputAdmission(input.inputId); recovered.push({ inputId: input.inputId, state: 'admitted' });
+        const admitted = await workStore.commitInputAdmission(input.inputId);
+        recovered.push({ inputId: input.inputId, state: admitted.state });
       } else {
         await conversations.abortMessage({ sessionId: input.sessionId, messageId: input.messageId,
           inputId: input.inputId, reason: 'restart_incomplete_admission' }).catch(() => {});
@@ -1414,6 +1417,9 @@ export function makeConsoleServer({
         }).catch((error) => onError?.(error));
       },
     });
+    if (options.admittedInput?.direct === true) await workStore.claimDirectInputExecution({
+      inputId: options.admittedInput.inputId, runId: run.runId,
+    });
     if (modelTransition) await run.append({
       type: 'model_connection_changed', stepId: 'model-compatibility',
       payload: {
@@ -1634,7 +1640,7 @@ export function makeConsoleServer({
         if (options.observationOnly) return null;
         if (!activeWork) activeWork = await workStore.activeForSession(sessionId);
         if (!activeWork) activeWork = await workStore.create({
-          sessionId, sourceMessageId: `${run.runId}:user`,
+          sessionId, sourceMessageId: options.admittedInput?.messageId ?? `${run.runId}:user`,
         });
         if (!workBound) {
           await run.append({ type: 'work_bound', stepId: 'work', payload: {
@@ -1642,9 +1648,12 @@ export function makeConsoleServer({
           } });
           await workStore.claimExecution({ workId: activeWork.workId,
             revision: activeWork.revision, runId: run.runId });
-          if (options.admittedInput) await workStore.claimInputExecution({
+          if (options.admittedInput?.direct === true) await workStore.bindDirectInputExecution({
             inputId: options.admittedInput.inputId, runId: run.runId,
+            workId: activeWork.workId, revision: activeWork.revision,
           });
+          else if (options.admittedInput) await workStore.claimInputExecution({
+            inputId: options.admittedInput.inputId, runId: run.runId });
           workBound = true;
           await publishWorkReality(sessionId, emit).catch((error) => onError?.(error));
         }
@@ -2682,7 +2691,10 @@ export function makeConsoleServer({
       if (options.admittedInput) {
         const admitted = (await workStore.executingInputsForRun(run.runId))
           .find((input) => input.inputId === options.admittedInput.inputId);
-        if (admitted && admitted.workId === resultWorkId && admitted.revision === resultRevision) {
+        if (admitted && options.admittedInput.direct === true && settledWork == null) {
+          explicitSettlements.push({ inputId: admitted.inputId, workId: null,
+            revision: null, disposition: 'answered' });
+        } else if (admitted && admitted.workId === resultWorkId && admitted.revision === resultRevision) {
           explicitSettlements.push({ inputId: admitted.inputId, workId: admitted.workId,
             revision: admitted.revision, disposition: 'answered' });
         }
@@ -2839,10 +2851,16 @@ export function makeConsoleServer({
             if (!used) continue;
             const managed = await managedSkillStorePromise;
             await managed.remove(proposal.id);
-            await capabilityLifecycle.append('learning_rolled_back', { proposalId: proposal.proposalId,
-              kind: 'skill', id: proposal.id, lifecycleAction: 'activate', state: 'archived',
-              sourceRunId: run.runId, failedRevision: proposal.candidateRevision,
-              reasons: currentSource.reasons, recoverable: true });
+            try {
+              await capabilityLifecycle.append('learning_rolled_back', { proposalId: proposal.proposalId,
+                kind: 'skill', id: proposal.id, lifecycleAction: 'activate', state: 'archived',
+                sourceRunId: run.runId, failedRevision: proposal.candidateRevision,
+                reasons: currentSource.reasons, recoverable: true });
+            } catch (error) {
+              try { await managed.restoreExact(proposal.id, proposal.candidateRevision); }
+              catch { error.effectUnknown = true; error.retrySafe = false; throw error; }
+              onError?.(error);
+            }
           }
         }
       }
@@ -3969,48 +3987,58 @@ export function makeConsoleServer({
     }
     const process = processes.claimTerminalWake(event.processId);
     if (!process) return;
-    const effectAfter = process.metadata?.declaredEffect
-      ? await observeDeclaredEffect(process.metadata.declaredEffect, process.metadata.effectCwd)
-      : null;
-    const effectObservation = effectAfter ? compareEffectObservations(
-      process.metadata.declaredEffect, process.metadata.effectBefore, effectAfter,
-    ) : null;
-    const wakeText = [
-      'managed process terminal event',
-      `processId: ${process.processId}`,
-      `state: ${process.state}`,
-      `processExitCode: ${process.exitCode}`,
-      `stdout:\n${process.stdout}`,
-      `stderr:\n${process.stderr}`,
-      `effectObservation:\n${JSON.stringify(effectObservation)}`,
-      'Tell the user naturally that the managed work completed or failed. Use only this observed event.',
-    ].join('\n');
-    const completed = await executeTurn(event.ownerId, wakeText, () => {}, {
-      trigger: 'managed_process_terminal',
-      observationOnly: true,
-      metadata: {
-        processId: process.processId,
-        originRunId: process.metadata?.originRunId ?? null,
-        terminalState: process.state,
-      },
-      inputEntry: {
-        role: 'system_event',
-        event: {
-          kind: 'managed_process_terminal', processId: process.processId,
-          state: process.state, processExitCode: process.exitCode,
-          stdout: process.stdout, stderr: process.stderr,
-          cursor: process.cursor, originRunId: process.metadata?.originRunId ?? null,
-          effectObservation,
+    try {
+      const effectAfter = process.metadata?.declaredEffect
+        ? await observeDeclaredEffect(process.metadata.declaredEffect, process.metadata.effectCwd)
+        : null;
+      const effectObservation = effectAfter ? compareEffectObservations(
+        process.metadata.declaredEffect, process.metadata.effectBefore, effectAfter,
+      ) : null;
+      const wakeText = [
+        'managed process terminal event',
+        `processId: ${process.processId}`,
+        `state: ${process.state}`,
+        `processExitCode: ${process.exitCode}`,
+        `stdout:\n${process.stdout}`,
+        `stderr:\n${process.stderr}`,
+        `effectObservation:\n${JSON.stringify(effectObservation)}`,
+        'Tell the user naturally that the managed work completed or failed. Use only this observed event.',
+      ].join('\n');
+      const completed = await executeTurn(event.ownerId, wakeText, () => {}, {
+        trigger: 'managed_process_terminal',
+        observationOnly: true,
+        metadata: {
+          processId: process.processId,
+          originRunId: process.metadata?.originRunId ?? null,
+          terminalState: process.state,
         },
-      },
-    });
-    if (completed.kind === 'reply') broadcastWake({
-      sessionId: event.ownerId,
-      runId: completed.runId,
-      processId: process.processId,
-      state: process.state,
-      reply: completed.result.answer,
-    });
+        inputEntry: {
+          role: 'system_event',
+          event: {
+            kind: 'managed_process_terminal', processId: process.processId,
+            state: process.state, processExitCode: process.exitCode,
+            stdout: process.stdout, stderr: process.stderr,
+            cursor: process.cursor, originRunId: process.metadata?.originRunId ?? null,
+            effectObservation,
+          },
+        },
+      });
+      if (completed.kind === 'reply') broadcastWake({
+        sessionId: event.ownerId,
+        runId: completed.runId,
+        processId: process.processId,
+        state: process.state,
+        reply: completed.result.answer,
+      });
+    } catch (error) {
+      processes.releaseTerminalWake(process.processId);
+      const retry = { ...event, wakeAttempts: Number(event.wakeAttempts ?? 0) + 1 };
+      if (retry.wakeAttempts <= 1) setTimeout(() => {
+        attemptProcessWake(retry).catch((retryError) => onError?.(retryError));
+      }, 50).unref?.();
+      else pendingProcessWakes.set(event.processId, retry);
+      throw error;
+    }
   }
 
   const unsubscribeTerminal = processes.onTerminal((event) => {
@@ -4815,12 +4843,13 @@ export function makeConsoleServer({
         if (!input.sessionId || !String(input.text ?? '').trim()) {
           json(res, 400, { error: '세션과 발화가 필요해요.' }); return;
         }
+        const requestSession = await sessions.load(input.sessionId);
+        if (!requestSession) { json(res, 404, { error: '대화를 찾지 못했어요.' }); return; }
         const alreadyPending = [...pendingStreams.values()].some((entry) => (
           entry.sessionId === input.sessionId && entry.expiresAt >= Date.now()
         ));
         if (running.has(input.sessionId) || alreadyPending) {
-          const session = await sessions.load(input.sessionId);
-          if (!session) { json(res, 404, { error: '대화를 찾지 못했어요.' }); return; }
+          const session = requestSession;
           const runningEntry = running.get(input.sessionId);
           if (runningEntry) {
             const ensureActiveWork = await runningEntry.workAdmissionReady;
@@ -4872,14 +4901,54 @@ export function makeConsoleServer({
             throw error;
           }
         }
-        const streamId = randomUUID();
-        const measurementId = randomUUID();
-        pendingStreams.set(streamId, {
-          sessionId: input.sessionId, text: input.text,
-          attachmentIds: Array.isArray(input.attachmentIds) ? input.attachmentIds.map(String) : [],
-          measurementId, expiresAt: Date.now() + 30_000,
-        });
-        json(res, 200, { streamId, measurementId }); return;
+        await conversations.ensure({ sessionId: input.sessionId, legacyMessages: historyFrom(requestSession) });
+        const messageId = randomUUID();
+        const attachmentIds = [...new Set((input.attachmentIds ?? []).map(String))];
+        if (attachmentIds.length > 10) { json(res, 413, { error: '파일은 10개까지 받을 수 있어요.' }); return; }
+        const currentAttachments = await Promise.all(attachmentIds.map((attachmentId) => (
+          attachments.get({ sessionId: input.sessionId, attachmentId })
+        )));
+        const source = {
+          channel: input.source?.channel ?? requestSession.origin?.channel ?? 'console',
+          chatId: input.source?.chatId ?? requestSession.origin?.chatId ?? null,
+          threadId: input.source?.threadId ?? requestSession.origin?.threadId ?? null,
+          senderId: input.source?.senderId ?? requestSession.origin?.senderId ?? null,
+          sourceMessageId: input.source?.sourceMessageId ?? requestSession.origin?.sourceMessageId ?? null,
+          replyIdentity: structuredClone(input.source?.replyIdentity ?? requestSession.origin?.replyIdentity ?? null),
+          admissionTime: { activeRun: false, currentResultProduced: false },
+        };
+        const prepared = await workStore.prepareInputAdmission({ sessionId: input.sessionId,
+          messageId, origin: requestSession.origin?.channel ?? 'console', attachmentIds, source });
+        try {
+          if (attachmentIds.length) await attachments.link({ sessionId: input.sessionId,
+            attachmentIds, messageId, inputId: prepared.inputId });
+          await conversations.appendMessage({ sessionId: input.sessionId, messageId,
+            message: { role: 'user', content: String(input.text),
+              ...(currentAttachments.length ? { attachments: currentAttachments.map(attachmentSurface) } : {}) } });
+          await sessions.append(input.sessionId, { role: 'user', text: String(input.text), admitted: true,
+            source, ...(currentAttachments.length ? { attachments: currentAttachments.map(attachmentSurface) } : {}) });
+          const admittedInput = await workStore.commitInputAdmission(prepared.inputId);
+          const streamId = randomUUID(); const measurementId = randomUUID(); const expiresAt = Date.now() + 30_000;
+          pendingStreams.set(streamId, { sessionId: input.sessionId, text: input.text,
+            attachmentIds, measurementId, expiresAt,
+            admittedInput: { ...admittedInput, messageId, direct: true } });
+          setTimeout(() => {
+            const pending = pendingStreams.get(streamId);
+            if (!pending || pending.expiresAt > Date.now()) return;
+            pendingStreams.delete(streamId);
+            queueMicrotask(() => scheduleNextWorkInput(pending.sessionId).catch((error) => onError?.(error)));
+          }, 30_050).unref?.();
+          mirrorConsoleInputToBoundMessenger(requestSession, input.text, attachmentIds)
+            .catch((error) => onError?.(error));
+          json(res, 200, { streamId, measurementId }); return;
+        } catch (error) {
+          await conversations.abortMessage({ sessionId: input.sessionId, messageId,
+            inputId: prepared.inputId, reason: error?.message }).catch(() => {});
+          await attachments.abortInputLink({ sessionId: input.sessionId,
+            inputId: prepared.inputId }).catch(() => {});
+          await workStore.abortInputAdmission(prepared.inputId, error?.message).catch(() => {});
+          throw error;
+        }
       }
       if (req.method === 'GET' && url.pathname === '/turn/stream') {
         const streamId = url.searchParams.get('streamId');
@@ -4894,12 +4963,9 @@ export function makeConsoleServer({
         }
         try {
           emit('trace_status', { text: '요청을 시작했어요' });
-          const pendingSession = await sessions.load(pending.sessionId);
-          await mirrorConsoleInputToBoundMessenger(
-            pendingSession, pending.text, pending.attachmentIds,
-          );
           const completed = await executeTurn(pending.sessionId, pending.text, emit, {
             measurementId: pending.measurementId, attachmentIds: pending.attachmentIds,
+            admittedInput: pending.admittedInput,
           });
           if (completed.kind === 'cancelled') emit('recoverable_error', { text: '멈췄어요.' });
           else emit('answer_delta', { text: completed.result.answer });
@@ -5388,8 +5454,10 @@ export function makeConsoleServer({
   server.recoverFailedWorkClaimsReady = failedWorkClaimRecovery;
   server.resumeQueuedWork = async () => {
     const state = await workStore.read();
-    const sessionsWithQueued = [...new Set(state.inputs.filter((input) => input.state === 'classified'
-      && ['after_current_delivery', 'independent_work'].includes(input.schedule)).map((input) => input.sessionId))];
+    const sessionsWithQueued = [...new Set(state.inputs.filter((input) => (
+      input.state === 'classified' && ['after_current_delivery', 'independent_work'].includes(input.schedule)
+    ) || (input.state === 'admitted' && input.source?.admissionTime?.activeRun === false))
+      .map((input) => input.sessionId))];
     return Promise.all(sessionsWithQueued.map((sessionId) => scheduleNextWorkInput(sessionId)));
   };
   server.memoryLedger = memories;

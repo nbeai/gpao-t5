@@ -124,6 +124,61 @@ test('콘솔은 서버 접수 성공 뒤에만 사용자 말풍선을 만들고 
   assert.ok(submit.lastIndexOf("text.value = ''") > submit.indexOf("const box = turnBox()"));
 });
 
+test('최초 stream-start 성공 전에 Conversation·input admission이 durable하게 결속된다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-initial-stream-admission-'));
+  const stateDir = join(room, 'state'); const workspace = join(room, 'workspace'); await mkdir(workspace);
+  const server = makeConsoleServer({ stateDir, workspace, workAdmissionMode: 'action-v1',
+    modelFactory: fixtureFactory(async () => ({ text: '재개된 최초 요청 완료', toolCalls: [] })) });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const response = await fetch(`${base}/turn/stream-start`, { method: 'POST', headers: {
+      'content-type': 'application/json' }, body: JSON.stringify({ sessionId: session.id,
+      text: 'S6-WA 최초 요청', attachmentIds: [] }) });
+    assert.equal(response.status, 200); const started = await response.json(); assert.ok(started.streamId);
+    const conversation = await server.conversationLedger.read(session.id);
+    assert.equal(conversation.messages.some((message) => message.role === 'user'
+      && message.content === 'S6-WA 최초 요청'), true);
+    const state = await server.workStore.read();
+    assert.equal(state.works.length, 0, 'direct input does not create Work before a Hand is needed');
+    assert.equal(state.inputs.length, 1); assert.equal(state.inputs[0].state, 'admitted');
+    assert.equal((await server.sessionStore.load(session.id)).transcript[0].text, 'S6-WA 최초 요청');
+    const stream = await fetch(`${base}/turn/stream?streamId=${started.streamId}`);
+    await stream.text();
+    const settled = await server.workStore.read();
+    assert.equal(settled.inputs[0].state, 'executed'); assert.equal(settled.works.length, 0);
+  } finally { await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true }); }
+});
+
+test('stream-start ACK 뒤 SSE 전 Runtime 재시작은 같은 최초 input을 한 번만 재개한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-initial-stream-restart-'));
+  const stateDir = join(room, 'state'); const workspace = join(room, 'workspace'); await mkdir(workspace);
+  const first = makeConsoleServer({ stateDir, workspace, workAdmissionMode: 'action-v1',
+    modelFactory: fixtureFactory(async () => { throw new Error('pre-restart runtime must not execute'); }) });
+  await new Promise((resolve, reject) => { first.once('error', reject); first.listen(0, '127.0.0.1', resolve); });
+  const base = `http://127.0.0.1:${first.address().port}`;
+  const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+  const started = await fetch(`${base}/turn/stream-start`, { method: 'POST', headers: {
+    'content-type': 'application/json' }, body: JSON.stringify({ sessionId: session.id,
+    text: 'ACK 뒤 재시작 요청', attachmentIds: [] }) });
+  assert.equal(started.status, 200); await new Promise((resolve) => first.close(resolve));
+  let calls = 0; const successor = makeConsoleServer({ stateDir, workspace, workAdmissionMode: 'action-v1',
+    modelFactory: fixtureFactory(async () => { calls += 1; return { text: '재개 완료', toolCalls: [] }; }) });
+  try {
+    await successor.recoverPreparedAdmissions(); await successor.resumeQueuedWork();
+    await successor.closeWorkspaceConnections();
+    const state = await successor.workStore.read();
+    assert.equal(calls, 1); assert.equal(state.inputs.length, 1);
+    assert.equal(state.inputs[0].state, 'executed'); assert.equal(state.works.length, 0);
+    const conversation = await successor.conversationLedger.read(session.id);
+    assert.deepEqual(conversation.messages.map((message) => message.content), ['ACK 뒤 재시작 요청', '재개 완료']);
+  } finally {
+    await successor.closeMessengers();
+    await new Promise((resolve) => successor.close(resolve)); await rm(room, { recursive: true, force: true });
+  }
+});
+
 test('현재 Work에 제시된 교정 중 provider 실패도 한 failure surface로 닫고 자동 반복하지 않는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-presented-provider-failure-terminal-'));
   const stateDir = join(room, 'state'); const workspace = join(room, 'workspace'); await mkdir(workspace);

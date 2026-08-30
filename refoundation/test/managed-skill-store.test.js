@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -54,5 +54,32 @@ test('사용자는 패키지 이름을 몰라도 현재 작업 방법을 보고 
     await tool.execute({ action: 'restore', name: 'xurl', effect: null });
     assert.equal((await tool.execute({ action: 'list', name: null, effect: null }))
       .skills.find((skill) => skill.name === 'xurl').installed, true);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('lifecycle append 실패는 activate·install·remove의 물리 상태를 원위치로 되돌린다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-managed-skill-settlement-'));
+  try {
+    const catalog = await loadSkillSnapshot({ directory: packages });
+    const policyCatalog = await loadSkillPolicyCatalog(policyFile);
+    const installStore = new ManagedSkillStore({ root: join(room, 'install'), catalogSnapshot: catalog, policyCatalog });
+    installStore.append = async () => { throw new Error('injected-ledger-failure'); };
+    await assert.rejects(() => installStore.install('customer-inquiry-triage'), /injected-ledger-failure/u);
+    assert.deepEqual(await installStore.installedNames(), []);
+    assert.deepEqual(await readdir(join(room, 'install', 'trash')), []);
+
+    const learnedStore = new ManagedSkillStore({ root: join(room, 'learned'), catalogSnapshot: catalog, policyCatalog });
+    const learned = learnedStore.entry('customer-inquiry-triage');
+    learnedStore.append = async () => { throw new Error('injected-ledger-failure'); };
+    await assert.rejects(() => learnedStore.activateLearned({ name: 'learned-fixture', content: learned.content,
+      proposalId: 'proposal-fixture', revisionDigest: learned.metadata.contentDigest }), /injected-ledger-failure/u);
+    assert.deepEqual(await learnedStore.installedNames(), []);
+    assert.deepEqual(await readdir(join(room, 'learned', 'trash')), []);
+
+    const removeStore = new ManagedSkillStore({ root: join(room, 'remove'), catalogSnapshot: catalog, policyCatalog });
+    await removeStore.install('customer-inquiry-triage');
+    removeStore.append = async () => { throw new Error('injected-ledger-failure'); };
+    await assert.rejects(() => removeStore.remove('customer-inquiry-triage'), /injected-ledger-failure/u);
+    assert.deepEqual(await removeStore.installedNames(), ['customer-inquiry-triage']);
   } finally { await rm(room, { recursive: true, force: true }); }
 });

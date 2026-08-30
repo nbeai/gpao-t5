@@ -216,13 +216,17 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [],
       ...(modelAttachments.length ? { _modelAttachments: modelAttachments } : {}),
     };
   } catch (error) {
+    const effectUnknown = error?.effectUnknown === true;
     return {
       toolCallId: requested.id,
       requestedCall: requested,
       actualCall,
-      outcome: signal?.aborted ? 'cancelled' : 'failed',
+      outcome: signal?.aborted ? 'cancelled' : effectUnknown ? 'unknown' : 'failed',
       result: {
         error: error?.message ?? String(error),
+        ...(error?.code ? { code: error.code } : {}),
+        ...(effectUnknown ? { effectUnknown: true } : {}),
+        ...(error?.retrySafe === false ? { retrySafe: false } : {}),
         ...(signal?.aborted ? { stopped: 'aborted' } : {}),
       },
     };

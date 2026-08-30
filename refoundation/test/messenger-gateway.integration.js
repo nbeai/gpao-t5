@@ -23,6 +23,7 @@ async function telegramFixture() {
   const files = new Map();
   let holdPoll = false;
   let loseDocumentAck = false;
+  let loseMessageAck = false;
   let afterPoll = null;
   const server = createServer(async (request, response) => {
     const chunks = [];
@@ -68,6 +69,7 @@ async function telegramFixture() {
       return;
     }
     if (method === 'sendMessage') {
+      if (loseMessageAck) { response.destroy(); return; }
       response.end(JSON.stringify({ ok: true, result: { message_id: 900, chat: { id: body.chat_id }, text: body.text } }));
       return;
     }
@@ -107,6 +109,7 @@ async function telegramFixture() {
     updates, calls, files,
     hold(value) { holdPoll = value; },
     loseDocumentAck(value) { loseDocumentAck = value; },
+    loseMessageAck(value) { loseMessageAck = value; },
     afterNextPoll(callback) { afterPoll = callback; },
     close: () => new Promise((resolve) => server.close(resolve)),
   };
@@ -983,6 +986,18 @@ test('sendDocument ACK가 사라지면 unknown으로 보존하고 같은 artifac
     assert.equal(fixture.calls.filter((call) => call.method === 'sendDocument').length, 1);
     await gateway.pollOnce();
     assert.equal(fixture.calls.filter((call) => call.method === 'sendDocument').length, 1);
+  } finally { await fixture.close(); }
+});
+
+test('sendMessage transport ACK가 사라지면 retry 가능한 실패가 아니라 effect unknown이다', async () => {
+  const fixture = await telegramFixture();
+  try {
+    const provider = makeTelegramMessengerProvider({ token: TOKEN, apiBase: fixture.base, pollTimeoutSeconds: 0 });
+    fixture.loseMessageAck(true);
+    await assert.rejects(() => provider.sendReply({ chatId: '555', text: '한 번만 보내야 하는 답' }), (error) => (
+      error?.effectUnknown === true && error?.retrySafe === false && error?.deliveryState === 'unknown'
+    ));
+    assert.equal(fixture.calls.filter((call) => call.method === 'sendMessage').length, 1);
   } finally { await fixture.close(); }
 });
 
