@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_D_E_EXPERIENCE_GROWTH_ADMISSION_HARDENING",
+  "status": "DEFAULT_ON_INCIDENT_ADMISSION_HARDENED",
+  "baselineCommit": "af22a62d",
+  "candidateCommit": "same_commit_as_evidence",
+  "ownerPrinciple": "Hermes-like natural growth without eager storage, category mixing, duplicate skills, or unverified self-modification",
+  "productDefault": "proposal",
+  "coreEmbeddedDefault": "off",
+  "defaultOffAsProductCompletion": false,
+  "before": {
+    "admission": "any two eligible achieved Works",
+    "actualSimpleFileWorks": 2,
+    "actualReviewerCalls": 1,
+    "actualCandidatesCreated": 1,
+    "risk": "generic success can create a decorative or duplicate procedural candidate"
+  },
+  "after": {
+    "admission": "at least two eligible Works with content-free learning incident signals",
+    "signals": ["work_revised", "failure_recovered_by_different_route", "resource_pathology_observed"],
+    "simpleSuccesses": "NOTHING_TO_REVIEW",
+    "signaledButNoReusableMethod": "reviewer may answer NOTHING_TO_LEARN",
+    "newStore": false,
+    "newRouter": false,
+    "userPersonaInference": false
+  },
+  "actualModelQualification": {
+    "model": "gpt-5.6-terra",
+    "syntheticSimpleFileWorks": 2,
+    "foregroundRunsCompleted": 2,
+    "failedTools": 0,
+    "eligibleSources": 2,
+    "learningSignals": [[], []],
+    "learningModelFactories": 0,
+    "reviewerEvents": 0,
+    "candidates": 0,
+    "actualUserData": false,
+    "externalWrites": 0,
+    "passed": true
+  },
+  "positiveControl": {
+    "repeatedIncident": "failed first method then a different route succeeds in two distinct Works",
+    "backgroundNonblocking": true,
+    "candidateOnlyBeforeQualification": true,
+    "abBaAndNearMiss": true,
+    "independentField": true,
+    "managedSkillPromotion": true,
+    "regressionRollback": true
+  },
+  "verification": {
+    "focusedLearning": { "passed": 33, "failed": 0 },
+    "productIntegration": { "passed": 202, "failed": 0, "skippedWindowsPhysical": 2 }
+  },
+  "remainingTruth": {
+    "actualHumanFreshFieldBenefit": "NOT_YET_PROVEN_IN_A_NATURAL_REPEATED_CORRECTION_MISSION",
+    "automaticExternalPackageOrCoreMutation": false,
+    "completionClaim": "default-on admission hygiene and reversible promotion pipeline, not universal user-benefit proof"
+  },
+  "completionSentence": "Experience Growth는 제품에서 기본 활성 상태를 유지하되, 단순 성공을 저장 압박으로 바꾸지 않고 반복된 교정·실패 회복·병적 비용 사건이 있을 때만 후보 검토를 열며 독립 field 이익과 rollback 없이는 실제 방법으로 승격하지 않는다."
+}

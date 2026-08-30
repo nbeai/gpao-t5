@@ -27,9 +27,28 @@ test('달성·검증·surface·delivery·Run·effect가 모두 terminal인 Episo
   const report = deriveLearningSourceEligibility(fixture());
   assert.equal(report.sources.length, 1); assert.equal(report.sources[0].eligible, true);
   assert.deepEqual(report.sources[0].reasons, []);
+  assert.deepEqual(report.sources[0].learningSignals, ['work_revised']);
   assert.deepEqual(report.sources[0].pointer, { workId: 'work-1', revision: 2, runId: 'run-1',
     sessionId: 'session-1', sourceMessageId: 'message-1', resultDigest: 'result-digest' });
   assert.doesNotMatch(JSON.stringify(report), /surfaceResult|content|prompt|reply/u);
+});
+
+test('단순 성공은 reviewer admission 신호가 아니고 실패 뒤 다른 route 성공은 content-free 신호다', () => {
+  const simple = fixture(); simple.workState.events[0].revision = 1;
+  simple.workState.works[0].revision = 1; simple.workState.proposals[0].revision = 1;
+  simple.workState.results[0].revision = 1;
+  assert.deepEqual(deriveLearningSourceEligibility(simple).sources[0].learningSignals, []);
+  const recovered = fixture(); recovered.workState.events[0].revision = 1;
+  recovered.workState.works[0].revision = 1; recovered.workState.proposals[0].revision = 1;
+  recovered.workState.results[0].revision = 1;
+  recovered.runs[0].events = [
+    { type: 'tool_completed', payload: { receipt: { outcome: 'failed',
+      requestedCall: { name: 'exec', args: { command: 'first' } }, result: { state: 'failed' } } } },
+    { type: 'tool_completed', payload: { receipt: { outcome: 'succeeded',
+      requestedCall: { name: 'exec', args: { command: 'second' } }, result: { state: 'observed' } } } },
+  ];
+  assert.deepEqual(deriveLearningSourceEligibility(recovered).sources[0].learningSignals,
+    ['failure_recovered_by_different_route']);
 });
 
 test('Run completed만으로 unresolved·delivery 실패·effect unknown을 학습 성공으로 만들지 않는다', () => {

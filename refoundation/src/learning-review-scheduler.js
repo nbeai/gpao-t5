@@ -16,8 +16,9 @@ export class LearningReviewScheduler {
   }
   async consider() {
     const sources = (await this.loadSources()).filter((source) => source.eligible);
-    if (sources.length < 2) return false;
-    const selected = sources.slice(-6); const key = sourceKey(selected);
+    const signaled = sources.filter((source) => (source.learningSignals?.length ?? 0) > 0);
+    if (signaled.length < 2) return false;
+    const selected = signaled.slice(-6); const key = sourceKey(selected);
     if (await this.alreadyReviewed(key)) return false;
     const generation = ++this.generation; clearTimeout(this.timer);
     this.timer = setTimeout(() => {

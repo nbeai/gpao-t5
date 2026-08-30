@@ -36,6 +36,11 @@ test('baseline→proposal→near-miss→trial replay→field promotion→regress
           : 'baseline';
         if (last.role === 'tool') {
           const receipt = JSON.parse(last.content);
+          if (mode === 'baseline' && receipt.requestedCall.name === 'exec'
+            && receipt.outcome === 'failed') return { text: '', toolCalls: [{ id: `recover-${turn}`,
+            name: 'exec', args: { command: "printf 'observed-1'", cwd: null, effect: { kind: 'observe',
+              summary: '결과 확인', targets: [], reversible: true, backupAvailable: true,
+              recipientNew: false, approvalToken: null } } }] };
           if (receipt.requestedCall.name === 'tool_search') {
             const tool = input.tools.some((item) => item.name === 'learning_trial') ? 'learning_trial' : 'skill';
             return { text: '', toolCalls: [{ id: 'list', name: tool,
@@ -65,7 +70,7 @@ test('baseline→proposal→near-miss→trial replay→field promotion→regress
         }
         if (mode === 'field' || mode === 'regression') return { text: '', toolCalls: [{
           id: 'search-method', name: 'tool_search', args: { query: 'recover durable work learned procedure' } }] };
-        return { text: '', toolCalls: [{ id: 'observe-1', name: 'exec', args: { command: "printf 'observed-1'",
+        return { text: '', toolCalls: [{ id: 'observe-1', name: 'exec', args: { command: 'false',
           cwd: null, effect: { kind: 'observe', summary: '결과 확인', targets: [], reversible: true,
             backupAvailable: true, recipientNew: false, approvalToken: null } } }] };
       } };

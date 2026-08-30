@@ -1,6 +1,6 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_COMPLETE · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · S6_J_COMPLETE · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
+상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_ADMISSION_HARDENED · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · S6_J_COMPLETE · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
 현재 Gate: `S6-HQ · FINAL ANDROID HUMAN QUALIFICATION`
 현재 작업: `S6_HQ_MACOS_CORE_WAVE · SPEED_CARRY_AND_EXTERNAL_PHYSICAL_BLOCKER`
@@ -958,7 +958,7 @@ closeout: `refoundation/evidence/s6-c-closeout-2026-08-30.json`.
 
 ### S6-D — Experience Growth Proposal & Review
 
-현재 상태: `PRODUCT_ACTIVE_COMPLETE · PROPOSAL_DEFAULT_ON · FOREGROUND_NONBLOCKING`
+현재 상태: `PRODUCT_ACTIVE_COMPLETE · PROPOSAL_DEFAULT_ON · INCIDENT_ADMISSION_HARDENED · FOREGROUND_NONBLOCKING`
 
 기존 Reflection·Learning source를 default-on으로 바꾸기 전에 proposal-only 제품 A/B를 연다.
 
@@ -993,6 +993,24 @@ active event 0이었다. normal Turn의 기본 Context·Tool 증가는 0이다. 
 `검증 중`으로 보이고 source 원문·Run ID·digest는 노출하지 않는다.
 
 근거: `refoundation/evidence/s6-d-proposal-review-closeout-2026-08-30.json`.
+
+오너의 Hermes 비교 피드백 뒤 current 제품 admission을 다시 반대시험했다. 기존 scheduler는 eligible achieved Work
+두 개면 reviewer를 열어, 실제 단순 파일 생성·재개방 두 번에서도 `write-and-verify-file-content` 후보 하나를
+만들었다. active Skill은 아니었고 다음 일에 강제되지도 않았지만, 반복되면 후보 잡동사니와 background 비용이
+쌓일 수 있는 실제 P1이다.
+
+기본 활성은 끄지 않았다. Runtime이 이미 가진 content-free 사건 중 `work revision 변화`, `실패한 방법 뒤 다른
+route 성공`, `검증된 resource pathology`가 있는 서로 다른 eligible Work 두 개일 때만 reviewer를 연다. 단순 성공
+두 개는 `NOTHING_TO_REVIEW`로 model call 0이며, 사건은 있지만 재사용 방법이 없으면 reviewer의
+`NOTHING_TO_LEARN`이 계속 정상 성공이다. 업무명·파일 확장자·사용자 persona Router와 새 Store는 0이다.
+
+실제 gpt-5.6-terra의 단순 파일 생성·재개방 두 건은 foreground 2/2·failed Tool 0·eligible source 2였지만
+learning signal·reviewer model·review event·candidate가 모두 0이었다. 반대 positive control인 두 Work의
+`첫 방법 실패→다른 route 성공`은 background nonblocking proposal과 기존 AB/BA·near-miss·independent field·
+managed Skill promotion·regression rollback을 그대로 통과했다. 실제 인간의 자연스러운 반복 교정 mission에서
+설명·교정·wall·calls·tokens 이익은 최종 HQ 전까지 보편 증명으로 과장하지 않는다.
+
+보강 근거: `refoundation/evidence/s6-de-learning-admission-hardening-2026-08-30.json`.
 
 proposal은 적용이 아니다. 사용자가 자연어로 `검토용으로 남김·사용하지 않음·나중에`를 선택할 수 있고,
 foreground 작업과 기본 Context를 바꾸지 않는다.

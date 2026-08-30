@@ -34,7 +34,7 @@ test('3차 제품 기본값은 M6 background learning을 시작하지 않는다'
   }
 });
 
-test('두 achieved Work 뒤 reviewer는 foreground를 막지 않고 proposal 하나만 background admission한다', async () => {
+test('두 failure→recovery Work 뒤 reviewer는 foreground를 막지 않고 proposal 하나만 background admission한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-learning-background-')); let reviewerCalls = 0;
   const server = makeConsoleServer({ stateDir: join(room, 'state'), workspace: room,
     learningReviewMode: 'proposal', learningReviewIdleMs: 0, modelFactory: ({ purpose }) => ({ async respond(input) {
@@ -49,9 +49,25 @@ test('두 achieved Work 뒤 reviewer는 foreground를 막지 않고 proposal 하
           content: '---\nname: verify-durable-results\ndescription: Verify durable results before repeating uncertain work.\n---\n\n# Verify durable results\n\nRead the durable result, avoid uncertain effect replay, and verify the final artifact.',
         } }] };
       }
-      if (last.role === 'tool') return { text: '작업 결과를 확인했습니다.', toolCalls: [] };
-      return { text: '', toolCalls: [{ id: `complete-${Date.now()}`, name: 'work_completion',
-        args: { outcome: 'achieved', inputSettlements: [] } }] };
+      if (last.role === 'tool') {
+        const receipt = JSON.parse(last.content);
+        if (receipt.requestedCall.name === 'exec' && receipt.outcome === 'failed') {
+          return { text: '', toolCalls: [{ id: `recovery-${Date.now()}`, name: 'exec', args: {
+            command: "printf 'durable-result-observed'", cwd: null, effect: { kind: 'observe',
+              summary: '저장된 결과 확인', targets: [], reversible: true, backupAvailable: true,
+              recipientNew: false, approvalToken: null },
+          } }] };
+        }
+        if (receipt.requestedCall.name === 'exec') return { text: '', toolCalls: [{
+          id: `complete-${Date.now()}`, name: 'work_completion',
+          args: { outcome: 'achieved', inputSettlements: [] },
+        }] };
+        return { text: '작업 결과를 확인했습니다.', toolCalls: [] };
+      }
+      return { text: '', toolCalls: [{ id: `failed-first-${Date.now()}`, name: 'exec', args: {
+        command: 'false', cwd: null, effect: { kind: 'observe', summary: '첫 방법 확인', targets: [],
+          reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null },
+      } }] };
     } }) });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   const base = `http://127.0.0.1:${server.address().port}`;

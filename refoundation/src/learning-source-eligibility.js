@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 const DELIVERY_CONFIRMED = new Set(['persisted', 'sent', 'succeeded', 'not_requested']);
 
 function terminalSettlements(workState) {
@@ -10,6 +12,31 @@ function hasUnknownEffect(run) {
     const receipt = event.payload?.receipt;
     return receipt?.outcome === 'unknown' || receipt?.result?.effectUnknown === true;
   });
+}
+
+function callIdentity(receipt) {
+  const call = receipt?.requestedCall ?? receipt?.actualCall ?? {};
+  return createHash('sha256').update(JSON.stringify({ name: call.name ?? null, args: call.args ?? null })).digest('hex');
+}
+
+function learningSignals(run, revision) {
+  const signals = [];
+  if (Number.isInteger(revision) && revision > 1) signals.push('work_revised');
+  const receipts = (run?.events ?? []).filter((event) => event.type === 'tool_completed')
+    .map((event) => event.payload?.receipt).filter(Boolean);
+  const failed = receipts.findIndex((receipt) => receipt.outcome === 'failed');
+  if (failed >= 0) {
+    const failedIdentity = callIdentity(receipts[failed]);
+    if (receipts.slice(failed + 1).some((receipt) => receipt.outcome === 'succeeded'
+      && callIdentity(receipt) !== failedIdentity)) signals.push('failure_recovered_by_different_route');
+  }
+  if ((run?.events ?? []).some((event) => event.type === 'resource_intervention'
+    || (event.type === 'resource_situation'
+      && (event.payload?.anomaly?.category === 'pathology_candidate'
+        || event.payload?.situation?.anomaly?.category === 'pathology_candidate')))) {
+    signals.push('resource_pathology_observed');
+  }
+  return [...new Set(signals)];
 }
 
 export function deriveLearningSourceEligibility({ workState = {}, runs = [] } = {}) {
@@ -37,6 +64,7 @@ export function deriveLearningSourceEligibility({ workState = {}, runs = [] } = 
     }
     return {
       eligible: reasons.length === 0, reasons: [...new Set(reasons)],
+      learningSignals: learningSignals(run, settlement.revision),
       pointer: {
         workId: settlement.workId, revision: settlement.revision, runId: settlement.runId,
         sessionId: work?.sessionId ?? result?.sessionId ?? null,
