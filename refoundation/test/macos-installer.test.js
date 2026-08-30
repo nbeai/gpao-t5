@@ -51,6 +51,7 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.doesNotMatch(build, /<string>\/Applications\/\$\{product\.name\}\.app\/Contents\/Resources\/runtime\/bin\/node<\/string>[\s\S]*ensure-local-runtime/u);
   const verifier = await readFile(new URL('../scripts/verify-macos-installer.mjs', import.meta.url), 'utf8');
   assert.match(verifier, /const childExit = new Promise/u);
+  assert.match(verifier, /mkdir\(home, \{ recursive: true \}\)/u);
   assert.match(verifier, /GPAO-T5\.icns/u);
   assert.match(verifier, /packaged application icon is not declared/u);
   assert.doesNotMatch(verifier, /child\.kill\('SIGTERM'\);\s*await new Promise\(\(resolveExit\) => child\.once/u);

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -121,6 +121,11 @@ try {
   const state = join(room, 'state');
   const credentials = join(room, 'credentials', 'model-connection.json');
   const portFile = join(room, 'console-port.json');
+  await Promise.all([
+    mkdir(home, { recursive: true }),
+    mkdir(state, { recursive: true }),
+    mkdir(join(room, 'credentials'), { recursive: true }),
+  ]);
   const child = spawn(node, [join(refoundation, 'scripts', 'start-console.mjs'), '--port', '0', '--no-open'], {
     cwd: appRoot,
     env: {
