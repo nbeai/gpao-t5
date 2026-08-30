@@ -23,7 +23,8 @@
     --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-7:32px;
     --side-width:252px;
     --r-sm:8px; --r-md:12px; --r-lg:16px; --r-full:999px;
-    --fs-xs:11.5px; --fs-sm:13px; --fs-md:13.5px; --fs-base:15px; --lh:1.55;
+    --fs-xs:12px; --fs-sm:13px; --fs-md:14px; --fs-base:15.5px; --lh:1.68;
+    --reading-width:860px;
     --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
     --dur-fast:110ms; --dur-normal:190ms; --dur-slow:300ms;
     --ease-out:cubic-bezier(0.16,1,0.3,1); --ease-spring:cubic-bezier(0.34,1.56,0.64,1);
@@ -239,9 +240,9 @@
   #state .ov-act:hover { background:var(--hover); }
   #state .ov-act:disabled { opacity:.5; cursor:default; }
 
-  #log { flex:1; overflow-y:auto; padding:var(--sp-6) var(--sp-5); }
-  .wrap { max-width:768px; margin:0 auto; display:flex; flex-direction:column; gap:var(--sp-5); }
-  .turn { display:flex; flex-direction:column; gap:var(--sp-2); animation:rise var(--dur-normal) var(--ease-out); }
+  #log { flex:1; overflow-y:auto; padding:var(--sp-7) var(--sp-5); }
+  .wrap { max-width:var(--reading-width); margin:0 auto; display:flex; flex-direction:column; gap:var(--sp-6); }
+  .turn { display:flex; flex-direction:column; gap:6px; animation:rise var(--dur-normal) var(--ease-out); }
   @keyframes rise { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
   .msg { min-width:0; max-width:86%; padding:var(--sp-3) var(--sp-4); border-radius:var(--r-lg);
     white-space:pre-wrap; line-height:var(--lh); }
@@ -251,49 +252,56 @@
   .msg.bot :where(p, li, a, blockquote, th, td, :not(pre) > code) {
     overflow-wrap:anywhere; word-break:break-word;
   }
-  /* 마크다운으로 그린 답변. **말풍선 안**이므로 문서가 아니라 대화처럼 보여야 한다 —
-     제목이 커서 화면을 차지하거나 문단 사이가 벌어지면 채팅이 아니라 보고서로 읽힌다.
-     블록을 직접 그리므로 pre-wrap 은 끈다(안 그러면 태그 사이 줄바꿈이 빈 줄로 보인다). */
-  .msg.bot { white-space:normal; }
-  .msg.bot.error { border:1px solid var(--danger); background:var(--danger-subtle);
+  /* T5 답은 큰 말풍선이 아니라 대화 안의 문서로 읽힌다. 사용자 발화만 작은 bubble로 남겨
+     교정 지점을 빠르게 찾고, T5 본문은 제목·표·코드·결과물이 서로 경쟁하지 않는 독서면을 쓴다. */
+  .msg.bot { align-self:stretch; width:100%; max-width:none; padding:0; border:0; border-radius:0;
+    background:transparent; box-shadow:none; white-space:normal; color:var(--fg); font-size:16px; line-height:1.7; }
+  .msg.bot.error { align-self:flex-start; width:auto; max-width:min(720px,100%); padding:var(--sp-3) var(--sp-4);
+    border:1px solid var(--danger); border-radius:var(--r-md); background:var(--danger-subtle);
     box-shadow:none; white-space:pre-wrap; }
   .failure-title { font-weight:650; color:var(--fg-strong); margin-bottom:var(--sp-2); }
   .failure-label { font-size:var(--fs-xs); font-weight:650; color:var(--danger); margin-top:var(--sp-3); }
   .failure-reason, .failure-next { margin-top:var(--sp-1); color:var(--fg); }
   .msg.bot > :first-child { margin-top:0; }
   .msg.bot > :last-child { margin-bottom:0; }
-  .msg.bot p { margin:0 0 var(--sp-2); }
+  .msg.bot p { margin:0 0 var(--sp-3); }
   .msg.bot h1, .msg.bot h2, .msg.bot h3,
-  .msg.bot h4, .msg.bot h5, .msg.bot h6 { margin:var(--sp-3) 0 var(--sp-2); font-size:1em; font-weight:650; line-height:1.35; }
-  .msg.bot h1 { font-size:1.15em; }
-  .msg.bot h2 { font-size:1.08em; }
-  .msg.bot ul, .msg.bot ol { margin:0 0 var(--sp-2); padding-left:1.35em; }
-  .msg.bot li { margin:2px 0; }
+  .msg.bot h4, .msg.bot h5, .msg.bot h6 { color:var(--fg-strong); font-weight:680; line-height:1.3;
+    letter-spacing:-0.018em; }
+  .msg.bot h1 { margin:var(--sp-7) 0 var(--sp-3); font-size:29px; }
+  .msg.bot h2 { margin:var(--sp-6) 0 var(--sp-3); font-size:22px; }
+  .msg.bot h3 { margin:var(--sp-5) 0 var(--sp-2); font-size:18px; }
+  .msg.bot h4, .msg.bot h5, .msg.bot h6 { margin:var(--sp-4) 0 var(--sp-2); font-size:16px; }
+  .msg.bot ul, .msg.bot ol { margin:0 0 var(--sp-3); padding-left:1.5em; }
+  .msg.bot li { margin:4px 0; padding-left:2px; }
   .msg.bot code { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:0.92em;
                   background:rgba(127,127,127,0.16); padding:1px 4px; border-radius:4px; }
-  .msg.bot pre { margin:0 0 var(--sp-2); padding:var(--sp-3); border-radius:var(--r-lg);
-                 background:rgba(127,127,127,0.14); overflow-x:auto; max-width:100%; }
-  .msg.bot pre code { background:none; padding:0; font-size:0.88em; line-height:1.5; }
-  .msg.bot blockquote { margin:0 0 var(--sp-2); padding-left:var(--sp-3);
-                        border-left:3px solid rgba(127,127,127,0.35); opacity:0.9; }
-  .msg.bot hr { border:0; border-top:1px solid rgba(127,127,127,0.25); margin:var(--sp-3) 0; }
-  /* 표 (F-9) — 넓은 표는 말풍선 안에서 가로로만 민다. 색은 위 코드·인용과 같은 중립 틴트다. */
-  .msg.bot table { border-collapse:collapse; margin:0 0 var(--sp-2); font-size:0.94em;
-                   display:block; overflow-x:auto; max-width:100%; }
-  .msg.bot th, .msg.bot td { border:1px solid rgba(127,127,127,0.3); padding:3px 10px;
+  .msg.bot pre { margin:0 0 var(--sp-4); padding:var(--sp-4); border:1px solid var(--line);
+    border-radius:var(--r-md); background:var(--panel); overflow-x:auto; max-width:100%; }
+  .msg.bot pre code { background:none; padding:0; font-size:0.875em; line-height:1.6; }
+  .msg.bot blockquote { margin:0 0 var(--sp-4); padding:var(--sp-1) 0 var(--sp-1) var(--sp-4);
+    border-left:3px solid var(--line-strong); color:var(--muted); }
+  .msg.bot hr { border:0; border-top:1px solid var(--line); margin:var(--sp-6) 0; }
+  /* 표는 평면 본문 안에서 독립적으로 가로 scroll하며 heading과 cell의 대비를 유지한다. */
+  .msg.bot table { border-collapse:separate; border-spacing:0; margin:0 0 var(--sp-4); font-size:0.925em;
+    display:block; overflow-x:auto; max-width:100%; border:1px solid var(--line); border-radius:var(--r-md); }
+  .msg.bot th, .msg.bot td { border:0; border-bottom:1px solid var(--line); padding:var(--sp-2) var(--sp-3);
                              text-align:left; vertical-align:top; }
-  .msg.bot th { font-weight:650; background:rgba(127,127,127,0.12); }
-  .msg.bot a { color:inherit; text-decoration:underline; text-underline-offset:2px; }
+  .msg.bot tr:last-child td { border-bottom:0; }
+  .msg.bot th { position:sticky; top:0; font-weight:650; background:var(--panel); color:var(--fg-strong); }
+  .msg.bot a { color:var(--info); text-decoration:underline; text-decoration-color:color-mix(in srgb,var(--info) 55%,transparent);
+    text-underline-offset:3px; }
   .message-actions { display:flex; gap:var(--sp-1); margin-top:var(--sp-1); opacity:.72; }
   .message-actions.right { justify-content:flex-end; }
   .message-actions button { min-width:32px; min-height:30px; border:0; border-radius:var(--r-sm);
     background:transparent; color:var(--muted); cursor:pointer; font:inherit; font-size:var(--fs-xs); }
   .message-actions button:hover, .message-actions button:focus-visible { color:var(--fg); background:var(--hover); }
-  .me { align-self:flex-end; background:var(--me); border-bottom-right-radius:var(--r-sm); }
-  .who { font-size:var(--fs-xs); color:var(--faint); padding:0 var(--sp-1); }
+  .me { align-self:flex-end; width:fit-content; max-width:min(78%,680px); padding:10px 14px;
+    background:var(--me); border:1px solid color-mix(in srgb,var(--line-strong) 72%,transparent);
+    border-radius:18px; border-bottom-right-radius:6px; }
+  .who { font-size:var(--fs-xs); color:var(--muted); padding:0 var(--sp-1); }
   .who.right { align-self:flex-end; }
-  .bot { align-self:flex-start; background:var(--bot); border:1px solid var(--line);
-    border-bottom-left-radius:var(--r-sm); box-shadow:var(--sh-sm); color:var(--fg); }
+  .bot { color:var(--fg); }
   .record { align-self:flex-start; }
   .record .head { display:inline-flex; align-items:center; gap:var(--sp-2); font-size:var(--fs-sm); color:var(--muted);
     cursor:pointer; padding:var(--sp-1) var(--sp-1); border-radius:var(--r-sm); transition:color var(--dur-fast) var(--ease-out); }
@@ -330,11 +338,6 @@
      쓴다 — 답과 같은 굵기·색이면 사용자는 같은 말을 두 번 들었다고 느낀다. */
   .msg.steps { align-self:flex-start; font-size:var(--fs-sm); color:var(--muted); padding:var(--sp-1) var(--sp-3);
     border-left:2px solid var(--line); display:flex; flex-direction:column; gap:var(--sp-1); }
-  .stopbtn { align-self:flex-start; font-size:var(--fs-sm); margin:0 var(--sp-3) var(--sp-1);
-    padding:var(--sp-1) var(--sp-3); border:1px solid var(--line); border-radius:999px;
-    background:transparent; color:var(--muted); cursor:pointer; }
-  .stopbtn:hover { color:var(--fg); }
-  .stopbtn:disabled { opacity:.5; cursor:default; }
   .trace { align-self:flex-start; font-size:var(--fs-sm); color:var(--muted); padding:var(--sp-1) var(--sp-3);
     display:flex; align-items:center; gap:var(--sp-2); opacity:0.9; }
   .trace[hidden] { display:none; }
@@ -385,12 +388,30 @@
     color:var(--fg); text-decoration:none; }
   .artifact-card:hover { border-color:var(--line-strong); box-shadow:var(--sh-sm); }
   .artifact-card .meta { color:var(--muted); font-size:var(--fs-xs); }
+  .artifact-group { width:min(760px,100%); margin-top:var(--sp-3); display:grid; gap:var(--sp-3); }
+  .artifact-group-title { color:var(--fg-strong); font-size:var(--fs-sm); font-weight:650; }
+  .artifact-group > .attachment-row { align-items:center; padding:var(--sp-3); border:1px solid var(--line);
+    border-radius:var(--r-lg); background:var(--surface); box-shadow:var(--sh-sm); }
+  .artifact-group > .attachment-row .artifact-card { flex:1 1 320px; width:auto; border:0; padding:0;
+    background:transparent; box-shadow:none; }
+  .artifact-group > .attachment-row .artifact-receipt,
+  .artifact-group > .attachment-row .effect-receipt { flex:1 0 100%; padding:0; }
+  .artifact-group > .attachment-row .act { border:1px solid var(--line-strong); border-radius:var(--r-sm);
+    padding:var(--sp-2) var(--sp-3); background:var(--elevated); color:var(--fg); text-decoration:none;
+    font:inherit; font-size:var(--fs-sm); cursor:pointer; }
+  .artifact-group > .attachment-row .act.primary { background:var(--accent); color:var(--accent-ink);
+    border-color:var(--accent); }
   .artifact-surface { width:min(760px,100%); margin-top:var(--sp-3); border:1px solid var(--line);
     border-radius:var(--r-lg); overflow:hidden; background:var(--surface); box-shadow:var(--sh-sm); }
+  .artifact-group .artifact-surface, .artifact-group .attachment-row { margin-top:0; }
   .artifact-head { display:flex; align-items:center; gap:var(--sp-3); padding:var(--sp-3) var(--sp-4);
     border-bottom:1px solid var(--line); }
   .artifact-head .artifact-title { min-width:0; flex:1; }
   .artifact-head .artifact-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--fg-strong); }
+  button.artifact-name { display:block; width:100%; padding:0; border:0; background:transparent;
+    color:var(--fg-strong); font:inherit; text-align:left; cursor:pointer; }
+  button.artifact-name:hover, button.artifact-name:focus-visible { color:var(--info); text-decoration:underline;
+    text-underline-offset:3px; }
   .artifact-preview { display:block; width:100%; height:min(58vh,520px); border:0; background:#fff; }
   img.artifact-preview { object-fit:contain; padding:var(--sp-3); }
   .artifact-actions { display:flex; flex-wrap:wrap; gap:var(--sp-2); padding:var(--sp-3) var(--sp-4);
@@ -398,6 +419,8 @@
   .artifact-actions button, .artifact-actions a { border:1px solid var(--line-strong); border-radius:var(--r-sm);
     padding:var(--sp-2) var(--sp-3); background:var(--elevated); color:var(--fg); text-decoration:none;
     font:inherit; font-size:var(--fs-sm); cursor:pointer; }
+  .artifact-actions .primary { color:var(--accent-ink); background:var(--accent); border-color:var(--accent); }
+  .artifact-actions .danger { color:var(--danger); }
   .artifact-receipt { width:100%; padding:0 var(--sp-4) var(--sp-3); color:var(--muted);
     font-size:var(--fs-xs); }
   .artifact-receipt summary { cursor:pointer; color:var(--fg); }
@@ -430,6 +453,16 @@
   .artifact-log li { padding:var(--sp-2) 0; border-bottom:1px solid var(--line); white-space:pre-wrap; overflow-wrap:anywhere; }
   .artifact-log .error { color:var(--danger); }
   .artifact-log .warn { color:var(--accent); }
+  .group-dialog { width:min(440px,calc(100vw - 32px)); padding:0; border:1px solid var(--line-strong);
+    border-radius:var(--r-lg); background:var(--surface); color:var(--fg); box-shadow:var(--sh-lg); }
+  .group-dialog::backdrop { background:rgba(20,18,14,.48); }
+  .group-dialog form { display:grid; gap:var(--sp-3); padding:var(--sp-5); }
+  .group-dialog h2 { margin:0; font-size:20px; color:var(--fg-strong); }
+  .group-dialog p { margin:0; color:var(--muted); font-size:var(--fs-sm); }
+  .group-dialog input { width:100%; min-width:0; border:1px solid var(--line-strong); border-radius:var(--r-sm);
+    background:var(--elevated); color:var(--fg); padding:var(--sp-3); font:inherit; }
+  .group-dialog input:focus { outline:3px solid var(--accent-glow); border-color:var(--accent); }
+  .group-dialog-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:var(--sp-2); }
   /* min-width:0 이 없으면 flex textarea 가 placeholder 폭만큼 최소너비를 잡아
      보내기 버튼을 화면 밖으로 밀어낸다(모바일 입력 잘림 회귀 지점). */
   #text { flex:1; min-width:0; resize:none; border:none; outline:none; background:transparent; color:var(--fg);
@@ -439,8 +472,13 @@
     padding:var(--sp-2) var(--sp-4); cursor:pointer; font:inherit; white-space:nowrap;
     transition:transform var(--dur-fast) var(--ease-spring); }
   #send:active { transform:scale(0.97); }
+  #composerStop { flex:none; border:1px solid var(--danger); background:transparent; color:var(--danger);
+    border-radius:var(--r-md); padding:var(--sp-2) var(--sp-3); cursor:pointer; font:inherit; white-space:nowrap; }
+  #composerStop[hidden] { display:none; }
+  #composerStop:disabled { opacity:.5; cursor:default; }
   .statusrow { max-width:768px; margin:var(--sp-2) auto 0; display:flex; align-items:center; gap:var(--sp-3);
     font-size:var(--fs-xs); color:var(--faint); padding:0 var(--sp-1); }
+  #composerState { color:var(--muted); }
   .statusrow .spacer { flex:1; min-width:8px; }
 
   /* ── 도구함 (2.0-A) ── */
@@ -563,6 +601,12 @@
     #searchbtn { padding:var(--sp-1) var(--sp-2); }
     .composer { padding:var(--sp-2) var(--sp-3) var(--sp-4); }
     #log { padding:var(--sp-5) var(--sp-3); }
+    .wrap { gap:var(--sp-6); }
+    .me { max-width:88%; }
+    .msg.bot { font-size:15.5px; line-height:1.68; }
+    .msg.bot h1 { font-size:24px; }
+    .msg.bot h2 { font-size:20px; }
+    .msg.bot h3 { font-size:17px; }
     #state, #search { padding-left:var(--sp-3); padding-right:var(--sp-3); }
     .statusrow .hint { display:none; }
     #tbpanel { width:100%; border-left:none; }
@@ -644,6 +688,7 @@
       <span id="selcount">0개 선택</span>
       <span class="spacer"></span>
       <button id="selArchive">숨기기</button>
+      <button id="selGroup">그룹 이동</button>
       <button id="selDelete" class="warn">지우기</button>
       <button id="selCancel">취소</button>
     </div>
@@ -684,11 +729,13 @@
           <button id="attach" type="button" title="파일 첨부" aria-label="파일 첨부">＋</button>
           <input id="filepick" type="file" multiple hidden>
           <textarea id="text" rows="1" placeholder="GPAO-T5에게 메시지 입력" autofocus></textarea>
+          <button id="composerStop" type="button" hidden>멈추기</button>
           <button id="send">보내기</button>
         </div>
         <div class="statusrow">
-          <span id="modelinfo">모델 확인 중…</span>
+          <span id="composerState" role="status" aria-live="polite">바로 보낼 수 있어요</span>
           <span class="spacer"></span>
+          <span id="modelinfo">모델 확인 중…</span>
         </div>
       </div>
     </div>
@@ -716,6 +763,20 @@
     </div>
   </div>
 
+  <dialog id="groupDialog" class="group-dialog" aria-labelledby="groupDialogTitle">
+    <form method="dialog" id="groupForm">
+      <h2 id="groupDialogTitle">대화 그룹 이동</h2>
+      <p>기존 그룹 이름을 고르거나 새 이름을 입력하세요.</p>
+      <input id="groupName" list="groupOptions" maxlength="40" autocomplete="off" aria-label="그룹 이름">
+      <datalist id="groupOptions"></datalist>
+      <div class="group-dialog-actions">
+        <button class="act no" value="ungroup" type="submit">미분류로 옮기</button>
+        <button class="act no" value="cancel" type="submit">취소</button>
+        <button class="act primary" value="move" type="submit">옮기기</button>
+      </div>
+    </form>
+  </dialog>
+
 <script type="module">
 // 모델 답변은 **여기 하나로만** 그린다 — 스트리밍 미리보기와 최종 답변이 같은 경로를 쓴다.
 import { renderMarkdownInto } from '/markdown.js';
@@ -726,10 +787,15 @@ const statePanel = document.getElementById('state');
 const modelinfo = document.getElementById('modelinfo');
 const text = document.getElementById('text');
 const send = document.getElementById('send');
+const composerStop = document.getElementById('composerStop');
+const composerState = document.getElementById('composerState');
 const attach = document.getElementById('attach');
 const filepick = document.getElementById('filepick');
 const attachlist = document.getElementById('attachlist');
 const sessionsEl = document.getElementById('sessions');
+const groupDialog = document.getElementById('groupDialog');
+const groupNameInput = document.getElementById('groupName');
+const groupOptions = document.getElementById('groupOptions');
 let currentSessionId = null;
 let stagedAttachments = [];
 let activeLocalTurns = 0;
@@ -925,8 +991,22 @@ function renderHumanEffects(host, receipts = []) {
   }
 }
 
+async function artifactAction(record, action) {
+  const url = action === 'undo' ? record.undoUrl : record.revealUrl;
+  if (!url) return;
+  const response = await fetch(url, { method: 'POST', headers: {
+    'x-t5-console-action': action,
+  } });
+  const result = await response.json().catch(() => ({}));
+  toast(result.userSafeSummary ?? result.error ?? (action === 'undo'
+    ? '되돌리기 상태를 확인하지 못했어요.' : '파일 위치를 열지 못했어요.'));
+  if (action === 'undo') await 대화다시그리기();
+}
+
 function renderArtifacts(box, records = []) {
-  if (!records.length) return;
+  if (!records.length) return null;
+  const group = el('artifact-group');
+  if (records.length > 1) group.appendChild(el('artifact-group-title', `결과물 ${records.length}개`));
   for (const record of records) {
     if (record.previewUrl) {
       const surface = el('artifact-surface');
@@ -935,7 +1015,11 @@ function renderArtifacts(box, records = []) {
         : record.previewKind === 'spreadsheet' ? '▦' : record.previewKind === 'document' ? '▤'
           : record.previewKind === 'image' || record.previewKind === 'vector' ? '🖼' : '📄'));
       const title = el('artifact-title');
-      title.appendChild(el('artifact-name', record.originalName));
+      if (record.revealUrl) {
+        const name = document.createElement('button'); name.type = 'button'; name.className = 'artifact-name';
+        name.textContent = record.originalName; name.setAttribute('aria-label', `${record.originalName} 위치 열기`);
+        name.onclick = () => artifactAction(record, 'reveal'); title.appendChild(name);
+      } else title.appendChild(el('artifact-name', record.originalName));
       title.appendChild(el('meta', `${fileSize(record.bytes)} · 결과물${record.artifactVersion ? ` · 버전 ${record.artifactVersion}` : ''}${record.createdAt ? ` · ${formatCanonicalTime(record.createdAt)}` : ''}`));
       head.appendChild(title); surface.appendChild(head);
 
@@ -957,7 +1041,7 @@ function renderArtifacts(box, records = []) {
       if (preview.tagName === 'IFRAME') registerArtifactFrame(record, preview);
 
       const actions = el('artifact-actions');
-      const larger = document.createElement('button'); larger.type = 'button'; larger.textContent = '크게 보기';
+      const larger = document.createElement('button'); larger.type = 'button'; larger.className = 'primary'; larger.textContent = '미리보기';
       larger.onclick = () => openArtifactDetail(record, 'preview'); actions.appendChild(larger);
       const download = document.createElement('a'); download.href = record.downloadUrl;
       download.download = record.originalName; download.textContent = '파일 받기'; actions.appendChild(download);
@@ -974,21 +1058,44 @@ function renderArtifacts(box, records = []) {
         const versions = document.createElement('button'); versions.type = 'button'; versions.textContent = '버전';
         versions.onclick = () => openArtifactDetail(record, 'versions'); actions.appendChild(versions);
       }
+      if (record.revealUrl) {
+        const reveal = document.createElement('button'); reveal.type = 'button';
+        reveal.textContent = '파일 위치'; reveal.onclick = () => artifactAction(record, 'reveal'); actions.appendChild(reveal);
+      }
+      if (record.undoUrl) {
+        const undo = document.createElement('button'); undo.type = 'button'; undo.className = 'danger';
+        undo.textContent = '방금 변경 되돌리기'; undo.onclick = () => artifactAction(record, 'undo'); actions.appendChild(undo);
+      }
       surface.appendChild(actions);
       appendHumanArtifactReceipt(surface, record.humanReceipt);
-      box.appendChild(surface); continue;
+      group.appendChild(surface); continue;
     }
     const row = el('attachment-row');
-    const card = document.createElement('a'); card.className = 'artifact-card';
-    card.href = record.downloadUrl; card.download = record.originalName;
+    const card = document.createElement('div'); card.className = 'artifact-card';
     card.appendChild(el(null, '📄'));
     const info = document.createElement('div');
-    info.appendChild(el(null, record.originalName));
+    if (record.revealUrl) {
+      const name = document.createElement('button'); name.type = 'button'; name.className = 'artifact-name';
+      name.textContent = record.originalName; name.setAttribute('aria-label', `${record.originalName} 위치 열기`);
+      name.onclick = () => artifactAction(record, 'reveal'); info.appendChild(name);
+    } else info.appendChild(el(null, record.originalName));
     info.appendChild(el('meta', `${fileSize(record.bytes)} · 다운로드${record.createdAt ? ` · ${formatCanonicalTime(record.createdAt)}` : ''}`));
     card.appendChild(info); row.appendChild(card);
+    const download = document.createElement('a'); download.className = 'act primary'; download.href = record.downloadUrl;
+    download.download = record.originalName; download.textContent = '파일 받기'; row.appendChild(download);
+    if (record.revealUrl) {
+      const reveal = document.createElement('button'); reveal.type = 'button'; reveal.className = 'act no';
+      reveal.textContent = '파일 위치'; reveal.onclick = () => artifactAction(record, 'reveal'); row.appendChild(reveal);
+    }
+    if (record.undoUrl) {
+      const undo = document.createElement('button'); undo.type = 'button'; undo.className = 'act no';
+      undo.textContent = '방금 변경 되돌리기'; undo.onclick = () => artifactAction(record, 'undo'); row.appendChild(undo);
+    }
     appendHumanArtifactReceipt(row, record.humanReceipt);
-    box.appendChild(row);
+    group.appendChild(row);
   }
+  box.appendChild(group);
+  return group;
 }
 
 async function openArtifactDetail(record, mode = 'preview') {
@@ -3060,6 +3167,7 @@ function relAge(ts) {
 // P2-4a: 목록 보기(대화 / 보관함 / 휴지통). 기본은 지운 것·숨긴 것이 빠진 목록이다.
 let listView = 'active';
 let sessionLoadSequence = 0;
+let sessionGroups = [];
 const listQuery = () => (listView === 'archived' ? '/sessions?archived=1'
   : listView === 'deleted' ? '/sessions?deleted=1' : '/sessions');
 function scheduleSessionSkeleton(sequence) {
@@ -3075,6 +3183,26 @@ async function sessionAction(path, body) {
   if (!r.ok) { const message = out.error ?? '대화 목록을 바꾸지 못했어요.'; toast(message); throw new Error(message); }
   if (out.userSafeSummary) toast(out.userSafeSummary);
   return out;
+}
+
+async function moveSessionsToNamedGroup(sessionIds) {
+  groupOptions.replaceChildren(...sessionGroups.map((group) => {
+    const option = document.createElement('option'); option.value = group.displayName; return option;
+  }));
+  groupNameInput.value = ''; groupDialog.returnValue = ''; groupDialog.showModal(); groupNameInput.focus();
+  const choice = await new Promise((resolve) => groupDialog.addEventListener('close', () => resolve({
+    action: groupDialog.returnValue, displayName: groupNameInput.value.trim(),
+  }), { once: true }));
+  if (choice.action === 'cancel' || !choice.action) return;
+  const displayName = choice.action === 'ungroup' ? '' : choice.displayName;
+  if (choice.action === 'move' && !displayName) { toast('그룹 이름을 입력해 주세요.'); return; }
+  let target = displayName
+    ? sessionGroups.find((group) => group.displayName.toLocaleLowerCase() === displayName.toLocaleLowerCase())
+    : null;
+  if (displayName && !target) {
+    const created = await sessionAction('/session-groups', { displayName }); target = created.group;
+  }
+  await sessionAction('/session-groups/assign', { sessionIds, groupId: target?.groupId ?? null });
 }
 
 async function recoverConversation(sessionId, mode, recoveryId = null) {
@@ -3114,7 +3242,8 @@ function openSessMenu(item, s, anchor) {
       if (next === null) return;
       await sessionAction('/sessions/meta', { sessionId: s.id, title: next });
     });
-    add(s.pinned ? '즐겨찾기에서 빼기' : '즐겨찾기에 넣기', () => sessionAction('/sessions/meta', { sessionId: s.id, pinned: !s.pinned }));
+    add(s.pinned ? '고정 해제' : '위에 고정', () => sessionAction('/sessions/meta', { sessionId: s.id, pinned: !s.pinned }));
+    add('그룹으로 이동…', () => moveSessionsToNamedGroup([s.id]));
     menu.appendChild(el('sep'));
     add('이 대화 상태 다시 준비', () => recoverConversation(s.id, 'reset'));
     add('새 대화에서 이어가기', () => recoverConversation(s.id, 'continue'));
@@ -3148,6 +3277,7 @@ function syncSelBar() {
   document.getElementById('selcount').textContent = `${selected.size}개 선택`;
   const primary = document.getElementById('selArchive');
   const remove = document.getElementById('selDelete');
+  document.getElementById('selGroup').hidden = listView === 'deleted';
   if (listView === 'active') { primary.hidden = false; primary.textContent = '숨기기'; primary.dataset.action = 'archive'; remove.hidden = false; }
   else if (listView === 'archived') { primary.hidden = false; primary.textContent = '목록으로 되돌리기'; primary.dataset.action = 'restore'; remove.hidden = false; }
   else { primary.hidden = false; primary.textContent = '되돌리기'; primary.dataset.action = 'restore'; remove.hidden = true; }
@@ -3182,6 +3312,10 @@ document.getElementById('selectMode').onclick = () => setSelectMode(!selectMode)
 document.getElementById('selCancel').onclick = () => setSelectMode(false);
 document.getElementById('selArchive').onclick = (event) => bulk(event.currentTarget.dataset.action || 'archive');
 document.getElementById('selDelete').onclick = () => bulk('delete');
+document.getElementById('selGroup').onclick = async () => {
+  if (!selected.size) { toast('먼저 이동할 대화를 골라 주세요.'); return; }
+  await moveSessionsToNamedGroup([...selected]); setSelectMode(false);
+};
 document.getElementById('main').addEventListener('pointerdown', () => clearSessionSelection());
 
 // 정리 메뉴 — "전체 삭제"를 바로 노출하지 않는다. 무엇이 몇 개 정리되는지 먼저 말한다.
@@ -3303,6 +3437,7 @@ async function loadSessions() {
   finally { clearTimeout(loadingTimer); }
   if (sequence !== sessionLoadSequence) return;
   const sessions = payload.sessions ?? [];
+  sessionGroups = payload.groups ?? [];
   for (const session of sessions) {
     if (session.activity?.status === 'running') sessionActivityById.set(session.id, session.activity);
     else sessionActivityById.delete(session.id);
@@ -3313,19 +3448,30 @@ async function loadSessions() {
       : listView === 'deleted' ? '휴지통이 비어 있어요' : '대화가 없어요'));
     return;
   }
-  // 즐겨찾기는 **같은 개념(pinned)의 구역 표현**이다 — "위에 두기"를 두 개 만들지 않는다.
-  // 보관함·휴지통은 정리용 보기라 구역을 나누지 않는다(그 안에서 또 접으면 되레 헷갈린다).
-  const fav = listView === 'active' ? sessions.filter((s) => s.pinned) : [];
+  // 고정은 group과 다른 표시 순서일 뿐이며 Conversation identity를 바꾸지 않는다.
+  const fav = listView === 'active' ? sessions.filter((s) => s.pinned)
+    .toSorted((left, right) => Number(left.pinnedAt ?? left.createdAt) - Number(right.pinnedAt ?? right.createdAt)) : [];
   const rest = listView === 'active' ? sessions.filter((s) => !s.pinned) : sessions;
 
   if (fav.length) {
-    sessionsEl.appendChild(sectionHeader('fav', '즐겨찾기', fav.length, loadSessions));
+    sessionsEl.appendChild(sectionHeader('fav', '고정', fav.length, loadSessions));
     if (!isFolded('fav')) for (const s of fav) sessionsEl.appendChild(sessionRow(s));
   }
-  if (rest.length) {
-    // 즐겨찾기가 없으면 굳이 "대화" 머리글로 한 줄 더 쓰지 않는다(빈 구역·군더더기 금지).
-    if (fav.length) sessionsEl.appendChild(sectionHeader('rest', '대화', rest.length, loadSessions));
-    if (!fav.length || !isFolded('rest')) for (const s of rest) sessionsEl.appendChild(sessionRow(s));
+  if (listView !== 'active') { for (const session of rest) sessionsEl.appendChild(sessionRow(session)); return; }
+  for (const group of sessionGroups) {
+    const members = rest.filter((session) => session.groupId === group.groupId);
+    if (!members.length) continue;
+    const key = `group-${group.groupId}`;
+    sessionsEl.appendChild(sectionHeader(key, group.displayName, members.length, loadSessions));
+    if (!isFolded(key)) for (const session of members) sessionsEl.appendChild(sessionRow(session));
+  }
+  const ungrouped = rest.filter((session) => !session.groupId
+    || !sessionGroups.some((group) => group.groupId === session.groupId));
+  if (ungrouped.length) {
+    if (fav.length || sessionGroups.length) sessionsEl.appendChild(sectionHeader('rest', '미분류', ungrouped.length, loadSessions));
+    if ((!fav.length && !sessionGroups.length) || !isFolded('rest')) {
+      for (const session of ungrouped) sessionsEl.appendChild(sessionRow(session));
+    }
   }
 }
 
@@ -3431,24 +3577,30 @@ async function 대화투영(s) {
   return s;
 }
 
-function makeSessionStopButton(sessionId, trace) {
-  const stop = document.createElement('button'); stop.type = 'button'; stop.className = 'stopbtn';
-  stop.textContent = '멈추기';
-  stop.setAttribute('aria-label', '현재 작업 멈추기');
-  stop.dataset.sessionActivityStop = sessionId;
-  stop.onclick = async () => {
-    stop.disabled = true; stop.textContent = '멈추는 중…';
-    const response = await fetch('/turn/cancel', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sessionId }),
-    }).catch(() => null);
-    const result = await response?.json().catch(() => null);
-    setActivityTrace(trace, response?.ok
-      ? (result?.userSafeSummary ?? '작업을 멈췄어요.')
-      : '중지 상태를 확인하지 못했어요. 현재 작업 상태를 다시 확인해 주세요.');
-  };
-  return stop;
+function setComposerInteraction(mode = 'idle', detail = '') {
+  const running = ['responding', 'working', 'stopping', 'user_action_required'].includes(mode);
+  composerStop.hidden = !running; composerStop.disabled = mode === 'stopping';
+  composerStop.textContent = mode === 'stopping' ? '멈추는 중…' : '멈추기';
+  send.disabled = mode === 'submitting' || mode === 'stopping';
+  send.textContent = running && mode !== 'stopping' ? '추가 지시' : '보내기';
+  text.placeholder = running ? '진행 중에도 교정하거나 파일을 추가할 수 있어요' : 'GPAO-T5에게 메시지 입력';
+  const labels = { idle: '바로 보낼 수 있어요', submitting: '요청을 전달하는 중이에요',
+    responding: '답변을 준비하고 있어요', working: '작업 중이에요 · 지금도 교정할 수 있어요',
+    stopping: '작업을 안전하게 멈추는 중이에요', user_action_required: '이어가기 위한 확인이 필요해요' };
+  composerState.textContent = detail || labels[mode] || labels.idle;
+  document.querySelector('.inbox')?.setAttribute('data-state', mode);
 }
+
+composerStop.onclick = async () => {
+  if (!currentSessionId) return;
+  setComposerInteraction('stopping');
+  const response = await fetch('/turn/cancel', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sessionId: currentSessionId }) }).catch(() => null);
+  const result = await response?.json().catch(() => ({}));
+  if (!response?.ok) setComposerInteraction('working', '중지 상태를 확인하지 못했어요.');
+  else { setComposerInteraction('idle', result.userSafeSummary ?? '작업을 멈췄어요.'); await 대화다시그리기(); }
+  await loadSessions();
+};
 
 let activityClockTimer = 0;
 function formatActivityElapsed(elapsedMs) {
@@ -3549,11 +3701,12 @@ function restoreActivityFeed(trace, steps = []) {
 
 function renderSessionActivity(activity) {
   const existing = document.getElementById('session-activity-trace');
-  const existingStop = document.querySelector('[data-session-activity-stop]');
   if (!activity || activity.status !== 'running' || activity.sessionId !== currentSessionId) {
-    existing?.remove(); existingStop?.remove();
+    existing?.remove();
+    setComposerInteraction('idle');
     return;
   }
+  setComposerInteraction(activity.steps?.length ? 'working' : 'responding');
   let trace = existing;
   if (!trace) {
     const turns = wrap.querySelectorAll('.turn');
@@ -3566,9 +3719,6 @@ function renderSessionActivity(activity) {
   setActivityTrace(trace, activity.text || '작업을 이어가고 있어요', activity.startedAt);
   if (activity.steps?.length > 0) trace.dataset.hasToolActivity = 'true';
   trace.hidden = !(activity.steps?.length > 0);
-  if (!document.querySelector(`[data-session-activity-stop="${activity.sessionId}"]`)) {
-    trace.parentNode.appendChild(makeSessionStopButton(activity.sessionId, trace));
-  }
   scrollToBottom();
 }
 
@@ -3577,7 +3727,6 @@ function clearWorkRealityPanel() {
   workRealityPanelTimer = 0;
   document.getElementById('work-reality-panel')?.remove();
   document.getElementById('session-activity-trace')?.remove();
-  document.querySelector('[data-session-activity-stop]')?.remove();
 }
 
 function renderWorkReality(reality, { reconnect = false, sessionId = null } = {}) {
@@ -3971,8 +4120,8 @@ function renderResult(r, opts = {}) {
   }
   renderConversationRecovery(box, r, opts);
   renderConnectionHandoff(box, r, opts);
-  renderArtifacts(box, r.artifacts);
-  renderHumanEffects(box, r.humanEffects);
+  const artifactHost = renderArtifacts(box, r.artifacts);
+  renderHumanEffects(artifactHost ?? box, r.humanEffects);
   renderRecord(box, r.ledger);
 }
 
@@ -4012,6 +4161,7 @@ async function submit() {
     return;
   }
   submitAdmissionInFlight = true;
+  setComposerInteraction('submitting');
   const surfaceStartedAt = performance.now();
   let submittedSessionId;
   let sentAttachments;
@@ -4025,9 +4175,11 @@ async function submit() {
     submitAdmissionInFlight = false;
     if (error?.code === 'session_running') {
       toast('앞선 작업을 진행 중이에요. 입력한 내용은 그대로 두었습니다.');
+      setComposerInteraction('working');
       text.focus();
       return;
     }
+    setComposerInteraction('idle', '요청을 전달하지 못했어요.');
     sysline('요청을 접수하지 못했어요. 입력한 내용은 그대로 두었습니다.');
     return;
   }
@@ -4037,23 +4189,19 @@ async function submit() {
   stagedAttachments = []; renderStagedAttachments();
   submitAdmissionInFlight = false;
   if (turnStart.admitted) {
+    setComposerInteraction('working');
     box.appendChild(el('trace', '진행 중인 작업에 반영하도록 받았어요.'));
     await loadSessions();
     return;
   }
   // P6-12: 스트림으로 조용한 작업 흐름을 보여주고, complete 시 지속된 결과를 렌더한다(끊겨도 진실은 세션에 남음).
   const trace = el('trace', '요청을 이해하고 있어요…');
+  setComposerInteraction('responding');
   trace.id = 'session-activity-trace'; trace.dataset.sessionActivity = submittedSessionId;
   setActivityTrace(trace, '요청을 이해하고 있어요', Date.now());
   trace.hidden = true;
   box.appendChild(trace);
-  // **멈춤**(F-5) — 한 턴이 수백 번 손을 쓸 수 있게 된 뒤로, 멈출 데가 없으면 사용자는
-  // 자기 컴퓨터에서 벌어지는 일을 못 세운다. 문만 있고 누를 데가 없으면 없는 것과 같다.
-  // 이미 한 일은 되돌리지 않는다 — 되돌리기는 사용자가 따로 말하는 별개의 일이다.
-  const 멈춤 = makeSessionStopButton(submittedSessionId, trace);
-  멈춤.hidden = false;
-  box.appendChild(멈춤);
-  const 멈춤치우기 = () => 멈춤.remove();
+  // 중지는 입력창의 한 canonical control로 표시하고 답 본문 아래에 같은 버튼을 반복하지 않는다.
   const firstFeedbackPaint = afterVisiblePaint(surfaceStartedAt);
   scrollToBottom(true); // 내가 방금 보냈으니 무조건 따라간다(내용이 다 붙은 뒤에 스크롤)
   activeLocalTurns += 1;
@@ -4085,7 +4233,7 @@ async function submit() {
     sysline('연결에 문제가 있었어요. 잠시 후 다시 시도해 주세요.');
   } finally {
     activeLocalTurns = Math.max(0, activeLocalTurns - 1);
-    멈춤치우기(); // 오류로 끝나도 버튼이 남지 않는다
+    if (!sessionActivityById.has(submittedSessionId)) setComposerInteraction('idle');
   }
 }
 

@@ -101,5 +101,6 @@ export function makeWorkspacePatchTool({ workspace, stateRoot, sessionId = 'loca
     if (!capture?.pointers?.length) return;
     await Promise.all(capture.pointers.map((pointer) => discardExactTargetRollbackPointer(pointer).catch(() => {})));
   };
+  tool.undoAvailable = ({ undoHandle }) => undoStore.available({ handle: undoHandle, sessionId });
   return tool;
 }

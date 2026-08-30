@@ -38,7 +38,7 @@ test('정본은 제품·현재 계획·1차 역사·작업 규율로 분리된�
   assert.match(agents, /`T5-FIFTH-COMPLETION\.md`[\s\S]*완료 역사/u);
   assert.match(fourth, /현재 Gate: `FOURTH COMPLETION SEALED · MACOS PRODUCT SCOPE · WINDOWS DEFERRED_NOT_WAIVED`/u);
   assert.match(fifth, /상태: `FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE · WINDOWS_DEFERRED_NOT_WAIVED`/u);
-  assert.match(sixth, /현재 Gate: `S6-UX · CONVERSATIONAL WORKSPACE AND RESULT EXPERIENCE`/u);
+  assert.match(sixth, /현재 Gate: `SIXTH MACOS SOURCE SEALED · WINDOWS PHYSICAL QUALIFICATION DEFERRED_NOT_WAIVED`/u);
   assert.match(sixth, /S6_P0_CLOSED_WITH_SPEED_CARRY/u);
   assert.match(sixth, /S6_A_COMPLETE/u);
   assert.match(sixth, /S6_B_COMPLETE/u);

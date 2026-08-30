@@ -42,6 +42,17 @@ export class AuthoringUndoStore {
       || manifest.sessionId !== sessionId || manifest.state !== 'ready') throw new Error('authoring undo manifest is invalid');
     return { manifest, claimedPath, token };
   }
+  async available({ handle: raw, sessionId }) {
+    const handle = safe(raw); await this.ensure();
+    try {
+      const manifest = JSON.parse(await readFile(this.path(handle), 'utf8'));
+      return manifest.schema === 't5.authoring-undo.v1' && manifest.handle === handle
+        && manifest.sessionId === sessionId && manifest.state === 'ready';
+    } catch (error) {
+      if (error?.code === 'ENOENT') return false;
+      throw error;
+    }
+  }
   async complete(claim, state) {
     const terminal = { ...claim.manifest, state, completedAt: new Date().toISOString() };
     await writeFile(claim.claimedPath, JSON.stringify(terminal), { mode: 0o600 });

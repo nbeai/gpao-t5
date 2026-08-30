@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "gate": "S6_WA_WHOLE_ANDROID_SEAM_AUDIT",
-  "status": "BASELINE_COMPLETE_MACOS_P0_P1_REPAIRED_WINDOWS_EXPLICIT_UX_DELTA_PENDING",
+  "status": "COMPLETE_MACOS_P0_P1_REPAIRED_WINDOWS_EXPLICIT_UX_DELTA_REAUDITED",
   "auditHead": "7a640b6e",
   "candidateCommit": "same_commit_as_evidence",
   "productRepairFamiliesAfterReadOnlyAudit": 4,
@@ -71,6 +71,7 @@
     "crossSurfaceContradiction": 0,
     "windowsUnqualified": "EXPLICIT_PHYSICAL_BLOCKER"
   },
-  "nextGate": "S6_UX_IMPLEMENTATION_AND_DELTA_EDGE_AUDIT",
-  "completionSentence": "작은 identity·revision·ACK·timing 오류가 사용자 결과로 증폭되던 네 seam을 최초 진실 경계에서 제한했고, macOS 기준 seam은 중복·orphan·blind retry 없이 S6-UX delta 재감사로 이어진다."
+  "uxDeltaEdgesReaudited": true,
+  "nextGate": "S6_HQ_FINAL_ANDROID_HUMAN_QUALIFICATION",
+  "completionSentence": "작은 identity·revision·ACK·timing 오류가 사용자 결과로 증폭되던 네 seam을 최초 진실 경계에서 제한했고, S6-UX가 바꾼 Session·progress·Artifact edge도 중복·orphan·blind retry 없이 같은 정본을 유지한다."
 }

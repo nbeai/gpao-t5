@@ -174,6 +174,9 @@ function attachmentSurface(record) {
     bytes: record.bytes,
     sha256: record.sha256,
     downloadUrl: record.downloadUrl,
+    ...(record.direction === 'output' && record.sourcePath ? {
+      revealUrl: `/attachments/${record.attachmentId}/reveal?sessionId=${record.sessionId}`,
+    } : {}),
     ...(record.previewUrl ? { previewUrl: record.previewUrl } : {}),
     ...(record.previewKind ? { previewKind: record.previewKind } : {}),
     ...(record.sourceUrl ? { sourceUrl: record.sourceUrl } : {}),
@@ -803,6 +806,8 @@ export function makeConsoleServer({
   const reveal = revealPath ?? makePathRevealer({
     platform: computer.platform, userHome: computer.userHome,
   });
+  const workspacePatchForSession = (sessionId) => makeWorkspacePatchTool({ workspace,
+    stateRoot: join(stateDir, 'authoring', sessionId), sessionId });
   const pendingStreams = new Map();
   const running = new Map();
   let runtimeAcceptingWork = true;
@@ -844,13 +849,22 @@ export function makeConsoleServer({
         : null;
       const artifacts = await Promise.all((entry.result.artifacts ?? []).map(async (artifact) => {
         if (!runId) return artifact;
+        let actionable = artifact;
+        try {
+          const undo = await attachments.publicationForArtifact({ sessionId: session.id,
+            attachmentId: artifact.attachmentId });
+          if (undo?.undoHandle && await workspacePatchForSession(session.id).undoAvailable({
+            undoHandle: undo.undoHandle,
+          })) actionable = { ...artifact,
+            undoUrl: `/attachments/${artifact.attachmentId}/undo?sessionId=${session.id}` };
+        } catch (error) { onError?.(error); }
         try {
           const publication = await artifactPublications.materialize({ sessionId: session.id,
             runId, attachmentId: artifact.attachmentId });
-          return { ...artifact, humanReceipt: projectHumanArtifactReceipt(publication) };
+          return { ...actionable, humanReceipt: projectHumanArtifactReceipt(publication) };
         } catch (error) {
           onError?.(error);
-          return { ...artifact, humanReceipt: {
+          return { ...actionable, humanReceipt: {
             title: '파일 확인 상태를 다시 살펴봐야 해요.', fileName: String(artifact.originalName ?? '').slice(0, 240),
             typeLabel: '파일', confirmed: [], changed: [],
             verification: '파일 검증 상태를 추가로 확인해야 해요.',
@@ -1685,8 +1699,7 @@ export function makeConsoleServer({
       ].join('\n') });
       const model = await modelFactory({ sessionId, workspace, computer: computerFacts });
       const managedCliStore = await managedCliStorePromise;
-      const workspacePatchTool = makeWorkspacePatchTool({ workspace,
-        stateRoot: join(stateDir, 'authoring', sessionId), sessionId });
+      const workspacePatchTool = workspacePatchForSession(sessionId);
       const programRuntimeRoot = join(dirname(stateDir), 'program-runtime', sessionId);
       let snapshotProgramAdapter = null;
       const programExecutionAdapter = computer.platform === 'darwin' && !options.observationOnly ? {
@@ -4328,6 +4341,58 @@ export function makeConsoleServer({
       const attachmentContentMatch = req.method === 'GET' && url.pathname.match(
         /^\/attachments\/([0-9a-f-]{36})\/content$/i,
       );
+      const attachmentRevealMatch = req.method === 'POST' && url.pathname.match(
+        /^\/attachments\/([0-9a-f-]{36})\/reveal$/i,
+      );
+      if (attachmentRevealMatch) {
+        if (req.headers['x-t5-console-action'] !== 'reveal') {
+          json(res, 403, { error: 'console action header is required' }); return;
+        }
+        const sessionId = url.searchParams.get('sessionId'); const record = await attachments.get({
+          sessionId, attachmentId: attachmentRevealMatch[1],
+        });
+        if (record.direction !== 'output' || !record.sourcePath) {
+          json(res, 409, { error: '현재 위치에서 이 파일을 보여줄 수 없어요.' }); return;
+        }
+        let opened;
+        try { opened = await reveal(record.sourcePath, {
+          exactFile: true, bytes: record.bytes, sha256: record.sha256,
+        }); } catch (error) {
+          if (error?.status === 409) {
+            json(res, 409, { error: '파일이 이동되었거나 바뀌어 기존 위치를 열지 않았어요.' }); return;
+          }
+          throw error;
+        }
+        json(res, 200, { ok: true, targetType: opened.targetType,
+          userSafeSummary: computer.platform === 'win32'
+            ? 'File Explorer에서 파일을 보여줬어요.' : 'Finder에서 파일을 보여줬어요.' }); return;
+      }
+      const attachmentUndoMatch = req.method === 'POST' && url.pathname.match(
+        /^\/attachments\/([0-9a-f-]{36})\/undo$/i,
+      );
+      if (attachmentUndoMatch) {
+        if (req.headers['x-t5-console-action'] !== 'undo') {
+          json(res, 403, { error: 'console action header is required' }); return;
+        }
+        const sessionId = url.searchParams.get('sessionId');
+        if (!await sessions.load(sessionId)) {
+          json(res, 404, { error: '대화를 찾지 못했어요.' }); return;
+        }
+        const publication = await attachments.publicationForArtifact({ sessionId,
+          attachmentId: attachmentUndoMatch[1] });
+        if (!publication?.undoHandle) {
+          json(res, 409, { error: '현재 결과에는 사용할 수 있는 되돌리기가 없어요.' }); return;
+        }
+        const patch = workspacePatchForSession(sessionId);
+        const result = await patch.execute({ action: 'rollback', planHandle: null,
+          undoHandle: publication.undoHandle, operations: [] });
+        json(res, result.state === 'rolled_back_verified' ? 200 : 409, {
+          ok: result.state === 'rolled_back_verified', state: result.state,
+          userSafeSummary: result.state === 'rolled_back_verified'
+            ? '방금 T5가 바꾼 파일을 이전 상태로 되돌렸어요.'
+            : '현재 파일이 달라져 덮어쓰지 않았어요.',
+        }); return;
+      }
       if (attachmentContentMatch) {
         const sessionId = url.searchParams.get('sessionId');
         const { record, bytes } = await attachments.readContent({
@@ -4595,7 +4660,7 @@ export function makeConsoleServer({
           if (!runsBySession.has(run.sessionId)) runsBySession.set(run.sessionId, []);
           runsBySession.get(run.sessionId).push(run);
         }
-        json(res, 200, { sessions: await Promise.all(listed.map(async (session) => ({
+        json(res, 200, { groups: await sessions.listGroups(), sessions: await Promise.all(listed.map(async (session) => ({
           ...session, activity: sessionActivities.get(session.id),
           workReality: (await currentWorkReality(session.id, {
             workState, runs: runsBySession.get(session.id) ?? [],
@@ -4756,6 +4821,23 @@ export function makeConsoleServer({
         const input = await body(req);
         const session = await sessions.updateMeta(input.sessionId, input);
         json(res, session ? 200 : 404, session ? { ok: true, ...session } : { error: '세션을 찾지 못했어요.' }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/session-groups') {
+        const input = await body(req); const group = await sessions.createGroup(input.displayName);
+        json(res, 200, { ok: true, group, userSafeSummary: `\u2018${group.displayName}\u2019 그룹을 만들었어요.` }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/session-groups/assign') {
+        const input = await body(req); const assigned = await sessions.assignGroup({
+          ids: input.sessionIds, groupId: input.groupId ?? null,
+        });
+        json(res, 200, { ok: true, ...assigned,
+          userSafeSummary: assigned.groupId ? `대화 ${assigned.count}개를 그룹으로 옮겼어요.`
+            : `대화 ${assigned.count}개를 미분류로 옮겼어요.` }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/session-groups/delete') {
+        const input = await body(req); const removed = await sessions.deleteGroup(input.groupId);
+        json(res, 200, { ok: true, ...removed,
+          userSafeSummary: '그룹만 지우고 대화는 미분류로 옮겼어요.' }); return;
       }
       if (req.method === 'POST' && url.pathname === '/sessions/archive') {
         const input = await body(req);

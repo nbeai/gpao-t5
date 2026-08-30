@@ -70,3 +70,13 @@ test('검색 결과 제목 reveal은 exact file identity가 바뀌거나 사라�
     modifiedAt: '2026-08-30T00:00:00.000Z' }), /identity changed/u);
   assert.deepEqual(calls, []);
 });
+
+test('결과물 reveal은 크기가 같아도 exact content digest가 달라지면 열지 않는다', async () => {
+  const calls = []; const reveal = makePathRevealer({ platform: 'darwin',
+    statPath: async () => ({ isDirectory: () => false, size: 42 }),
+    digestPath: async () => 'b'.repeat(64),
+    spawnProcess: (program, args) => { calls.push({ program, args }); return { unref() {} }; } });
+  await assert.rejects(() => reveal('/tmp/report.pdf', { exactFile: true, bytes: 42,
+    sha256: 'a'.repeat(64) }), /identity changed/u);
+  assert.deepEqual(calls, []);
+});

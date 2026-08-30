@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_HQ_FINAL_ANDROID_HUMAN_QUALIFICATION",
+  "status": "MACOS_SOURCE_CANDIDATE_COMPLETE_WITH_EXPLICIT_RELEASE_CARRIES_WINDOWS_DEFERRED_NOT_WAIVED",
+  "candidateCommit": "same_commit_as_evidence",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "actualConsoleMissions": [
+    { "id": 1, "name": "direct current information attachment", "status": "PASS_WITH_SPEED_CARRY", "evidence": "current live gpt-5.6-terra weather and attachment plus S6-UX Console" },
+    { "id": 2, "name": "latest public research", "status": "PASS_WITH_EXTERNAL_BOUNDARY", "evidence": "existing exact-head official RSS and source boundary" },
+    { "id": 3, "name": "memory correction forget", "status": "PASS_REUSED", "evidence": "fifth and sixth temporal memory product integration" },
+    { "id": 4, "name": "file filename content OCR reveal delivery", "status": "PASS_WITH_SPEED_CARRY", "evidence": "S6-P0 exact filename-first and title reveal" },
+    { "id": 5, "name": "document spreadsheet presentation version undo", "status": "PASS_REUSED", "evidence": "S6-H and S6-UX Artifact actual" },
+    { "id": 6, "name": "capability gap acquisition resume", "status": "PASS_BOUNDED_WITH_STT_GAP", "evidence": "S6-A B C" },
+    { "id": 7, "name": "experience proposal field rollback", "status": "PASS_REUSED", "evidence": "S6-D E product integration" },
+    { "id": 8, "name": "browser and desktop reality", "status": "PARTIAL_DESKTOP_OBSERVATION_CLOSED", "evidence": "Browser action PASS; S6-F AX observation closed without product patch; S6-G not opened" },
+    { "id": 9, "name": "external and scheduled delivery", "status": "PASS_WITH_ACCOUNT_NONCLAIMS", "evidence": "existing Notion Telegram Automation product integration" },
+    { "id": 10, "name": "long run correction cancel restart backup platform", "status": "PASS_MACOS_WINDOWS_DEFERRED", "evidence": "WA S6-UX and product integration; physical Windows deferred" }
+  ],
+  "liveSpeed": {
+    "model": "gpt-5.6-terra",
+    "weather": { "passedTruth": true, "wallMs": 12396.367, "modelCalls": 2, "toolCalls": 1,
+      "tokens": 19589, "requestBytes": 91700, "targetMs": 7000, "targetMet": false },
+    "singleAttachment": { "passedTruth": true, "wallMs": 4189.86, "modelCalls": 2, "toolCalls": 1,
+      "tokens": 15586, "requestBytes": 79570 },
+    "fileSearchCarry": { "nameSearchWallMs": 18767, "filenamePhaseMs": 7750, "rerun": false,
+      "reason": "no changed search path and no third patch in the same family" }
+  },
+  "ux": {
+    "actualConsole": true,
+    "directFlat": "PASS",
+    "longDocument": "PASS",
+    "runningCorrectionStop": "PASS",
+    "artifactRevealDownloadUndo": "PASS",
+    "pinManualGroupSearchLifecycle": "PASS",
+    "narrowDarkKeyboard": "PASS"
+  },
+  "safetyTruth": {
+    "targetOutsideEffect": 0,
+    "externalWrite": 0,
+    "blindRetry": 0,
+    "orphanProcess": 0,
+    "falseCompletion": 0,
+    "rawPathIdHashInDefaultResult": 0
+  },
+  "verification": {
+    "focusedUx": "PASS",
+    "productIntegration": { "passed": 205, "failed": 0, "skippedWindows": 2 },
+    "fullCI": {
+      "check": "PASS",
+      "productIntegration": "PASS_205_FAILED_0_SKIPPED_WINDOWS_2",
+      "mutation": "PASS_2_OF_2",
+      "transientObservation": "a repeated full-suite Linear timing run missed once at 2.1s; unchanged isolated journey immediately passed 1/1; product patch 0",
+      "status": "COMPONENTS_PASS_WITH_ONE_TRANSIENT_ISOLATED_RERUN"
+    }
+  },
+  "releaseCarries": [
+    "grounded weather remains above the owner 7 second comfort target",
+    "name file search remains accurate but above the desired comfort latency",
+    "desktop app observation did not improve the Apple Notes purpose and action was not opened",
+    "external service actuals remain bounded to qualified accounts and existing connections",
+    "physical Windows x64 and ARM64 product qualification is deferred not waived"
+  ],
+  "claims": {
+    "macosSourceCandidateComplete": true,
+    "fullCrossPlatformSixthComplete": false,
+    "windowsDeferredNotWaived": true,
+    "installerOrReleasePackageBuilt": false
+  }
+}

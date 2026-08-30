@@ -1,9 +1,9 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_ADMISSION_HARDENED · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · S6_J_COMPLETE · S6_WA_BASELINE_COMPLETE_P1_REPAIRED_UX_DELTA_PENDING · S6_UX_IMPLEMENTATION_ACTIVE_BEFORE_FINAL_HQ · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
+상태: `SIXTH_MACOS_SOURCE_CANDIDATE_COMPLETE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_ADMISSION_HARDENED · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · S6_J_COMPLETE · S6_WA_COMPLETE_MACOS_WINDOWS_EXPLICIT · S6_UX_PRODUCT_CANDIDATE_COMPLETE_ACTUAL_CONSOLE · FIFTH_BASELINE_F42E4DB7 · WINDOWS_DEFERRED_NOT_WAIVED · INSTALLER_NOT_BUILT`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
-현재 Gate: `S6-UX · CONVERSATIONAL WORKSPACE AND RESULT EXPERIENCE`
-현재 작업: `S6_UX_IMPLEMENTATION · WA_DELTA_EDGE_REAUDIT_BEFORE_FINAL_HQ`
+현재 Gate: `SIXTH MACOS SOURCE SEALED · WINDOWS PHYSICAL QUALIFICATION DEFERRED_NOT_WAIVED`
+현재 작업: `NONE · NEXT OWNER STEP IS PHYSICAL WINDOWS X64_AND_ARM64 QUALIFICATION`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -1399,7 +1399,7 @@ Artifact v1·내부 path 비노출은 그대로 통과했다. 일반 Direct의 C
 
 ### S6-WA — Whole Android Seam Audit
 
-현재 상태: `BASELINE_AUDIT_COMPLETE · MACOS_P0_0 · FOUR_P1_REPAIRED · UX_DELTA_REAUDIT_PENDING · WINDOWS_PHYSICAL_EXPLICIT`
+현재 상태: `COMPLETE_MACOS · FOUR_P1_REPAIRED · UX_DELTA_EDGES_REAUDITED · WINDOWS_PHYSICAL_EXPLICIT`
 
 `7a640b6e` exact head에서 여섯 read-only lane으로 16개 seam을 감사한 뒤, 단일 통합 책임자가 실제 증폭이
 있는 네 P1만 순차 수리했다.
@@ -1787,7 +1787,21 @@ S6_WA:
 
 ### S6-UX — Conversational Workspace & Result Experience
 
-현재 상태: `OWNER_APPROVED · IMPLEMENTATION_NOT_STARTED · CURRENT_RUNTIME_PROGRESS_REUSED · FINAL_HQ_BLOCKER`
+현재 상태: `PRODUCT_CANDIDATE_COMPLETE · ACTUAL_CONSOLE_MISSIONS_PASS · PRODUCT_INTEGRATION_205_PASS · FINAL_HQ_PENDING`
+
+S6-UX는 기존 canonical progress·Artifact·Undo·Session을 재사용해 다음 사용자 경험을 제품에 결속했다.
+
+- 사용자 메시지는 작은 우측 bubble, T5 답은 860px 평면 document body로 표시한다.
+- heading·ordered list·table·code·blockquote의 한국어 읽기 위계와 narrow/dark 테마를 정돈했다.
+- 진행 중 입력창에서 교정·첨부·Stop을 하며, 중복 Stop surface는 제거했다.
+- Artifact는 한 결과 영역에서 제목·파일 받기·exact Finder/Explorer Reveal·version·durable Undo를 제공한다.
+- 고정·수동 group·전체 검색·archive/delete/restore는 기존 Session 정본을 바꾸거나 내용을 복제하지 않는다.
+- UI source는 294,397→304,559 bytes로 3.45% 늘었고 새 framework·font·icon package와 Direct model/tool call 증가는 0이다.
+
+실제 Console Browser에서 Direct·긴 답·진행/Stop·Artifact Reveal/Undo·고정/group·narrow·dark를 클릭했고,
+제품 통합 205/205가 통과했다. 최종 S6-HQ에서 6차 전체 핵심 여정과 속도 carry를 함께 봉인한다.
+
+근거: `refoundation/evidence/s6-ux-conversational-workspace-2026-08-30.json`.
 
 6차의 기능과 UX를 분리하지 않는다. 이 Gate는 새 작업 엔진이나 예쁜 skin을 만드는 일이 아니다. 이미 선
 Conversation·Session activity·Work reality·answer stream·Artifact·Effect·Delivery·Undo를 일반 사용자가 가장 적은
@@ -2489,8 +2503,107 @@ GitHub runner·WSL·emulation·cross-build는 physical PASS를 대신하지 않�
 
 ### S6-HQ — Final Android Human Qualification
 
+현재 판정: `MACOS SOURCE CANDIDATE COMPLETE · RELEASE SPEED CARRY · DESKTOP OBSERVATION CLOSED · WINDOWS DEFERRED_NOT_WAIVED`
+
+최종 macOS wave는 이미 통과한 대형 여정을 반복하지 않고 S6-UX 실제 Console와 현재 head의 속도 carry만
+재확인했다. 날씨는 정확성·출처를 유지했지만 12.396초로 오너 7초 목표를 달성하지 못했고, 단일 첨부는
+4.190초를 기록했다. 이 속도 미달을 정확성을 줄여 숨기거나 같은 결함 가족의 세 번째 patch로 덮지 않는다.
+
+제품 통합은 205/205, Windows 전용 2개는 skip이었다. 최종 CI 반복에서 변경과 무관한 Linear timing 여정이
+2.1초 경계에서 한 번 놓쳤고, 동일 여정 단독 재실행은 1/1 통과했다. 제품 patch는 0이며 mutation 2/2가 통과했다.
+
+이 판정은 macOS source candidate의 봉인이다. 6차 cross-platform 최종 완료나 외부 공개 설치본은 주장하지 않는다.
+x64·ARM64 실물 Windows 자격과 별도 설치 후보 제작이 다음 오너 단계다.
+
+근거: `refoundation/evidence/s6-hq-macos-source-closeout-2026-08-30.json`.
+
 모든 기술 Gate가 닫힌 exact clean head에서 한 번만 실행한다. runner는 fixture 준비·원장 회수·oracle에만
 사용하고, 사용자의 시작·입력·진행·교정·결과·Preview·Undo·재접속은 실제 Console UI에서 수행한다.
+
+#### S6-HQ 종속 실행 정본
+
+실제 인간 제품 HQ의 Mission·fixture·UX timeline·속도·심각도·blind 비교·Evidence 양식은 별도 실행 프로토콜인
+[T5 총괄 인간 제품 HQ](/Users/jyp/Developer/t5-total-hq/T5-TOTAL-HUMAN-HQ.md)를 사용한다.
+
+이 문서가 6차 제품 약속·Gate·완료 범위의 단일 계획 정본이며, 별도 HQ 문서는 이를 반복하거나 변경하는 두 번째
+제품 정본이 아니다. 별도 문서는 S6-HQ를 실제 설치 제품에서 실행하기 위한 종속 시험 정본이다. 둘이 충돌하면
+이 문서의 현재 오너 결정·Gate·금지선이 우선하며, 별도 HQ의 source commit·제품 version·conditional Mission을
+실행 직전 exact candidate에 맞게 갱신한다.
+
+#### S6-HQ Agent Team 실행 규율
+
+Agent Team의 목적은 Mission 수를 늘리거나 여러 Agent가 같은 T5를 동시에 조작하는 것이 아니다. 격리된 실제
+사용자 실행, blind ground truth, UX 관측, 기계 Evidence 회수를 독립시켜 더 빠르고 정확하게 판정하는 것이다.
+
+기본 역할:
+
+| 역할 | 권한과 책임 |
+|---|---|
+| HQ Controller·Final Judge | exact package·commit·Mission 순서·중단선·최종 PASS/PARTIAL/FAIL을 한 곳에서 소유 |
+| Fixture Operator | 비식별 fixture·숨은 정답·loopback·시험 계정 준비. Mission Runner에게 위치·marker·oracle 비공개 |
+| Mission Runner | 실제 설치 Console에서 일반 사용자처럼 입력·클릭·교정·중지·재접속. Store·내부 API·source 직접 접근 금지 |
+| UX Observer | T0~T5·첫 feedback·first useful·최종·click 수·혼란·중지 가능성을 읽기 전용 기록. 정답 판정 금지 |
+| Evidence Auditor | Run·Work·Tool·Effect·Artifact·Delivery·비용을 실행 뒤 읽기 전용 회수해 사용자 화면과 대조 |
+| Repair Owner | 재현된 P0/P1만 순차 수리하는 유일한 제품 수정자. 시험 Agent와 병렬 수정 금지 |
+
+가장 효율적인 기본 구성은 `Controller 1 + 격리 Mission Runner들 + 공용 UX/Evidence 감사 lane`이다. 한 Mission에
+항상 여러 Agent를 붙이지 않는다. 짧은 Direct·단일 첨부 positive control은 Runner 한 명과 자동 timing recorder면
+충분하다. 복합 산출물·프로젝트·동시 입력·외부 Delivery처럼 화면과 원장 판정이 갈릴 수 있는 Mission에만 UX
+Observer와 Evidence Auditor를 추가한다.
+
+병렬화 허용:
+
+- 서로 다른 격리 HOME·STATE·WORKSPACE·Browser profile·시험 계정을 가진 독립 Mission
+- fixture 생성·hidden oracle 준비와 제품 실행 전 환경 검증
+- 완료된 Mission의 screenshot·timing·원장·Artifact read-only 감사
+- macOS·Windows x64·Windows ARM64의 독립 물리 환경
+- 동일 결과의 UX 평가와 기계 Evidence 대조처럼 제품 상태를 바꾸지 않는 판정 lane
+
+순차 실행 필수:
+
+- 같은 Session·Conversation·Memory·Work·Runtime·Telegram chat·Automation job을 공유하는 Mission
+- 기억→현재 교정→forget, version→Undo, busy input→cancel→restart처럼 앞 단계 상태가 다음 단계 입력인 여정
+- 같은 외부 effect·Delivery·ACK unknown을 건드리는 시험
+- 같은 package candidate의 upgrade·rollback·delete·restore
+- P0/P1 수리와 그 수리 후 관련 Mission 재시험
+- Final Judge의 중복 finding 정규화와 완료 판정
+
+Agent 격리·blindness:
+
+- Mission Runner는 hidden filename·marker·expected row·정답 위치를 받지 않는다.
+- Fixture Operator는 사용자 UX 점수와 최종 PASS를 판정하지 않는다.
+- UX Observer는 내부 원장을 보고 사용자 화면을 해석하지 않는다.
+- Evidence Auditor는 모델 답을 정답으로 사용하지 않고 actual source·effect·Artifact를 대조한다.
+- Agent 간 전달은 Mission ID·public user prompt·content-free timing·opaque Evidence handle·판정 초안만 사용한다.
+- 실제 사용자 자료·비밀·절대경로·전체 screenshot·provider body를 Agent 메시지에 복제하지 않는다.
+
+효율 규율:
+
+```text
+Phase 단위 fixture 준비
+→ 저비용 positive control로 package·model·Console 건강 확인
+→ 독립 Mission만 가능한 범위에서 병렬 실행
+→ 고비용·상태 의존 Mission은 한 번씩 순차 실행
+→ UX와 기계 Evidence를 병렬 감사
+→ Controller가 같은 결함 가족을 하나로 정규화
+→ P0/P1만 Repair Owner가 순차 수리
+→ 관련 Mission만 1회 재시험
+→ 마지막에 전체 CI 1회
+```
+
+- 같은 fixture·같은 모델·같은 결함을 여러 Agent가 중복 실행하지 않는다.
+- 한 Agent의 timeout이나 provider failure를 제품 실패로 복제하지 않고 environment/provider/product를 분리한다.
+- P0가 재현되면 의존하는 고비용 Mission을 즉시 중단한다.
+- 외부 경계가 확인되면 scraper·Connector·Prompt 경쟁을 열지 않고 `PARTIAL_EXTERNAL_BOUNDARY`로 보존한다.
+- Agent 수·병렬 Turn·검사 수를 완료 근거로 사용하지 않는다.
+- 병렬 Mission이 CPU·disk·provider rate limit·Browser·포트에 간섭하면 병렬화를 줄이고 결과 신뢰성을 우선한다.
+- 제품 코드를 수정하는 Agent는 항상 한 명이며, 수정 중 다른 Agent는 같은 candidate를 실행하지 않는다.
+
+Agent Team 완료 문장:
+
+> 격리 가능한 인간 Mission과 읽기 전용 증거 감사만 병렬화되고, 상태 의존 여정·외부 효과·제품 수리는 한 책임자
+> 아래 순차 실행된다. Agent Team은 같은 시험을 복제하지 않고 blind 사용자 경험과 actual 기계 현실을 독립적으로
+> 대조해 더 적은 실행으로 더 신뢰할 수 있는 최종 제품 판정을 만든다.
 
 필수 인간 목적은 기능별 smoke가 아니라 다음 열 개 mission이다.
 

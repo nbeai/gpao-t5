@@ -105,3 +105,23 @@ test('여러 대화 전이는 action·범위·중복·모든 id를 먼저 검증
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('고정·수동 그룹은 Conversation 내용을 복제하거나 휴지통 대화를 부활시키지 않는다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-console-groups-'));
+  try {
+    const store = new ConsoleSessionStore(dir); const first = await store.create(); const second = await store.create();
+    await store.append(first.id, { role: 'user', text: '한빛상사 정산' });
+    await store.updateMeta(first.id, { pinned: true });
+    const group = await store.createGroup('회사 운영');
+    assert.equal((await store.assignGroup({ ids: [first.id, second.id], groupId: group.groupId })).count, 2);
+    const listed = await store.list();
+    assert.equal(listed.find((session) => session.id === first.id).groupId, group.groupId);
+    assert.ok(listed.find((session) => session.id === first.id).pinnedAt);
+    assert.equal(JSON.stringify(await store.listGroups()).includes('한빛상사'), false);
+    await store.softDelete(second.id);
+    await assert.rejects(store.assignGroup({ ids: [second.id], groupId: null }), /target not found/u);
+    const removed = await store.deleteGroup(group.groupId); assert.equal(removed.moved, 2);
+    assert.equal((await store.load(first.id)).groupId, null);
+    assert.ok((await store.load(second.id)).deletedAt);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

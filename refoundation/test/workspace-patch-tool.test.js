@@ -39,10 +39,12 @@ test('workspace_patch durable undo는 새 tool instance에서 exact rollback하�
     const applied = await first.execute(call({ action: 'apply', planHandle: preview.planHandle }));
     assert.ok(applied.undoHandle); assert.equal(await readFile(target, 'utf8'), '{"revision":2}');
     const restarted = makeWorkspacePatchTool({ workspace: root, stateRoot, sessionId: 'session-a' });
+    assert.equal(await restarted.undoAvailable({ undoHandle: applied.undoHandle }), true);
     const rolled = await restarted.execute(call({ action: 'rollback', undoHandle: applied.undoHandle }));
     assert.equal(rolled.state, 'rolled_back_verified');
     assert.equal(await readFile(target, 'utf8'), '{"revision":1}');
     await assert.rejects(readFile(join(root, 'created.txt')), { code: 'ENOENT' });
+    assert.equal(await restarted.undoAvailable({ undoHandle: applied.undoHandle }), false);
     await assert.rejects(restarted.execute(call({ action: 'rollback', undoHandle: applied.undoHandle })), /stale/u);
   } finally { await rm(root, { recursive: true, force: true }); }
 });

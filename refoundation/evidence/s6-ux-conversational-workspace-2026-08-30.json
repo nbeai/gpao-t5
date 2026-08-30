@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_UX_CONVERSATIONAL_WORKSPACE_AND_RESULT_EXPERIENCE",
+  "status": "IMPLEMENTATION_CANDIDATE_ACTUAL_CONSOLE_PASS_FINAL_HQ_PENDING",
+  "baselineCommit": "4e6a0770",
+  "productPrinciples": {
+    "newWorkProgressArtifactStore": 0,
+    "newRouterOrIntentEnum": 0,
+    "rawReasoningExposed": false,
+    "canonicalRuntimeEventsReused": true,
+    "sessionContentCopiedForGroups": false
+  },
+  "actualConsole": {
+    "browserSurface": "T5 Console UI",
+    "viewports": ["1280x800", "900x760"],
+    "themes": ["light", "dark"],
+    "missions": [
+      { "id": "DIRECT_FLAT", "status": "PASS", "facts": ["user bubble", "assistant flat body", "Tool 0 fixture"] },
+      { "id": "LONG_DOCUMENT", "status": "PASS", "facts": ["h1 h2", "ordered 1 2 3", "table", "code", "blockquote"] },
+      { "id": "RUNNING_CONTROL", "status": "PASS", "facts": ["composer correction copy", "single Stop", "stopping disabled state", "final cleanup"] },
+      { "id": "ARTIFACT_SURFACE", "status": "PASS", "facts": ["title reveal", "download", "exact file reveal boundary", "durable Undo", "Undo target absent", "Undo action removed after use"] },
+      { "id": "SESSION_ORGANIZATION", "status": "PASS", "facts": ["pin and unpin", "manual group dialog", "group move", "collapse", "canonical Session unchanged"] },
+      { "id": "RESPONSIVE_AND_THEME", "status": "PASS", "facts": ["narrow readable", "dark contrast", "keyboard names present", "dialog focus"] }
+    ]
+  },
+  "artifactIdentity": {
+    "previewDownloadRevealSameAttachment": true,
+    "rawPathInUserSurface": false,
+    "revealUsesExactBytesAndSha256": true,
+    "missingOrChangedFallsBackToParent": false,
+    "undoUsesExistingAuthoringHandle": true,
+    "uiOnlySuccessState": false
+  },
+  "economy": {
+    "baselineUiBytes": 294397,
+    "candidateUiBytes": 304559,
+    "newUiFrameworkBytes": 0,
+    "directModelCallsAdded": 0,
+    "directToolCallsAdded": 0,
+    "groupAndArtifactActions": "user initiated only"
+  },
+  "waDeltaAudit": {
+    "changedEdges": [
+      "Session metadata to list grouping",
+      "canonical activity to composer control",
+      "Artifact identity to Reveal and Undo",
+      "assistant message to flat renderer"
+    ],
+    "duplicateTruthOwner": 0,
+    "orphanEffectOrArtifact": 0,
+    "blindRetryCycle": 0,
+    "contentStoreAdded": 0,
+    "windowsMeaning": "Explorer label and invocation preserved; physical qualification deferred"
+  },
+  "remaining": [
+    "final actual Console HQ core wave",
+    "final whole refoundation CI",
+    "physical Windows product qualification"
+  ],
+  "productIntegration": { "passed": 205, "failed": 0, "skippedWindows": 2 }
+}

@@ -37,7 +37,8 @@ test('Work 현실 패널은 canonical version과 showPanel을 따르고 사용�
   assert.match(renderer, /work-reality-panel'\)\?\.remove/u);
   assert.match(renderer, /liveTrace\.hidden = liveTrace\.dataset\.hasToolActivity !== 'true'/u);
   assert.match(html, /trace\.hidden = false/u);
-  assert.match(html, /멈춤\.hidden = false/u);
+  assert.match(html, /composerStop\.hidden = !running/u);
+  assert.match(html, /setComposerInteraction\(activity\.steps\?\.length \? 'working' : 'responding'\)/u);
 });
 
 test('Artifact 인간 영수증은 기존 카드 안에서 접혀 있고 textContent만 사용한다', async () => {

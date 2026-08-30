@@ -42,8 +42,9 @@ test('초기 세션 목록만 180ms 뒤 고정 형태 스켈레톤을 보이고 
 
 test('실행 중에는 중지 버튼이 있고 미완료 상태를 정형 오류 카드로 만들지 않는다', async () => {
   const html = await readFile(consoleHtml, 'utf8');
-  assert.match(html, /createElement\('button'\); stop\.type = 'button'; stop\.className = 'stopbtn'/u);
-  assert.match(html, /aria-label', '현재 작업 멈추기'/u);
+  assert.match(html, /id="composerStop"[^>]*>멈추기<\/button>/u);
+  assert.match(html, /function setComposerInteraction\(mode = 'idle'/u);
+  assert.match(html, /composerStop\.hidden = !running/u);
   assert.match(html, /fetch\('\/turn\/cancel'/u);
   assert.match(html, /if \(activeLocalTurns > 0\) return/u);
   assert.doesNotMatch(html, /failure-title', '이번 작업을 끝내지 못했어요'/u);

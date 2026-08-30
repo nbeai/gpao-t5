@@ -7,6 +7,15 @@ const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
 const BULK_ACTIONS = new Set(['archive', 'delete', 'restore']);
 
 function clone(value) { return value == null ? value : structuredClone(value); }
+function groupName(value) {
+  const text = String(value ?? '').trim();
+  if (!text || text.length > 40 || /[\u0000-\u001f\u007f]/u.test(text)) throw new TypeError('session group name is invalid');
+  return text;
+}
+function groupId(value, { nullable = true } = {}) {
+  if (value == null && nullable) return null;
+  const id = String(value ?? ''); if (!SESSION_ID.test(id)) throw new TypeError('session group id is invalid'); return id;
+}
 
 function bulkTransitionInput(ids, action) {
   if (!Array.isArray(ids) || ids.length < 1 || ids.length > MAX_BULK_SESSIONS) {
@@ -66,10 +75,11 @@ export class ConsoleSessionStore {
   async read() {
     try {
       const state = JSON.parse(await readFile(this.file, 'utf8'));
-      if (state?.version === 1 && Array.isArray(state.sessions)) return state;
+      if (state?.version === 1 && Array.isArray(state.sessions)) return { ...state,
+        groups: Array.isArray(state.groups) ? state.groups : [] };
       throw new Error('unsupported console session state');
     } catch (error) {
-      if (error?.code === 'ENOENT') return { version: 1, nextOrder: 1, sessions: [] };
+      if (error?.code === 'ENOENT') return { version: 1, nextOrder: 1, sessions: [], groups: [] };
       throw error;
     }
   }
@@ -95,6 +105,7 @@ export class ConsoleSessionStore {
       const session = {
         id: randomUUID(), title: '새 대화', manualTitle: false,
         createdAt: now, updatedAt: now, order: state.nextOrder++, transcript: [], pinned: false,
+        groupId: null,
         origin: sessionOrigin(origin),
         continuationOf: continuationSource(continuationOf),
       };
@@ -121,7 +132,8 @@ export class ConsoleSessionStore {
           .find((entry) => entry?.role === 'assistant');
         return {
           id: session.id, title: session.title, createdAt: session.createdAt, updatedAt: session.updatedAt,
-          pinned: Boolean(session.pinned), archivedAt: session.archivedAt ?? null,
+          pinned: Boolean(session.pinned), pinnedAt: session.pinnedAt ?? null, archivedAt: session.archivedAt ?? null,
+          groupId: session.groupId ?? null,
           deletedAt: session.deletedAt ?? null, turns: session.transcript.length,
           origin: clone(session.origin ?? null),
           continuationOf: session.continuationOf ?? null,
@@ -155,7 +167,15 @@ export class ConsoleSessionStore {
         session.title = fields.title.trim().slice(0, 80);
         session.manualTitle = true;
       }
-      if (typeof fields.pinned === 'boolean') session.pinned = fields.pinned;
+      if (typeof fields.pinned === 'boolean') {
+        session.pinned = fields.pinned;
+        if (fields.pinned) session.pinnedAt ??= Date.now(); else delete session.pinnedAt;
+      }
+      if (Object.hasOwn(fields, 'groupId')) {
+        const target = groupId(fields.groupId);
+        if (target && !state.groups.some((group) => group.groupId === target)) throw new Error('session group not found');
+        session.groupId = target;
+      }
       if (fields.lastModelConnection !== undefined) {
         session.lastModelConnection = modelConnection(fields.lastModelConnection);
       }
@@ -246,6 +266,49 @@ export class ConsoleSessionStore {
       }
       if (changed.length) await this.write(state);
       return { action: input.action, count: changed.length, sessions: changed };
+    });
+  }
+
+  async listGroups() {
+    const state = await this.read(); return state.groups.toSorted((left, right) => left.order - right.order)
+      .map((group) => clone(group));
+  }
+
+  async createGroup(name) {
+    return this.serialize(async () => {
+      const state = await this.read(); const displayName = groupName(name);
+      if (state.groups.some((group) => group.displayName.toLocaleLowerCase() === displayName.toLocaleLowerCase())) {
+        throw new Error('session group already exists');
+      }
+      const group = { groupId: randomUUID(), displayName,
+        order: state.groups.reduce((max, item) => Math.max(max, item.order), 0) + 1 };
+      state.groups.push(group); await this.write(state); return clone(group);
+    });
+  }
+
+  async deleteGroup(value) {
+    return this.serialize(async () => {
+      const state = await this.read(); const id = groupId(value, { nullable: false });
+      const index = state.groups.findIndex((group) => group.groupId === id);
+      if (index < 0) throw new Error('session group not found');
+      state.groups.splice(index, 1); let moved = 0;
+      for (const session of state.sessions) if (session.groupId === id) { session.groupId = null; moved += 1; }
+      await this.write(state); return { groupId: id, moved };
+    });
+  }
+
+  async assignGroup({ ids, groupId: value }) {
+    const normalized = bulkTransitionInput(ids, 'archive').ids; const target = groupId(value);
+    return this.serialize(async () => {
+      const state = await this.read();
+      if (target && !state.groups.some((group) => group.groupId === target)) throw new Error('session group not found');
+      const selected = normalized.map((id) => state.sessions.find((session) => session.id === id));
+      if (selected.some((session) => !session || session.deletedAt)) throw new Error('session group target not found');
+      let changed = 0; const now = Date.now();
+      for (const session of selected) if ((session.groupId ?? null) !== target) {
+        session.groupId = target; session.updatedAt = now; changed += 1;
+      }
+      if (changed) await this.write(state); return { groupId: target, count: changed };
     });
   }
 }

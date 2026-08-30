@@ -734,6 +734,19 @@ export class AttachmentStore {
     return { ...clone(record), ...publicRecord(record) };
   }
 
+  async publicationForArtifact({ sessionId, attachmentId } = {}) {
+    const owner = safeUuid(sessionId, 'session'); const id = safeUuid(attachmentId, 'attachment');
+    const events = await this.events(); const record = this.recordsFrom(events).get(id);
+    if (!record || record.sessionId !== owner || record.direction !== 'output') {
+      throw Object.assign(new Error('result artifact not found'), { status: 404 });
+    }
+    const batch = [...this.producedOutputBatchesFrom(events).values()].find((candidate) => (
+      candidate.sessionId === owner && candidate.artifactIds?.includes(id)
+    ));
+    return batch?.publication?.state === 'published_verified' && batch.publication.undoHandle
+      ? clone(batch.publication) : null;
+  }
+
   async link({ sessionId, attachmentIds = [], messageId, runId = null, inputId = null } = {}) {
     const owner = safeUuid(sessionId, 'session');
     if (!String(messageId ?? '').trim() || (!String(runId ?? '').trim() && !String(inputId ?? '').trim())) {

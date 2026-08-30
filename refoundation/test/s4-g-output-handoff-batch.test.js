@@ -116,6 +116,9 @@ test('committed batch는 모델 호출 없이 Artifact 전량을 한 사건으�
     assert.ok(registered.artifacts.every((artifact) => artifact.direction === 'output'));
     assert.ok(registered.artifacts.every((artifact) => artifact.links.length === 1
       && artifact.links[0].runId === RUN));
+    for (const artifact of registered.artifacts) assert.deepEqual(
+      await app.store.publicationForArtifact({ sessionId: SESSION, attachmentId: artifact.attachmentId }),
+      { state: 'published_verified', undoHandle: 'undo_exec-artifacts' });
     assert.equal((await app.store.pendingProducedOutputs({ sessionId: SESSION, producerRunId: RUN })).length, 0);
     const events = (await readFile(join(app.directory, 'ledger.jsonl'), 'utf8'))
       .split('\n').filter(Boolean).map(JSON.parse);

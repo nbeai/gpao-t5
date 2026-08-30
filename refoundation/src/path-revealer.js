@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { posix, win32 } from 'node:path';
 
@@ -43,10 +45,17 @@ async function closestExisting(path, platform, statPath) {
   }
 }
 
+async function sha256File(path) {
+  const digest = createHash('sha256');
+  for await (const chunk of createReadStream(path)) digest.update(chunk);
+  return digest.digest('hex');
+}
+
 export function makePathRevealer({
   platform = process.platform,
   userHome,
   statPath = stat,
+  digestPath = sha256File,
   spawnProcess = spawn,
 } = {}) {
   return async function revealPath(rawPath, options = {}) {
@@ -67,6 +76,14 @@ export function makePathRevealer({
       }
       if (options.modifiedAt && info.mtime?.toISOString?.() !== options.modifiedAt) {
         throw Object.assign(new Error('exact file identity changed'), { status: 409 });
+      }
+      if (options.sha256) {
+        let digest;
+        try { digest = await digestPath(requestedPath); }
+        catch { throw Object.assign(new Error('exact file is unavailable'), { status: 409 }); }
+        if (digest !== options.sha256) {
+          throw Object.assign(new Error('exact file identity changed'), { status: 409 });
+        }
       }
       found = { path: requestedPath, targetType: 'file' };
     } else found = await closestExisting(requestedPath, platform, statPath);

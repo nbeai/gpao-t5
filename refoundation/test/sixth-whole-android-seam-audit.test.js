@@ -8,7 +8,7 @@ const evidence = JSON.parse(await readFile(new URL(
 
 test('S6-WA는 16 seam과 네 P1 수리·Windows 물리 blocker를 함께 보존한다', () => {
   assert.equal(evidence.status,
-    'BASELINE_COMPLETE_MACOS_P0_P1_REPAIRED_WINDOWS_EXPLICIT_UX_DELTA_PENDING');
+    'COMPLETE_MACOS_P0_P1_REPAIRED_WINDOWS_EXPLICIT_UX_DELTA_REAUDITED');
   assert.equal(evidence.seams.length, 16); assert.equal(evidence.repairs.length, 4);
   assert.equal(evidence.verification.totalFocused.failed, 0);
   assert.equal(evidence.completion.p0UnresolvedMacos, 0);
