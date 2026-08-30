@@ -47,7 +47,8 @@ import { projectPublicWorkReality, projectWorkReality } from './work-reality-pro
 import { makeArtifactPublicationProductAdapter,
   projectHumanArtifactReceipt } from './artifact-publication-projection.js';
 import { makeEffectForensicProductAdapter,
-  projectHumanEffectForensicReceipt, projectHumanEffectRollbackReceipt } from './effect-forensic-projection.js';
+  projectHumanEffectForensicReceipt, projectHumanEffectRollbackReceipt,
+  projectHumanFileOrganizationReceipt } from './effect-forensic-projection.js';
 import { makeWorkHistoryProductAdapter } from './work-history-projection.js';
 import { makePurposeBoundedHistoryAdapter } from './purpose-bounded-history.js';
 import { makePurposeHistoryTool } from './purpose-history-tool.js';
@@ -904,6 +905,8 @@ export function makeConsoleServer({
           const relevantCalls = verifiedPublications.length ? verifiedPublications : calls;
           humanEffects = await Promise.all(relevantCalls.slice(0, 16).map(async (event) => {
             try {
+              const organization = projectHumanFileOrganizationReceipt(event.payload.receipt);
+              if (organization) return organization;
               const value = await effectForensics.materialize({ sessionId: session.id, runId,
                 toolCallId: event.payload.receipt.toolCallId });
               const base = projectHumanEffectForensicReceipt(value);

@@ -59,4 +59,5 @@ test('완료 Artifact가 있는 achieved 결과는 같은 성공의 mutation 영
   assert.match(source, /artifacts\.length && objectiveOutcome === 'achieved'\) humanEffects = \[\]/u);
   assert.match(source, /objectiveOutcome === 'achieved' && humanEffects\.length > 1/u);
   assert.match(source, /providerAccepted === false[\s\S]*externallyReachable === false/u);
+  assert.match(source, /projectHumanFileOrganizationReceipt\(event\.payload\.receipt\)/u);
 });

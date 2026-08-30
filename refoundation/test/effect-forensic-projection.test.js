@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { makeEffectForensicProductAdapter, projectHumanEffectForensicReceipt,
-  projectHumanEffectRollbackReceipt } from '../src/effect-forensic-projection.js';
+  projectHumanEffectRollbackReceipt,
+  projectHumanFileOrganizationReceipt } from '../src/effect-forensic-projection.js';
 import { RunLedger } from '../src/run-ledger.js';
 
 const digest = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -88,6 +89,22 @@ test('실행 실패와 남은 변화는 같은 인간 영수증에서 둘 다 �
   { outcome: 'failed' });
   const human = projectHumanEffectForensicReceipt(value);
   assert.match(human.title, /변화를 확인/u); assert.match(human.unknowns.join(' '), /실행은 실패/u);
+});
+
+test('파일 정리와 되돌리기는 일반 effect 미확인 경고 대신 exact 사용자 영수증이 된다', () => {
+  const receipt = (action, result) => ({ outcome: 'succeeded',
+    requestedCall: { name: 'file_reality', args: { action } },
+    actualCall: { name: 'file_reality', args: { action } }, result });
+  const applied = projectHumanFileOrganizationReceipt(receipt('apply', {
+    state: 'applied', filesMoved: 2,
+  }));
+  assert.match(applied.title, /2개 파일/u); assert.equal(applied.unknowns.length, 0);
+  assert.match(applied.rollback, /되돌릴 수/u);
+  const rolledBack = projectHumanFileOrganizationReceipt(receipt('rollback', {
+    state: 'rolled_back', filesRestored: 2,
+  }));
+  assert.match(rolledBack.title, /원래 위치/u); assert.equal(rolledBack.unknowns.length, 0);
+  assert.equal(projectHumanFileOrganizationReceipt(receipt('search', { state: 'observed' })), null);
 });
 
 test('symlink null access는 열기 가능 여부 confirmed가 아니다', async () => {

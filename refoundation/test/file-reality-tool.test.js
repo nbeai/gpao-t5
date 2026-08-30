@@ -82,6 +82,7 @@ test('모호한 검색의 exact handle은 사용자가 파일 전달을 요청�
   const room = await fixture(); const registered = [];
   try {
     const tool = makeFileRealityTool({ workspace: room.workspace, home: room.root,
+      sessionId: 'session-organize',
       platform: 'test', computerRoots: [room.root], protectedRoots: [room.protectedRoot],
       indexSearch: async () => [room.target],
       registerSelectedFile: async (facts) => { registered.push(facts); return {
@@ -254,10 +255,10 @@ test('ready plan만 원자 이동하고 exact plan rollback이 원래 위치를 
 test('정리 apply는 요청한 새 목적지 폴더를 만들고 rollback에서 빈 폴더까지 제거한다', async () => {
   const room = await fixture();
   try {
-    const plans = join(room.root, 'plans'); const destination = join(room.root, '정리 후보');
+    const plans = join(room.root, 'plans'); const destination = join(room.workspace, '정리 후보');
     const original = await readFile(room.b, 'utf8');
     const tool = makeFileRealityTool({ workspace: room.workspace, home: room.root,
-      platform: 'test', computerRoots: [room.root], protectedRoots: [room.protectedRoot],
+      sessionId: 'session-organize', platform: 'test', computerRoots: [room.elsewhere], protectedRoots: [room.protectedRoot],
       organizationRoot: plans, indexSearch: async () => [room.b] });
     const found = await tool.execute({ action: 'search', query: '새봄 견적 복사', scope: 'workspace',
       path: null, handles: null, maxCandidates: 10, placements: null });
@@ -271,7 +272,10 @@ test('정리 apply는 요청한 새 목적지 폴더를 만들고 rollback에서
     assert.equal(applied.filesMoved, 1);
     assert.equal(await readFile(join(destination, '새봄 견적서 복사.txt'), 'utf8'), original);
     await assert.rejects(() => stat(room.b));
-    const rolledBack = await tool.execute({ action: 'rollback', planId: plan.planId, effect });
+    const restarted = makeFileRealityTool({ workspace: room.workspace, home: room.root,
+      sessionId: 'session-organize', platform: 'test', computerRoots: [room.elsewhere],
+      protectedRoots: [room.protectedRoot], organizationRoot: plans, indexSearch: async () => [] });
+    const rolledBack = await restarted.execute({ action: 'rollback', planId: null, effect });
     assert.equal(rolledBack.filesRestored, 1);
     assert.equal((await stat(room.b)).isFile(), true);
     await assert.rejects(() => stat(destination));

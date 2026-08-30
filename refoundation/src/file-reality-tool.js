@@ -344,6 +344,28 @@ export function makeFileRealityTool({
     }
     const plan = volatilePlans.get(id); if (!plan) throw new Error('organization plan is unavailable'); return structuredClone(plan);
   };
+  const latestAppliedPlan = async () => {
+    const owner = sessionId ?? 'local'; const candidates = new Map();
+    for (const plan of volatilePlans.values()) candidates.set(plan.planId, structuredClone(plan));
+    if (organizationRoot) {
+      try {
+        const directory = await opendir(organizationRoot);
+        for await (const entry of directory) {
+          if (!entry.isFile() || !/^plan-[0-9a-f-]{36}\.json$/iu.test(entry.name)) continue;
+          try {
+            const plan = JSON.parse(await readFile(join(organizationRoot, entry.name), 'utf8'));
+            candidates.set(plan.planId, plan);
+          } catch { /* unreadable plans are not current rollback candidates */ }
+        }
+      } catch (error) { if (error?.code !== 'ENOENT') throw error; }
+    }
+    const selected = [...candidates.values()].filter((plan) => (
+      plan.schema === 't5.file-organization-plan.v1' && plan.state === 'applied'
+      && (plan.sessionId ?? 'local') === owner
+    )).sort((left, right) => String(right.appliedAt ?? '').localeCompare(String(left.appliedAt ?? '')))[0];
+    if (!selected) throw new Error('organization rollback candidate is unavailable');
+    return selected;
+  };
   const reopen = async (handle) => {
     const record = handles.get(String(handle ?? '')); if (!record) throw new Error('file candidate handle is unavailable');
     const stat = await lstat(record.path);
@@ -359,7 +381,7 @@ export function makeFileRealityTool({
     completionProposalOptional: (args = {}) => [
       'search', 'image_candidates', 'inspect', 'compare', 'visual_candidates',
     ].includes(args.action),
-    description: 'Find real local files when the user remembers only approximate names, contents, dates, amounts, people, projects, or prior context. When the user did not name a folder and did not explicitly limit the request to the current project or workspace, use computer scope; the mere existence of a managed workspace is not a user-selected search boundary. Use workspace only for an explicitly current workspace/project request, and path for one exact user-named folder. Return bounded opaque candidates and evidence without sending the whole filesystem or file contents to the model. Inspect selected candidates. When the user asks to find and show, give, open, or otherwise use identified files, call deliver once for every exact selected non-image file that belongs in the result; do not finish with printed paths alone. Exact selected images are registered during visual inspect. Compare exact duplicates or possible versions, and preview an exact organization plan with collision facts before any file is changed. Never declare a final version from the filename alone.',
+    description: 'Find real local files when the user remembers only approximate names, contents, dates, amounts, people, projects, or prior context. When the user did not name a folder and did not explicitly limit the request to the current project or workspace, use computer scope; the mere existence of a managed workspace is not a user-selected search boundary. Use workspace only for an explicitly current workspace/project request, and path for one exact user-named folder. Return bounded opaque candidates and evidence without sending the whole filesystem or file contents to the model. Inspect selected candidates. When the user asks to find and show, give, open, or otherwise use identified files, call deliver once for every exact selected non-image file that belongs in the result; do not finish with printed paths alone. Exact selected images are registered during visual inspect. Compare exact duplicates or possible versions, and preview an exact organization plan with collision facts before any file is changed. For an explicit request to undo the most recent file organization in the current Session, call rollback with planId null; the runtime selects only the latest still-applied plan owned by that Session. Do not answer with a future-tense rollback promise. Never declare a final version from the filename alone.',
     searchTerms: [
       'find local file whole computer vague name content duplicate latest version',
       '컴퓨터 전체 파일 찾기 이름 위치 모름 내용 단서 중복 최종본 버전',
@@ -589,7 +611,11 @@ export function makeFileRealityTool({
       }
       if (action === 'plan') {
         if (!Array.isArray(placements) || placements.length < 1) throw new TypeError('one or more file placements are required');
-        const roots = (await rootsFor('computer')).roots; const exactProtectedRoots = await canonicalProtectedRoots;
+        const [computerBoundary, workspaceBoundary] = await Promise.all([
+          rootsFor('computer'), rootsFor('workspace'),
+        ]);
+        const roots = [...new Set([...computerBoundary.roots, ...workspaceBoundary.roots])];
+        const exactProtectedRoots = await canonicalProtectedRoots;
         const seenSources = new Set(); const seenTargets = new Set(); const changes = []; const operations = [];
         for (const placement of placements) {
           const { record, stat } = await reopen(placement.handle);
@@ -635,14 +661,17 @@ export function makeFileRealityTool({
             displayName: record.displayName, state: alreadyThere ? 'unchanged' : 'pending' });
         }
         const id = `plan-${randomUUID()}`; const readyToApply = changes.every((item) => ['ready', 'already_there'].includes(item.state));
-        await savePlan({ schema: 't5.file-organization-plan.v1', planId: id, state: 'planned', operations,
+        await savePlan({ schema: 't5.file-organization-plan.v1', planId: id,
+          sessionId: sessionId ?? 'local', state: 'planned', operations,
           createdAt: new Date(now()).toISOString() });
         return { state: 'planned', planId: id, changes, readyToApply,
           filesChanged: 0, note: 'preview only; no file was moved, renamed, overwritten, or deleted' };
       }
       if (action === 'apply') {
         if (!organizationEffect(effect)) throw new Error('reversible local change declaration is required');
-        const plan = await loadPlan(planId); if (plan.state !== 'planned') throw new Error('organization plan is not ready to apply');
+        const plan = await loadPlan(planId);
+        if ((plan.sessionId ?? 'local') !== (sessionId ?? 'local')) throw new Error('organization plan owner mismatch');
+        if (plan.state !== 'planned') throw new Error('organization plan is not ready to apply');
         if (plan.operations.some((item) => !['pending', 'moved', 'unchanged'].includes(item.state))) throw new Error('organization plan state is invalid');
         for (const operation of plan.operations) {
           if (operation.state === 'unchanged') continue;
@@ -711,7 +740,9 @@ export function makeFileRealityTool({
       }
       if (action === 'rollback') {
         if (!organizationEffect(effect)) throw new Error('reversible local change declaration is required');
-        const plan = await loadPlan(planId); if (plan.state !== 'applied') throw new Error('organization plan is not applied');
+        const plan = planId == null ? await latestAppliedPlan() : await loadPlan(planId);
+        if ((plan.sessionId ?? 'local') !== (sessionId ?? 'local')) throw new Error('organization plan owner mismatch');
+        if (plan.state !== 'applied') throw new Error('organization plan is not applied');
         for (const operation of plan.operations.filter((item) => item.state === 'moved')) {
           const source = await statOrNull(operation.source); const target = await statOrNull(operation.target);
           if (target == null && identityMatches(operation.identity, source)) {

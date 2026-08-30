@@ -235,3 +235,24 @@ export function projectHumanEffectRollbackReceipt(value) {
       : value.result === 'not_restored' ? '이전 상태로 돌아오지 않았어요.'
         : '되돌린 결과를 아직 확인하지 못했어요.', result: value.result });
 }
+
+export function projectHumanFileOrganizationReceipt(receipt) {
+  if (receipt?.outcome !== 'succeeded'
+    || receipt.requestedCall?.name !== 'file_reality'
+    || receipt.actualCall?.name !== 'file_reality'
+    || receipt.requestedCall.args?.action !== receipt.actualCall.args?.action) return null;
+  const action = receipt.actualCall.args.action; const result = receipt.result;
+  if (action === 'apply' && result?.state === 'applied'
+    && Number.isInteger(result.filesMoved) && result.filesMoved >= 0) return deepFreeze({
+    title: `${result.filesMoved}개 파일을 정리했어요.`,
+    confirmed: [`파일 ${result.filesMoved}개의 이동을 완료했어요.`],
+    rollback: '이 변경은 되돌릴 수 있어요.', unknowns: [], detailsAvailable: true,
+  });
+  if (action === 'rollback' && result?.state === 'rolled_back'
+    && Number.isInteger(result.filesRestored) && result.filesRestored >= 0) return deepFreeze({
+    title: `${result.filesRestored}개 파일을 원래 위치로 되돌렸어요.`,
+    confirmed: [`파일 ${result.filesRestored}개의 복원을 완료했어요.`],
+    rollback: '되돌리기를 완료했어요.', unknowns: [], detailsAvailable: true,
+  });
+  return null;
+}
