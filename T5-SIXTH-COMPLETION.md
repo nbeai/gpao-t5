@@ -1,9 +1,9 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_COMPLETE · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
+상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_COMPLETE · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · S6_J_COMPLETE · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
-현재 Gate: `S6-J · ECONOMY CLOSE`
-현재 작업: `S6_J_FIRST_ACTUAL_COST_FAMILY · PRESENTATION_ROUND_TRIP_DENSITY`
+현재 Gate: `S6-HQ · FINAL ANDROID HUMAN QUALIFICATION`
+현재 작업: `S6_HQ_MACOS_CORE_WAVE · SPEED_CARRY_AND_EXTERNAL_PHYSICAL_BLOCKER`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -1327,6 +1327,8 @@ loopback을 external physical PASS로 승격하지 않는다. 따라서 실계�
 
 ### S6-J — Economy Close
 
+현재 상태: `COMPLETE_FIRST_ACTUAL_COST_FAMILY · QUALITY_PRESERVED · P0_SPEED_CARRY_REMAINS`
+
 새 Context architecture를 만들지 않는다. S6-A~I actual에서 사용자 이익을 유지한 채 가장 비싼 결함 가족 최대
 세 개만 연다.
 
@@ -1359,6 +1361,21 @@ loopback을 external physical PASS로 승격하지 않는다. 따라서 실계�
 
 > T5는 6차의 새 능력과 기존 정확성·복구를 보존하면서 같은 Evidence와 검증을 이유 없이 반복하지 않고,
 > 사용자가 첫 유용한 결과를 더 빨리 받으며 전체 비용 증가가 실제 이익으로 설명된다.
+
+S6-H 첫 actual의 자연어 3장 editable presentation은 정확성·Preview·download는 통과했지만 53.880초·model 15·
+Tool 14·337,251 tokens였다. 당시 전역 instruction에는 `create-pptx`가 보였지만 실제로 열린 document-data Skill에는
+PPTX의 생성·source notes·reopen·registration 절차가 없었다. Runtime 조건이나 새 Router를 만들지 않고 해당 방법을
+on-demand Skill에 결속하고 전역 instruction은 5차 exact bytes로 되돌렸다.
+
+같은 gpt-5.6-terra·같은 격리 Console·같은 사용자 목적 재시험은 31.150초·model 10·Tool 9·152,696 tokens였다.
+wall 42.18%, model/tool 각 5회, tokens 54.72%가 줄었고 요청한 세 slide·전체 Preview·editable PPTX download·
+Artifact v1·내부 path 비노출은 그대로 통과했다. 일반 Direct의 Context·Tool 비용 증가는 0이다.
+
+첫 bounded runner는 반복 call별 exact reason을 보존하지 않았으므로 남은 skill·attachment 반복을 추측해 세 번째
+조건 patch로 줄이지 않는다. 날씨 11.089초와 이름 파일 검색 18.767초·filename phase 7.75초는 정확성 완료가 아니라
+최종 HQ 속도 carry다. source identity 없는 provider-native 답이나 filename coverage를 줄이는 후보는 계속 폐기한다.
+
+근거: `refoundation/evidence/s6-j-economy-close-2026-08-30.json`.
 
 ---
 

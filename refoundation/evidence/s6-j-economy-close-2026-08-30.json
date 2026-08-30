@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_J_ECONOMY_CLOSE",
+  "status": "COMPLETE_FIRST_ACTUAL_COST_FAMILY",
+  "baselineCommit": "6ad6b9ce",
+  "candidateCommit": "f4ca4a86",
+  "purpose": "natural-language three-slide editable executive presentation",
+  "qualityInvariants": {
+    "accurateRequestedSlides": true,
+    "allSlidesPreviewed": true,
+    "editablePptxDownloaded": true,
+    "artifactVersion": 1,
+    "internalPathInAnswer": false,
+    "actualUserData": false,
+    "externalWrites": 0
+  },
+  "baseline": {
+    "wallMs": 53880.046,
+    "modelCalls": 15,
+    "toolCalls": 14,
+    "providerTokens": 337251
+  },
+  "candidate": {
+    "wallMs": 31150.143,
+    "modelCalls": 10,
+    "toolCalls": 9,
+    "providerTokens": 152696
+  },
+  "improvement": {
+    "wallMs": -22729.903,
+    "wallPercent": -42.18,
+    "modelCalls": -5,
+    "toolCalls": -5,
+    "providerTokens": -184555,
+    "providerTokensPercent": -54.72
+  },
+  "adoptedPrinciple": {
+    "globalInstructionBytesDelta": 0,
+    "newRuntimeRouter": false,
+    "newStore": false,
+    "change": "PPTX creation, source notes, reopen, Preview, and registration guidance lives in the on-demand document-data Skill actually opened for the task",
+    "generalDirectConversationCost": 0
+  },
+  "remainingObservation": {
+    "visibleToolFamilies": ["skill", "exec", "attachment", "work_completion"],
+    "exactReasonForEveryRepeatedCall": "not retained by the first bounded runner output",
+    "thirdPatchAllowed": false,
+    "decision": "stop after quality-preserving Pareto improvement instead of inferring another runtime condition"
+  },
+  "carryForward": [
+    "weather actual 11.089 seconds remains UX_SPEED_PARTIAL",
+    "name file search actual 18.767 seconds and filename phase 7.75 seconds remain speed observations",
+    "final HQ compares greeting, weather, one attachment, recent report, name file search, title reveal, and presentation"
+  ],
+  "completionSentence": "T5는 전문 산출물의 정확성·Preview·다운로드를 유지하면서 필요한 방법을 on-demand Skill에 결속해 같은 사용자 목적의 wall·model/tool 왕복·tokens를 실제로 줄였다."
+}
