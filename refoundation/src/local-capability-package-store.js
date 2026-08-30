@@ -35,7 +35,7 @@ export async function inspectLocalCapabilityPackage(sourcePath) {
   if (packageDefinition.manifest.source.kind !== 'local_directory') throw new Error('local package requires local_directory source');
   const observed = await tree(root);
   if (observed.payloadDigest !== packageDefinition.manifest.source.artifactDigest) throw new Error('capability package payload digest mismatch');
-  return { root, package: packageDefinition, observed };
+  return { root, package: packageDefinition, manifestDigest: hash(raw), observed };
 }
 
 async function readState(file) { try { return JSON.parse(await readFile(file, 'utf8')); }
@@ -49,6 +49,7 @@ export class LocalCapabilityPackageStore {
   generationPath(id, generationId) { return join(this.root, 'packages', id, generationId); }
   async inspect(sourcePath) { const value = await inspectLocalCapabilityPackage(sourcePath); return { id: value.package.id,
     version: value.package.version, kind: value.package.manifest.kind, source: value.package.manifest.source,
+    manifestDigest: value.manifestDigest,
     payloadDigest: value.observed.payloadDigest, files: value.observed.entries.length, bytes: value.observed.bytes,
     state: 'structurally_checked' }; }
   async installInactive(sourcePath) { return this.serialize(async () => { const inspected = await inspectLocalCapabilityPackage(sourcePath);
@@ -61,7 +62,8 @@ export class LocalCapabilityPackageStore {
       await rename(staging, destination);
     } finally { await rm(staging, { recursive: true, force: true }); }
     const row = state.packages[id] ?? { activeGenerationId: null, previousGenerationIds: [], generations: [] };
-    row.generations.push({ generationId, version: inspected.package.version, payloadDigest: inspected.observed.payloadDigest,
+    row.generations.push({ generationId, version: inspected.package.version,
+      manifestDigest: inspected.manifestDigest, payloadDigest: inspected.observed.payloadDigest,
       source: inspected.package.manifest.source, state: 'installed_inactive' }); state.packages[id] = row; await atomic(this.file, state);
     return { id, generationId, version: inspected.package.version, state: 'installed_inactive' }; }); }
   async enable(id, generationId) { return this.serialize(async () => { const state = await readState(this.file); const row = state.packages[id];
@@ -79,6 +81,20 @@ export class LocalCapabilityPackageStore {
     if (row.activeGenerationId && row.activeGenerationId !== previous) row.previousGenerationIds.push(row.activeGenerationId);
     row.activeGenerationId = previous; for (const item of row.generations) item.state = item.generationId === previous ? 'active' : 'installed_inactive';
     await atomic(this.file, state); return { id, generationId: previous, state: 'active' }; }); }
+  async openActive(id) {
+    const state = await readState(this.file); const row = state.packages[id];
+    if (!row?.activeGenerationId) throw new Error('capability package is not active');
+    const generation = row.generations.find((item) => item.generationId === row.activeGenerationId);
+    if (!generation || generation.state !== 'active') throw new Error('active capability generation is inconsistent');
+    const reopened = await inspectLocalCapabilityPackage(this.generationPath(id, generation.generationId));
+    if (reopened.package.id !== id || reopened.package.version !== generation.version
+      || reopened.manifestDigest !== generation.manifestDigest
+      || reopened.observed.payloadDigest !== generation.payloadDigest) {
+      throw new Error('active capability generation readback mismatch');
+    }
+    return { id, generationId: generation.generationId, version: generation.version,
+      payloadDigest: generation.payloadDigest, package: reopened.package };
+  }
   async uninstall(id, generationId) { return this.serialize(async () => { const state = await readState(this.file); const row = state.packages[id];
     if (!row) throw new Error('capability package not found'); if (row.activeGenerationId === generationId) throw new Error('active generation must be disabled first');
     const index = row.generations.findIndex((item) => item.generationId === generationId); if (index < 0) throw new Error('capability generation not found');

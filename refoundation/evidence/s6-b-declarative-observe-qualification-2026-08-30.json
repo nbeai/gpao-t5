@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_B_QUARANTINE_QUALIFICATION_AND_LIFECYCLE",
+  "status": "DECLARATIVE_OBSERVE_ENGINE_QUALIFIED_PRODUCT_ENTRY_0",
+  "baseCommit": "656cd5aa",
+  "engine": {
+    "activeGenerationExactReopen": true,
+    "manifestDigestBound": true,
+    "payloadDigestBound": true,
+    "process": "separate_helper",
+    "effect": "observe_only",
+    "auth": "none_only",
+    "networkHosts": 1,
+    "httpsOnly": true,
+    "redirects": false,
+    "closedScalarArguments": true,
+    "jsonSuccessOnly": true,
+    "maximumResponseBytes": 262144,
+    "modelReceivesUrlOrCommandInput": false,
+    "runtimeVerifiesReturnedUrlStatusAndContentType": true
+  },
+  "actualLoopback": {
+    "helperExecutions": 1,
+    "approximateWallMs": 52,
+    "sourceUrlPreserved": true,
+    "publisherIdentityPreserved": true,
+    "externalNetwork": false
+  },
+  "countertests": [
+    "inactive_generation",
+    "unknown_argument",
+    "missing_action",
+    "external_change_action",
+    "manifest_tamper"
+  ],
+  "weatherCandidates": {
+    "openMeteo": {
+      "adopted": false,
+      "reason": "free endpoint is evaluation or non-commercial; commercial use needs a paid key"
+    },
+    "kmaApiHub": {
+      "adopted": false,
+      "reason": "free official API requires user registration and personal authKey"
+    },
+    "openAiProviderNative": {
+      "adopted": false,
+      "reason": "official schema supports URL citations but current gpt-5.6-terra actual omitted URL and title identity",
+      "thirdSameDirectionPatch": false
+    }
+  },
+  "verification": { "focusedPassed": 7, "focusedFailed": 0, "externalWrites": 0 },
+  "remaining": ["product activation with a legally usable exact source", "same-purpose external actual", "S6-C natural resume"],
+  "nonClaims": ["S6-B complete", "weather latency solved", "external provider qualified"]
+}

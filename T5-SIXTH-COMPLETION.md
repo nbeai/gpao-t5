@@ -3,7 +3,7 @@
 상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
 현재 Gate: `S6-B · QUARANTINE, QUALIFICATION & LIFECYCLE`
-현재 작업: `S6_B_BASELINE_COMPLETE · FIRST_DECLARATIVE_OBSERVE_GAP_OPEN`
+현재 작업: `S6_B_DECLARATIVE_OBSERVE_ENGINE_QUALIFIED · PRODUCT_ACTIVATION_PENDING`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -789,7 +789,7 @@ actual 근거: `refoundation/evidence/s6-a-capability-reality-product-2026-08-30
 
 ### S6-B — Quarantine, Qualification & Lifecycle
 
-현재 상태: `OPEN · EXISTING_LIFECYCLE_BASELINE_COMPLETE · PRODUCT_CANDIDATE_0`
+현재 상태: `OPEN · DECLARATIVE_OBSERVE_QUALIFIED_PRODUCT_ENTRY_0`
 
 읽기 전용 baseline에서 기존 기반 39/39를 재자격했다.
 
@@ -810,6 +810,25 @@ Capability Reality에 결속하는 제품 executor가 없다는 것이다. P0-01
 Core in-process code·일반 HTTP proxy를 함께 열지 않는다.
 
 근거: `refoundation/evidence/s6-b-lifecycle-baseline-2026-08-30.json`.
+
+첫 qualification slice는 `LocalCapabilityPackageStore.openActive`와 trusted declarative observer helper를 추가했다.
+active generation의 package manifest·payload를 exact reopen하고, no-secret·observe-only·한 host·closed scalar args인
+action만 별도 process에서 GET으로 실행한다. helper는 credential-free HTTPS, redirect 0, JSON success, 256KiB output,
+timeout을 물리 집행하고 Runtime은 returned URL·status·content type을 독립 대조한다. 모델은 URL·header·command를
+직접 받지 않는다.
+
+loopback actual은 helper process exact 1회·약 52ms로 source URL과 publisher identity를 보존했다. inactive package,
+unknown arg, missing/write action, manifest tamper는 helper/network 전에 닫혔다. 이 과정에서 기존 store가 payload
+digest만 저장하고 `capability.json` 자체 digest를 generation에 결속하지 않은 P1을 발견해 manifest digest exact
+readback을 추가했다.
+
+외부 weather 후보는 아직 제품에 채택하지 않았다. Open-Meteo free API는 평가·비상업 용도이고 상용 endpoint는
+유료 key가 필요하다. 기상청 API허브는 무료이지만 회원가입·개인 authKey가 필요하다. 앞서 provider-native OpenAI
+검색도 공식 API 문서상 URL citation을 지원하지만 현재 gpt-5.6-terra actual이 URL/title을 주지 않았으므로 같은
+방향의 세 번째 patch를 열지 않는다. 따라서 이번 slice는 executor qualification이며 제품 entry·실제 외부 호출·
+자연어 activation은 0이다.
+
+근거: `refoundation/evidence/s6-b-declarative-observe-qualification-2026-08-30.json`.
 
 새 package engine을 만들지 않고 기존 source identity·managed store·Capability lifecycle·Effect·rollback을 확장한다.
 
