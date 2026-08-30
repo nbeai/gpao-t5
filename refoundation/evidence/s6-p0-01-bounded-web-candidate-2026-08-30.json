@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "gate": "S6_P0_01_BOUNDED_CURRENT_WEB",
-  "status": "FIRST_CANDIDATE_QUALIFIED_NOT_COMPLETE",
+  "status": "CLIENT_HAND_AND_ATTACHMENT_QUALIFIED_PROVIDER_NATIVE_CANDIDATE_OPEN",
   "baselineCommit": "f42e4db7",
   "model": "gpt-5.6-terra",
   "provider": "openai",
@@ -39,6 +39,35 @@
     "tokens": 7589,
     "requestBytes": 38858
   },
+  "actualInstalledEquivalentQualification": {
+    "weather": {
+      "passed": true,
+      "wallMs": 13455.038,
+      "modelCalls": 2,
+      "toolCalls": 1,
+      "tools": ["web_research"],
+      "tokens": 29682,
+      "requestBytes": 122914,
+      "requestedSourceLimit": 4,
+      "returnedSourceCount": 6,
+      "currentWeatherFactsAndCitations": true,
+      "toolSearchCalls": 0,
+      "workCompletionCalls": 0
+    },
+    "attachment": {
+      "passed": true,
+      "wallMs": 2783.4,
+      "modelCalls": 2,
+      "toolCalls": 1,
+      "tools": ["attachment"],
+      "tokens": 15617,
+      "requestBytes": 81007,
+      "exactCanaryRead": true,
+      "workCompletionCalls": 0
+    },
+    "actualUserData": false,
+    "externalWrites": 0
+  },
   "deterministicRegression": {
     "focusedTests": 33,
     "failed": 0,
@@ -58,8 +87,7 @@
     "boundedReadOnlyObservationNeedsCompletionProposal": false
   },
   "remaining": [
-    "actual current weather source A/B",
-    "actual-model single attachment A/B",
-    "provider-native server grounding comparison"
+    "provider-native server grounding comparison and candidate",
+    "actual Console human latency comparison after product integration"
   ]
 }

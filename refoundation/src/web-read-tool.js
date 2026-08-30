@@ -368,6 +368,7 @@ export function makeWebReadTool({
   return {
     name: 'web_read',
     executionMode: 'parallel',
+    completionProposalOptional: true,
     capabilityGroup: 'web_observation',
     relatedTools: ['browser'],
     searchTerms: ['exact public URL page content static read', '정확한 주소 페이지 읽기'],

@@ -418,7 +418,7 @@ AND target 밖 effect·orphan·blind retry·false completion 0
 
 #### P0-01 — Commodity Conversation Observation Latency
 
-현재 상태: `FIRST_CANDIDATE_QUALIFIED · PRODUCT_INSTALL_NOT_YET_BUILT · SINGLE_ATTACHMENT_SLICE_PENDING`
+현재 상태: `CLIENT_HAND_QUALIFIED · SINGLE_ATTACHMENT_QUALIFIED · PROVIDER_NATIVE_GROUNDING_CANDIDATE_OPEN · PRODUCT_INSTALL_NOT_YET_BUILT`
 
 단순 서울 날씨 한 건의 실제 경로는 다음이었다.
 
@@ -497,9 +497,15 @@ call에서 정확한 답을 냈다. 직접 생각 대화는 model 1·Tool 0을 �
 `work_completion` 비노출을 통과했다. read-only list·inspect·document page search/reopen만 이 경계를 사용하며
 register/finalize·output publication은 기존 Work 계약을 유지한다.
 
-이 결과는 P0-01 전체 완료가 아니다. 실제 날씨 current source A/B, 실제 모델 single attachment와 provider별
-server-grounding 경제성은 다음 slice에 남는다. 현재 후보를 날씨 Router나 모든 공개 조사 sourceLimit 1로
-확대하지 않는다.
+설치 제품과 같은 저장 OpenAI Search provider·gpt-5.6-terra의 actual에서는 실제 서울 날씨를 13.455초·model 2·
+Tool 1·29,682 tokens·122,914 request bytes로 정확히 답했다. 오너 Live baseline 20.170초·model 4·Tool 3·47,501
+tokens·229,594 bytes보다 개선됐고 `tool_search·work_completion`은 0이었다. 실제 모델 single attachment도
+2.783초·model 2·Tool 1로 통과했다.
+
+그러나 narrow 날씨 요청에서도 모델은 sourceLimit 4를 선택했고 Web Hand는 여섯 source를 반환했다. 정확한
+결과라도 13초대는 최상위 UX 완료 기준에 충분하지 않다. 같은 결함 가족에 sourceLimit 조건을 더 붙이지 않고,
+provider-native server search/grounding이 같은 model response에서 source와 답을 결속하는 두 번째 후보를 연다.
+현재 후보를 날씨 Router나 모든 공개 조사 sourceLimit 1로 확대하지 않는다.
 
 #### P0-02 — Exact File Result Affordance
 

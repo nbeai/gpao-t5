@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 
 import { makeWebReadTool, normalizeWebUrl, webUserAgentForPlatform } from '../src/web-read-tool.js';
 
+test('exact URL read는 bounded observation으로 completion proposal을 요구하지 않는다', () => {
+  const tool = makeWebReadTool({ fetchImpl: async () => new Response('ok') });
+  assert.equal(tool.completionProposalOptional, true);
+});
+
 function makePdf(text) {
   const escaped = text.replace(/[()\\]/g, '\\$&');
   const stream = `BT /F1 12 Tf 72 720 Td (${escaped}) Tj ET`;
