@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_P0_TO_J_PRE_UX_AUDIT",
+  "status": "COMPLETE_ONE_P1_REPAIR_REMAINING_BOUNDARIES_PRESERVED",
+  "baselineCommit": "ad171aa6",
+  "candidateCommit": "same_commit_as_evidence",
+  "productPromise": "smooth, comfortable, accurate interaction while the model judges meaning and Runtime supplies factual hands",
+  "gateAudit": [
+    { "gate": "S6-P0", "state": "CLOSED_WITH_SPEED_CARRY", "adoptedRepair": "overlap independent filename, OS index, filesystem, and bounded content observations", "remaining": ["weather 11.089s UX speed partial", "actual name-search provider wall requires final Console comparison"] },
+    { "gate": "S6-A", "state": "COMPLETE", "adoptedRepair": null, "remaining": [] },
+    { "gate": "S6-B", "state": "COMPLETE_EXISTING_TYPES_AND_QUALIFIED_EXECUTOR", "adoptedRepair": null, "remaining": ["no unsourced external package activation"] },
+    { "gate": "S6-C", "state": "COMPLETE_SUPPORTED_TYPES", "adoptedRepair": null, "remaining": ["STT executable generation absent"] },
+    { "gate": "S6-D_E", "state": "DEFAULT_ON_ADMISSION_HARDENED", "adoptedRepair": "9faf0845", "remaining": ["natural human fresh-field benefit not universally proven"] },
+    { "gate": "S6-F_G", "state": "CLOSED_WITH_OBSERVATION_AND_NOT_OPEN", "adoptedRepair": null, "remaining": ["Apple Notes attachment purpose unmet", "no screen/OCR/action expansion"] },
+    { "gate": "S6-H", "state": "COMPLETE_EDITABLE_PRESENTATION", "adoptedRepair": "6ad6b9ce", "remaining": ["PowerPoint and Windows physical import unclaimed"] },
+    { "gate": "S6-I", "state": "PHYSICAL_HUMAN_QUALIFICATION_PENDING", "adoptedRepair": null, "remaining": ["one human-controlled external write/readback/delivery mission"] },
+    { "gate": "S6-J", "state": "COMPLETE_FIRST_ACTUAL_COST_FAMILY", "adoptedRepair": "af22a62d", "remaining": ["P0 speed carry remains"] }
+  ],
+  "fileSearchRepair": {
+    "fixture": { "files": 8001, "entriesObserved": 8081, "syntheticIndexDelayMs": 600 },
+    "baseline": { "wallMs": 1414.766, "candidateCorrect": true, "filenameScope": "complete", "contentScope": "partial" },
+    "candidate": { "wallMs": 995.277, "candidateCorrect": true, "filenameScope": "complete", "contentScope": "partial" },
+    "improvement": { "wallMs": -419.489, "percent": -29.65 },
+    "runtimeMeaningChanged": false,
+    "newStore": false,
+    "newRouter": false,
+    "boundedContentReadConcurrency": 16
+  },
+  "verification": {
+    "focusedFileAndReveal": { "passed": 25, "failed": 0 },
+    "protectedRootsAndPhotoLibrary": true,
+    "unicodeFilenamePriority": true,
+    "contentAndOcrLanesPreserved": true,
+    "staleHandleFailClosed": true
+  },
+  "forbiddenExpansions": [
+    "weather or business intent router",
+    "source-free fast answer",
+    "automatic STT package or model download",
+    "screen capture expansion after S6-F failure",
+    "real-account automated external write",
+    "Windows success inferred from macOS"
+  ],
+  "nextGate": "S6_UX_CONVERSATIONAL_WORKSPACE_AND_RESULT_EXPERIENCE",
+  "completionSentence": "P0부터 J까지 완료 주장과 실제 제품 배선을 다시 대조해 자동 수리 가능한 파일 검색 직렬 I/O만 개선했고, 권한·source·실계정·물리 플랫폼이 필요한 미달은 제품 패치로 꾸미지 않았다."
+}

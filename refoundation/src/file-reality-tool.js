@@ -103,6 +103,15 @@ function ocrEvidence(query, observed) {
 function safeInteger(value, fallback, min, max) {
   const parsed = Number(value ?? fallback); return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : fallback;
 }
+async function mapConcurrent(items, concurrency, worker) {
+  const output = new Array(items.length); let next = 0;
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next; next += 1; output[index] = await worker(items[index], index);
+    }
+  }));
+  return output;
+}
 function pathInside(candidate, root) {
   const rel = relative(root, candidate); return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel));
 }
@@ -421,18 +430,20 @@ export function makeFileRealityTool({
           ? recentUserDocuments({ home, roots, protectedRoots: exactProtectedRoots,
             deadline: startedAt + 1_500, query: clue })
           : Promise.resolve([]);
-        const filenameWalk = await walkMatchingNames(roots, clue, { limit: 500, deadline: startedAt + 2_000,
-          excludedDirectoryNames: DEFAULT_EXCLUDED_DIRECTORY_NAMES, protectedRoots: exactProtectedRoots });
-        const indexed = await indexSearch({ query: clue, roots, platform, limit: 500 });
-        const walk = await walkFiles(roots, { maxFiles: 200_000, deadline,
-          excludedDirectoryNames: DEFAULT_EXCLUDED_DIRECTORY_NAMES, protectedRoots: exactProtectedRoots });
+        const [filenameWalk, indexed, walk] = await Promise.all([
+          walkMatchingNames(roots, clue, { limit: 500, deadline: startedAt + 2_000,
+            excludedDirectoryNames: DEFAULT_EXCLUDED_DIRECTORY_NAMES, protectedRoots: exactProtectedRoots }),
+          indexSearch({ query: clue, roots, platform, limit: 500 }),
+          walkFiles(roots, { maxFiles: 200_000, deadline,
+            excludedDirectoryNames: DEFAULT_EXCLUDED_DIRECTORY_NAMES, protectedRoots: exactProtectedRoots }),
+        ]);
         const indexedSet = new Set();
         for (const item of indexed) {
           let candidate; try { candidate = await realpath(resolve(item)); } catch { continue; }
           if (roots.some((root) => pathInside(candidate, root))) indexedSet.add(candidate);
         }
         const paths = [...new Set([...filenameWalk.matches, ...indexedSet, ...walk.files])];
-        const ranked = []; const imagePool = []; let contentProbes = 0; let ocrProbes = 0;
+        const ranked = []; const imagePool = []; const contentJobs = []; let contentProbes = 0; let ocrProbes = 0;
         for (const candidate of paths) {
           if (now() >= deadline && !indexedSet.has(resolve(candidate))) break;
           if (protectedPath(candidate, exactProtectedRoots)) continue;
@@ -441,18 +452,34 @@ export function makeFileRealityTool({
           const lexical = lexicalEvidence(clue, basename(candidate), locationText(candidate, home));
           if (IMAGE_EXTENSIONS.has(extname(candidate).toLowerCase())) imagePool.push({ candidate, stat, lexical,
             indexed: indexedSet.has(resolve(candidate)) });
-          let content = { matched: [], score: 0 };
-          if (indexedSet.has(resolve(candidate)) || lexical.score > 1
+          const indexedCandidate = indexedSet.has(resolve(candidate));
+          if (indexedCandidate || lexical.score > 1
             || (contentProbes < 2_000 && TEXT_EXTENSIONS.has(extname(candidate).toLowerCase()))) {
             contentProbes += 1;
-            const observed = await boundedText(candidate).catch(() => null);
-            if (observed) content = contentEvidence(clue, observed);
+            contentJobs.push({ candidate, stat, lexical, indexed: indexedCandidate });
           }
-          const score = lexical.score + content.score + (indexedSet.has(resolve(candidate)) ? 10 : 0);
+          const score = lexical.score + (indexedCandidate ? 10 : 0);
           if (score <= 0) continue;
-          ranked.push({ record: exactRecord(candidate, stat, home, { indexed: indexedSet.has(resolve(candidate)),
+          ranked.push({ record: exactRecord(candidate, stat, home, { indexed: indexedCandidate,
             matchedNameTerms: lexical.matchedName, matchedLocationTerms: lexical.matchedPath,
-            matchedContentTerms: content.matched, nameSimilarity: Number(lexical.nameSimilarity.toFixed(3)) }), score });
+            matchedContentTerms: [], nameSimilarity: Number(lexical.nameSimilarity.toFixed(3)) }), score });
+        }
+        const contentResults = await mapConcurrent(contentJobs, 16, async (job) => {
+          if (now() >= deadline && !job.indexed) return null;
+          const observed = await boundedText(job.candidate).catch(() => null);
+          return observed ? { job, content: contentEvidence(clue, observed) } : null;
+        });
+        for (const result of contentResults.filter(Boolean)) {
+          if (result.content.score <= 0) continue;
+          const existing = ranked.find((item) => item.record.path === result.job.candidate);
+          if (existing) {
+            existing.score += result.content.score;
+            existing.record.evidence.matchedContentTerms = result.content.matched;
+          } else ranked.push({ record: exactRecord(result.job.candidate, result.job.stat, home, {
+            indexed: result.job.indexed, matchedNameTerms: result.job.lexical.matchedName,
+            matchedLocationTerms: result.job.lexical.matchedPath, matchedContentTerms: result.content.matched,
+            nameSimilarity: Number(result.job.lexical.nameSimilarity.toFixed(3)),
+          }), score: result.content.score + (result.job.indexed ? 10 : 0) });
         }
         if (typeof ocrProbe === 'function') {
           imagePool.sort((left, right) => Number(right.indexed) - Number(left.indexed)
