@@ -13,6 +13,7 @@ const PLATFORM_KEYS = new Set([
   'darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64', 'win32-arm64', 'win32-x64',
 ]);
 const DEFAULT_MAX_BYTES = 64 * 1024 * 1024;
+const DEFAULT_DOWNLOAD_TIMEOUT_MS = 60_000;
 const EXPOSURES = new Set(['path', 'tool_only']);
 const TOOL_SURFACE = /^[a-z][a-z0-9_]{0,63}$/u;
 
@@ -116,6 +117,23 @@ async function responseBytes(response, maxBytes, expectedBytes) {
 
 function digest(bytes) { return createHash('sha256').update(bytes).digest('hex'); }
 
+function abortError(signal) {
+  return signal?.reason instanceof Error ? signal.reason : new Error('CLI download interrupted');
+}
+
+function settleWithinSignal(work, signal) {
+  if (signal?.aborted) return Promise.reject(abortError(signal));
+  return new Promise((resolve, reject) => {
+    const cleanup = () => signal?.removeEventListener('abort', onAbort);
+    const onAbort = () => { cleanup(); reject(abortError(signal)); };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    Promise.resolve(work).then(
+      (value) => { cleanup(); resolve(value); },
+      (error) => { cleanup(); reject(error); },
+    );
+  });
+}
+
 async function defaultVerifyExecutable({ path, expectedVersion, timeoutMs = 5000 }) {
   return new Promise((resolve, reject) => {
     const child = spawn(path, ['--version'], {
@@ -140,10 +158,16 @@ async function defaultVerifyExecutable({ path, expectedVersion, timeoutMs = 5000
 }
 
 export class ManagedCliStore {
-  constructor({ root, catalog, platform = process.platform, architecture = process.arch, fetchImpl = fetch, verifyExecutable = defaultVerifyExecutable, maxBytes = DEFAULT_MAX_BYTES } = {}) {
+  constructor({ root, catalog, platform = process.platform, architecture = process.arch, fetchImpl = fetch,
+    verifyExecutable = defaultVerifyExecutable, maxBytes = DEFAULT_MAX_BYTES,
+    downloadTimeoutMs = DEFAULT_DOWNLOAD_TIMEOUT_MS } = {}) {
     if (!root || !catalog?.byId) throw new TypeError('managed CLI store inputs are required');
+    if (!Number.isInteger(downloadTimeoutMs) || downloadTimeoutMs < 10 || downloadTimeoutMs > 300_000) {
+      throw new TypeError('managed CLI download timeout is invalid');
+    }
     this.root = root; this.catalog = catalog; this.platform = platform; this.architecture = architecture;
     this.fetch = fetchImpl; this.verifyExecutable = verifyExecutable; this.maxBytes = maxBytes;
+    this.downloadTimeoutMs = downloadTimeoutMs;
     this.bin = join(root, 'bin'); this.privateBin = join(root, 'private-bin'); this.versions = join(root, 'versions'); this.trash = join(root, 'trash');
     this.ledger = join(root, 'cli-lifecycle.jsonl'); this.queue = Promise.resolve();
   }
@@ -200,27 +224,37 @@ export class ManagedCliStore {
     }
     return used;
   }
-  async ensureVersion(id, version) {
+  async ensureVersion(id, version, { signal: parentSignal } = {}) {
     const asset = this.catalog.asset(id, version, this.platform, this.architecture); const target = this.versionPath(id, version);
     const packageDirectory = join(this.versions, id); const directory = join(packageDirectory, version);
     await rejectSymlink(packageDirectory); await mkdir(packageDirectory, { recursive: true, mode: 0o700 }); await chmod(packageDirectory, 0o700);
     await rejectSymlink(directory); await mkdir(directory, { recursive: true, mode: 0o700 }); await chmod(directory, 0o700);
     await rejectSymlink(target);
     if (await this.matchingVersion(id, target) === version) return { target, asset, downloaded: false };
-    const bytes = await responseBytes(
-      await this.fetch(asset.url, { redirect: 'follow' }), Math.min(this.maxBytes, asset.bytes), asset.bytes,
-    );
-    if (digest(bytes) !== asset.sha256) throw new Error('CLI SHA-256 verification failed');
-    const temporary = join(directory, `.download-${randomUUID()}`);
+    const timeout = AbortSignal.timeout(this.downloadTimeoutMs);
+    const signal = parentSignal ? AbortSignal.any([parentSignal, timeout]) : timeout;
+    let response;
     try {
-      await writeFile(temporary, bytes, { mode: 0o600 }); await chmod(temporary, 0o700);
-      await this.verifyExecutable({ path: temporary, id, expectedVersion: version, timeoutMs: this.entry(id).verifyTimeoutMs });
-      await rename(temporary, target); await chmod(target, 0o700);
-    } catch (error) { await rm(temporary, { force: true }); throw error; }
-    return { target, asset, downloaded: true };
+      response = await settleWithinSignal(this.fetch(asset.url, { redirect: 'follow', signal }), signal);
+      const bytes = await settleWithinSignal(responseBytes(
+        response, Math.min(this.maxBytes, asset.bytes), asset.bytes,
+      ), signal);
+      if (digest(bytes) !== asset.sha256) throw new Error('CLI SHA-256 verification failed');
+      const temporary = join(directory, `.download-${randomUUID()}`);
+      try {
+        await writeFile(temporary, bytes, { mode: 0o600 }); await chmod(temporary, 0o700);
+        await this.verifyExecutable({ path: temporary, id, expectedVersion: version, timeoutMs: this.entry(id).verifyTimeoutMs });
+        await rename(temporary, target); await chmod(target, 0o700);
+      } catch (error) { await rm(temporary, { force: true }); throw error; }
+      return { target, asset, downloaded: true };
+    } catch (error) {
+      await response?.body?.cancel?.().catch?.(() => {});
+      if (timeout.aborted && !parentSignal?.aborted) throw new Error('CLI download timed out');
+      throw error;
+    }
   }
-  async activate(id, version, type = 'installed') {
-    const { target, asset, downloaded } = await this.ensureVersion(id, version); const active = this.binaryPath(id);
+  async activate(id, version, type = 'installed', { signal } = {}) {
+    const { target, asset, downloaded } = await this.ensureVersion(id, version, { signal }); const active = this.binaryPath(id);
     const entry = this.entry(id); const current = await this.status(id);
     const surface = entry.exposure === 'path' ? { managedPath: active } : { availableThrough: entry.toolSurface };
     if (current.activeVersion === version) return { state: 'already_installed', id, version, ...surface, sha256: asset.sha256 };
@@ -231,7 +265,7 @@ export class ManagedCliStore {
     await this.writeState(id, { activeVersion: version, history }); await this.append(type, { id, version, previousVersion: current.activeVersion, sha256: asset.sha256, sourceUrl: asset.url });
     return { state: type, id, version, previousVersion: current.activeVersion, ...surface, sha256: asset.sha256, downloaded };
   }
-  async install(id, { version } = {}) { return this.serialize(async () => { await this.ensure(); const entry = this.entry(id); return this.activate(id, version ?? entry.defaultVersion, 'installed'); }); }
+  async install(id, { version, signal } = {}) { return this.serialize(async () => { await this.ensure(); const entry = this.entry(id); return this.activate(id, version ?? entry.defaultVersion, 'installed', { signal }); }); }
   async remove(id) { return this.serialize(async () => { await this.ensure(); const current = await this.status(id); if (!current.activeVersion) throw new Error('managed CLI is not installed');
     const trashName = `${id}-${current.activeVersion}-${Date.now()}-${executableName(this.entry(id).command, this.platform)}`; await rename(this.binaryPath(id), join(this.trash, trashName));
     const state = await this.readState(id); await this.writeState(id, { activeVersion: null, history: [...(state.history ?? []), current.activeVersion].slice(-20) }); await this.append('removed', { id, version: current.activeVersion, trashName });
@@ -268,12 +302,14 @@ export function makeCliAcquisitionTool({ store, authorizeEffect } = {}) {
         allowed: false, outcome: 'not_executed', result: { state: 'managed_local_change_required' } };
       return typeof authorizeEffect === 'function' ? authorizeEffect(args, context) : { allowed: true };
     },
-    async execute(args) {
+    async execute(args, context = {}) {
       if (args.action === 'search') { const installed = new Map((await store.installed()).map((item) => [item.id, item.activeVersion])); return { packages: store.catalog.packages.filter((item) => !args.id || item.id.includes(args.id)).map((item) => ({ ...item, installedVersion: installed.get(item.id) ?? null })) }; }
       if (!args.id) throw new TypeError('CLI package id is required');
       if (args.action === 'preview') { const entry = store.entry(args.id); return { state: 'previewed', ...publicPackage(entry), asset: store.catalog.asset(args.id, args.version ?? entry.defaultVersion, store.platform, store.architecture), codeExecution: true, systemInstall: false }; }
       if (args.action === 'status') return store.status(args.id);
-      if (args.action === 'install') return store.install(args.id, { version: args.version ?? undefined });
+      if (args.action === 'install') return store.install(args.id, {
+        version: args.version ?? undefined, signal: context.signal,
+      });
       if (args.action === 'remove') return store.remove(args.id);
       if (args.action === 'restore') return store.restore(args.id);
       if (args.action === 'rollback') return store.rollback(args.id);

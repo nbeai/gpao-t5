@@ -10,6 +10,23 @@ function distinctCandidates(candidates, limit) {
   return selected;
 }
 
+function abortError(signal) {
+  return signal?.reason instanceof Error ? signal.reason : new Error('web research interrupted');
+}
+
+function settleWithinSignal(work, signal) {
+  if (signal?.aborted) return Promise.reject(abortError(signal));
+  return new Promise((resolve, reject) => {
+    const onAbort = () => { cleanup(); reject(abortError(signal)); };
+    const cleanup = () => signal?.removeEventListener('abort', onAbort);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    Promise.resolve(work).then(
+      (value) => { cleanup(); resolve(value); },
+      (error) => { cleanup(); reject(error); },
+    );
+  });
+}
+
 function hostFact(kind, rawUrl) {
   if (!rawUrl) return null;
   try {
@@ -114,9 +131,21 @@ export function makeWebResearchTool({ searchTool, readTool, timeoutMs = 15_000 }
       if (!Number.isInteger(sourceLimit) || sourceLimit < 1 || sourceLimit > 6) {
         throw new TypeError('sourceLimit must be between 1 and 6');
       }
-      const searches = await Promise.all(queries.map((focused, index) => searchTool.execute({
-        query: focused, provider: null, limit: Math.min(20, sourceLimit * 2), domains: args.domains ?? [],
-      }, { ...context, resourceChildId: `query-${index + 1}` })));
+      const timeout = AbortSignal.timeout(timeoutMs);
+      const signal = context.signal ? AbortSignal.any([context.signal, timeout]) : timeout;
+      let searches;
+      try {
+        searches = await settleWithinSignal(Promise.all(queries.map((focused, index) => searchTool.execute({
+          query: focused, provider: null, limit: Math.min(20, sourceLimit * 2), domains: args.domains ?? [],
+        }, { ...context, signal, resourceChildId: `query-${index + 1}` }))), signal);
+      } catch (error) {
+        return {
+          state: context.signal?.aborted ? 'cancelled' : 'research_timeout',
+          query, queries, searches: [], sources: [], observedPageContent: false,
+          reason: error?.message ?? String(error), timeoutMs,
+          stopFurtherResearch: true, deactivatedTools: ['web_research', 'web_search'],
+        };
+      }
       const candidates = []; const seen = new Set();
       const largest = Math.max(0, ...searches.map((search) => search.candidates?.length ?? 0));
       for (let rank = 0; rank < largest; rank += 1) {
@@ -130,13 +159,11 @@ export function makeWebResearchTool({ searchTool, readTool, timeoutMs = 15_000 }
         state: 'search_unavailable', query, queries, searches, sources: [], observedPageContent: false,
       };
       const selected = distinctCandidates(candidates, Math.min(10, sourceLimit * 2));
-      const timeout = AbortSignal.timeout(timeoutMs);
-      const signal = context.signal ? AbortSignal.any([context.signal, timeout]) : timeout;
       const observations = await Promise.all(selected.map(async (candidate) => {
         try {
-          return compactObservation(candidate, await readTool.execute({
+          return compactObservation(candidate, await settleWithinSignal(readTool.execute({
             url: candidate.url, maxChars: 5_000,
-          }, { signal }));
+          }, { signal }), signal));
         } catch (error) {
           return compactObservation(candidate, {
             state: signal.aborted ? 'cancelled' : 'failed', reason: error?.message ?? String(error),
@@ -154,16 +181,21 @@ export function makeWebResearchTool({ searchTool, readTool, timeoutMs = 15_000 }
         provenance: observations[index]?.provenance,
         images: candidatePreviewImages(candidate, observations[index]),
       }));
+      const userCancelled = context.signal?.aborted === true;
+      const timedOut = timeout.aborted && !userCancelled;
       return {
-        state: read ? 'researched' : 'no_readable_sources', query,
+        state: userCancelled ? 'cancelled'
+          : timedOut ? 'research_timeout' : (read ? 'researched' : 'no_readable_sources'), query,
         providers: [...new Map(searches.filter((item) => item.provider).map((item) => [item.provider.id, item.provider])).values()],
         queries, candidateCount: candidates.length,
         selectedCount: selected.length, readableCount: read, sources,
         selectedPreviewMetadata,
         observedPageContent: read > 0,
         coverage: { requestedSources: sourceLimit, selectedSources: selected.length, readableSources: read },
-        stopFurtherResearch: boundedComplete,
-        ...(boundedComplete ? { deactivatedTools: ['web_research', 'web_search'] } : {}),
+        stopFurtherResearch: userCancelled || timedOut || boundedComplete,
+        ...((userCancelled || timedOut || boundedComplete)
+          ? { deactivatedTools: ['web_research', 'web_search'] } : {}),
+        ...(timedOut ? { timeoutMs } : {}),
       };
     },
   };

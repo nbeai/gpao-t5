@@ -5,6 +5,27 @@ import {
 } from './provider-request-accounting.js';
 
 const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+function abortError(signal, timeout) {
+  if (timeout?.aborted && !signal?.aborted) return Object.assign(
+    new Error('OpenAI web search timed out'), { code: 'OPENAI_WEB_SEARCH_TIMEOUT' },
+  );
+  return signal?.reason instanceof Error ? signal.reason : new Error('OpenAI web search cancelled');
+}
+
+function settleWithinSignal(work, operationSignal, callerSignal, timeout) {
+  if (operationSignal.aborted) return Promise.reject(abortError(callerSignal, timeout));
+  return new Promise((resolve, reject) => {
+    const onAbort = () => { cleanup(); reject(abortError(callerSignal, timeout)); };
+    const cleanup = () => operationSignal.removeEventListener('abort', onAbort);
+    operationSignal.addEventListener('abort', onAbort, { once: true });
+    Promise.resolve(work).then(
+      (value) => { cleanup(); resolve(value); },
+      (error) => { cleanup(); reject(error); },
+    );
+  });
+}
 
 function outputCitations(output = []) {
   const titles = new Map();
@@ -64,9 +85,13 @@ export function makeStoredOpenAIWebSearchProvider({
   credentialCatalog,
   connectionId,
   fetchImpl = globalThis.fetch,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
 } = {}) {
   if (!credentialCatalog || typeof credentialCatalog.list !== 'function') {
     throw new TypeError('credential catalog is required');
+  }
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 10 || timeoutMs > 120_000) {
+    throw new TypeError('OpenAI web search timeout is invalid');
   }
 
   async function connection() {
@@ -88,9 +113,13 @@ export function makeStoredOpenAIWebSearchProvider({
         : { available: false, reason: 'openai_api_connection_missing' };
     },
     async search(query, { limit = 8, domains = [], signal, resourceObserver } = {}) {
-      const selected = await connection();
+      const timeout = AbortSignal.timeout(timeoutMs);
+      const operationSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
+      const selected = await settleWithinSignal(connection(), operationSignal, signal, timeout);
       if (!selected) throw new Error('OpenAI API connection is not available');
-      const credential = await credentialCatalog.select(selected.id);
+      const credential = await settleWithinSignal(
+        credentialCatalog.select(selected.id), operationSignal, signal, timeout,
+      );
       const key = String(credential.apiKey ?? '').trim();
       if (!key) throw new Error('OpenAI API connection has no key');
       const baseUrl = String(credential.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, '');
@@ -116,24 +145,30 @@ export function makeStoredOpenAIWebSearchProvider({
         provider: 'openai_web_search', model: credential.modelId,
         instructions: '', input: body.input, tools: body.tools, sourceMessages: [], body, serializedBody,
       });
-      if (signal?.aborted) throw new Error('OpenAI web search cancelled before dispatch');
+      if (operationSignal.aborted) throw abortError(signal, timeout);
       contextReceipt.transmissionReceipt = makeTransmissionReceipt({ provider: 'openai_web_search',
         model: credential.modelId, endpoint: `${baseUrl}/responses`, serializedBody });
       const resourceHandle = await reserveProviderAttempt(resourceObserver, {
         provider: 'openai_web_search', model: credential.modelId, attempt: 1, contextReceipt,
       });
-      let response;
+      let response; let raw;
       try {
-        response = await fetchImpl(`${baseUrl}/responses`, {
-          method: 'POST', signal,
-          headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-          body: serializedBody,
-        });
+        ({ response, raw } = await settleWithinSignal((async () => {
+          const fetched = await fetchImpl(`${baseUrl}/responses`, {
+            method: 'POST', signal: operationSignal,
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+            body: serializedBody,
+          });
+          return { response: fetched, raw: await fetched.text() };
+        })(), operationSignal, signal, timeout));
       } catch (error) {
-        await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_transport_unknown');
-        throw new Error(`OpenAI web search request failed: ${safeError(error?.message ?? error, key)}`);
+        const reason = signal?.aborted ? 'provider_cancelled_unknown'
+          : timeout.aborted ? 'provider_timeout_unknown' : 'provider_transport_unknown';
+        await settleProviderUnknown(resourceObserver, resourceHandle, reason);
+        const prefix = timeout.aborted && !signal?.aborted
+          ? 'OpenAI web search timed out' : 'OpenAI web search request failed';
+        throw new Error(`${prefix}: ${safeError(error?.message ?? error, key)}`);
       }
-      const raw = await response.text();
       if (!response.ok) {
         await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_http_error', {
           httpStatus: response.status,

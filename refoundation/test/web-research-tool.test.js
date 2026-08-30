@@ -107,3 +107,59 @@ test('읽기 subset 밖 검색 이미지와 OG 이미지를 selected preview met
   ]);
   assert.equal(result.selectedPreviewMetadata[0].images[1].url, 'https://images.example/og.jpg');
 });
+
+test('검색 provider가 중단 신호를 무시해도 전체 연구 deadline에서 끝난다', async () => {
+  const searchTool = { async execute() { return await new Promise(() => {}); } };
+  const readTool = { async execute() { throw new Error('read must not start'); } };
+  const startedAt = Date.now();
+  const result = await makeWebResearchTool({ searchTool, readTool, timeoutMs: 20 }).execute({
+    query: '서울 날씨', queries: ['서울 현재 날씨'], sourceLimit: 1, domains: null,
+  });
+  assert.equal(result.state, 'research_timeout');
+  assert.equal(result.observedPageContent, false);
+  assert.equal(result.stopFurtherResearch, true);
+  assert.ok(Date.now() - startedAt < 250);
+});
+
+test('페이지 reader가 중단 신호를 무시해도 전체 연구 deadline에서 끝난다', async () => {
+  const searchTool = { async execute() { return { state: 'candidates', provider: { id: 'fixture' }, candidates: [
+    { rank: 1, title: '날씨', url: 'https://weather.example/current', snippet: '서울' },
+  ] }; } };
+  const readTool = { async execute() { return await new Promise(() => {}); } };
+  const startedAt = Date.now();
+  const result = await makeWebResearchTool({ searchTool, readTool, timeoutMs: 20 }).execute({
+    query: '서울 날씨', queries: null, sourceLimit: 1, domains: null,
+  });
+  assert.equal(result.state, 'research_timeout');
+  assert.equal(result.readableCount, 0);
+  assert.equal(result.stopFurtherResearch, true);
+  assert.ok(Date.now() - startedAt < 250);
+});
+
+test('검색 provider가 멈춰도 사용자 취소는 Tool deadline보다 먼저 terminal이 된다', async () => {
+  const controller = new AbortController();
+  const searchTool = { async execute() { return await new Promise(() => {}); } };
+  const readTool = { async execute() { throw new Error('read must not start'); } };
+  setTimeout(() => controller.abort(new Error('user cancelled')), 20);
+  const startedAt = Date.now();
+  const result = await makeWebResearchTool({ searchTool, readTool, timeoutMs: 1_000 }).execute({
+    query: '서울 날씨', queries: null, sourceLimit: 1, domains: null,
+  }, { signal: controller.signal });
+  assert.equal(result.state, 'cancelled');
+  assert.equal(result.stopFurtherResearch, true);
+  assert.ok(Date.now() - startedAt < 250);
+});
+
+test('페이지 reader가 멈춰도 사용자 취소는 Tool을 즉시 terminal로 만든다', async () => {
+  const controller = new AbortController();
+  const searchTool = { async execute() { return { state: 'candidates', provider: { id: 'fixture' }, candidates: [
+    { rank: 1, title: '날씨', url: 'https://weather.example/current', snippet: '서울' },
+  ] }; } };
+  const readTool = { async execute() { return await new Promise(() => {}); } };
+  setTimeout(() => controller.abort(new Error('user cancelled')), 20);
+  const result = await makeWebResearchTool({ searchTool, readTool, timeoutMs: 1_000 }).execute({
+    query: '서울 날씨', queries: null, sourceLimit: 1, domains: null,
+  }, { signal: controller.signal });
+  assert.equal(result.state, 'cancelled');
+  assert.equal(result.readableCount, 0);
+});

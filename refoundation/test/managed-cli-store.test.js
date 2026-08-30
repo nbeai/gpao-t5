@@ -128,6 +128,23 @@ test('hash 불일치·과대 응답·중단 download는 실행 또는 활성 파
   }
 });
 
+test('CLI download transport가 signal을 무시해도 전체 download deadline에서 끝난다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-managed-cli-timeout-'));
+  const bytes = Buffer.from('trusted');
+  try {
+    const store = new ManagedCliStore({
+      root: room, catalog: await loadCliCatalog(fixtureCatalog(bytes)),
+      platform: 'darwin', architecture: 'arm64', downloadTimeoutMs: 20,
+      fetchImpl: async () => await new Promise(() => {}),
+      verifyExecutable: async () => { throw new Error('must not execute'); },
+    });
+    const startedAt = Date.now();
+    await assert.rejects(() => store.install('json-tool'), /download timed out/u);
+    assert.ok(Date.now() - startedAt < 250);
+    await assert.rejects(() => access(store.binaryPath('json-tool')));
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
 test('managed version·trash의 symlink는 root 밖 읽기나 복원으로 승격하지 않는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-managed-cli-symlink-')); const outside = join(room, 'outside');
   const bytes = Buffer.from('trusted');

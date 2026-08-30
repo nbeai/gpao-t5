@@ -143,6 +143,57 @@ test('자격 image provider가 없으면 0 preview와 함께 exact typed failure
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 
+test('후보 provider가 signal을 무시해도 visual 전체 deadline에서 typed failure로 끝난다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-qh4-candidate-timeout-'));
+  try {
+    const attachments = new AttachmentStore(join(room, 'attachments'));
+    const imageSearchTool = { async execute() { return await new Promise(() => {}); } };
+    const startedAt = Date.now();
+    const result = await makeVisualReferenceTool({
+      imageSearchTool, attachments, sessionId: SESSION, timeoutMs: 20,
+    }).execute({ query: '멈춘 후보 검색', limit: 3, domains: null });
+    assert.ok(Date.now() - startedAt < 250);
+    assert.equal(result.state, 'no_previews');
+    assert.equal(result.previews.length, 0);
+    assert.equal(result.coverage.candidates, 0);
+    assert.equal(result.coverage.previewed, 0);
+    assert.equal(result.failures.length, 1);
+    assert.equal(result.failures[0].failureCode, 'visual_operation_timeout');
+    assert.equal(result.failures[0].failedStage, 'candidate');
+    assert.equal(result.stopFurtherResearch, true);
+    assert.deepEqual(result.deactivatedTools, ['visual_reference']);
+    assert.equal((await attachments.list({ sessionId: SESSION })).length, 0);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('일부 image fetch 뒤 다른 fetch가 멈추면 확인한 preview만 보존하고 timeout을 분리한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-qh4-fetch-partial-timeout-'));
+  try {
+    const attachments = new AttachmentStore(join(room, 'attachments'));
+    const imageSearchTool = { async execute() { return {
+      state: 'candidates', query: 'partial', candidates: [1, 2].map((rank) => ({
+        title: `candidate ${rank}`, imageUrl: `https://images.example/${rank}.png`,
+        contextUrl: `https://sources.example/${rank}`,
+        provider: { id: 'fixture', tier: 'dedicated' },
+      })), failures: [], calls: [], providerQualification: { dedicated: 'available' },
+    }; } };
+    const first = await coloredPng(1);
+    const result = await makeVisualReferenceTool({
+      imageSearchTool, attachments, sessionId: SESSION, timeoutMs: 20,
+      resolveHost: async () => ['93.184.216.34'],
+      fetchImpl: async (url) => url.endsWith('/1.png')
+        ? imageResponse(first, { status: 200 }) : await new Promise(() => {}),
+    }).execute({ query: 'partial', limit: 3, domains: null });
+    assert.equal(result.state, 'partial');
+    assert.equal(result.previews.length, 1);
+    assert.equal(result.coverage.candidates, 2);
+    assert.equal(result.coverage.previewed, 1);
+    assert.ok(result.failures.some((failure) => failure.failureCode === 'visual_operation_timeout'
+      && failure.failedStage === 'fetch'));
+    assert.equal((await attachments.list({ sessionId: SESSION })).length, 1);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
 test('OpenAI 같은 일반 search의 structured image fields는 보존하지만 존재를 가정하지 않는다', async () => {
   const provider = {
     id: 'structured', label: 'Structured Search', imageCandidateMode: 'structured_search_fields',

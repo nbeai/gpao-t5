@@ -1,4 +1,5 @@
 const API_ROOT = 'https://api.channel.io/open/v5';
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 function boundedLimit(value) {
   const number = Number(value ?? 25);
@@ -12,18 +13,50 @@ function exactId(value, label) {
   return id;
 }
 
-export function makeChannelTalkApi({ credential, fetchImpl = globalThis.fetch } = {}) {
+function requestTimeout() {
+  return Object.assign(new Error('Channel Talk 응답을 기다리는 시간이 초과됐어요.'), {
+    reason: 'request_timeout',
+  });
+}
+
+async function boundedRead(operation, timeoutMs) {
+  const controller = new AbortController(); let timer;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(() => operation(controller.signal)),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          reject(requestTimeout());
+          controller.abort();
+        }, timeoutMs);
+      }),
+    ]);
+  } finally { clearTimeout(timer); }
+}
+
+export function makeChannelTalkApi({ credential, fetchImpl = globalThis.fetch,
+  timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   if (typeof credential !== 'function') throw new TypeError('Channel Talk credential source is required');
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 10 || timeoutMs > 120_000) {
+    throw new TypeError('Channel Talk timeout is invalid');
+  }
   async function request(path, query = {}) {
     const current = await credential();
     if (!current?.accessKey || !current?.accessSecret) throw new Error('Channel Talk 연결 정보가 없어요.');
     const url = new URL(`${API_ROOT}${path}`);
     for (const [name, value] of Object.entries(query)) if (value != null) url.searchParams.set(name, String(value));
-    let response;
-    try { response = await fetchImpl(url, { method: 'GET', headers: {
-      accept: 'application/json', 'x-access-key': current.accessKey, 'x-access-secret': current.accessSecret,
-    } }); } catch { throw Object.assign(new Error('Channel Talk에 연결하지 못했어요.'), { reason: 'transport_failed' }); }
-    const body = await response.json().catch(() => null);
+    let response; let body;
+    try {
+      ({ response, body } = await boundedRead(async (signal) => {
+        const received = await fetchImpl(url, { method: 'GET', signal, headers: {
+          accept: 'application/json', 'x-access-key': current.accessKey, 'x-access-secret': current.accessSecret,
+        } });
+        return { response: received, body: await received.json().catch(() => null) };
+      }, timeoutMs));
+    } catch (error) {
+      if (error?.reason === 'request_timeout') throw error;
+      throw Object.assign(new Error('Channel Talk에 연결하지 못했어요.'), { reason: 'transport_failed' });
+    }
     if (!response.ok || !body || typeof body !== 'object') throw Object.assign(
       new Error(response.status === 401 || response.status === 403
         ? 'Channel Talk 연결 정보를 확인해 주세요.' : 'Channel Talk 응답을 확인하지 못했어요.'),

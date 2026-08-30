@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { makeChannelTalkConnection } from '../src/channel-talk-connection.js';
+import { makeChannelTalkApi } from '../src/channel-talk-api.js';
 
 function memorySecretStore() {
   const values = new Map();
@@ -70,4 +71,29 @@ test('연결된 Channel Talk Hand는 상담 목록과 exact chat 메시지를 �
   assert.equal(calls.some((call) => call.url.includes('/user-chats/chat-1/messages')), true);
   assert.equal((await tool.preflight({ action: 'list_chats', chatId: null, state: 'opened', limit: 20,
     effect: { ...observe, kind: 'external_change' } })).allowed, false);
+});
+
+test('Channel Talk GET이 abort signal을 무시하고 영구 대기해도 한 번만 시도하고 credential 없이 끝난다', async () => {
+  let fetches = 0; const methods = [];
+  const api = makeChannelTalkApi({
+    timeoutMs: 20,
+    credential: async () => ({ accessKey: 'CHANNEL-ACCESS-SECRET', accessSecret: 'CHANNEL-SECRET-VALUE' }),
+    fetchImpl: async (_url, init) => {
+      fetches += 1; methods.push(init.method);
+      return new Promise(() => {}); // signal을 의도적으로 무시한다
+    },
+  });
+  const result = await Promise.race([
+    api.listChats({ state: 'opened', limit: 20 }).then(
+      () => ({ state: 'unexpected_success' }),
+      (error) => ({ state: 'failed', reason: error.reason, message: error.message }),
+    ),
+    new Promise((resolve) => setTimeout(() => resolve({ state: 'hung' }), 150)),
+  ]);
+  assert.deepEqual(result, {
+    state: 'failed', reason: 'request_timeout', message: 'Channel Talk 응답을 기다리는 시간이 초과됐어요.',
+  });
+  assert.equal(fetches, 1);
+  assert.deepEqual(methods, ['GET']);
+  assert.doesNotMatch(JSON.stringify(result), /CHANNEL-ACCESS-SECRET|CHANNEL-SECRET-VALUE/u);
 });

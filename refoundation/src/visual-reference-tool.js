@@ -99,11 +99,34 @@ function fileName(index, mimeType) {
   return `visual-reference-${index + 1}${extension}`;
 }
 
+function abortError(signal, timeout) {
+  if (timeout?.aborted && !signal?.aborted) return Object.assign(
+    new Error('visual reference operation timed out'), { code: 'VISUAL_REFERENCE_TIMEOUT' },
+  );
+  return signal?.reason instanceof Error ? signal.reason : new Error('visual reference operation cancelled');
+}
+
+function settleWithinSignal(work, operationSignal, callerSignal, timeout) {
+  if (operationSignal.aborted) return Promise.reject(abortError(callerSignal, timeout));
+  return new Promise((resolve, reject) => {
+    const onAbort = () => { cleanup(); reject(abortError(callerSignal, timeout)); };
+    const cleanup = () => operationSignal.removeEventListener('abort', onAbort);
+    operationSignal.addEventListener('abort', onAbort, { once: true });
+    Promise.resolve(work).then(
+      (value) => { cleanup(); resolve(value); },
+      (error) => { cleanup(); reject(error); },
+    );
+  });
+}
+
 export function makeVisualReferenceTool({
   imageSearchTool, attachments, sessionId, fetchImpl = globalThis.fetch,
   resolveHost = defaultResolveHost, timeoutMs = 15_000,
 } = {}) {
   if (!imageSearchTool || !attachments || !sessionId) throw new TypeError('visual reference inputs are required');
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 10 || timeoutMs > 120_000) {
+    throw new TypeError('visual reference timeout is invalid');
+  }
   const accumulated = [];
   return {
     name: 'visual_reference',
@@ -129,18 +152,39 @@ export function makeVisualReferenceTool({
         deactivatedTools: ['visual_reference'],
         completedCapabilityGroups: ['visual_reference'],
       };
-      const search = await imageSearchTool.execute({
-        query: String(args.query ?? '').trim(), limit: Math.min(20, limit * 3),
-        domains: args.domains ?? [],
-      }, context);
-      const candidates = search.candidates ?? [];
       const timeout = AbortSignal.timeout(timeoutMs);
       const signal = context.signal ? AbortSignal.any([context.signal, timeout]) : timeout;
+      let search;
+      try {
+        search = await settleWithinSignal(imageSearchTool.execute({
+          query: String(args.query ?? '').trim(), limit: Math.min(20, limit * 3),
+          domains: args.domains ?? [],
+        }, { ...context, signal }), signal, context.signal, timeout);
+      } catch (error) {
+        const timedOut = timeout.aborted && !context.signal?.aborted;
+        return {
+          state: context.signal?.aborted ? 'cancelled' : 'no_previews',
+          query: String(args.query ?? '').trim(), requested: limit, previews: [],
+          failures: [{ state: timedOut ? 'preview_failed' : 'cancelled', title: '', sourceUrl: null,
+            failureCode: timedOut ? 'visual_operation_timeout' : 'cancelled', failedStage: 'candidate',
+            stages: [{ stage: 'candidate', state: timedOut ? 'failed' : 'cancelled',
+              failureCode: timedOut ? 'visual_operation_timeout' : 'cancelled' }],
+            reason: error?.message ?? String(error) }],
+          providerQualification: null, providerCalls: [],
+          coverage: { requested: limit, candidates: 0, previewed: 0 },
+          stopFurtherResearch: true, verificationMissing: true,
+          deactivatedTools: ['visual_reference'], completedCapabilityGroups: ['visual_reference'],
+        };
+      }
+      const candidates = search.candidates ?? [];
       const rows = await Promise.all(candidates.map(async (candidate) => {
         const stages = [{ stage: 'candidate', state: 'observed', imageUrl: candidate.imageUrl,
           contextUrl: candidate.contextUrl, provider: candidate.provider }];
         try {
-          const image = await fetchManagedImage(candidate.imageUrl, { fetchImpl, resolveHost, signal });
+          const image = await settleWithinSignal(
+            fetchManagedImage(candidate.imageUrl, { fetchImpl, resolveHost, signal }),
+            signal, context.signal, timeout,
+          );
           stages.push({ stage: 'fetch', state: 'succeeded', finalUrl: image.url, httpStatus: image.status });
           stages.push({
             stage: 'qualification', state: 'succeeded', mimeType: image.mimeType,
@@ -160,14 +204,17 @@ export function makeVisualReferenceTool({
             image,
           };
         } catch (error) {
+          const timedOut = timeout.aborted && !context.signal?.aborted;
           const failedStage = error?.previewStage ?? (signal.aborted ? 'fetch' : 'fetch');
-          stages.push({ stage: failedStage, state: signal.aborted ? 'cancelled' : 'failed',
-            failureCode: signal.aborted ? 'cancelled' : (error?.previewCode ?? 'image_fetch_failed') });
+          const failureCode = timedOut ? 'visual_operation_timeout'
+            : signal.aborted ? 'cancelled' : (error?.previewCode ?? 'image_fetch_failed');
+          stages.push({ stage: failedStage, state: timedOut ? 'failed' : signal.aborted ? 'cancelled' : 'failed',
+            failureCode });
           return {
-            state: signal.aborted ? 'cancelled' : 'preview_failed', title: candidate.title,
+            state: signal.aborted && !timedOut ? 'cancelled' : 'preview_failed', title: candidate.title,
             sourceUrl: candidate.contextUrl, imageSourceUrl: candidate.imageUrl,
             provider: candidate.provider, stages,
-            failureCode: signal.aborted ? 'cancelled' : (error?.previewCode ?? 'image_fetch_failed'),
+            failureCode,
             failedStage, reason: error?.message ?? String(error),
           };
         }

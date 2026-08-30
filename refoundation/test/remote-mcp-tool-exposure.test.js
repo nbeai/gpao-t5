@@ -41,3 +41,49 @@ test('쓰기 Connector의 exact allowlist는 쓰기 도구를 observe로 낮추�
     argumentsJson: '{}', effect: { kind: 'observe' } });
   assert.equal(preflight.allowed, false); assert.equal(preflight.result.state, 'external_change_required');
 });
+
+test('Remote MCP discovery가 영구 대기해도 bounded terminal로 끝나고 remote call을 열지 않는다', async () => {
+  let discoveries = 0; let calls = 0;
+  const tool = makeRemoteMcpTool({
+    id: 'stalled-read', label: 'Stalled Read', timeoutMs: 20,
+    runtime: {
+      async listTools() { discoveries += 1; return new Promise(() => {}); },
+      async callTool() { calls += 1; return { content: [] }; },
+    },
+    readOnlyOnly: true,
+  });
+  const result = await Promise.race([
+    tool.execute({ action: 'list_tools', toolName: null, argumentsJson: null, effect: null }),
+    new Promise((resolve) => setTimeout(() => resolve({ state: 'hung' }), 150)),
+  ]);
+  assert.deepEqual(result, {
+    state: 'remote_discovery_timeout', trust: 'untrusted_external', instructionAuthority: 'none',
+    effectUnknown: false, retrySafe: true, exitCode: 1,
+  });
+  assert.equal(discoveries, 1);
+  assert.equal(calls, 0);
+});
+
+test('Remote MCP call preflight도 discovery가 끝나지 않으면 실행 전 같은 bounded 사실로 닫는다', async () => {
+  let discoveries = 0; let calls = 0;
+  const tool = makeRemoteMcpTool({
+    id: 'stalled-call', label: 'Stalled Call', timeoutMs: 20,
+    runtime: {
+      async listTools() { discoveries += 1; return new Promise(() => {}); },
+      async callTool() { calls += 1; return { content: [] }; },
+    },
+  });
+  const result = await Promise.race([
+    tool.preflight({ action: 'call', toolName: 'write_remote', argumentsJson: '{}',
+      effect: { kind: 'external_change' } }),
+    new Promise((resolve) => setTimeout(() => resolve({ state: 'hung' }), 150)),
+  ]);
+  assert.deepEqual(result, {
+    allowed: false, outcome: 'not_executed', result: {
+      state: 'remote_discovery_timeout', trust: 'untrusted_external', instructionAuthority: 'none',
+      effectUnknown: false, retrySafe: true, exitCode: 1,
+    },
+  });
+  assert.equal(discoveries, 1);
+  assert.equal(calls, 0);
+});

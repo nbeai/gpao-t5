@@ -105,3 +105,72 @@ test('OpenAI hosted search 내부 model call도 fetch 전 reserve하고 usage를
   await provider.search('검색', { resourceObserver });
   assert.deepEqual(order, ['reserve', 'fetch', 'commit']);
 });
+
+test('direct OpenAI search는 fetch가 signal을 무시해도 provider 전체 deadline에서 unknown으로 정산한다', async () => {
+  const settlements = [];
+  const provider = makeStoredOpenAIWebSearchProvider({
+    credentialCatalog: {
+      async list() { return [{ id: 'openai:test', kind: 'api_key', provider: 'openai' }]; },
+      async select() { return { kind: 'api_key', provider: 'openai', apiKey: 'key', modelId: 'search-model' }; },
+    },
+    timeoutMs: 20,
+    fetchImpl: async () => await new Promise(() => {}),
+  });
+  const resourceObserver = {
+    async reserve() { return { id: 'reservation' }; },
+    async unknown(_handle, facts) { settlements.push(facts); },
+  };
+  const startedAt = Date.now();
+  await assert.rejects(() => provider.search('검색', { resourceObserver }), /timed out/u);
+  assert.ok(Date.now() - startedAt < 250);
+  assert.equal(settlements.length, 1);
+  assert.equal(settlements[0].reason, 'provider_timeout_unknown');
+});
+
+test('direct OpenAI search는 response body가 signal을 무시해도 같은 deadline과 resource 정산을 쓴다', async () => {
+  const settlements = [];
+  const provider = makeStoredOpenAIWebSearchProvider({
+    credentialCatalog: {
+      async list() { return [{ id: 'openai:test', kind: 'api_key', provider: 'openai' }]; },
+      async select() { return { kind: 'api_key', provider: 'openai', apiKey: 'key', modelId: 'search-model' }; },
+    },
+    timeoutMs: 20,
+    fetchImpl: async () => ({ ok: true, async text() { return await new Promise(() => {}); } }),
+  });
+  const resourceObserver = {
+    async reserve() { return { id: 'reservation' }; },
+    async unknown(_handle, facts) { settlements.push(facts); },
+  };
+  const startedAt = Date.now();
+  await assert.rejects(() => provider.search('검색', { resourceObserver }), /timed out/u);
+  assert.ok(Date.now() - startedAt < 250);
+  assert.equal(settlements.length, 1);
+  assert.equal(settlements[0].reason, 'provider_timeout_unknown');
+});
+
+test('OpenAI search 응답 body 읽기 중 취소도 provider resource를 unknown으로 정산한다', async () => {
+  const settlements = [];
+  const controller = new AbortController();
+  const provider = makeStoredOpenAIWebSearchProvider({
+    credentialCatalog: {
+      async list() { return [{ id: 'openai:test', kind: 'api_key', provider: 'openai' }]; },
+      async select() { return { kind: 'api_key', provider: 'openai', apiKey: 'key', modelId: 'search-model' }; },
+    },
+    fetchImpl: async () => ({
+      ok: true,
+      async text() {
+        controller.abort(new Error('user cancelled'));
+        throw new Error('body cancelled');
+      },
+    }),
+  });
+  const resourceObserver = {
+    async reserve() { return { id: 'reservation' }; },
+    async unknown(_handle, facts) { settlements.push(facts); },
+  };
+  await assert.rejects(() => provider.search('검색', {
+    signal: controller.signal, resourceObserver,
+  }), /request failed/u);
+  assert.equal(settlements.length, 1);
+  assert.equal(settlements[0].reason, 'provider_cancelled_unknown');
+});
