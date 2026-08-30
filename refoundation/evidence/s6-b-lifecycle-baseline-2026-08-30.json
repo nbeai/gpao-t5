@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_B_QUARANTINE_QUALIFICATION_AND_LIFECYCLE",
+  "status": "BASELINE_COMPLETE_FIRST_DECLARATIVE_OBSERVE_GAP_OPEN",
+  "baseCommit": "cde86649",
+  "reusedProductFoundations": {
+    "trustedTextSkill": ["install", "recoverable_remove", "restore", "0600_content"],
+    "managedCli": ["exact_version", "platform_asset", "sha256", "executable_probe", "update", "rollback", "remove"],
+    "remoteMcp": ["oauth_attempt", "credential_generation", "account_identity", "scope", "refresh", "disconnect"],
+    "lifecycleAndHandoff": ["same_purpose_comparison", "apply", "archive", "restore", "crash_no_blind_resume"]
+  },
+  "qualificationOnlyFoundation": {
+    "closedMachineManifest": true,
+    "separateProcessRequired": true,
+    "arbitraryLifecycleHooksAllowed": false,
+    "unsafeTreeRejected": true,
+    "installedInactiveGeneration": true,
+    "enableDisableRollbackRemove": true,
+    "productEntryWired": false
+  },
+  "firstGap": {
+    "family": "active_generation_declared_action_execution",
+    "storeMissing": false,
+    "manifestMissing": false,
+    "executorMissing": true,
+    "taskQualificationBindingMissing": true,
+    "capabilityRealityActiveGenerationBindingMissing": true,
+    "representativePurpose": "typed current-data observation carried from S6-P0-01"
+  },
+  "firstCandidateBoundary": {
+    "effect": "observe",
+    "auth": "none",
+    "networkHosts": 1,
+    "httpsOnly": true,
+    "closedInputOutput": true,
+    "sourceCitationRequired": true,
+    "reuseProcessAndReceipt": "S4-D",
+    "coreInProcessCode": false,
+    "arbitraryInstallHook": false,
+    "genericHttpProxy": false
+  },
+  "verification": {
+    "focusedPassed": 39,
+    "focusedFailed": 0,
+    "providerCalls": 0,
+    "externalWrites": 0
+  },
+  "nonClaims": ["S6-B complete", "declarative package product execution", "weather speed solved"]
+}

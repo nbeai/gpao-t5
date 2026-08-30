@@ -3,7 +3,7 @@
 상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
 현재 Gate: `S6-B · QUARANTINE, QUALIFICATION & LIFECYCLE`
-현재 작업: `S6_B_READ_ONLY_BASELINE · EXISTING_LIFECYCLE_REUSE_FIRST`
+현재 작업: `S6_B_BASELINE_COMPLETE · FIRST_DECLARATIVE_OBSERVE_GAP_OPEN`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -789,7 +789,27 @@ actual 근거: `refoundation/evidence/s6-a-capability-reality-product-2026-08-30
 
 ### S6-B — Quarantine, Qualification & Lifecycle
 
-현재 상태: `OPEN · READ_ONLY_BASELINE_FIRST · PRODUCT_CANDIDATE_0`
+현재 상태: `OPEN · EXISTING_LIFECYCLE_BASELINE_COMPLETE · PRODUCT_CANDIDATE_0`
+
+읽기 전용 baseline에서 기존 기반 39/39를 재자격했다.
+
+- trusted text Skill: managed root 0600·install·recoverable remove·restore가 제품에 존재
+- managed CLI: exact version·platform asset·SHA-256·executable probe·inactive/active·update·rollback·remove가 제품에 존재
+- Remote MCP: OAuth attempt·credential generation·account identity·scope·refresh·disconnect·unknown effect가 제품에 존재
+- capability lifecycle/handoff: same-purpose comparison 전 tested 금지, apply·archive·restore, crash 뒤 blind resume 0이 제품에 존재
+- declarative/executable package: closed Machine Manifest, unsafe tree 차단, installed-inactive generation, enable/disable·rollback·remove가
+  qualification source로 존재하지만 제품 entry에는 미결속
+
+따라서 Skill·CLI·Remote MCP lifecycle을 다시 만들지 않는다. 현재 첫 실제 공백은 package를 안전하게 저장하는
+능력이 아니라, active generation의 declared observe action을 별도 process에서 실제 실행하고 task qualification·
+Capability Reality에 결속하는 제품 executor가 없다는 것이다. P0-01 carry의 typed current-data는 이 공백을 여는
+대표 목적이 될 수 있지만 Runtime이 날씨라는 업무명으로 route를 고르지는 않는다.
+
+다음 후보는 secret 0·한 HTTPS host·observe-only·closed input/output·source citation을 가진 declarative action 하나를
+기존 package store와 D 실행 원장에 결속하는 범위만 검토한다. 같은 package에서 external change·임의 install hook·
+Core in-process code·일반 HTTP proxy를 함께 열지 않는다.
+
+근거: `refoundation/evidence/s6-b-lifecycle-baseline-2026-08-30.json`.
 
 새 package engine을 만들지 않고 기존 source identity·managed store·Capability lifecycle·Effect·rollback을 확장한다.
 
