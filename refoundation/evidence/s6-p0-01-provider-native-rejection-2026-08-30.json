@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_P0_01_PROVIDER_NATIVE_GROUNDING",
+  "status": "REJECTED_SOURCE_TRUTH",
+  "model": "gpt-5.6-terra",
+  "provider": "openai",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "candidate": {
+    "weatherWallMsObserved": [4636.734, 3721.936, 3096.67, 3644.191],
+    "modelCalls": 1,
+    "serverWebSearchCalls": 1,
+    "tokensApprox": 4900,
+    "currentWeatherAnswerProduced": true,
+    "directPositiveControlWebCalls": 0
+  },
+  "wireObservation": {
+    "webSearchCallPresent": true,
+    "resultCount": 0,
+    "actionSourceCount": 1,
+    "actionSourceFields": ["name", "type"],
+    "sourceUrlObserved": false,
+    "sourceTitleObserved": false,
+    "citationAnnotationObserved": false
+  },
+  "decision": {
+    "adopted": false,
+    "reason": "fast current answer without source identity cannot satisfy T5 source and transmission truth",
+    "productSourceDelta": 0,
+    "thirdSameDirectionPatchForbidden": true
+  },
+  "carryForward": [
+    "typed current-data capability with exact source and freshness",
+    "provider adapter only when provider returns source identity"
+  ]
+}

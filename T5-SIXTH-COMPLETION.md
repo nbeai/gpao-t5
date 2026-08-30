@@ -418,7 +418,7 @@ AND target 밖 effect·orphan·blind retry·false completion 0
 
 #### P0-01 — Commodity Conversation Observation Latency
 
-현재 상태: `CLIENT_HAND_QUALIFIED · SINGLE_ATTACHMENT_QUALIFIED · PROVIDER_NATIVE_GROUNDING_CANDIDATE_OPEN · PRODUCT_INSTALL_NOT_YET_BUILT`
+현재 상태: `CLIENT_HAND_QUALIFIED · SINGLE_ATTACHMENT_QUALIFIED · PROVIDER_NATIVE_GROUNDING_REJECTED_SOURCE_TRUTH · UX_SPEED_PARTIAL · PRODUCT_INSTALL_NOT_YET_BUILT`
 
 단순 서울 날씨 한 건의 실제 경로는 다음이었다.
 
@@ -504,8 +504,18 @@ tokens·229,594 bytes보다 개선됐고 `tool_search·work_completion`은 0이�
 
 그러나 narrow 날씨 요청에서도 모델은 sourceLimit 4를 선택했고 Web Hand는 여섯 source를 반환했다. 정확한
 결과라도 13초대는 최상위 UX 완료 기준에 충분하지 않다. 같은 결함 가족에 sourceLimit 조건을 더 붙이지 않고,
-provider-native server search/grounding이 같은 model response에서 source와 답을 결속하는 두 번째 후보를 연다.
-현재 후보를 날씨 Router나 모든 공개 조사 sourceLimit 1로 확대하지 않는다.
+provider-native server search/grounding이 같은 model response에서 source와 답을 결속하는 두 번째 후보를 실제
+gpt-5.6-terra로 자격했다. wall 3.097~4.637초·model 1·server search 1·약 4.9K tokens와 Direct Web call 0은
+통과했지만, 현재 response의 `web_search_call.action.sources`는 `{name,type}`만 제공하고 URL·title identity와
+citation annotation을 제공하지 않았다. source truth를 증명할 수 없어 후보 source·test·runner는 제품에서 모두
+제거했다. 속도만 빠른 답을 채택하지 않는다.
+
+근거: `refoundation/evidence/s6-p0-01-provider-native-rejection-2026-08-30.json`.
+
+같은 방향의 세 번째 provider parser·Prompt patch를 붙이지 않는다. P0-01은 client Hand의 정확성·2 model call
+구조와 attachment 개선을 보존하되 실제 날씨 13초대는 `UX_SPEED_PARTIAL`로 남긴다. 다음 관점은 S6-A의
+검증된 typed current-data capability와 provider가 source identity를 실제 제공하는 future adapter contract에서
+재평가하며, P0-02·03·04 진행을 막지 않는다.
 
 #### P0-02 — Exact File Result Affordance
 
