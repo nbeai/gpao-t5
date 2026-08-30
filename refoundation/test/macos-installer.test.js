@@ -29,6 +29,7 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.match(build, /\[ -f "\$OLD_PORT" \][\s\S]*"\$OLD_STOP"/u);
   assert.match(build, /assertProductionMacPayload/u);
   assert.match(build, /requireNewArtifact\(output\)/u);
+  assert.match(build, /pkgutil[\s\S]*--check-signature[\s\S]*Developer ID Installer/u);
   assert.match(build, /do shell script[\s\S]*with administrator privileges/u);
   assert.match(build, /pkgutil --forget/u);
   assert.doesNotMatch(build, /ADMIN_COMMAND=/u);

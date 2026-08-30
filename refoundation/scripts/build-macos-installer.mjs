@@ -419,6 +419,10 @@ exit 0
       run('productbuild', ['--package', component, unsigned], { stdio: 'inherit' });
       run('productsign', ['--sign', installerIdentity, ...(keychain ? ['--keychain', keychain] : []),
         unsigned, output], { stdio: 'inherit' });
+      const packageSignature = run('pkgutil', ['--check-signature', output]);
+      if (!packageSignature.includes('Developer ID Installer')) {
+        throw new Error('signed package failed Developer ID Installer verification');
+      }
     } else {
       run('productbuild', ['--package', component, output], { stdio: 'inherit' });
     }
