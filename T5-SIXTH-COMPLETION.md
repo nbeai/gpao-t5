@@ -3,7 +3,7 @@
 상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
 현재 Gate: `S6-C · NATURAL ACQUISITION & EXACT WORK RESUME`
-현재 작업: `S6_C_BASELINE · EXISTING_HANDOFF_REUSE_FIRST`
+현재 작업: `S6_C_SKILL_CLI_REMOTE_RESUME_QUALIFIED · STT_AND_PUBLIC_DATA_ACTUAL_PENDING`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -888,7 +888,7 @@ scanner·별점·download 수·공식 catalog 존재는 단독 합격이 아니�
 
 ### S6-C — Natural Acquisition & Exact Work Resume
 
-현재 상태: `OPEN · READ_ONLY_BASELINE_FIRST · PRODUCT_CANDIDATE_0`
+현재 상태: `OPEN · SKILL_CLI_REMOTE_RESUME_QUALIFIED · FIRST_P1_REPAIRED`
 
 사용자는 Skill·CLI·MCP·Plugin을 말하지 않는다. 자연어 목적에서 현재 capability gap이 실제로 확인될 때만 S6-B를
 사용한다.
@@ -926,6 +926,23 @@ Hand 중 무엇이 필요한지 판단하며 Runtime은 각 경로의 실제 요
 
 > 사용자는 필요한 능력의 이름을 몰라도 목적만 말하며, T5는 부족한 능력을 안전하게 준비한 뒤 같은 작업을
 > 중복 실행 없이 이어가 실제 결과까지 전달한다.
+
+첫 current-head slice에서 `capability_prepare`와 `cli_prepare`의 실제 model Tool schema에는 `reversible` 필드가
+없는데 preflight가 그 금지된 필드를 요구해 정상 install이 항상 `reversible_local_change_required`로 막히는 P1을
+재현했다. 두 도구를 공통 Effect 계약인 `local_change + confirmation=not_applicable`에 맞췄다. list/search/preview와
+CLI status는 read-only이므로 별도 completion proposal을 열지 않고, 실제 lifecycle mutation에서만 연다.
+
+수리 후 현재 head에서 세 경로 9/9를 통과했다.
+
+- 고객 문의 분류: package 이름 없이 trusted text Skill 검색→설치→같은 Run 목적 완료
+- JSON 처리: exact CLI 검증 준비→같은 Run 실제 사용→새 Session 재설치 0
+- Linear: 사용자 로그인 handoff→원래 오늘 마감 업무 exact once resume
+- 공통: 준비 대기 model polling 0, 두 Session 혼선 0, crash 뒤 blind retry 0, surface crash exact recovery
+
+그러나 정본의 긴 녹음 STT 실제 목적과 current public-data external actual은 아직 current product에서 자격하지 않았다.
+0.3.1 과거 실사용 성공을 current S6-C PASS로 승격하지 않으며, 이 두 실제 목적 전에는 S6-C를 닫지 않는다.
+
+근거: `refoundation/evidence/s6-c-natural-acquisition-first-slice-2026-08-30.json`.
 
 ---
 

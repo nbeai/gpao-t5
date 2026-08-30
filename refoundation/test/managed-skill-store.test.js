@@ -41,6 +41,10 @@ test('사용자는 패키지 이름을 몰라도 현재 작업 방법을 보고 
     const policyCatalog = await loadSkillPolicyCatalog(policyFile);
     const store = new ManagedSkillStore({ root: room, catalogSnapshot: catalog, policyCatalog });
     const tool = makeSkillAcquisitionTool({ store, catalogSnapshot: catalog });
+    assert.equal(tool.completionProposalOptional({ action: 'search' }), true);
+    assert.equal(tool.completionProposalOptional({ action: 'install' }), false);
+    assert.equal((await tool.preflight({ action: 'install', effect: { kind: 'local_change',
+      confirmation: 'not_applicable' } })).allowed, true);
     await store.install('xurl');
     const before = await tool.execute({ action: 'list', name: null, effect: null });
     assert.equal(before.skills.find((skill) => skill.name === 'xurl').installed, true);

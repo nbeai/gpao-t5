@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_C_NATURAL_ACQUISITION_AND_EXACT_WORK_RESUME",
+  "status": "OPEN_SKILL_CLI_REMOTE_RESUME_QUALIFIED",
+  "baseCommit": "50c21226",
+  "firstFailure": {
+    "family": "effect_schema_preflight_mismatch",
+    "publicSchemaAllowedReversibleField": false,
+    "preflightRequiredReversibleField": true,
+    "actualModelInstallPossibleBeforeRepair": false
+  },
+  "repair": {
+    "effectKind": "local_change",
+    "confirmation": "not_applicable",
+    "newRouter": false,
+    "promptChange": false,
+    "readOnlyPreparationActionsOpenCompletion": false,
+    "lifecycleMutationsOpenCompletion": true
+  },
+  "qualifiedJourneys": {
+    "textSkill": "natural goal to search install same-Run result",
+    "managedCli": "verify install same-Run use new-Session no reinstall",
+    "remoteMcp": "login handoff to original Work exact-once resume",
+    "crashAndConcurrency": "no blind retry, no Session mixing, exact surface recovery"
+  },
+  "verification": { "focusedPassed": 9, "focusedFailed": 0, "externalWrites": 0 },
+  "remaining": [
+    "current-head long recording STT acquisition and Artifact journey",
+    "current public-data capability external actual with lawful source"
+  ],
+  "nonClaims": ["S6-C complete", "historical STT success is current qualification", "weather latency solved"]
+}

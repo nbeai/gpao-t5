@@ -8,12 +8,11 @@ import { join } from 'node:path';
 import { makeConsoleServer } from '../src/console-server.js';
 
 const effect = (summary) => ({
-  kind: 'local_change', summary, targets: ['T5 관리 도구 폴더'], reversible: true,
-  backupAvailable: true, recipientNew: false, approvalToken: null,
+  kind: 'local_change', summary, targets: ['T5 관리 도구 폴더'],
+  confirmation: 'not_applicable', rollbackOfToolCallId: null,
 });
 const observe = (summary) => ({
-  kind: 'observe', summary, targets: [], reversible: true,
-  backupAvailable: true, recipientNew: false, approvalToken: null,
+  kind: 'observe', summary, targets: [], confirmation: 'not_applicable', rollbackOfToolCallId: null,
 });
 
 test('필요한 CLI를 검증해 준비하고 같은 Run 즉시 사용한 뒤 새 Session에서 재설치 없이 재사용한다', async () => {

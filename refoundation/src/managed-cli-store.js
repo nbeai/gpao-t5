@@ -256,6 +256,7 @@ export function makeCliAcquisitionTool({ store, authorizeEffect } = {}) {
   if (!store?.catalog) throw new TypeError('CLI acquisition store is required');
   return {
     name: 'cli_prepare',
+    completionProposalOptional: (args = {}) => ['search', 'preview', 'status'].includes(args.action),
     description: 'Find and prepare a trusted T5-managed capability only when the current hands lack a suitable means. Candidates are pinned official single-file releases with exact platform, byte size, and SHA-256 verification. Never use arbitrary URLs, package managers, sudo, global installs, or shell profile changes. Path-exposed tools are used through the terminal; tool-only candidates are available only through their named restricted tool surface.',
     parameters: { type: 'object', additionalProperties: false, properties: {
       action: { type: 'string', enum: ['search', 'preview', 'status', 'install', 'remove', 'restore', 'rollback'] },
@@ -263,7 +264,8 @@ export function makeCliAcquisitionTool({ store, authorizeEffect } = {}) {
     }, required: ['action', 'id', 'version', 'effect'] },
     async preflight(args, context) {
       if (['search', 'preview', 'status'].includes(args.action)) return { allowed: true };
-      if (args.effect?.kind !== 'local_change' || args.effect?.reversible !== true) return { allowed: false, outcome: 'not_executed', result: { state: 'reversible_local_change_required' } };
+      if (args.effect?.kind !== 'local_change' || args.effect?.confirmation !== 'not_applicable') return {
+        allowed: false, outcome: 'not_executed', result: { state: 'managed_local_change_required' } };
       return typeof authorizeEffect === 'function' ? authorizeEffect(args, context) : { allowed: true };
     },
     async execute(args) {

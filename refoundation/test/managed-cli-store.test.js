@@ -174,9 +174,13 @@ test('모델 도구는 임의 URL을 받지 않고 reversible local change에서
     store: { catalog, installed: async () => [], install: async (id) => (calls.push(id), { state: 'installed', id }), status: async () => ({ state: 'not_installed' }), remove: async () => ({}), restore: async () => ({}), rollback: async () => ({}) },
     authorizeEffect: async () => ({ allowed: true }),
   });
+  assert.equal(tool.completionProposalOptional({ action: 'status' }), true);
+  assert.equal(tool.completionProposalOptional({ action: 'install' }), false);
   assert.equal(tool.parameters.properties.url, undefined);
   assert.equal((await tool.execute({ action: 'search', id: null, version: null })).packages[0].id, 'json-tool');
   assert.equal((await tool.preflight({ action: 'install', effect: { kind: 'observe' } })).allowed, false);
+  assert.equal((await tool.preflight({ action: 'install', effect: { kind: 'local_change',
+    confirmation: 'not_applicable' } })).allowed, true);
   assert.equal((await tool.execute({ action: 'install', id: 'json-tool', version: null })).state, 'installed');
   assert.deepEqual(calls, ['json-tool']);
 });
