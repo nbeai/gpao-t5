@@ -89,16 +89,17 @@ export function makeWebResearchTool({ searchTool, readTool, timeoutMs = 15_000 }
     name: 'web_research',
     executionMode: 'parallel',
     nestedParallelism: true,
+    completionProposalOptional: true,
     capabilityGroup: 'web_observation',
     searchTerms: ['multi source research', 'current trends evidence', '웹 리서치', '시장 조사', '여러 출처'],
-    description: 'Research a public-web question through 1 to 4 focused search queries and parallel reading of 3 to 6 distinct source domains. For a broad question, provide several short angle queries in one call instead of repeating this tool. Returns observed source text and explicit failures; it does not write the conclusion for you. This is a completed bounded research stage: synthesize from its readable sources instead of opening individual search/read loops. Use this for multi-source research, current trends, comparisons, or evidence from several sources; use web_read directly for one exact URL.',
+    description: 'Read current public-web evidence through 1 to 4 focused search queries. For one narrow current fact, use one query and sourceLimit 1; for comparisons, broad research, or claims requiring corroboration, read 3 to 6 distinct source domains. Returns observed source text and explicit failures; it does not write the conclusion for you. This is a completed bounded observation stage: synthesize from its readable sources instead of opening individual search/read loops. Use web_read directly when the exact URL is already known.',
     parameters: {
       type: 'object', additionalProperties: false,
       properties: {
         query: { type: 'string', description: 'One focused research query.' },
         queries: { type: ['array', 'null'], minItems: 1, maxItems: 4, items: { type: 'string' },
           description: 'Optional focused angle queries executed together for broad research.' },
-        sourceLimit: { type: ['integer', 'null'], minimum: 3, maximum: 6 },
+        sourceLimit: { type: ['integer', 'null'], minimum: 1, maximum: 6 },
         domains: { type: ['array', 'null'], maxItems: 20, items: { type: 'string' } },
       },
       required: ['query', 'queries', 'sourceLimit', 'domains'],
@@ -110,8 +111,8 @@ export function makeWebResearchTool({ searchTool, readTool, timeoutMs = 15_000 }
         .map((value) => String(value ?? '').trim()).filter(Boolean))].slice(0, 4);
       if (!queries.length) throw new TypeError('at least one research query is required');
       const sourceLimit = args.sourceLimit == null ? 4 : Number(args.sourceLimit);
-      if (!Number.isInteger(sourceLimit) || sourceLimit < 3 || sourceLimit > 6) {
-        throw new TypeError('sourceLimit must be between 3 and 6');
+      if (!Number.isInteger(sourceLimit) || sourceLimit < 1 || sourceLimit > 6) {
+        throw new TypeError('sourceLimit must be between 1 and 6');
       }
       const searches = await Promise.all(queries.map((focused, index) => searchTool.execute({
         query: focused, provider: null, limit: Math.min(20, sourceLimit * 2), domains: args.domains ?? [],
@@ -146,7 +147,7 @@ export function makeWebResearchTool({ searchTool, readTool, timeoutMs = 15_000 }
       const unreadable = observations.filter((item) => !item.content?.text);
       const read = readable.length;
       const sources = [...readable.slice(0, sourceLimit), ...unreadable.slice(0, 2)];
-      const boundedComplete = read >= 3;
+      const boundedComplete = read >= Math.min(3, sourceLimit);
       const selectedPreviewMetadata = selected.map((candidate, index) => ({
         rank: candidate.rank, title: candidate.title, candidateUrl: candidate.url,
         sourceUrl: observations[index]?.source?.finalUrl ?? candidate.url,

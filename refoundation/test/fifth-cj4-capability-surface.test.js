@@ -10,13 +10,14 @@ const source = (path) => import('node:fs/promises').then(({ readFile }) => (
   readFile(new URL(path, import.meta.url), 'utf8')
 ));
 
-async function run({ mode, request = '간단히 답해줘', respond }) {
+async function run({ mode, request = '간단히 답해줘', respond, ...serverOptions }) {
   const room = await mkdtemp(join(tmpdir(), 't5-cj4-surface-'));
   const workspace = join(room, 'workspace'); await mkdir(workspace, { recursive: true });
   const calls = [];
   const server = makeConsoleServer({ stateDir: join(room, 'state'), workspace,
     capabilitySurfaceMode: mode,
     workAdmissionMode: 'action-v1',
+    ...serverOptions,
     modelFactory: () => ({ async respond(input) {
       calls.push({ messages: structuredClone(input.messages), tools: structuredClone(input.tools) });
       return respond(input, calls.length);
@@ -51,6 +52,38 @@ test('directory-first 후보는 Direct의 schema를 최소 손과 capability dir
   ]);
   assert.ok(candidate.calls[0].tools.length < baseline.calls[0].tools.length);
   assert.ok(toolBytes(candidate.calls[0]) < toolBytes(baseline.calls[0]));
+});
+
+test('좁은 현재 정보는 capability 발견·완료 의식 없이 한 Web 관측 뒤 바로 답한다', async () => {
+  const provider = {
+    id: 'weather-fixture', label: 'Weather Fixture',
+    async available() { return { available: true }; },
+    async search() { return [{ rank: 1, title: '오늘 서울 예보',
+      url: 'https://weather.example/seoul', snippet: '서울 26도, 저녁 비' }]; },
+  };
+  const observed = await run({ mode: 'directory-first-v1', request: '오늘 서울 날씨 알려줘',
+    webSearchProviders: [provider],
+    webReadOptions: {
+      resolveHost: async () => ['93.184.216.34'],
+      fetchImpl: async () => new Response('<html><body><article><h1>서울 오늘 예보</h1><p>현재 26도, 저녁에는 비가 옵니다.</p></article></body></html>',
+        { status: 200, headers: { 'content-type': 'text/html' } }),
+    },
+    respond(input, modelTurn) {
+      if (modelTurn === 1) {
+        assert.ok(input.tools.some((tool) => tool.name === 'web_research'));
+        assert.equal(input.tools.some((tool) => tool.name === 'work_completion'), false);
+        return { text: '', toolCalls: [{ id: 'weather', name: 'web_research', args: {
+          query: '서울 오늘 날씨', queries: null, sourceLimit: 1, domains: ['weather.example'],
+        } }] };
+      }
+      assert.equal(input.tools.some((tool) => tool.name === 'work_completion'), false);
+      const receipt = JSON.parse(input.messages.findLast((message) => message.name === 'web_research').content);
+      assert.equal(receipt.result.sources.length, 1);
+      assert.match(receipt.result.sources[0].content.text, /현재 26도/u);
+      return { text: '서울은 현재 26도이고 저녁에는 비가 옵니다.', toolCalls: [] };
+    } });
+  assert.equal(observed.result.reply, '서울은 현재 26도이고 저녁에는 비가 옵니다.');
+  assert.equal(observed.calls.length, 2);
 });
 
 test('설치 제품 entry는 자격된 directory-first surface를 사용한다', async () => {

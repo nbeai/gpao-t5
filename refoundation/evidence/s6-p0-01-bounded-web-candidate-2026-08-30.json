@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_P0_01_BOUNDED_CURRENT_WEB",
+  "status": "FIRST_CANDIDATE_QUALIFIED_NOT_COMPLETE",
+  "baselineCommit": "f42e4db7",
+  "model": "gpt-5.6-terra",
+  "provider": "openai",
+  "fixture": "synthetic_current_public_source",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "baseline": {
+    "passed": false,
+    "wallMs": 3639.236,
+    "modelCalls": 2,
+    "toolCalls": 1,
+    "tools": ["tool_search"],
+    "tokens": 15157,
+    "requestBytes": 80758,
+    "failure": "capability_discovery_did_not_reach_exact_public_source"
+  },
+  "candidate": {
+    "passed": true,
+    "wallMs": 4360.506,
+    "modelCalls": 2,
+    "toolCalls": 1,
+    "tools": ["web_research"],
+    "sourceLimit": 1,
+    "tokens": 15923,
+    "requestBytes": 83168,
+    "exactSourceRead": true,
+    "sourceBoundaryPreserved": true,
+    "workCompletionToolExposedAfterObservation": false
+  },
+  "directPositiveControl": {
+    "passed": true,
+    "modelCalls": 1,
+    "toolCalls": 0,
+    "wallMs": 4033,
+    "tokens": 7589,
+    "requestBytes": 38858
+  },
+  "deterministicRegression": {
+    "focusedTests": 31,
+    "failed": 0,
+    "multiSourceResearchPreserved": true
+  },
+  "adoptedBoundary": {
+    "newTool": false,
+    "intentRouter": false,
+    "providerSpecificBusinessPrompt": false,
+    "newStore": false,
+    "narrowCurrentFactCanUseOneSource": true,
+    "broadResearchStillUsesThreeToSixSources": true,
+    "boundedReadOnlyObservationNeedsCompletionProposal": false
+  },
+  "remaining": [
+    "actual current weather source A/B",
+    "single attachment read administrative-turn removal",
+    "provider-native server grounding comparison"
+  ]
+}

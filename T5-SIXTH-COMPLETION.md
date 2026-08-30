@@ -418,6 +418,8 @@ AND target 밖 effect·orphan·blind retry·false completion 0
 
 #### P0-01 — Commodity Conversation Observation Latency
 
+현재 상태: `FIRST_CANDIDATE_QUALIFIED · PRODUCT_INSTALL_NOT_YET_BUILT · SINGLE_ATTACHMENT_SLICE_PENDING`
+
 단순 서울 날씨 한 건의 실제 경로는 다음이었다.
 
 ```text
@@ -482,6 +484,18 @@ Runtime은 사용자 문장을 날씨·뉴스·가격 enum으로 분류하지 �
 
 > T5는 가벼운 대화는 즉시 답하고, 단순한 현재 정보와 한 첨부는 필요한 한 번의 관측만 수행해 대화형 AI다운
 > 속도로 정확한 근거와 답을 제공하며, 복합 조사·행동이 필요할 때만 전체 Work 경로를 연다.
+
+첫 후보 actual은 기존 `web_research`를 새 Tool로 복제하지 않고 directory-first의 foundational Hand로 보이게
+했으며, narrow current fact에 `sourceLimit=1`을 허용하고 해당 bounded observation 뒤 `work_completion`을
+활성화하지 않았다. 같은 gpt-5.6-terra·같은 synthetic public fixture에서 5차 exact 경로는 `tool_search`만 사용한
+뒤 단서를 다시 물어 목적에 실패했고, 6차 후보는 `web_research` 한 번으로 exact source를 읽고 두 번째 model
+call에서 정확한 답을 냈다. 직접 생각 대화는 model 1·Tool 0을 유지했다.
+
+근거: `refoundation/evidence/s6-p0-01-bounded-web-candidate-2026-08-30.json`.
+
+이 결과는 P0-01 전체 완료가 아니다. 실제 날씨 current source A/B, 작은 단일 attachment read와 provider별
+server-grounding 경제성은 다음 slice에 남는다. 현재 후보를 날씨 Router나 모든 공개 조사 sourceLimit 1로
+확대하지 않는다.
 
 #### P0-02 — Exact File Result Affordance
 

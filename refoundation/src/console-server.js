@@ -2036,7 +2036,7 @@ export function makeConsoleServer({
       const coreToolNames = capabilitySurfaceMode === 'directory-first-v1'
         && options.trigger !== 'automation'
         ? [
-          'exec', 'web_read', 'attachment', 'skill',
+          'exec', 'web_read', 'web_research', 'attachment', 'skill',
           ...(memoryCandidates || temporalMemoryCandidates ? ['memory'] : []),
           ...(projection.historicalRecallRequired
             ? [purposeHistory ? 'purpose_history' : 'session_search'] : []),
@@ -2110,10 +2110,14 @@ export function makeConsoleServer({
         resourceSituationMode,
         activeOptimizationMode,
         currentRunEvidenceMode,
-        onToolCallsAccepted: async () => {
+        onToolCallsAccepted: async ({ toolCalls: calls }) => {
           await ensureActiveWork();
+          const boundedObservationOnly = calls.length > 0 && calls.every((call) => (
+            deferredTools.find((tool) => tool.name === call.name)?.completionProposalOptional === true
+          ));
           return capabilitySurfaceMode === 'directory-first-v1'
-            && options.trigger !== 'automation' ? { activateTools: ['work_completion'] } : undefined;
+            && options.trigger !== 'automation' && !boundedObservationOnly
+            ? { activateTools: ['work_completion'] } : undefined;
         },
         onToolActivity: async ({ toolCallId, name, stream, deltaChars, totalChars, state }) => {
           if (observedToolActivity.has(toolCallId) || !['stdout', 'stderr'].includes(stream)
