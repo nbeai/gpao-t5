@@ -37,11 +37,14 @@ test('workspace observation은 bounded current facts만 만들고 private operat
     absoluteRoot: '/workspace', writableRoots: ['/workspace'], activeOutputOperations: [{
       handle: 'operation-1', sourceRoot: '/workspace/.t5/source', outputName: 'result.zip', state: 'source_open',
       expectedResultJson: '{"secret":true}', artifactSha256: 'a'.repeat(64),
-    }],
+    }], activeProcesses: [{ processId: 'process-1', state: 'running',
+      cursor: { stdout: 16, stderr: 0 }, command: 'secret command' }],
   });
   assert.match(block, /^\[T5 CURRENT WORKSPACE/u);
   assert.match(block, /absoluteRoot=\/workspace/u);
   assert.match(block, /currentRunOutputRoot="\/workspace\/\.t5\/source"/u);
+  assert.match(block, /activeManagedProcesses=.*process-1.*stdout.*16/u);
+  assert.match(block, /terminal_session write.*exact processId/u);
   assert.doesNotMatch(block, /secret|artifactSha256|aaaaaaaa/u);
   assert.ok(Buffer.byteLength(block, 'utf8') < 8 * 1024);
 });

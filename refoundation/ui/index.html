@@ -3628,7 +3628,10 @@ composerStop.onclick = async () => {
     body: JSON.stringify({ sessionId: currentSessionId }) }).catch(() => null);
   const result = await response?.json().catch(() => ({}));
   if (!response?.ok) setComposerInteraction('working', '중지 상태를 확인하지 못했어요.');
-  else { setComposerInteraction('idle', result.userSafeSummary ?? '작업을 멈췄어요.'); await 대화다시그리기(); }
+  else {
+    sessionActivityById.delete(currentSessionId); renderSessionActivity(null);
+    setComposerInteraction('idle', result.userSafeSummary ?? '작업을 멈췄어요.'); await 대화다시그리기();
+  }
   await loadSessions();
 };
 
@@ -3776,6 +3779,7 @@ function renderWorkReality(reality, { reconnect = false, sessionId = null } = {}
   workRealityBySession.set(realitySessionId, reality);
   if (realitySessionId !== currentSessionId) return;
   if (reality.showPanel !== true) { clearWorkRealityPanel(); return; }
+  if (reality.result?.deliveryText) { clearWorkRealityPanel(); return; }
   // 현재 탭이 직접 따라가는 작업에는 더 구체적인 stream 진행줄·경과 시간·중지 버튼이 있다.
   // 같은 Run의 일반 Work Reality까지 함께 그리면 사용자는 두 작업이 돈다고 느낀다.
   // 재접속·다른 탭처럼 stream 진행줄이 없는 경우에만 canonical panel을 복구 표면으로 쓴다.

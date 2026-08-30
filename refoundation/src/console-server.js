@@ -154,6 +154,8 @@ const bundledDocumentCli = resolve(repositoryRoot, 'refoundation', 'bin', 't5-do
 
 export function userSafeConsoleReply(value) {
   return String(value ?? '')
+    .replace(/\s*\[T5 [A-Z][^\]]*\][\s\S]*$/u, '')
+    .replace(/^.*\bprocessId\s*:\s*`?[0-9a-f-]+`?.*\n?/gimu, '')
     .replace(/\[([^\]]+)\]\(attachment:\/\/[^)\s]+\)/giu, '$1')
     .replace(/attachment:\/\/[0-9a-z-]+/giu, '')
     .replace(/[ \t]+\n/gu, '\n');
@@ -901,10 +903,14 @@ export function makeConsoleServer({
               .includes(receipt?.result?.state)
               || (receipt?.result?.providerAccepted === false
                 && receipt?.result?.externallyReachable === false);
+            const terminalPending = receipt?.requestedCall?.name === 'terminal_session'
+              && ['running', 'stop_requested'].includes(receipt?.result?.state);
             return (effect && effect.kind !== 'observe')
-              && !noEffect
+              && !noEffect && !terminalPending
               || (receipt?.requestedCall?.name === 'terminal_session'
-                && receipt?.result?.effectObservation);
+                && receipt?.result?.effectObservation
+                && receipt.result.effectObservation.declared?.kind !== 'observe'
+                && !terminalPending);
           });
           const verifiedPublications = calls.filter((event) => (
             event.payload?.receipt?.result?.publication?.state === 'published_verified'
@@ -2200,6 +2206,7 @@ export function makeConsoleServer({
         ...(options.trigger !== 'automation' ? ['automation'] : []),
         ...(options.trigger === 'automation' ? ['automation_outcome'] : []),
       ];
+      const activeManagedProcesses = processes.active(sessionId);
       const coreToolNames = capabilitySurfaceMode === 'directory-first-v1'
         && options.trigger !== 'automation'
         ? [
@@ -2211,6 +2218,7 @@ export function makeConsoleServer({
           ...(projection.historicalRecallRequired
             ? [purposeHistory ? 'purpose_history' : 'session_search'] : []),
           ...(projectUndoHandles.length ? ['workspace_patch'] : []),
+          ...(activeManagedProcesses.length ? ['terminal_session'] : []),
         ]
         : currentCoreToolNames;
       const deferredTools = deferTools(offeredTools, {
@@ -2312,6 +2320,7 @@ export function makeConsoleServer({
             sessionId, runId: run.runId,
           }),
           pendingOutputs: await attachments.pendingProducedOutputs({ sessionId }),
+          activeProcesses: processes.active(sessionId),
         }),
         takeAdmittedWorkInputs: async () => {
           const undecided = await workStore.undecidedInputs(sessionId);
@@ -4902,7 +4911,11 @@ export function makeConsoleServer({
       }
       if (req.method === 'POST' && url.pathname === '/turn/cancel') {
         const input = await body(req);
-        const entry = running.get(input.sessionId);
+        let entry = running.get(input.sessionId);
+        if (entry && processes.active(input.sessionId).length) {
+          const snapshot = await runLedger.read(entry.runId).catch(() => null);
+          if (snapshot && snapshot.status !== 'running') entry = null;
+        }
         if (!entry) {
           const activeProcesses = processes.active(input.sessionId);
           if (!activeProcesses.length) {
@@ -4910,8 +4923,25 @@ export function makeConsoleServer({
           }
           const stopped = await processes.stopOwner(input.sessionId, 'user_cancelled');
           const childrenTerminal = stopped.every((item) => ['completed', 'failed', 'stopped'].includes(item.state));
+          let claimReleased = false; let workPaused = false;
+          if (childrenTerminal) {
+            const state = await workStore.read();
+            const work = state.works.filter((item) => item.sessionId === input.sessionId
+              && item.status === 'active').at(-1);
+            const claim = work && state.claims.filter((item) => item.workId === work.workId
+              && item.revision === work.revision && item.state === 'active').at(-1);
+            if (claim) claimReleased = (await workStore.releaseExecution({ runId: claim.runId,
+              reason: 'background_process_user_stopped', allowSettled: true })).released === true;
+            if (work) {
+              await workStore.setStatus({ workId: work.workId,
+                expectedRevision: work.revision, status: 'paused' });
+              workPaused = true;
+            }
+            await publishWorkReality(input.sessionId).catch((error) => onError?.(error));
+          }
           json(res, childrenTerminal ? 200 : 409, { ok: childrenTerminal, terminal: childrenTerminal,
-            backgroundProcess: true, runTerminal: true, childrenTerminal, claimReleased: true,
+            backgroundProcess: true, runTerminal: true, childrenTerminal, claimReleased,
+            workPaused,
             unknownEffect: false, surfacePersisted: false, resumable: false,
             userSafeSummary: childrenTerminal ? '컴퓨터 작업을 멈춰어요.' : '중지 상태를 확인해야 해요.',
             nextSafeAction: childrenTerminal ? '필요하면 새로 시작할 수 있어요.' : '현재 상태를 다시 확인해 주세요.' }); return;

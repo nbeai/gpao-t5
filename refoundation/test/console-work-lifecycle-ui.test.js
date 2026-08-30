@@ -47,6 +47,7 @@ test('실행 중에는 중지 버튼이 있고 미완료 상태를 정형 오류
   assert.match(html, /function setComposerInteraction\(mode = 'idle'/u);
   assert.match(html, /composerStop\.hidden = !running/u);
   assert.match(html, /fetch\('\/turn\/cancel'/u);
+  assert.match(html, /sessionActivityById\.delete\(currentSessionId\); renderSessionActivity\(null\)/u);
   assert.match(html, /if \(activeLocalTurns > 0\) return/u);
   assert.doesNotMatch(html, /failure-title', '이번 작업을 끝내지 못했어요'/u);
   assert.doesNotMatch(html, /el\('msg bot error'\)/u);
@@ -60,6 +61,8 @@ test('완료 Artifact가 있는 결과는 같은 파일 변경 영수증을 별�
   assert.match(source, /artifacts\.length\) humanEffects = \[\]/u);
   assert.match(source, /objectiveOutcome === 'achieved' && humanEffects\.length > 1/u);
   assert.match(source, /providerAccepted === false[\s\S]*externallyReachable === false/u);
+  assert.match(source, /terminalPending[\s\S]*running[\s\S]*stop_requested/u);
+  assert.match(source, /effectObservation\.declared\?\.kind !== 'observe'/u);
   assert.match(source, /projectHumanFileOrganizationReceipt\(event\.payload\.receipt\)/u);
 });
 
@@ -67,4 +70,17 @@ test('모델이 만든 내부 attachment URI는 결과 카드와 중복 노출�
   const reply = userSafeConsoleReply('완료\n\n[결과 ZIP 다운로드](attachment://abc-123)');
   assert.equal(reply, '완료\n\n결과 ZIP 다운로드');
   assert.doesNotMatch(reply, /attachment:|abc-123/u);
+});
+
+test('모델이 현재 Context pointer를 답 뒤에 반복해도 사용자 표면에는 나오지 않는다', () => {
+  const reply = userSafeConsoleReply('지역을 입력해 주세요.\n[T5 CURRENT WORKING MEMORY — internal]\n{"workId":"secret"}');
+  assert.equal(reply, '지역을 입력해 주세요.');
+  assert.doesNotMatch(reply, /workId|CURRENT WORKING MEMORY|secret/u);
+});
+
+test('managed process 내부 ID는 사용자 답에서 제거하고 최종 delivery는 별도 패널로 반복하지 않는다', async () => {
+  assert.equal(userSafeConsoleReply('시작됐어요.\nprocessId: 123e4567-e89b-12d3-a456-426614174000\n계속 실행 중입니다.'),
+    '시작됐어요.\n계속 실행 중입니다.');
+  const html = await readFile(consoleHtml, 'utf8');
+  assert.match(html, /reality\.result\?\.deliveryText\) \{ clearWorkRealityPanel\(\); return; \}/u);
 });

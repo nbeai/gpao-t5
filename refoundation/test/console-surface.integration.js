@@ -699,7 +699,9 @@ test('모델 Run 종료 뒤도 managed background process가 살아 있으면 Se
     assert.equal(stopped.status, 200); const result = await stopped.json();
     assert.equal(result.ok, true); assert.equal(result.backgroundProcess, true);
     assert.equal(result.childrenTerminal, true); assert.equal(result.surfacePersisted, false);
+    assert.equal(result.claimReleased, true); assert.equal(result.workPaused, true);
     assert.equal(server.managedProcesses.active(session.id).length, 0);
+    assert.equal((await server.workStore.read()).works.at(-1).status, 'paused');
     assert.equal((await fetch(`${base}/sessions`).then((response) => response.json())).sessions[0].activity, null);
     await new Promise((resolve) => setTimeout(resolve, 1100));
     const { access } = await import('node:fs/promises'); await assert.rejects(() => access(marker));

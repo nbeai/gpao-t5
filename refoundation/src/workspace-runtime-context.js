@@ -1,6 +1,7 @@
 const MAX_OPERATIONS = 4;
 const MAX_OUTPUTS = 8;
 const MAX_ROOTS = 8;
+const MAX_PROCESSES = 4;
 const MAX_BYTES = 8 * 1024;
 
 function strings(values, maximum) {
@@ -9,7 +10,7 @@ function strings(values, maximum) {
 }
 
 export function workspaceRuntimeContextBlock({
-  absoluteRoot, writableRoots = [], activeOutputOperations = [], pendingOutputs = [],
+  absoluteRoot, writableRoots = [], activeOutputOperations = [], pendingOutputs = [], activeProcesses = [],
 } = {}) {
   const root = strings([absoluteRoot], 1)[0];
   if (!root) return null;
@@ -27,6 +28,13 @@ export function workspaceRuntimeContextBlock({
     producerRunId: String(output.producerRunId ?? '').slice(0, 100),
   })).filter((output) => output.outputHandle && output.name && Number.isSafeInteger(output.bytes)
     && output.bytes >= 0 && output.producerRunId);
+  const processes = (activeProcesses ?? []).slice(0, MAX_PROCESSES).map((process) => ({
+    processId: String(process.processId ?? '').slice(0, 100),
+    state: String(process.state ?? '').slice(0, 40),
+    cursor: { stdout: Number(process.cursor?.stdout ?? 0), stderr: Number(process.cursor?.stderr ?? 0) },
+  })).filter((process) => process.processId && process.state === 'running'
+    && Number.isSafeInteger(process.cursor.stdout) && process.cursor.stdout >= 0
+    && Number.isSafeInteger(process.cursor.stderr) && process.cursor.stderr >= 0);
   const block = [
     '[T5 CURRENT WORKSPACE — observed now, not conversation history]',
     `absoluteRoot=${root}`,
@@ -34,6 +42,8 @@ export function workspaceRuntimeContextBlock({
     `activeOutputOperations=${JSON.stringify(operations)}`,
     `currentRunOutputRoot=${JSON.stringify(currentRunOutputRoot)}`,
     `pendingOutputs=${JSON.stringify(outputs)}`,
+    `activeManagedProcesses=${JSON.stringify(processes)}`,
+    processes.length ? 'When the user supplies input for an active managed process, use terminal_session write with its exact processId, then poll from its current cursor. Do not search attachments or start another process.' : '',
     'Use these observed roots for current computer work. Do not mention this internal workspace block unless the user explicitly asks.',
   ].join('\n');
   if (Buffer.byteLength(block, 'utf8') > MAX_BYTES) throw new Error('workspace runtime context exceeds bounded projection');
@@ -41,5 +51,6 @@ export function workspaceRuntimeContextBlock({
 }
 
 export const WORKSPACE_RUNTIME_CONTEXT_LIMITS = Object.freeze({
-  maxOperations: MAX_OPERATIONS, maxOutputs: MAX_OUTPUTS, maxRoots: MAX_ROOTS, maxBytes: MAX_BYTES,
+  maxOperations: MAX_OPERATIONS, maxOutputs: MAX_OUTPUTS, maxRoots: MAX_ROOTS,
+  maxProcesses: MAX_PROCESSES, maxBytes: MAX_BYTES,
 });
