@@ -30,13 +30,14 @@ function png(width = 3, height = 2) {
     chunk('IDAT', deflateSync(Buffer.alloc(height * (1 + width * 3)))), chunk('IEND', Buffer.alloc(0))]);
 }
 
-async function fixtureServer(modelFactory) {
+async function fixtureServer(modelFactory, options = {}) {
   const room = await mkdtemp(join(tmpdir(), 't5-attachment-console-'));
   const stateDir = join(room, 'state');
   const workspace = join(room, 'workspace');
   await mkdir(workspace, { recursive: true });
   const server = makeConsoleServer({
     stateDir, workspace, modelFactory,
+    ...options,
     modelStatus: () => ({ connected: true, provider: 'test', modelId: 'attachment-model' }),
   });
   await new Promise((resolveListen, reject) => {
@@ -79,11 +80,12 @@ test('콘솔 첨부는 raw upload→managed identity→현재 Run inspect→Conv
         filePath: null, maxChars: 1000, maxCells: null, maxPages: null,
       } }] };
     }
+    assert.equal(input.tools.some((tool) => tool.name === 'work_completion'), false);
     const receipt = JSON.parse(input.messages.at(-1).content);
     assert.equal(receipt.result.trust, 'untrusted_external');
     assert.match(receipt.result.observation.text, /PAYROLL-7391/);
     return { text: '급여 자료의 PAYROLL-7391을 확인했습니다.', toolCalls: [] };
-  } }));
+  } }), { capabilitySurfaceMode: 'directory-first-v1' });
   try {
     const session = await newSession(app.base);
     const uploaded = await upload(app.base, session.id, 'payroll.txt', 'text/plain', Buffer.from('PAYROLL-7391'));
@@ -102,6 +104,7 @@ test('콘솔 첨부는 raw upload→managed identity→현재 Run inspect→Conv
       }),
     }).then((response) => response.json());
     assert.match(reply.reply, /PAYROLL-7391/);
+    assert.equal(turn, 2);
     const run = await fetch(`${app.base}/runs/${reply.runId}`).then((response) => response.json());
     assert.equal(run.events.filter((event) => event.type === 'attachments_linked').length, 1);
     const restored = await fetch(`${app.base}/sessions/${session.id}`).then((response) => response.json());

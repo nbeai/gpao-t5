@@ -16,6 +16,18 @@ import { createGeneratedCompatibilityFixtures } from '../src/document-compatibil
 
 const SESSION = '33333333-3333-4333-8333-333333333333';
 
+test('단일 첨부 읽기는 completion proposal 없이 끝나고 결과 등록은 기존 Work 계약을 유지한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-attachment-read-policy-'));
+  const tool = makeAttachmentTool({
+    store: new AttachmentStore(join(room, 'attachments')), sessionId: SESSION, workspace: room,
+  });
+  assert.equal(tool.completionProposalOptional({ action: 'inspect' }), true);
+  assert.equal(tool.completionProposalOptional({ action: 'search_document' }), true);
+  assert.equal(tool.completionProposalOptional({ action: 'reopen_document_pages' }), true);
+  assert.equal(tool.completionProposalOptional({ action: 'register_output' }), false);
+  assert.equal(tool.completionProposalOptional({ action: 'finalize_executable_output' }), false);
+});
+
 test('Artifact의 UI URL과 Session 경로는 canonical에 남아도 모델 결과 projection에서는 빠진다', () => {
   const canonical = { state: 'registered', artifact: {
     attachmentId: 'artifact-1', sessionId: SESSION, originalName: 'result.html', bytes: 42,

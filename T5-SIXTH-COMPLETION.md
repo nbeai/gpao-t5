@@ -493,7 +493,11 @@ call에서 정확한 답을 냈다. 직접 생각 대화는 model 1·Tool 0을 �
 
 근거: `refoundation/evidence/s6-p0-01-bounded-web-candidate-2026-08-30.json`.
 
-이 결과는 P0-01 전체 완료가 아니다. 실제 날씨 current source A/B, 작은 단일 attachment read와 provider별
+단일 attachment read의 directory-first deterministic 제품 경로도 `inspect → final` 두 model call과
+`work_completion` 비노출을 통과했다. read-only list·inspect·document page search/reopen만 이 경계를 사용하며
+register/finalize·output publication은 기존 Work 계약을 유지한다.
+
+이 결과는 P0-01 전체 완료가 아니다. 실제 날씨 current source A/B, 실제 모델 single attachment와 provider별
 server-grounding 경제성은 다음 slice에 남는다. 현재 후보를 날씨 Router나 모든 공개 조사 sourceLimit 1로
 확대하지 않는다.
 

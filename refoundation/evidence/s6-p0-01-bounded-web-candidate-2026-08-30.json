@@ -40,9 +40,13 @@
     "requestBytes": 38858
   },
   "deterministicRegression": {
-    "focusedTests": 31,
+    "focusedTests": 33,
     "failed": 0,
-    "multiSourceResearchPreserved": true
+    "multiSourceResearchPreserved": true,
+    "singleAttachmentModelCalls": 2,
+    "singleAttachmentToolCalls": 1,
+    "singleAttachmentCompletionToolExposedAfterInspect": false,
+    "attachmentMutationCompletionContractPreserved": true
   },
   "adoptedBoundary": {
     "newTool": false,
@@ -55,7 +59,7 @@
   },
   "remaining": [
     "actual current weather source A/B",
-    "single attachment read administrative-turn removal",
+    "actual-model single attachment A/B",
     "provider-native server grounding comparison"
   ]
 }

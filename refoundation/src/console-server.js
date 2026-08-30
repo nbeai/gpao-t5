@@ -2112,9 +2112,10 @@ export function makeConsoleServer({
         currentRunEvidenceMode,
         onToolCallsAccepted: async ({ toolCalls: calls }) => {
           await ensureActiveWork();
-          const boundedObservationOnly = calls.length > 0 && calls.every((call) => (
-            deferredTools.find((tool) => tool.name === call.name)?.completionProposalOptional === true
-          ));
+          const boundedObservationOnly = calls.length > 0 && calls.every((call) => {
+            const policy = deferredTools.find((tool) => tool.name === call.name)?.completionProposalOptional;
+            return policy === true || (typeof policy === 'function' && policy(call.args) === true);
+          });
           return capabilitySurfaceMode === 'directory-first-v1'
             && options.trigger !== 'automation' && !boundedObservationOnly
             ? { activateTools: ['work_completion'] } : undefined;
