@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_A_CAPABILITY_REALITY_AND_ADMISSION",
+  "status": "OPEN_CONNECTION_AND_CATALOG_REALITY_QUALIFIED",
+  "baselineCommit": "24508445",
+  "knownFactsBeforeProductSlice": {
+    "capabilityRealityContractExistedAsResearchSource": true,
+    "productEntryImportedReality": false,
+    "connectionTruthSeparate": true,
+    "bundledCatalogSeparate": true,
+    "managedSkillRealitySeparate": true,
+    "managedCliRealitySeparate": true,
+    "platformQualificationSeparate": true,
+    "typedCurrentDataCapabilityPresent": false
+  },
+  "firstProductSlice": {
+    "newStore": false,
+    "newRouter": false,
+    "newAdminUI": false,
+    "defaultToolSchemaIncrease": 0,
+    "discovery": "tool_search_on_capability_gap",
+    "productFacts": ["current connections", "bundled capability candidates"],
+    "realityStates": [
+      "usable_now", "available_inactive", "needs_auth", "preparable",
+      "degraded", "incompatible", "unknown"
+    ],
+    "readOnlyCompletionTurnRequired": false,
+    "capabilityAcquisitionOpened": false
+  },
+  "verification": {
+    "focusedPassed": 15,
+    "focusedFailed": 0,
+    "actualProviderCalls": 0,
+    "externalWrites": 0
+  },
+  "remaining": [
+    "merge managed Skill facts without opening Skill bodies",
+    "merge managed CLI generation and current executable qualification",
+    "merge platform and architecture qualification",
+    "measure typed current-data capability against the P0-01 weather carry"
+  ],
+  "nonClaims": [
+    "S6-A complete",
+    "capability acquisition active",
+    "weather latency solved",
+    "Windows physically qualified"
+  ]
+}

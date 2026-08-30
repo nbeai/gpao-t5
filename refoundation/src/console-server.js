@@ -120,6 +120,7 @@ import { wrapRemoteConnectionTool } from './existing-capability-inspectors.js';
 import { CapabilityHandoffLedger } from './capability-handoff-ledger.js';
 import { makeCapabilityHandoffCoordinator } from './capability-handoff-coordinator.js';
 import { loadCapabilityCatalog, makeCapabilityCatalogTool } from './capability-catalog.js';
+import { makeCapabilityRealityObserver, makeCapabilityRealityTool } from './capability-reality.js';
 import { AutomationStore } from './automation-store.js';
 import { AutomationScheduler } from './automation-scheduler.js';
 import { makeLocalAutomationOwner } from './automation-owner.js';
@@ -1949,6 +1950,9 @@ export function makeConsoleServer({
           snapshot: capabilitySnapshot, connectionDoctor,
         }));
       }
+      offeredTools.unshift(makeCapabilityRealityTool({ observer: makeCapabilityRealityObserver({
+        connectionDoctor, catalogSnapshot: Promise.resolve(capabilitySnapshot),
+      }) }));
       for (const service of connectionServices.values()) {
         if (typeof service.makeTool !== 'function') continue;
         const workspaceTool = await service.makeTool({

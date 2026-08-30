@@ -73,6 +73,7 @@ export function makeCapabilityRealityObserver({ connectionDoctor, catalogSnapsho
 export function makeCapabilityRealityTool({ observer } = {}) {
   if (!observer?.inspect) throw new TypeError('capability reality observer is required');
   return { name: 'capability_reality',
+    completionProposalOptional: true,
     searchTerms: ['current usable missing degraded preparable external capability reality 연결 능력 현재 가능 부족'],
     description: 'Inspect factual current capability reality only when the current tools and connections may not satisfy the user goal. It separates acquisition, account connection, and lifecycle state. It does not choose a service, install anything, or treat a candidate as usable.',
     parameters: { type: 'object', additionalProperties: false, properties: {

@@ -21,7 +21,8 @@ function failureStage(error, facts) {
   if (facts.resultState && facts.resultState !== 'none') return 'surface_publication';
   if (facts.effectState === 'unknown') return 'effect_verification';
   if ((facts.toolStarted ?? 0) > (facts.toolCompleted ?? 0)) return 'tool_execution';
-  if (error?.status != null || error?.name?.includes('Transport') || error?.code?.startsWith('http_')) {
+  if (error?.status != null || error?.name?.includes('Transport')
+    || (typeof error?.code === 'string' && error.code.startsWith('http_'))) {
     return 'model_response';
   }
   if (facts.modelState && facts.modelState !== 'not_started') return 'model_response';

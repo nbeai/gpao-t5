@@ -89,11 +89,11 @@ test('CA1 evidence는 설치·custom coding·전략 Pack을 완료로 꾸미지 
   assert.doesNotMatch(JSON.stringify(evidence), /\/Users\/|C:\\Users\\|sk-[A-Za-z0-9]|-----BEGIN/u);
 });
 
-test('3차 제품 entry는 CA 연구 source를 보존해도 acquisition과 Capability Reality를 열지 않는다', async () => {
+test('6차 제품 entry는 acquisition을 열지 않고 기존 Capability Reality 관측만 필요할 때 연다', async () => {
   const entry = await readFile(new URL('../scripts/start-console.mjs', import.meta.url), 'utf8');
   const consoleSource = await readFile(new URL('../src/console-server.js', import.meta.url), 'utf8');
   assert.doesNotMatch(entry, /makeCapabilityAcquisitionCoordinator|LocalCapabilityPackageStore|capabilityAcquisition/u);
-  assert.doesNotMatch(consoleSource, /makeCapabilityRealityObserver|makeCapabilityRealityTool/u);
+  assert.match(consoleSource, /makeCapabilityRealityObserver|makeCapabilityRealityTool/u);
   assert.doesNotMatch(consoleSource, /makeCapabilityPackageAdminTool|capabilityRealityEnabled|capabilityAcquisition/u);
   assert.doesNotMatch(consoleSource, /\/capabilities\/reality/u);
 });
