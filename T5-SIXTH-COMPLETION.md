@@ -1,8 +1,8 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_PLAN_OWNER_APPROVED · IMPLEMENTATION_NOT_STARTED · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
+상태: `SIXTH_PLAN_OWNER_APPROVED · OWNER_LIVE_P0_REGISTERED · IMPLEMENTATION_NOT_STARTED · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
-현재 작업: `PLAN_ONLY · PRODUCT_SOURCE_DELTA_0`
+현재 작업: `PLAN_ONLY · S6_P0_REGISTERED · PRODUCT_SOURCE_DELTA_0`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -103,6 +103,8 @@ Learning·Browser·Terminal·File·Document·Work·Receipt·Artifact·Undo·Reco
 5. Automation과 외부 연결의 구조는 강하지만 실제 외부 목적의 종단 자격은 대표 범위가 좁다.
 6. 정확한 Artifact·Browser·프로젝트 여정 일부는 model/tool 왕복과 provider 비용이 여전히 크다.
 7. Windows는 code-ready이지만 실제 x64·ARM64 제품 인간 자격이 `DEFERRED_NOT_WAIVED`다.
+8. 설치 제품의 단순 웹 관측·파일 결과 링크·사용자 가시 저장소 검색·제품 자기 버전에서 오너 Live P0가
+   재현됐다.
 
 6차는 이 일곱 미달만 닫는다. 이미 선 D·E·F·G·Memory·Context·Work·Connection을 재개발하지 않는다.
 
@@ -370,6 +372,222 @@ AND target 밖 effect·orphan·blind retry·false completion 0
 
 > 5차 exact 제품의 현재 강점과 6차 일곱 미달이 `이미 성립·부분 성립·실제 실패·미측정`으로 분리됐고,
 > 최초 구현을 여는 사용자 실패 하나와 positive control이 고정됐다. 제품 행동은 바뀌지 않았다.
+
+---
+
+### S6-P0 — Conversational Baseline & File Result Truth
+
+2026-08-30 오너의 실제 설치 제품 `0.5.0` Chrome Console에서 네 결함을 직접 재현했다. 대화 화면만 보고
+추론하지 않고 exact Run·Tool·Context receipt, 설치 product source, user-visible local file reality를 대조했다.
+개인 파일명·경로·대화 원문은 기계 evidence에 저장하지 않는다.
+
+근거: `refoundation/evidence/s6-owner-live-p0-baseline-2026-08-30.json`.
+
+#### P0-01 — Commodity Conversation Observation Latency
+
+단순 서울 날씨 한 건의 실제 경로는 다음이었다.
+
+```text
+tool_search
+→ web_research 3 sources·약 21KB result
+→ work_completion
+→ final answer
+```
+
+실측:
+
+- wall 20.170초
+- model calls 4
+- tool calls 3
+- provider tokens 47,501
+- request bytes 229,594
+- 전역 instruction 28,967 bytes가 네 요청에 반복 결속
+- 정답·기상청 출처는 정확했으나 사용자 목적에 비해 관측·행정 Turn이 과함
+
+이는 날씨 전용 기능 요청이 아니다. 가벼운 대화형 AI 표면을 다음 세 lane으로 자격한다.
+
+```text
+DIRECT:
+  model 1 · Tool 0
+
+BOUNDED_CURRENT_OBSERVATION:
+  현재 웹·정확한 URL·작은 read-only lookup
+  → 관련 foundational Hand를 별도 capability-discovery Turn 없이 선택
+  → client tool이면 one tool round trip 뒤 final
+  → provider-native server grounding이 더 정확하고 경제적이면 같은 response 안에서 사용
+
+SINGLE_ATTACHMENT_READ:
+  현재 첨부 identity가 이미 보임
+  → one exact inspect/reopen
+  → final
+```
+
+`tool_search`와 `work_completion`은 일반적으로 나쁜 것이 아니다. 드문 capability와 effect가 있는 장기 Work에는
+계속 필요하다. 하지만 bounded read-only observation에서 별도 model Turn 전체를 독점해선 안 된다.
+
+후보 A/B:
+
+- 현재 directory-first + deferred Web
+- 작은 foundational current-information Hand를 기본 surface에 유지
+- provider-native server search/grounding을 Adapter capability로 사용하고 T5 source·Transmission truth로 정규화
+- bounded read-only Work가 final answer 전 completion 의식을 요구하지 않는 실행 계약
+
+후보를 묶어 한 번에 채택하지 않는다. visible schema bytes·cache·direct 품질과 실제 wall을 한 축씩 비교한다.
+Runtime은 사용자 문장을 날씨·뉴스·가격 enum으로 분류하지 않는다. 모델이 현재성이 필요한지와 어떤 Hand를
+쓸지 판단하고 Runtime은 tool execution/effect가 bounded read-only인지 사실로만 판정한다.
+
+반대시험:
+
+- 인사·생각·설명 요청에 Web salience 증가
+- 최신성이 필요한 질문을 모델이 검색하지 않음
+- 한 출처면 충분한 질문에 deep research·다중 source·큰 result
+- source snippet만으로 원문 읽기 성공 주장
+- 작은 PDF·DOCX·XLSX 한 개 읽기에 tool search·Work completion 추가 Turn
+- 빠른 답을 위해 source·현재성·불확실성·citation을 제거
+
+완료 문장:
+
+> T5는 가벼운 대화는 즉시 답하고, 단순한 현재 정보와 한 첨부는 필요한 한 번의 관측만 수행해 대화형 AI다운
+> 속도로 정확한 근거와 답을 제공하며, 복합 조사·행동이 필요할 때만 전체 Work 경로를 연다.
+
+#### P0-02 — Exact File Result Affordance
+
+최근 보고서 두 개의 검색 정확성과 속도는 만족스러웠다. 그러나 실제 Console은 다음 상태였다.
+
+- `file_reality`는 exact file handle·displayName·file location을 관측했다.
+- 최종 답의 파일 제목은 plain text였다.
+- 모델이 별도로 출력한 `~/Downloads/` 폴더 문자열만 `path-links.js`가 `href="#"`로 바꿨다.
+- `/computer/reveal`은 model-authored path를 받고 없거나 불완전하면 nearest existing parent를 연다.
+- 따라서 사용자가 요청한 `파일 제목 클릭 → Finder/Explorer exact file 선택` 계약이 없다.
+
+사용자 계약:
+
+```text
+모든 exact local-file search result
+→ 사람이 읽는 파일 제목 자체가 clickable
+→ raw path는 기본 답에 표시하지 않음
+→ click은 model text가 아니라 Runtime-owned exact file identity/opaque handle 사용
+→ click 직전 current file identity 재검사
+→ macOS open -R exact file / Windows Explorer select exact file
+→ stale·missing이면 nearest parent를 성공으로 꾸미지 않고 현재 사실 표시
+```
+
+파일 다운로드·Preview와 Finder/Explorer reveal은 다른 행동이다. 기존 file handle·RecordRef·Attachment·native
+computer reveal 중 가장 작은 결속을 재사용하며 새 File Store를 만들지 않는다. 대화 재접속·Runtime restart 뒤에도
+가능한 existing canonical identity로 링크를 복원한다.
+
+반대시험:
+
+- 같은 이름의 다른 파일 reveal
+- 모델이 틀린 path를 써도 UI가 그 path를 신뢰
+- 파일이 사라졌는데 부모 폴더를 열고 성공 표시
+- Finder 링크를 만들려고 모든 search result를 무거운 Artifact로 복제
+- 사용자에게 절대경로·내부 handle·schema 노출
+- 제목이 아닌 별도 `위치` 줄을 눌러야 함
+
+완료 문장:
+
+> T5가 찾은 로컬 파일은 제목만 누르면 Finder나 파일 탐색기에서 정확한 그 파일이 선택되며, 사용자는 기술
+> 경로를 읽거나 복사할 필요가 없다.
+
+#### P0-03 — User-Visible Storage Scope & Filename-First Recall
+
+사람 이름 관련 파일 찾기의 현재 실제 결과는 실패였다.
+
+현재 Run:
+
+- wall 20.479초
+- model calls 6·tool calls 5
+- provider tokens 159,900·request bytes 652,325
+- File Reality search 7.501초
+- roots 20·entries 115,586·files 99,115·content probes 2,000
+- coverage `truncated=true`
+- 한 content match만 최종 선택
+- 이름이 직접 들어간 파일은 없다고 단정
+
+실제 컴퓨터에는 사용자에게 보이는 iCloud Drive에 query token이 파일명에 직접 들어간 파일 두 개가 있었다.
+해당 iCloud Drive root만 Unicode-normalized filename scan하면 약 0.04초에 두 파일 모두 관측됐다.
+
+원인:
+
+1. `discoverMacOSComputerFileRoots`는 전체 `Library`를 안전하게 제외한다.
+2. 별도 `local-sync-capability`는 exact iCloud Drive root를 이미 발견할 수 있다.
+3. 이 user-visible local sync root가 File Reality `computer` scope에 결속되지 않았다.
+4. 검색은 전체 walk 뒤 content probe와 점수 경쟁을 하며 filename evidence와 content evidence의 coverage를
+   독립 정산하지 않는다.
+5. coverage가 truncated인데 모델이 filename absence를 보편 사실로 확대했다.
+6. 모델이 `inspect`에 네 handle을 한 번에 넣었지만 실제 action은 one-handle contract여서 오류 Turn이 추가됐다.
+
+최소 수리 원리:
+
+```text
+qualified user-visible roots
+  = standard user roots
+  + already-observed local sync roots
+  - whole Library/package/private roots
+
+search phases
+  1. normalized exact/substring filename evidence across every qualified root
+  2. metadata/location evidence
+  3. bounded content/document/OCR evidence only when needed
+
+coverage
+  filenameScope: complete | partial | unavailable
+  contentScope: complete | partial | unavailable
+  visualScope: complete | partial | unavailable
+```
+
+filename exact/substring match와 content mention은 모두 관련 결과지만 같은 점수 하나로 합치지 않는다. 이름 match는
+사용자가 가장 직접 확인할 결과 lane으로 먼저 보이고, content match는 별도 관련 파일로 함께 제공한다. Runtime은
+그 사람이 파일의 주인·대상·작성자라고 의미 선택하지 않는다.
+
+inspect schema는 action별 실제 cardinality와 provider strict schema가 일치해야 한다. 한 file reopen만 허용할지,
+작은 여러 후보를 parallel/bounded reopen할지는 actual Context·wall A/B로 정하되 invalid batch Turn을 만들지 않는다.
+
+반대시험:
+
+- iCloud·Dropbox·Google Drive·OneDrive local root를 전체 Library 허용으로 확대
+- sync app 존재를 remote sync 성공으로 주장
+- filename 결과가 content probe budget에 밀려 누락
+- decomposed/composed Unicode 파일명 불일치
+- coverage partial에서 `없다` 단정
+- filename token이 다른 사람·문맥이라는 의미를 Runtime이 선택
+- 첫 이름 결과를 찾았다는 이유로 다른 requested related files를 숨김
+
+완료 문장:
+
+> 사용자가 이름·문구·대략적인 위치로 파일을 찾으면 T5는 Desktop·Documents·Downloads와 실제로 관측된 로컬
+> 동기화 폴더를 같은 컴퓨터 범위에서 빠르게 확인하고, 파일명에 직접 맞는 결과와 내용에 관련된 결과를 구분해
+> 빠짐없이 보여주며, 확인하지 못한 범위를 없다고 말하지 않는다.
+
+#### P0-04 — Product Self-Version Truth
+
+같은 Live 대화에서 사용자가 현재 버전을 물었을 때 T5는 `상호작용 코어 v5`를 답하고 배포 build는 확인할 수
+없다고 말했다. 실제 설치 앱의 `CFBundleShortVersionString`과 `CFBundleVersion`은 모두 `0.5.0`이었다.
+
+Interaction Core version·product release version·model version은 서로 다른 사실이다. 제품 self-state는 model
+기억이나 Prompt 문구가 아니라 설치 manifest·Runtime build identity에서 공급한다.
+
+완료 문장:
+
+> 사용자가 T5 버전을 물으면 현재 설치 제품 버전과 필요한 경우 Interaction Core·모델을 서로 혼동하지 않고
+> 실제 Runtime 사실로 정확히 답한다.
+
+#### S6-P0 공통 종료 조건
+
+```text
+날씨·현재 단일 fact·exact URL·작은 단일 attachment가 불필요한 administrative Turn 없이 완료
+AND direct conversation model 1·Tool 0 무회귀
+AND exact file title click→exact Finder/Explorer selection
+AND user-visible local sync root의 filename match 누락 0
+AND filename/content/visual coverage partial의 false absence 0
+AND 제품 version truth 정확
+AND 업무·서비스·질문 Intent Router 0
+AND 새 canonical Store 0
+AND 전체 File Reality·Artifact·Memory·Connection positive control 무회귀
+```
+
+S6-P0는 S6-A보다 먼저 닫는다. 이 P0를 Capability Acquisition이나 Computer Hand로 우회하지 않는다.
 
 ---
 
@@ -801,10 +1019,10 @@ GitHub runner·WSL·emulation·cross-build는 physical PASS를 대신하지 않�
 
 필수 인간 목적은 기능별 smoke가 아니라 다음 열 개 mission이다.
 
-1. 직접 대화·판단: Tool 0 positive control
+1. 직접 대화·단일 현재 정보·한 첨부: interactive latency positive control
 2. 최신 공개 조사: current official source와 정직한 external boundary
 3. 장기 Memory·현재 교정·forget
-4. 모호한 파일·OCR·기존 exact file delivery
+4. standard·local sync 범위의 filename/content/OCR 파일 발견·title reveal·exact delivery
 5. 복합 Excel·문서·editable presentation·version·Undo
 6. 처음 보는 목적의 capability gap→safe acquisition→exact Work resume
 7. 반복 목적의 Experience Growth→덜 설명→회귀 rollback
@@ -836,7 +1054,7 @@ HQ 중 재현된 P0/P1만 통합 책임자 한 명이 순차 수리한다. P2 �
 최종 합격식:
 
 ```text
-S6-A~J exact 완료 또는 정직한 제품 변경 0 관측 종료
+S6-P0·S6-A~J exact 완료 또는 정직한 제품 변경 0 관측 종료
 AND macOS actual mission PASS
 AND Windows x64·ARM64 physical mission PASS
 AND acquisition·growth·computer·external effect의 false completion 0
@@ -937,6 +1155,7 @@ failure_and_cost_retained: true
 
 - Windows x64·ARM64 physical qualification
 - acquisition의 source·qualification·rollback truth
+- bounded conversational observation latency와 exact file reveal/search truth
 - Experience Growth의 fresh-field safety·regression rollback
 - Computer Hand의 prompt injection·secret·effect·cancel 경계
 - actual external mission의 effect·readback·Delivery 진실
@@ -956,7 +1175,7 @@ failure_and_cost_retained: true
 2. 기존 CA·M6·Computer·VD·external·Windows evidence reuse index 작성
 3. 현재 source의 product entry와 default-off/research-only 배선 확인
 4. 격리 Console의 capability gap·learning off/proposal·desktop app baseline 고정
-5. 최초 실제 P0/P1 한 가족만 S6-A에서 개통
+5. 오너 Live P0 네 가족을 S6-P0에서 순서대로 개통하되 한 번에 한 축만 변경
 ```
 
 첫 구현 전 오너에게 다음 일곱 줄을 보고한다.

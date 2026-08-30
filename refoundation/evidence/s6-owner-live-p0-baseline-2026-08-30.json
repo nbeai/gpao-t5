@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_P0_OWNER_LIVE_INSTALLED_PRODUCT_BASELINE",
+  "status": "P0_REGISTERED_IMPLEMENTATION_NOT_STARTED",
+  "observedAt": "2026-08-30T04:14:00Z",
+  "surface": "actual installed GPAO-T5 0.5.0 Console in owner Chrome",
+  "model": "gpt-5.6-terra",
+  "productSourceChanged": false,
+  "incidents": [
+    {
+      "id": "S6-P0-01-COMMODITY-LATENCY",
+      "userPurpose": "one current weather answer",
+      "outcomeCorrect": true,
+      "wallMs": 20170,
+      "modelCalls": 4,
+      "toolCalls": 3,
+      "providerTokens": 47501,
+      "requestBytes": 229594,
+      "route": ["tool_search", "web_research", "work_completion", "final"],
+      "researchSources": 3,
+      "researchResultBytes": 21040,
+      "classification": "P0_INTERACTIVE_ECONOMY"
+    },
+    {
+      "id": "S6-P0-02-EXACT-FILE-REVEAL",
+      "userPurpose": "find two recent externally received reports",
+      "searchOutcomeCorrect": true,
+      "exactFileHandlesObserved": 2,
+      "fileTitlesClickable": false,
+      "visiblePathKind": "parent_directory_only",
+      "uiLinkTarget": "hash_placeholder_with_model_authored_path",
+      "exactFinderSelectionProven": false,
+      "classification": "P0_RESULT_USABILITY"
+    },
+    {
+      "id": "S6-P0-03-FILENAME-FIRST-SCOPE",
+      "userPurpose": "find files related to one person name",
+      "outcomeCorrect": false,
+      "wallMs": 20479,
+      "modelCalls": 6,
+      "toolCalls": 5,
+      "providerTokens": 159900,
+      "requestBytes": 652325,
+      "search": {
+        "elapsedMs": 7501,
+        "roots": 20,
+        "entriesVisited": 115586,
+        "filesVisited": 99115,
+        "contentProbes": 2000,
+        "truncated": true,
+        "titleMatchesReturned": 0,
+        "contentMatchesReturned": 1
+      },
+      "counterObservation": {
+        "rootKind": "icloud_drive_local_files",
+        "exactTitleMatches": 2,
+        "normalizedFilenameScanMsApprox": 40,
+        "rootAlreadyDiscoverableByExistingLocalSyncCapability": true
+      },
+      "falseAbsenceClaimed": true,
+      "classification": "P0_FILE_COMPLETENESS_TRUTH"
+    },
+    {
+      "id": "S6-P0-04-PRODUCT-VERSION-TRUTH",
+      "userPurpose": "state current T5 version",
+      "installedProductVersion": "0.5.0",
+      "answerUsedInteractionCoreVersionInstead": true,
+      "classification": "P0_PRODUCT_SELF_REALITY"
+    }
+  ],
+  "privacy": {
+    "userPromptCopied": false,
+    "personalFileNamesCopied": false,
+    "personalPathsCopied": false,
+    "fileContentsCopied": false,
+    "secretsCopied": false
+  },
+  "completionSentence": "T5의 가벼운 대화·단일 관측은 대화형 AI다운 속도로 끝나고, 찾은 파일 제목은 exact Finder/Explorer 결과에 연결되며, user-visible storage의 filename/content 결과와 확인 범위를 정직하게 전달한다."
+}
