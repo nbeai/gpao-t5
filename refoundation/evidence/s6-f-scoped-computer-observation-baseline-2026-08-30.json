@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_F_SCOPED_COMPUTER_OBSERVATION",
+  "status": "BASELINE_COMPLETE_MACOS_READ_ONLY_ACCESSIBILITY_CANDIDATE_OPEN",
+  "baseCommit": "219a1fe0",
+  "currentPositiveControls": {
+    "browserDomAndInteraction": true,
+    "fileNameContentOcrExactReopen": true,
+    "nativeFileReveal": true,
+    "foregroundAppIdentityAndAfk": true
+  },
+  "currentBoundaries": {
+    "appPrivateContainerOpenedByComputerSearch": false,
+    "foregroundAppTitleOrContentStored": false,
+    "accessibilityTreeAvailable": false,
+    "screenCaptureAvailable": false,
+    "desktopActionAvailable": false
+  },
+  "firstFailureFamily": {
+    "source": "owner Apple Notes attachment journey",
+    "userPurpose": "observe an attachment visible inside an authorized desktop app",
+    "falseAbsenceForbidden": true,
+    "sttCapabilitySeparate": true
+  },
+  "firstCandidate": {
+    "platform": "macOS",
+    "mode": "read_only_axuielement",
+    "scope": "current foreground app and exact authorized window",
+    "fields": ["role", "label", "enabled", "selected", "value_presence"],
+    "secretValues": false,
+    "fullTree": false,
+    "backgroundPolling": false,
+    "actions": false,
+    "screenshot": false,
+    "accessibilityTrustRequired": true
+  },
+  "officialSources": [
+    "https://developer.apple.com/documentation/applicationservices/axuielement_h",
+    "https://developer.apple.com/documentation/ScreenCaptureKit"
+  ],
+  "verification": { "focusedPassed": 57, "focusedFailed": 0, "productDelta": 0 },
+  "nonClaims": ["S6-F complete", "Apple Notes attachment observed", "screen recording permission", "Windows UIA qualification"]
+}

@@ -3,7 +3,7 @@
 상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_COMPLETE · S6_E_COMPLETE · S6_F_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
 현재 Gate: `S6-F · SCOPED COMPUTER OBSERVATION`
-현재 작업: `S6_F_READ_ONLY_BASELINE · BROWSER_TERMINAL_FILE_EXHAUSTION_FIRST`
+현재 작업: `S6_F_BASELINE_COMPLETE · MACOS_READ_ONLY_ACCESSIBILITY_CANDIDATE_OPEN`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -1065,7 +1065,28 @@ managed procedural Skill 밖의 external package·secret scope·Core·external e
 
 ### S6-F — Scoped Computer Observation
 
-현재 상태: `OPEN · READ_ONLY_BASELINE_FIRST · PRODUCT_CANDIDATE_0`
+현재 상태: `OPEN · BASELINE_COMPLETE · PRODUCT_CANDIDATE_0`
+
+current-head 57/57에서 기존 경계를 재자격했다.
+
+- Browser: persistent tab·DOM/accessibility snapshot·login handoff·download/upload는 browser profile 안에서 성립
+- File Reality: standard/sync roots의 filename·content·OCR·exact reopen은 성립하되 app private container를 전체
+  컴퓨터 검색으로 열지 않음
+- Native Computer: exact Finder/Explorer reveal과 folder selection만 성립
+- CH2: foreground app identity·AFK coarse metadata만 explicit enable에서 content 0으로 성립
+- 미달: 일반 desktop app의 authorized window identity·bounded AX tree·visible control/state·secret field presence
+
+오너 실사용의 Apple Notes 첨부 녹음은 파일 경계 밖 app UI에 존재할 수 있고, 현재 File Reality에서 발견되지 않았다는
+사실로 Notes 전체 부재를 말할 수 없다. 이를 첫 결함 가족로 고정한다. 현재 source에는 AXUIElement·ScreenCaptureKit
+제품 import가 없고 screenshot fallback도 없다.
+
+Apple 공식 AXUIElement는 assistive client가 accessible app의 element attributes와 actions를 읽는 API이며, 현재
+process가 trusted accessibility client인지 별도 확인한다. 첫 후보는 macOS read-only helper가 현재 foreground app의
+exact PID·authorized window에서 role·label·enabled/selected/value-presence만 bounded 반환하는 범위다. password·secret·
+OTP value, 전체 tree, 다른 app, background polling, action은 열지 않는다. AX가 부족할 때의 screenshot은 별도
+Screen Recording permission과 system picker가 필요한 다른 후보이며 이번 slice에서 열지 않는다.
+
+근거: `refoundation/evidence/s6-f-scoped-computer-observation-baseline-2026-08-30.json`.
 
 Browser·Terminal·File로 충분하지 않은 실제 desktop app 목적 하나가 재현될 때만 Computer Hand를 연다.
 
