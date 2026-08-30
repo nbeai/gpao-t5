@@ -62,6 +62,8 @@ test('기본 위치를 이유로 사용자가 지정한 경로의 터미널 관�
   assert.match(instructions, /exec.*foreground.*complete result/i);
   assert.match(instructions, /terminal_session only.*managed.*TTY.*later input.*exact recall.*processId.*cursor.*new output.*write.*resize.*stop/i);
   assert.match(instructions, /undoing.*recoverable trash.*backup.*inverse operation/i);
+  assert.match(instructions, /Runtime-provided durable Undo.*Do not create.*\.t5-backup.*user workspace/i);
+  assert.match(instructions, /user ZIP contains only the final files.*specs.*observer JSON.*debug logs.*manifests.*temporary scripts/i);
   assert.match(instructions, /user-facing Korean.*판단.*생각.*확인.*검토.*작업/u);
   assert.doesNotMatch(instructions, /macos|darwin/i);
 });

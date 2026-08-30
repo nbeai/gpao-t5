@@ -157,6 +157,7 @@ export function userSafeConsoleReply(value) {
   return String(value ?? '')
     .replace(/\s*\[T5 [A-Z][^\]]*\][\s\S]*$/u, '')
     .replace(/^.*\bprocessId\s*:\s*`?[0-9a-f-]+`?.*\n?/gimu, '')
+    .replace(/^.*\b(?:runId|workId|toolCallId|outputHandle)\s*:\s*`?[^\s`]+`?.*\n?/gimu, '')
     .replace(/\[([^\]]+)\]\(attachment:\/\/[^)\s]+\)/giu, '$1')
     .replace(/attachment:\/\/[0-9a-z-]+/giu, '')
     .replace(/[ \t]+\n/gu, '\n');

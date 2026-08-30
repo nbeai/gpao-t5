@@ -2563,11 +2563,14 @@ const SET_RENDER = {
         b.className = 'tb-test'; b.textContent = a.label;
         b.onclick = async () => {
           b.disabled = true;
-          await fetch(a.path, {
+          const response = await fetch(a.path, {
             method: 'POST', headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ jobId: row.id }),
           });
-          SET_RENDER.automation();      // 서버가 낸 새 사실로 다시 그린다
+          const result = await response.json().catch(() => ({}));
+          toast(result.userSafeSummary ?? result.error ?? (response.ok ? '자동화 상태를 반영했어요.' : '자동화 상태를 바꾸지 못했어요.'));
+          if (!response.ok) { b.disabled = false; return; }
+          await SET_RENDER.automation();      // 서버가 낸 새 사실로 다시 그린다
         };
         acts.appendChild(b);
       }
@@ -2619,8 +2622,11 @@ const SET_RENDER = {
         const actions = mk('div', 'connection-actions');
         for (const [label, path] of [['되돌리기', '/automation/archive/restore'], ['삭제', '/automation/delete']]) {
           const button = document.createElement('button'); button.className = 'connection-button'; button.textContent = label;
-          button.onclick = async () => { button.disabled = true; await fetch(path, { method: 'POST',
-            headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId: job.id }) }); SET_RENDER.automation(); };
+          button.onclick = async () => { button.disabled = true; const response = await fetch(path, { method: 'POST',
+            headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId: job.id }) });
+            const result = await response.json().catch(() => ({}));
+            toast(result.userSafeSummary ?? result.error ?? (response.ok ? '자동화 상태를 반영했어요.' : '자동화 상태를 바꾸지 못했어요.'));
+            if (!response.ok) { button.disabled = false; return; } await SET_RENDER.automation(); };
           actions.appendChild(button);
         }
         row.append(main, actions); list.appendChild(row);
@@ -2636,8 +2642,11 @@ const SET_RENDER = {
         const row = mk('div', 'settings-item'); const main = mk('div', 'settings-item-main');
         main.appendChild(mk('div', 'settings-item-title', job.name)); main.appendChild(mk('div', 'settings-item-desc', '삭제됨'));
         const button = document.createElement('button'); button.className = 'connection-button'; button.textContent = '되돌리기';
-        button.onclick = async () => { button.disabled = true; await fetch('/automation/delete/restore', { method: 'POST',
-          headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId: job.id }) }); SET_RENDER.automation(); };
+        button.onclick = async () => { button.disabled = true; const response = await fetch('/automation/delete/restore', { method: 'POST',
+          headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId: job.id }) });
+          const result = await response.json().catch(() => ({}));
+          toast(result.userSafeSummary ?? result.error ?? (response.ok ? '자동화 상태를 반영했어요.' : '자동화 상태를 바꾸지 못했어요.'));
+          if (!response.ok) { button.disabled = false; return; } await SET_RENDER.automation(); };
         row.append(main, button); list.appendChild(row);
       }
       section.appendChild(list); setBody.appendChild(section);

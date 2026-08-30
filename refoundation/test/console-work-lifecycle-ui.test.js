@@ -85,3 +85,8 @@ test('managed process 내부 ID는 사용자 답에서 제거하고 최종 deliv
   const html = await readFile(consoleHtml, 'utf8');
   assert.match(html, /reality\.result\?\.deliveryText\) \{ clearWorkRealityPanel\(\); return; \}/u);
 });
+
+test('Run·Work·Tool·output 내부 식별자 줄은 최종 답과 Copy 표면에서 제거한다', () => {
+  const reply = userSafeConsoleReply('완료\nrunId: run-secret\nworkId: work-secret\ntoolCallId: call-secret\noutputHandle: out-secret\n결과를 확인했어요.');
+  assert.equal(reply, '완료\n결과를 확인했어요.');
+});
