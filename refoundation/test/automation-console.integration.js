@@ -104,7 +104,10 @@ test('자연어 반복 요청은 실제 Job이 되고 수동 실행·Run 기록�
     assert.ok(origin.transcript.some((entry) => entry.result?.trigger === 'automation'
       && entry.result?.reply === '자동 실행 결과를 만들었어요.'));
     const archived = await fetch(`${base}/sessions?archived=1`).then((response) => response.json());
-    const executionSession = archived.sessions.find((item) => item.continuationOf === session.id);
+    assert.equal(archived.sessions.some((item) => item.continuationOf === session.id), false);
+    const executionSession = (await server.sessionStore.read()).sessions.find((item) => (
+      item.continuationOf === session.id && item.internal === true
+    ));
     assert.ok(executionSession);
     const executionConversation = await server.conversationLedger.read(executionSession.id);
     assert.equal(executionConversation.messages.some((message) => message.role === 'user'

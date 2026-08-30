@@ -98,7 +98,7 @@ export class ConsoleSessionStore {
     return next;
   }
 
-  async create({ origin = null, continuationOf = null } = {}) {
+  async create({ origin = null, continuationOf = null, internal = false } = {}) {
     return this.serialize(async () => {
       const state = await this.read();
       const now = Date.now();
@@ -108,6 +108,7 @@ export class ConsoleSessionStore {
         groupId: null,
         origin: sessionOrigin(origin),
         continuationOf: continuationSource(continuationOf),
+        ...(internal === true ? { internal: true } : {}),
       };
       state.sessions.push(session);
       await this.write(state);
@@ -123,6 +124,7 @@ export class ConsoleSessionStore {
   async list({ archived = false, deleted = false } = {}) {
     const state = await this.read();
     return state.sessions.filter((session) => {
+      if (session.internal === true) return false;
       if (deleted) return Boolean(session.deletedAt);
       if (archived) return Boolean(session.archivedAt) && !session.deletedAt;
       return !session.archivedAt && !session.deletedAt;

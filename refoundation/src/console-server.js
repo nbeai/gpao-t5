@@ -3513,7 +3513,7 @@ export function makeConsoleServer({
       if (!job.requirements || !job.delivery) return {
         runId: null, objectiveStatus: 'not_achieved', deliveryStatus: 'not_requested', error: 'automation_contract_missing',
       };
-      const executionSession = await sessions.create({ continuationOf: job.sessionId });
+      const executionSession = await sessions.create({ continuationOf: job.sessionId, internal: true });
       let completed;
       automationAuthorityBySession.set(executionSession.id, {
         envelope: job.authorityEnvelope ? structuredClone(job.authorityEnvelope) : null,

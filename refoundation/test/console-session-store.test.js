@@ -125,3 +125,17 @@ test('고정·수동 그룹은 Conversation 내용을 복제하거나 휴지통 
     assert.ok((await store.load(second.id)).deletedAt);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test('자동화 실행용 내부 대화는 원장에는 남지만 일반·보관함·휴지통 목록에는 나오지 않는다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 't5-console-internal-session-'));
+  try {
+    const store = new ConsoleSessionStore(dir); const origin = await store.create();
+    const internal = await store.create({ continuationOf: origin.id, internal: true });
+    await store.append(internal.id, { role: 'user', text: 'Return exactly this text: internal' });
+    await store.setArchived(internal.id, true);
+    assert.ok(await store.load(internal.id));
+    assert.equal((await store.list()).some((item) => item.id === internal.id), false);
+    assert.equal((await store.list({ archived: true })).some((item) => item.id === internal.id), false);
+    assert.equal((await store.list({ deleted: true })).some((item) => item.id === internal.id), false);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
