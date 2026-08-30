@@ -1,6 +1,6 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_PLAN_OWNER_APPROVED · OWNER_LIVE_P0_REGISTERED · IMPLEMENTATION_NOT_STARTED · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
+상태: `SIXTH_PLAN_OWNER_APPROVED · OWNER_UX_TOP_GOAL_LOCKED · OWNER_LIVE_P0_REGISTERED · IMPLEMENTATION_NOT_STARTED · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
 현재 작업: `PLAN_ONLY · S6_P0_REGISTERED · PRODUCT_SOURCE_DELTA_0`
 
@@ -42,6 +42,26 @@ Learning·Browser·Terminal·File·Document·Work·Receipt·Artifact·Undo·Reco
 > 끝낸다. 부족하면 출처와 권한이 확인된 능력을 격리해 같은 목적에서 검증한 뒤 원래 작업을 한 번만 재개한다.
 > 반복된 실제 경험에서 더 나은 방법을 배우고 회귀하면 철회하며, 모든 실행·효과·산출물·전달을 관측하고
 > 복구한다. 이 약속은 macOS와 Windows의 실제 제품 Console에서 같은 사용자 경험으로 성립한다.
+
+### 6차 최상위 목표 — Smooth Human Experience
+
+> T5 개발의 최상위 목표는 사용자의 매끄럽고 쾌적한 사용감이다. 사용자가 기능과 내부 절차를 의식하지 않고
+> 자연스럽게 말했을 때, T5는 대화형 AI다운 쾌적한 속도로 반응하고, 기다림이 필요한 일은 실제 진전을
+> 이해할 수 있게 보여주며, 정확하고 즉시 사용할 수 있는 결과로 상호작용한다.
+
+개발과 UX는 다른 단계가 아니다. 내부 구조·Receipt·Tool·Context·Capability가 정확해도 실제 Console에서
+다음 중 하나가 나타나면 해당 변경은 제품 성공이 아니다.
+
+- 사용자의 부탁보다 내부 protocol이 먼저 보인다.
+- 단순한 대화·검색·한 파일 읽기에 불필요한 model/tool Turn이 붙는다.
+- 정확한 결과를 찾고도 사용자가 바로 열거나 쓸 수 없다.
+- 사용자가 이미 말한 범위·선호·현재 상황을 다시 설명해야 한다.
+- 진행 문구는 나오지만 첫 유용한 결과가 이유 없이 늦다.
+- 기술적으로 성공했지만 잘못된 파일·경로·version·외부 범위를 답한다.
+- 사용자가 결과를 확인·교정·중지·Undo하기 위해 내부 기능을 배워야 한다.
+
+모든 Gate는 `Runtime correctness`와 `Human Experience`를 같은 실제 여정에서 함께 닫는다. API·fixture·도구
+성공 뒤 별도 UX 작업으로 넘기지 않는다.
 
 6차의 성공은 설치한 Skill·Connector·지원 앱·Agent 수가 아니다. 같은 사용자 목적에서 다음이 실제로 좋아져야
 한다.
@@ -325,6 +345,8 @@ Computer Use와 self-improving Skill은 다음 반대시험을 반드시 포함�
 
 ```text
 현재 목적 정확성·완전성·권한·진실성 무회귀
+AND 실제 Console의 자연스러움·쾌적한 속도·결과 즉시 사용성 통과
+AND 내부 protocol·기술 용어·경로를 사용자가 배울 필요 0
 AND 목표한 새 사용자 이익이 실제 Console에서 증가
 AND 현재 기반을 재사용하고 새 canonical system 0
 AND 추가 비용과 제거 비용을 actual usage로 설명
@@ -332,6 +354,17 @@ AND 같은 품질의 더 경제적인 미시도 경로 없음
 AND 서로 다른 세 목적에서 전용 업무 규칙 없이 같은 원리 성립
 AND target 밖 effect·orphan·blind retry·false completion 0
 ```
+
+속도는 모든 작업을 짧게 끝내라는 고정 초가 아니다.
+
+```text
+짧은 목적: 행정 Turn 없이 빠르게 결과
+긴 목적: first useful result가 빠르고 실제 진전·중지·교정이 자연스러움
+결과 목적: 사용자가 즉시 열고 확인하고 이어서 사용할 수 있음
+```
+
+모델 응답 시간이 긴 것과 T5가 불필요한 왕복을 만든 것을 구분한다. provider variance를 Runtime patch로
+덮지 않지만, 제품 구조가 만든 추가 model Turn·중복 Evidence·불필요한 검증은 사용자 체감 P0로 다룬다.
 
 모든 Gate가 세 목적 live를 필요로 하지는 않는다. deterministic contract와 한 실제 목적이 원리를 충분히 닫으면
 다른 두 목적은 기존 current-head evidence를 재사용할 수 있다.
