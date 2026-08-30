@@ -1,9 +1,9 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
+상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
-현재 Gate: `S6-A · CAPABILITY REALITY & ADMISSION`
-현재 작업: `S6_A_ACTUAL_MODEL_REALITY_QUALIFIED · EFFECT_AND_QUALIFICATION_FACTS_NEXT`
+현재 Gate: `S6-B · QUARANTINE, QUALIFICATION & LIFECYCLE`
+현재 작업: `S6_B_READ_ONLY_BASELINE · EXISTING_LIFECYCLE_REUSE_FIRST`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -716,7 +716,7 @@ provider-native 후보는 폐기했고 같은 방향의 세 번째 patch를 금�
 
 ### S6-A — Capability Reality & Admission
 
-현재 상태: `OPEN · CONNECTION_SKILL_CLI_PLATFORM_REALITY_QUALIFIED · EFFECT_AND_QUALIFICATION_FACTS_PENDING`
+현재 상태: `COMPLETE · ACTUAL_MODEL_QUALIFIED · NO_NEW_STORE_ROUTER_OR_DEFAULT_SCHEMA`
 
 현재 분산된 Connection·Capability catalog·managed Skill·CLI·MCP·platform reality를 새 Store 없이 한 현재 사실로
 모델에 공급한다.
@@ -765,10 +765,22 @@ Capability Reality를 사용하지 않았다. 짧은 Tool name은 exact token이
 현재 사용 가능·인증 필요·준비 후보·현재 전용 날씨 capability 부재를 구분했다. wall 9.915초·model 3·Tool 2·
 26,560 tokens·140,745 request bytes·work_completion 0·설치/실행/외부 effect 0이었다.
 
-아직 required secret·filesystem·network·child/external effect와 qualification source·관측 비용이 모든 fact에
-결속된 것은 아니다. 또한 catalog에 typed current-data capability가 없어 P0-01의 날씨 속도 carry를 해결했다고
-주장하지 않는다. 다음 slice는 새 schema system을 만들지 않고 기존 manifest와 qualification receipt에 이미 있는
-이 선택 사실만 bounded projection으로 결속한다.
+마지막 slice는 required secret·filesystem·network·child/external effect와 exact source handle을 existing manifest·
+policy·active generation에서 파생했다. source별 coverage가 complete가 아닐 때 universal absence를 주장할 수 없고,
+서로 다른 source가 같은 fact id를 주장하면 첫 항목을 임의 선택하지 않고 닫힌다.
+
+최종 actual gpt-5.6-terra는 동일 자연어 요청에서 `tool_search → capability_reality → final`만 사용했다. 34 facts·
+19,777 receipt bytes, wall 12.202초·model 3·Tool 2·29,174 tokens·150,423 request bytes였으며 설치·실행·외부 effect·
+work_completion은 0이었다. 이는 전체 능력 목록을 요청한 여정의 측정치이며 일반 대화의 기본 Context 비용은 0이다.
+모델은 현재 usable, needs-auth, preparable과 typed weather capability 부재, generic Web 대안을 정확히 구분했다.
+
+전체 CI는 제품 통합 201/203·실패 0·Windows 물리 자격 2 skip·mutation 2/2로 닫혔다. 첫 두 CI에서 동일
+after-delivery 후속 Work의 마지막 Run append와 임시 root 삭제가 경합한 사실을 숨기지 않았다. 테스트 sleep을
+늘리지 않고 Runtime shutdown이 이미 시작한 scheduled Work promise를 정산한 뒤 connection을 닫도록 수리했고,
+최종 전체 CI에서 같은 결함은 재현되지 않았다.
+
+따라서 S6-A 완료 문장은 성립한다. catalog에 typed current-data capability가 없다는 사실은 숨기지 않고 S6-B/C의
+첫 acquisition 목적 후보로 이월한다. S6-A가 날씨 속도 자체를 해결했다고 주장하지 않는다.
 
 근거: `refoundation/evidence/s6-a-capability-reality-baseline-2026-08-30.json`.
 actual 근거: `refoundation/evidence/s6-a-capability-reality-product-2026-08-30.json`.
@@ -776,6 +788,8 @@ actual 근거: `refoundation/evidence/s6-a-capability-reality-product-2026-08-30
 ---
 
 ### S6-B — Quarantine, Qualification & Lifecycle
+
+현재 상태: `OPEN · READ_ONLY_BASELINE_FIRST · PRODUCT_CANDIDATE_0`
 
 새 package engine을 만들지 않고 기존 source identity·managed store·Capability lifecycle·Effect·rollback을 확장한다.
 

@@ -500,6 +500,7 @@ export function makeConsoleServer({
     now: () => runtimeNow().toISOString(),
   });
   const scheduledWorkInputs = new Set();
+  const scheduledWorkTasks = new Set();
   function confirmedDeferredDelivery(input, state) {
     const result = input.deferredByRunId
       ? state.results.find((candidate) => candidate.runId === input.deferredByRunId)
@@ -525,9 +526,9 @@ export function makeConsoleServer({
       .find((candidate) => candidate.messageId === queued.messageId);
     if (!entry?.message?.content) return false;
     scheduledWorkInputs.add(queued.inputId);
-    queueMicrotask(() => {
+    const task = Promise.resolve().then(() => {
       const telegramSource = queued.source?.channel === 'telegram';
-      executeTurn(sessionId, entry.message.content, () => {}, {
+      return executeTurn(sessionId, entry.message.content, () => {}, {
         trigger: telegramSource ? 'messenger_followup' : 'work_followup',
         attachmentIds: queued.attachmentIds,
         admittedInput: { inputId: queued.inputId, messageId: queued.messageId,
@@ -543,8 +544,11 @@ export function makeConsoleServer({
             sessionId, text: reply, artifactIds,
           }),
         } : {}),
-      }).catch((error) => onError?.(error)).finally(() => scheduledWorkInputs.delete(queued.inputId));
+      });
+    }).catch((error) => onError?.(error)).finally(() => {
+      scheduledWorkInputs.delete(queued.inputId); scheduledWorkTasks.delete(task);
     });
+    scheduledWorkTasks.add(task);
     return true;
   }
   const memories = new MemoryLedger(join(stateDir, 'memory'));
@@ -1954,13 +1958,41 @@ export function makeConsoleServer({
         connectionDoctor, catalogSnapshot: Promise.resolve(capabilitySnapshot),
         coverage: { currentConnections: 'complete', bundledCatalog: 'complete', managedSkills: 'complete',
           managedCli: 'complete', hostPlatform: 'complete' }, factSources: [
-          async () => (await skillSurface()).map((skill) => ({
-            id: `skill-${skill.id}`, label: skill.label, kind: 'procedural_skill',
-            acquisition: skill.state === 'admitted' ? 'qualified' : 'source_observed',
-            connection: 'not_required', lifecycle: skill.state === 'admitted' ? 'active' : 'candidate',
-            capabilities: { guidance: true, codeExecution: false },
-            userSafeSummary: skill.description,
-          })),
+          async ({ report }) => {
+            const [policy, activeManaged] = await Promise.all([
+              skillPolicyCatalogPromise, managedSkillStore.installedNames(),
+            ]);
+            const metadata = new Map([...bundledSkillSnapshot.skills, ...skillPackageSnapshot.skills]
+              .map((skill) => [skill.name, skill]));
+            const connectionStates = new Map(report.connections.map((item) => [item.id, item.state]));
+            return policy.entries.flatMap((entry) => {
+              const skill = metadata.get(entry.name); if (!skill) return [];
+              const active = entry.activeByDefault || activeManaged.includes(entry.name);
+              const platformCompatible = !entry.requirements?.platform
+                || entry.requirements.platform === computer.platform;
+              const requiredConnection = entry.requirements?.connection;
+              const connectionReady = !requiredConnection
+                || ['connected', 'ready'].includes(connectionStates.get(requiredConnection));
+              const networkRequired = entry.requirements?.route === 'network'
+                || entry.requirements?.mediaOrNetworkRoute === true || Boolean(requiredConnection);
+              const filesystemRequired = entry.requirements?.route === 'local_vault';
+              const externalEffectRequired = entry.requirements?.physicalEffect === true;
+              return [{
+                id: `skill-${entry.name}`, label: entry.display.label, kind: 'procedural_skill',
+                acquisition: platformCompatible ? (active ? 'qualified' : 'source_observed') : 'rejected',
+                connection: requiredConnection && !connectionReady ? 'needs_connection' : 'not_required',
+                lifecycle: platformCompatible ? (active ? 'active' : 'candidate') : 'quarantined',
+                capabilities: { guidance: true, codeExecution: false },
+                requirements: { secret: requiredConnection || entry.requirements?.configuredAccount ? 'required' : 'not_required',
+                  filesystem: filesystemRequired ? 'required' : 'unknown',
+                  network: networkRequired ? 'required' : 'not_required',
+                  childProcess: entry.requirements?.command ? 'required' : 'not_required',
+                  externalEffect: externalEffectRequired ? 'required' : 'not_required' },
+                sourceHandle: `skill:${entry.name}:${skill.contentDigest}`,
+                userSafeSummary: entry.display.description,
+              }];
+            });
+          },
           async () => Promise.all(managedCliStore.catalog.packages.map(async (entry) => {
             let supported = true;
             try {
@@ -1974,6 +2006,11 @@ export function makeConsoleServer({
               acquisition: supported ? (installed ? 'qualified' : 'source_observed') : 'rejected',
               connection: 'not_required', lifecycle: supported ? (installed ? 'active' : 'candidate') : 'quarantined',
               capabilities: { localExecution: supported, managedLifecycle: true },
+              requirements: { secret: 'not_required', filesystem: 'unknown', network: 'not_required',
+                childProcess: 'required', externalEffect: 'not_required' },
+              sourceHandle: supported
+                ? `cli:${entry.id}:${managedCliStore.catalog.asset(entry.id, entry.defaultVersion,
+                  computer.platform, computer.architecture).sha256}` : null,
               userSafeSummary: installed
                 ? `${entry.description} 현재 설치된 버전 ${status.activeVersion}`
                 : supported ? `${entry.description} 현재 컴퓨터에서 준비 가능` : `${entry.description} 현재 컴퓨터와 호환되지 않음`,
@@ -1987,6 +2024,9 @@ export function makeConsoleServer({
               localExecution: true,
               nativeFileReveal: ['darwin', 'win32'].includes(computer.platform),
             },
+            requirements: { secret: 'not_required', filesystem: 'not_required', network: 'not_required',
+              childProcess: 'not_required', externalEffect: 'not_required' },
+            sourceHandle: `platform:${computer.platform}:${computer.architecture}`,
             userSafeSummary: '현재 T5 Runtime이 실제로 실행 중인 컴퓨터 환경',
           }],
         ],
@@ -5400,6 +5440,7 @@ export function makeConsoleServer({
   server.closeMessengers = async () => { await messengerStartup; return messenger.stop(); };
   server.closeBrowsers = closeBrowserDrivers;
   server.closeWorkspaceConnections = async () => {
+    await Promise.allSettled([...scheduledWorkTasks]);
     await learningReviewer?.close();
     await capabilityCoordinator.close();
     await Promise.all([...connectionServices.values()].map(async (service) => {

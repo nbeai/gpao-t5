@@ -38,6 +38,10 @@ test('S6-A는 capability reality를 필요할 때만 발견하고 read-only 사�
       assert.ok(receipt.result.facts.some((fact) => fact.kind === 'procedural_skill'));
       assert.ok(receipt.result.facts.some((fact) => fact.kind === 'managed_cli'));
       assert.ok(receipt.result.facts.some((fact) => fact.kind === 'host_platform'));
+      assert.ok(receipt.result.facts.every((fact) => Object.keys(fact.requirements).length === 5));
+      assert.ok(receipt.result.facts.filter((fact) => ['procedural_skill', 'managed_cli', 'host_platform']
+        .includes(fact.kind)).every((fact) => fact.sourceHandle));
+      assert.doesNotMatch(JSON.stringify(receipt.result), /\/Users\/|[A-Za-z]:\\/u);
       assert.ok(receipt.result.facts.every((fact) => [
         'usable_now', 'available_inactive', 'needs_auth', 'preparable',
         'degraded', 'incompatible', 'unknown',

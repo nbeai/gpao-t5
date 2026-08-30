@@ -2,6 +2,8 @@ const ACQUISITION = new Set(['discovered', 'source_observed', 'prepared', 'quali
 const CONNECTION = new Set(['not_required', 'needs_connection', 'verifying', 'ready', 'needs_reauth',
   'needs_permission', 'unavailable', 'unknown']);
 const LIFECYCLE = new Set(['candidate', 'inactive', 'active', 'degraded', 'quarantined', 'archived', 'removed', 'unknown']);
+const REQUIREMENT = new Set(['required', 'not_required', 'unknown']);
+const REQUIREMENT_KEYS = ['secret', 'filesystem', 'network', 'childProcess', 'externalEffect'];
 
 function axis(value, allowed, label) {
   const result = String(value ?? 'unknown');
@@ -11,6 +13,24 @@ function axis(value, allowed, label) {
 function id(value) {
   const result = String(value ?? '');
   if (!/^[a-z0-9][a-z0-9-]{1,63}$/u.test(result)) throw new TypeError('capability reality id is invalid');
+  return result;
+}
+
+function requirements(value = {}) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || Object.keys(value).some((key) => !REQUIREMENT_KEYS.includes(key))) {
+    throw new TypeError('capability requirements are invalid');
+  }
+  return Object.fromEntries(REQUIREMENT_KEYS.map((key) => [key,
+    axis(value[key], REQUIREMENT, `capability ${key} requirement`)]));
+}
+
+function sourceHandle(value) {
+  if (value == null) return null;
+  const result = String(value);
+  if (!/^[a-z0-9][a-z0-9:._-]{3,199}$/iu.test(result)) {
+    throw new TypeError('capability source handle is invalid');
+  }
   return result;
 }
 
@@ -37,6 +57,7 @@ export function capabilityRealityFact(input = {}) {
     axes: { acquisition, connection, lifecycle },
     capabilities: input.capabilities && typeof input.capabilities === 'object'
       ? Object.fromEntries(Object.entries(input.capabilities).filter(([, value]) => typeof value === 'boolean')) : {},
+    requirements: requirements(input.requirements), sourceHandle: sourceHandle(input.sourceHandle),
     userSafeSummary: String(input.userSafeSummary ?? '').trim().slice(0, 500) });
 }
 
@@ -64,20 +85,28 @@ export function makeCapabilityRealityObserver({ connectionDoctor, catalogSnapsho
     coverageFacts[key] = value;
   }
   return { async inspect() {
-    const [report, snapshot, ...additional] = await Promise.all([
-      connectionDoctor.inspect(), catalogSnapshot, ...factSources.map((source) => source()),
-    ]);
+    const [report, snapshot] = await Promise.all([connectionDoctor.inspect(), catalogSnapshot]);
+    const additional = await Promise.all(factSources.map((source) => source({ report, snapshot })));
     if (!Array.isArray(snapshot?.entries)) throw new TypeError('capability catalog snapshot is invalid');
     const current = new Map(report.connections.map((item) => [item.id, item]));
     const facts = report.connections.map((item) => capabilityRealityFact({ id: item.id, label: item.label,
       kind: item.category, acquisition: 'qualified', connection: connectionAxis(item.state),
       lifecycle: item.state === 'needs_attention' ? 'degraded'
         : ['connected', 'ready'].includes(item.state) ? 'active' : 'inactive',
-      capabilities: item.capabilities, userSafeSummary: item.userSafeSummary }));
+      capabilities: item.capabilities,
+      requirements: { secret: item.state === 'needs_connection' ? 'required' : 'unknown',
+        filesystem: 'not_required', network: 'required', childProcess: 'not_required',
+        externalEffect: item.capabilities?.create || item.capabilities?.update ? 'required' : 'unknown' },
+      userSafeSummary: item.userSafeSummary }));
     for (const candidate of snapshot.entries) if (!current.has(candidate.id)) facts.push(capabilityRealityFact({
       id: candidate.id, label: candidate.label, kind: candidate.category,
       acquisition: 'source_observed', connection: 'unknown', lifecycle: 'candidate',
-      capabilities: candidate.capabilities, userSafeSummary: candidate.userSafeSummary,
+      capabilities: candidate.capabilities,
+      requirements: { secret: 'required', filesystem: 'not_required', network: 'required',
+        childProcess: 'not_required', externalEffect: candidate.capabilities?.create || candidate.capabilities?.update
+          ? 'required' : 'not_required' },
+      sourceHandle: `catalog:${candidate.id}:${candidate.manifestDigest}`,
+      userSafeSummary: candidate.userSafeSummary,
     }));
     const known = new Set(facts.map((fact) => fact.id));
     for (const entries of additional) {

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "gate": "S6_A_CAPABILITY_REALITY_AND_ADMISSION",
-  "status": "ACTUAL_MODEL_REALITY_QUALIFIED_EFFECT_FACTS_PENDING",
+  "status": "S6_A_COMPLETE_ACTUAL_MODEL_QUALIFIED",
   "baselineCommit": "24508445",
   "productBoundary": {
     "sources": [
@@ -17,7 +17,9 @@
     "newStore": false,
     "newRouter": false,
     "defaultToolSchemaIncrease": 0,
-    "acquisitionOpened": false
+    "acquisitionOpened": false,
+    "requirementsProjected": ["secret", "filesystem", "network", "childProcess", "externalEffect"],
+    "exactSourceHandleProjected": true
   },
   "firstActual": {
     "model": "gpt-5.6-terra",
@@ -45,14 +47,31 @@
     "typedWeatherCapabilityReportedAbsent": true,
     "genericWebAlternativeReportedUsable": true
   },
-  "verification": {
-    "focusedPassed": 36,
-    "focusedFailed": 0
+  "finalActual": {
+    "model": "gpt-5.6-terra",
+    "purposeAchieved": true,
+    "toolCalls": ["tool_search", "capability_reality"],
+    "workCompletionCalls": 0,
+    "wallMs": 12202,
+    "modelCalls": 3,
+    "providerTokens": 29174,
+    "requestBytes": 150423,
+    "factCount": 34,
+    "realityReceiptBytes": 19777,
+    "defaultContextBytesAdded": 0,
+    "installedOrExecutedCapability": false,
+    "externalEffects": 0,
+    "purposeTruth": "usable, needs-auth, preparable, typed-weather absence, and generic-Web alternative separated"
   },
-  "remaining": [
-    "bounded secret filesystem network child and external-effect requirements",
-    "qualification source and measured quality or cost facts",
-    "typed current-data capability same-purpose A/B"
-  ],
-  "nonClaims": ["S6-A complete", "weather latency solved", "capability acquisition active"]
+  "verification": {
+    "focusedPassed": 40,
+    "focusedFailed": 0,
+    "fullCI": { "integrationPassed": 201, "integrationSkipped": 2, "integrationFailed": 0 },
+    "mutation": { "passed": 2, "failed": 0 },
+    "firstFullCIFailure": "temporary run directory cleanup raced the final scheduled Work append",
+    "testDelayAdded": false,
+    "runtimeSettlementRepair": true
+  },
+  "remaining": ["typed current-data capability same-purpose A/B moves to S6-B and S6-C"],
+  "nonClaims": ["weather latency solved", "capability acquisition active", "all external capabilities exist"]
 }

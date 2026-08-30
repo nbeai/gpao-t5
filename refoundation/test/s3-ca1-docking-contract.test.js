@@ -65,11 +65,17 @@ test('Capability Reality는 현재 연결과 아직 실행 불가능한 catalog 
     { id: 'broken-api', label: '고장난 API', category: 'workspace', state: 'needs_attention',
       capabilities: {}, userSafeSummary: '확인 필요' }] }; } },
     catalogSnapshot: { entries: [{ id: 'company-inventory', label: '회사 재고', category: 'business',
-      capabilities: { read: true }, userSafeSummary: '준비 후보' }] } });
+      capabilities: { read: true }, manifestDigest: digest, userSafeSummary: '준비 후보' }] } });
   const report = await observer.inspect();
   assert.equal(report.facts.find((item) => item.id === 'notion').reality, 'usable_now');
   assert.equal(report.facts.find((item) => item.id === 'broken-api').reality, 'degraded');
   assert.equal(report.facts.find((item) => item.id === 'company-inventory').reality, 'preparable');
+  assert.equal(report.facts.find((item) => item.id === 'company-inventory').sourceHandle,
+    `catalog:company-inventory:${digest}`);
+  assert.deepEqual(report.facts.find((item) => item.id === 'company-inventory').requirements, {
+    secret: 'required', filesystem: 'not_required', network: 'required', childProcess: 'not_required',
+    externalEffect: 'not_required',
+  });
 });
 
 test('Capability Reality는 기존 Skill·CLI·platform 사실을 중복 없이 같은 projection에 합친다', async () => {
@@ -93,6 +99,7 @@ test('Capability Reality는 기존 Skill·CLI·platform 사실을 중복 없이 
     ['cli-jq', 'preparable'],
     ['platform-darwin-arm64', 'usable_now'],
   ]);
+  assert.ok(report.facts.every((fact) => Object.keys(fact.requirements).length === 5));
 });
 
 test('Capability Reality는 서로 다른 source가 같은 id를 주장하면 첫 항목을 고르지 않는다', async () => {
