@@ -3768,7 +3768,10 @@ function renderSessionActivity(activity) {
   restoreActivityFeed(trace, activity.steps ?? []);
   setActivityTrace(trace, activity.text || '작업을 이어가고 있어요', activity.startedAt);
   if (activity.steps?.length > 0) trace.dataset.hasToolActivity = 'true';
-  trace.hidden = !(activity.steps?.length > 0);
+  // 입력 직후부터 첫 답변/도구 사실이 도착할 때까지도 현재 요청이 살아 있음을 본문에서 보여준다.
+  // 상세 단계는 실제 tool activity가 있을 때만 쌓지만, 준비 중 한 줄까지 숨기면 직접 답변은
+  // 모델 첫 글자가 올 때까지 먹통처럼 보인다. 첫 answer_delta가 오면 기존 경로가 이 줄을 걷는다.
+  trace.hidden = false;
   scrollToBottom();
 }
 
@@ -3795,7 +3798,7 @@ function renderWorkReality(reality, { reconnect = false, sessionId = null } = {}
   const liveTrace = document.getElementById('session-activity-trace');
   if (!reconnect && activeLocalTurns > 0 && liveTrace) {
     document.getElementById('work-reality-panel')?.remove();
-    liveTrace.hidden = liveTrace.dataset.hasToolActivity !== 'true';
+    liveTrace.hidden = false;
     const stop = document.querySelector('[data-session-activity-stop]'); if (stop) stop.hidden = false;
     return;
   }
@@ -4250,7 +4253,9 @@ async function submit() {
   setComposerInteraction('responding');
   trace.id = 'session-activity-trace'; trace.dataset.sessionActivity = submittedSessionId;
   setActivityTrace(trace, '요청을 이해하고 있어요', Date.now());
-  trace.hidden = true;
+  // 도구를 쓰지 않는 직접 답변도 첫 글자가 오기 전까지 응답 준비 상태를 본문에 보여준다.
+  // Tool 상세는 여전히 tool_progress/activity_event가 실제로 왔을 때만 추가된다.
+  trace.hidden = false;
   box.appendChild(trace);
   // 중지는 입력창의 한 canonical control로 표시하고 답 본문 아래에 같은 버튼을 반복하지 않는다.
   const firstFeedbackPaint = afterVisiblePaint(surfaceStartedAt);

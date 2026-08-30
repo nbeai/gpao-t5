@@ -35,10 +35,22 @@ test('Work 현실 패널은 canonical version과 showPanel을 따르고 사용�
   assert.match(html, /\.trace\[hidden\] \{ display:none; \}/u);
   assert.match(renderer, /activeLocalTurns > 0 && liveTrace/u);
   assert.match(renderer, /work-reality-panel'\)\?\.remove/u);
-  assert.match(renderer, /liveTrace\.hidden = liveTrace\.dataset\.hasToolActivity !== 'true'/u);
+  assert.match(renderer, /liveTrace\.hidden = false/u);
   assert.match(html, /trace\.hidden = false/u);
   assert.match(html, /composerStop\.hidden = !running/u);
   assert.match(html, /setComposerInteraction\(activity\.steps\?\.length \? 'working' : 'responding'\)/u);
+});
+
+test('도구 없는 직접 답변도 입력 직후 본문에 한 줄 진행 상태를 보이고 첫 답변에서 교체한다', async () => {
+  const html = await readFile(resolve(root, 'refoundation/ui/index.html'), 'utf8');
+  const submitStart = html.indexOf("const trace = el('trace', '요청을 이해하고 있어요…')");
+  const streamStart = html.indexOf('async function streamTurn', submitStart);
+  const submitProjection = html.slice(submitStart, streamStart);
+  assert.match(submitProjection, /trace\.hidden = false/u);
+  assert.doesNotMatch(submitProjection, /trace\.hidden = true/u);
+  const answerStart = html.indexOf("es.addEventListener('answer_delta'");
+  const answerEnd = html.indexOf('const completed =', answerStart);
+  assert.match(html.slice(answerStart, answerEnd), /trace\.hidden = true/u);
 });
 
 test('Artifact 인간 영수증은 기존 카드 안에서 접혀 있고 textContent만 사용한다', async () => {
