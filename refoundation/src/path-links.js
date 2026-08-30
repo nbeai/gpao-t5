@@ -56,6 +56,20 @@ export function resolveRelativeReference(reference, knownAbsolutePaths = []) {
   return matches.size === 1 ? [...matches][0] : null;
 }
 
+export function fileReferenceSegments(input, references = []) {
+  const text = String(input ?? ''); const found = [];
+  for (const reference of references) {
+    const name = String(reference?.name ?? ''); if (!name) continue;
+    let from = 0;
+    while (from < text.length) {
+      const start = text.indexOf(name, from); if (start < 0) break;
+      found.push({ start, end: start + name.length, reference }); from = start + name.length;
+    }
+  }
+  found.sort((left, right) => left.start - right.start || right.end - left.end);
+  return found.filter((item, index) => index === 0 || item.start >= found[index - 1].end);
+}
+
 function knownPaths(document) {
   return Array.from(document.querySelectorAll('a.t5-path-link[data-t5-path]'))
     .map((link) => link.dataset.t5Path)
@@ -102,6 +116,31 @@ function linkifyTextNode(node) {
   node.replaceWith(fragment);
 }
 
+function linkifyFileReferenceNode(node, references) {
+  if (!node.data || node.parentElement?.closest('a,script,style,textarea')) return;
+  const segments = fileReferenceSegments(node.data, references); if (!segments.length) return;
+  const fragment = node.ownerDocument.createDocumentFragment(); let cursor = 0;
+  for (const segment of segments) {
+    fragment.append(node.data.slice(cursor, segment.start));
+    const link = node.ownerDocument.createElement('a'); link.href = '#'; link.className = 't5-path-link';
+    link.dataset.t5Path = segment.reference.path; link.dataset.t5ExactFile = 'true';
+    link.dataset.t5Bytes = segment.reference.bytes == null ? '' : String(segment.reference.bytes);
+    link.dataset.t5ModifiedAt = segment.reference.modifiedAt ?? '';
+    link.title = '파일 탐색기에서 이 파일 보기'; link.textContent = node.data.slice(segment.start, segment.end);
+    fragment.append(link); cursor = segment.end;
+  }
+  fragment.append(node.data.slice(cursor)); node.replaceWith(fragment);
+}
+
+function linkifyFileReferences(root) {
+  let references; try { references = JSON.parse(root.dataset?.t5FileReferences ?? '[]'); } catch { return; }
+  if (!Array.isArray(references) || !references.length) return;
+  const document = root.ownerDocument ?? root;
+  const walker = document.createTreeWalker(root, globalThis.NodeFilter?.SHOW_TEXT ?? 4); const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (const node of nodes) linkifyFileReferenceNode(node, references);
+}
+
 export function linkifyPaths(root) {
   const document = root.ownerDocument ?? root;
   const walker = document.createTreeWalker(root, globalThis.NodeFilter?.SHOW_TEXT ?? 4);
@@ -116,8 +155,8 @@ function install() {
   document.head.append(style);
 
   const enhance = (root = document) => {
-    if (root.nodeType === 1 && root.matches?.('.bot')) linkifyPaths(root);
-    root.querySelectorAll?.('.bot').forEach(linkifyPaths);
+    if (root.nodeType === 1 && root.matches?.('.bot')) { linkifyFileReferences(root); linkifyPaths(root); }
+    root.querySelectorAll?.('.bot').forEach((item) => { linkifyFileReferences(item); linkifyPaths(item); });
   };
   enhance();
   new MutationObserver((changes) => {
@@ -136,7 +175,10 @@ function install() {
     const response = await fetch('/computer/reveal', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-t5-console-action': 'reveal' },
-      body: JSON.stringify({ path: link.dataset.t5Path }),
+      body: JSON.stringify({ path: link.dataset.t5Path,
+        exactFile: link.dataset.t5ExactFile === 'true',
+        bytes: link.dataset.t5Bytes ? Number(link.dataset.t5Bytes) : null,
+        modifiedAt: link.dataset.t5ModifiedAt || null }),
     });
     if (!response.ok) link.title = '이 경로를 열지 못했어요';
   });

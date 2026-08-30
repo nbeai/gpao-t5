@@ -3961,6 +3961,9 @@ function renderResult(r, opts = {}) {
   // 모델이 구조화 후보만 제출한 턴은 제안 카드가 곧 응답이다. 빈 답 말풍선을 먼저 만들지 않는다.
   if (답문.trim()) {
     const bot = el('msg bot');
+    if (Array.isArray(r.fileReferences) && r.fileReferences.length) {
+      bot.dataset.t5FileReferences = JSON.stringify(r.fileReferences);
+    }
     renderMarkdownInto(bot, 답문);
     box.appendChild(bot);
     appendMessageActions(box, 답문);

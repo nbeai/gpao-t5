@@ -184,6 +184,30 @@ function attachmentSurface(record) {
   };
 }
 
+function fileReferencesFromReceipts(receipts = []) {
+  const output = []; const seen = new Set();
+  for (const receipt of receipts) {
+    if ((receipt.actualCall?.name ?? receipt.requestedCall?.name) !== 'file_reality'
+      || receipt.outcome !== 'succeeded') continue;
+    const result = receipt.result ?? {};
+    const records = [...(result.candidates ?? []), ...(result.recentDocumentCandidates ?? []),
+      ...(result.file ? [result.file] : [])];
+    for (const record of records) {
+      const name = String(record?.displayName ?? '').trim();
+      const path = String(record?.locationText ?? '').trim();
+      if (!name || !path || seen.has(`${name}\0${path}`)
+        || !(/^~[\\/]/u.test(path) || isAbsolute(path) || /^[A-Za-z]:[\\/]/u.test(path))) continue;
+      seen.add(`${name}\0${path}`);
+      output.push({ referenceId: createHash('sha256').update(`${name}\0${path}\0${record.bytes ?? ''}\0${record.modifiedAt ?? ''}`)
+        .digest('hex').slice(0, 24), name, path,
+      bytes: Number.isSafeInteger(record.bytes) ? record.bytes : null,
+      modifiedAt: record.modifiedAt ?? null });
+      if (output.length >= 20) return output;
+    }
+  }
+  return output;
+}
+
 function json(res, status, value) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(value));
@@ -2467,6 +2491,7 @@ export function makeConsoleServer({
           }),
         };
       })() : null;
+      const fileReferences = fileReferencesFromReceipts(result.receipts);
       const surfaceResult = approvalReceipt ? (() => {
         const { effect, pendingId, command, toolName } = approvalReceipt.result;
         return {
@@ -2492,6 +2517,7 @@ export function makeConsoleServer({
         kind: 'reply',
         reply: result.answer,
         runId: run.runId,
+        ...(fileReferences.length ? { fileReferences } : {}),
         ...(browserHandoff ? { browserHandoff } : {}),
         ...(connectionHandoff ? { connectionHandoff } : {}),
         ...(outputArtifacts.length ? { artifacts: outputArtifacts } : {}),
@@ -4315,7 +4341,8 @@ export function makeConsoleServer({
           json(res, 403, { error: 'console action header is required' }); return;
         }
         const input = await body(req);
-        const opened = await reveal(input.path);
+        const opened = await reveal(input.path, { exactFile: input.exactFile === true,
+          bytes: input.bytes, modifiedAt: input.modifiedAt });
         json(res, 200, { ok: true, ...opened }); return;
       }
       if (req.method === 'POST' && url.pathname === '/browser/login/reveal') {

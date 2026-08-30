@@ -59,3 +59,14 @@ test('홈 축약 경로는 현재 컴퓨터의 userHome으로 확장해 연다',
   }]);
   assert.equal(result.requestedPath, '/Users/person/Downloads/report.pdf');
 });
+
+test('검색 결과 제목 reveal은 exact file identity가 바뀌거나 사라지면 부모 폴더를 열지 않는다', async () => {
+  const calls = [];
+  const reveal = makePathRevealer({ platform: 'darwin', userHome: '/Users/person',
+    statPath: async () => ({ isDirectory: () => false, size: 43,
+      mtime: new Date('2026-08-30T00:00:00.000Z') }),
+    spawnProcess: (program, args) => { calls.push({ program, args }); return { unref() {} }; } });
+  await assert.rejects(() => reveal('~/Downloads/report.pdf', { exactFile: true, bytes: 42,
+    modifiedAt: '2026-08-30T00:00:00.000Z' }), /identity changed/u);
+  assert.deepEqual(calls, []);
+});

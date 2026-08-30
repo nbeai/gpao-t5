@@ -519,6 +519,8 @@ citation annotation을 제공하지 않았다. source truth를 증명할 수 없
 
 #### P0-02 — Exact File Result Affordance
 
+현재 상태: `STRUCTURAL_CANDIDATE_QUALIFIED · ACTUAL_BROWSER_CONSOLE_PENDING`
+
 최근 보고서 두 개의 검색 정확성과 속도는 만족스러웠다. 그러나 실제 Console은 다음 상태였다.
 
 - `file_reality`는 exact file handle·displayName·file location을 관측했다.
@@ -556,6 +558,16 @@ computer reveal 중 가장 작은 결속을 재사용하며 새 File Store를 �
 
 > T5가 찾은 로컬 파일은 제목만 누르면 Finder나 파일 탐색기에서 정확한 그 파일이 선택되며, 사용자는 기술
 > 경로를 읽거나 복사할 필요가 없다.
+
+첫 후보는 `file_reality` canonical Receipt의 displayName·locationText·bytes·modifiedAt만 surface file reference로
+투영한다. UI는 모델 답 안의 같은 파일 제목만 link로 만들고 click 시 exact-file flag와 현재 identity facts를
+`/computer/reveal`에 보낸다. 서버는 bytes·mtime을 재검사하고 macOS `open -R` 또는 Windows Explorer select를
+사용한다. stale·missing·directory이면 nearest parent fallback 없이 실패한다. 모델이 작성한 path와 새 Store는 0이다.
+
+focused 24/24에서 exact title segment·macOS/Windows invocation·stale identity fail-closed·File Reality Console
+surface·기존 Console lifecycle을 통과했다. 실제 Browser Console click은 다음 자격에 남는다.
+
+근거: `refoundation/evidence/s6-p0-02-exact-file-title-reveal-2026-08-30.json`.
 
 #### P0-03 — User-Visible Storage Scope & Filename-First Recall
 

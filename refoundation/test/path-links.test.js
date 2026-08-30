@@ -1,7 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { absolutePathSegments, resolveRelativeReference } from '../src/path-links.js';
+import { absolutePathSegments, fileReferenceSegments, resolveRelativeReference } from '../src/path-links.js';
+
+test('Runtime file reference는 답 안의 파일 제목 자체만 exact reveal link 후보로 만든다', () => {
+  const reference = { name: '주간보고.pdf', path: '~/Downloads/주간보고.pdf', bytes: 42,
+    modifiedAt: '2026-08-30T00:00:00.000Z' };
+  assert.deepEqual(fileReferenceSegments('찾은 파일은 **주간보고.pdf**입니다.', [reference]), [{
+    start: 9, end: 17, reference,
+  }]);
+});
 
 test('콘솔 답의 POSIX·Windows 절대경로를 사용자 문장 변경 없이 찾아낸다', () => {
   assert.deepEqual(

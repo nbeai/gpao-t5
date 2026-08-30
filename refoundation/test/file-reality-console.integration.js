@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import sharp from 'sharp';
 
 import { makeConsoleServer } from '../src/console-server.js';
+import { discoverComputerEnvironment } from '../src/computer-environment.js';
 
 async function listen(server) {
   await new Promise((resolve, reject) => {
@@ -15,14 +16,17 @@ async function listen(server) {
 }
 
 test('실제 콘솔은 모호한 단서로 컴퓨터 후보를 찾고 선택한 파일만 다시 연다', async (t) => {
-  const room = await mkdtemp(join(tmpdir(), 't5-file-reality-console-'));
+  const room = await realpath(await mkdtemp(join(tmpdir(), 't5-file-reality-console-')));
   const workspace = join(room, 'workspace'); const archive = join(room, 'archive'); const organized = join(room, '정리예정');
   await Promise.all([mkdir(workspace), mkdir(archive), mkdir(organized)]);
   const target = join(archive, '기억안나는자료.txt');
   await writeFile(target, '한빛상사 여름 행사 견적 478만원\n파란 포장으로 확정\n');
-  let turn = 0; const visible = []; const errors = [];
+  let turn = 0; const visible = []; const errors = []; const reveals = [];
   const server = makeConsoleServer({
     stateDir: join(room, 'state'), workspace, computerFileRoots: [room],
+    computerEnvironment: discoverComputerEnvironment({ userHome: room }),
+    revealPath: async (path, options) => { reveals.push({ path, options });
+      return { requestedPath: path, openedPath: path, targetType: 'file' }; },
     fileIndexSearch: async () => [target], onError: (error) => errors.push(error?.stack ?? String(error)),
     modelFactory: () => ({ async respond(input) {
       turn += 1; visible.push(input.tools.map((tool) => tool.name));
@@ -56,7 +60,7 @@ test('실제 콘솔은 모호한 단서로 컴퓨터 후보를 찾고 선택한 
         return { text: '', toolCalls: [{ id: 'complete-file-search', name: 'work_completion',
           args: { outcome: 'achieved', inputSettlements: [] } }] };
       }
-      return { text: '한빛상사 여름 행사 견적 478만원 자료를 찾았습니다.', toolCalls: [] };
+      return { text: '기억안나는자료.txt에서 한빛상사 여름 행사 견적 478만원 자료를 찾았습니다.', toolCalls: [] };
     } }),
   });
   t.after(async () => {
@@ -70,6 +74,15 @@ test('실제 콘솔은 모호한 단서로 컴퓨터 후보를 찾고 선택한 
   const result = await response.json();
   assert.equal(response.status, 200, JSON.stringify({ result, errors }));
   assert.match(result.reply, /478만원 자료를 찾았습니다/u);
+  assert.ok(result.fileReferences, JSON.stringify(result));
+  assert.equal(result.fileReferences.length, 1);
+  assert.equal(result.fileReferences[0].name, '기억안나는자료.txt');
+  assert.equal(result.fileReferences[0].path.endsWith('/archive/기억안나는자료.txt'), true);
+  const reveal = await fetch(`${base}/computer/reveal`, { method: 'POST', headers: {
+    'content-type': 'application/json', 'x-t5-console-action': 'reveal',
+  }, body: JSON.stringify({ ...result.fileReferences[0], exactFile: true }) });
+  assert.equal(reveal.status, 200); assert.equal(reveals.length, 1);
+  assert.equal(reveals[0].options.exactFile, true);
   assert.equal(visible[0].includes('file_reality'), false);
   assert.equal(visible[1].includes('file_reality'), true);
   assert.equal(errors.length, 0, errors.join('\n'));

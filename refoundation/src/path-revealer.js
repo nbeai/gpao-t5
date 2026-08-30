@@ -49,14 +49,27 @@ export function makePathRevealer({
   statPath = stat,
   spawnProcess = spawn,
 } = {}) {
-  return async function revealPath(rawPath) {
+  return async function revealPath(rawPath, options = {}) {
     const raw = String(rawPath ?? '').trim();
     const requestedPath = /^~[\\/]/.test(raw) && userHome
       ? pathApi(platform).join(userHome, raw.slice(2)) : raw;
     if (!requestedPath || requestedPath.includes('\0') || !isAbsoluteFor(platform, requestedPath)) {
       throw Object.assign(new Error('absolute path is required'), { status: 400 });
     }
-    const found = await closestExisting(requestedPath, platform, statPath);
+    let found;
+    if (options.exactFile === true) {
+      let info;
+      try { info = await statPath(requestedPath); }
+      catch { throw Object.assign(new Error('exact file is unavailable'), { status: 409 }); }
+      if (info.isDirectory?.()) throw Object.assign(new Error('exact file is unavailable'), { status: 409 });
+      if (Number.isSafeInteger(options.bytes) && info.size !== options.bytes) {
+        throw Object.assign(new Error('exact file identity changed'), { status: 409 });
+      }
+      if (options.modifiedAt && info.mtime?.toISOString?.() !== options.modifiedAt) {
+        throw Object.assign(new Error('exact file identity changed'), { status: 409 });
+      }
+      found = { path: requestedPath, targetType: 'file' };
+    } else found = await closestExisting(requestedPath, platform, statPath);
     const invocation = revealInvocation(platform, found.path, found.targetType);
     const child = spawnProcess(invocation.program, invocation.args, { stdio: 'ignore', detached: true });
     child.unref?.();
