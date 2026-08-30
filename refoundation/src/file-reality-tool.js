@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { execFile } from 'node:child_process';
-import { chmod, lstat, mkdir, open as openFile, opendir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, open as openFile, opendir, readFile, realpath, rename, rm, rmdir, writeFile } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, parse, relative, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -359,7 +359,7 @@ export function makeFileRealityTool({
     completionProposalOptional: (args = {}) => [
       'search', 'image_candidates', 'inspect', 'compare', 'visual_candidates',
     ].includes(args.action),
-    description: 'Find real local files when the user remembers only approximate names, contents, dates, amounts, people, projects, or prior context. When the user did not name a folder and did not explicitly limit the request to the current project or workspace, use computer scope; the mere existence of a managed workspace is not a user-selected search boundary. Use workspace only for an explicitly current workspace/project request, and path for one exact user-named folder. Return bounded opaque candidates and evidence without sending the whole filesystem or file contents to the model. Inspect selected candidates, use deliver on one exact verified handle when the user asked to receive that file, compare exact duplicates or possible versions, and preview an exact organization plan with collision facts before any file is changed. Never declare a final version from the filename alone.',
+    description: 'Find real local files when the user remembers only approximate names, contents, dates, amounts, people, projects, or prior context. When the user did not name a folder and did not explicitly limit the request to the current project or workspace, use computer scope; the mere existence of a managed workspace is not a user-selected search boundary. Use workspace only for an explicitly current workspace/project request, and path for one exact user-named folder. Return bounded opaque candidates and evidence without sending the whole filesystem or file contents to the model. Inspect selected candidates. When the user asks to find and show, give, open, or otherwise use identified files, call deliver once for every exact selected non-image file that belongs in the result; do not finish with printed paths alone. Exact selected images are registered during visual inspect. Compare exact duplicates or possible versions, and preview an exact organization plan with collision facts before any file is changed. Never declare a final version from the filename alone.',
     searchTerms: [
       'find local file whole computer vague name content duplicate latest version',
       '컴퓨터 전체 파일 찾기 이름 위치 모름 내용 단서 중복 최종본 버전',
@@ -596,23 +596,42 @@ export function makeFileRealityTool({
           if (stat.nlink !== 1) throw new Error('organization source hardlink is unavailable');
           if (seenSources.has(record.path)) throw new TypeError('a file can appear only once in an organization plan');
           seenSources.add(record.path);
-          const destination = await realpath(resolve(placement.destinationDirectory));
-          const destinationStat = await lstat(destination);
-          if (!destinationStat.isDirectory() || destinationStat.isSymbolicLink()
+          const requestedDestination = resolve(placement.destinationDirectory);
+          let destination; let destinationStat; let createDestination = false;
+          let destinationContainer = null; let destinationContainerStat = null;
+          try {
+            destination = await realpath(requestedDestination); destinationStat = await lstat(destination);
+          } catch (error) {
+            if (error?.code !== 'ENOENT') throw error;
+            destinationContainer = await realpath(parse(requestedDestination).dir);
+            destinationContainerStat = await lstat(destinationContainer);
+            destination = join(destinationContainer, basename(requestedDestination));
+            if (await statOrNull(destination)) throw new Error('organization destination changed after preview');
+            createDestination = true;
+          }
+          const boundaryStat = createDestination ? destinationContainerStat : destinationStat;
+          const boundaryPath = createDestination ? destinationContainer : destination;
+          if (!boundaryStat?.isDirectory() || boundaryStat.isSymbolicLink()
             || protectedPath(destination, exactProtectedRoots)
-            || !roots.some((root) => pathInside(destination, root))) throw new Error('organization destination is unavailable');
+            || !roots.some((root) => pathInside(destination, root))
+            || !roots.some((root) => pathInside(boundaryPath, root))) {
+            throw new Error('organization destination is unavailable');
+          }
           const target = join(destination, record.displayName);
           if (seenTargets.has(target)) throw new TypeError('organization plan has duplicate destinations');
           seenTargets.add(target);
           let targetStat = null; try { targetStat = await lstat(target); } catch (error) { if (error?.code !== 'ENOENT') throw error; }
           const alreadyThere = resolve(record.path) === resolve(target);
           const collision = targetStat != null && !alreadyThere;
-          const crossVolume = !alreadyThere && stat.dev !== destinationStat.dev;
+          const crossVolume = !alreadyThere && stat.dev !== boundaryStat.dev;
           changes.push({ handle: placement.handle, displayName: record.displayName,
             from: record.locationText, to: locationText(target, home), bytes: stat.size,
             state: alreadyThere ? 'already_there' : collision ? 'collision' : crossVolume ? 'cross_volume_unsupported' : 'ready' });
           operations.push({ source: record.path, target, identity: record.identity,
-            destinationParentIdentity: { dev: destinationStat.dev, ino: destinationStat.ino },
+            destinationDirectory: destination, createDestination,
+            destinationParentIdentity: createDestination ? null : { dev: destinationStat.dev, ino: destinationStat.ino },
+            destinationContainerIdentity: createDestination
+              ? { dev: destinationContainerStat.dev, ino: destinationContainerStat.ino } : null,
             displayName: record.displayName, state: alreadyThere ? 'unchanged' : 'pending' });
         }
         const id = `plan-${randomUUID()}`; const readyToApply = changes.every((item) => ['ready', 'already_there'].includes(item.state));
@@ -631,17 +650,44 @@ export function makeFileRealityTool({
           if (source == null && identityMatches(operation.identity, target)) {
             operation.state = 'moved'; await savePlan(plan); continue;
           }
-          const parent = await lstat(parse(operation.target).dir);
-          if (!parent.isDirectory() || parent.isSymbolicLink()
+          let parent = await statOrNull(operation.destinationDirectory ?? parse(operation.target).dir);
+          if (operation.createDestination === true && parent == null) {
+            const container = await lstat(parse(operation.destinationDirectory).dir);
+            if (!container.isDirectory() || container.isSymbolicLink()
+              || container.dev !== operation.destinationContainerIdentity?.dev
+              || container.ino !== operation.destinationContainerIdentity?.ino) {
+              throw new Error('organization destination changed after preview');
+            }
+            parent = container;
+          } else if (!parent?.isDirectory() || parent.isSymbolicLink()
             || parent.dev !== operation.destinationParentIdentity?.dev
             || parent.ino !== operation.destinationParentIdentity?.ino) {
             throw new Error('organization destination changed after preview');
           }
-          if (!identityMatches(operation.identity, source) || source.dev !== parent.dev) throw new Error('organization source changed after preview');
+          if (!identityMatches(operation.identity, source) || source.dev !== parent.dev) {
+            throw new Error('organization source changed after preview');
+          }
           if (target != null) throw new Error('organization destination collision');
         }
         const moved = [];
+        const createdDirectories = [];
         try {
+          for (const destination of [...new Set(plan.operations.filter((item) => (
+            item.state === 'pending' && item.createDestination === true
+          )).map((item) => item.destinationDirectory))]) {
+            const related = plan.operations.filter((item) => item.destinationDirectory === destination);
+            let info = await statOrNull(destination);
+            if (info == null) {
+              await mkdir(destination); info = await lstat(destination);
+              if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('organization destination creation failed');
+              createdDirectories.push(destination);
+              for (const operation of related) {
+                operation.destinationCreatedByPlan = true;
+                operation.destinationParentIdentity = { dev: info.dev, ino: info.ino };
+              }
+              await savePlan(plan);
+            }
+          }
           for (const operation of plan.operations) {
             if (operation.state !== 'pending') continue;
             await rename(operation.source, operation.target); operation.state = 'moved'; moved.push(operation); await savePlan(plan);
@@ -651,6 +697,10 @@ export function makeFileRealityTool({
           for (const operation of moved.reverse()) {
             try { await rename(operation.target, operation.source); operation.state = 'pending'; await savePlan(plan); }
             catch { rollbackVerified = false; operation.state = 'recovery_required'; }
+          }
+          for (const destination of createdDirectories.reverse()) {
+            try { await rmdir(destination); }
+            catch { rollbackVerified = false; }
           }
           plan.state = rollbackVerified ? 'planned' : 'recovery_required'; await savePlan(plan); throw error;
         }
@@ -672,6 +722,10 @@ export function makeFileRealityTool({
         }
         const moved = plan.operations.filter((item) => item.state === 'moved').reverse();
         for (const operation of moved) { await rename(operation.target, operation.source); operation.state = 'rolled_back'; await savePlan(plan); }
+        const createdDirectories = [...new Set(plan.operations.filter((item) => (
+          item.destinationCreatedByPlan === true
+        )).map((item) => item.destinationDirectory))];
+        for (const destination of createdDirectories.reverse()) await rmdir(destination);
         plan.state = 'rolled_back'; plan.rolledBackAt = new Date(now()).toISOString(); await savePlan(plan);
         return { state: 'rolled_back', planId: plan.planId, filesRestored: moved.length };
       }

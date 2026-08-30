@@ -35,6 +35,7 @@ test('기본 위치를 이유로 사용자가 지정한 경로의 터미널 관�
   assert.match(instructions, /shortest useful answer.*conclusion.*compact next step/i);
   assert.match(instructions, /use the available exec tool whenever computer work or evidence is needed/i);
   assert.match(instructions, /approximate file names.*contents.*dates.*amounts.*people.*projects.*locations.*tool_search.*file reality.*before.*broad shell scan/i);
+  assert.match(instructions, /file organization[\s\S]*file_reality[\s\S]*tool_search[\s\S]*skill search and exec are not substitutes/i);
   assert.match(instructions, /Protect personal identifiers.*do not repeat customer.*member.*patient.*employee.*account IDs.*masked labels/i);
   assert.match(instructions, /work remains.*tool is available.*do not end.*promise or preamble.*Call the tool.*same response/i);
   assert.match(instructions, /Before saying.*files.*exports.*local evidence.*absent.*exec.*bounded observation.*disconnected external service.*does not prove/i);

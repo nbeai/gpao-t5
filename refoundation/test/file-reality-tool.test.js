@@ -26,6 +26,13 @@ async function fixture() {
   return { root, workspace, elsewhere, protectedRoot, target, a, b, c };
 }
 
+test('파일을 찾아 보여 달라는 목적은 경로 출력이 아니라 exact deliver로 끝낸다', () => {
+  const tool = makeFileRealityTool({ workspace: '/private/tmp', home: '/private/tmp', platform: 'test' });
+  assert.match(tool.description, /find and show, give, open/u);
+  assert.match(tool.description, /call deliver once for every exact selected non-image file/u);
+  assert.match(tool.description, /do not finish with printed paths alone/u);
+});
+
 test('컴퓨터 scope는 위치·파일명을 몰라도 내용 단서로 workspace 밖 실제 파일을 찾는다', async () => {
   const room = await fixture();
   try {
@@ -241,6 +248,33 @@ test('ready plan만 원자 이동하고 exact plan rollback이 원래 위치를 
       maxCandidates: null, placements: null, planId: plan.planId, effect });
     assert.equal(restored.filesRestored, 1); assert.match(await readFile(room.c, 'utf8'), /3200000/u);
     await assert.rejects(stat(join(destination, '새봄-견적서-수정.txt')), { code: 'ENOENT' });
+  } finally { await rm(room.root, { recursive: true, force: true }); }
+});
+
+test('정리 apply는 요청한 새 목적지 폴더를 만들고 rollback에서 빈 폴더까지 제거한다', async () => {
+  const room = await fixture();
+  try {
+    const plans = join(room.root, 'plans'); const destination = join(room.root, '정리 후보');
+    const original = await readFile(room.b, 'utf8');
+    const tool = makeFileRealityTool({ workspace: room.workspace, home: room.root,
+      platform: 'test', computerRoots: [room.root], protectedRoots: [room.protectedRoot],
+      organizationRoot: plans, indexSearch: async () => [room.b] });
+    const found = await tool.execute({ action: 'search', query: '새봄 견적 복사', scope: 'workspace',
+      path: null, handles: null, maxCandidates: 10, placements: null });
+    const selected = found.candidates.find((item) => item.displayName === '새봄 견적서 복사.txt');
+    const plan = await tool.execute({ action: 'plan', query: null, scope: null, path: null,
+      handles: null, maxCandidates: null,
+      placements: [{ handle: selected.handle, destinationDirectory: destination }] });
+    assert.equal(plan.readyToApply, true); await assert.rejects(() => stat(destination));
+    const effect = { kind: 'local_change', reversible: true, backupAvailable: true };
+    const applied = await tool.execute({ action: 'apply', planId: plan.planId, effect });
+    assert.equal(applied.filesMoved, 1);
+    assert.equal(await readFile(join(destination, '새봄 견적서 복사.txt'), 'utf8'), original);
+    await assert.rejects(() => stat(room.b));
+    const rolledBack = await tool.execute({ action: 'rollback', planId: plan.planId, effect });
+    assert.equal(rolledBack.filesRestored, 1);
+    assert.equal((await stat(room.b)).isFile(), true);
+    await assert.rejects(() => stat(destination));
   } finally { await rm(room.root, { recursive: true, force: true }); }
 });
 
