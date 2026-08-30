@@ -3,7 +3,7 @@
 상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
 현재 Gate: `S6-A · CAPABILITY REALITY & ADMISSION`
-현재 작업: `S6_A_REALITY_PRODUCT_ENTRY_QUALIFIED · MANAGED_SKILL_CLI_PLATFORM_FACTS_NEXT`
+현재 작업: `S6_A_ACTUAL_MODEL_REALITY_QUALIFIED · EFFECT_AND_QUALIFICATION_FACTS_NEXT`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -716,7 +716,7 @@ provider-native 후보는 폐기했고 같은 방향의 세 번째 patch를 금�
 
 ### S6-A — Capability Reality & Admission
 
-현재 상태: `OPEN · CONNECTION_AND_CATALOG_REALITY_QUALIFIED · MANAGED_AND_PLATFORM_FACTS_PENDING`
+현재 상태: `OPEN · CONNECTION_SKILL_CLI_PLATFORM_REALITY_QUALIFIED · EFFECT_AND_QUALIFICATION_FACTS_PENDING`
 
 현재 분산된 Connection·Capability catalog·managed Skill·CLI·MCP·platform reality를 새 Store 없이 한 현재 사실로
 모델에 공급한다.
@@ -754,11 +754,24 @@ Runtime은 사용자의 업무명으로 capability를 고르지 않는다. 모�
 `usable_now·preparable·degraded…`로 분리한다. read-only Reality 확인은 `work_completion` Turn 없이 답으로 끝난다.
 focused 15/15에서 Direct 기본 표면 비증가·한 번 발견·closed reality enum·acquisition 미개통을 확인했다.
 
-현재 정확한 미달은 managed Skill·managed CLI·현재 platform/architecture qualification이 같은 Reality에 아직
-합쳐지지 않은 것이다. 또한 catalog에는 typed current-data capability가 없어 P0-01의 날씨 속도 carry를 지금
-해결했다고 주장하지 않는다. 다음 slice는 이 기존 사실들을 content-free projection으로 결속하는 일만 연다.
+두 번째 slice는 기존 managed Skill surface, managed CLI manifest·active generation, 현재 platform·architecture를
+같은 content-free Reality에 합쳤다. CLI status 관측은 reconciliation write 없이 실행되고, Skill 본문·managed path·
+digest·사용자 파일은 provider에 투영하지 않는다. source coverage는 current Connection·bundled catalog·managed
+Skill·managed CLI·host platform별로 complete/partial을 분리한다.
+
+첫 actual gpt-5.6-terra는 “실행하지 마”의 `executing`을 짧은 Tool 이름 `exec`와 접두어 일치로 오선택해
+Capability Reality를 사용하지 않았다. 짧은 Tool name은 exact token이 아니면 긴 자연어 단어와 prefix만으로
+선택하지 않는 일반 검색 원리로 수리했다. 동일 문장 재시험은 `tool_search → capability_reality → final`만 사용해
+현재 사용 가능·인증 필요·준비 후보·현재 전용 날씨 capability 부재를 구분했다. wall 9.915초·model 3·Tool 2·
+26,560 tokens·140,745 request bytes·work_completion 0·설치/실행/외부 effect 0이었다.
+
+아직 required secret·filesystem·network·child/external effect와 qualification source·관측 비용이 모든 fact에
+결속된 것은 아니다. 또한 catalog에 typed current-data capability가 없어 P0-01의 날씨 속도 carry를 해결했다고
+주장하지 않는다. 다음 slice는 새 schema system을 만들지 않고 기존 manifest와 qualification receipt에 이미 있는
+이 선택 사실만 bounded projection으로 결속한다.
 
 근거: `refoundation/evidence/s6-a-capability-reality-baseline-2026-08-30.json`.
+actual 근거: `refoundation/evidence/s6-a-capability-reality-product-2026-08-30.json`.
 
 ---
 

@@ -30,7 +30,14 @@ test('S6-A는 capability reality를 필요할 때만 발견하고 read-only 사�
         message.name === 'capability_reality'
       )).content);
       assert.equal(receipt.result.schema, 't5.capability-reality.v1');
+      assert.deepEqual(receipt.result.coverage, {
+        currentConnections: 'complete', bundledCatalog: 'complete', managedSkills: 'complete',
+        managedCli: 'complete', hostPlatform: 'complete',
+      });
       assert.ok(receipt.result.facts.length > 0);
+      assert.ok(receipt.result.facts.some((fact) => fact.kind === 'procedural_skill'));
+      assert.ok(receipt.result.facts.some((fact) => fact.kind === 'managed_cli'));
+      assert.ok(receipt.result.facts.some((fact) => fact.kind === 'host_platform'));
       assert.ok(receipt.result.facts.every((fact) => [
         'usable_now', 'available_inactive', 'needs_auth', 'preparable',
         'degraded', 'incompatible', 'unknown',

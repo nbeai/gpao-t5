@@ -6,6 +6,12 @@ function tokenMatches(left, right) {
     && (left.startsWith(right) || right.startsWith(left));
 }
 
+function toolNameTokenMatches(left, right) {
+  if (left === right) return true;
+  return Math.min(left.length, right.length) >= 5
+    && (left.startsWith(right) || right.startsWith(left));
+}
+
 function publicTool(tool) { return { name: tool.name, description: tool.description }; }
 
 export function makeToolSearchTool({ tools = [], prerequisites = {} } = {}) {
@@ -37,11 +43,11 @@ export function makeToolSearchTool({ tools = [], prerequisites = {} } = {}) {
         // Prefer a capability whose complete name is present in the goal over a compound
         // tool that happens to share one generic token such as "search".
         const completeNameMatch = name.length && name.every((nameToken) => (
-          wanted.some((wantedToken) => tokenMatches(nameToken, wantedToken))
+          wanted.some((wantedToken) => toolNameTokenMatches(nameToken, wantedToken))
         ));
         if (completeNameMatch) score += 8;
         for (const token of wanted) {
-          if (name.some((value) => tokenMatches(value, token))) {
+          if (name.some((value) => toolNameTokenMatches(value, token))) {
             score += 4; matchedTokens += 1; matchedNameTokens += 1;
           } else if (searchTerms.some((value) => tokenMatches(value, token))) {
             score += 3; matchedTokens += 1; matchedSearchTerm = true;

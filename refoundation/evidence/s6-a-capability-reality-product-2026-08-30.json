@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_A_CAPABILITY_REALITY_AND_ADMISSION",
+  "status": "ACTUAL_MODEL_REALITY_QUALIFIED_EFFECT_FACTS_PENDING",
+  "baselineCommit": "24508445",
+  "productBoundary": {
+    "sources": [
+      "current_connections",
+      "bundled_catalog",
+      "managed_skills",
+      "managed_cli",
+      "host_platform"
+    ],
+    "coverageReported": true,
+    "skillBodyProjected": false,
+    "managedPathProjected": false,
+    "newStore": false,
+    "newRouter": false,
+    "defaultToolSchemaIncrease": 0,
+    "acquisitionOpened": false
+  },
+  "firstActual": {
+    "model": "gpt-5.6-terra",
+    "purposeAchieved": true,
+    "capabilityRealityUsed": false,
+    "toolCalls": ["tool_search", "skill", "work_completion"],
+    "failure": "executing was treated as a prefix match for the short exec tool name"
+  },
+  "repair": {
+    "businessKeywordRuleAdded": false,
+    "promptAdded": false,
+    "principle": "short tool names require exact token identity instead of a longer natural-language prefix match"
+  },
+  "actualRetest": {
+    "model": "gpt-5.6-terra",
+    "purposeAchieved": true,
+    "toolCalls": ["tool_search", "capability_reality"],
+    "workCompletionCalls": 0,
+    "wallMs": 9915,
+    "modelCalls": 3,
+    "providerTokens": 26560,
+    "requestBytes": 140745,
+    "installedOrExecutedCapability": false,
+    "externalEffects": 0,
+    "typedWeatherCapabilityReportedAbsent": true,
+    "genericWebAlternativeReportedUsable": true
+  },
+  "verification": {
+    "focusedPassed": 36,
+    "focusedFailed": 0
+  },
+  "remaining": [
+    "bounded secret filesystem network child and external-effect requirements",
+    "qualification source and measured quality or cost facts",
+    "typed current-data capability same-purpose A/B"
+  ],
+  "nonClaims": ["S6-A complete", "weather latency solved", "capability acquisition active"]
+}

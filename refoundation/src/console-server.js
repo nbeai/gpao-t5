@@ -1952,6 +1952,44 @@ export function makeConsoleServer({
       }
       offeredTools.unshift(makeCapabilityRealityTool({ observer: makeCapabilityRealityObserver({
         connectionDoctor, catalogSnapshot: Promise.resolve(capabilitySnapshot),
+        coverage: { currentConnections: 'complete', bundledCatalog: 'complete', managedSkills: 'complete',
+          managedCli: 'complete', hostPlatform: 'complete' }, factSources: [
+          async () => (await skillSurface()).map((skill) => ({
+            id: `skill-${skill.id}`, label: skill.label, kind: 'procedural_skill',
+            acquisition: skill.state === 'admitted' ? 'qualified' : 'source_observed',
+            connection: 'not_required', lifecycle: skill.state === 'admitted' ? 'active' : 'candidate',
+            capabilities: { guidance: true, codeExecution: false },
+            userSafeSummary: skill.description,
+          })),
+          async () => Promise.all(managedCliStore.catalog.packages.map(async (entry) => {
+            let supported = true;
+            try {
+              managedCliStore.catalog.asset(entry.id, entry.defaultVersion,
+                computer.platform, computer.architecture);
+            } catch { supported = false; }
+            const status = await managedCliStore.status(entry.id, { reconcile: false });
+            const installed = Boolean(status.activeVersion);
+            return {
+              id: `cli-${entry.id}`, label: entry.title, kind: 'managed_cli',
+              acquisition: supported ? (installed ? 'qualified' : 'source_observed') : 'rejected',
+              connection: 'not_required', lifecycle: supported ? (installed ? 'active' : 'candidate') : 'quarantined',
+              capabilities: { localExecution: supported, managedLifecycle: true },
+              userSafeSummary: installed
+                ? `${entry.description} 현재 설치된 버전 ${status.activeVersion}`
+                : supported ? `${entry.description} 현재 컴퓨터에서 준비 가능` : `${entry.description} 현재 컴퓨터와 호환되지 않음`,
+            };
+          })),
+          async () => [{
+            id: `platform-${computer.platform}-${computer.architecture}`,
+            label: `${computer.platform} ${computer.architecture}`,
+            kind: 'host_platform', acquisition: 'qualified', connection: 'not_required', lifecycle: 'active',
+            capabilities: {
+              localExecution: true,
+              nativeFileReveal: ['darwin', 'win32'].includes(computer.platform),
+            },
+            userSafeSummary: '현재 T5 Runtime이 실제로 실행 중인 컴퓨터 환경',
+          }],
+        ],
       }) }));
       for (const service of connectionServices.values()) {
         if (typeof service.makeTool !== 'function') continue;

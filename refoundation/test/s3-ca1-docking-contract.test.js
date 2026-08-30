@@ -72,6 +72,39 @@ test('Capability Reality는 현재 연결과 아직 실행 불가능한 catalog 
   assert.equal(report.facts.find((item) => item.id === 'company-inventory').reality, 'preparable');
 });
 
+test('Capability Reality는 기존 Skill·CLI·platform 사실을 중복 없이 같은 projection에 합친다', async () => {
+  const observer = makeCapabilityRealityObserver({ connectionDoctor: { async inspect() { return {
+    checkedAt: '2026-08-30T12:00:00.000Z', connections: [],
+  }; } }, catalogSnapshot: { entries: [] }, factSources: [
+    async () => [{ id: 'skill-file-discovery', label: '파일 찾기', kind: 'procedural_skill',
+      acquisition: 'qualified', connection: 'not_required', lifecycle: 'active',
+      capabilities: { guidance: true }, userSafeSummary: '현재 사용 가능' }],
+    async () => [{ id: 'cli-jq', label: 'jq', kind: 'managed_cli',
+      acquisition: 'source_observed', connection: 'not_required', lifecycle: 'candidate',
+      capabilities: { localExecution: true }, userSafeSummary: '준비 가능' }],
+    async () => [{ id: 'platform-darwin-arm64', label: 'darwin arm64', kind: 'host_platform',
+      acquisition: 'qualified', connection: 'not_required', lifecycle: 'active',
+      capabilities: { localExecution: true }, userSafeSummary: '현재 환경' }],
+  ], coverage: { currentConnections: 'complete', managedSkills: 'complete' } });
+  const report = await observer.inspect();
+  assert.deepEqual(report.coverage, { currentConnections: 'complete', managedSkills: 'complete' });
+  assert.deepEqual(report.facts.map((fact) => [fact.id, fact.reality]), [
+    ['skill-file-discovery', 'usable_now'],
+    ['cli-jq', 'preparable'],
+    ['platform-darwin-arm64', 'usable_now'],
+  ]);
+});
+
+test('Capability Reality는 서로 다른 source가 같은 id를 주장하면 첫 항목을 고르지 않는다', async () => {
+  const observer = makeCapabilityRealityObserver({ connectionDoctor: { async inspect() { return {
+    checkedAt: '2026-08-30T12:00:00.000Z', connections: [],
+  }; } }, catalogSnapshot: { entries: [] }, factSources: [
+    async () => [{ id: 'cli-jq', acquisition: 'qualified', connection: 'not_required', lifecycle: 'active' }],
+    async () => [{ id: 'cli-jq', acquisition: 'source_observed', connection: 'unknown', lifecycle: 'candidate' }],
+  ] });
+  await assert.rejects(observer.inspect(), /fact id is duplicated/u);
+});
+
 test('CA1 사고 가족은 서비스 목록이 아니라 범용 실패 원리로 고정된다', async () => {
   const incidents = JSON.parse(await readFile(new URL('../config/s3-ca1-docking-incidents.json', import.meta.url), 'utf8'));
   assert.equal(incidents.incidents.length, 10);

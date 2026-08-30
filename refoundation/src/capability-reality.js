@@ -48,12 +48,25 @@ function connectionAxis(state) {
   return 'unknown';
 }
 
-export function makeCapabilityRealityObserver({ connectionDoctor, catalogSnapshot } = {}) {
+export function makeCapabilityRealityObserver({ connectionDoctor, catalogSnapshot, factSources = [], coverage = {} } = {}) {
   if (!connectionDoctor?.inspect || !catalogSnapshot) {
     throw new TypeError('capability reality observer inputs are required');
   }
+  if (!Array.isArray(factSources) || factSources.some((source) => typeof source !== 'function')) {
+    throw new TypeError('capability reality fact sources are invalid');
+  }
+  const coverageFacts = {};
+  for (const [key, value] of Object.entries(coverage)) {
+    if (!/^[a-z][a-zA-Z0-9]{1,63}$/u.test(key)
+      || !['complete', 'partial', 'unavailable', 'unknown'].includes(value)) {
+      throw new TypeError('capability reality coverage is invalid');
+    }
+    coverageFacts[key] = value;
+  }
   return { async inspect() {
-    const [report, snapshot] = await Promise.all([connectionDoctor.inspect(), catalogSnapshot]);
+    const [report, snapshot, ...additional] = await Promise.all([
+      connectionDoctor.inspect(), catalogSnapshot, ...factSources.map((source) => source()),
+    ]);
     if (!Array.isArray(snapshot?.entries)) throw new TypeError('capability catalog snapshot is invalid');
     const current = new Map(report.connections.map((item) => [item.id, item]));
     const facts = report.connections.map((item) => capabilityRealityFact({ id: item.id, label: item.label,
@@ -66,7 +79,17 @@ export function makeCapabilityRealityObserver({ connectionDoctor, catalogSnapsho
       acquisition: 'source_observed', connection: 'unknown', lifecycle: 'candidate',
       capabilities: candidate.capabilities, userSafeSummary: candidate.userSafeSummary,
     }));
-    return { schema: 't5.capability-reality.v1', checkedAt: report.checkedAt, facts };
+    const known = new Set(facts.map((fact) => fact.id));
+    for (const entries of additional) {
+      if (!Array.isArray(entries)) throw new TypeError('capability reality fact source result is invalid');
+      for (const input of entries) {
+        const fact = capabilityRealityFact(input);
+        if (known.has(fact.id)) throw new TypeError('capability reality fact id is duplicated');
+        known.add(fact.id); facts.push(fact);
+      }
+    }
+    return { schema: 't5.capability-reality.v1', checkedAt: report.checkedAt,
+      coverage: structuredClone(coverageFacts), facts };
   } };
 }
 

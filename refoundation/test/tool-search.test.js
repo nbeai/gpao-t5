@@ -142,6 +142,19 @@ test('data 같은 내부 문자열이 candidates에 들어 있다는 이유만�
   assert.equal(result.state, 'no_match');
 });
 
+test('실행하지 말라는 executing은 짧은 exec 도구명의 완전 일치가 아니다', async () => {
+  const search = makeToolSearchTool({ tools: [
+    { name: 'exec', description: 'Run a foreground command to completion.' },
+    { name: 'capability_reality',
+      description: 'Inspect factual current capability reality and distinguish available candidates.',
+      searchTerms: ['current usable available capability reality'] },
+  ] });
+  const result = await search.execute({
+    query: 'check whether a current capability is available without installing or executing it',
+  });
+  assert.deepEqual(result.activatedTools, ['capability_reality']);
+});
+
 test('현재 후순위 손을 미리 찾으면 비슷한 도구 대신 정확한 선행 관측을 돌려준다', async () => {
   const search = makeToolSearchTool({
     tools: [{ name: 'automation', description: 'Automate future interaction work.' }],

@@ -170,10 +170,12 @@ export class ManagedCliStore {
       try { return this.catalog.asset(id, version, this.platform, this.architecture).sha256 === actual; } catch { return false; }
     }) ?? null;
   }
-  async status(id) {
+  async status(id, { reconcile = true } = {}) {
     await this.ensure(); const entry = this.entry(id); const path = this.binaryPath(id); const actualVersion = await this.matchingVersion(id, path);
     const state = await this.readState(id);
-    if (actualVersion !== state.activeVersion) await this.writeState(id, { activeVersion: actualVersion, history: state.history ?? [] });
+    if (reconcile && actualVersion !== state.activeVersion) {
+      await this.writeState(id, { activeVersion: actualVersion, history: state.history ?? [] });
+    }
     return {
       state: actualVersion ? 'installed' : 'not_installed', ...publicPackage(entry), activeVersion: actualVersion,
       ...(entry.exposure === 'path' ? { managedPath: actualVersion ? path : null } : { availableThrough: entry.toolSurface }),
