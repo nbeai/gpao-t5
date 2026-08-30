@@ -8,7 +8,7 @@ import { homedir, tmpdir } from 'node:os';
 import { pipeline } from 'node:stream/promises';
 
 import { runAgent } from './agent-loop.js';
-import { ConsoleSessionStore } from './console-session-store.js';
+import { ConsoleSessionStore, isUserVisibleConsoleSession } from './console-session-store.js';
 import { makeTerminalHand } from './exec-tool.js';
 import { IsolatedCommandExplainer } from './isolated-command-explainer.js';
 import { ManagedMutationObserver } from './managed-mutation-observer.js';
@@ -138,7 +138,8 @@ import { runLearningEvaluation } from './learning-evaluator.js';
 import { deferTools, makeToolSearchTool } from './tool-search.js';
 import { makeLocalConsoleGuard } from './local-console-guard.js';
 import { projectTransmissionReceipt } from './transmission-receipt.js';
-import { createWholeStateBundle, restoreWholeStateBundle, wholeStateTreeDigest } from './whole-state-bundle.js';
+import { createWholeStateBundle, restoreWholeStateBundle, wholeStateTreeDigest,
+  removeWholeStateTransientRuntimeLinks } from './whole-state-bundle.js';
 import { makeT5WholeStateRegistry, validateT5WholeStateRelationships } from './t5-whole-state.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -4319,6 +4320,7 @@ export function makeConsoleServer({
         if (typeof scheduleWholeStateActivation !== 'function' || typeof requestRuntimeStop !== 'function') {
           json(res, 503, { error: '이 실행 방식에서는 이전 상태로 되돌릴 수 없어요.' }); return;
         }
+        await removeWholeStateTransientRuntimeLinks(previous.exact);
         const registry = await makeT5WholeStateRegistry(previous.exact); const manifest = await registry.manifest({
           generationId: randomUUID(), createdAt: new Date().toISOString() });
         await validateT5WholeStateRelationships({ root: previous.exact, manifest });
@@ -4332,7 +4334,7 @@ export function makeConsoleServer({
       if (req.method === 'POST' && url.pathname === '/attachments') {
         const sessionId = url.searchParams.get('sessionId');
         const session = await sessions.load(sessionId);
-        if (!session) { json(res, 404, { error: '세션을 찾지 못했어요.' }); return; }
+        if (!session || !isUserVisibleConsoleSession(session)) { json(res, 404, { error: '세션을 찾지 못했어요.' }); return; }
         const originalName = url.searchParams.get('filename') ?? req.headers['x-file-name'];
         if (!String(originalName ?? '').trim()) { json(res, 400, { error: '파일 이름이 필요해요.' }); return; }
         const record = await attachments.receiveStream({

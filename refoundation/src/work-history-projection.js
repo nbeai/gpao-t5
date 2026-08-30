@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { AttachmentStore } from './attachment-store.js';
-import { ConsoleSessionStore } from './console-session-store.js';
+import { ConsoleSessionStore, isUserVisibleConsoleSession } from './console-session-store.js';
 import { ConversationLedger } from './conversation-ledger.js';
 import { makeArtifactPublicationProductAdapter, projectHumanArtifactReceipt } from './artifact-publication-projection.js';
 import { makeEffectForensicProductAdapter, projectHumanEffectForensicReceipt } from './effect-forensic-projection.js';
@@ -118,7 +118,9 @@ export function makeWorkHistoryProductAdapter({ sessions, conversations, workSto
     const [sessionState, workState, runs, resourceState] = await Promise.all([
       sessions.read(), workStore.read(), runLedger.list(), resourceLedger?.state() ?? null,
     ]);
-    const visible = new Map(sessionState.sessions.filter((item) => !item.deletedAt).map((item) => [item.id, item]));
+    const visible = new Map(sessionState.sessions.filter((item) => (
+      isUserVisibleConsoleSession(item) && !item.deletedAt
+    )).map((item) => [item.id, item]));
     const entries = []; const conversationSnapshots = new Map(); const enrichedArtifacts = [];
     for (const claim of workState.claims) {
       const run = runs.find((item) => item.runId === claim.runId); const work = workState.works

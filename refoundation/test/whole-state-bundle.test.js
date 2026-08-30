@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { createCipheriv, randomBytes, scrypt as rawScrypt } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { promisify } from 'node:util';
 
 import { activatePreparedWholeStateRestore, createWholeStateBundle, restoreWholeStateBundle,
-  stageWholeStateGeneration, wholeStateTreeDigest } from '../src/whole-state-bundle.js';
+  stageWholeStateGeneration, wholeStateTreeDigest,
+  removeWholeStateTransientRuntimeLinks } from '../src/whole-state-bundle.js';
 import { WholeStateComponentRegistry } from '../src/whole-state-component-registry.js';
 
 const scrypt = promisify(rawScrypt);
@@ -84,6 +85,20 @@ test('prepared activation은 digest를 다시 확인하고 현재 상태를 roll
       destinationStateRoot: current, expectedStateDigest: digest });
     assert.equal(result.previousStatePreserved, true); assert.equal(await readFile(join(current, 'new.json'), 'utf8'), '{"new":true}');
     assert.equal(await readFile(join(room, result.previousStateName, 'old.json'), 'utf8'), '{"old":true}');
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('rollback 준비는 Browser runtime lock symlink만 제거하고 다른 symlink는 계속 거부한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-whole-browser-links-'));
+  try {
+    const profile = join(room, 'browser', 'session', 'profile'); await mkdir(profile, { recursive: true });
+    await writeFile(join(profile, 'Preferences'), '{}');
+    await symlink('/tmp/chrome.sock', join(profile, 'SingletonSocket'));
+    await symlink('/tmp/unknown', join(profile, 'UserOwnedLink'));
+    assert.equal((await removeWholeStateTransientRuntimeLinks(room)).removed, 1);
+    await assert.rejects(() => wholeStateTreeDigest(room), /symbolic link/u);
+    await rm(join(profile, 'UserOwnedLink'));
+    assert.match(await wholeStateTreeDigest(room), /^[a-f0-9]{64}$/u);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 

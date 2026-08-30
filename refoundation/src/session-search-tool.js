@@ -1,4 +1,5 @@
 import { episodePointers } from './memory-portfolio.js';
+import { isUserVisibleConsoleSession } from './console-session-store.js';
 
 const DEFAULT_LIMIT = 5;
 const MAX_LIMIT = 10;
@@ -93,7 +94,7 @@ function boundedMessages(entries, anchorIndex, window, includeTools) {
 
 async function visibleSessions(sessions) {
   const state = await sessions.read();
-  return state.sessions.filter((session) => !session.deletedAt);
+  return state.sessions.filter((session) => isUserVisibleConsoleSession(session) && !session.deletedAt);
 }
 
 function legacyEntries(session) {

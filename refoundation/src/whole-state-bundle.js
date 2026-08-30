@@ -13,8 +13,25 @@ const scrypt = promisify(rawScrypt);
 const MAGIC = Buffer.from('T5WB001\n', 'ascii');
 const MAX_HEADER_BYTES = 4_096;
 const LEGACY_V1_MAX_PAYLOAD_BYTES = 256 * 1024 * 1024;
+const TRANSIENT_BROWSER_LINKS = new Set(['RunningChromeVersion', 'SingletonSocket', 'SingletonCookie', 'SingletonLock']);
 
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
+export async function removeWholeStateTransientRuntimeLinks(rootInput) {
+  const browserRoot = join(resolve(rootInput), 'browser'); let removed = 0;
+  async function walk(directory) {
+    let entries; try { entries = await readdir(directory, { withFileTypes: true }); }
+    catch (error) { if (error?.code === 'ENOENT') return; throw error; }
+    for (const entry of entries) {
+      const exact = join(directory, entry.name); const info = await lstat(exact);
+      if (info.isSymbolicLink()) {
+        if (!TRANSIENT_BROWSER_LINKS.has(entry.name)) continue;
+        await rm(exact, { force: true }); removed += 1; continue;
+      }
+      if (info.isDirectory()) await walk(exact);
+    }
+  }
+  await walk(browserRoot); return { removed };
+}
 async function capturePortableAttachmentLedger(source, target) {
   const output = await open(target, 'wx', 0o600);
   const input = createReadStream(source); const lines = createInterface({ input, crlfDelay: Infinity });

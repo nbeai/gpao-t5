@@ -7,6 +7,7 @@ const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
 const BULK_ACTIONS = new Set(['archive', 'delete', 'restore']);
 
 function clone(value) { return value == null ? value : structuredClone(value); }
+export function isUserVisibleConsoleSession(session) { return session?.internal !== true; }
 function groupName(value) {
   const text = String(value ?? '').trim();
   if (!text || text.length > 40 || /[\u0000-\u001f\u007f]/u.test(text)) throw new TypeError('session group name is invalid');
@@ -124,7 +125,7 @@ export class ConsoleSessionStore {
   async list({ archived = false, deleted = false } = {}) {
     const state = await this.read();
     return state.sessions.filter((session) => {
-      if (session.internal === true) return false;
+      if (!isUserVisibleConsoleSession(session)) return false;
       if (deleted) return Boolean(session.deletedAt);
       if (archived) return Boolean(session.archivedAt) && !session.deletedAt;
       return !session.archivedAt && !session.deletedAt;

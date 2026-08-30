@@ -94,6 +94,25 @@ test('기본 search는 tool 원문을 제외하고 명시한 경우에만 찾는
   }
 });
 
+test('자동화 내부 실행 대화는 전체 검색과 browse에서 사용자 대화로 나타나지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-session-search-internal-'));
+  try {
+    const sessions = new ConsoleSessionStore(room); const ledger = new ConversationLedger(join(room, 'conversations'));
+    const visible = await sessions.create(); const internal = await sessions.create({ continuationOf: visible.id, internal: true });
+    await Promise.all([ledger.ensure({ sessionId: visible.id }), ledger.ensure({ sessionId: internal.id })]);
+    await addMessage(ledger, visible.id, 'visible-message', 'assistant', 'VISIBLE-ORIGIN-7391');
+    await addMessage(ledger, internal.id, 'internal-message', 'user', 'INTERNAL-AUTOMATION-7391');
+    const tool = makeSessionSearchTool({ ledger, sessions, currentSessionId: null });
+    const found = await tool.execute({ action: 'search', query: '7391', sessionId: null,
+      messageId: null, limit: 10, window: null, includeTools: false });
+    assert.equal(found.results.some((item) => item.sessionId === internal.id), false);
+    assert.equal(found.results.some((item) => item.sessionId === visible.id), true);
+    const browsed = await tool.execute({ action: 'browse', query: null, sessionId: null,
+      messageId: null, limit: 10, window: null, includeTools: false });
+    assert.equal(browsed.sessions.some((item) => item.sessionId === internal.id), false);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
 test('현재 live tail과 과거 session_search 영수증은 자기 자신을 다시 찾지 않는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-session-search-self-'));
   try {
