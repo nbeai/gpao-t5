@@ -818,6 +818,14 @@ export function makeConsoleServer({
   const measurementRuns = new Map();
   const restoreUploads = new Map();
   const sessionActivities = new SessionActivityStore();
+  function publicSessionActivity(sessionId) {
+    const foreground = sessionActivities.get(sessionId); if (foreground) return foreground;
+    const process = processes.active(sessionId)[0]; if (!process) return null;
+    const startedAt = Date.parse(process.startedAt ?? '');
+    return { sessionId, status: 'running', phase: 'process_working',
+      text: '컴퓨터 작업을 계속 진행하고 있어요.', steps: [],
+      startedAt: Number.isFinite(startedAt) ? startedAt : Date.now(), updatedAt: Date.now() };
+  }
   const workRealityVersions = new Map();
   const workRealityPublished = new Map();
   const workRealityQueues = new Map();
@@ -4661,7 +4669,7 @@ export function makeConsoleServer({
           runsBySession.get(run.sessionId).push(run);
         }
         json(res, 200, { groups: await sessions.listGroups(), sessions: await Promise.all(listed.map(async (session) => ({
-          ...session, activity: sessionActivities.get(session.id),
+          ...session, activity: publicSessionActivity(session.id),
           workReality: (await currentWorkReality(session.id, {
             workState, runs: runsBySession.get(session.id) ?? [],
           })).public,
@@ -4810,7 +4818,7 @@ export function makeConsoleServer({
           id: session.id, title: session.title, origin: session.origin ?? null,
           continuationOf: session.continuationOf ?? null,
           transcript: await transcriptWithHumanReceipts(session),
-          activity: sessionActivities.get(session.id),
+          activity: publicSessionActivity(session.id),
           workReality: (await currentWorkReality(session.id)).public,
           activePendingIds: (await authority.listActive(session.id)).map((item) => item.pendingId),
           activeRecoveryIds: activeSessionRecoveryIds(session),
@@ -4880,7 +4888,19 @@ export function makeConsoleServer({
       if (req.method === 'POST' && url.pathname === '/turn/cancel') {
         const input = await body(req);
         const entry = running.get(input.sessionId);
-        if (!entry) { json(res, 409, { ok: false, error: '현재 멈출 작업이 없어요.' }); return; }
+        if (!entry) {
+          const activeProcesses = processes.active(input.sessionId);
+          if (!activeProcesses.length) {
+            json(res, 409, { ok: false, error: '현재 멈출 작업이 없어요.' }); return;
+          }
+          const stopped = await processes.stopOwner(input.sessionId, 'user_cancelled');
+          const childrenTerminal = stopped.every((item) => ['completed', 'failed', 'stopped'].includes(item.state));
+          json(res, childrenTerminal ? 200 : 409, { ok: childrenTerminal, terminal: childrenTerminal,
+            backgroundProcess: true, runTerminal: true, childrenTerminal, claimReleased: true,
+            unknownEffect: false, surfacePersisted: false, resumable: false,
+            userSafeSummary: childrenTerminal ? '컴퓨터 작업을 멈춰어요.' : '중지 상태를 확인해야 해요.',
+            nextSafeAction: childrenTerminal ? '필요하면 새로 시작할 수 있어요.' : '현재 상태를 다시 확인해 주세요.' }); return;
+        }
         const ensureActiveWork = await entry.workAdmissionReady;
         await ensureActiveWork();
         const disposition = input.hard === true ? 'hard_cancelled' : 'interrupted_resumable';

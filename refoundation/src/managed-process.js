@@ -401,6 +401,14 @@ export class ManagedProcessRegistry {
       });
   }
 
+  active(ownerId) {
+    return [...this.records.values()]
+      .filter((record) => record.ownerId === ownerId && !terminal(record.state))
+      .map((record) => this.#snapshot(record, {
+        stdout: record.stdout.total, stderr: record.stderr.total,
+      }));
+  }
+
   onTerminal(listener) {
     if (typeof listener !== 'function') throw new TypeError('terminal listener is required');
     this.terminalListeners.add(listener);

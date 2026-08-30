@@ -663,6 +663,53 @@ test('관측되지 않은 terminal_session 완료가 같은 세션의 모델 Run
   }
 });
 
+test('모델 Run 종료 뒤도 managed background process가 살아 있으면 Session Stop이 late effect 전에 끝낸다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-console-background-stop-'));
+  const stateDir = join(room, 'state'); const workspace = join(room, 'workspace'); const marker = join(workspace, 'late.txt');
+  await mkdir(workspace, { recursive: true }); let modelCalls = 0;
+  const modelFactory = () => ({ async respond(input) {
+    modelCalls += 1; const last = input.messages.at(-1);
+    if (!input.tools.some((tool) => tool.name === 'terminal_session')) return { text: '', toolCalls: [{
+      id: 'find-background-process', name: 'tool_search', args: { query: 'long running background command managed process' },
+    }] };
+    if (last.role !== 'tool' || last.name === 'tool_search') return { text: '', toolCalls: [{
+      id: 'start-background-process', name: 'terminal_session', args: terminalSessionArgs({ action: 'start',
+        command: `sleep 1; printf late > '${marker}'`, cwd: null,
+        effect: { kind: 'local_change', summary: '지연 marker', targets: [marker], reversible: true,
+          backupAvailable: true, recipientNew: false, approvalToken: null },
+      }),
+    }] };
+    const receipt = JSON.parse(last.content); assert.equal(receipt.result.state, 'running');
+    return { text: '백그라운드 작업을 시작했습니다.', toolCalls: [] };
+  } });
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory, processYieldMs: 20 });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const reply = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: '백그라운드 작업을 시작해줘' }) }).then((response) => response.json());
+    assert.equal(reply.reply, '백그라운드 작업을 시작했습니다.');
+    assert.equal(server.managedProcesses.active(session.id).length, 1);
+    const listed = await fetch(`${base}/sessions`).then((response) => response.json());
+    assert.equal(listed.sessions[0].activity.status, 'running');
+    assert.match(listed.sessions[0].activity.text, /컴퓨터 작업/u);
+    const stopped = await fetch(`${base}/turn/cancel`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id }) });
+    assert.equal(stopped.status, 200); const result = await stopped.json();
+    assert.equal(result.ok, true); assert.equal(result.backgroundProcess, true);
+    assert.equal(result.childrenTerminal, true); assert.equal(result.surfacePersisted, false);
+    assert.equal(server.managedProcesses.active(session.id).length, 0);
+    assert.equal((await fetch(`${base}/sessions`).then((response) => response.json())).sessions[0].activity, null);
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    const { access } = await import('node:fs/promises'); await assert.rejects(() => access(marker));
+    assert.equal(modelCalls, 3, 'user Stop does not create a wake model Run');
+  } finally {
+    await server.managedProcesses.stopAll('test_cleanup'); await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
 test('백업 없는 삭제는 승인 전 실행되지 않고 exact call 승인 뒤 한 번만 실행된다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-console-authority-'));
   const stateDir = join(room, 'state');
