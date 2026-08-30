@@ -1,9 +1,9 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
+상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
-현재 Gate: `S6-C · NATURAL ACQUISITION & EXACT WORK RESUME`
-현재 작업: `S6_C_SKILL_CLI_REMOTE_RESUME_QUALIFIED · STT_AND_PUBLIC_DATA_ACTUAL_PENDING`
+현재 Gate: `S6-D · EXPERIENCE GROWTH PROPOSAL & REVIEW`
+현재 작업: `S6_D_READ_ONLY_BASELINE · PROPOSAL_ONLY_PRODUCT_BENEFIT_FIRST`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -888,7 +888,7 @@ scanner·별점·download 수·공식 catalog 존재는 단독 합격이 아니�
 
 ### S6-C — Natural Acquisition & Exact Work Resume
 
-현재 상태: `OPEN · SKILL_CLI_REMOTE_RESUME_QUALIFIED · FIRST_P1_REPAIRED`
+현재 상태: `COMPLETE_SUPPORTED_TYPES · STT_CAPABILITY_GAP_NOT_WAIVED`
 
 사용자는 Skill·CLI·MCP·Plugin을 말하지 않는다. 자연어 목적에서 현재 capability gap이 실제로 확인될 때만 S6-B를
 사용한다.
@@ -939,14 +939,26 @@ CLI status는 read-only이므로 별도 completion proposal을 열지 않고, �
 - Linear: 사용자 로그인 handoff→원래 오늘 마감 업무 exact once resume
 - 공통: 준비 대기 model polling 0, 두 Session 혼선 0, crash 뒤 blind retry 0, surface crash exact recovery
 
-그러나 정본의 긴 녹음 STT 실제 목적과 current public-data external actual은 아직 current product에서 자격하지 않았다.
-0.3.1 과거 실사용 성공을 current S6-C PASS로 승격하지 않으며, 이 두 실제 목적 전에는 S6-C를 닫지 않는다.
+현재 컴퓨터에는 reusable STT executable·model generation이 없고 `faster-whisper` wheel cache 일부만 있었다. 이는
+실행 가능한 capability가 아니다. 비교군의 local Whisper는 package manager 설치와 첫 model download를 요구하고,
+hosted transcription은 API key·사용료 경계가 있다. 사용자 몰래 설치·대형 model download·유료 호출을 하지 않았다.
+STT는 `CAPABILITY_GAP_NOT_WAIVED`로 최종 HQ와 후속 capability source 결정에 이월한다.
+
+current public-data external actual도 lawful no-secret source를 찾지 못했다. Open-Meteo free endpoint는 비상업·평가,
+기상청 API는 개인 authKey가 필요하고, current provider-native OpenAI search는 source identity를 반환하지 않았다.
+이를 이유로 S6-C의 검증된 Skill·CLI·Remote MCP resume까지 미완료로 되돌리지는 않는다. supported capability type에서
+완료 문장이 성립하므로 S6-C를 닫되 STT·weather 속도는 6차 전체 완료의 비주장으로 보존한다.
+
+focused 24/24와 전체 제품 통합 202/204·실패 0·Windows 물리 자격 2 skip·mutation 2/2를 통과했다.
 
 근거: `refoundation/evidence/s6-c-natural-acquisition-first-slice-2026-08-30.json`.
+closeout: `refoundation/evidence/s6-c-closeout-2026-08-30.json`.
 
 ---
 
 ### S6-D — Experience Growth Proposal & Review
+
+현재 상태: `OPEN · READ_ONLY_BASELINE_FIRST · PRODUCT_CANDIDATE_0`
 
 기존 Reflection·Learning source를 default-on으로 바꾸기 전에 proposal-only 제품 A/B를 연다.
 

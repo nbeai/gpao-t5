@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_C_NATURAL_ACQUISITION_AND_EXACT_WORK_RESUME",
+  "status": "COMPLETE_SUPPORTED_TYPES_STT_CAPABILITY_GAP_NOT_WAIVED",
+  "baseCommit": "50c21226",
+  "completedJourneys": {
+    "textSkill": "package-name-free search install same-Run purpose result",
+    "managedCli": "verified preparation same-Run use and no reinstall in a new Session",
+    "remoteMcp": "login handoff and original Work exact-once resume"
+  },
+  "firstP1": {
+    "family": "effect_schema_preflight_mismatch",
+    "repaired": true,
+    "skillAndCliActualModelInstallPossible": true
+  },
+  "safetyAndContinuity": {
+    "preparationPollingModelCalls": 0,
+    "sessionMixing": 0,
+    "crashBlindRetry": 0,
+    "surfaceCrashExactRecovery": true,
+    "readOnlyPreparationCompletionTurns": 0
+  },
+  "verification": {
+    "focusedPassed": 24,
+    "focusedFailed": 0,
+    "externalWrites": 0,
+    "fullCI": { "integrationPassed": 202, "integrationSkipped": 2, "integrationFailed": 0 },
+    "mutation": { "passed": 2, "failed": 0 }
+  },
+  "capabilityGapsNotWaived": {
+    "stt": {
+      "usableExecutableObserved": false,
+      "usableModelGenerationObserved": false,
+      "cachedPythonWheelIsCapability": false,
+      "automaticPackageInstall": false,
+      "automaticModelDownload": false,
+      "paidApiCall": false
+    },
+    "typedCurrentData": {
+      "lawfulNoSecretProductSourceQualified": false,
+      "weatherLatencySolved": false
+    }
+  },
+  "sourcesReviewed": [
+    "https://open-meteo.com/en/pricing",
+    "https://apihub.kma.go.kr/apiInfo.do",
+    "https://developers.openai.com/api/reference/typescript/resources/beta/subresources/responses/methods/create"
+  ],
+  "nonClaims": ["current STT capability", "weather latency solved", "all capability classes supported"]
+}

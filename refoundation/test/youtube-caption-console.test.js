@@ -10,7 +10,7 @@ import { makeConsoleServer } from '../src/console-server.js';
 const videoUrl = 'https://www.youtube.com/watch?v=M7lc1UVf-VE';
 const localChange = {
   kind: 'local_change', summary: '검증된 공개 영상 자막 도구 준비', targets: ['T5 관리 도구 폴더'],
-  reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null,
+  confirmation: 'not_applicable', rollbackOfToolCallId: null,
 };
 
 function captionJson() {
