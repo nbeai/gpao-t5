@@ -327,12 +327,13 @@ function activeSessionConnectionHandoffIds(session) {
   });
 }
 
-function selfState(status, workspace, browserReady = false) {
+function selfState(status, workspace, browserReady = false, productVersion = null) {
   const searchReady = (status?.connections ?? []).some((connection) => connection.kind === 'api_key');
   return {
     model: status?.modelId ?? '연결 필요',
     modelAuthState: status?.connected ? 'usable' : 'needs_connection',
     modelHealthState: status?.connected ? 'usable' : null,
+    productVersion,
     ready: ['터미널', 'URL 읽기', ...(searchReady ? ['웹 검색'] : []), ...(browserReady ? ['브라우저'] : [])],
     limits: [`기본 터미널 위치: ${workspace}`],
   };
@@ -343,6 +344,7 @@ export function makeConsoleServer({
   workspace,
   modelFactory,
   modelStatus = () => ({ connected: false, provider: null, modelId: null }),
+  productVersion = process.env.T5_PRODUCT_VERSION ?? null,
   uiRoot = bundledUiRoot,
   computerEnvironment,
   revealPath,
@@ -2105,13 +2107,19 @@ export function makeConsoleServer({
         `local=${localNow.toLocaleString('sv-SE', { timeZone: localTimeZone })}`,
         `timeZone=${localTimeZone}`,
       ].join('\n');
+      const productIdentityContext = productVersion ? [
+        '[T5 CURRENT PRODUCT IDENTITY — observed from the running product, not conversation history]',
+        `productVersion=${productVersion}`,
+        'This is the installed T5 product version. Do not confuse it with the Interaction Core or model version.',
+      ].join('\n') : '';
       const projectUndoContext = projectUndoHandles.length ? [
         '[T5 CURRENT REVERSIBLE PROJECT CHANGE — observed in this Session, not user text]',
         `durableUndoHandles=${JSON.stringify(projectUndoHandles.slice(-4))}`,
         'Each handle restores only its exact verified postimage through workspace_patch rollback; stale targets are not overwritten.',
         'Decide from the current user request whether any handle should be used.',
       ].join('\n') : '';
-      const runtimeContexts = [localTimeContext, browserRuntimeContext, projectUndoContext, options.runtimeContext]
+      const runtimeContexts = [localTimeContext, productIdentityContext, browserRuntimeContext,
+        projectUndoContext, options.runtimeContext]
         .filter(Boolean).join('\n\n');
       const agentRequest = `${modelRequest}\n\n${runtimeContexts}`;
       const observedToolActivity = new Set();
@@ -2511,7 +2519,7 @@ export function makeConsoleServer({
               reversible: effect.reversible ? '되돌릴 수 있다고 선언됨' : '되돌리기 어려움',
             },
           }],
-          selfStateSummary: selfState(connection, workspace, browserReady),
+          selfStateSummary: selfState(connection, workspace, browserReady, productVersion),
         };
       })() : {
         kind: 'reply',
@@ -2522,7 +2530,7 @@ export function makeConsoleServer({
         ...(connectionHandoff ? { connectionHandoff } : {}),
         ...(outputArtifacts.length ? { artifacts: outputArtifacts } : {}),
         ...(options.trigger && options.trigger !== 'user' ? { trigger: options.trigger } : {}),
-        selfStateSummary: selfState(connection, workspace, browserReady),
+        selfStateSummary: selfState(connection, workspace, browserReady, productVersion),
       };
       const recoveryEvidence = recoveryEvidenceForTurn({
         userText: text, reply: surfaceResult.reply, kind: surfaceResult.kind,

@@ -658,6 +658,8 @@ Capability truth를 보존했다.
 
 #### P0-04 — Product Self-Version Truth
 
+현재 상태: `RUNTIME_IDENTITY_QUALIFIED · ACTUAL_INSTALLED_PRODUCT_REBUILD_PENDING`
+
 같은 Live 대화에서 사용자가 현재 버전을 물었을 때 T5는 `상호작용 코어 v5`를 답하고 배포 build는 확인할 수
 없다고 말했다. 실제 설치 앱의 `CFBundleShortVersionString`과 `CFBundleVersion`은 모두 `0.5.0`이었다.
 
@@ -668,6 +670,13 @@ Interaction Core version·product release version·model version은 서로 다�
 
 > 사용자가 T5 버전을 물으면 현재 설치 제품 버전과 필요한 경우 Interaction Core·모델을 서로 혼동하지 않고
 > 실제 Runtime 사실로 정확히 답한다.
+
+첫 후보는 macOS launcher가 실행 중 앱의 `CFBundleShortVersionString`을 읽어 `T5_PRODUCT_VERSION`으로 전달하고,
+Console이 이를 stable current product identity와 self-state에 공급한다. Prompt·Interaction Core·model ID에 version
+숫자를 하드코딩하지 않는다. focused countertest에서 `0.5.0` manifest fact가 Direct model 1·Tool 0 답과
+self-state에 정확히 나타났다. 실제 설치 제품 rebuild 뒤 manifest→Runtime actual을 최종 확인한다.
+
+근거: `refoundation/evidence/s6-p0-04-product-version-truth-2026-08-30.json`.
 
 #### S6-P0 공통 종료 조건
 

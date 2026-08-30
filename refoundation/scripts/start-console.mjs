@@ -245,6 +245,7 @@ const server = makeConsoleServer({
   workAdmissionMode: 'action-v1',
   modelFactory: (context) => access.model(context),
   modelStatus: () => access.status(),
+  productVersion: process.env.T5_PRODUCT_VERSION ?? null,
   modelConnections,
   computerEnvironment,
   terminalEnvironment,

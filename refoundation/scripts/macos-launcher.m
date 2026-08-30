@@ -72,6 +72,8 @@
   environment[@"T5_REFOUNDATION_CONSOLE_STATE"] = [[self support] URLByAppendingPathComponent:@"state"].path;
   environment[@"T5_REFOUNDATION_MODEL_CONNECTION_FILE"] = [self connectionFile].path;
   environment[@"T5_REFOUNDATION_PORT_FILE"] = [self portFile].path;
+  NSString *productVersion = NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"];
+  if (productVersion.length) environment[@"T5_PRODUCT_VERSION"] = productVersion;
   environment[@"PATH"] = [@[
     [[self resources] URLByAppendingPathComponent:@"runtime/bin"].path,
     [[self appRoot] URLByAppendingPathComponent:@"refoundation/node_modules/.bin"].path,

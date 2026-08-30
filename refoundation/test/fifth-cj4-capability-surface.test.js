@@ -91,6 +91,19 @@ test('설치 제품 entry는 자격된 directory-first surface를 사용한다',
     /makeConsoleServer\(\{[\s\S]*capabilitySurfaceMode: 'directory-first-v1'/u);
 });
 
+test('현재 설치 제품 버전은 Interaction Core·모델과 분리된 Runtime 사실로 공급된다', async () => {
+  const observed = await run({ mode: 'directory-first-v1', request: '현재 T5 버전이 뭐야?',
+    productVersion: '0.5.0', respond(input) {
+      assert.match(input.messages.at(-1).content, /T5 CURRENT PRODUCT IDENTITY/u);
+      assert.match(input.messages.at(-1).content, /productVersion=0\.5\.0/u);
+      return { text: '현재 설치된 T5 제품 버전은 0.5.0입니다.', toolCalls: [] };
+    } });
+  assert.equal(observed.result.reply, '현재 설치된 T5 제품 버전은 0.5.0입니다.');
+  assert.equal(observed.result.selfStateSummary.productVersion, '0.5.0');
+  const launcher = await source('../scripts/macos-launcher.m');
+  assert.match(launcher, /CFBundleShortVersionString[\s\S]*T5_PRODUCT_VERSION/u);
+});
+
 test('directory-first 후보는 실제 Tool 요청 뒤 completion을 열고 숨은 capability를 한 번 발견한다', async () => {
   const observed = await run({ mode: 'directory-first-v1', request: '현재 연결 상태를 확인해줘',
     respond(input, modelTurn) {
