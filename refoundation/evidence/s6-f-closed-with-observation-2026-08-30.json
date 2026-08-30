@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_F_SCOPED_COMPUTER_OBSERVATION",
+  "status": "CLOSED_WITH_OBSERVATION_APPLE_NOTES_PURPOSE_UNMET",
+  "baseCommit": "b285ae33",
+  "qualificationFoundation": {
+    "macOSReadOnlyAxHelper": true,
+    "boundedAdapter": true,
+    "secretTextViolations": 0,
+    "providerCalls": 0
+  },
+  "positiveControl": {
+    "app": "TextEdit fixture",
+    "purposeAchieved": true,
+    "wallMs": 6757,
+    "modelCalls": 4,
+    "toolCalls": 3,
+    "bundleIdExposedAfterProjectionRepair": false
+  },
+  "appleNotesActual": {
+    "candidate1": { "root": "focused_window", "nodes": 200, "truncated": true, "audioOrAttachmentHints": 0 },
+    "candidate2": { "root": "focused_element", "nodes": 74, "truncated": false, "audioOrAttachmentHints": 0 },
+    "purposeAchieved": false,
+    "personalUiTextStoredOrPrinted": false
+  },
+  "decision": {
+    "productImplementationAdopted": false,
+    "productSourceDelta": 0,
+    "screenCaptureOpened": false,
+    "ocrOpened": false,
+    "desktopActionOpened": false,
+    "s6GOpened": false
+  },
+  "nonClaims": ["S6-F complete success", "Apple Notes attachment observed", "desktop action", "Windows UIA"]
+}

@@ -1,9 +1,9 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_COMPLETE · S6_E_COMPLETE · S6_F_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
+상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_COMPLETE · S6_E_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
-현재 Gate: `S6-F · SCOPED COMPUTER OBSERVATION`
-현재 작업: `S6_F_MACOS_AX_PHYSICAL_QUALIFIED · PRODUCT_SCOPE_BINDING_PENDING`
+현재 Gate: `S6-H · PROFESSIONAL DELIVERABLE COMPLETION`
+현재 작업: `S6_H_READ_ONLY_BASELINE · EXISTING_DOCUMENT_RENDER_REUSE_FIRST`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -1065,7 +1065,7 @@ managed procedural Skill 밖의 external package·secret scope·Core·external e
 
 ### S6-F — Scoped Computer Observation
 
-현재 상태: `OPEN · MACOS_READ_ONLY_AX_QUALIFIED · PRODUCT_ENTRY_0`
+현재 상태: `CLOSED_WITH_OBSERVATION · PRODUCT_IMPLEMENTATION_ADOPTED_0 · APPLE_NOTES_PURPOSE_UNMET`
 
 current-head 57/57에서 기존 경계를 재자격했다.
 
@@ -1104,6 +1104,21 @@ ephemeral scope handle과 packaged helper lifecycle만 연결한다.
 
 근거: `refoundation/evidence/s6-f-macos-scoped-accessibility-qualification-2026-08-30.json`.
 
+제품 배선 후보는 합성 TextEdit에서 `tool_search → foreground → observe`, wall 6.757초·model 4·Tool 3으로
+fixture marker와 control 종류를 정확히 관측했다. 그러나 이는 사용자 목적 양성 대조일 뿐 Apple Notes 녹음 현실
+개선 증거가 아니다.
+
+Apple Notes actual의 첫 AX 후보는 focused window DFS 200 nodes를 모두 사용하고도 녹음·첨부 hint 0이었다. 두 번째
+후보는 focused UI element subtree로 줄여 74 nodes·truncated 0을 만들었지만 녹음·첨부 hint는 다시 0이었다. 두
+후보 모두 secret text violation 0이었으나 사용자 목적 이익도 0이다. 중단선에 따라 Screen Recording·OCR·좌표
+action을 열지 않고 Console Tool·packaged helper 제품 배선을 모두 제거했다. 최종 S6-F product delta는 0이며
+read-only helper/adapter qualification source만 연구 증거로 보존한다.
+
+따라서 S6-F는 `CLOSED_WITH_OBSERVATION · APPLE_NOTES_PURPOSE_UNMET`, S6-G는 `NOT_OPEN`이다. 이 결과를
+S6-HQ 비주장에 보존하고 산출물 완성 Gate인 S6-H로 이동한다.
+
+종료 근거: `refoundation/evidence/s6-f-closed-with-observation-2026-08-30.json`.
+
 Browser·Terminal·File로 충분하지 않은 실제 desktop app 목적 하나가 재현될 때만 Computer Hand를 연다.
 
 관측 범위:
@@ -1137,6 +1152,8 @@ Browser·공식 API·인증 CLI가 같은 목적을 더 정확하고 경제적�
 ---
 
 ### S6-G — Scoped Computer Action & Recovery
+
+현재 상태: `NOT_OPEN · S6_F_USER_PURPOSE_UNMET`
 
 S6-F observation이 발급한 exact current control만 행동에 사용한다.
 
@@ -1177,6 +1194,8 @@ stale window·modal·tab·control은 자동 좌표 fallback으로 우회하지 �
 ---
 
 ### S6-H — Professional Deliverable Completion
+
+현재 상태: `OPEN · READ_ONLY_BASELINE_FIRST · PRODUCT_CANDIDATE_0`
 
 새 디자인 앱 없이 기존 Document·Structured Authoring·DesignReceipt·Artifact를 완성한다.
 
