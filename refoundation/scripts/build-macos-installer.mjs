@@ -21,7 +21,7 @@ import {
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..', '..');
 const product = {
-  name: 'GPAO-T5', bundleId: 'kr.co.gpao.t5', version: '0.3.1', port: 4174,
+  name: 'GPAO-T5', bundleId: 'kr.co.gpao.t5', version: '6.0.0', displayVersion: '6.0', port: 4174,
 };
 const PACKAGE_SOURCE_PATHS = [
   'refoundation',
@@ -293,7 +293,7 @@ esac
 <key>CFBundleDisplayName</key><string>${product.name}</string>
 <key>CFBundleExecutable</key><string>${product.name}</string>
 <key>CFBundleIconFile</key><string>GPAO-T5.icns</string>
-<key>CFBundleShortVersionString</key><string>${product.version}</string>
+<key>CFBundleShortVersionString</key><string>${product.displayVersion}</string>
 <key>CFBundleVersion</key><string>${product.version}</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
@@ -425,6 +425,7 @@ exit 0
 
     const manifest = {
       schema: 't5.macos-team-installer.v1', product: product.name, version: product.version,
+      displayVersion: product.displayVersion,
       bundleId: product.bundleId, architectures: ['arm64', 'x86_64'], port: product.port,
       sourceCommit: sourcePolicy.sourceCommit,
       sourceDirty: sourcePolicy.sourceDirty, sourceScope: 'packaged-inputs',
