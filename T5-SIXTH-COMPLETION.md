@@ -1,9 +1,9 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_COMPLETE · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
+상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_COMPLETE · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
-현재 Gate: `S6-I · ACTUAL EXTERNAL MISSION`
-현재 작업: `S6_I_READ_ONLY_BASELINE · EXISTING_CONNECTION_EFFECT_DELIVERY_REUSE_FIRST`
+현재 Gate: `S6-J · ECONOMY CLOSE`
+현재 작업: `S6_J_FIRST_ACTUAL_COST_FAMILY · PRESENTATION_ROUND_TRIP_DENSITY`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -1270,6 +1270,8 @@ provider 비용은 경제적으로 완료가 아니다. 같은 H 기능에 Promp
 
 ### S6-I — Actual External Mission
 
+현재 상태: `CLOSED_WITH_PHYSICAL_HUMAN_QUALIFICATION_PENDING · PRODUCT_IMPLEMENTATION_ADOPTED_0`
+
 Connector 수를 늘리는 Gate가 아니다. 기존 Connection·Automation·Effect·Delivery가 실제 외부 사용자 목적을
 끝내는지 대표 공식 연결에서 자격한다.
 
@@ -1305,6 +1307,21 @@ qualification에서만 실행하고 새 상대·비밀·비용 경계를 그대�
 
 > T5는 연결과 예약이 존재한다는 이유로 일을 끝냈다고 말하지 않고, 실행 시점의 권한과 현실을 다시 확인해
 > 외부 결과가 실제로 생기고 다시 열리며 사용자에게 도착했을 때만 목적 완료로 전달한다.
+
+current-head source와 전체 제품 통합을 다시 읽은 결과 Telegram의 durable owner·text/file Delivery·unknown ACK
+비재실행, Remote MCP의 OAuth·annotation·verified write→exact page readback, Automation의 실행시 capability·authority·
+objective effect·Delivery 정산은 이미 제품에 있다. 같은 구조를 다시 만들거나 Connector를 늘릴 결함은 발견되지 않았다.
+
+현재 설치 상태의 content-free local reality는 Remote MCP credential 0, Telegram provider offset·owner binding 1·allowed
+owner 1·nonterminal ingress 0이다. 이는 과거 연결과 정산 현실일 뿐 현재 network ready나 새 외부 목적 성공을 뜻하지
+않는다. credential·chat identity·message content는 읽거나 증거에 저장하지 않았다.
+
+남은 한 증명은 human-controlled official target에서 `fresh reality → one reversible write/draft → external ACK → exact
+readback → user Delivery`를 수행하는 물리 자격이다. 저장소 계약은 실제 계정·credential의 자동 시험을 금지하고
+loopback을 external physical PASS로 승격하지 않는다. 따라서 실계정에 임의 메시지·문서·일정을 만들지 않았고,
+새 Connector·Prompt·Store로 PASS를 꾸미지 않았다. S6-I 제품 delta는 0이며 이 물리 자격은 S6-HQ blocker로 유지한다.
+
+근거: `refoundation/evidence/s6-i-external-mission-baseline-2026-08-30.json`.
 
 ---
 

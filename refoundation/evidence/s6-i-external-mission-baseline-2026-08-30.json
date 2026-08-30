@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_I_ACTUAL_EXTERNAL_MISSION",
+  "status": "CLOSED_WITH_PHYSICAL_HUMAN_QUALIFICATION_PENDING",
+  "baselineCommit": "6ad6b9ce",
+  "candidateCommit": "same_commit_as_evidence",
+  "productImplementationAdopted": 0,
+  "currentProductContracts": {
+    "telegram": ["durable owner binding", "text and exact artifact delivery", "unknown acknowledgement no blind retry", "restart exact once"],
+    "remoteMcp": ["OAuth capability and account identity", "read-only annotation enforcement", "verified write acknowledgement", "exact page readback"],
+    "automation": ["execution-time capability and authority", "objective effect separate from schedule creation", "delivery terminal", "crash fencing"]
+  },
+  "currentInstalledReality": {
+    "remoteMcpCredentialRows": 0,
+    "telegramProviderOffsetPresent": true,
+    "telegramBindings": 1,
+    "telegramAllowedOwners": 1,
+    "telegramNonterminalIngress": 0,
+    "credentialOrMessageContentRead": false,
+    "interpretation": "durable local binding exists but current network readiness and a fresh external mission were not inferred"
+  },
+  "reusedEvidence": [
+    "refoundation/evidence/s4-hq-console-closeout-2026-08-30.json",
+    "refoundation/evidence/fifth-hq-console-closeout-2026-08-30.json",
+    "current-head product integration 202/204 with two Windows physical skips"
+  ],
+  "remainingPhysicalProof": {
+    "required": true,
+    "scope": "one human-controlled official destination",
+    "journey": ["fresh current reality", "one reversible write or draft", "external acknowledgement", "exact readback", "user delivery"],
+    "automaticExecution": false,
+    "reason": "repository contract forbids automated real account and credential tests; loopback is not promoted to external physical PASS"
+  },
+  "counterfactualsRejected": [
+    "create a new connector to manufacture a passing fixture",
+    "treat schedule creation as future mission success",
+    "treat local attachment preview as external reachability",
+    "send to an existing real account without an exact human-controlled qualification target",
+    "promote loopback acknowledgement to an actual external account PASS"
+  ],
+  "userCompletionUniversallyProven": false,
+  "carryTo": ["S6_HQ_EXTERNAL_MISSION", "S6_L_WINDOWS_PHYSICAL"],
+  "nextGate": "S6_J_ECONOMY_CLOSE",
+  "completionSentence": "현재 외부 실행·readback·Delivery 구조는 유지되며 새 제품 결함은 발견되지 않았다. 실제 외부 목적 완료는 human-controlled target에서 별도 물리 자격 전까지 주장하지 않는다."
+}
