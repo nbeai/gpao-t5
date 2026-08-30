@@ -21,7 +21,7 @@ import {
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..', '..');
 const product = {
-  name: 'GPAO-T5', bundleId: 'kr.co.gpao.t5', version: '0.6.0', port: 4174,
+  name: 'GPAO-T5', bundleId: 'kr.co.gpao.t5', version: '0.3.1', port: 4174,
 };
 const PACKAGE_SOURCE_PATHS = [
   'refoundation',
