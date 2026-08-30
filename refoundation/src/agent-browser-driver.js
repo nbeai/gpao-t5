@@ -731,14 +731,15 @@ export function makeAgentBrowserDriver({
     await clearNetwork({ signal });
     await command(kind === 'fill'
       ? ['fill', cliRef(ref), String(text ?? '')]
-      : ['click', cliRef(ref)], { signal });
-    const resultTab = kind === 'fill'
+      : kind === 'select' ? ['select', cliRef(ref), String(text ?? '')]
+        : ['click', cliRef(ref)], { signal });
+    const resultTab = ['fill', 'select'].includes(kind)
       ? { tabId, transition: null }
       : await actionResultTab(beforeTabs, tabId, { signal });
     const observed = await takeSnapshot({ tabId: resultTab.tabId, full: false, signal });
     const network = await networkFacts({ signal });
     return {
-      action: kind === 'fill'
+      action: ['fill', 'select'].includes(kind)
         ? { kind, ref: String(ref), textChars: String(text ?? '').length }
         : { kind, ref: String(ref) },
       ...observed, network,
@@ -986,6 +987,7 @@ export function makeAgentBrowserDriver({
     },
     click(options = {}) { return act('click', options); },
     fill(options = {}) { return act('fill', options); },
+    select(options = {}) { return act('select', options); },
     fillEditable,
     submit(options = {}) { return act('submit', options); },
     async download({ tabId, ref, signal } = {}) {

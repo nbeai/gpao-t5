@@ -899,15 +899,18 @@ export function makeConsoleServer({
             if (event.type !== 'tool_completed') return false;
             const receipt = event.payload?.receipt; const effect = receipt?.requestedCall?.args?.effect
               ?? receipt?.actualCall?.args?.effect;
+            const effectTool = receipt?.requestedCall?.name;
+            const forensicEligible = ['exec', 'terminal_session', 'pty_start', 'file_reality']
+              .includes(effectTool);
             const noEffect = ['unavailable', 'not_executed', 'capability_boundary']
               .includes(receipt?.result?.state)
               || (receipt?.result?.providerAccepted === false
                 && receipt?.result?.externallyReachable === false);
             const terminalPending = receipt?.requestedCall?.name === 'terminal_session'
               && ['running', 'stop_requested'].includes(receipt?.result?.state);
-            return (effect && effect.kind !== 'observe')
+            return forensicEligible && (effect && effect.kind !== 'observe')
               && !noEffect && !terminalPending
-              || (receipt?.requestedCall?.name === 'terminal_session'
+              || (effectTool === 'terminal_session'
                 && receipt?.result?.effectObservation
                 && receipt.result.effectObservation.declared?.kind !== 'observe'
                 && !terminalPending);

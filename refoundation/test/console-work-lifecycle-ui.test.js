@@ -63,6 +63,7 @@ test('완료 Artifact가 있는 결과는 같은 파일 변경 영수증을 별�
   assert.match(source, /providerAccepted === false[\s\S]*externallyReachable === false/u);
   assert.match(source, /terminalPending[\s\S]*running[\s\S]*stop_requested/u);
   assert.match(source, /effectObservation\.declared\?\.kind !== 'observe'/u);
+  assert.match(source, /forensicEligible = \['exec', 'terminal_session', 'pty_start', 'file_reality'\]/u);
   assert.match(source, /projectHumanFileOrganizationReceipt\(event\.payload\.receipt\)/u);
 });
 

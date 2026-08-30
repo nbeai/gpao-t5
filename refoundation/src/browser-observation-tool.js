@@ -3,10 +3,10 @@ import { EFFECT_SCHEMA } from './exec-tool.js';
 import { makeBrowserObservationRegistry } from './browser-action-state.js';
 
 const ACTIONS = [
-  'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'fill_editable', 'submit',
+  'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'select', 'fill_editable', 'submit',
   'login_start', 'login_status', 'login_cancel', 'download', 'upload',
 ];
-const ACTION_KINDS = new Set(['click', 'fill', 'fill_editable', 'submit', 'download', 'upload']);
+const ACTION_KINDS = new Set(['click', 'fill', 'select', 'fill_editable', 'submit', 'download', 'upload']);
 const MODAL_INTENTS = [null, 'dismiss', 'continue', 'discard_existing', 'replace_existing'];
 const DEFAULT_MAX_CHARS = 20_000;
 const MAX_CHARS = 64_000;
@@ -102,13 +102,13 @@ export function makeBrowserObservationTool({
         maxChars: { type: ['integer', 'null'], minimum: 500, maximum: MAX_CHARS },
         fullPage: { type: ['boolean', 'null'], description: 'For screenshot: capture the whole scrollable page.' },
         observationId: { type: ['string', 'null'], description: 'Exact latest observationId that supplied ref, otherwise null.' },
-        ref: { type: ['string', 'null'], description: 'Exact ref from the bound observation for click, fill, submit, download, or upload; otherwise null.' },
+        ref: { type: ['string', 'null'], description: 'Exact ref from the bound observation for click, fill, select, submit, download, or upload; otherwise null.' },
         editableId: { type: ['string', 'null'], description: 'Exact editableId from editables for fill_editable, otherwise null.' },
         modalIntent: {
           type: ['string', 'null'], enum: MODAL_INTENTS,
           description: 'For a click target inside dialog/alertdialog, explicitly state dismiss, continue, discard_existing, or replace_existing. discard/replace require destructive effect. Otherwise null.',
         },
-        text: { type: ['string', 'null'], maxLength: 20_000, description: 'Full non-secret text for fill or fill_editable, including text actually read from a user-authorized local file; otherwise null. Passing text is not a file upload.' },
+        text: { type: ['string', 'null'], maxLength: 20_000, description: 'Full non-secret text for fill/fill_editable, or exact option value for select; otherwise null. Passing text is not a file upload.' },
         textFilePath: { type: ['string', 'null'], description: 'Exact user-provided local UTF-8 text path for fill or fill_editable when the runtime should read and hash the text without making the model copy it; otherwise null. This is not file upload.' },
         textFileStartLine: { type: ['integer', 'null'], minimum: 1, description: 'Optional 1-based first line to use from textFilePath; null when no text file is used.' },
         filePath: { type: ['string', 'null'], description: 'Exact absolute user-provided path for upload, otherwise null.' },
@@ -221,7 +221,7 @@ export function makeBrowserObservationTool({
         const driverAction = args.action === 'fill_editable' ? 'fillEditable' : args.action;
         const acted = await driver[driverAction]({
           tabId: args.tabId, ref: args.ref, editableId: args.editableId,
-          ...(args.action === 'fill' ? { text: safety.textSource?.text ?? args.text } : {}),
+          ...(['fill', 'select'].includes(args.action) ? { text: safety.textSource?.text ?? args.text } : {}),
           ...(args.action === 'fill_editable' ? { text: safety.textSource?.text ?? args.text } : {}),
           ...(args.action === 'upload' ? {
             filePath: safety.fileFacts?.path ?? args.filePath, expectedSha256: safety.fileFacts?.sha256,
@@ -394,6 +394,15 @@ export function makeBrowserObservationTool({
       if (!['external_send', 'external_change'].includes(args.effect.kind)) {
         return { ...blocked('effect_declaration_mismatch', { reason: 'external_send_required' }), binding };
       }
+      }
+    }
+    if (args.action === 'select') {
+      if (role !== 'combobox') return { ...blocked('ref_not_select_control', { role }), binding };
+      if (args.text == null || args.textFilePath != null || args.textFileStartLine != null) {
+        return { ...blocked('select_value_required'), binding };
+      }
+      if (args.effect.kind !== 'external_change') {
+        return { ...blocked('effect_declaration_mismatch', { reason: 'external_change_required' }), binding };
       }
     }
     let textSource = null;

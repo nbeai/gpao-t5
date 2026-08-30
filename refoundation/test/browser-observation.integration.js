@@ -62,7 +62,7 @@ test('실제 콘솔 모델이 browser navigate의 렌더링 snapshot을 읽고 �
       if (modelTurn === 2) {
         const browser = requireBrowserAfterBoundary(input);
         assert.deepEqual(browser.parameters.properties.action.enum, [
-          'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'fill_editable', 'submit',
+          'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'select', 'fill_editable', 'submit',
           'login_start', 'login_status', 'login_cancel', 'download', 'upload',
         ]);
         return { text: '', toolCalls: [{ id: 'observe-page', name: 'browser', args: {
