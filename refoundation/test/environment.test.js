@@ -38,10 +38,11 @@ test('정본은 제품·현재 계획·1차 역사·작업 규율로 분리된�
   assert.match(agents, /`T5-FIFTH-COMPLETION\.md`[\s\S]*완료 역사/u);
   assert.match(fourth, /현재 Gate: `FOURTH COMPLETION SEALED · MACOS PRODUCT SCOPE · WINDOWS DEFERRED_NOT_WAIVED`/u);
   assert.match(fifth, /상태: `FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE · WINDOWS_DEFERRED_NOT_WAIVED`/u);
-  assert.match(sixth, /현재 Gate: `TOTAL HUMAN HQ → OPTIONAL OWNER LIVE RECHECK → MACOS 6\.0 PACKAGE → WINDOWS PRE-PHYSICAL READINESS`/u);
+  assert.match(sixth, /현재 Gate: `INSTALLED 6\.0 P0 REPAIR → FINAL PACKAGE WHOLE-FLOW HUMAN HQ → RP3 REBUILD\/QUALIFICATION`/u);
+  assert.match(sixth, /MACOS_6_0_PACKAGE_DISTRIBUTION_HOLD/u);
   assert.match(sixth, /S6-WP0 — Windows Pre-Physical Readiness/u);
   assert.match(sixth, /windowsInstallerDecision: OWNER_PENDING/u);
-  assert.match(sixth, /S6_P0_CLOSED_WITH_SPEED_CARRY/u);
+  assert.match(sixth, /S6_P0_REOPENED_INSTALLED_WEB_RESEARCH_LATENCY/u);
   assert.match(sixth, /S6_A_COMPLETE/u);
   assert.match(sixth, /S6_B_COMPLETE/u);
   assert.match(sixth, /S6_C_COMPLETE_WITH_STT_GAP/u);

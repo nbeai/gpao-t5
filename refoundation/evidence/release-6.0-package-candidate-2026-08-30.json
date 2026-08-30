@@ -1,0 +1,81 @@
+{
+  "schema": "t5.release.package-candidate.v1",
+  "releaseStatus": "distribution_hold_after_installed_console_p0",
+  "version": "6.0.0",
+  "displayVersion": "6.0",
+  "sourceCommit": "d80e08d914a43a9f56b7636fe44da1e3ccfa9880",
+  "sourceDirty": false,
+  "package": {
+    "path": "dist/GPAO-T5-6.0.0-universal.pkg",
+    "bytes": 107857255,
+    "sha256": "cab4775b62ac90f1df15736783e7b656832fdae60dd27eb304163f660dd01953",
+    "architectures": ["arm64", "x86_64"]
+  },
+  "signing": {
+    "application": "Developer ID Application",
+    "installer": "Developer ID Installer",
+    "trustedTimestamp": true,
+    "packageSignature": "passed",
+    "installedAppGatekeeper": "Notarized Developer ID"
+  },
+  "notarization": {
+    "submissionId": "3cc2ffaf-5d92-463c-8e4b-a3f6b0e6d142",
+    "status": "Accepted",
+    "statusSummary": "Ready for distribution",
+    "issues": 0,
+    "submittedSha256": "cab4775b62ac90f1df15736783e7b656832fdae60dd27eb304163f660dd01953",
+    "stapled": false,
+    "stapleBoundary": "local stapler returned Error 65; no staple or offline package Gatekeeper PASS is claimed"
+  },
+  "packageVerification": {
+    "expandedPayload": "passed",
+    "packagedConsoleHealth": "passed",
+    "localIdentityAndCrossSiteBoundary": "passed",
+    "node": "v24.14.0 arm64",
+    "payloadFiles": 4490,
+    "installedBytes": 327699631,
+    "credentialsOrUserDataPackaged": false,
+    "ownerResearchFolderPackaged": false
+  },
+  "actualUpgrade": {
+    "fromVersion": "0.5.0",
+    "toVersion": "6.0.0",
+    "installerResult": "successful",
+    "installedDisplayVersion": "6.0",
+    "installedReceiptVersion": "6.0.0",
+    "consoleHealth": true,
+    "preservedModelConnections": 2,
+    "preservedStateFilesObserved": 183
+  },
+  "sourceQualification": {
+    "unitPassed": 1933,
+    "unitFailed": 0,
+    "unitWindowsSkipped": 1,
+    "integrationPassed": 206,
+    "integrationFailed": 0,
+    "integrationWindowsSkipped": 2,
+    "mutationKilled": "2/2"
+  },
+  "notYetClaimed": [
+    "stapled package",
+    "offline package Gatekeeper acceptance",
+    "clean install human qualification",
+    "installed package full Console human smoke",
+    "whole-state backup and restore click journey",
+    "Windows qualification"
+  ],
+  "installedCounterexample": {
+    "sessionId": "fa4d91a3-3975-4b8b-b5b1-a47967986174",
+    "runId": "9bf0c5dc-fe3d-45ed-a58f-657b845497d0",
+    "requestSequence": ["오늘 날씨 좀 알려줘", "서울"],
+    "totalWallMsApprox": 191426,
+    "modelDecisionMsApprox": 1806,
+    "webResearchMsApprox": 184861,
+    "finalModelMsApprox": 3135,
+    "resultAccuracy": "eventually produced a weather answer",
+    "userExperience": "release_blocking_latency_and_stale_ready_state",
+    "structuralCause": "web_research timeout was created after provider searches, leaving the search phase outside the bounded observation deadline",
+    "hqMiss": "M02 was reused from prior evidence instead of rerun on the installed final package",
+    "disposition": "package distribution blocked until repair and installed whole-flow human HQ"
+  }
+}

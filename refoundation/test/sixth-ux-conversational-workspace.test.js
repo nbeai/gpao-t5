@@ -32,3 +32,10 @@ test('수동 group과 pin은 Session metadata만 사용하고 실제 Browser mis
   assert.equal(evidence.waDeltaAudit.duplicateTruthOwner, 0);
   assert.equal(evidence.waDeltaAudit.blindRetryCycle, 0);
 });
+
+test('상단 chip은 모델 연결 사실만 말하고 현재 Work 상태와 준비됨 표현으로 충돌하지 않는다', () => {
+  assert.match(ui, /healthIssue \? '연결 확인 필요' : '연결됨'/u);
+  assert.doesNotMatch(ui, /healthIssue \? '모델 확인 필요' : '준비됨'/u);
+  assert.match(ui, /responding: '답변을 준비하고 있어요'/u);
+  assert.match(ui, /working: '작업 중이에요 · 지금도 교정할 수 있어요'/u);
+});

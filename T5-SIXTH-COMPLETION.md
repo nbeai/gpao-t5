@@ -1,9 +1,9 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_MACOS_SOURCE_CANDIDATE_COMPLETE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_ADMISSION_HARDENED · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · S6_J_COMPLETE · S6_WA_COMPLETE_MACOS_WINDOWS_EXPLICIT · S6_UX_PRODUCT_CANDIDATE_COMPLETE_ACTUAL_CONSOLE · TOTAL_HUMAN_HQ_EXECUTION_ACTIVE · MACOS_6_0_PACKAGE_PENDING_AFTER_HQ · WINDOWS_PREPHYSICAL_PLANNED_AFTER_PACKAGE · FIFTH_BASELINE_F42E4DB7 · WINDOWS_DEFERRED_NOT_WAIVED · INSTALLER_NOT_BUILT`
+상태: `SIXTH_MACOS_SOURCE_CANDIDATE_COMPLETE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_REOPENED_INSTALLED_WEB_RESEARCH_LATENCY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_ADMISSION_HARDENED · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · S6_J_COMPLETE · S6_WA_COMPLETE_MACOS_WINDOWS_EXPLICIT · S6_UX_PRODUCT_CANDIDATE_COMPLETE_ACTUAL_CONSOLE · TOTAL_HUMAN_HQ_REOPENED_INSTALLED_PRODUCT_WHOLE_FLOW_REQUIRED · MACOS_6_0_PACKAGE_DISTRIBUTION_HOLD · WINDOWS_PREPHYSICAL_BLOCKED_BY_MACOS_HQ · FIFTH_BASELINE_F42E4DB7 · WINDOWS_DEFERRED_NOT_WAIVED · INSTALLER_BUILT_NOT_RELEASED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
-현재 Gate: `TOTAL HUMAN HQ → OPTIONAL OWNER LIVE RECHECK → MACOS 6.0 PACKAGE → WINDOWS PRE-PHYSICAL READINESS`
-현재 작업: `TOTAL_HQ_EXECUTION · DO_NOT_OPEN_WINDOWS_WORK_OR_BUILD_PACKAGE_BEFORE_HQ_CLOSE`
+현재 Gate: `INSTALLED 6.0 P0 REPAIR → FINAL PACKAGE WHOLE-FLOW HUMAN HQ → RP3 REBUILD/QUALIFICATION`
+현재 작업: `DISTRIBUTION HOLD · WEB_RESEARCH WHOLE-DEADLINE REPAIR · NO WINDOWS WORK`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -2471,7 +2471,7 @@ UX-0 current baseline
 
 ### S6-RP — Owner-Ordered Release & Windows Preparation Sequence
 
-현재 상태: `OWNER_ORDER_LOCKED · TOTAL_HQ_ACTIVE · PACKAGE_AND_WINDOWS_WORK_NOT_OPEN`
+현재 상태: `RP1_REOPENED_AFTER_INSTALLED_COUNTEREXAMPLE · RP2_REQUIRED · RP3_PACKAGE_DISTRIBUTION_HOLD`
 
 오너가 2026-08-30 다음 실행 순서를 확정했다. 뒤 단계가 중요하다는 이유로 앞 단계를 병렬 구현하거나 건너뛰지
 않는다.
@@ -2528,6 +2528,27 @@ semantic version은 `6.0.0`으로 통일하며 과거 `0.3.x·0.4.x·0.5.x` buil
 
 `티파이브개발 연구/`는 사용자 소유 비정본 미추적 자료이며 source package·payload·Git stage에 포함하지 않는다.
 설치본 제작은 기능 개발 Gate가 아니며 package 실패를 Core 변경으로 우회하지 않는다.
+
+2026-08-30 RP-3 후보의 현재 사실:
+
+- package source commit: `d80e08d914a43a9f56b7636fe44da1e3ccfa9880`
+- package: `dist/GPAO-T5-6.0.0-universal.pkg`
+- pre-staple SHA-256: `cab4775b62ac90f1df15736783e7b656832fdae60dd27eb304163f660dd01953`
+- Developer ID Application·Installer와 trusted timestamp: PASS
+- Apple notarization: `Accepted · Ready for distribution · issues 0`
+- submission ID: `3cc2ffaf-5d92-463c-8e4b-a3f6b0e6d142`
+- 현재 host의 staple: Error 65, `stapled=false`; 이를 staple PASS로 주장하지 않음
+- 실제 0.5.0→6.0.0 upgrade: PASS
+- 설치 앱 Gatekeeper: `Notarized Developer ID`
+- 기존 대화·상태·모델 연결 보존과 새 Console health: PASS
+- clean install·설치 제품의 전체 인간 smoke·백업/복원 클릭은 아직 PASS로 주장하지 않음
+
+2026-08-31 설치 제품 반례로 위 후보의 배포 READY를 철회했다. 실제 Console에서 `오늘 날씨 좀 알려줘` 뒤
+`서울`이라고 보완한 단순 현재정보 요청이 약 191초 걸렸다. 모델 첫 판단과 최종 생성은 각각 약 1.8초·3.6초였지만,
+`web_research`가 약 185초를 사용했다. 코드상 15초 경계가 page read 뒤에만 생성되어 그 앞의 provider search를
+보호하지 못한 것이 직접 원인이다. 또한 source HQ는 M02를 현재 후보에서 다시 실행하지 않고 과거 actual evidence를
+재사용했으므로 이 설치 제품 UX 반례를 발견하지 못했다. 동일 결함 수리와 최종 설치 제품 whole-flow HQ가 끝나기 전
+이 package를 테스터에게 배포하지 않는다.
 
 완료 문장:
 

@@ -2869,12 +2869,42 @@ const SET_RENDER = {
           frame.name = targetName; frame.hidden = true; const form = document.createElement('form');
           form.method = 'POST'; form.action = '/backup/create'; form.target = targetName; form.hidden = true;
           const password = document.createElement('input'); password.type = 'hidden'; password.name = 'password';
-          password.value = backupPassword.value; form.appendChild(password); document.body.append(frame, form); form.submit();
+          password.value = backupPassword.value; form.appendChild(password);
+          let submitted = false; let failed = false;
+          const showFailure = (message) => {
+            if (failed) return;
+            failed = true;
+            backupState.textContent = message || '전체 백업을 만들지 못했어요. 암호를 다시 입력해 시도해 주세요.';
+            backupAction.disabled = false; backupAction.textContent = '전체 백업 파일 받기';
+            password.value = ''; form.remove(); frame.remove();
+          };
+          frame.addEventListener('load', () => {
+            if (!submitted) return;
+            const responseDocument = frame.contentDocument;
+            if (!responseDocument || responseDocument.URL === 'about:blank') return;
+            const responseText = responseDocument.body?.textContent?.trim() ?? '';
+            if (!responseText) return;
+            try {
+              const result = JSON.parse(responseText);
+              if (result.error) showFailure(result.error);
+            } catch { showFailure('전체 백업 응답을 확인하지 못했어요. 암호를 다시 입력해 시도해 주세요.'); }
+          });
+          frame.addEventListener('error', () => showFailure(
+            '전체 백업 다운로드를 시작하지 못했어요. 암호를 다시 입력해 시도해 주세요.',
+          ));
+          document.body.append(frame, form);
+          queueMicrotask(() => {
+            submitted = true; form.submit(); password.value = ''; form.remove();
+            backupPassword.value = ''; backupConfirm.value = '';
+          });
+          backupState.textContent = '암호화된 백업 다운로드를 요청했어요. 브라우저에 파일이 실제로 나타나면 완료입니다.';
+          backupAction.disabled = false; backupAction.textContent = '전체 백업 파일 받기';
+          setTimeout(() => { if (!failed) frame.remove(); }, 5 * 60_000);
+        } catch (error) {
           backupPassword.value = ''; backupConfirm.value = '';
-          password.value = ''; setTimeout(() => form.remove(), 0);
-          backupState.textContent = '암호화된 전체 백업 파일을 만들고 있어요. 준비되면 브라우저 다운로드가 시작돼요.';
-        } catch (error) { backupState.textContent = error?.message ?? '전체 백업을 만들지 못했어요. 현재 자료는 그대로예요.'; }
-        finally { backupPassword.value = ''; backupConfirm.value = ''; backupAction.disabled = false; backupAction.textContent = '전체 백업 파일 받기'; }
+          backupState.textContent = error?.message ?? '전체 백업을 만들지 못했어요. 암호를 다시 입력해 시도해 주세요.';
+          backupAction.disabled = false; backupAction.textContent = '전체 백업 파일 받기';
+        }
       };
       backupCard.append(backupFields, backupAction, backupState); backup.appendChild(backupCard); setBody.appendChild(backup);
 
@@ -3621,15 +3651,23 @@ function appendMessageTime(who, recordedAt) {
   time.dateTime = new Date(recordedAt).toISOString(); time.title = new Date(recordedAt).toLocaleString();
   time.textContent = text; who.appendChild(time);
 }
+async function writeClipboardText(raw) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(raw);
+      return true;
+    }
+  } catch { /* clipboard 권한이 막히면 현재 문서 fallback을 시도한다. */ }
+  const helper = document.createElement('textarea'); helper.value = raw; helper.setAttribute('readonly', '');
+  helper.style.position = 'fixed'; helper.style.opacity = '0'; document.body.appendChild(helper);
+  try { helper.select(); return document.execCommand('copy') === true; }
+  catch { return false; }
+  finally { helper.remove(); }
+}
 async function copyMessageText(value) {
-  const raw = String(value ?? '');
-  try { await navigator.clipboard.writeText(raw); }
-  catch {
-    const helper = document.createElement('textarea'); helper.value = raw; helper.setAttribute('readonly', '');
-    helper.style.position = 'fixed'; helper.style.opacity = '0'; document.body.appendChild(helper);
-    helper.select(); document.execCommand('copy'); helper.remove();
-  }
-  toast('메시지를 복사했어요.');
+  const copied = await writeClipboardText(String(value ?? ''));
+  toast(copied ? '메시지를 복사했어요.' : '메시지를 복사하지 못했어요. 다시 시도해 주세요.');
+  return copied;
 }
 function appendMessageActions(box, raw, { editable = false, align = 'left' } = {}) {
   if (!String(raw ?? '').trim()) return;
@@ -3792,10 +3830,10 @@ async function selectSession(id) {
 
 function renderSelfState(s) {
   if (!s) return;
-  // P-RT-2 감사 B1: 자격이 usable 이어도 doctor 가 model_missing/unreachable 을 보고했으면
-  // "준비됨"이라 말하지 않는다(보이는 것=되는 것).
+  // 이 chip은 모델 연결 사실만 말한다. 현재 Work는 본문 activity와 composer가 담당하므로
+  // 실행 중에도 모순되는 "준비됨" 상태를 만들지 않는다.
   const healthIssue = s.modelHealthState === 'model_missing' || s.modelHealthState === 'unreachable';
-  const label = s.modelAuthState !== 'usable' ? s.modelAuthState : (healthIssue ? '모델 확인 필요' : '준비됨');
+  const label = s.modelAuthState !== 'usable' ? s.modelAuthState : (healthIssue ? '연결 확인 필요' : '연결됨');
   const warn = s.modelAuthState !== 'usable' || healthIssue || (s.limits && s.limits.length);
   chip.textContent = label;
   chip.classList.toggle('warn', !!warn);
