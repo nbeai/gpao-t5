@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "gate": "S6_P0_03_USER_VISIBLE_FILENAME_REALITY",
-  "status": "STRUCTURAL_AND_READONLY_ACTUAL_QUALIFIED_MODEL_CONSOLE_PENDING",
+  "status": "ACTUAL_MODEL_CONSOLE_QUALIFIED_SPEED_OBSERVATION_REMAINS",
   "baselineCommit": "f42e4db7",
   "productBoundary": {
     "reusedCapability": "discoverLocalSyncRoots",
@@ -33,11 +33,26 @@
     "staleHandleAndRollbackPreserved": true,
     "capabilityTruthPreserved": true
   },
+  "actualConsole": {
+    "browser": "Chrome",
+    "model": "gpt-5.6-terra",
+    "naturalLanguageRequest": true,
+    "scopeSelected": "computer",
+    "filenameDirectMatches": 2,
+    "contentMentionResultsShownSeparately": 2,
+    "falseUniversalAbsence": false,
+    "workCompletionToolCalls": 0,
+    "wallMs": 18767,
+    "modelCalls": 3,
+    "toolCalls": 2,
+    "providerTokens": 35499,
+    "requestBytes": 172579
+  },
   "privacy": {
     "personalNamesCopied": false,
     "personalFileNamesCopied": false,
     "personalPathsCopied": false,
     "fileContentsCopied": false
   },
-  "remaining": ["actual model Console filename/content lane and false-absence qualification"]
+  "remaining": ["first file-search speed remains an economic observation"]
 }

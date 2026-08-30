@@ -347,7 +347,10 @@ export function makeFileRealityTool({
   };
   return {
     name: 'file_reality',
-    description: 'Find real local files when the user remembers only approximate names, contents, dates, amounts, people, projects, or prior context; search either the whole requested computer scope, the current workspace, or one exact folder. Return bounded opaque candidates and evidence without sending the whole filesystem or file contents to the model. Inspect selected candidates, use deliver on one exact verified handle when the user asked to receive that file, compare exact duplicates or possible versions, and preview an exact organization plan with collision facts before any file is changed. Never declare a final version from the filename alone.',
+    completionProposalOptional: (args = {}) => [
+      'search', 'image_candidates', 'inspect', 'compare', 'visual_candidates',
+    ].includes(args.action),
+    description: 'Find real local files when the user remembers only approximate names, contents, dates, amounts, people, projects, or prior context. When the user did not name a folder and did not explicitly limit the request to the current project or workspace, use computer scope; the mere existence of a managed workspace is not a user-selected search boundary. Use workspace only for an explicitly current workspace/project request, and path for one exact user-named folder. Return bounded opaque candidates and evidence without sending the whole filesystem or file contents to the model. Inspect selected candidates, use deliver on one exact verified handle when the user asked to receive that file, compare exact duplicates or possible versions, and preview an exact organization plan with collision facts before any file is changed. Never declare a final version from the filename alone.',
     searchTerms: [
       'find local file whole computer vague name content duplicate latest version',
       '컴퓨터 전체 파일 찾기 이름 위치 모름 내용 단서 중복 최종본 버전',

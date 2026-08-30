@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_P0_CONVERSATIONAL_BASELINE_AND_FILE_RESULT_TRUTH",
+  "status": "CLOSED_WITH_P0_01_SPEED_CARRY_TO_S6_A",
+  "baselineCommit": "f42e4db7",
+  "actualConsole": {
+    "browser": "Chrome",
+    "isolatedStateAndWorkspace": true,
+    "actualUserFilesReadOnly": true,
+    "externalWrites": 0,
+    "orphanProcessesAfterClose": 0
+  },
+  "outcomes": {
+    "directConversation": "PASS_MODEL_1_TOOL_0",
+    "singleAttachment": "PASS_MODEL_2_TOOL_1_WALL_2783MS",
+    "boundedCurrentWeb": "ACCURATE_IMPROVED_SPEED_PARTIAL",
+    "exactFileTitleNativeReveal": "PASS",
+    "userVisibleSyncRootsFilenameFirst": "PASS",
+    "filenameAndContentLanesSeparated": true,
+    "falseUniversalAbsence": false,
+    "productVersionTruth": "PASS_SOURCE_PRODUCT"
+  },
+  "weatherComparison": {
+    "installedBaseline": {
+      "wallMs": 20170,
+      "modelCalls": 4,
+      "toolCalls": 3,
+      "providerTokens": 47501,
+      "requestBytes": 229594
+    },
+    "candidateConsole": {
+      "wallMs": 11089,
+      "modelCalls": 2,
+      "toolCalls": 1,
+      "providerTokens": 28631,
+      "requestBytes": 119110,
+      "sourceTruthPreserved": true
+    },
+    "providerNativeFastCandidate": {
+      "wallMsRange": [3097, 4637],
+      "adopted": false,
+      "reason": "provider response did not supply exact URL, title, or citation identity"
+    },
+    "remaining": "typed current-data capability economics moves to S6-A"
+  },
+  "fileSearchActual": {
+    "wallMs": 18767,
+    "modelCalls": 3,
+    "toolCalls": 2,
+    "providerTokens": 35499,
+    "requestBytes": 172579,
+    "filenameDirectMatches": 2,
+    "contentResultsShownSeparately": 2,
+    "finderExactFilenameSelected": true
+  },
+  "verification": {
+    "focusedRegression": { "passed": 43, "failed": 0 },
+    "fullCI": { "passed": true, "integrationPassed": 201, "integrationSkipped": 2, "integrationFailed": 0 },
+    "mutation": { "passed": 2, "failed": 0 }
+  },
+  "nonClaims": [
+    "commodity current Web has reached final comfortable latency",
+    "provider-native search supplied source identity",
+    "a sixth installed package was built",
+    "Windows native reveal was physically qualified"
+  ]
+}

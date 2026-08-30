@@ -104,7 +104,7 @@ test('현재 설치 제품 버전은 Interaction Core·모델과 분리된 Runti
   assert.match(launcher, /CFBundleShortVersionString[\s\S]*T5_PRODUCT_VERSION/u);
 });
 
-test('directory-first 후보는 실제 Tool 요청 뒤 completion을 열고 숨은 capability를 한 번 발견한다', async () => {
+test('directory-first 후보는 read-only Tool 요청 뒤 숨은 capability를 한 번 발견하고 바로 답한다', async () => {
   const observed = await run({ mode: 'directory-first-v1', request: '현재 연결 상태를 확인해줘',
     respond(input, modelTurn) {
       if (modelTurn === 1) return { text: '', toolCalls: [{
@@ -112,15 +112,13 @@ test('directory-first 후보는 실제 Tool 요청 뒤 completion을 열고 숨�
       }] };
       if (modelTurn === 2) {
         assert.ok(input.tools.some((tool) => tool.name === 'connection'));
-        assert.ok(input.tools.some((tool) => tool.name === 'work_completion'));
+        assert.equal(input.tools.some((tool) => tool.name === 'work_completion'), false);
         return { text: '', toolCalls: [{ id: 'list', name: 'connection',
           args: { action: 'list', id: null, actionId: null } }] };
       }
-      if (modelTurn === 3) return { text: '', toolCalls: [{ id: 'done', name: 'work_completion',
-        args: { outcome: 'achieved', inputSettlements: [] } }] };
       return { text: '연결 상태를 확인했습니다.', toolCalls: [] };
     } });
   assert.equal(observed.result.reply, '연결 상태를 확인했습니다.');
-  assert.equal(observed.calls.length, 4);
+  assert.equal(observed.calls.length, 3);
   assert.equal(observed.calls[0].tools.some((tool) => tool.name === 'connection'), false);
 });

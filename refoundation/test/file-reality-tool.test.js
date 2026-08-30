@@ -59,6 +59,8 @@ test('사용자 가시 동기화 root의 Unicode 파일명 일치는 content men
   try {
     const tool = makeFileRealityTool({ workspace, home: root, platform: 'test',
       computerRoots: [sync, standard], indexSearch: async () => [] });
+    assert.equal(tool.completionProposalOptional({ action: 'search' }), true);
+    assert.equal(tool.completionProposalOptional({ action: 'apply' }), false);
     const result = await tool.execute({ action: 'search', query: '권혁수', scope: 'computer', path: null,
       handles: null, maxCandidates: 10 });
     assert.match(result.candidates[0].displayName.normalize('NFC'), /권혁수/u);

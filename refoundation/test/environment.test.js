@@ -14,6 +14,7 @@ test('정본은 제품·현재 계획·1차 역사·작업 규율로 분리된�
   const plan = readFileSync(resolve(root, 'T5-SECOND-COMPLETION.md'), 'utf8');
   const fourth = readFileSync(resolve(root, 'T5-FOURTH-COMPLETION.md'), 'utf8');
   const fifth = readFileSync(resolve(root, 'T5-FIFTH-COMPLETION.md'), 'utf8');
+  const sixth = readFileSync(resolve(root, 'T5-SIXTH-COMPLETION.md'), 'utf8');
   const history = readFileSync(resolve(root, 'T5-REFOUNDATION.md'), 'utf8');
   const agents = readFileSync(resolve(root, 'AGENTS.md'), 'utf8');
   assert.match(product, /사용자는 T5를 배우지 않는다/);
@@ -33,9 +34,12 @@ test('정본은 제품·현재 계획·1차 역사·작업 규율로 분리된�
   assert.match(plan, /t5-0\.3\.1-clean-baseline/u);
   assert.match(history, /상태: `FIRST_COMPLETE_REFERENCE`/);
   assert.match(history, /Unified Attachment Hand A1, U1-G4까지 완료되어 1차 완성/);
-  assert.match(agents, /`T5-FIFTH-COMPLETION\.md` — 지금 어느 Gate/);
+  assert.match(agents, /`T5-SIXTH-COMPLETION\.md` — 지금 어느 Gate/);
+  assert.match(agents, /`T5-FIFTH-COMPLETION\.md`[\s\S]*완료 역사/u);
   assert.match(fourth, /현재 Gate: `FOURTH COMPLETION SEALED · MACOS PRODUCT SCOPE · WINDOWS DEFERRED_NOT_WAIVED`/u);
   assert.match(fifth, /상태: `FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE · WINDOWS_DEFERRED_NOT_WAIVED`/u);
+  assert.match(sixth, /현재 Gate: `S6-A · CAPABILITY REALITY & ADMISSION`/u);
+  assert.match(sixth, /S6_P0_CLOSED_WITH_SPEED_CARRY/u);
   assert.match(fourth, /t5-0\.3\.1-clean-baseline/u);
   assert.match(agents, /현재 제품 코어·UI·검사·배포는 `refoundation\/`/);
   assert.match(agents, /t5-legacy-archive/);

@@ -1,8 +1,9 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_PLAN_OWNER_APPROVED · OWNER_UX_TOP_GOAL_LOCKED · OWNER_LIVE_P0_REGISTERED · IMPLEMENTATION_NOT_STARTED · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
+상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
-현재 작업: `PLAN_ONLY · S6_P0_REGISTERED · PRODUCT_SOURCE_DELTA_0`
+현재 Gate: `S6-A · CAPABILITY REALITY & ADMISSION`
+현재 작업: `S6_A_BASELINE · FIRST_CURRENT_DATA_CAPABILITY_GAP`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -519,7 +520,7 @@ citation annotation을 제공하지 않았다. source truth를 증명할 수 없
 
 #### P0-02 — Exact File Result Affordance
 
-현재 상태: `STRUCTURAL_CANDIDATE_QUALIFIED · ACTUAL_BROWSER_CONSOLE_PENDING`
+현재 상태: `ACTUAL_BROWSER_CONSOLE_QUALIFIED · EXACT_NATIVE_REVEAL_QUALIFIED`
 
 최근 보고서 두 개의 검색 정확성과 속도는 만족스러웠다. 그러나 실제 Console은 다음 상태였다.
 
@@ -564,14 +565,17 @@ computer reveal 중 가장 작은 결속을 재사용하며 새 File Store를 �
 `/computer/reveal`에 보낸다. 서버는 bytes·mtime을 재검사하고 macOS `open -R` 또는 Windows Explorer select를
 사용한다. stale·missing·directory이면 nearest parent fallback 없이 실패한다. 모델이 작성한 path와 새 Store는 0이다.
 
-focused 24/24에서 exact title segment·macOS/Windows invocation·stale identity fail-closed·File Reality Console
-surface·기존 Console lifecycle을 통과했다. 실제 Browser Console click은 다음 자격에 남는다.
+focused 43/43에서 exact title segment·macOS/Windows invocation·stale identity fail-closed·File Reality Console
+surface·기존 Console lifecycle을 통과했다. 실제 Chrome Console에서는 Runtime의 분해형 Unicode 파일명과
+모델 표기의 조합형 Unicode를 같은 파일로 결속했고, 모델이 한 글자를 잘못 쓴 제목도 같은 확장자·작은 거리의
+유일한 Runtime exact title로 교정해 링크했다. 제목 클릭 뒤 Finder가 그 exact filename을 선택했다. UI는 모델
+문장에 나타난 파일 후보와 직접 Evidence가 있는 후보만 링크하며 다른 bounded 후보를 무더기로 투영하지 않는다.
 
 근거: `refoundation/evidence/s6-p0-02-exact-file-title-reveal-2026-08-30.json`.
 
 #### P0-03 — User-Visible Storage Scope & Filename-First Recall
 
-현재 상태: `SYNC_ROOT_AND_FILENAME_TRUTH_QUALIFIED · ACTUAL_MODEL_CONSOLE_PENDING`
+현재 상태: `ACTUAL_MODEL_CONSOLE_QUALIFIED · SPEED_OBSERVATION_REMAINS`
 
 사람 이름 관련 파일 찾기의 현재 실제 결과는 실패였다.
 
@@ -653,12 +657,15 @@ Capability truth를 보존했다.
 
 근거: `refoundation/evidence/s6-p0-03-user-visible-filename-reality-2026-08-30.json`.
 
-실제 모델 Console에서 filename lane과 content lane을 함께 자연스럽게 설명하고 false absence 0인지 최종 확인하기
-전에는 P0-03 전체 완료로 봉인하지 않는다.
+실제 gpt-5.6-terra Chrome Console에서 사용자가 폴더를 말하지 않은 자연어 요청은 `computer` scope를 선택했고,
+파일명 직접 일치 2개와 내용 언급 2개를 분리해 보여줬다. filename scope 밖의 전체 파일시스템 coverage는 partial로
+정직하게 표시해 false absence는 0이었다. wall 18.767초·model 3·Tool 2·35,499 tokens·172,579 request bytes였고,
+정확성은 통과했지만 첫 파일 검색 속도는 후속 경제성 관측으로 남긴다. read-only search·inspect는 별도
+`work_completion` 의식 없이 끝나며, 파일 변경·발행 경로의 완료 계약은 유지한다.
 
 #### P0-04 — Product Self-Version Truth
 
-현재 상태: `RUNTIME_IDENTITY_QUALIFIED · ACTUAL_INSTALLED_PRODUCT_REBUILD_PENDING`
+현재 상태: `ACTUAL_SOURCE_PRODUCT_QUALIFIED · INSTALLED_PRODUCT_REBUILD_PENDING`
 
 같은 Live 대화에서 사용자가 현재 버전을 물었을 때 T5는 `상호작용 코어 v5`를 답하고 배포 build는 확인할 수
 없다고 말했다. 실제 설치 앱의 `CFBundleShortVersionString`과 `CFBundleVersion`은 모두 `0.5.0`이었다.
@@ -674,11 +681,14 @@ Interaction Core version·product release version·model version은 서로 다�
 첫 후보는 macOS launcher가 실행 중 앱의 `CFBundleShortVersionString`을 읽어 `T5_PRODUCT_VERSION`으로 전달하고,
 Console이 이를 stable current product identity와 self-state에 공급한다. Prompt·Interaction Core·model ID에 version
 숫자를 하드코딩하지 않는다. focused countertest에서 `0.5.0` manifest fact가 Direct model 1·Tool 0 답과
-self-state에 정확히 나타났다. 실제 설치 제품 rebuild 뒤 manifest→Runtime actual을 최종 확인한다.
+self-state에 정확히 나타났다. 실제 Chrome Console에서도 candidate product identity `0.6.0-dev`를 model 1·Tool 0으로
+그대로 답했다. 설치본 manifest→Runtime actual은 별도 설치 제품 자격에서 확인하며 source Gate를 다시 열지 않는다.
 
 근거: `refoundation/evidence/s6-p0-04-product-version-truth-2026-08-30.json`.
 
 #### S6-P0 공통 종료 조건
+
+현재 판정: `CLOSED_WITH_P0_01_SPEED_CARRY_TO_S6_A · P0_02_03_04_ACTUAL_CONSOLE_QUALIFIED`
 
 ```text
 날씨·현재 단일 fact·exact URL·작은 단일 attachment가 불필요한 administrative Turn 없이 완료
@@ -694,9 +704,19 @@ AND 전체 File Reality·Artifact·Memory·Connection positive control 무회귀
 
 S6-P0는 S6-A보다 먼저 닫는다. 이 P0를 Capability Acquisition이나 Computer Hand로 우회하지 않는다.
 
+2026-08-30 closeout에서 P0-02·03·04와 bounded attachment는 실제 Chrome Console·focused regression·전체
+CI에서 닫혔다. P0-01의 generic client Web은 오너 설치 baseline보다 model/tool/bytes/wall을 줄이고 source truth를
+보존했지만 실제 서울 날씨 11.089초는 최상위 쾌적성 기준에 충분하지 않았다. source identity가 없는 빠른
+provider-native 후보는 폐기했고 같은 방향의 세 번째 patch를 금지했다. 따라서 P0를 미완료 채로 반복하지 않고,
+현재 정보를 검증된 typed capability로 더 경제적으로 관측할 수 있는지 S6-A의 첫 실제 결함으로 이월한다.
+
+근거: `refoundation/evidence/s6-p0-closeout-2026-08-30.json`.
+
 ---
 
 ### S6-A — Capability Reality & Admission
+
+현재 상태: `OPEN · READ_ONLY_BASELINE_FIRST · PRODUCT_CANDIDATE_0`
 
 현재 분산된 Connection·Capability catalog·managed Skill·CLI·MCP·platform reality를 새 Store 없이 한 현재 사실로
 모델에 공급한다.

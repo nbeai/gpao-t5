@@ -11,6 +11,19 @@ test('Runtime file reference는 답 안의 파일 제목 자체만 exact reveal 
   }]);
 });
 
+test('분해형 Runtime filename과 조합형 모델 표시는 같은 exact file reference로 결속된다', () => {
+  const reference = { name: '권혁수 코칭.pdf', path: '~/iCloud/권혁수 코칭.pdf' };
+  const text = '권혁수 코칭.pdf를 찾았습니다.';
+  assert.deepEqual(fileReferenceSegments(text, [reference]), [{ start: 0, end: 10, reference }]);
+});
+
+test('코드 파일명의 한 글자 오타는 같은 확장자의 Runtime exact title에만 결속된다', () => {
+  const reference = { name: '250403 코칭 사전자료 디자인웁스 권혁수.pdf', path: '~/iCloud/exact.pdf' };
+  const visible = '250403 코칭 사전자료 디자인업스 권혁수.pdf';
+  assert.deepEqual(fileReferenceSegments(visible, [reference]), [{ start: 0, end: visible.length, reference }]);
+  assert.deepEqual(fileReferenceSegments('다른 파일입니다', [reference]), []);
+});
+
 test('콘솔 답의 POSIX·Windows 절대경로를 사용자 문장 변경 없이 찾아낸다', () => {
   assert.deepEqual(
     absolutePathSegments('결과: /private/tmp/example/report.md'),

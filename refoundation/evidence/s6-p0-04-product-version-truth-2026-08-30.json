@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "gate": "S6_P0_04_PRODUCT_VERSION_TRUTH",
-  "status": "RUNTIME_IDENTITY_QUALIFIED_INSTALLED_PRODUCT_REBUILD_PENDING",
+  "status": "ACTUAL_SOURCE_PRODUCT_QUALIFIED_INSTALLED_PRODUCT_REBUILD_PENDING",
   "baselineObserved": {
     "installedProductVersion": "0.5.0",
     "answerUsedInteractionCoreVersion": true,
@@ -16,6 +16,13 @@
     "directModelCalls": 1,
     "toolCalls": 0,
     "countertestPassed": true
+  },
+  "actualConsole": {
+    "browser": "Chrome",
+    "candidateProductVersion": "0.6.0-dev",
+    "answerMatchedRuntimeIdentity": true,
+    "modelCalls": 1,
+    "toolCalls": 0
   },
   "platform": {
     "macOS": "qualified_structure",

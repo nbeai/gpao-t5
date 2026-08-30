@@ -4,6 +4,10 @@ import assert from 'node:assert/strict';
 import { runAgent } from '../src/agent-loop.js';
 import { deferTools, makeToolSearchTool } from '../src/tool-search.js';
 
+test('capability directory 조회 자체는 Work completion proposal을 요구하지 않는다', () => {
+  assert.equal(makeToolSearchTool({ tools: [] }).completionProposalOptional, true);
+});
+
 test('주변 도구 schema는 검색 전 숨고 선택된 도구만 다음 모델 턴에 열린다', async () => {
   const calls = []; let turn = 0;
   const visual = { name: 'visual_reference', description: 'Find visual design reference preview images.',

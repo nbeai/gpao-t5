@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "gate": "S6_P0_02_EXACT_FILE_TITLE_REVEAL",
-  "status": "STRUCTURAL_CANDIDATE_QUALIFIED_ACTUAL_CONSOLE_PENDING",
+  "status": "ACTUAL_BROWSER_CONSOLE_AND_EXACT_NATIVE_REVEAL_QUALIFIED",
   "baselineCommit": "f42e4db7",
   "productBoundary": {
     "source": "file_reality canonical receipt",
@@ -16,7 +16,7 @@
     "windowsInvocation": "explorer select"
   },
   "regression": {
-    "focusedTests": 24,
+    "focusedTests": 43,
     "failed": 0,
     "fileRealityConsole": true,
     "pathLink": true,
@@ -29,5 +29,14 @@
     "personalFileNamesCopied": false,
     "fileContentsCopied": false
   },
-  "remaining": ["actual Browser Console title link and exact reveal qualification"]
+  "actualConsole": {
+    "browser": "Chrome",
+    "naturalLanguageRequest": true,
+    "unicodeCompositionMismatchResolved": true,
+    "singleCharacterModelTitleErrorReplacedByRuntimeExactTitle": true,
+    "titleItselfClickable": true,
+    "finderSelectedExactFilename": true,
+    "rawPathRequiredByUser": false
+  },
+  "remaining": []
 }

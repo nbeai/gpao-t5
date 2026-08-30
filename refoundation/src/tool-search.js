@@ -12,6 +12,7 @@ export function makeToolSearchTool({ tools = [], prerequisites = {} } = {}) {
   const candidates = tools.filter((tool) => tool?.name && tool?.description);
   return {
     name: 'tool_search',
+    completionProposalOptional: true,
     description: 'Find and activate a specialized T5 tool only when the current request needs a capability whose schema is not already visible. Search by the user goal, such as multi-source web research, visual references, browser login, documents, automation, official candidates for a missing connection, managed capability setup, or evidence of whether a prepared skill or managed command was actually used. The matched tool schemas become available on the next model turn. Do not use this for ordinary conversation or work already covered by visible tools.',
     parameters: { type: 'object', additionalProperties: false, properties: {
       query: { type: 'string', description: 'Short capability query based on the user goal.' },

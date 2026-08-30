@@ -190,7 +190,13 @@ function fileReferencesFromReceipts(receipts = []) {
     if ((receipt.actualCall?.name ?? receipt.requestedCall?.name) !== 'file_reality'
       || receipt.outcome !== 'succeeded') continue;
     const result = receipt.result ?? {};
-    const records = [...(result.candidates ?? []), ...(result.recentDocumentCandidates ?? []),
+    const records = [...(result.candidates ?? []).filter((record) => {
+      const evidence = record?.evidence ?? {};
+      return (evidence.matchedNameTerms?.length ?? 0) > 0
+        || (evidence.matchedContentTerms?.length ?? 0) > 0
+        || (evidence.matchedOcrTerms?.length ?? 0) > 0
+        || Number(evidence.nameSimilarity ?? 0) >= 0.5;
+    }), ...(result.recentDocumentCandidates ?? []).filter((record) => (record.kindMatches?.length ?? 0) > 0),
       ...(result.file ? [result.file] : [])];
     for (const record of records) {
       const name = String(record?.displayName ?? '').trim();

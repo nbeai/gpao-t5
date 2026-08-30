@@ -60,14 +60,39 @@ export function fileReferenceSegments(input, references = []) {
   const text = String(input ?? ''); const found = [];
   for (const reference of references) {
     const name = String(reference?.name ?? ''); if (!name) continue;
-    let from = 0;
-    while (from < text.length) {
-      const start = text.indexOf(name, from); if (start < 0) break;
-      found.push({ start, end: start + name.length, reference }); from = start + name.length;
+    for (const candidate of [...new Set([name, name.normalize('NFC'), name.normalize('NFD')])]) {
+      let from = 0;
+      while (from < text.length) {
+        const start = text.indexOf(candidate, from); if (start < 0) break;
+        found.push({ start, end: start + candidate.length, reference }); from = start + candidate.length;
+      }
+    }
+    if (!found.some((item) => item.reference === reference)) {
+      const start = text.search(/\S/u); const end = text.search(/\s*$/u);
+      const visible = start < 0 ? '' : text.slice(start, end);
+      const expected = name.normalize('NFC');
+      const extension = expected.includes('.') ? expected.slice(expected.lastIndexOf('.')).toLocaleLowerCase() : '';
+      if (extension && visible.toLocaleLowerCase().endsWith(extension)
+        && editDistance(visible.normalize('NFC'), expected) <= Math.max(2, Math.floor(expected.length * 0.05))) {
+        found.push({ start, end, reference });
+      }
     }
   }
   found.sort((left, right) => left.start - right.start || right.end - left.end);
   return found.filter((item, index) => index === 0 || item.start >= found[index - 1].end);
+}
+
+function editDistance(left, right) {
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let row = 1; row <= left.length; row += 1) {
+    const current = [row];
+    for (let column = 1; column <= right.length; column += 1) current[column] = Math.min(
+      current[column - 1] + 1, previous[column] + 1,
+      previous[column - 1] + Number(left[row - 1] !== right[column - 1]),
+    );
+    previous = current;
+  }
+  return previous[right.length];
 }
 
 function knownPaths(document) {
@@ -126,7 +151,7 @@ function linkifyFileReferenceNode(node, references) {
     link.dataset.t5Path = segment.reference.path; link.dataset.t5ExactFile = 'true';
     link.dataset.t5Bytes = segment.reference.bytes == null ? '' : String(segment.reference.bytes);
     link.dataset.t5ModifiedAt = segment.reference.modifiedAt ?? '';
-    link.title = '파일 탐색기에서 이 파일 보기'; link.textContent = node.data.slice(segment.start, segment.end);
+    link.title = '파일 탐색기에서 이 파일 보기'; link.textContent = segment.reference.name.normalize('NFC');
     fragment.append(link); cursor = segment.end;
   }
   fragment.append(node.data.slice(cursor)); node.replaceWith(fragment);
