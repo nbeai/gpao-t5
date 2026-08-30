@@ -1,6 +1,6 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_ADMISSION_HARDENED · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · S6_J_COMPLETE · S6_UX_OWNER_APPROVED_NEXT_BEFORE_FINAL_HQ · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
+상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_ADMISSION_HARDENED · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · S6_J_COMPLETE · S6_WA_OWNER_APPROVED_READ_ONLY_AUDIT_BEFORE_UX_HQ · S6_UX_OWNER_APPROVED_NEXT_BEFORE_FINAL_HQ · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
 현재 Gate: `S6-HQ · FINAL ANDROID HUMAN QUALIFICATION`
 현재 작업: `S6_HQ_MACOS_CORE_WAVE · SPEED_CARRY_AND_EXTERNAL_PHYSICAL_BLOCKER`
@@ -1394,6 +1394,379 @@ Artifact v1·내부 path 비노출은 그대로 통과했다. 일반 Direct의 C
 최종 HQ 속도 carry다. source identity 없는 provider-native 답이나 filename coverage를 줄이는 후보는 계속 폐기한다.
 
 근거: `refoundation/evidence/s6-j-economy-close-2026-08-30.json`.
+
+---
+
+### S6-WA — Whole Android Seam Audit
+
+현재 상태: `OWNER_APPROVED · READ_ONLY_AUDIT_NOT_STARTED · PRODUCT_CHANGE_0 · BEFORE_S6_UX_AND_FINAL_HQ`
+
+T5와 같은 유기적 시스템의 실제 성능은 개별 모듈의 최고 점수가 아니라 가장 약한 핵심 연결부와 그 결함의 증폭
+범위에 의해 결정된다. 이 Gate는 전체 코드를 다시 설계하거나 여러 Agent가 동시에 고치는 대청소가 아니다.
+현재 exact head의 producer→consumer→identity→effect→UX 연결을 읽기 전용으로 전수 지도화하고, 재현된 P0/P1만
+통합 책임자 한 명이 이후 순차 수리하도록 한다.
+
+이 감사는 오너가 제시한 세 구조적 관점을 실제 엔지니어링 규율로 사용한다.
+
+```text
+Butterfly Effect → 작은 seam perturbation의 전체 사용자 결과 증폭 추적
+Fractal          → 같은 불변식이 Tool·Work·Session·Product 규모에서 반복되는지 확인
+Knot             → identity·authority·effect·result 연결이 변환 뒤에도 보존되고 필요할 때 정확히 끊기는지 확인
+Android          → 뇌·신경·감각·손·기억·면역·대사·피부가 한 목적에서 함께 움직이는지 판정
+```
+
+이 개념들은 수학적 증명을 흉내 내는 은유가 아니다. 반대시험·그래프·상태 전이·실제 인간 Mission을 선택하는
+감사 방법이다.
+
+#### Android Mechanism Map
+
+| 유기체 역할 | T5 구조 | 연결 실패의 사용자 증상 |
+|---|---|---|
+| 뇌 | 기반 모델·목적·방법·완료 판단 | 도구부터 고름, 불필요한 질문, 잘못된 완료 |
+| 감각 | File/Web/Browser/Computer/Connection observer | 파일·화면·외부 상태를 놓치거나 보지 않고 단정 |
+| 신경계 | Context·Conversation·Work·Run·Resource·progress | 교정 유실, 다른 Session 혼입, 먹통 체감 |
+| 손 | Terminal·Document·Program·Browser·Capability | 잘못된 대상 실행, 성공했지만 결과 미전달 |
+| 기억 | Memory·Episode·Skill·Learning | 일회성 사실 영구화, Skill 중복, 현재 교정 무시 |
+| 면역계 | Authority·confinement·secret·rollback·recovery | 범위 밖 효과, prompt injection, blind retry |
+| 대사 | tokens·calls·bytes·process·cache·cleanup | 단순 요청 과비용, 고아 process, 느린 UX |
+| 순환계 | Artifact·Effect·Delivery·Channel | 결과 identity 유실, version 초기화, 중복 전송 |
+| 피부 | Console·Telegram·settings·Artifact UX | 내부 성공이 사용자에게 먹통·혼란·쓸 수 없는 결과로 보임 |
+
+감사는 모듈 수가 아니라 위 기관 사이의 실제 연결을 판정한다.
+
+---
+
+#### WA-1 — Butterfly Perturbation Audit
+
+작은 경계 변화 하나를 주고, 국소 실패가 사용자 결과·효과·복구·UX로 어디까지 증폭되는지 추적한다. 한 probe는
+한 사실만 바꾼다.
+
+대표 perturbation:
+
+- 사용자 current correction이 model call 직전에 들어옴
+- source revision이 inspect 뒤 publication 전에 바뀜
+- 파일의 NFC/NFD 표현만 다름
+- exact file이 이동·삭제됨
+- Tool ACK는 성공했지만 response가 유실됨
+- 외부 write ACK 뒤 readback 불일치
+- Runtime이 result ready와 surface 사이에서 종료됨
+- provider가 Tool 성공 뒤 transport failure
+- Browser tab/window/control이 action 직전에 stale
+- Telegram ACK unknown
+- background learning candidate가 current correction과 충돌
+- Artifact identity pointer 하나가 projection에서 빠짐
+- progress event가 final보다 늦게 도착함
+
+각 perturbation은 다음 propagation ledger로 기록한다.
+
+```yaml
+origin:
+changedFact:
+firstAffectedBoundary:
+downstreamNodes: []
+containedAt:
+userVisibleSymptom:
+localEffect:
+externalEffect:
+unknownPreserved:
+retryOccurred:
+rollbackAvailable:
+uxRecovered:
+severity:
+```
+
+합격:
+
+- 작은 오류가 잘못된 사람·파일·효과·완료로 증폭되지 않음
+- 영향은 최초로 진실을 잃는 boundary에서 typed failure/unknown으로 제한
+- 사용자 current correction·취소가 이전 계획보다 우선
+- repair를 위한 자동 반복이 새 효과를 만들지 않음
+- 사용자 표면은 내부 오류 크기와 무관하게 확인 사실·남은 일만 설명
+
+완료 문장:
+
+> T5의 작은 identity·revision·ACK·timing 변화는 사용자 목적과 효과를 조용히 왜곡하지 않고 최초 경계에서
+> 제한되며, 영향 범위와 복구 가능성이 exact evidence로 추적된다.
+
+---
+
+#### WA-2 — Fractal Invariant Audit
+
+T5의 핵심 불변식은 규모만 달라질 뿐 모든 층에서 같은 형태로 반복돼야 한다.
+
+Fractal kernel:
+
+```text
+목적/요청
+→ 현재 reality
+→ authority/scope
+→ 실행 또는 관측
+→ result/effect
+→ independent readback
+→ settlement
+→ user projection
+→ cancel/rollback/recovery
+```
+
+동일 kernel을 다음 scale에서 대조한다.
+
+| Scale | 예시 |
+|---|---|
+| Micro | Tool call 하나·파일 한 개·Web read 하나 |
+| Meso | Work 하나·다중 Tool·Artifact 하나 |
+| Macro | 장기 Conversation·busy input·Runtime restart |
+| Cross-surface | Console↔Telegram↔Automation↔settings |
+| Cross-provider | 같은 canonical Work의 모델 전환·fallback |
+| Cross-platform | macOS adapter↔Windows adapter |
+| Growth | Episode→proposal→trial→Skill→rollback |
+
+층별 공통 질문:
+
+1. 누가 요청했는가?
+2. 현재 identity·revision은 무엇인가?
+3. 누가 허용했는가?
+4. 실제로 무엇이 실행·관측됐는가?
+5. 로컬·외부 효과는 무엇인가?
+6. 무엇을 다시 열어 확인했는가?
+7. 무엇이 terminal이고 무엇이 unknown인가?
+8. 사용자는 같은 사실을 어떻게 보는가?
+9. 취소·재시작·rollback 뒤 무엇이 남는가?
+
+Fractal mismatch 반례:
+
+- Tool에서는 unknown을 보존하지만 Work가 achieved로 합침
+- 파일 하나는 version을 보존하지만 ZIP batch가 부분 version을 만듦
+- Console은 cancel됐지만 Telegram은 success를 보냄
+- local effect는 rollback되지만 Artifact current version은 그대로임
+- 모델 전환 뒤 canonical은 같지만 Tool effect를 재실행
+- macOS는 exact file reveal, Windows는 nearest parent를 성공으로 표시
+- proposal은 reversible이지만 active learned Skill 제거가 불가능
+
+완료 문장:
+
+> 요청·현실·권한·실행·효과·검증·정산·복구의 같은 불변식이 Tool에서 장기 Conversation과 플랫폼까지 반복되며,
+> 한 층의 성공이 다른 층의 미확인을 덮지 않는다.
+
+---
+
+#### WA-3 — Knot Identity & Topology Audit
+
+T5의 매듭은 복잡한 코드를 뜻하지 않는다. 한 사용자 목적을 구성하는 identity와 관계가 여러 변환을 거쳐도 같은
+결과로 이어지는 연결 그래프다.
+
+핵심 strand:
+
+```text
+User Message
+→ Conversation
+→ Work/revision
+→ Run
+→ Tool call
+→ source RecordRef
+→ Effect
+→ Artifact family/version
+→ Delivery
+→ user-visible result
+```
+
+보존해야 할 knot invariant:
+
+- owner/Session
+- current Work·revision
+- source identity·freshness
+- authority·scope
+- exact actual call
+- local/external effect
+- Artifact family·version·bytes
+- Delivery destination·ACK
+- terminal/unknown disposition
+
+Topology-preserving transformation:
+
+- provider 변경
+- Context compaction·projection
+- Runtime restart
+- Session 전환·재접속
+- Console↔Telegram surface 이동
+- backup→다른 local root restore
+- 파일 reveal→Artifact delivery
+- candidate→active Skill→rollback
+
+위 변환은 내부 표현을 바꿀 수 있지만 knot invariant를 바꾸면 안 된다.
+
+의도적으로 매듭을 끊는 작업:
+
+- cancel
+- forget
+- disconnect
+- delete
+- rollback
+- capability remove/archive
+- Session deletion
+
+cut operation은 정확한 strand만 끊고 orphan edge를 남기지 않아야 한다.
+
+금지되는 knot:
+
+- 같은 effect에 두 Work/Run owner
+- Artifact version 2 뒤 새 version 1 family
+- delivered result가 source Run과 연결되지 않음
+- input이 Conversation에는 있지만 Work settlement에 없음
+- completed process의 wake가 다시 claim됨
+- retry cycle이 동일 external effect를 반복
+- Memory와 Skill에 같은 사실 중복
+- deleted Session이 group/pin 이동으로 부활
+- restore가 old absolute path에 묶임
+
+Graph audit record:
+
+```yaml
+mission:
+nodes: []
+edges: []
+canonicalOwner:
+revisionChain:
+effectChain:
+artifactLineage:
+deliveryChain:
+cycles: []
+intentionalCuts: []
+orphans: []
+duplicates: []
+crossSurfaceMatch:
+restartMatch:
+status:
+```
+
+완료 문장:
+
+> 한 사용자 목적의 identity·source·effect·Artifact·Delivery strand는 Context·provider·Runtime·channel·backup 변환
+> 뒤에도 같은 매듭을 유지하고, cancel·forget·rollback은 의도한 strand만 끊어 중복·orphan·부활을 남기지 않는다.
+
+---
+
+#### WA-4 — Seam Registry
+
+모든 연결부를 다음 closed record로 inventory한다.
+
+```yaml
+seamId:
+producer:
+consumer:
+purpose:
+canonicalIdentity:
+revisionFreshness:
+authorityOwner:
+inputProjection:
+successFact:
+failureFact:
+unknownFact:
+cancelBoundary:
+restartBoundary:
+rollbackBoundary:
+publicProjection:
+performanceCost:
+macOS:
+Windows:
+positiveEvidence:
+counterEvidence:
+currentGap:
+score:
+```
+
+필수 seam family:
+
+1. Composer→HTTP→Conversation→Work admission
+2. Conversation·Memory·Capability→Context→provider wire
+3. basic Hand→tool_search→Skill/Capability→actual Tool
+4. Tool request→authority→execution→Effect→Receipt
+5. Terminal→process→output→wake→stop/restart
+6. File roots→filename/content/OCR/visual→handle→inspect
+7. exact file→Artifact→Preview/Download/Reveal
+8. source bind→F/G/Document→verify→Artifact→Undo
+9. Web boundary→Browser→tab/ref→action→readback
+10. capability gap→candidate→qualification→activation→Work resume
+11. Episode→proposal→trial→Skill→field use→rollback
+12. Console↔Telegram↔Automation→external Delivery
+13. canonical state→backup→restore→surface rebuild
+14. Runtime events→progress→stream→final→result UX
+15. Session→pin/group/search/archive/delete/restore
+16. common meaning→macOS/Windows adapter
+
+점수:
+
+| 점수 | 의미 |
+|---:|---|
+| 0 | 연결 없음 |
+| 1 | 수동·암묵적·다른 층 추측에 의존 |
+| 2 | 정상 happy path만 작동 |
+| 3 | typed failure·unknown·coverage 보존 |
+| 4 | 교정·취소·재시작·exact-once·rollback 성립 |
+| 5 | 실제 인간 UX·경제성·macOS/Windows 자격 |
+
+모든 seam을 5점으로 만들려고 과잉 개발하지 않는다. 사용자 핵심 Mission이 사용하지 않는 seam은 `not_applicable·
+unmeasured`로 남길 수 있다. P0/P1 핵심 seam의 0~2점만 완료 blocker다.
+
+---
+
+#### WA-5 — Execution Order & Repair Discipline
+
+```text
+현재 exact head freeze
+→ multi-agent read-only seam inventory
+→ Butterfly perturbation family 분담
+→ Fractal scale mismatch 감사
+→ Knot graph/orphan/cycle 감사
+→ 한 통합 책임자가 중복 findings 정규화
+→ P0/P1만 순차 재현
+→ S6-UX 구현
+→ UX 변경 seam만 delta 감사
+→ 총괄 인간 HQ
+→ 관련 P0/P1 1회 재시험
+```
+
+병렬 감사 lane:
+
+- Context·provider·Tool surface
+- Work·Run·Terminal·Recovery
+- File·Document·Artifact·Undo
+- Capability·Learning·Experience Growth
+- Browser·Computer·External·Channel
+- UX·Session management·Backup·Platform
+
+감사 Agent는 코드를 수정하지 않는다. finding에는 exact source·현재 evidence·재현 가능한 반례·사용자 증상·severity가
+모두 있어야 한다. 통합 책임자 한 명만 수정하며 `git add -A·amend·자동 merge`를 사용하지 않는다.
+
+중단선:
+
+- 함수·파일 수를 전수조사 완료로 사용하지 않음
+- 실제 Mission 없는 hypothetical seam을 새 시스템으로 만들지 않음
+- 같은 결함 가족 세 번째 patch 금지
+- 한 seam 수리가 다른 owner의 canonical truth를 복제하면 재설계
+- 테스트는 통과하지만 실제 사용자 Mission이 실패하면 미완료
+- P2 미관·코드 스타일을 P0 topology 결함으로 확대하지 않음
+- S6-UX 뒤 전체 inventory를 처음부터 반복하지 않고 변경 edge만 재감사
+
+완료 판정:
+
+```yaml
+S6_WA:
+  seam_registry_complete: true
+  p0_unresolved: 0
+  p1_unresolved: 0
+  duplicate_truth_owner: 0
+  orphan_effect_or_artifact: 0
+  blind_retry_cycle: 0
+  cross_surface_contradiction: 0
+  ux_delta_edges_reaudited: true
+  windows_unqualified: EXPLICIT
+```
+
+완료 문장:
+
+> T5의 뇌·감각·신경·손·기억·면역·순환·피부는 한 사용자 목적의 identity와 사실을 공유하며, 작은 경계 오류는
+> 전체 결과로 증폭되지 않고, 같은 불변식이 모든 규모에서 반복되고, 재시작·채널·플랫폼 변환 뒤에도 연결이
+> 끊기거나 엉키지 않으며, 취소·forget·rollback은 의도한 관계만 정확히 해제한다.
 
 ---
 
