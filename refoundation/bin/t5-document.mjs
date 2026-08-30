@@ -6,6 +6,7 @@ import {
   createWorkbookFromSpec, inspectBusinessDocument,
 } from '../src/document-data-inspector.js';
 import { createDocxFromSpec } from '../src/docx-deliverable.js';
+import { createPptxFromSpec } from '../src/pptx-deliverable.js';
 
 function option(args, name) {
   const index = args.indexOf(name);
@@ -42,6 +43,12 @@ async function main(args) {
         spec: 'JSON {title,paragraphs?:[{text,style?:heading}],tables?:[{columns:[{key,header,width?}],rows:[{key:value}]}]}',
         result: 'JSON created flag and a complete re-opened DOCX observation.',
       },
+      {
+        name: 'create-pptx',
+        usage: 't5-document create-pptx --spec ABSOLUTE_JSON --output ABSOLUTE_PPTX [--replace]',
+        spec: 'JSON {title,subject?,author?,theme?:{background,text,accent,muted,fontFace?},slides:[{title,subtitle?,body?,bullets?:[text],sources?:[source]}]}',
+        result: 'JSON created flag and a complete re-opened editable PPTX slide observation.',
+      },
     ],
   };
   if (action === 'inspect') {
@@ -76,7 +83,17 @@ async function main(args) {
     if (stat.size > 8 * 1024 * 1024) throw new Error('spec exceeds 8388608 byte limit');
     return createDocxFromSpec({ output, spec: JSON.parse(await readFile(specPath, 'utf8')), replace: args.includes('--replace') });
   }
-  throw new TypeError('Unknown action. Use inspect, create-xlsx, or create-docx.');
+  if (action === 'create-pptx') {
+    const specPath = option(args, '--spec'); const output = option(args, '--output');
+    if (!specPath || !output) throw new TypeError('Usage: t5-document create-pptx --spec ABSOLUTE_JSON --output ABSOLUTE_PPTX [--replace]');
+    if (!isAbsolute(specPath)) throw new TypeError('spec path must be absolute');
+    const stat = await lstat(specPath);
+    if (stat.isSymbolicLink() || !stat.isFile()) throw new Error('spec path must be one regular file');
+    if (stat.size > 8 * 1024 * 1024) throw new Error('spec exceeds 8388608 byte limit');
+    return createPptxFromSpec({ output, spec: JSON.parse(await readFile(specPath, 'utf8')),
+      replace: args.includes('--replace') });
+  }
+  throw new TypeError('Unknown action. Use inspect, create-xlsx, create-docx, or create-pptx.');
 }
 
 try {

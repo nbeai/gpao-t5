@@ -31,6 +31,7 @@ Direct upstream projects:
 
 - Mozilla Readability: <https://github.com/mozilla/readability>
 - Model Context Protocol TypeScript SDK: <https://github.com/modelcontextprotocol/typescript-sdk>
+- PptxGenJS maintained fork: <https://github.com/lofcz/PptxGenJS>
 - Office Kit XLSX: <https://github.com/office-kit/xlsx>
 - QuickJS Emscripten: <https://github.com/justjake/quickjs-emscripten>
 - agent-browser: <https://github.com/vercel-labs/agent-browser>

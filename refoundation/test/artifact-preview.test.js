@@ -10,6 +10,7 @@ import {
   artifactPreviewKind, readWebBundleEntry, renderAttachmentPreview, webBundleManifest,
 } from '../src/artifact-preview.js';
 import { createWorkbookFromSpec } from '../src/document-data-inspector.js';
+import { createPptxFromSpec } from '../src/pptx-deliverable.js';
 import { makeBarChart, makeBarSeries, makeChartSpace } from '@office-kit/xlsx/chart';
 import { addChartAt } from '@office-kit/xlsx/drawing';
 import { workbookToBytes } from '@office-kit/xlsx/io';
@@ -25,14 +26,32 @@ function record(overrides = {}) {
   };
 }
 
-test('결과물 형식은 HTML·SVG·PDF·DOCX·XLSX·CSV를 한 preview 계약으로 분류한다', () => {
+test('결과물 형식은 HTML·SVG·PDF·DOCX·PPTX·XLSX·CSV를 한 preview 계약으로 분류한다', () => {
   assert.equal(artifactPreviewKind(record()), 'web');
   assert.equal(artifactPreviewKind(record({ originalName: 'mark.svg', mimeType: 'image/svg+xml' })), 'vector');
   assert.equal(artifactPreviewKind(record({ originalName: 'report.pdf', mimeType: 'application/pdf', kind: 'pdf' })), 'pdf');
   assert.equal(artifactPreviewKind(record({ originalName: 'report.docx', kind: 'document' })), 'document');
+  assert.equal(artifactPreviewKind(record({ originalName: 'briefing.pptx', kind: 'document' })), 'presentation');
   assert.equal(artifactPreviewKind(record({ originalName: 'report.xlsx', kind: 'spreadsheet' })), 'spreadsheet');
   assert.equal(artifactPreviewKind(record({ originalName: 'report.csv', mimeType: 'text/csv', kind: 'text' })), 'spreadsheet');
   assert.equal(artifactPreviewKind(record({ originalName: 'raw.bin', mimeType: 'application/octet-stream', kind: 'binary' })), null);
+});
+
+test('PPTX 결과물은 모든 슬라이드를 제목·본문과 함께 사용자 Preview로 투영한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-artifact-pptx-preview-'));
+  const file = join(room, '브리핑.pptx');
+  await createPptxFromSpec({ output: file, spec: { title: '운영 브리핑', slides: [
+    { title: '운영 브리핑', bullets: ['첫 번째 결정'] },
+    { title: '다음 일정', body: '다음 검토는 금요일입니다.' },
+  ] } });
+  const bytes = await readFile(file);
+  const result = await renderAttachmentPreview({
+    record: record({ originalName: '브리핑.pptx', kind: 'document', storedPath: file, bytes: bytes.length }), bytes,
+  });
+  assert.equal(result.kind, 'presentation');
+  assert.equal((result.body.match(/class="pptx-slide"/gu) ?? []).length, 2);
+  assert.match(result.body, /운영 브리핑/u); assert.match(result.body, /다음 검토는 금요일/u);
+  assert.match(result.body, /편집 가능한 발표자료/u);
 });
 
 test('HTML 결과물은 네트워크가 닫힌 별도 preview 문서로 반환된다', async () => {

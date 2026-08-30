@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_H_PROFESSIONAL_DELIVERABLE_COMPLETION",
+  "status": "COMPLETE_EDITABLE_PRESENTATION_SLICE",
+  "baselineCommit": "10701095",
+  "candidateCommit": "same_commit_as_evidence",
+  "userCompletion": {
+    "naturalLanguageRequest": true,
+    "editablePptx": true,
+    "allSlidesReopened": true,
+    "allSlidesPreviewed": true,
+    "artifactRegistered": true,
+    "downloadReopenedAsZipPackage": true,
+    "internalPathInAnswer": false
+  },
+  "productChange": {
+    "newStore": false,
+    "newRouter": false,
+    "globalInstructionBytesDelta": 0,
+    "existingDocumentSkillExtended": true,
+    "boundedPptxCreator": true,
+    "runtimePptxInspector": true,
+    "artifactPresentationPreview": true,
+    "existingArtifactVersionAndUndoReused": true
+  },
+  "formatContract": {
+    "format": "pptx",
+    "medium": "presentation_editable",
+    "maxSlides": 40,
+    "atomicPublication": true,
+    "sourceNotesMarker": "[Sources]",
+    "userApprovedTheme": ["background", "text", "accent", "muted", "fontFace"],
+    "observedFacts": ["slide_count", "all_slide_text", "shape_geometry", "font_sizes", "source_notes", "overflow_candidates"]
+  },
+  "candidateHistory": [
+    {
+      "candidate": "custom_minimal_ooxml_writer",
+      "decision": "REJECTED",
+      "reason": "macOS Quick Look did not produce a usable preview within the bounded physical check"
+    },
+    {
+      "candidate": "maintained_pptxgenjs_fork",
+      "package": "@lofcz/pptxgenjs",
+      "version": "4.1.17",
+      "license": "MIT",
+      "decision": "ADOPTED",
+      "reason": "editable OOXML, deterministic reopen, and macOS Quick Look consumer preview passed"
+    }
+  ],
+  "physicalQualification": {
+    "platform": "macOS arm64",
+    "fixtureSlides": 3,
+    "quickLookPreviewType": "public.html",
+    "quickLookSlidesObserved": 3,
+    "koreanGlyphsVisible": true,
+    "unintendedOverlapObserved": 0,
+    "overflowCandidates": 0,
+    "keynoteFullImport": "NOT_TESTED_USER_OWNED_IMPORT_IN_PROGRESS",
+    "libreOfficeIsolatedRender": "UNQUALIFIED_SYSTEM_FONT_UNAVAILABLE"
+  },
+  "actualConsole": {
+    "model": "gpt-5.6-terra",
+    "syntheticUserPurpose": "three-slide executive operating plan",
+    "actualUserData": false,
+    "externalWrites": 0,
+    "passed": true,
+    "wallMs": 53880.046,
+    "modelCalls": 15,
+    "toolCalls": 14,
+    "providerTokens": 337251,
+    "artifactBytes": 21116,
+    "artifactVersion": 1,
+    "previewAllSlides": true,
+    "downloadPptx": true,
+    "economyDecision": "CARRY_TO_S6_J_FIRST_COST_FAMILY"
+  },
+  "securityAndDependency": {
+    "newDependencySubgraphAdvisories": 0,
+    "fullExistingLockAuditHigh": 5,
+    "fullExistingLockAuditAttribution": "pre-existing kordoc and its huggingface/onnxruntime/sharp subtree",
+    "networkInPreview": false,
+    "activeContentInPreview": false
+  },
+  "focusedVerification": {
+    "documentAndPreviewTests": 19,
+    "attachmentConsoleIntegration": 8,
+    "failed": 0
+  },
+  "fullCi": {
+    "status": "COMPONENT_COMPLETE_AFTER_EXACT_FAILED_TEST_CORRECTION",
+    "fullUnitRun": {
+      "tests": 1919,
+      "passedBeforeNoticeCountCorrection": 1917,
+      "failedBeforeNoticeCountCorrection": 1,
+      "skipped": 1,
+      "onlyFailure": "third-party lock package count changed from 288 to 292"
+    },
+    "changedTestRerun": {
+      "tests": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    "productIntegration": {
+      "tests": 204,
+      "passed": 202,
+      "failed": 0,
+      "skippedWindowsPhysical": 2
+    },
+    "mutation": {
+      "killed": 2,
+      "survived": 0
+    }
+  },
+  "nonClaims": [
+    "Microsoft PowerPoint physical import passed",
+    "Windows physical presentation qualification passed",
+    "Keynote full-deck import passed",
+    "arbitrary image, chart, animation, or template fidelity is complete",
+    "all claims have sources when the model did not provide source notes",
+    "the 53.9 second actual path is economically complete"
+  ],
+  "completionSentence": "T5는 자연어 요청에서 편집 가능한 발표자료를 만들고 모든 슬라이드의 텍스트·기하·출처 노트·overflow를 다시 관측하며, 실제 macOS Preview와 원본 다운로드가 있는 Artifact로 전달한다."
+}

@@ -78,6 +78,8 @@ retain that complete text and all required notices.
 | `@img/sharp-win32-x64` | 0.35.3 | Apache-2.0 AND LGPL-3.0-or-later |
 | `@jitl/quickjs-ffi-types` | 0.32.0 | MIT |
 | `@jitl/quickjs-wasmfile-release-sync` | 0.32.0 | MIT |
+| `@lofcz/pptxgenjs/node_modules/pako` | 3.0.1 | (MIT AND Zlib) |
+| `@lofcz/pptxgenjs` | 4.1.17 | MIT |
 | `@modelcontextprotocol/client` | 2.0.0 | MIT |
 | `@modelcontextprotocol/core` | 2.0.0 | MIT |
 | `@modelcontextprotocol/sdk` | 1.30.0 | MIT |
@@ -95,6 +97,8 @@ retain that complete text and all required notices.
 | `@napi-rs/canvas-win32-x64-msvc` | 0.1.100 | MIT |
 | `@napi-rs/canvas` | 0.1.100 | MIT |
 | `@nodable/entities` | 3.0.0 | MIT |
+| `@node-projects/jszip/node_modules/pako` | 3.0.1 | (MIT AND Zlib) |
+| `@node-projects/jszip` | 4.2.1 | (MIT OR GPL-3.0-or-later) |
 | `@office-kit/xlsx/node_modules/saxes` | 6.0.0 | ISC |
 | `@office-kit/xlsx` | 0.9.0 | MIT |
 | `@protobufjs/aspromise` | 1.1.2 | BSD-3-Clause |
@@ -305,6 +309,7 @@ Direct upstream projects:
 
 - Mozilla Readability: <https://github.com/mozilla/readability>
 - Model Context Protocol TypeScript SDK: <https://github.com/modelcontextprotocol/typescript-sdk>
+- PptxGenJS maintained fork: <https://github.com/lofcz/PptxGenJS>
 - Office Kit XLSX: <https://github.com/office-kit/xlsx>
 - QuickJS Emscripten: <https://github.com/justjake/quickjs-emscripten>
 - agent-browser: <https://github.com/vercel-labs/agent-browser>

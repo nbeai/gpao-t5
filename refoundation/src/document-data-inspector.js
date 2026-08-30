@@ -20,6 +20,7 @@ import {
   setBold, setCellNumberFormat, setFontColor,
   setFontSize, wrapCellText,
 } from '@office-kit/xlsx/styles';
+import { inspectPptxBytes } from './pptx-deliverable.js';
 
 const DEFAULT_MAX_BYTES = 64 * 1024 * 1024;
 const DEFAULT_MAX_CELLS = 5_000;
@@ -439,6 +440,10 @@ export async function inspectBusinessDocument({
       schema: 't5.document-observation.v1', kind: 'pdf', file: fileView,
       pdf: await inspectPdf(facts, { maxPages, maxPageChars }),
     };
+  }
+  if (extension === '.pptx') {
+    return { schema: 't5.document-observation.v1', kind: 'pptx', file: fileView,
+      presentation: inspectPptxBytes(facts.content) };
   }
   throw new Error(`unsupported business document type: ${extension || 'unknown'}`);
 }

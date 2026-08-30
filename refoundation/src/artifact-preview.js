@@ -6,6 +6,7 @@ import { DOMParser } from 'linkedom';
 
 import { inspectZipArchive } from './archive-safety.js';
 import { inspectBusinessDocument } from './document-data-inspector.js';
+import { inspectPptxBytes } from './pptx-deliverable.js';
 import { inspectQualifiedDocument } from './qualified-document-parser.js';
 import { decodeTextDocument } from './text-document-observer.js';
 
@@ -56,6 +57,7 @@ export function artifactPreviewKind(record = {}) {
   // 실제 저장소는 bytes로 MIME을 정하지만, 이름과 MIME이 충돌한 오래된 원장도 있다.
   // 구체적인 파일 형식을 먼저 고르고 broad text/html·document kind는 그다음에 본다.
   if (ext === '.docx') return 'document';
+  if (ext === '.pptx') return 'presentation';
   if (['.xlsx', '.xlsm', '.xltx', '.xls', '.csv'].includes(ext)) return 'spreadsheet';
   if (ext === '.pdf') return 'pdf';
   if (ext === '.svg') return 'vector';
@@ -152,6 +154,25 @@ function renderDocx(record, bytes) {
     return [];
   });
   return officeDocument(record.originalName, blocks.join('') || '<p class="notice">표시할 문단이 없어요.</p>');
+}
+
+function renderPptx(record, bytes) {
+  if (bytes.length > MAX_DOCX_BYTES) throw Object.assign(new Error('presentation preview size limit exceeded'), { status: 413 });
+  const observed = inspectPptxBytes(bytes); const { width, height } = observed.canvas;
+  const slides = observed.slides.map((slide) => {
+    const shapes = slide.shapes.filter((shape) => shape.area && shape.texts.length).map((shape) => {
+      const left = shape.area.x / width * 100; const top = shape.area.y / height * 100;
+      const boxWidth = shape.area.width / width * 100; const boxHeight = shape.area.height / height * 100;
+      const fontSize = Math.max(9, Math.min(36, Math.max(...shape.fontSizesPt, 16)));
+      const content = shape.texts.map((item) => `<span>${escapeHtml(item)}</span>`).join('');
+      return `<div class="pptx-shape" style="left:${left.toFixed(3)}%;top:${top.toFixed(3)}%;width:${boxWidth.toFixed(3)}%;height:${boxHeight.toFixed(3)}%;font-size:${fontSize}px">${content}</div>`;
+    }).join('');
+    return `<section class="pptx-slide" aria-label="슬라이드 ${slide.number}">${shapes}</section>`;
+  }).join('');
+  const notice = '<p class="notice">편집 가능한 발표자료의 모든 슬라이드를 간단히 미리 보여요. 정확한 서식 편집은 원본 파일에서 이어갈 수 있습니다.</p>';
+  return officeDocument(record.originalName, `${notice}<div class="pptx-deck">${slides}</div>`, `
+    .pptx-deck{display:grid;gap:28px}.pptx-slide{position:relative;aspect-ratio:16/9;overflow:hidden;background:#f8fafc;border:1px solid #d8d3c7;border-radius:10px;box-shadow:0 8px 24px rgba(58,48,31,.12)}.pptx-shape{position:absolute;overflow:hidden;color:#0f172a;line-height:1.32}.pptx-shape span{display:block;margin:0 0 .26em}.pptx-shape span+span:before{content:"• ";margin-right:.28em}
+  `);
 }
 
 function renderWorkbookChart(chart) {
@@ -311,6 +332,10 @@ export async function renderAttachmentPreview({ record, bytes } = {}) {
   if (kind === 'document') return {
     kind, contentType: 'text/html; charset=utf-8', contentSecurityPolicy: OFFICE_CSP,
     body: renderDocx(record, content),
+  };
+  if (kind === 'presentation') return {
+    kind, contentType: 'text/html; charset=utf-8', contentSecurityPolicy: OFFICE_CSP,
+    body: renderPptx(record, content),
   };
   if (kind === 'spreadsheet') return {
     kind, contentType: 'text/html; charset=utf-8', contentSecurityPolicy: OFFICE_CSP,

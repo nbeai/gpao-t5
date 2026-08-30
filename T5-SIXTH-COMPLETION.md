@@ -1,9 +1,9 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_COMPLETE · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
+상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_COMPLETE · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
-현재 Gate: `S6-H · PROFESSIONAL DELIVERABLE COMPLETION`
-현재 작업: `S6_H_READ_ONLY_BASELINE · EXISTING_DOCUMENT_RENDER_REUSE_FIRST`
+현재 Gate: `S6-I · ACTUAL EXTERNAL MISSION`
+현재 작업: `S6_I_READ_ONLY_BASELINE · EXISTING_CONNECTION_EFFECT_DELIVERY_REUSE_FIRST`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -1205,7 +1205,7 @@ stale window·modal·tab·control은 자동 좌표 fallback으로 우회하지 �
 
 ### S6-H — Professional Deliverable Completion
 
-현재 상태: `OPEN · READ_ONLY_BASELINE_FIRST · PRODUCT_CANDIDATE_0`
+현재 상태: `COMPLETE · EDITABLE_PRESENTATION_ACTUAL_CONSOLE_QUALIFIED · ECONOMY_CARRY_TO_S6_J`
 
 새 디자인 앱 없이 기존 Document·Structured Authoring·DesignReceipt·Artifact를 완성한다.
 
@@ -1237,6 +1237,34 @@ Runtime이 선택하지 않는다. 브랜드는 사용자 승인 source와 curre
 
 > T5는 보고서·표·문서·발표자료를 실제 사용 매체에 맞게 만들고 모든 page·slide를 다시 확인하며, 사용자가
 > 부분 교정을 말하면 같은 결과물 lineage에 반영해 편집 가능한 최종본과 미확인을 함께 전달한다.
+
+현재 head의 실제 공백은 PPTX를 찾고 읽는 능력이 아니라 편집 가능한 PPTX를 제품이 직접 만들고 모든 slide를
+다시 연 뒤 Console Preview로 전달하는 경로였다. 첫 독자 OOXML writer는 구조 재개방은 통과했지만 macOS Quick
+Look 소비자 미리보기를 bounded 시간 안에 만들지 못해 완전히 폐기했다. 두 번째 후보는 MIT의 유지보수 포크
+`@lofcz/pptxgenjs@4.1.17`을 기존 Document CLI 안에만 결속했다. 새 Store·Router·전역 instruction 증가는 0이다.
+
+현재 `create-pptx`는 최대 40장의 닫힌 JSON spec으로 editable 16:9 presentation을 만들고 same-directory atomic
+publication 뒤 PPTX 자체를 다시 연다. 모든 slide text·shape geometry·font size·source note·overflow 후보를
+관측하며, 사용자 승인 색상과 font만 theme로 받는다. 비사실적 업종 template나 brand를 Runtime이 선택하지 않는다.
+외부 claim source는 slide speaker notes의 `[Sources]` block으로 보존한다.
+
+macOS physical fixture 3장은 Quick Look의 `public.html` preview에서 한글 glyph·36pt 제목·본문·글머리표·page
+number와 세 slide 전체를 다시 확인했고 unintended overlap·overflow 후보는 0이었다. Console Artifact Preview는
+PPTX의 모든 slide를 네트워크·active script 없이 보여주고 원본 editable download를 함께 제공한다. Keynote는
+사용자 소유의 기존 import가 진행 중이어서 건드리지 않았고, Microsoft PowerPoint·Windows physical import는
+통과했다고 주장하지 않는다.
+
+실제 gpt-5.6-terra 격리 Console의 자연어 3장 경영진 운영계획은 53.880초·model 15·Tool 14·337,251 tokens로
+Artifact v1·세 slide Preview·PPTX download·내부 path 비노출을 통과했다. 기능과 사용성은 성립했지만 왕복과
+provider 비용은 경제적으로 완료가 아니다. 같은 H 기능에 Prompt patch를 붙이지 않고 S6-J의 첫 actual 비용
+가족으로 이월한다. 기존 Artifact family/version·부분 교정·Undo 계약은 형식별 새 Store 없이 그대로 재사용한다.
+
+종료 회귀는 전체 단위 1,919개에서 product source 실패 0이었고, 새 dependency 네 개로 notice 고정 개수만
+288→292로 바뀐 한 검사를 exact 수정해 3/3 재시험했다. 제품 통합은 202/204·실패 0·Windows physical 2 skip,
+핵심 mutation은 2/2 killed다. 같은 87초 단위 전체를 개수 한 줄 때문에 다시 반복하지 않고 직접 변경 검사와
+남은 제품 통합·mutation을 닫았다.
+
+근거: `refoundation/evidence/s6-h-professional-presentation-closeout-2026-08-30.json`.
 
 ---
 

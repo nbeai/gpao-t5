@@ -13,10 +13,34 @@ const cli = join(root, 'refoundation', 'bin', 't5-document.mjs');
 
 test('t5-document help는 모델이 커스텀 parser 없이 쓸 최소 계약을 JSON으로 준다', async () => {
   const help = JSON.parse((await runFile(process.execPath, [cli, 'help'], { encoding: 'utf8' })).stdout);
-  assert.deepEqual(help.actions.map((action) => action.name), ['inspect', 'create-xlsx', 'create-docx']);
+  assert.deepEqual(help.actions.map((action) => action.name), ['inspect', 'create-xlsx', 'create-docx', 'create-pptx']);
   assert.match(help.actions[0].usage, /ABSOLUTE_PATH/);
   assert.match(help.actions[1].spec, /columns.*rows.*formulas/is);
   assert.match(help.actions[2].spec, /title.*paragraphs.*tables/is);
+});
+
+test('t5-document CLI는 editable PPTX를 만들고 모든 slide text·geometry를 다시 연다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-document-pptx-cli-'));
+  const spec = join(room, 'spec.json'); const output = join(room, 'result.pptx');
+  await writeFile(spec, JSON.stringify({ title: '2026 운영 계획', subject: '사업 보고',
+    theme: { accent: '0F766E', fontFace: 'Apple SD Gothic Neo' }, slides: [
+      { title: '2026 운영 계획', subtitle: '경영진 보고', bullets: ['핵심 목표 3개', '미확인 비용은 별도 표시'],
+        sources: ['내부 운영계획 2026-08-30'] },
+      { title: '실행 로드맵', body: '1분기에는 고객 검증을 우선합니다.', bullets: ['담당자 확정', '다음 검토일 확인'] },
+    ] }));
+  const created = JSON.parse((await runFile(process.execPath, [
+    cli, 'create-pptx', '--spec', spec, '--output', output,
+  ], { encoding: 'utf8' })).stdout);
+  assert.equal(created.created, true); assert.equal(created.observation.editable, true);
+  assert.equal(created.observation.slideCount, 2); assert.equal(created.observation.coverage.complete, true);
+  assert.match(created.observation.slides[0].text, /핵심 목표 3개/u);
+  assert.match(created.observation.slides[1].text, /고객 검증/u);
+  assert.equal(created.observation.totals.overflowCandidates, 0);
+  assert.equal(created.observation.medium, 'presentation_editable');
+  assert.equal(created.observation.totals.sourceTracedSlides, 1);
+  assert.match(created.observation.slides[0].sourceNotes, /내부 운영계획/u);
+  const reopened = JSON.parse((await runFile(process.execPath, [cli, 'inspect', output], { encoding: 'utf8' })).stdout);
+  assert.equal(reopened.kind, 'pptx'); assert.equal(reopened.presentation.slideCount, 2);
 });
 
 test('t5-document CLI는 bounded Word 명세를 만들고 본문·표를 즉시 재개방한다', async () => {

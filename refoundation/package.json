@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@jitl/quickjs-wasmfile-release-sync": "0.32.0",
+    "@lofcz/pptxgenjs": "4.1.17",
     "@modelcontextprotocol/client": "2.0.0",
     "@mozilla/readability": "0.6.0",
     "@office-kit/xlsx": "0.9.0",
