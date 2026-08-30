@@ -1,6 +1,6 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_ADMISSION_HARDENED · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · S6_J_COMPLETE · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
+상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_ADMISSION_HARDENED · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · S6_J_COMPLETE · S6_UX_OWNER_APPROVED_NEXT_BEFORE_FINAL_HQ · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
 현재 Gate: `S6-HQ · FINAL ANDROID HUMAN QUALIFICATION`
 현재 작업: `S6_HQ_MACOS_CORE_WAVE · SPEED_CARRY_AND_EXTERNAL_PHYSICAL_BLOCKER`
@@ -1394,6 +1394,533 @@ Artifact v1·내부 path 비노출은 그대로 통과했다. 일반 Direct의 C
 최종 HQ 속도 carry다. source identity 없는 provider-native 답이나 filename coverage를 줄이는 후보는 계속 폐기한다.
 
 근거: `refoundation/evidence/s6-j-economy-close-2026-08-30.json`.
+
+---
+
+### S6-UX — Conversational Workspace & Result Experience
+
+현재 상태: `OWNER_APPROVED · IMPLEMENTATION_NOT_STARTED · CURRENT_RUNTIME_PROGRESS_REUSED · FINAL_HQ_BLOCKER`
+
+6차의 기능과 UX를 분리하지 않는다. 이 Gate는 새 작업 엔진이나 예쁜 skin을 만드는 일이 아니다. 이미 선
+Conversation·Session activity·Work reality·answer stream·Artifact·Effect·Delivery·Undo를 일반 사용자가 가장 적은
+인지 부담으로 이해하고 사용할 수 있는 하나의 대화 작업면으로 정돈한다.
+
+현재 제품에는 이미 다음 진행 기반이 있다.
+
+- 입력 직후 `응답을 준비하고 있어요` 최소 생존 신호
+- server `startedAt` 기반 경과시간
+- `session_activity·activity_event·tool_progress·evidence_added` 실제 사건
+- streamed answer preview와 최종 답의 동일 Markdown renderer
+- 실제 Tool 뒤에만 쌓이는 bounded 활동 사실
+- 실행 중 멈춤·busy correction·다른 Session 이동
+- Session 재진입·Runtime 재시작·Telegram의 canonical 상태 복원
+- 완료 시 임시 preview·진행 표면 정리와 Artifact·Work 결과 유지
+
+따라서 위 기반을 새 Store·가짜 milestone·모델 사고 노출로 다시 만들지 않는다. 현재 미달은 다음이다.
+
+1. T5의 긴 답이 큰 말풍선 카드 안에 갇혀 문서처럼 읽기 어렵다.
+2. 진행·stream preview·최종 답·결과 파일이 하나의 시각적 흐름으로 충분히 이어지지 않는다.
+3. Artifact의 Preview·Download·Reveal·Version·Source·Undo가 여러 카드와 영수증에 분산된다.
+4. 입력창이 idle·running·stop·user-action-needed·busy correction 상태를 충분히 명확히 구분하지 않는다.
+5. 대화가 늘어도 중요한 대화를 고정하거나 사용자가 직접 묶어 관리할 수 없다.
+6. warm한 T5 정체성은 있으나 본문 대비·간격·긴 표·코드·좁은 창의 시각 완성도가 부족하다.
+
+#### UX 제품 한 문장
+
+> 사용자는 T5와 자연스럽게 대화하면서 오래 걸리는 일도 현재 진전을 이해하고, 긴 답을 편안하게 읽으며,
+> 결과 파일을 한 자리에서 열고 받고 찾고 수정하고 되돌리고, 중요한 대화를 자신의 일 구조에 맞게 정리한다.
+
+#### UX 헌법
+
+- Codex의 개발자 화면을 복제하지 않고 `작업 리듬·가독성·통제감`만 배운다.
+- 사용자 메시지와 T5 답변은 발화 주체가 즉시 구분돼야 한다.
+- 사용자 표면은 단순하게 만들되 내부 기능·증거·Undo를 제거하지 않는다.
+- 모델 내부 reasoning·명령·query·path·hash·secret을 진행 설명으로 노출하지 않는다.
+- UI가 성공 상태를 만들지 않는다. canonical Work·Artifact·Effect·Delivery 사실만 표현한다.
+- 예쁜 화면이 잘못된 파일·버전·효과를 가리면 P0다.
+- 모든 변경은 실제 Browser screenshot·click·keyboard·좁은 viewport로 확인한다. 문자열 검사만으로 완료하지 않는다.
+- 현재 디자인을 한 번에 전면 교체하지 않는다. 한 UX slice마다 동일 실제 대화 A/B 후 채택한다.
+
+---
+
+#### UX-0 — Current Surface Baseline
+
+제품 변경 0으로 현재 설치 제품과 current source의 실제 화면을 다음 viewport에서 기록한다.
+
+```text
+Desktop wide:   1440×900
+Desktop normal: 1280×800
+Narrow window:   900×760
+Small laptop:   1024×700
+```
+
+고정 fixture:
+
+1. 인사 한 줄
+2. 1,500자 이상 제목·목록·표·코드가 있는 긴 답
+3. 20초 이상 실제 작업의 진행·stream·최종
+4. 단일 Artifact
+5. 네 Artifact와 version·Undo
+6. 실행 중 busy correction·첨부·Stop
+7. 대화 30개·보관·삭제·Telegram origin·진행 중 상태
+
+기록:
+
+- submit acknowledgement·first feedback·first useful·final
+- 본문 실제 폭·한 줄 평균 글자 수·scroll 길이
+- progress와 final의 중복 영역
+- Artifact action 발견 가능성
+- keyboard tab order·focus ring·contrast
+- tester가 결과를 찾고 열고 되돌리는 데 필요한 click 수
+
+완료 문장:
+
+> 현재 T5 화면의 강점과 여섯 UX 미달이 동일 fixture·viewport·실제 canonical state에서 고정됐고, 첫 시각 변경은
+> 사용자 목적 하나만 개선하도록 열린다.
+
+---
+
+#### UX-1 — Hybrid Conversation Layout
+
+대화는 완전 평면도, 모든 메시지 말풍선도 아닌 비대칭 구조를 사용한다.
+
+```text
+사용자
+  → 우측 정렬의 작고 명확한 message bubble
+
+T5
+  → 테두리 없는 평면 document response
+
+진행·경계
+  → 작고 임시적인 activity surface
+
+결과물
+  → T5 답 바로 아래의 별도 result surface
+```
+
+사용자 bubble을 유지하는 이유:
+
+- 입력과 답의 주체를 빠르게 구분
+- 긴 대화에서 사용자의 교정 지점을 찾기 쉬움
+- 모바일·좁은 창에서도 대화 리듬 유지
+
+T5 bubble을 제거하는 이유:
+
+- 긴 답을 카드 안에 가두지 않음
+- 제목·표·목록·코드·인용을 문서처럼 읽음
+- Artifact와 본문이 한 큰 흰 카드 안에서 경쟁하지 않음
+- ChatGPT·Claude·Codex 사용자에게 익숙한 읽기 구조
+
+Assistant response anatomy:
+
+```text
+T5 identity·recorded time — 저대비 한 줄
+본문
+inline source citation
+message actions: Copy · 사용자에게 필요한 후속 행동
+Result surface — 있을 때만
+Process disclosure — 완료 뒤 접힘, 사용자가 열 때만
+```
+
+금지:
+
+- assistant와 user를 같은 정렬·배경으로 만들어 발화 주체 혼동
+- 모든 짧은 답에도 큰 heading·card·divider 추가
+- 말풍선 제거를 이유로 message time·copy·source identity 삭제
+- Runtime 고정 footer를 모든 답 아래 반복
+
+완료 문장:
+
+> 짧은 대화는 가볍고, 긴 T5 답은 문서처럼 읽히며, 사용자 교정과 T5 결과가 긴 대화에서도 즉시 구분된다.
+
+---
+
+#### UX-2 — Typography, Rhythm & Responsive Visual System
+
+새 브랜드를 만드는 것이 아니라 현재 warm neutral T5를 읽기 좋게 정제한다. 색은 의미와 대비로 사용하고 장식
+gradient·과도한 shadow·여러 accent를 만들지 않는다.
+
+Semantic design token 후보:
+
+```text
+--canvas:          warm neutral app background
+--surface:         primary reading surface
+--surface-muted:   progress·metadata·sidebar group
+--text-primary:    WCAG 4.5:1 이상
+--text-secondary:  WCAG 4.5:1 이상, 크기로 의미를 숨기지 않음
+--border-subtle:   구조 구분에 필요한 한 단계
+--accent:          선택·primary action 하나
+--success/warning/danger: 상태 의미에만 사용
+
+spacing: 4 · 8 · 12 · 16 · 24 · 32
+body: 15.5~16px / line-height 1.65~1.72
+metadata: 12.5~13px, 대비 유지
+h1: 28~30px
+h2: 21~23px
+h3: 17~19px
+reading width: 760~880px
+```
+
+실제 CSS 값은 screenshot A/B와 한글 glyph·Windows font metric을 보고 확정한다. 숫자를 이유 없이 디자인 법으로
+고정하지 않는다.
+
+필수 표현:
+
+- 제목 간격과 heading hierarchy
+- ordered list의 실제 start와 1·2·3 증가
+- nested bullet과 paragraph spacing
+- 긴 code block의 가로 scroll·copy
+- 넓은 표의 독립 scroll·sticky header
+- blockquote·citation·warning의 차분한 구분
+- link·focus·hover·visited의 접근 가능한 상태
+- URL·긴 filename·한글/영문 혼합의 안전한 wrap
+- image·Artifact preview의 최대 높이와 크게 보기
+
+Responsive:
+
+- narrow window에서는 sidebar collapse 가능
+- user bubble 최대 폭을 제한하되 한글 장문이 지나치게 좁아지지 않음
+- assistant reading width는 가운데 유지하고 빈 공간이 과도하지 않음
+- composer가 결과와 본문을 가리지 않음
+- result action은 줄바꿈돼도 순서와 primary action이 유지됨
+
+Motion:
+
+- 상태 전환 120~200ms 수준의 짧은 motion
+- progress shimmer·무한 pulse를 작업 진전으로 사용하지 않음
+- `prefers-reduced-motion`에서 기능 손실 0
+
+완료 문장:
+
+> T5의 긴 한국어 답·표·코드·결과가 넓은 화면과 좁은 창에서 모두 편안하게 읽히고, 색과 움직임이 실제 상태
+> 이해를 돕되 주의를 빼앗지 않는다.
+
+---
+
+#### UX-3 — Grounded Progress to Final Transition
+
+현재 canonical progress를 보존하고 표현만 정돈한다.
+
+진행 흐름:
+
+```text
+입력 접수
+→ 최소 생존 신호
+→ 첫 실제 model/tool 사건
+→ 의미 있는 milestone
+→ streamed answer preview 또는 first useful result
+→ final answer
+→ progress 자동 접힘
+```
+
+표현 규칙:
+
+- direct answer에서는 생존 신호가 final과 경쟁하지 않도록 짧게 사라짐
+- Tool 시작 전에는 구체적인 파일·웹·검증 문구를 만들지 않음
+- 같은 단계에 새 Evidence가 없으면 경과시간만 갱신
+- 활동 사실은 최근 중요 단계 최대 4~6개
+- streamed answer는 final과 같은 위치·renderer를 사용
+- final 도착 후 temporary preview·duplicate steps는 제거
+- 완료 뒤 `과정 보기`는 실제 milestone만 접힌 형태로 제공
+- 과정 보기는 기본 닫힘이며 모델 사고·명령·경로를 보여주지 않음
+- degraded·approval·capability needed는 normal progress와 다른 명확한 상태
+- Stop 후 `멈추는 중 → 멈췄어요`가 실제 process·claim settlement와 일치
+
+Progress density:
+
+| 작업 | 기본 표현 |
+|---|---|
+| Direct | 생존 신호 후 즉시 답, process disclosure 없음 |
+| Bounded Web/Attachment | 관측 한 줄, source/result 후 final |
+| File/OCR | filename·content·visual 단계가 실제로 열릴 때만 |
+| Authoring | 자료 확인·candidate·발행·검증의 terminal 단계 |
+| Project | inspect·change·test·server·Browser의 실제 milestone |
+| External | capability·authority·dispatch·readback·delivery 구분 |
+
+반대시험:
+
+- 15초 동안 같은 상태 문구가 새 일처럼 순환
+- 다른 Session의 progress 혼입
+- final 뒤 running·멈춤 버튼 잔존
+- reconnect 후 과거 transient step이 현재 작업처럼 표시
+- 거의 완료 근거 없이 거의 완료 문구
+- provider failure 뒤 success progress
+
+완료 문장:
+
+> 사용자는 짧은 답을 기다리지 않고, 긴 작업은 실제 진전과 첫 유용한 결과를 이해하며, 최종 답이 도착하면 과정은
+> 방해 없이 정돈되고 필요할 때만 다시 볼 수 있다.
+
+---
+
+#### UX-4 — Unified Result & Artifact Surface
+
+현재 Artifact·Publication·Effect·Delivery·Undo identity를 한 사용자 결과 표면으로 결속한다. 새 결과 Store나
+UI-only 성공 상태를 만들지 않는다.
+
+Single result:
+
+```text
+┌──────────────────────────────────────────────┐
+│ [type/preview]  파일 이름                    │
+│                 형식 · 크기 · version        │
+│                 검증 상태 · source summary   │
+│                                              │
+│ [미리보기] [파일 받기] [Finder/Explorer]     │
+│ [방금 변경 되돌리기] — exact Undo가 있을 때  │
+└──────────────────────────────────────────────┘
+```
+
+Multiple results:
+
+- 한 `결과물 N개` group 안에 개별 파일 row
+- 각 파일 Preview/Download/Reveal
+- 실제 bundle/ZIP가 있을 때만 `전체 받기`
+- diagnostic·temporary·sidecar는 사용자 결과에 섞지 않음
+- 같은 family의 version history와 current 표시
+
+Metadata priority:
+
+1. 사람이 읽는 파일 이름
+2. Preview/Download/Reveal primary actions
+3. current version·형식·크기
+4. 검증·source·delivery summary
+5. 상세 provenance·Effect forensic — 접힘
+
+정확성:
+
+- Preview·Download·Reveal은 같은 attachment/file identity
+- title click은 Runtime exact file reference만 사용
+- stale/missing은 parent fallback을 성공으로 꾸미지 않음
+- Undo는 exact current preimage·same family에서만
+- delivery unknown과 local preservation을 구분
+- internal URL·absolute path·attachmentId·hash·Run ID 비노출
+- achieved Artifact가 있으면 같은 success의 mutation receipt 반복 0
+
+Visual quality:
+
+- type icon과 preview thumbnail의 일관된 비율
+- 파일명이 길어도 action을 밀어내지 않음
+- primary action 하나만 accent
+- version·검증 badge를 남발하지 않음
+- warning은 실제 unknown·failed일 때만
+- 크게 보기 modal은 대화 scroll 위치를 보존
+
+완료 문장:
+
+> 사용자는 T5가 만든 결과를 한 자리에서 즉시 보고 받고 Finder에서 찾고 수정 이력과 검증 범위를 확인하며,
+> 가능한 변경은 정확히 되돌린다.
+
+---
+
+#### UX-5 — Composer, Correction & Control
+
+Composer는 입력 상자가 아니라 현재 상호작용 가능성을 알려주는 제어면이다.
+
+상태:
+
+```text
+idle
+submitting
+responding
+working
+stopping
+user_action_required
+recovery_pending
+```
+
+필수 행동:
+
+- idle: Send primary, attachment·voice·model/connection 확인
+- running: Send는 교정·추가 입력, Stop은 별도 명확한 action
+- stopping: 중복 Stop·Send로 새 실행을 만들지 않음
+- user_action_required: 필요한 행동 하나와 재개 상태 표시
+- attachment: upload·ready·failed·cancel을 chip에서 확인
+- model/connection은 확인 가능하지만 일반 입력보다 시각적으로 앞서지 않음
+- busy input은 어느 Work에 반영되는지 내부 용어 없이 `현재 작업에 반영`으로 안내
+- Session을 바꿔도 composer draft와 upload 상태가 잘못 섞이지 않음
+
+Keyboard:
+
+- Enter 전송
+- Shift+Enter 줄바꿈
+- 한글 IME composition 중 Enter 오전송 0
+- Escape는 modal/preview를 닫되 실행을 취소하지 않음
+- 명시 shortcut이 있을 때만 Stop/새 대화 실행
+- focus 순서는 attachment→input→Send/Stop의 논리적 흐름
+
+완료 문장:
+
+> 사용자는 지금 보낼 수 있는지, 실행 중 교정할 수 있는지, 무엇을 멈추는지, 어떤 행동이 필요한지 입력창만
+> 보아도 이해하며 원문·첨부·현재 작업을 잃지 않는다.
+
+---
+
+#### UX-6 — Conversation Pinning, Manual Groups & Search
+
+기존 Session·archive·delete·restore·batch·global search를 재사용한다. 첫 범위는 사용자가 직접 정리하는 기능이며
+AI 자동 분류와 persona를 만들지 않는다.
+
+기능:
+
+- 중요한 대화 `고정`·해제
+- 고정 대화의 안정된 상단 영역과 수동 순서
+- 사용자가 이름을 붙이는 수동 group/folder
+- 대화를 한 group으로 이동·미분류로 되돌림
+- group 접기·펼치기
+- 전체 대화 검색 결과에서 exact conversation·주변 문맥 열기
+- active·archived 검색 포함, deleted 제외
+- multiple select 후 archive·delete·restore·group move
+- running·needs attention·Telegram origin·archived 상태의 절제된 표시
+
+최소 canonical metadata:
+
+```text
+sessionId
+pinnedAt | null
+pinOrder | null
+groupId | null
+
+group:
+  groupId
+  displayName
+  order
+  collapsed — UI preference
+```
+
+제약:
+
+- Conversation content를 새 group DB에 복제하지 않음
+- group 이름이 Memory·persona·업무 Router가 되지 않음
+- AI가 사용자 동의 없이 자동 grouping하지 않음
+- group 이동이 Session·Work·Telegram origin을 바꾸지 않음
+- deleted Session을 group 이동으로 부활시키지 않음
+- pin·group API 실패 시 UI만 성공 상태로 바꾸지 않음
+- 30·300·3,000 Session에서 초기 목록 first paint와 search를 측정
+
+시각 구조 후보:
+
+```text
+고정
+  중요한 대화 A
+  고객 정산 B
+
+회사 운영   3
+  8월 매출
+  직원 계약
+  지원사업
+
+고객 프로젝트   2
+  한빛상사
+  모두의창업
+
+미분류
+```
+
+완료 문장:
+
+> 사용자는 중요한 대화를 고정하고 자신의 일 기준으로 직접 묶고 전체 원문을 검색해 다시 열며, 내부 Session·
+> Memory 구조를 배울 필요가 없다.
+
+---
+
+#### UX-7 — Accessibility, Visual QA & Human Qualification
+
+접근성:
+
+- WCAG AA contrast
+- 모든 interactive control keyboard reachable
+- visible focus ring
+- icon-only action의 accessible name·tooltip
+- progress의 `aria-live` 밀도 제어, 같은 경과시간 반복 낭독 금지
+- modal focus trap·close 후 원래 위치 복귀
+- Artifact preview alt/source
+- 색만으로 success·warning·failure 구분하지 않음
+- 200% zoom과 reduced motion
+- macOS·Windows system font의 한글 glyph·line metric
+
+실제 Console Mission:
+
+1. 인사·한 문단 답: user bubble + T5 flat response, Tool 0
+2. 제목·1·2·3 목록·표·코드·인용이 있는 1,500자 답
+3. 20초 작업: immediate feedback→actual milestone→stream preview→final→process 접힘
+4. Artifact v1→v2: Preview·Download·Reveal·Version·Source·Undo 한 surface
+5. 실행 중 교정·추가 첨부·Stop·Session 이동·복귀
+6. 대화 pin→manual group 이동→global search→archive/delete/restore→batch action
+7. wide·normal·narrow viewport와 keyboard-only 수행
+8. Telegram-origin Session과 일반 Session의 목록·결과 무혼입
+
+A/B:
+
+- current exact UI vs candidate
+- 같은 fixture·같은 canonical state
+- task completion time가 아니라 다음 UX 성과를 비교
+
+```text
+first feedback 이해
+첫 유용한 결과 발견
+긴 답 핵심 정보 탐색
+결과 Preview/Download/Reveal 발견 click 수
+Undo 발견과 성공
+현재 작업·중지 가능성 이해
+대화 검색·고정·group 이동 성공
+신뢰·편안함·다시 사용 의향
+```
+
+Human score 1~5:
+
+- 가독성
+- 진행 이해
+- 속도 체감
+- 결과 사용성
+- 통제감
+- 신뢰
+- 정리 편의
+- 전체 쾌적함
+
+합격:
+
+- 관련 Mission P0/P1 0
+- 각 핵심 항목 평균 4.0 이상
+- current UI보다 사용자 과업 성과 무회귀
+- 실제 Browser screenshot과 click evidence
+- product integration·전체 CI 1회·clean tree
+
+완료 문장:
+
+> T5의 대화창은 짧은 대화·긴 작업·결과물·교정·정리에서 기술을 드러내지 않고도 현재 상황과 다음 행동을
+> 이해하게 하며, 사용자는 빠르고 편안하게 읽고 결과를 사용하고 작업을 통제한다.
+
+---
+
+#### S6-UX 명확한 비목표
+
+- Codex의 branch·diff·commit·subagent·environment panel 복제
+- 모델 reasoning·chain-of-thought·raw Tool log 노출
+- 새 Work·Progress·Artifact canonical Store
+- 모든 assistant 메시지와 user 메시지를 같은 flat layout으로 표시
+- AI 자동 대화 grouping·업종 분류·persona
+- 모든 P2 미관을 출시 blocker로 확대
+- 결과 정확성·검증·Undo를 줄여 화면 단순화
+- UX 변경마다 전체 6차 HQ 반복
+- 현재 기능과 무관한 새로운 Canvas·Dashboard·mobile app 개발
+
+#### S6-UX 실행 순서
+
+```text
+UX-0 current baseline
+→ UX-1 assistant flat layout
+→ UX-2 typography/responsive
+→ UX-3 progress→final transition
+→ UX-4 unified Artifact surface
+→ UX-5 composer/control
+→ UX-6 pin/manual group/search
+→ UX-7 actual human qualification
+→ S6-HQ 합류
+```
+
+한 slice는 실제 사용자 목적 하나·screenshot A/B·focused regression 뒤 clean commit으로 닫는다. 같은 시각/행동
+결함 가족의 두 후보가 실제 사용자 성과를 높이지 못하면 세 번째 장식 patch를 붙이지 않는다.
 
 ---
 
