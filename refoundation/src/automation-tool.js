@@ -12,7 +12,7 @@ export function makeAutomationTool({ store, scheduler, sessionId, authorizeEffec
       jobId: { type: ['string', 'null'] }, name: { type: ['string', 'null'] },
       prompt: {
         type: ['string', 'null'],
-        description: 'Execution-time imperative only. Describe what to do now when the schedule fires. Do not repeat timing, recurrence, “schedule”, or “create an automation”. When delivery is telegram or origin_session, produce the final content only and do not tell the future model to send/deliver it; the scheduler owns contracted delivery.',
+        description: 'Execution-time imperative only. Describe what to do now when the schedule fires. For a literal reminder, use “Return exactly this text and nothing else: TEXT”; never store the bare reminder text as a research task. Do not repeat timing, recurrence, “schedule”, or “create an automation”. When delivery is telegram or origin_session, produce the final content only and do not tell the future model to send/deliver it; the scheduler owns contracted delivery.',
       },
       scheduleKind: { type: ['string', 'null'], enum: ['cron', 'every', 'at', null] },
       schedule: { type: ['string', 'null'] }, timezone: { type: ['string', 'null'] },
@@ -43,7 +43,7 @@ export function makeAutomationTool({ store, scheduler, sessionId, authorizeEffec
     ] },
     async preflight(args, context) {
       if (['list', 'inspect'].includes(args.action)) return { allowed: true };
-      if (args.effect?.kind !== 'local_change' || args.effect?.reversible !== true) return {
+      if (args.effect?.kind !== 'local_change' || args.effect?.confirmation !== 'not_applicable') return {
         allowed: false, outcome: 'not_executed', result: { state: 'reversible_local_change_required' },
       };
       if (args.action === 'create') {

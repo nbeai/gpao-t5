@@ -7,11 +7,18 @@ import { join } from 'node:path';
 import { makeConsoleServer } from '../src/console-server.js';
 import { AutomationStore } from '../src/automation-store.js';
 import { ConsoleSessionStore } from '../src/console-session-store.js';
+import { makeAutomationTool } from '../src/automation-tool.js';
 
 const effect = {
-  kind: 'local_change', summary: '반복 업무 예약', targets: ['T5 자동화 원장'],
-  reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null,
+  kind: 'local_change', targets: ['T5 자동화 원장'], confirmation: 'not_applicable',
+  rollbackOfToolCallId: null,
 };
+
+test('문자 그대로 알림은 bare text가 아니라 exact output 실행 문장으로 저장하도록 계약한다', () => {
+  const tool = makeAutomationTool({ store: {}, scheduler: {}, sessionId: 'session' });
+  assert.match(tool.parameters.properties.prompt.description, /Return exactly this text and nothing else/u);
+  assert.match(tool.parameters.properties.prompt.description, /never store the bare reminder text as a research task/u);
+});
 
 test('자연어 반복 요청은 실제 Job이 되고 수동 실행·Run 기록·멈춤·재개가 같은 콘솔에서 이어진다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-automation-console-'));
