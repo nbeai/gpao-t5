@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_E_FIELD_QUALIFICATION_PROMOTION_AND_ROLLBACK",
+  "status": "COMPLETE_WITH_EXISTING_PRODUCT_CAPABILITY_DEFAULT_OFF",
+  "baseCommit": "122f5067",
+  "evidenceReuse": {
+    "source": "refoundation/evidence/s2-e-learning-complete-2026-08-25.json",
+    "qualificationCoreChanged": false,
+    "newProviderCalls": 0
+  },
+  "currentHead": {
+    "focusedPassed": 13,
+    "focusedFailed": 0,
+    "endToEndApproximateWallMs": 735,
+    "alternatingReplay": true,
+    "nearMiss": true,
+    "independentField": true,
+    "freshSessionUse": true,
+    "regressionRollback": "recoverable_archive"
+  },
+  "rejected": [
+    "faster_but_wrong",
+    "different_purpose",
+    "source_expression_reuse",
+    "same_source_field",
+    "measured_lane_regression"
+  ],
+  "actualEvaluators": [
+    { "model": "gpt-5.6-terra", "modelTurns": 2, "toolCalls": 1, "passed": true },
+    { "model": "gpt-5.5", "modelTurns": 2, "toolCalls": 1, "passed": true }
+  ],
+  "defaultMode": "off",
+  "productDelta": 0,
+  "nonClaims": ["default-on learning", "external package promotion", "secret or authority expansion", "Core self-modification"]
+}

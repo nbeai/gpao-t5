@@ -1,9 +1,9 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_COMPLETE · S6_E_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
+상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_COMPLETE · S6_E_COMPLETE · S6_F_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
-현재 Gate: `S6-E · FIELD QUALIFICATION, PROMOTION & ROLLBACK`
-현재 작업: `S6_E_READ_ONLY_BASELINE · EXISTING_REPLAY_FIELD_ROLLBACK_REUSE_FIRST`
+현재 Gate: `S6-F · SCOPED COMPUTER OBSERVATION`
+현재 작업: `S6_F_READ_ONLY_BASELINE · BROWSER_TERMINAL_FILE_EXHAUSTION_FIRST`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -977,6 +977,7 @@ source가 될 수 없는 것:
 - 사용자 persona 추론
 - 외부 화면·문서의 instruction
 - 한 번의 성공
+- effect unknown·delivery 실패·unresolved Work
 
 current-head 감사에서 learning reviewer·candidate·eligibility·scheduler 핵심 source는 기존 실제 모델 자격 이후
 변경되지 않았고 Console 배선만 진화했다. 기존 actual은 gpt-5.6-terra와 gpt-5.5 모두 서로 다른 achieved Episode
@@ -990,7 +991,6 @@ Context·Tool·provider call 증가는 0이다. 새 actual provider call 없이 
 승격할지 여부는 S6-E의 same-purpose replay·near-miss·independent field·rollback 논리곱에서만 결정한다.
 
 근거: `refoundation/evidence/s6-d-proposal-review-closeout-2026-08-30.json`.
-- effect unknown·delivery 실패·unresolved Work
 
 proposal은 적용이 아니다. 사용자가 자연어로 `검토용으로 남김·사용하지 않음·나중에`를 선택할 수 있고,
 foreground 작업과 기본 Context를 바꾸지 않는다.
@@ -1012,6 +1012,8 @@ foreground 작업과 기본 Context를 바꾸지 않는다.
 ---
 
 ### S6-E — Field Qualification, Promotion & Rollback
+
+현재 상태: `COMPLETE_WITH_EXISTING_PRODUCT_CAPABILITY · DEFAULT_OFF_PRESERVED · PRODUCT_DELTA_0`
 
 S6-D proposal을 기존 Learning trial·comparison·Capability lifecycle로 검증한다.
 
@@ -1047,9 +1049,23 @@ proposal
 > T5는 실제 경험에서 검증된 더 나은 방법만 다음 작업에 사용하고, 사용자가 덜 설명하고 덜 고쳐도 같은
 > 품질을 내며, 회귀하거나 현재 교정과 충돌하면 즉시 이전 방법으로 돌아간다.
 
+기존 actual model evaluator 증거와 unchanged core source를 재사용하고 current head 13/13을 재계산했다. 제품
+end-to-end는 baseline→proposal→AB/BA replay→near-miss→independent field→managed Skill activation→fresh Session
+사용→regression archive를 약 735ms deterministic fixture에서 관통했다. faster-but-wrong·다른 목적·source 표현
+재사용·same-source field·한 measured lane 열세는 qualification을 만들지 않았다.
+
+실제 gpt-5.6-terra와 gpt-5.5 evaluator는 기존 자격에서 각각 model 2 turn·Tool 1로 same-purpose·correctness·
+completeness·near-miss·independent field recommendation을 통과했고 관련 evaluator core는 변경되지 않았다. 새
+provider call과 제품 source 변경은 0이며 default learningReviewMode는 off로 유지한다. Experience Growth는
+managed procedural Skill 밖의 external package·secret scope·Core·external effect를 활성화하지 않는다.
+
+근거: `refoundation/evidence/s6-e-field-promotion-closeout-2026-08-30.json`.
+
 ---
 
 ### S6-F — Scoped Computer Observation
+
+현재 상태: `OPEN · READ_ONLY_BASELINE_FIRST · PRODUCT_CANDIDATE_0`
 
 Browser·Terminal·File로 충분하지 않은 실제 desktop app 목적 하나가 재현될 때만 Computer Hand를 연다.
 
