@@ -36,12 +36,14 @@ test('4차 휴면 목록은 현재 capability와 platform source를 제거하지
   const boundary = await readFile(new URL('../scripts/product-source-boundary.mjs', import.meta.url), 'utf8');
   for (const required of [
     'managed-cli-store.js', 'managed-skill-store.js', 'capability-lifecycle.js',
-    'github-cli-broker.js', 'windows-product-environment.js', 'windows-process-boundary.js',
+    'capability-reality.js', 'github-cli-broker.js',
+    'windows-product-environment.js', 'windows-process-boundary.js',
   ]) assert.doesNotMatch(boundary, new RegExp(required.replaceAll('.', '\\.'), 'u'));
   for (const dormant of [
-    'capability-acquisition-coordinator.js', 'capability-reality.js',
-    'reflection-candidate.js', 'principle-qualification.js',
+    'capability-acquisition-coordinator.js', 'reflection-candidate.js', 'principle-qualification.js',
   ]) assert.match(boundary, new RegExp(dormant.replaceAll('.', '\\.'), 'u'));
+  const consoleServer = await readFile(new URL('../src/console-server.js', import.meta.url), 'utf8');
+  assert.match(consoleServer, /from '\.\/capability-reality\.js'/u);
 });
 
 test('C4 evidence는 실제 payload 감소와 현재 기능 보존을 분리한다', async () => {

@@ -4,7 +4,6 @@ import { join } from 'node:path';
 export const FOURTH_CYCLE_DORMANT_SOURCE = Object.freeze([
   'src/capability-acquisition-coordinator.js',
   'src/capability-package-contract.js',
-  'src/capability-reality.js',
   'src/local-capability-package-store.js',
   'src/principle-evidence-materializer.js',
   'src/principle-evidence-product-adapter.js',
