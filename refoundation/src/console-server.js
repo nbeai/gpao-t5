@@ -1422,6 +1422,7 @@ export function makeConsoleServer({
       ...(currentModelConnection ? { modelConnection: currentModelConnection } : {}),
       ...(modelTransition ? { modelTransition } : {}),
     } });
+    const currentUserMessageId = options.admittedInput?.messageId ?? `${run.runId}:user`;
     const inputSettlementScope = makeInputSettlementScope({ store: workStore, runId: run.runId,
       excludedInputIds: options.admittedInput ? [options.admittedInput.inputId] : [] });
     const pausedWorkScope = makePausedWorkScope({ store: workStore, runId: run.runId });
@@ -1480,7 +1481,7 @@ export function makeConsoleServer({
       return fact;
     };
     if (attachmentIds.length) {
-      const messageId = `${run.runId}:user`;
+      const messageId = currentUserMessageId;
       await attachments.link({ sessionId, attachmentIds, messageId, runId: run.runId });
       await run.append({
         type: 'attachments_linked', stepId: 'attachments', payload: {
@@ -2092,12 +2093,12 @@ export function makeConsoleServer({
         sourceReader: memorySourceReader,
         readOnly: true,
         source: { origin: 'foreground', sessionId, runId: run.runId,
-          messageId: `${run.runId}:user`, ...(activeWork
+          messageId: currentUserMessageId, ...(activeWork
             ? { workId: activeWork.workId, revision: activeWork.revision } : {}) },
       }));
       const currentMemoryRecordRefs = async () => {
         const conversationState = await conversations.read(sessionId);
-        const messageId = `${run.runId}:user`;
+        const messageId = currentUserMessageId;
         const sourceEvent = conversationState.events.find((event) => (
           event.type === 'message' && event.messageId === messageId
         ));
@@ -2192,6 +2193,9 @@ export function makeConsoleServer({
         && options.trigger !== 'automation'
         ? [
           'exec', 'web_read', 'web_research', 'attachment', 'skill',
+          // 기억·삭제를 약속만 하고 실제 원장에 반영하지 않은 설치 제품 반례 때문에
+          // 의미 Router 없이 기존 쓰기·삭제 손만 항상 보인다. read는 후보가 있을 때만 연다.
+          'memory_claim', 'memory_control',
           ...(memoryCandidates || temporalMemoryCandidates ? ['memory'] : []),
           ...(projection.historicalRecallRequired
             ? [purposeHistory ? 'purpose_history' : 'session_search'] : []),

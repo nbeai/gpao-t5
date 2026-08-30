@@ -132,7 +132,7 @@ export function makeSessionSearchTool({ ledger, sessions, workStore = null, runL
       'past conversation history prior decision transcript',
       '과거 대화 원문 이전 결정 기록',
     ],
-    description: 'Search or read canonical past T5 conversations and settled Episode pointers. Use search for exact words or prior work, then read for surrounding canonical context. Use episodes to list settled Work·Run·Message pointers without transcript content, then episode_read with exact workId and runId to recover its bounded source conversation and Run outcome facts. Use browse only when the user names no topic. Session history says what was observed then, not current external reality. Do not claim no prior conversation or Episode before searching.',
+    description: 'Search or read canonical past T5 conversations and settled Episode pointers. Use search for exact words or prior work, then read for surrounding canonical context. Use episodes to list settled Work·Run·Message pointers without transcript content, then episode_read with exact workId and runId to recover its bounded source conversation and Run outcome facts. Use browse only when the user names no topic. Session history says what was observed then, not current external reality or current durable memory. When T5 supplies a recoverable forget pointer, never use old conversation text to reconstruct a value for a question about the current remembered fact, preference, or decision; only read it when the user explicitly asks what was said in that past conversation. Do not claim no prior conversation or Episode before searching.',
     parameters: {
       type: 'object', additionalProperties: false,
       properties: {

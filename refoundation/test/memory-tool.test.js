@@ -159,6 +159,13 @@ test('memory_claim 도구는 model meaning만 받고 runtime reality로 commit·
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 
+test('memory_claim 설명은 검증 handle 없는 일반 기준을 global로 두고 거부 상태를 성공으로 말하지 않는다', async () => {
+  const tool = makeMemoryClaimTool({ ledger: {}, runtimeReality: async () => ({}) });
+  assert.match(tool.description, /Use global for a general user fact/u);
+  assert.match(tool.description, /organization scopes require that exact subjectHandle/u);
+  assert.match(tool.description, /needs_verified_subject[\s\S]*do not claim it was stored/u);
+});
+
 test('foreground memory는 read·list만 열고 legacy add·replace·remove 우회를 막는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-memory-read-only-'));
   try {

@@ -16,6 +16,12 @@ async function addMessage(ledger, sessionId, messageId, role, content, extra = {
   });
 }
 
+test('session_search는 과거 기록을 현재 durable memory나 forget 복원으로 쓰지 않는다고 밝힌다', () => {
+  const tool = makeSessionSearchTool({ ledger: {}, sessions: {} });
+  assert.match(tool.description, /not current external reality or current durable memory/u);
+  assert.match(tool.description, /recoverable forget pointer[\s\S]*never use old conversation text/u);
+});
+
 test('session_search는 한국어 원문을 Session별로 찾고 stable ref 주변을 다시 읽는다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-session-search-'));
   try {

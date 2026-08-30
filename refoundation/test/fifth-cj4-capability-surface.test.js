@@ -48,10 +48,46 @@ test('directory-first 후보는 Direct의 schema를 최소 손과 capability dir
   const candidate = await run({ mode: 'directory-first-v1', respond });
   assert.equal(baseline.result.reply, '직접 답변'); assert.equal(candidate.result.reply, '직접 답변');
   assert.deepEqual(candidate.calls[0].tools.map((tool) => tool.name).toSorted(), [
-    'attachment', 'exec', 'skill', 'tool_search', 'web_read',
+    'attachment', 'exec', 'memory_claim', 'memory_control', 'skill', 'tool_search', 'web_read',
   ]);
   assert.ok(candidate.calls[0].tools.length < baseline.calls[0].tools.length);
   assert.ok(toolBytes(candidate.calls[0]) < toolBytes(baseline.calls[0]));
+});
+
+test('directory-first는 새 기억과 forget을 약속 문장으로 끝내지 않도록 기존 쓰기·삭제 손을 항상 연다', async () => {
+  const observed = await run({ mode: 'directory-first-v1', request: '이 기준을 기억했다가 나중에 잊어줘',
+    respond(input) {
+      const names = input.tools.map((tool) => tool.name);
+      assert.ok(names.includes('memory_claim'));
+      assert.ok(names.includes('memory_control'));
+      assert.equal(names.includes('memory'), false);
+      return { text: '기억과 삭제를 실제 도구로 처리할 수 있습니다.', toolCalls: [] };
+    } });
+  assert.equal(observed.result.reply, '기억과 삭제를 실제 도구로 처리할 수 있습니다.');
+});
+
+test('Console admission의 canonical message ID가 memory_claim source로 그대로 결속된다', async () => {
+  const observed = await run({ mode: 'directory-first-v1', request: '우리 기준은 HQ-PRICE-7391이니 기억해줘',
+    respond(input, turn) {
+      if (turn === 1) return { text: '', toolCalls: [{
+        id: 'remember', name: 'memory_claim', args: {
+          action: 'remember', kind: 'fact', value: '기준은 HQ-PRICE-7391이다.',
+          subjectHandle: null,
+          validTimeMeaning: { from: '2026-08-31', to: null, certainty: 'explicit' },
+          scopeMeaning: 'organization',
+        },
+      }] };
+      if (turn === 2) {
+        const receipt = JSON.parse(input.messages.findLast((message) => message.name === 'memory_claim').content);
+        assert.equal(receipt.outcome, 'succeeded');
+        assert.equal(receipt.result.state, 'committed');
+        return { text: '', toolCalls: [{ id: 'done', name: 'work_completion', args: {
+          outcome: 'achieved', inputSettlements: [],
+        } }] };
+      }
+      return { text: '실제 기억 원장에 반영했습니다.', toolCalls: [] };
+    } });
+  assert.ok(observed.calls.length >= 2);
 });
 
 test('좁은 현재 정보는 capability 발견·완료 의식 없이 한 Web 관측 뒤 바로 답한다', async () => {

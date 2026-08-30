@@ -79,7 +79,7 @@ export function forgetTombstoneProjection(tombstones = [], { asOf = new Date().t
   if (!recoverable.length) return null;
   return { role: 'assistant', content: [
     '[T5 RECOVERABLE FORGET POINTERS — no memory content]',
-    'Use memory_control restore only when the user explicitly asks to restore an exact forgotten memory.',
+    'These pointers are current proof that the user explicitly removed durable memory. For a question asking the current remembered fact, preference, or decision, do not reconstruct a value from session_search, purpose history, episodes, or old assistant promises. If no active memory candidate remains, say that T5 no longer keeps the value. Use memory_control restore only when the user explicitly asks to restore an exact forgotten memory. Past conversation text remains history and may be read only when the user explicitly asks what was said in that past conversation.',
     ...recoverable.slice(0, 50).map((item) => JSON.stringify({
       requestId: item.requestId, memoryId: item.memoryId,
       subjectHandle: item.subjectKey, reversibleUntil: item.reversibleUntil,

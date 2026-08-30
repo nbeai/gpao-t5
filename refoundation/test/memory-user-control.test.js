@@ -63,4 +63,6 @@ test('forget pointer는 content 없이 exact restore identity와 window만 모�
   assert.match(projection.content, /forget-1/u);
   assert.match(projection.content, /memory-1/u);
   assert.doesNotMatch(projection.content, /safe value/u);
+  assert.match(projection.content, /do not reconstruct a value from session_search/u);
+  assert.match(projection.content, /T5 no longer keeps the value/u);
 });
