@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_F_SCOPED_COMPUTER_OBSERVATION",
+  "status": "MACOS_READ_ONLY_AX_PHYSICAL_QUALIFIED_PRODUCT_ENTRY_0",
+  "baseCommit": "7aabb9a9",
+  "implementation": {
+    "nativeHelper": "refoundation/native/macos-scoped-accessibility.m",
+    "runtimeAdapter": "refoundation/src/scoped-computer-observer.js",
+    "permissionPrompt": false,
+    "readOnlyAx": true,
+    "screenCapture": false,
+    "actions": false,
+    "maximumNodes": 200,
+    "maximumDepth": 8,
+    "allowedAppCheckedBeforeElementRead": true,
+    "secretTextReturned": false
+  },
+  "physicalMacOS": {
+    "foregroundAppKind": "Safari",
+    "allowedScopeMatched": true,
+    "nodes": 40,
+    "depth": 4,
+    "distinctRoles": 12,
+    "secretTextViolations": 0,
+    "mismatchElementsReturned": 0,
+    "runtimeAdapterPassed": true
+  },
+  "privacy": {
+    "uiTextStoredInEvidence": false,
+    "uiTextPrintedInQualificationSummary": false,
+    "providerCalls": 0,
+    "screenshots": 0,
+    "externalWrites": 0
+  },
+  "verification": { "focusedPassed": 3, "focusedFailed": 0, "nativeCompile": "PASS" },
+  "remaining": [
+    "ephemeral authorized app and window scope binding",
+    "Console tool discovery",
+    "packaged universal helper",
+    "restart and stale window countertests",
+    "Apple Notes actual purpose"
+  ],
+  "nonClaims": ["S6-F complete", "product Tool active", "screen recording", "desktop action", "Windows UIA"]
+}

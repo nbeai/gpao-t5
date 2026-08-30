@@ -3,7 +3,7 @@
 상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_COMPLETE · S6_E_COMPLETE · S6_F_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
 현재 Gate: `S6-F · SCOPED COMPUTER OBSERVATION`
-현재 작업: `S6_F_BASELINE_COMPLETE · MACOS_READ_ONLY_ACCESSIBILITY_CANDIDATE_OPEN`
+현재 작업: `S6_F_MACOS_AX_PHYSICAL_QUALIFIED · PRODUCT_SCOPE_BINDING_PENDING`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -1065,7 +1065,7 @@ managed procedural Skill 밖의 external package·secret scope·Core·external e
 
 ### S6-F — Scoped Computer Observation
 
-현재 상태: `OPEN · BASELINE_COMPLETE · PRODUCT_CANDIDATE_0`
+현재 상태: `OPEN · MACOS_READ_ONLY_AX_QUALIFIED · PRODUCT_ENTRY_0`
 
 current-head 57/57에서 기존 경계를 재자격했다.
 
@@ -1087,6 +1087,22 @@ OTP value, 전체 tree, 다른 app, background polling, action은 열지 않는�
 Screen Recording permission과 system picker가 필요한 다른 후보이며 이번 slice에서 열지 않는다.
 
 근거: `refoundation/evidence/s6-f-scoped-computer-observation-baseline-2026-08-30.json`.
+
+첫 candidate는 Objective-C native helper와 Runtime adapter로 자격했다. helper는 `AXIsProcessTrusted()`만 읽어
+권한 prompt를 만들지 않고, `--allow-app-id`가 현재 foreground bundle과 다르면 AX window·element를 읽기 전에
+`scope_mismatch`로 끝난다. 일치할 때 focused window 하나에서 최대 200 nodes·depth 8 hard bound 안의 role·label·
+enabled·selected·focused·value-presence를 읽고 secure/password subrole은 value text를 반환하지 않는다.
+
+실제 macOS physical에서는 현재 Safari exact bundle을 40 nodes·depth 4로 관측했고 app scope 일치·roles 12·secret
+text violation 0이었다. TextEdit를 허용 대상으로 지정한 mismatch 대조에서는 elements·content fields 0이었다.
+Runtime adapter actual도 40 nodes·secret text 0을 재확인했다. UI 원문은 stdout summary·evidence·source tree에
+저장하지 않았고 provider call·screen capture·action은 0이다.
+
+아직 사용자 요청에서 authorized app/window handle을 만드는 제품 계약, Console Tool discovery, packaged universal
+helper, restart/stale window, Apple Notes 실제 목적은 미자격이다. 다음 slice는 새 Screen Store 없이 현재 Run의
+ephemeral scope handle과 packaged helper lifecycle만 연결한다.
+
+근거: `refoundation/evidence/s6-f-macos-scoped-accessibility-qualification-2026-08-30.json`.
 
 Browser·Terminal·File로 충분하지 않은 실제 desktop app 목적 하나가 재현될 때만 Computer Hand를 연다.
 
