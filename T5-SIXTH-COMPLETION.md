@@ -1,6 +1,6 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_COMPLETE · S6_E_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
+상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_COMPLETE · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
 현재 Gate: `S6-H · PROFESSIONAL DELIVERABLE COMPLETION`
 현재 작업: `S6_H_READ_ONLY_BASELINE · EXISTING_DOCUMENT_RENDER_REUSE_FIRST`
@@ -958,7 +958,7 @@ closeout: `refoundation/evidence/s6-c-closeout-2026-08-30.json`.
 
 ### S6-D — Experience Growth Proposal & Review
 
-현재 상태: `COMPLETE_WITH_EXISTING_PRODUCT_CAPABILITY · DEFAULT_OFF_PRESERVED · PRODUCT_DELTA_0`
+현재 상태: `PRODUCT_ACTIVE_COMPLETE · PROPOSAL_DEFAULT_ON · FOREGROUND_NONBLOCKING`
 
 기존 Reflection·Learning source를 default-on으로 바꾸기 전에 proposal-only 제품 A/B를 연다.
 
@@ -983,12 +983,14 @@ current-head 감사에서 learning reviewer·candidate·eligibility·scheduler �
 변경되지 않았고 Console 배선만 진화했다. 기존 actual은 gpt-5.6-terra와 gpt-5.5 모두 서로 다른 achieved Episode
 두 개에서 proposal exact 1개·model 2 turn·Tool 1을 통과했으며 reviewer wall은 각각 12.125초·12.937초였다.
 
-현재 head 23/23은 default off에서 reviewer call·proposal 0, proposal mode에서 foreground wait 0·candidate 1·active
-write 0, duplicate/ineligible/credential source proposal 0, correction 뒤 stale commit 0을 재확인했다. normal Turn의
-Context·Tool·provider call 증가는 0이다. 새 actual provider call 없이 기존 exact evidence를 재사용했다.
+6차 설치 제품 entry는 이제 `learningReviewMode=proposal`을 기본 사용한다. Core factory 기본값은 off로 유지해
+격리 runner·embedding caller가 명시 없이 background work를 시작하지 않는다. achieved Work 2개·quiet 30초·same
+source window exact once에서만 reviewer를 열고 foreground는 기다리지 않는다.
 
-따라서 S6-D 완료 문장은 기존 제품 capability로 성립하며 default-on은 아직 열지 않는다. proposal을 실제 방법으로
-승격할지 여부는 S6-E의 same-purpose replay·near-miss·independent field·rollback 논리곱에서만 결정한다.
+실제 gpt-5.6-terra 격리 Console에서 두 파일 생성·exact reopen 목적은 각각 6.458초·4.999초로 먼저 전달됐다.
+quiet boundary 뒤 reviewer는 5.742초·model 2·Tool 1·4,077 tokens로 candidate 1개를 만들었고 source pointer 2개·
+active event 0이었다. normal Turn의 기본 Context·Tool 증가는 0이다. pending candidate는 설정의 작업 방법 목록에
+`검증 중`으로 보이고 source 원문·Run ID·digest는 노출하지 않는다.
 
 근거: `refoundation/evidence/s6-d-proposal-review-closeout-2026-08-30.json`.
 
@@ -1013,7 +1015,7 @@ foreground 작업과 기본 Context를 바꾸지 않는다.
 
 ### S6-E — Field Qualification, Promotion & Rollback
 
-현재 상태: `COMPLETE_WITH_EXISTING_PRODUCT_CAPABILITY · DEFAULT_OFF_PRESERVED · PRODUCT_DELTA_0`
+현재 상태: `PRODUCT_PIPELINE_ACTIVE_COMPLETE · MANAGED_SKILL_ONLY · NATURAL_TRIAL_REQUIRED`
 
 S6-D proposal을 기존 Learning trial·comparison·Capability lifecycle로 검증한다.
 
@@ -1055,9 +1057,17 @@ end-to-end는 baseline→proposal→AB/BA replay→near-miss→independent field
 재사용·same-source field·한 measured lane 열세는 qualification을 만들지 않았다.
 
 실제 gpt-5.6-terra와 gpt-5.5 evaluator는 기존 자격에서 각각 model 2 turn·Tool 1로 same-purpose·correctness·
-completeness·near-miss·independent field recommendation을 통과했고 관련 evaluator core는 변경되지 않았다. 새
-provider call과 제품 source 변경은 0이며 default learningReviewMode는 off로 유지한다. Experience Growth는
-managed procedural Skill 밖의 external package·secret scope·Core·external effect를 활성화하지 않는다.
+completeness·near-miss·independent field recommendation을 통과했고 관련 evaluator core는 변경되지 않았다.
+현재 제품 통합은 candidate→AB/BA replay→near-miss→independent field→managed Skill activation→fresh Session
+사용→regression archive를 관통한다. active learned Skill은 설정에 `경험에서 배움`으로 나타나고 rollback 뒤
+사라진다.
+
+actual default-on candidate가 다음 유사 작업에서 선택되지 않은 경우에도 baseline이 정확하고 경제적이면 강제하지
+않는다. candidate 사용 횟수가 아니라 같은 품질에서 사용자 교정·wall·calls·tokens의 실제 개선이 promotion
+조건이다. Experience Growth는 managed procedural Skill 밖의 external package·secret scope·Core·external effect를
+활성화하지 않는다.
+
+제품 활성 근거: `refoundation/evidence/s6-de-experience-growth-product-activation-2026-08-30.json`.
 
 근거: `refoundation/evidence/s6-e-field-promotion-closeout-2026-08-30.json`.
 

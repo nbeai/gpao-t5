@@ -70,6 +70,12 @@ test('두 achieved Work 뒤 reviewer는 foreground를 막지 않고 proposal 하
     const candidates = (await server.capabilityLifecycleLedger.list()).filter((item) => item.state === 'candidate');
     assert.equal(candidates.length, 1); assert.equal(candidates[0].sourcePointers.length, 2);
     assert.equal(reviewerCalls, 2);
+    const visible = await fetch(`${base}/skills`).then((response) => response.json());
+    const pending = visible.skills.find((skill) => skill.id === 'verify-durable-results');
+    assert.deepEqual({ state: pending.state, active: pending.active, candidate: pending.candidate,
+      contentDigest: pending.contentDigest }, {
+      state: 'candidate', active: false, candidate: true, contentDigest: null,
+    });
   } finally {
     await server.closeWorkspaceConnections(); await server.closeMessengers();
     await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true });

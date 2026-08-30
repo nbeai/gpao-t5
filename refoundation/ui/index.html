@@ -2400,7 +2400,8 @@ const SET_RENDER = {
           const row = mk('div', 'settings-item'); const main = mk('div', 'settings-item-main');
           main.appendChild(mk('div', 'settings-item-title', sk.label ?? sk.id));
           main.appendChild(mk('div', 'settings-item-desc', sk.description || '이 작업 방법에 대한 설명이 아직 없어요.'));
-          row.append(main, mk('div', `settings-item-state ${sk.active ? 'ready' : ''}`, sk.active ? '사용 중' : '필요할 때 준비'));
+          row.append(main, mk('div', `settings-item-state ${sk.active ? 'ready' : ''}`,
+            sk.candidate ? '검증 중' : sk.learned ? '경험에서 배움' : sk.active ? '사용 중' : '필요할 때 준비'));
           list.appendChild(row);
         }
         section.appendChild(list); setBody.appendChild(section);

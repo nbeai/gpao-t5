@@ -243,6 +243,7 @@ const server = makeConsoleServer({
   workspace,
   capabilitySurfaceMode: 'directory-first-v1',
   workAdmissionMode: 'action-v1',
+  learningReviewMode: 'proposal',
   modelFactory: (context) => access.model(context),
   modelStatus: () => access.status(),
   productVersion: process.env.T5_PRODUCT_VERSION ?? null,

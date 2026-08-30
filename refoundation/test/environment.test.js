@@ -43,8 +43,8 @@ test('정본은 제품·현재 계획·1차 역사·작업 규율로 분리된�
   assert.match(sixth, /S6_A_COMPLETE/u);
   assert.match(sixth, /S6_B_COMPLETE/u);
   assert.match(sixth, /S6_C_COMPLETE_WITH_STT_GAP/u);
-  assert.match(sixth, /S6_D_COMPLETE/u);
-  assert.match(sixth, /S6_E_COMPLETE/u);
+  assert.match(sixth, /S6_D_PRODUCT_ACTIVE_COMPLETE/u);
+  assert.match(sixth, /S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE/u);
   assert.match(sixth, /S6_F_CLOSED_WITH_OBSERVATION/u);
   assert.match(sixth, /S6_G_NOT_OPEN/u);
   assert.match(fourth, /t5-0\.3\.1-clean-baseline/u);

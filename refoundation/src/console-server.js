@@ -1031,13 +1031,16 @@ export function makeConsoleServer({
   }));
 
   async function skillSurface() {
-    const [bundled, packages, policy, store] = await Promise.all([
+    const [bundled, packages, managed, policy, store, trials] = await Promise.all([
       loadSkillSnapshot({ directory: skillsRoot }), skillPackageSnapshotPromise,
-      skillPolicyCatalogPromise, managedSkillStorePromise,
+      loadSkillSnapshot({ directory: join(managedRoot, 'active') }),
+      skillPolicyCatalogPromise, managedSkillStorePromise, learningCandidates.listTrials(),
     ]);
     const activeManaged = new Set(await store.installedNames());
-    const byName = new Map([...bundled.skills, ...packages.skills].map((skill) => [skill.name, skill]));
-    return policy.entries.map((entry) => {
+    const byName = new Map([...bundled.skills, ...packages.skills, ...managed.skills]
+      .map((skill) => [skill.name, skill]));
+    const policyNames = new Set(policy.entries.map((entry) => entry.name));
+    return [...policy.entries.map((entry) => {
       const skill = byName.get(entry.name);
       const active = entry.activeByDefault || activeManaged.has(entry.name);
       return {
@@ -1045,7 +1048,15 @@ export function makeConsoleServer({
         state: active ? 'admitted' : 'available', selection: entry.selection,
         active, contentDigest: skill?.contentDigest ?? null,
       };
-    });
+    }), ...managed.skills.filter((skill) => !policyNames.has(skill.name)).map((skill) => ({
+      id: skill.name, label: skill.name, description: skill.description,
+      state: 'admitted', selection: 'learned', active: true, learned: true,
+      contentDigest: skill.contentDigest,
+    })), ...trials.filter((trial) => !activeManaged.has(trial.name)).map((trial) => ({
+      id: trial.name, label: trial.name, description: trial.description,
+      state: 'candidate', selection: 'learning_trial', active: false, learned: true, candidate: true,
+      contentDigest: null,
+    }))];
   }
 
   async function browserDriver(sessionId) {

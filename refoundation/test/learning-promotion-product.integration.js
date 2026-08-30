@@ -96,6 +96,13 @@ test('baseline→proposal→near-miss→trial replay→field promotion→regress
     assert.equal((await server.capabilityLifecycleLedger.current(proposalId)).state, 'active',
       errors.map((error) => error?.message ?? String(error)).join('\n'));
     assert.equal((await (await server.managedSkillStore).activeRevision('recover-durable-work')).active, true);
+    const visible = await fetch(`${base}/skills`).then((response) => response.json());
+    assert.deepEqual(visible.skills.find((skill) => skill.id === 'recover-durable-work'), {
+      id: 'recover-durable-work', label: 'recover-durable-work',
+      description: 'Recover durable work without repeating uncertain effects.', state: 'admitted',
+      selection: 'learned', active: true, learned: true,
+      contentDigest: (await (await server.managedSkillStore).activeRevision('recover-durable-work')).digest,
+    });
     await turn(session.id, 'REGRESSION 복구 결과가 부족하면 미완료로 남겨');
     const rolled = await server.capabilityLifecycleLedger.current(proposalId);
     const latestRun = (await server.runLedger.list({ sessionId: session.id }))[0];
@@ -103,6 +110,8 @@ test('baseline→proposal→near-miss→trial replay→field promotion→regress
       capabilities: (await import('../src/capability-outcome-evidence.js')).capabilityObservationsForRun(latestRun),
       events: rolled.events }));
     assert.equal((await (await server.managedSkillStore).activeRevision('recover-durable-work')).active, false);
+    assert.equal((await fetch(`${base}/skills`).then((response) => response.json()))
+      .skills.some((skill) => skill.id === 'recover-durable-work'), false);
   } finally {
     await server.closeWorkspaceConnections(); await server.closeMessengers();
     await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true });

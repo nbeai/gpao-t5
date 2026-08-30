@@ -25,7 +25,8 @@ function qualifiedComparison({ kind, id, baselineRuns, candidateRuns }) {
     qualificationReceipt: { state: 'qualified', digest: 'qualification-digest' },
   };
 }
-const effect = { kind: 'local_change', summary: 'archive', targets: ['managed capability'], reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null };
+const effect = { kind: 'local_change', targets: ['managed capability'],
+  confirmation: 'not_applicable', rollbackOfToolCallId: null };
 
 test('제안→tested→recommended와 적용은 다른 Run으로 분리되고 archive·restore가 복구된다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-lifecycle-')); const runs = new Map([['b', run('b')], ['c', run('c', true)]]); const calls = [];

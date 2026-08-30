@@ -37,7 +37,10 @@ export function makeCapabilityLifecycleTool({ ledger, runLedger, stores = {}, le
     parameters: { type: 'object', additionalProperties: false, properties: {
       action: { type: 'string', enum: ['propose', 'recommend', 'apply', 'restore', 'list', 'inspect'] }, proposalId: { type: ['string', 'null'] }, kind: { type: ['string', 'null'], enum: ['cli', 'skill', null] }, id: { type: ['string', 'null'] }, lifecycleAction: { type: ['string', 'null'], enum: ['keep', 'activate', 'archive', 'restore', 'rollback', null] }, baselineRunIds: { type: 'array', maxItems: 20, items: { type: 'string' } }, candidateRunIds: { type: 'array', maxItems: 20, items: { type: 'string' } }, rationale: { type: ['string', 'null'], maxLength: 2000 }, unknowns: { type: 'array', maxItems: 20, items: { type: 'string', maxLength: 500 } }, effect: { anyOf: [EFFECT_SCHEMA, { type: 'null' }] },
     }, required: ['action', 'proposalId', 'kind', 'id', 'lifecycleAction', 'baselineRunIds', 'candidateRunIds', 'rationale', 'unknowns', 'effect'] },
-    async preflight(args, context) { if (!['apply', 'restore'].includes(args.action)) return { allowed: true }; if (args.effect?.kind !== 'local_change' || args.effect?.reversible !== true) return { allowed: false, outcome: 'not_executed', result: { state: 'reversible_local_change_required' } }; return typeof authorizeEffect === 'function' ? authorizeEffect(args, context) : { allowed: true }; },
+    async preflight(args, context) { if (!['apply', 'restore'].includes(args.action)) return { allowed: true };
+      if (args.effect?.kind !== 'local_change' || args.effect?.confirmation !== 'not_applicable') return {
+        allowed: false, outcome: 'not_executed', result: { state: 'managed_local_change_required' } };
+      return typeof authorizeEffect === 'function' ? authorizeEffect(args, context) : { allowed: true }; },
     async execute(args) {
       if (args.action === 'list') return { proposals: (await ledger.list()).map(publicProposal) };
       if (args.action === 'inspect') return { proposal: publicProposal(await ledger.current(args.proposalId)) };

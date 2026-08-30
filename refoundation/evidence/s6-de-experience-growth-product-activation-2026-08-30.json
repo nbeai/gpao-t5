@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_D_E_DEFAULT_ON_EXPERIENCE_GROWTH",
+  "status": "PRODUCT_ACTIVE_COMPLETE_DEFAULT_ON",
+  "baseCommit": "d3ae629c",
+  "activation": {
+    "installedProductEntry": "proposal",
+    "coreFactoryDefault": "off",
+    "minimumEligibleWorks": 2,
+    "quietBoundaryMs": 30000,
+    "sameSourceWindowReviewedOnce": true,
+    "foregroundWaitsForReviewer": false,
+    "automaticScope": "managed procedural Skill only"
+  },
+  "actualConsole": {
+    "model": "gpt-5.6-terra",
+    "foregroundWorkWallMs": [6458, 4999],
+    "foregroundPurposesAchieved": 2,
+    "reviewerWallMs": 5742,
+    "reviewerModelCalls": 2,
+    "reviewerToolCalls": 1,
+    "reviewerTokens": 4077,
+    "candidatesCreated": 1,
+    "sourcePointers": 2,
+    "activeSkillEvents": 0,
+    "foregroundContextOrToolIncrease": 0
+  },
+  "naturalNonIntervention": {
+    "candidate": "write-and-verify-file-content",
+    "nextRelatedPurposeAchievedByBaseline": true,
+    "trialForced": false,
+    "reason": "existing exec path already completed the purpose accurately and economically"
+  },
+  "productPipeline": {
+    "alternatingReplay": true,
+    "nearMiss": true,
+    "independentField": true,
+    "paretoRequired": true,
+    "freshSessionUse": true,
+    "regressionRollback": true,
+    "pendingCandidateUserLabel": "검증 중",
+    "activeLearnedUserLabel": "경험에서 배움"
+  },
+  "forbidden": ["external package auto-install", "secret scope expansion", "Core modification", "external effect", "payment"],
+  "verification": {
+    "focusedPassed": 13,
+    "focusedFailed": 0,
+    "fullCI": { "integrationPassed": 202, "integrationSkipped": 2, "integrationFailed": 0 },
+    "mutation": { "passed": 2, "failed": 0 }
+  },
+  "nonClaims": ["every candidate is useful", "candidate use is forced", "all user work is sent to a reviewer"]
+}
