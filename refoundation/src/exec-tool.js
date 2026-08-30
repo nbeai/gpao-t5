@@ -34,7 +34,8 @@ export const EFFECT_SCHEMA = {
       type: 'string',
       enum: ['observe', 'local_change', 'external_change', 'destructive', 'external_send', 'payment', 'secret_input'],
     },
-    targets: { type: 'array', items: { type: 'string' } },
+    targets: { type: 'array', items: { type: 'string' },
+      description: 'Exact effect targets. For local_change that creates or modifies multiple files, list every final file path; never use a directory as a summary target.' },
     confirmation: {
       type: 'string',
       enum: ['not_applicable', 'backup_available', 'backup_unavailable', 'known_recipient', 'new_recipient'],

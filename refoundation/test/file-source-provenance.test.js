@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { strToU8, zipSync } from 'fflate';
 
 import { makeAttachmentTool } from '../src/attachment-hand.js';
 import { AttachmentStore } from '../src/attachment-store.js';
@@ -78,5 +79,27 @@ test('표준 열이나 전체 행이 원본 매핑과 다르면 취합 Artifact�
       expectedResultJson: null, expectedStdoutIncludes: null, operationHandle: null, outputHandle: null,
       sourceManifestId: manifest.manifestId, query: null, pageHandles: null }), /does not match bound sources/u);
     assert.equal((await attachments.list({ sessionId: SESSION })).length, 0);
+  } finally { await rm(app.root, { recursive: true, force: true }); }
+});
+
+test('ZIP 묶음은 source provenance를 보존하되 ZIP bytes를 CSV로 오판하지 않는다', async () => {
+  const app = await room();
+  try {
+    const manifests = new FileSourceManifestStore(join(app.root, 'state', 'source-manifests'));
+    const manifest = await manifests.create({ sessionId: SESSION, purpose: '3분기 매출 묶음', sources: [{
+      path: app.source, displayName: '7월매출.csv', usage: '7월 확정 매출', identity: app.identity,
+      columnMappings: [{ sourceColumn: '월', outputColumn: '월' }, { sourceColumn: '매출', outputColumn: '매출' }],
+    }], standardization: { mode: 'append_rows', outputColumns: ['월', '매출'] } });
+    const bundle = join(app.workspace, '분기취합.zip');
+    await writeFile(bundle, zipSync({ '분기취합.csv': strToU8('월,매출\n7월,1200000\n') }));
+    const attachments = new AttachmentStore(join(app.root, 'attachments'));
+    const tool = makeAttachmentTool({ store: attachments, sessionId: SESSION, workspace: app.workspace,
+      runId: 'source-bundle-run', sourceManifestStore: manifests, authorizeOutputPath: () => true });
+    const result = await tool.execute({ action: 'register_output', attachmentId: null, filePath: bundle,
+      maxChars: null, maxCells: null, maxPages: null, outputName: null, resultRelativePath: null,
+      expectedResultJson: null, expectedStdoutIncludes: null, operationHandle: null, outputHandle: null,
+      sourceManifestId: manifest.manifestId, query: null, pageHandles: null });
+    assert.equal(result.state, 'registered'); assert.equal(result.sourceProvenance.state, 'verified');
+    assert.equal(result.sourceReconciliation, undefined);
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });

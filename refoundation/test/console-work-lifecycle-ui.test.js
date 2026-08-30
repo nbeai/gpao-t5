@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const consoleHtml = resolve(root, 'refoundation/ui/index.html');
+const { userSafeConsoleReply } = await import('../src/console-server.js');
 
 test('진행 표면은 서버 startedAt을 사용해 3초 뒤부터 실제 경과 시간을 표시한다', async () => {
   const html = await readFile(consoleHtml, 'utf8');
@@ -53,11 +54,17 @@ test('실행 중에는 중지 버튼이 있고 미완료 상태를 정형 오류
   assert.match(html, /failure-next/u);
 });
 
-test('완료 Artifact가 있는 achieved 결과는 같은 성공의 mutation 영수증을 별도 반복하지 않는다', async () => {
+test('완료 Artifact가 있는 결과는 같은 파일 변경 영수증을 별도 반복하지 않는다', async () => {
   const source = await readFile(new URL('../src/console-server.js', import.meta.url), 'utf8');
   assert.match(source, /canonicalWork\.results\.find[\s\S]*objectiveOutcome/u);
-  assert.match(source, /artifacts\.length && objectiveOutcome === 'achieved'\) humanEffects = \[\]/u);
+  assert.match(source, /artifacts\.length\) humanEffects = \[\]/u);
   assert.match(source, /objectiveOutcome === 'achieved' && humanEffects\.length > 1/u);
   assert.match(source, /providerAccepted === false[\s\S]*externallyReachable === false/u);
   assert.match(source, /projectHumanFileOrganizationReceipt\(event\.payload\.receipt\)/u);
+});
+
+test('모델이 만든 내부 attachment URI는 결과 카드와 중복 노출하지 않는다', () => {
+  const reply = userSafeConsoleReply('완료\n\n[결과 ZIP 다운로드](attachment://abc-123)');
+  assert.equal(reply, '완료\n\n결과 ZIP 다운로드');
+  assert.doesNotMatch(reply, /attachment:|abc-123/u);
 });

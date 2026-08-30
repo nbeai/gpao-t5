@@ -151,6 +151,13 @@ const bundledCliCatalogFile = resolve(repositoryRoot, 'refoundation', 'config', 
 const bundledCapabilitiesRoot = resolve(repositoryRoot, 'refoundation', 'capabilities');
 const bundledBusinessConnectionCatalogFile = resolve(repositoryRoot, 'refoundation', 'config', 'korea-business-connection-catalog.json');
 const bundledDocumentCli = resolve(repositoryRoot, 'refoundation', 'bin', 't5-document.mjs');
+
+export function userSafeConsoleReply(value) {
+  return String(value ?? '')
+    .replace(/\[([^\]]+)\]\(attachment:\/\/[^)\s]+\)/giu, '$1')
+    .replace(/attachment:\/\/[0-9a-z-]+/giu, '')
+    .replace(/[ \t]+\n/gu, '\n');
+}
 const founderManifestoPath = resolve(
   repositoryRoot, 'docs', '00-product', 'GPAO-T5-FOUNDER-MANIFESTO-ko.md',
 );
@@ -935,7 +942,7 @@ export function makeConsoleServer({
             rollback: '되돌리기는 실행하지 않았어요.',
             unknowns: [`${relevantCalls.length - 16}개 변경 기록은 이 화면에서 생략했어요.`], detailsAvailable: true });
           humanEffects = [...new Map(humanEffects.map((item) => [JSON.stringify(item), item])).values()];
-          if (artifacts.length && objectiveOutcome === 'achieved') humanEffects = [];
+          if (artifacts.length) humanEffects = [];
           else if (objectiveOutcome === 'achieved' && humanEffects.length > 1) {
             const exact = humanEffects.find((item) => !(item.unknowns ?? []).length
               && ((item.confirmed ?? []).length || String(item.rollback ?? '').includes('되돌')));
@@ -947,7 +954,8 @@ export function makeConsoleServer({
             unknowns: ['현재 변경 기록을 다시 확인해 주세요.'], detailsAvailable: true }];
         }
       }
-      return { ...timedEntry, result: { ...entry.result, ...(artifacts.length ? { artifacts } : {}),
+      return { ...timedEntry, result: { ...entry.result,
+        reply: userSafeConsoleReply(entry.result.reply), ...(artifacts.length ? { artifacts } : {}),
         ...(humanEffects.length ? { humanEffects } : {}) } };
     }));
   }
@@ -2659,7 +2667,7 @@ export function makeConsoleServer({
         };
       })() : {
         kind: 'reply',
-        reply: result.answer,
+        reply: userSafeConsoleReply(result.answer),
         runId: run.runId,
         ...(fileReferences.length ? { fileReferences } : {}),
         ...(browserHandoff ? { browserHandoff } : {}),

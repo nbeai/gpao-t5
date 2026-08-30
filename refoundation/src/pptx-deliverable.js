@@ -1,9 +1,9 @@
-import { randomUUID } from 'node:crypto';
 import { chmod, lstat, readFile, realpath, rename, rm } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
 
 import PptxGenJS from '@lofcz/pptxgenjs';
 import { strFromU8, unzipSync } from 'fflate';
+import { documentPublicationTemporary } from './document-publication-temporary.js';
 
 const MAX_SLIDES = 40; const MAX_TEXT = 20_000; const MAX_SPEC = 1_000_000;
 const FONT = 'Apple SD Gothic Neo';
@@ -128,7 +128,7 @@ export async function createPptxFromSpec({ output, spec, replace = false } = {})
   try { const stat = await lstat(target); if (!replace) throw new Error('output already exists');
     if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('output target is not replaceable');
   } catch (error) { if (error?.code !== 'ENOENT') throw error; }
-  const validated = validate(spec); const temporary = join(dirname(target), `.${randomUUID()}.pptx`);
+  const validated = validate(spec); const temporary = documentPublicationTemporary(target);
   const pptx = new PptxGenJS(); pptx.layout = 'LAYOUT_WIDE'; pptx.author = validated.author;
   pptx.subject = validated.subject; pptx.title = validated.title; pptx.company = 'GPAO-T5';
   pptx.compression = 'best';

@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import {
   chmod, lstat, mkdir, readFile, realpath, rename, unlink, writeFile,
 } from 'node:fs/promises';
@@ -21,6 +21,7 @@ import {
   setFontSize, wrapCellText,
 } from '@office-kit/xlsx/styles';
 import { inspectPptxBytes } from './pptx-deliverable.js';
+import { documentPublicationTemporary } from './document-publication-temporary.js';
 
 const DEFAULT_MAX_BYTES = 64 * 1024 * 1024;
 const DEFAULT_MAX_CELLS = 5_000;
@@ -568,7 +569,7 @@ export async function createWorkbookFromSpec({ output, spec, replace = false } =
   const workbook = createWorkbook();
   applyWorkbookSpec(workbook, spec);
   await mkdir(parent, { recursive: true });
-  const temporary = join(parent, `.${randomUUID()}.xlsx`);
+  const temporary = documentPublicationTemporary(target);
   try {
     await writeFile(temporary, await workbookToBytes(workbook));
     await chmod(temporary, 0o600);

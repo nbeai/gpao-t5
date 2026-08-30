@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { consoleInstructions } from '../src/console-model-factory.js';
 import { resolveConsoleWorkspace, sanitizeTerminalPath } from '../src/console-config.js';
 import { requestContainsExactPath, requestContainsWorkspacePath } from '../src/console-server.js';
+import { EFFECT_SCHEMA } from '../src/exec-tool.js';
 
 test('콘솔의 기본 터미널 범위는 사용자의 홈이며 별도 설정만 명시적으로 덮어쓴다', () => {
   assert.equal(resolveConsoleWorkspace({}, '/Users/example'), '/Users/example');
@@ -115,6 +116,11 @@ test('일반 terminal PATH는 내부 agent-browser binary를 노출하지 않는
   assert.match(safe, /Resources\/runtime\/bin/u); assert.match(safe, /\/usr\/bin/u);
   const instructions = consoleInstructions('/Users/example', {});
   assert.match(instructions, /Never invoke agent-browser.*exec.*internal browser/i);
+});
+
+test('다중 파일 생성은 폴더 한 개가 아니라 모든 exact output file을 effect target으로 선언한다', () => {
+  assert.match(JSON.stringify(EFFECT_SCHEMA.properties.targets), /every final file path/u);
+  assert.match(JSON.stringify(EFFECT_SCHEMA.properties.targets), /never use a directory/u);
 });
 
 test('일반 사용자 콘솔은 검색·URL 읽기를 바로 보이고 화면 조작과 managed process·PTY는 필요할 때만 연다', async () => {

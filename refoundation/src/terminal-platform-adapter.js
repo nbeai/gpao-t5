@@ -138,6 +138,8 @@ export async function makeTerminalPlatformAdapter({
           ? await localChangeProfile(canonicalWorkspace, lexicalWorkspace, launch, scratch)
           : profile(canonicalRoots, executableNames), launch.program, ...launch.args],
         ...(confinedLocalChange ? { env: { ...launch.env, TMPDIR: scratch, TMP: scratch, TEMP: scratch,
+          T5_DOCUMENT_CONFINED: '1',
+          ZIPOPT: `-b ${scratch}`,
           TMPPREFIX: join(scratch, 'zsh') }, cleanup: () => rm(temporary, { recursive: true, force: true }) } : {}),
         confinement: {
           kind: confinedLocalChange ? 'macos_managed_local_change' : 'macos_seatbelt', qualified: true,

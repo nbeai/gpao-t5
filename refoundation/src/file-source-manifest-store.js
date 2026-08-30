@@ -64,6 +64,9 @@ export class FileSourceManifestStore {
   async verifyOutput({ sessionId, manifestId, outputPath } = {}) {
     const manifest = await this.read(manifestId); if (manifest.sessionId !== safeId(sessionId, 'session')) throw new Error('source manifest owner mismatch');
     if (!manifest.standardization) return { state: 'not_applicable' };
+    if (!['.csv', '.tsv'].includes(extname(outputPath).toLowerCase())) return {
+      state: 'not_applicable', reason: 'output_is_not_tabular_text',
+    };
     const parse = async (path) => {
       const stat = await lstat(path); if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 16 * 1024 * 1024) throw new Error('tabular reconciliation input is too large');
       const bytes = await readFile(path); const detected = detectTextDocument(bytes, path); if (!detected) throw new Error('tabular reconciliation encoding is unsupported');

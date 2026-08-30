@@ -218,10 +218,8 @@ test('모델이 만든 workspace 결과는 attachment register 뒤 surface 다�
     assert.match(human.title, /새 결과 파일/u);
     assert.match(human.verification, /다시 확인/u);
     assert.doesNotMatch(JSON.stringify(human), /attachmentId|runId|sha256|\/workspace|[a-f0-9]{64}/u);
-    const forensic = restored.transcript[1].result.humanEffects[0];
-    assert.match(forensic.title, /변화를 확인/u);
-    assert.match(forensic.rollback, /실행하지 않았/u);
-    assert.doesNotMatch(JSON.stringify(forensic), /result\.txt|\/workspace|runId|toolCallId|[a-f0-9]{64}/u);
+    assert.equal(restored.transcript[1].result.humanEffects, undefined,
+      'Artifact의 출처·검증·전달 영수증이 같은 파일 변경 영수증을 대신한다');
   } finally { await app.close(); }
 });
 

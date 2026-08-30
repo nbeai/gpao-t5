@@ -1,10 +1,11 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute } from 'node:path';
 
 import { strToU8, zipSync } from 'fflate';
 
 import { inspectQualifiedDocument } from './qualified-document-parser.js';
+import { documentPublicationTemporary } from './document-publication-temporary.js';
 
 const MAX_SPEC_CHARS = 500_000;
 const MAX_PARAGRAPHS = 500;
@@ -90,7 +91,8 @@ export async function createDocxFromSpec({ output, spec, replace = false } = {})
   try { existing = await lstat(output); } catch (error) { if (error?.code !== 'ENOENT') throw error; }
   if (existing && !replace) throw new Error('output already exists; explicit replace is required');
   if (existing?.isSymbolicLink() || (existing && !existing.isFile())) throw new Error('output must be a regular file');
-  const bytes = docxBytes(validated); await mkdir(dirname(output), { recursive: true }); const temporary = `${output}.${randomUUID()}.tmp`;
+  const bytes = docxBytes(validated); await mkdir(dirname(output), { recursive: true });
+  const temporary = documentPublicationTemporary(output);
   try { await writeFile(temporary, bytes, { mode: 0o600 }); await rename(temporary, output); }
   finally { await rm(temporary, { force: true }); }
   const written = await readFile(output);

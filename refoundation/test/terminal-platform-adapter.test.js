@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -40,6 +40,8 @@ test('macOS local_change profile은 managed target만 쓰고 sibling write를 �
     assert.equal(await readFile(target, 'utf8'), 'target');
     await assert.rejects(readFile(outside, 'utf8'), { code: 'ENOENT' });
     assert.equal(launch.confinement.targetWriteConfined, true);
+    assert.equal(launch.env.T5_DOCUMENT_CONFINED, '1');
+    assert.match(launch.env.ZIPOPT, /^-b \/.*scratch$/u);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 
@@ -58,6 +60,24 @@ test('macOS local_change는 declared file의 없는 부모와 heredoc temp만 �
       const [code] = await new Promise((resolve) => child.once('close', (...args) => resolve(args)));
       assert.notEqual(code, 0); assert.equal(await readFile(target, 'utf8'), 'ok\n');
       await assert.rejects(readFile(sibling, 'utf8'), { code: 'ENOENT' });
+    } finally { await launch.cleanup(); }
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('macOS local_change에서 ZIP 내부 임시는 Runtime scratch를 쓰고 최종 ZIP만 남긴다', async (context) => {
+  if (process.platform !== 'darwin') return context.skip('macOS Seatbelt qualification');
+  const room = await mkdtemp(join(tmpdir(), 't5-platform-zip-'));
+  try {
+    await writeFile(join(room, 'input.txt'), 'ok'); const target = join(room, 'result.zip');
+    const adapter = await makeTerminalPlatformAdapter({ platform: 'darwin', managedWorkspace: room });
+    const launch = await adapter.prepare({ program: '/bin/zsh', cwd: room, env: process.env,
+      args: ['-lc', '/usr/bin/zip -q result.zip input.txt'],
+      declaredEffect: { kind: 'local_change', targets: [target] } });
+    try {
+      const { spawn } = await import('node:child_process');
+      const child = spawn(launch.program, launch.args, { cwd: room, env: launch.env, stdio: ['ignore', 'pipe', 'pipe'] });
+      const [code] = await new Promise((resolve) => child.once('close', (...args) => resolve(args)));
+      assert.equal(code, 0); assert.ok((await readFile(target)).length > 0);
     } finally { await launch.cleanup(); }
   } finally { await rm(room, { recursive: true, force: true }); }
 });
