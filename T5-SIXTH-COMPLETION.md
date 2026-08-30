@@ -1,9 +1,9 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
+상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
-현재 Gate: `S6-B · QUARANTINE, QUALIFICATION & LIFECYCLE`
-현재 작업: `S6_B_DECLARATIVE_OBSERVE_ENGINE_QUALIFIED · PRODUCT_ACTIVATION_PENDING`
+현재 Gate: `S6-C · NATURAL ACQUISITION & EXACT WORK RESUME`
+현재 작업: `S6_C_BASELINE · EXISTING_HANDOFF_REUSE_FIRST`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -789,7 +789,7 @@ actual 근거: `refoundation/evidence/s6-a-capability-reality-product-2026-08-30
 
 ### S6-B — Quarantine, Qualification & Lifecycle
 
-현재 상태: `OPEN · DECLARATIVE_OBSERVE_QUALIFIED_PRODUCT_ENTRY_0`
+현재 상태: `COMPLETE_EXISTING_PRODUCT_TYPES · DECLARATIVE_OBSERVE_ENGINE_QUALIFIED · UNSOURCED_PRODUCT_ACTIVATION_0`
 
 읽기 전용 baseline에서 기존 기반 39/39를 재자격했다.
 
@@ -829,6 +829,15 @@ readback을 추가했다.
 자연어 activation은 0이다.
 
 근거: `refoundation/evidence/s6-b-declarative-observe-qualification-2026-08-30.json`.
+
+S6-B 완료 범위는 실제 product-supported Agent Skill·managed CLI·Remote MCP와 qualification-only declarative
+observer engine이다. arbitrary executable extension과 Core in-process Plugin은 열지 않았고, 법적·credential·source
+경계가 닫히지 않은 외부 package를 제품에 활성화하지 않았다. 이 범위에서 source·generation·격리·task
+qualification·inactive install·activation·update·rollback·archive/remove 계약이 성립하므로 S6-B를 닫는다.
+
+focused 46/46과 전체 제품 통합 201/203·실패 0·Windows 물리 자격 2 skip·mutation 2/2를 통과했다.
+
+완료 근거: `refoundation/evidence/s6-b-closeout-2026-08-30.json`.
 
 새 package engine을 만들지 않고 기존 source identity·managed store·Capability lifecycle·Effect·rollback을 확장한다.
 
@@ -878,6 +887,8 @@ scanner·별점·download 수·공식 catalog 존재는 단독 합격이 아니�
 ---
 
 ### S6-C — Natural Acquisition & Exact Work Resume
+
+현재 상태: `OPEN · READ_ONLY_BASELINE_FIRST · PRODUCT_CANDIDATE_0`
 
 사용자는 Skill·CLI·MCP·Plugin을 말하지 않는다. 자연어 목적에서 현재 capability gap이 실제로 확인될 때만 S6-B를
 사용한다.

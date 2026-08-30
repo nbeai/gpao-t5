@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_B_QUARANTINE_QUALIFICATION_AND_LIFECYCLE",
+  "status": "COMPLETE_EXISTING_PRODUCT_TYPES_DECLARATIVE_ENGINE_QUALIFIED",
+  "baseCommit": "656cd5aa",
+  "productSupportedTypes": {
+    "agentSkill": "qualified",
+    "managedCli": "qualified",
+    "remoteMcp": "qualified"
+  },
+  "qualifiedNotProductActivated": {
+    "declarativeObserveEngine": true,
+    "separateProcess": true,
+    "activeGenerationExactReopen": true,
+    "observeOnly": true
+  },
+  "lifecycle": [
+    "source_resolved",
+    "structurally_checked",
+    "task_qualified",
+    "installed_inactive",
+    "active",
+    "updated",
+    "rolled_back",
+    "archived_or_removed"
+  ],
+  "verification": {
+    "existingLifecycleFocusedPassed": 39,
+    "declarativeFocusedPassed": 7,
+    "focusedFailed": 0,
+    "externalWrites": 0,
+    "fullCI": { "integrationPassed": 201, "integrationSkipped": 2, "integrationFailed": 0 },
+    "mutation": { "passed": 2, "failed": 0 }
+  },
+  "deferredNotClaimed": [
+    "arbitrary executable extension product activation",
+    "Core in-process Plugin",
+    "Open-Meteo commercial product use without a paid licence",
+    "KMA API use without a user authKey",
+    "provider-native web source identity on current gpt-5.6-terra"
+  ],
+  "carryToS6C": "natural Work resume using already qualified product-supported capability types"
+}
