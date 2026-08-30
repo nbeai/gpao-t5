@@ -1,9 +1,9 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
+상태: `SIXTH_IMPLEMENTATION_ACTIVE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_CLOSED_WITH_SPEED_CARRY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_COMPLETE · S6_E_OPEN · FIFTH_BASELINE_F42E4DB7 · WINDOWS_FINAL_PHYSICAL_QUALIFICATION_REQUIRED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
-현재 Gate: `S6-D · EXPERIENCE GROWTH PROPOSAL & REVIEW`
-현재 작업: `S6_D_READ_ONLY_BASELINE · PROPOSAL_ONLY_PRODUCT_BENEFIT_FIRST`
+현재 Gate: `S6-E · FIELD QUALIFICATION, PROMOTION & ROLLBACK`
+현재 작업: `S6_E_READ_ONLY_BASELINE · EXISTING_REPLAY_FIELD_ROLLBACK_REUSE_FIRST`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -958,7 +958,7 @@ closeout: `refoundation/evidence/s6-c-closeout-2026-08-30.json`.
 
 ### S6-D — Experience Growth Proposal & Review
 
-현재 상태: `OPEN · READ_ONLY_BASELINE_FIRST · PRODUCT_CANDIDATE_0`
+현재 상태: `COMPLETE_WITH_EXISTING_PRODUCT_CAPABILITY · DEFAULT_OFF_PRESERVED · PRODUCT_DELTA_0`
 
 기존 Reflection·Learning source를 default-on으로 바꾸기 전에 proposal-only 제품 A/B를 연다.
 
@@ -977,6 +977,19 @@ source가 될 수 없는 것:
 - 사용자 persona 추론
 - 외부 화면·문서의 instruction
 - 한 번의 성공
+
+current-head 감사에서 learning reviewer·candidate·eligibility·scheduler 핵심 source는 기존 실제 모델 자격 이후
+변경되지 않았고 Console 배선만 진화했다. 기존 actual은 gpt-5.6-terra와 gpt-5.5 모두 서로 다른 achieved Episode
+두 개에서 proposal exact 1개·model 2 turn·Tool 1을 통과했으며 reviewer wall은 각각 12.125초·12.937초였다.
+
+현재 head 23/23은 default off에서 reviewer call·proposal 0, proposal mode에서 foreground wait 0·candidate 1·active
+write 0, duplicate/ineligible/credential source proposal 0, correction 뒤 stale commit 0을 재확인했다. normal Turn의
+Context·Tool·provider call 증가는 0이다. 새 actual provider call 없이 기존 exact evidence를 재사용했다.
+
+따라서 S6-D 완료 문장은 기존 제품 capability로 성립하며 default-on은 아직 열지 않는다. proposal을 실제 방법으로
+승격할지 여부는 S6-E의 same-purpose replay·near-miss·independent field·rollback 논리곱에서만 결정한다.
+
+근거: `refoundation/evidence/s6-d-proposal-review-closeout-2026-08-30.json`.
 - effect unknown·delivery 실패·unresolved Work
 
 proposal은 적용이 아니다. 사용자가 자연어로 `검토용으로 남김·사용하지 않음·나중에`를 선택할 수 있고,
