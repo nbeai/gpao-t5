@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_NG5_DR0_MIXED_DOCUMENT_ACTUAL_BASELINE",
+  "status": "CLOSED_WITH_MODEL_SCOPE_AND_METHOD_COST_OBSERVATION",
+  "recordedOn": "2026-08-31",
+  "sourceBaseline": "91cedbbf",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "oracleProjectedToModel": 0,
+  "productImplementationAdopted": 0,
+  "fixtureQualification": {
+    "purposes": 3,
+    "files": 12,
+    "formats": {
+      "pdf": 5,
+      "xlsx": 3,
+      "png": 4
+    },
+    "focusedTests": {
+      "passed": 5,
+      "failed": 0
+    },
+    "visualInspection": {
+      "xlsx": 3,
+      "pdf": 5,
+      "png": 4,
+      "layoutFailures": 0
+    },
+    "productReopen": {
+      "pdfAllPages": true,
+      "pdfExactPageReopen": true,
+      "xlsxExactSheetRowCell": true,
+      "imageDimensions": true
+    },
+    "imageOcr": {
+      "state": "available",
+      "engine": "macos-vision-local",
+      "helperSha256": "ff63606cf76de84a2db7d4b23f2a5e4e969d567f137c393dd8c5b3cdf220ab12"
+    }
+  },
+  "discardedRun": {
+    "scenario": "purchase_reconciliation",
+    "reason": "fixture control rows lacked an explicit outside-packet scope marker, so treating their absent companion documents as missing was a valid interpretation",
+    "productFailureClaimed": false,
+    "fixtureCorrection": "Receiving!H4:H5 now states Control row — outside this packet; do not reconcile",
+    "retested": true
+  },
+  "actualResults": [
+    {
+      "id": "purchase_reconciliation",
+      "classification": "PASS",
+      "purposeAccuracy": true,
+      "strictRequestedScope": true,
+      "sourceTrace": true,
+      "sourceUnchanged": true,
+      "facts": [
+        "ordered 120 vs accepted 118",
+        "shortage 2",
+        "invoice and statement KRW 3,000,000 vs accepted-value KRW 2,950,000",
+        "variance KRW 50,000"
+      ],
+      "performance": {
+        "wallMs": 60481.174,
+        "modelCalls": 9,
+        "toolCalls": 11,
+        "failedAttachmentCalls": 4,
+        "requestBytes": 724284,
+        "inputTokens": 148594,
+        "outputTokens": 2190,
+        "cachedInputTokens": 96768
+      }
+    },
+    {
+      "id": "contract_revision",
+      "classification": "PARTIAL_SCOPE",
+      "purposeAccuracy": true,
+      "strictRequestedScope": false,
+      "sourceTrace": true,
+      "sourceUnchanged": true,
+      "evaluatorCorrection": "initial automated result was false because aliases accepted 공급자 but not 제공자 and filenames but not the explicit 1판·2판·책임표·서명 이미지 labels",
+      "facts": [
+        "fee KRW 4,500,000 to KRW 5,100,000, increase KRW 600,000",
+        "end date 2026-12-31 to 2027-02-28",
+        "weekly to monthly backup while matrix remains v1 Not updated",
+        "provider signed in v1 but blank in v2 and signature image"
+      ],
+      "scopeFailure": "also listed the unchanged matching customer signature although the user asked only for changed or inconsistent items",
+      "performance": {
+        "wallMs": 64153.004,
+        "modelCalls": 12,
+        "toolCalls": 14,
+        "requestBytes": 1131755,
+        "inputTokens": 212662,
+        "outputTokens": 1886,
+        "cachedInputTokens": 87040
+      }
+    },
+    {
+      "id": "expense_evidence",
+      "classification": "PARTIAL_SCOPE",
+      "purposeAccuracy": true,
+      "strictRequestedScope": false,
+      "sourceTrace": true,
+      "sourceUnchanged": true,
+      "facts": [
+        "C-101 duplicate receipt identity R-101-A at KRW 18,700",
+        "C-102 ledger KRW 42,000 vs tax invoice KRW 41,000, variance KRW 1,000",
+        "C-103 missing receipt at KRW 15,500"
+      ],
+      "scopeFailure": "included C-104 as missing even though its exact ledger note says Excluded control row, then weakened it with a caveat instead of excluding it",
+      "performance": {
+        "wallMs": 85000.093,
+        "modelCalls": 12,
+        "toolCalls": 18,
+        "failedAttachmentCalls": 8,
+        "requestBytes": 1066363,
+        "inputTokens": 215680,
+        "outputTokens": 2904,
+        "cachedInputTokens": 145408
+      }
+    }
+  ],
+  "causeClassification": {
+    "perception": "QUALIFIED_FOR_CURRENT_DIGITAL_AND_IMAGE_FIXTURES",
+    "selection": "QUALIFIED_WITH_REDUNDANT_PATHS",
+    "relation": "QUALIFIED_FOR_CORE_FACTS",
+    "reconciliation": "QUALIFIED_FOR_CORE_FACTS",
+    "claimToSource": "QUALIFIED_FOR_CURRENT_FIXTURES",
+    "strictResultScope": "NOT_UNIVERSALLY_PROVEN",
+    "methodCost": "FAIL",
+    "repeatedScopeFamily": "model retained normal or explicitly excluded comparison facts in two of three final answers despite sufficient source facts",
+    "repeatedMethodFamily": "pre-existing workspace documents triggered repeated failed attachment calls before later exec, tool_search and file_reality recovery"
+  },
+  "candidate": {
+    "name": "attachment pre-existing-source negative guidance",
+    "kind": "single factual tool-description sentence",
+    "samePurpose": "purchase_reconciliation",
+    "result": "REJECTED_AND_REVERTED",
+    "baseline": {
+      "wallMs": 60481.174,
+      "modelCalls": 9,
+      "toolCalls": 11,
+      "failedAttachmentCalls": 4,
+      "requestBytes": 724284,
+      "inputTokens": 148594
+    },
+    "candidateResult": {
+      "wallMs": 67778.114,
+      "modelCalls": 11,
+      "toolCalls": 19,
+      "failedAttachmentCalls": 8,
+      "requestBytes": 966311,
+      "inputTokens": 199516
+    },
+    "accuracyRegression": false,
+    "userBenefit": false,
+    "finalProductSourceDelta": 0,
+    "stopLine": "do not add a second wording patch or global prompt; any later reopening requires exact receipt-level structural evidence"
+  },
+  "gateDecision": {
+    "newDocumentPlatform": false,
+    "newDocumentStore": false,
+    "newClaimDatabase": false,
+    "industryRouter": false,
+    "outputPostProcessor": false,
+    "globalPrompt": false,
+    "externalDocumentAi": false,
+    "next": "Keep current mixed-document capability and carry strict scope to model/provider qualification and method cost to a later receipt-grounded performance slice. Do not open NG5B-F implementation from this baseline."
+  }
+}

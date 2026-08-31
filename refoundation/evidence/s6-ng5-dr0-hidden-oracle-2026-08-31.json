@@ -1,0 +1,211 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_NG5_DR0_MIXED_DOCUMENT_HIDDEN_ORACLE",
+  "recordedOn": "2026-08-31",
+  "synthetic": true,
+  "actualUserData": false,
+  "externalWrites": 0,
+  "purpose": "Separate perception, selection, relation, reconciliation, evidence projection and method cost before any product implementation is opened.",
+  "corpus": {
+    "files": 12,
+    "formats": {
+      "pdf": 5,
+      "xlsx": 3,
+      "png": 4
+    },
+    "identifyingData": "synthetic organization, person and account names only",
+    "allowedScope": "one scenario directory at a time",
+    "oracleVisibility": "qualification evaluator only; never copied into the model workspace or prompt"
+  },
+  "scenarios": [
+    {
+      "id": "purchase_reconciliation",
+      "userPrompt": "이 폴더의 발주·입고·세금계산서·거래명세를 서로 맞춰 보고, 실제로 확인된 누락이나 금액 차이만 근거 위치와 함께 알려줘.",
+      "sources": [
+        {
+          "path": "purchase/purchase-order-PO-2026-104.pdf",
+          "sha256": "dc6aced168988a97564dc8a6bfc348d04d84be54de22dcc5bd158809918d799b",
+          "role": "purchase_order"
+        },
+        {
+          "path": "purchase/receiving-ledger.xlsx",
+          "sha256": "b4831fe9ecb0a403a4757df5ab6e583f167d463e801ef8a092da5b449aea4520",
+          "role": "receiving_ledger"
+        },
+        {
+          "path": "purchase/tax-invoice-IV-991.png",
+          "sha256": "bf72df1836568366c7633d7af211b96da45ea6989bff933082b004fc49aef22e",
+          "role": "tax_invoice_image"
+        },
+        {
+          "path": "purchase/supplier-statement-august.pdf",
+          "sha256": "f1eb0b79e16d67713f510179765005bba0fbcc09e21fb0dbae37496724397343",
+          "role": "supplier_statement"
+        }
+      ],
+      "requiredClaims": [
+        {
+          "id": "purchase_shortage",
+          "claim": "PO-2026-104 item X-12 has a confirmed shortage of 2 units: ordered 120, accepted 118.",
+          "evidence": [
+            "purchase-order-PO-2026-104.pdf page 1: item X-12 quantity 120",
+            "receiving-ledger.xlsx / Receiving!B3,D3,E3,F3,H3: PO-2026-104, X-12, 120, 118, Two units not delivered"
+          ]
+        },
+        {
+          "id": "purchase_amount_variance",
+          "claim": "Invoice and statement ask KRW 3,000,000 while accepted quantity at KRW 25,000 supports KRW 2,950,000, a KRW 50,000 excess over accepted quantity.",
+          "evidence": [
+            "purchase-order-PO-2026-104.pdf page 1: unit price KRW 25,000 and payment based on accepted quantity",
+            "receiving-ledger.xlsx / Receiving!F3,G3: accepted 118 at KRW 25,000",
+            "tax-invoice-IV-991.png visual text: IV-991, quantity 120, KRW 3,000,000",
+            "supplier-statement-august.pdf page 1: IV-991 open balance KRW 3,000,000"
+          ]
+        }
+      ],
+      "requiredUnknowns": [],
+      "forbiddenConclusions": [
+        "claim that the invoice is fraudulent",
+        "claim that payment was sent or blocked",
+        "include complete control rows PO-2026-105 or PO-2026-106 as discrepancies"
+      ]
+    },
+    {
+      "id": "contract_revision",
+      "userPrompt": "계약서 1판과 2판, 책임표와 서명 이미지를 대조해서 금액·기간·책임·서명에서 달라졌거나 서로 안 맞는 것만 원문 근거와 함께 알려줘.",
+      "sources": [
+        {
+          "path": "contract/contract-v1.pdf",
+          "sha256": "c5a32077e4e5e009cdac1ab44727835e575e9f5abeae396b2bd6b48d70adc98b",
+          "role": "contract_v1"
+        },
+        {
+          "path": "contract/contract-v2.pdf",
+          "sha256": "fb6f758cb02716dbbba89d92680031cc7649ac6162886280becf04116d5dbed9",
+          "role": "contract_v2"
+        },
+        {
+          "path": "contract/responsibility-matrix.xlsx",
+          "sha256": "84ad35fb010d2e086f00ac3f79120999ea67a98a03bfa1cecd037403c056fbff",
+          "role": "revision_control"
+        },
+        {
+          "path": "contract/signature-page-v2.png",
+          "sha256": "6bded1a29a90eefb72ae9f73528e7880110e1e67c1a223cc4979c01c8275bb09",
+          "role": "signature_image"
+        }
+      ],
+      "requiredClaims": [
+        {
+          "id": "contract_fee_change",
+          "claim": "The total fee increased from KRW 4,500,000 to KRW 5,100,000, a KRW 600,000 increase.",
+          "evidence": [
+            "contract-v1.pdf page 1 section 2",
+            "contract-v2.pdf page 1 section 2"
+          ]
+        },
+        {
+          "id": "contract_period_change",
+          "claim": "The start remains 2026-10-01 and the end moves from 2026-12-31 to 2027-02-28.",
+          "evidence": [
+            "contract-v1.pdf page 1 section 1",
+            "contract-v2.pdf page 1 section 1",
+            "responsibility-matrix.xlsx / Revision Control!A4:F4"
+          ]
+        },
+        {
+          "id": "contract_responsibility_conflict",
+          "claim": "The contract changes provider backup cadence from weekly to monthly, but the revision matrix still carries v1 weekly backup and marks it Not updated.",
+          "evidence": [
+            "contract-v1.pdf page 1 section 3",
+            "contract-v2.pdf page 1 section 3",
+            "responsibility-matrix.xlsx / Revision Control!A5:F5"
+          ]
+        },
+        {
+          "id": "contract_signature_missing",
+          "claim": "Version 2 requires both signatures but the provider signature is blank/pending.",
+          "evidence": [
+            "contract-v2.pdf page 1 section 4",
+            "responsibility-matrix.xlsx / Revision Control!A6:F6",
+            "signature-page-v2.png visual text: Provider [blank] and both signatures required"
+          ]
+        }
+      ],
+      "requiredUnknowns": [],
+      "forbiddenConclusions": [
+        "decide whether the contract is legally enforceable",
+        "invent a reason for the fee or period change",
+        "claim the provider signed"
+      ]
+    },
+    {
+      "id": "expense_evidence",
+      "userPrompt": "카드 내역과 영수증·세금계산서를 맞춰서 증빙 누락, 금액 불일치, 중복 증빙만 거래 ID와 원문 근거로 알려줘. 정상 건은 나열하지 마.",
+      "sources": [
+        {
+          "path": "expense/card-ledger.xlsx",
+          "sha256": "ebe8c96afa944ebc78541cfba5b910d91b72ea2dfcc4cc27ba2421437c4312d3",
+          "role": "card_ledger"
+        },
+        {
+          "path": "expense/receipt-C101.png",
+          "sha256": "a0f06bdcfff8816dedd9226c2aaf36afb32d460fb21cafaa5bb397bef90e5cc5",
+          "role": "receipt_original"
+        },
+        {
+          "path": "expense/receipt-C101-copy.png",
+          "sha256": "f8adf65eac6e8c3e09290b589351883b28b3cb08316616fd24b431b59d6cf03c",
+          "role": "receipt_semantic_duplicate"
+        },
+        {
+          "path": "expense/tax-invoice-C102.pdf",
+          "sha256": "50bdf7dd09a99b1b603342f4f1e78981a8310998f3caa862964adb0b168005ed",
+          "role": "tax_invoice"
+        }
+      ],
+      "requiredClaims": [
+        {
+          "id": "expense_duplicate",
+          "claim": "C-101 has two image files carrying the same receipt ID R-101-A and amount KRW 18,700; this is duplicate evidence, not two expenses.",
+          "evidence": [
+            "card-ledger.xlsx / Card Ledger!A3:G3",
+            "receipt-C101.png visual text",
+            "receipt-C101-copy.png visual text"
+          ]
+        },
+        {
+          "id": "expense_amount_mismatch",
+          "claim": "C-102 is KRW 42,000 in the card ledger and KRW 41,000 on tax invoice TI-C102, a KRW 1,000 mismatch.",
+          "evidence": [
+            "card-ledger.xlsx / Card Ledger!A4:G4",
+            "tax-invoice-C102.pdf page 1"
+          ]
+        },
+        {
+          "id": "expense_missing",
+          "claim": "C-103 for KRW 15,500 requires a receipt but no C-103 evidence exists in the bounded packet.",
+          "evidence": [
+            "card-ledger.xlsx / Card Ledger!A5:G5",
+            "complete bounded packet manifest contains no C-103 evidence file"
+          ]
+        }
+      ],
+      "requiredUnknowns": [],
+      "forbiddenConclusions": [
+        "include C-101 as an amount mismatch",
+        "include control row C-104 as a missing-evidence discrepancy",
+        "invent the missing C-103 merchant evidence content"
+      ]
+    }
+  ],
+  "passContract": {
+    "allRequiredClaims": true,
+    "allClaimsTraceableToExactSourceLocations": true,
+    "forbiddenConclusions": 0,
+    "sourceMutation": 0,
+    "externalEffect": 0,
+    "oracleProjectedToModel": 0,
+    "methodCostRecorded": true
+  }
+}

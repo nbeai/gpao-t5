@@ -2953,7 +2953,7 @@ preflight·post-observation·projected result bytes는 unknown으로 남긴다.
 
 #### S6-NG — Non-GUI Android Integration
 
-현재 상태: `NG0/1_ABSORBED_COMPLETE · NG2_SAFE_SLICE_CLOSED · NG3A_CLOSED_WITH_MODEL_OBSERVATION · NG5_DR0_BASELINE_COMPLETE_NO_IMPLEMENTATION · NG4/6_NOT_OPENED`
+현재 상태: `NG0/1_ABSORBED_COMPLETE · NG2_SAFE_SLICE_CLOSED · NG3A_CLOSED_WITH_MODEL_OBSERVATION · NG5_DR0_CLOSED_WITH_SCOPE_AND_METHOD_COST_OBSERVATION · NG4/6_NOT_OPENED`
 
 연구실 current corpus는 `INDEX·README`를 포함한 Markdown 10개·5,377줄이다. 인계문에 기록된 9개·4,528줄보다
 뒤에 추가된 현재 filesystem 자료가 있으므로 이를 숨기지 않고 전부 읽었다.
@@ -3014,10 +3014,47 @@ preflight·post-observation·projected result bytes는 unknown으로 남긴다.
 > model judgment 관측을 남긴 채 실패 Lens를 폐기했으며, NG-5 DR-0은 현재 강점과 mixed packet·ClaimEvidence
 > 비주장을 분리했다. Method Runtime·Auditory 구현·Computer Use·새 Document Store는 동시에 열지 않았다.
 
-다음 안전 작업은 제품 변경 없는 DR-0 비식별 mixed packet·hidden oracle 준비다. Auditory AU-0는 별도 오너 Gate와
-platform lifecycle에서 독립적으로 시작한다.
+이 시점의 다음 안전 작업은 제품 변경 없는 DR-0 비식별 mixed packet·hidden oracle 준비였으며, 아래 actual에서
+수행했다. Auditory AU-0는 이 결과와 섞지 않고 별도 platform lifecycle로 시작한다.
 
 근거: `refoundation/evidence/s6-ng-safe-integration-closeout-2026-08-31.json`.
+
+2026-08-31 NG-5 DR-0 mixed packet actual 결과:
+
+- 비식별 구매·계약·비용 세 목적에 PDF 5·XLSX 3·PNG 4의 bounded corpus와 모델에게 투영하지 않는 hidden oracle을
+  고정했다. PDF 전 page·exact page reopen, XLSX exact sheet·row·cell, 이미지 크기와 사람이 읽는 visual을 다시
+  확인했고 fixture 집중 검사는 5/5다.
+- 최초 구매 실행은 대조 행의 제외 범위가 fixture에 명시되지 않아 폐기했다. `Receiving!H4:H5`에 packet 밖 control
+  행임을 명시한 뒤 같은 제품을 재시험했고, 120→118의 2개 부족과 3,000,000→2,950,000의 50,000원 차이 및 exact
+  source 위치를 정확히 제시하며 PASS했다.
+- 계약은 4,500,000→5,100,000, 종료일 연장, weekly→monthly와 stale 책임표, provider 서명 공란을 모두 맞췄다.
+  다만 사용자가 차이만 요청했는데 정상인 고객 서명 일치까지 덧붙여 `PARTIAL_SCOPE`다.
+- 비용은 C-101 중복, C-102 1,000원 차이, C-103 증빙 누락을 모두 맞췄지만 `Excluded control row`인 C-104도 누락으로
+  넣고 단서만 붙여 `PARTIAL_SCOPE`다. 원본 mutation·외부 effect는 세 목적 모두 0이다.
+- perception·관계·핵심 reconciliation·현재 fixture의 claim source는 성립했다. 반복 미달은 충분한 사실이 있어도
+  정상·제외 항목을 최종 답에 남기는 model result-scope와, pre-existing source에 attachment를 반복 실패한 뒤
+  exec·tool_search·file_reality로 회복하는 method cost다.
+- 구매 corrected baseline은 60.481초·model 9·Tool 11·148,594 input tokens였고, 계약은 64.153초·12·14·212,662,
+  비용은 85.000초·12·18·215,680이었다. 정확성은 높지만 쾌적한 경로라고 주장하지 않는다.
+- `attachment`에 pre-existing source 경계 한 문장을 추가한 후보는 같은 구매 목적을 맞췄지만 67.778초·model 11·
+  Tool 19·199,516 input tokens로 악화되고 failed attachment가 4→8로 늘어 즉시 revert했다.
+- 새 Document platform·Store·Claim DB·업무 Router·답 후처리·전역 Prompt·외부 Document AI는 0이다. 같은 가족의
+  두 번째 문구 patch는 열지 않는다. strict scope는 model/provider 품질 관측으로, method cost는 exact receipt 구조
+  증거가 생기는 후속 성능 slice로 이월한다.
+
+정확한 DR-0 상태:
+
+```yaml
+NG5_DR0:
+  status: CLOSED_WITH_MODEL_SCOPE_AND_METHOD_COST_OBSERVATION
+  mixed_packet_core_accuracy: QUALIFIED
+  strict_result_scope: NOT_UNIVERSALLY_PROVEN
+  method_cost: FAIL
+  product_implementation_adopted: 0
+```
+
+근거: `refoundation/evidence/s6-ng5-dr0-hidden-oracle-2026-08-31.json`,
+`refoundation/evidence/s6-ng5-dr0-actual-baseline-2026-08-31.json`.
 
 ---
 
