@@ -10,7 +10,7 @@ import { discoverComputerEnvironment } from '../src/computer-environment.js';
 import { makeLocalImageOcr } from '../src/local-image-ocr.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 import {
-  buildNx1ScenarioReality, evaluateNx1Answer, makeNx1HumanClosureTool, makeNx1IntegralTool,
+  buildNx1ScenarioReality, evaluateNx1Answer, makeNx1IntegralTool, qualifyNx1DirectHumanAnswer,
   NX1_HUMAN_CLOSURE_INSTRUCTIONS, NX1_REALITY_CLOSURE_INSTRUCTIONS,
   nx1CandidateRuntimeContext, nx1HumanClosureRuntimeContext,
 } from '../test/helpers/nx-integral-flagship-qualification.js';
@@ -130,27 +130,22 @@ async function runCandidate(definition, room) {
       const closureModel = await closureAccess.model({ ...modelInput,
         sessionId: `${modelInput.sessionId}-human-${safeConnection}`,
         instructionsOverride: NX1_HUMAN_CLOSURE_INSTRUCTIONS });
-      const closure = makeNx1HumanClosureTool({ verifiedReality, scenarioId: definition.id });
       const closureStarted = performance.now();
       try {
         const closureResponse = await closureModel.respond({ messages: [{ role: 'user', content: definition.userPrompt }],
-          tools: [toolDefinition(closure.tool)], runtimeContext: nx1HumanClosureRuntimeContext(verifiedReality),
-          toolChoice: { requiredToolName: 'human_closure' } });
+          tools: [], runtimeContext: nx1HumanClosureRuntimeContext(verifiedReality) });
         const closureCalls = Array.isArray(closureResponse.toolCalls) ? closureResponse.toolCalls : [];
-        const closureCall = closureCalls.length === 1 && closureCalls[0].name === 'human_closure' ? closureCalls[0] : null;
-        const closureResult = closureCall ? await closure.tool.execute(closureCall.args) : {
-          state: 'closure_invalid', reason: 'human_closure_call_missing',
-        };
+        const qualification = closureCalls.length === 0
+          ? qualifyNx1DirectHumanAnswer({ scenarioId: definition.id, answer: closureResponse.text })
+          : { passed: false, reason: 'unexpected_human_closure_tool_call' };
         const policy = humanConnectionPolicy.find((item) => item.id === connection.id);
         humanComparisons.push({ connectionId: connection.id, modelId: connection.modelId,
           provider: connection.provider, gating: policy.gating, role: policy.role,
-          passed: closureResult.state === 'verified', state: closureResult.state,
+          passed: qualification.passed, state: qualification.passed ? 'verified' : 'closure_failed',
           wallMs: Number((performance.now() - closureStarted).toFixed(3)),
-          answer: closureResult.state === 'verified' ? closureResult.finalAnswer : null,
-          qualification: closure.qualification(), performance: { modelCalls: 1, toolCalls: 1,
+          answer: qualification.passed ? String(closureResponse.text ?? '').trim() : null,
+          qualification, performance: { modelCalls: 1, toolCalls: 0,
             ...usageFor([closureResponse]) } });
-        if (index === 0) toolPath.push({ name: 'human_closure',
-          outcome: closureCall ? 'succeeded' : 'not_executed', state: closureResult.state });
       } finally { await closureModel.close?.(); }
     }
     const primaryHuman = humanComparisons[0]; const answer = primaryHuman.answer;
@@ -162,7 +157,7 @@ async function runCandidate(definition, room) {
         : { passed: false, reason: 'human_closure_failed' },
       qualification: { reality: integral.qualification(), human: primaryHuman.qualification,
         humanComparisons },
-      performance: { modelCalls: 2, toolCalls: 2,
+      performance: { modelCalls: 2, toolCalls: 1,
         ...usageFor([realityResponse, { usage: {
           input_tokens: primaryHuman.performance.inputTokens,
           output_tokens: primaryHuman.performance.outputTokens,

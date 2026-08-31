@@ -71,11 +71,10 @@ test('NX-1 live runner는 AB·BA와 product-promotion pending을 명시한다', 
   assert.match(source, /--human-connections/u);
   assert.match(source, /NON_GATING_OPTIONAL_OBSERVATION/u);
   assert.match(source, /api_key:upstage:solar-pro4/u);
-  assert.match(source, /buildNx1ScenarioReality, evaluateNx1Answer, makeNx1HumanClosureTool/u);
+  assert.match(source, /buildNx1ScenarioReality, evaluateNx1Answer, makeNx1IntegralTool, qualifyNx1DirectHumanAnswer/u);
   assert.match(source, /requiredToolName: 'integral_method'/u);
-  assert.match(source, /requiredToolName: 'human_closure'/u);
-  assert.match(source, /closureResult\.finalAnswer/u);
-  assert.match(source, /human_closure_failed/u);
+  assert.match(source, /tools: \[\], runtimeContext: nx1HumanClosureRuntimeContext/u);
+  assert.match(source, /unexpected_human_closure_tool_call/u);
   assert.match(source, /instructionsOverride: NX1_REALITY_CLOSURE_INSTRUCTIONS/u);
   assert.match(source, /instructionsOverride: NX1_HUMAN_CLOSURE_INSTRUCTIONS/u);
   assert.doesNotMatch(source, /runAgent/u);
@@ -128,12 +127,12 @@ test('Human Closure는 verified Claim subset과 모델 작성 finalAnswer를 세
     ] } };
   const closure = makeNx1HumanClosureTool({ verifiedReality, scenarioId: 'purchase_reconciliation' });
   const base = { schema: 't5.human-closure.v1', work: { workId: 'work-11111111', revision: 2 },
-    sourceManifestId: 'sources-11111111', selectedClaimIds: ['purchase-gap'],
+    sourceManifestId: 'sources-11111111', selectedOutcomeIds: ['outcome-001'],
     finalAnswer: '발주 120개, 입고 118개로 2개 부족하며 3,000,000원과 2,950,000원의 차이는 50,000원입니다.' };
   const result = await closure.tool.execute(base);
   assert.equal(result.state, 'verified'); assert.equal(result.finalAnswer, base.finalAnswer);
-  const foreign = structuredClone(base); foreign.selectedClaimIds = ['unknown-claim'];
-  assert.equal((await closure.tool.execute(foreign)).reason, 'unknown_or_duplicate_claim');
+  const foreign = structuredClone(base); foreign.selectedOutcomeIds = ['unknown-outcome'];
+  assert.equal((await closure.tool.execute(foreign)).reason, 'unknown_or_duplicate_outcome');
   const missing = structuredClone(base); missing.finalAnswer = '발주 120개와 입고 118개를 확인했습니다.';
   const rejected = await closure.tool.execute(missing);
   assert.equal(rejected.state, 'closure_failed');
@@ -154,13 +153,13 @@ test('Human Closure는 부수 Claim을 선택하지 않을 수 있지만 핵심 
   const closure = makeNx1HumanClosureTool({ verifiedReality, scenarioId: 'purchase_reconciliation' });
   const selected = await closure.tool.execute({ schema: 't5.human-closure.v1',
     work: { workId: 'work-11111111', revision: 1 }, sourceManifestId: 'sources-11111111',
-    selectedClaimIds: ['purchase-gap'],
+    selectedOutcomeIds: ['outcome-001'],
     finalAnswer: '발주 120개, 입고 118개로 2개 부족하며 3,000,000원과 2,950,000원의 차이는 50,000원입니다.' });
   assert.equal(selected.state, 'verified');
-  assert.deepEqual(selected.claimSelection, { selected: 1, available: 2, allAvailableSelected: false });
+  assert.deepEqual(selected.outcomeSelection, { selected: 1, available: 2, allAvailableSelected: false });
   const omitted = await closure.tool.execute({ schema: 't5.human-closure.v1',
     work: { workId: 'work-11111111', revision: 1 }, sourceManifestId: 'sources-11111111',
-    selectedClaimIds: ['supporting-note'], finalAnswer: '부수 확인만 했습니다.' });
+    selectedOutcomeIds: ['outcome-002'], finalAnswer: '부수 확인만 했습니다.' });
   assert.equal(omitted.state, 'closure_failed');
 });
 
@@ -199,12 +198,33 @@ test('Human Closure는 내부 Evidence Atom ID를 사용자 답으로 내보내�
   const closure = makeNx1HumanClosureTool({ verifiedReality, scenarioId: 'purchase_reconciliation' });
   const result = await closure.tool.execute({ schema: 't5.human-closure.v1',
     work: { workId: 'work-11111111', revision: 1 }, sourceManifestId: 'sources-11111111',
-    selectedClaimIds: ['purchase-gap'],
+    selectedOutcomeIds: ['outcome-001'],
     finalAnswer: 'atom-1234567890abcdef1234 기준으로 발주 120개, 입고 118개, 2개 부족이며 3,000,000원과 2,950,000원의 차이는 50,000원입니다.' });
   assert.equal(result.reason, 'final_answer_boundary');
   const alias = await closure.tool.execute({ schema: 't5.human-closure.v1',
     work: { workId: 'work-11111111', revision: 1 }, sourceManifestId: 'sources-11111111',
-    selectedClaimIds: ['purchase-gap'],
+    selectedOutcomeIds: ['outcome-001'],
     finalAnswer: 'atom-0001 기준으로 발주 120개, 입고 118개, 2개 부족이며 차이는 50,000원입니다.' });
   assert.equal(alias.reason, 'final_answer_boundary');
+});
+
+test('Human Closure는 여러 Claim의 동일 결과값을 중복 결론이 아닌 shared evidence 사실로 받는다', async () => {
+  const verifiedReality = { currentWork: { workId: 'work-11111111', revision: 1, status: 'active' },
+    sourceManifestId: 'sources-11111111', excludedFindingCount: 0, candidate: { human: {}, strategy: {}, form: {} },
+    evidenceAtomKinds: {}, sourceDisplayNames: {}, claimEvidence: { claims: [
+      { claimId: 'invoice-gap', state: 'conflict', summary: 'invoice difference', sourceRefs: [], calculation: null,
+        evidenceValues: [{ valueId: 'calc-invoice-basis', label: 'basis', value: 2950000, unit: 'KRW',
+          source: { handle: 'source-1', location: 'calculation:basis' } },
+        { valueId: 'calc-invoice', label: 'difference', value: 50000, unit: 'KRW',
+          source: { handle: 'source-1', location: 'calculation:invoice' } }] },
+      { claimId: 'statement-gap', state: 'conflict', summary: 'statement difference', sourceRefs: [], calculation: null,
+        evidenceValues: [{ valueId: 'calc-statement-basis', label: 'basis', value: 2950000, unit: 'KRW',
+          source: { handle: 'source-2', location: 'calculation:basis' } },
+        { valueId: 'calc-statement', label: 'difference', value: 50000, unit: 'KRW',
+          source: { handle: 'source-2', location: 'calculation:statement' } }] },
+    ] } };
+  const context = (await import('./helpers/nx-integral-flagship-qualification.js'))
+    .nx1HumanClosureRuntimeContext(verifiedReality);
+  assert.match(context, /outcomes=.*corroborated":true.*invoice difference.*statement difference.*2950000.*50000/su);
+  assert.doesNotMatch(context, /source-1|source-2/u);
 });

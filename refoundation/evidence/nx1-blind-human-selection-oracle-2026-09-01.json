@@ -1,0 +1,45 @@
+{
+  "schema": "t5.nx1.blind-human-selection-oracle.v1",
+  "recordedOn": "2026-09-01",
+  "actualUserData": false,
+  "evaluatorSawIdentity": false,
+  "rounds": [
+    {
+      "round": 1,
+      "winner": {
+        "purchase_reconciliation": "current",
+        "contract_revision": "candidate",
+        "expense_evidence": "candidate"
+      }
+    },
+    {
+      "round": 2,
+      "purpose": "purchase_reconciliation",
+      "ownerSelection": "result2",
+      "revealedWinner": "current",
+      "reason": "one missing-delivery cause and one monetary impact were faster to understand than repeated invoice and statement exceptions"
+    },
+    {
+      "round": 3,
+      "purpose": "purchase_reconciliation",
+      "candidateTopology": "corroborated_outcome",
+      "ownerSelection": "result1",
+      "revealedWinner": "current",
+      "reason": "the current answer still expressed the missing quantity and resulting amount as one practical problem more directly"
+    }
+  ],
+  "decision": {
+    "universalReplacement": "REJECTED",
+    "blindHumanOracle": {
+      "purchase_reconciliation": "CURRENT_PATH",
+      "contract_revision": "INTEGRAL_METHOD",
+      "expense_evidence": "INTEGRAL_METHOD"
+    },
+    "productActivation": "OPEN_AS_OPTIONAL_DEFERRED_METHOD",
+    "runtimeBusinessRouter": 0,
+    "fixedClaimThreshold": 0,
+    "modelChoiceRequired": true,
+    "actualConsoleGate": "purchase must preserve the current path while contract and expense select Integral Method"
+  },
+  "stopLine": "Do not patch purchase wording again or force Integral Method across every multi-source Work. Product success is the best-path selection observed in the actual Console."
+}

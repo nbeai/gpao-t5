@@ -947,6 +947,19 @@ AND current correction·Stop·restart·Artifact·Undo 무회귀
 
 근거: `refoundation/evidence/nx1-blind-human-round1-2026-09-01.json`.
 
+2026-09-01 blind 인간 selection oracle:
+
+- 구매 Human Closure의 source identity·간결성 수리와 corroborated outcome 재설계를 각각 blind 재평가했지만 오너는 두 번
+  모두 current 결과를 선택했다. candidate를 구매에 강제하는 것은 인간 품질 회귀이므로 같은 문구 patch를 중단했다.
+- 계약·비용은 candidate, 구매는 current가 blind 인간 승자다. NX의 제품 후보는 Method 단독 대체가 아니라 current path와
+  optional deferred Integral Method를 함께 가진 T5 전체이며, 모델이 현재 목적에서 더 나은 경로를 선택해야 한다.
+- Runtime은 구매·계약·비용 enum, Claim 수 임계값, 결과 score Router를 만들지 않는다. actual Console Gate에서 구매는 current
+  경로를 보존하고 계약·비용은 Method를 실제 선택해야 selective activation이 PASS다.
+- Reality는 기존 Tool로 정확히 닫고 최종 모델은 verified outcomes에서 도구 없이 직접 답하는 topology를 채택한다. 이는
+  모델 2·Tool 1을 유지하고 기존 answer streaming과 모델의 자연스러운 언어 저작권을 되살린다.
+
+근거: `refoundation/evidence/nx1-blind-human-selection-oracle-2026-09-01.json`.
+
 ## NX-2 — Mastery Generalization
 
 NX-1이 이긴 경우에만 공통 Method를 다음으로 확장한다.

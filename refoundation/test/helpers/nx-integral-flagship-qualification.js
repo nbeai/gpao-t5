@@ -27,12 +27,13 @@ export const NX1_REALITY_CLOSURE_INSTRUCTIONS = [
 
 export const NX1_HUMAN_CLOSURE_INSTRUCTIONS = [
   'You are T5 operating one qualification-only Human Closure stage.',
-  'Use only the supplied verified claims. Call human_closure exactly once and write the complete finalAnswer in that same call.',
-  'Select the smallest sufficient subset of verified claims for the requested scope, then write only the material facts needed for the user decision.',
+  'Use only the supplied verified outcomes and write the complete final user answer directly. Do not call a tool.',
+  'Select the smallest sufficient subset of verified outcomes for the requested scope, then write only the material facts needed for the user decision.',
   'Do not mention excluded findings, internal systems, handles, tools, or unavailable file access.',
   'Use the shortest form that preserves the requested facts and evidence; do not repeat the same fact across summary, table, detail, and calculation.',
+  'A corroborated outcome may contain several source claims that share exact derived values; present that outcome once and use its claims as supporting evidence.',
   'Write ordinary units and source descriptions naturally in the user language.',
-  'There is no third model call.',
+  'This is the second and final model call.',
 ].join(' ');
 
 export const NX1_SCENARIO_PATTERNS = Object.freeze({
@@ -239,18 +240,64 @@ export function nx1HumanClosureRuntimeContext(verified) {
     `human=${JSON.stringify(verified.candidate.human)}`,
     `strategy=${JSON.stringify(verified.candidate.strategy)}`,
     `form=${JSON.stringify(verified.candidate.form)}`,
-    `claims=${JSON.stringify(verified.claimEvidence.claims.map((claim) => ({ claimId: claim.claimId,
-      state: claim.state, summary: claim.summary,
-      evidenceValues: humanSelectableEvidenceValues(verified, claim).map((item) => ({
+    `outcomes=${JSON.stringify(buildHumanOutcomes(verified).map((outcome) => ({
+      outcomeId: outcome.outcomeId, corroborated: outcome.claimIds.length > 1,
+      summaries: outcome.summaries, evidenceValues: outcome.evidenceValues.map((item) => ({
         label: item.label, value: item.value, unit: item.unit,
         source: humanSourceReference(verified, item.source) })),
-      calculation: claim.calculation,
-      sources: claim.sourceRefs.map((item) => humanSourceReference(verified, item)) })))}`,
+      sources: outcome.sources.map((item) => humanSourceReference(verified, item)) })))}`,
     `excludedFindingCount=${verified.excludedFindingCount}`,
     '[T5 NX HUMAN CLOSURE CONTRACT]',
-    'Call human_closure exactly once. Select only the verified claims required by the user scope and write the complete finalAnswer in the same tool call.',
-    'Do not mention excluded findings, internal handles, tools, runtime state, or missing file access. There will be no third model call.',
+    'Write the complete final user answer directly from the verified outcomes. Do not call a tool.',
+    'Do not mention excluded findings, internal handles, tools, runtime state, or missing file access. This is the final model call.',
   ].join('\n\n');
+}
+
+export function qualifyNx1DirectHumanAnswer({ scenarioId, answer } = {}) {
+  const value = String(answer ?? '').trim();
+  if (!value || value.length > 12000
+    || /(?:source|sources|work|outcome)-[0-9]|atom-(?:[a-f0-9]{20}|[0-9]{4})/iu.test(value)) {
+    return { passed: false, reason: 'final_answer_boundary', rejectedFinalAnswer: value };
+  }
+  const answerQuality = evaluateNx1Answer(scenarioId, value);
+  return { passed: answerQuality.passed, answerQuality,
+    ...(answerQuality.passed ? {} : { rejectedFinalAnswer: value }) };
+}
+
+function buildHumanOutcomes(verified) {
+  const claims = verified.claimEvidence.claims; const parents = claims.map((_, index) => index);
+  const root = (index) => parents[index] === index ? index : (parents[index] = root(parents[index]));
+  const derived = claims.map((claim) => new Set(claim.evidenceValues
+    .filter((item) => typeof item.value === 'number' && !String(item.valueId).startsWith('atom-'))
+    .map((item) => JSON.stringify([item.value, item.unit]))));
+  for (let left = 0; left < claims.length; left += 1) {
+    for (let right = left + 1; right < claims.length; right += 1) {
+      const shared = [...derived[left]].filter((key) => derived[right].has(key));
+      if (shared.length < 2) continue;
+      const leftRoot = root(left); const rightRoot = root(right);
+      if (leftRoot !== rightRoot) parents[rightRoot] = leftRoot;
+    }
+  }
+  const components = new Map();
+  for (let index = 0; index < claims.length; index += 1) {
+    const key = root(index); const list = components.get(key) ?? []; list.push(claims[index]); components.set(key, list);
+  }
+  return [...components.values()].map((items, index) => {
+    const values = []; const valueKeys = new Set(); const sources = []; const sourceKeys = new Set();
+    for (const claim of items) {
+      for (const item of humanSelectableEvidenceValues(verified, claim)) {
+        const key = JSON.stringify([item.value, item.unit, item.source?.handle, item.source?.location]);
+        if (!valueKeys.has(key)) { valueKeys.add(key); values.push(item); }
+      }
+      for (const source of claim.sourceRefs) {
+        const key = JSON.stringify([source.handle, source.location]);
+        if (!sourceKeys.has(key)) { sourceKeys.add(key); sources.push(source); }
+      }
+    }
+    return { outcomeId: `outcome-${String(index + 1).padStart(3, '0')}`,
+      claimIds: items.map((item) => item.claimId), summaries: items.map((item) => item.summary),
+      evidenceValues: values, sources };
+  });
 }
 
 function humanSourceReference(verified, source = {}) {
@@ -289,19 +336,19 @@ export function makeNx1HumanClosureTool({ verifiedReality, scenarioId } = {}) {
   let latest = null;
   const tool = {
     name: 'human_closure',
-    description: 'Select the verified claims needed for the current user scope and author the complete final user answer in this same call. The runtime validates Work, manifest, selected claim identity, and output boundaries but does not choose importance, order, or wording.',
+    description: 'Select the verified outcomes needed for the current user scope and author the complete final user answer in this same call. Corroborated outcomes combine source claims with the same exact derived basis and result. The runtime validates Work, manifest, selected outcome identity, and output boundaries but does not choose importance, order, or wording.',
     parameters: { type: 'object', additionalProperties: false, properties: {
       schema: { type: 'string', enum: ['t5.human-closure.v1'] },
       work: { type: 'object', additionalProperties: false, properties: {
         workId: { type: 'string', maxLength: 80 }, revision: { type: 'integer', minimum: 1 },
       }, required: ['workId', 'revision'] },
       sourceManifestId: { type: 'string', maxLength: 80 },
-      selectedClaimIds: { type: 'array', minItems: 1, maxItems: 32,
+      selectedOutcomeIds: { type: 'array', minItems: 1, maxItems: 32,
         items: { type: 'string', maxLength: 80 } },
       finalAnswer: { type: 'string', minLength: 1, maxLength: 12000 },
-    }, required: ['schema', 'work', 'sourceManifestId', 'selectedClaimIds', 'finalAnswer'] },
+    }, required: ['schema', 'work', 'sourceManifestId', 'selectedOutcomeIds', 'finalAnswer'] },
     async execute(args = {}) {
-      const candidate = verifiedReality.candidate; const claims = verifiedReality.claimEvidence.claims;
+      const candidate = verifiedReality.candidate; const outcomes = buildHumanOutcomes(verifiedReality);
       if (args.schema !== 't5.human-closure.v1'
         || args.work?.workId !== verifiedReality.currentWork.workId
         || args.work?.revision !== verifiedReality.currentWork.revision) {
@@ -310,12 +357,12 @@ export function makeNx1HumanClosureTool({ verifiedReality, scenarioId } = {}) {
       if (args.sourceManifestId !== verifiedReality.sourceManifestId) {
         latest = { passed: false, reason: 'stale_or_foreign_manifest' }; return { state: 'closure_invalid', ...latest };
       }
-      const selectedClaimIds = [...new Set(args.selectedClaimIds ?? [])];
-      const availableClaimIds = claims.map((claim) => claim.claimId);
-      if (selectedClaimIds.length < 1 || selectedClaimIds.length > 32
-        || selectedClaimIds.length !== args.selectedClaimIds?.length
-        || selectedClaimIds.some((claimId) => !availableClaimIds.includes(claimId))) {
-        latest = { passed: false, reason: 'unknown_or_duplicate_claim' }; return { state: 'closure_invalid', ...latest };
+      const selectedOutcomeIds = [...new Set(args.selectedOutcomeIds ?? [])];
+      const availableOutcomeIds = outcomes.map((outcome) => outcome.outcomeId);
+      if (selectedOutcomeIds.length < 1 || selectedOutcomeIds.length > 32
+        || selectedOutcomeIds.length !== args.selectedOutcomeIds?.length
+        || selectedOutcomeIds.some((outcomeId) => !availableOutcomeIds.includes(outcomeId))) {
+        latest = { passed: false, reason: 'unknown_or_duplicate_outcome' }; return { state: 'closure_invalid', ...latest };
       }
       const answer = String(args.finalAnswer ?? '').trim();
       if (!answer || answer.length > 12000
@@ -324,9 +371,11 @@ export function makeNx1HumanClosureTool({ verifiedReality, scenarioId } = {}) {
       }
       const answerQuality = evaluateNx1Answer(scenarioId, answer);
       latest = { passed: answerQuality.passed,
-        claimSelection: { selected: selectedClaimIds.length, available: availableClaimIds.length,
-          allAvailableSelected: selectedClaimIds.length === availableClaimIds.length },
-        answerQuality, selectedClaimIds,
+        outcomeSelection: { selected: selectedOutcomeIds.length, available: availableOutcomeIds.length,
+          allAvailableSelected: selectedOutcomeIds.length === availableOutcomeIds.length },
+        answerQuality, selectedOutcomeIds,
+        selectedClaimIds: outcomes.filter((outcome) => selectedOutcomeIds.includes(outcome.outcomeId))
+          .flatMap((outcome) => outcome.claimIds),
         ...(answerQuality.passed ? {} : { rejectedFinalAnswer: answer }) };
       return latest.passed ? { state: 'verified', finalAnswer: answer, ...latest }
         : { state: 'closure_failed', ...latest };
