@@ -87,6 +87,14 @@ test('NX-1 live runner는 AB·BA와 product-promotion pending을 명시한다', 
   assert.doesNotMatch(source, /console-server\.js.*writeFile|agent-loop\.js.*writeFile/iu);
 });
 
+test('blind 인간 검토지는 current·candidate identity를 숨기고 별도 mapping으로만 결속한다', async () => {
+  const source = await readFile(new URL('../scripts/build-nx1-human-blind-review.mjs', import.meta.url), 'utf8');
+  assert.match(source, /### 결과 1/u); assert.match(source, /### 결과 2/u);
+  assert.match(source, /전체 차이.*가장 큰 원인.*바로 할 행동/su);
+  assert.match(source, /result1Sha256/u); assert.match(source, /evaluatorIdentityExposed: false/u);
+  assert.doesNotMatch(source, /결과 1.*candidate|결과 2.*current/su);
+});
+
 test('verified Reality projection은 evidence pool만 주고 excluded 내용은 Human Closure에서 숨긴다', () => {
   const reality = { currentWork: { workId: 'work-11111111', revision: 1, status: 'active' },
     sourceManifest: { state: 'verified', manifestId: 'sources-11111111', inputHandles: ['source-11111111', 'source-22222222'] },
