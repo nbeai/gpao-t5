@@ -2557,7 +2557,7 @@ semantic version은 `6.0.0`으로 통일하며 과거 `0.3.x·0.4.x·0.5.x` buil
 
 #### S6-WP0 — Windows Pre-Physical Readiness
 
-현재 상태: `PLANNED · MUST_START_AFTER_MACOS_6_0_PACKAGE · PHYSICAL_PASS_NOT_CLAIMED`
+현재 상태: `WP0_OPEN · READ_ONLY_BASELINE_COMPLETE · REPAIR_FAMILIES_OPEN · PHYSICAL_PASS_NOT_CLAIMED`
 
 목적:
 
@@ -2705,6 +2705,13 @@ windowsInstallerDecision: OWNER_PENDING
 > 6차 version 6.0의 공통 의미와 Windows adapter·package source가 물리 시험 전 가능한 범위에서 자격되고,
 > 남은 항목은 NTFS·DPAPI·ConPTY·Job Object·Windows Search·UAC·Defender·실제 설치·UX처럼 물리 Windows만이
 > 증명할 blocker로 축소됐으며 Windows 설치본 제작은 오너 결정 전 열리지 않는다.
+
+2026-08-31 오너가 source HQ exact commit `7a47f69a`에서 독립 worktree
+`/Users/jyp/Developer/t5-windows`와 branch `codex/t5-sixth-windows` 개설을 승인했다. WP0의 첫 read-only matrix는
+제품 source 변경 0으로 기존 공통 Core·Windows adapter·과거 runner·물리 비주장을 분리했고 여덟 pre-physical
+finding을 고정했다. 첫 수리는 package version truth이며, Windows 설치본 제작과 physical PASS는 계속 금지한다.
+
+근거: `refoundation/evidence/s6-wp0-windows-prephysical-baseline-2026-08-31.json`.
 
 ---
 

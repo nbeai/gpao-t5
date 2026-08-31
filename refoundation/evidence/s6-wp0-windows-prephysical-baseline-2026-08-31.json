@@ -1,0 +1,286 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_WP0_WINDOWS_PREPHYSICAL_READINESS",
+  "status": "READ_ONLY_BASELINE_COMPLETE_REPAIR_FAMILIES_OPEN",
+  "recordedOn": "2026-08-31",
+  "sourceCommit": "7a47f69afb1480c887d7bf641dad062c584e28f9",
+  "branch": "codex/t5-sixth-windows",
+  "worktree": "/Users/jyp/Developer/t5-windows",
+  "productChanges": 0,
+  "physicalWindowsPassClaimed": false,
+  "windowsInstallerBuilt": false,
+  "baselineVerification": {
+    "focusedTests": { "tests": 30, "passed": 29, "failed": 0, "skippedPhysicalWindows": 1 },
+    "historicalWindowsRunner": {
+      "sourceCommit": "41b14aa0b7b011222f9d1976b415b1e27ed139d9",
+      "x64CompiledAndExecuted": true,
+      "arm64CrossCompiled": true,
+      "arm64Executed": false,
+      "powershell": true,
+      "jobObject": true,
+      "conpty": true,
+      "dpapi": true
+    },
+    "currentHeadWindowsRunner": false,
+    "physicalWindowsX64": false,
+    "physicalWindowsArm64": false
+  },
+  "featureAdapterMatrix": [
+    {
+      "feature": "Console Conversation Memory Work Run Context model connection",
+      "state": "COMMON_CORE_COMPLETE",
+      "windowsAdapter": "WINDOWS_ADAPTER_IMPLEMENTED",
+      "evidence": ["windows-product-environment", "windows-product-entry-wiring"],
+      "remaining": "WINDOWS_RUNNER_REQUIRED"
+    },
+    {
+      "feature": "File metadata text search exact handle",
+      "state": "COMMON_CORE_COMPLETE",
+      "windowsAdapter": "CONTRACT_TESTED_ONLY",
+      "evidence": ["platform-neutral File Reality", "Windows path contract"],
+      "remaining": "PHYSICAL_WINDOWS_REQUIRED"
+    },
+    {
+      "feature": "Default computer file roots and local sync roots",
+      "state": "SHARED_CORE_DEFECT",
+      "windowsAdapter": "NOT_IMPLEMENTED",
+      "evidence": ["start-console non-darwin fallback uses drive root"],
+      "remaining": "REPAIR_PREPHYSICAL"
+    },
+    {
+      "feature": "Image OCR",
+      "state": "NOT_IMPLEMENTED",
+      "windowsAdapter": "NOT_IMPLEMENTED",
+      "evidence": ["local-image-ocr returns unavailable outside darwin"],
+      "remaining": "REPAIR_PREPHYSICAL_THEN_RUNNER"
+    },
+    {
+      "feature": "Bounded image contact sheet and visual selection",
+      "state": "COMMON_CORE_COMPLETE",
+      "windowsAdapter": "CONTRACT_TESTED_ONLY",
+      "evidence": ["Sharp contact sheet is platform neutral"],
+      "remaining": "WINDOWS_RUNNER_REQUIRED"
+    },
+    {
+      "feature": "Explorer exact file and directory Reveal",
+      "state": "WINDOWS_ADAPTER_IMPLEMENTED",
+      "windowsAdapter": "CONTRACT_TESTED_ONLY",
+      "evidence": ["explorer.exe direct argv", "exact file digest fence"],
+      "remaining": "PHYSICAL_WINDOWS_REQUIRED"
+    },
+    {
+      "feature": "Document text and tabular read",
+      "state": "COMMON_CORE_COMPLETE",
+      "windowsAdapter": "CONTRACT_TESTED_ONLY",
+      "evidence": ["portable parser and Node dependencies"],
+      "remaining": "WINDOWS_RUNNER_DEPENDENCY_REQUIRED"
+    },
+    {
+      "feature": "DOCX all-page native render and visual qualification",
+      "state": "NOT_IMPLEMENTED",
+      "windowsAdapter": "NOT_IMPLEMENTED",
+      "evidence": ["docx-visual-renderer returns capability boundary outside darwin"],
+      "remaining": "REPAIR_PREPHYSICAL_THEN_PHYSICAL"
+    },
+    {
+      "feature": "Structured authoring Artifact version Undo",
+      "state": "COMMON_CORE_COMPLETE",
+      "windowsAdapter": "CONTRACT_TESTED_ONLY",
+      "evidence": ["F transaction and AttachmentStore are platform neutral"],
+      "remaining": "NTFS_PHYSICAL_REQUIRED"
+    },
+    {
+      "feature": "Terminal foreground background and large output",
+      "state": "COMMON_CORE_COMPLETE",
+      "windowsAdapter": "WINDOWS_ADAPTER_IMPLEMENTED",
+      "evidence": ["PowerShell CMD command runtime", "historical x64 runner"],
+      "remaining": "CURRENT_HEAD_WINDOWS_RUNNER_REQUIRED"
+    },
+    {
+      "feature": "Terminal declared-target confinement",
+      "state": "NOT_IMPLEMENTED",
+      "windowsAdapter": "NOT_IMPLEMENTED",
+      "evidence": ["terminal-platform-adapter is unqualified passthrough outside darwin"],
+      "remaining": "REPAIR_PREPHYSICAL_THEN_PHYSICAL"
+    },
+    {
+      "feature": "Job Object process tree ownership wake cancel crash settlement",
+      "state": "WINDOWS_ADAPTER_IMPLEMENTED",
+      "windowsAdapter": "CONTRACT_TESTED_ONLY",
+      "evidence": ["CREATE_SUSPENDED before Job assignment", "KILL_ON_JOB_CLOSE", "historical x64 runner"],
+      "remaining": "CURRENT_HEAD_RUNNER_AND_PHYSICAL"
+    },
+    {
+      "feature": "ConPTY input resize output completion",
+      "state": "WINDOWS_ADAPTER_IMPLEMENTED",
+      "windowsAdapter": "CONTRACT_TESTED_ONLY",
+      "evidence": ["historical x64 runner"],
+      "remaining": "CURRENT_HEAD_RUNNER_AND_PHYSICAL"
+    },
+    {
+      "feature": "E identity atomic publication rollback",
+      "state": "COMMON_CORE_PARTIAL",
+      "windowsAdapter": "CONTRACT_TESTED_ONLY",
+      "evidence": ["Node lstat realpath rename contracts"],
+      "remaining": "NTFS_REPARSE_HARDLINK_LOCK_VOLUME_PHYSICAL"
+    },
+    {
+      "feature": "G same-language program source universe output verification cleanup",
+      "state": "NOT_IMPLEMENTED",
+      "windowsAdapter": "NOT_IMPLEMENTED",
+      "evidence": ["console-server admits programExecutionAdapter only on darwin", "snapshot helper requires physical macOS"],
+      "remaining": "REPAIR_PREPHYSICAL_THEN_RUNNER"
+    },
+    {
+      "feature": "Browser upload download login handoff",
+      "state": "COMMON_CORE_COMPLETE",
+      "windowsAdapter": "CONTRACT_TESTED_ONLY",
+      "evidence": ["agent-browser common driver", "Windows product entry"],
+      "remaining": "PHYSICAL_WINDOWS_BROWSER_REQUIRED"
+    },
+    {
+      "feature": "Capability Skill CLI MCP Experience Growth",
+      "state": "COMMON_CORE_COMPLETE",
+      "windowsAdapter": "CONTRACT_TESTED_ONLY",
+      "evidence": ["platform assets in CLI catalog", "portable capability lifecycle"],
+      "remaining": "WINDOWS_RUNNER_REQUIRED"
+    },
+    {
+      "feature": "DPAPI model messenger credential",
+      "state": "WINDOWS_ADAPTER_IMPLEMENTED",
+      "windowsAdapter": "CONTRACT_TESTED_ONLY",
+      "evidence": ["ciphertext-only DPAPI store", "historical x64 runner"],
+      "remaining": "CURRENT_HEAD_RUNNER_AND_PHYSICAL"
+    },
+    {
+      "feature": "Backup restore delete",
+      "state": "COMMON_CORE_COMPLETE",
+      "windowsAdapter": "CONTRACT_TESTED_ONLY",
+      "evidence": ["state root separate from install root", "restore helper common entry"],
+      "remaining": "WINDOWS_INSTALL_RESTART_PHYSICAL"
+    },
+    {
+      "feature": "Telegram Automation external Delivery",
+      "state": "COMMON_CORE_COMPLETE",
+      "windowsAdapter": "CONTRACT_TESTED_ONLY",
+      "evidence": ["platform-neutral channel and scheduler contracts"],
+      "remaining": "WINDOWS_NETWORK_AND_RESTART_PHYSICAL"
+    },
+    {
+      "feature": "File activity app activity folder picker",
+      "state": "WINDOWS_ADAPTER_IMPLEMENTED",
+      "windowsAdapter": "CONTRACT_TESTED_ONLY",
+      "evidence": ["USN scoped notifications helper", "foreground app helper", "IFileDialog folder picker"],
+      "remaining": "CURRENT_HEAD_RUNNER_AND_PHYSICAL"
+    },
+    {
+      "feature": "Windows Search projection",
+      "state": "CONTRACT_TESTED_ONLY",
+      "windowsAdapter": "CONTRACT_TESTED_ONLY",
+      "evidence": ["derived files and noncanonical manifest only"],
+      "remaining": "ACTUAL_WINDOWS_SEARCH_ADD_UPDATE_DELETE_QUERY"
+    },
+    {
+      "feature": "Windows package install upgrade uninstall startup singleton",
+      "state": "SHARED_CORE_DEFECT",
+      "windowsAdapter": "CONTRACT_TESTED_ONLY",
+      "evidence": ["builder hardcodes 0.3.1", "unsigned zip only", "x64 ARM64 PE contract"],
+      "remaining": "VERSION_REPAIR_THEN_OWNER_INSTALLER_DECISION"
+    },
+    {
+      "feature": "Console UX keyboard IME Preview Download Reveal",
+      "state": "COMMON_CORE_COMPLETE",
+      "windowsAdapter": "CONTRACT_TESTED_ONLY",
+      "evidence": ["same browser UI and Windows Explorer labels"],
+      "remaining": "PHYSICAL_WINDOWS_HUMAN_REQUIRED"
+    },
+    {
+      "feature": "Local notification",
+      "state": "NOT_IMPLEMENTED",
+      "windowsAdapter": "NOT_IMPLEMENTED",
+      "evidence": ["product entry only supplies macOS notification adapter"],
+      "remaining": "QUALIFY_ONLY_IF_HUMAN_MISSION_REQUIRES"
+    }
+  ],
+  "prePhysicalFindings": [
+    {
+      "id": "WP0-F1",
+      "family": "windows_package_version_truth",
+      "classification": "WINDOWS_PUBLIC_BLOCKER",
+      "fact": "build-windows-package.mjs hardcodes 0.3.1 while the sealed product version is 6.0.0",
+      "next": "derive exact product version from the sealed root package and countertest manifest and filenames"
+    },
+    {
+      "id": "WP0-F2",
+      "family": "windows_default_file_scope",
+      "classification": "WINDOWS_PUBLIC_BLOCKER",
+      "fact": "start-console uses the drive root for non-darwin standard computer roots",
+      "next": "add Windows user-visible standard roots without weakening explicit whole-computer requests"
+    },
+    {
+      "id": "WP0-F3",
+      "family": "windows_terminal_confinement",
+      "classification": "WINDOWS_PUBLIC_BLOCKER",
+      "fact": "terminal-platform-adapter is unqualified passthrough outside macOS",
+      "next": "design or bind a release-built Windows confinement host; do not claim sandbox-first before physical proof"
+    },
+    {
+      "id": "WP0-F4",
+      "family": "windows_g_program_admission",
+      "classification": "WINDOWS_PUBLIC_BLOCKER",
+      "fact": "programExecutionAdapter is admitted only when computer.platform is darwin",
+      "next": "separate portable contract from macOS snapshot implementation and keep Windows fail-closed until a qualified adapter exists"
+    },
+    {
+      "id": "WP0-F5",
+      "family": "windows_ocr",
+      "classification": "WINDOWS_PUBLIC_BLOCKER",
+      "fact": "local-image-ocr is explicitly unavailable on non-darwin platforms",
+      "next": "add a Windows native OCR helper contract with local-only bounded output before physical qualification"
+    },
+    {
+      "id": "WP0-F6",
+      "family": "windows_document_render",
+      "classification": "WINDOWS_PUBLIC_BLOCKER",
+      "fact": "DOCX all-page and Quick Look render paths are macOS-only",
+      "next": "define a Windows renderer adapter and exact all-page output contract before physical qualification"
+    },
+    {
+      "id": "WP0-F7",
+      "family": "windows_native_identity",
+      "classification": "PHYSICAL_REQUIRED",
+      "fact": "Node lstat and lexical path tests do not prove NTFS junction reparse ACL lock and cross-volume semantics",
+      "next": "keep contract countertests and defer PASS to physical Windows"
+    },
+    {
+      "id": "WP0-F8",
+      "family": "windows_current_head_runner",
+      "classification": "RUNNER_REQUIRED",
+      "fact": "the retained successful Windows runner predates the sealed sixth source head",
+      "next": "run the current head Windows workflow before physical device work"
+    }
+  ],
+  "sourceDigests": {
+    "refoundation/src/terminal-platform-adapter.js": "fe104245f2adb681a792fe86b593a437f2b80e6863f028264c908ba94882f091",
+    "refoundation/src/snapshot-program-adapter.js": "caa76ae6285c834cfff73df3615c93b8097123c4921a17ab060cf66b14e10df1",
+    "refoundation/src/local-image-ocr.js": "ec71f659fa0a99e39df207c4d7ff3c81084db0569e1d195d0cb2a41a713fb5ea",
+    "refoundation/scripts/build-windows-package.mjs": "64363f6bcdf41cf96df6f484851782ee71fb58fb73ff493b414a0dbd0f5053d6",
+    "refoundation/scripts/windows-package-contract.mjs": "fba58a8e654fbefa7ae346edbef869b8455d539640b1a72ba50441701d19ec57",
+    "refoundation/src/windows-product-environment.js": "218ca4708020ffb2d29872f192bb7ad9cb00c3b30067de872e12143ab1641201",
+    "refoundation/src/windows-process-boundary.js": "59a57a4839a6adb86567e350410be59746c1346d5973deee4718f091b26ea9ed",
+    "refoundation/src/windows-dpapi-secret-store.js": "d06948702c4182d0b9ae3784e2b8eee0309f7eda4bd7362f052ed579c2ff3431",
+    "refoundation/src/windows-memory-platform-adapter.js": "d903377387efee8ffa3d5ca4a2a58e2b37b69bbec39e73a9304b4023431cfef0",
+    "refoundation/src/windows-search-projection-driver.js": "e1749ca2cc2a47906ef06f954665aee6f511317253ebe77e4406b967b5cda08f",
+    ".github/workflows/ci.yml": "5d5b1cc8547dd647d15b804b2069d9438329580e0d4cc80e5355d04edf415bdc"
+  },
+  "forbiddenClaims": [
+    "physical Windows PASS",
+    "Windows installer complete",
+    "Windows Search actual PASS",
+    "Windows OCR actual PASS",
+    "Windows sandbox-first",
+    "ARM64 execution",
+    "macOS success copied to Windows"
+  ],
+  "nextRepairFamily": "WP0-F1 windows_package_version_truth"
+}
