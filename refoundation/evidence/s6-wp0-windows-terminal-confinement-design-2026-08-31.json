@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_WP0_F3_WINDOWS_TERMINAL_CONFINEMENT",
+  "status": "DESIGN_BOUNDARY_COMPLETE_PHYSICAL_BLOCKER_RETAINED",
+  "sourceCommit": "b1d3d7f4",
+  "productChanges": 0,
+  "currentTruth": {
+    "terminalPlatformAdapter": "platform_passthrough",
+    "qualified": false,
+    "observationProbeQualified": false,
+    "jobObject": "process tree ownership only",
+    "declaredTargetPhysicalWriteBlock": false,
+    "networkPhysicalBlock": false,
+    "sandboxFirstClaimed": false
+  },
+  "officialCandidates": [
+    {
+      "name": "AppContainer",
+      "role": "default-deny process file registry credential network isolation",
+      "status": "PRIMARY_CANDIDATE",
+      "source": "https://learn.microsoft.com/en-us/windows/win32/secauthz/appcontainer-isolation"
+    },
+    {
+      "name": "Experimental_CreateProcessInSandbox",
+      "role": "composable AppContainer filesystem and network policy",
+      "status": "REJECTED_AS_CURRENT_BASELINE",
+      "reason": "experimental API, GetProcAddress only, OS feature availability differs by Windows release",
+      "source": "https://learn.microsoft.com/en-us/windows/win32/secauthz/createprocessinsandbox"
+    },
+    {
+      "name": "CreateRestrictedToken",
+      "role": "remove privileges and add restricting SIDs",
+      "status": "INSUFFICIENT_ALONE",
+      "reason": "does not by itself create the exact filesystem and network boundary required by E",
+      "source": "https://learn.microsoft.com/en-us/windows/win32/secauthz/restricted-tokens"
+    },
+    {
+      "name": "Windows Sandbox",
+      "role": "hypervisor isolated disposable desktop",
+      "status": "REJECTED_FOR_DEFAULT_TERMINAL",
+      "reason": "optional OS feature, high startup and integration cost, host tools unavailable by default"
+    }
+  ],
+  "requiredHostContract": {
+    "process": ["create suspended", "assign Job Object", "resume", "kill on host close"],
+    "filesystem": ["workspace read-only by default", "declared target read-write", "scratch read-write", "protected roots denied"],
+    "network": ["denied by default", "loopback only when exact action requires it"],
+    "credentials": ["DPAPI and user credentials unavailable to child"],
+    "ui": ["headless", "no clipboard", "no window interaction"],
+    "receipt": ["qualified boundary kind", "exact granted roots", "network policy", "terminal exit and effect observation"]
+  },
+  "prePhysicalCountertests": [
+    "adapter must remain qualified false before the host exists",
+    "absence of host must never fall back to taskkill or unqualified sandbox-first",
+    "model and Prompt must not claim Windows confinement",
+    "G Windows admission remains closed until this boundary is qualified"
+  ],
+  "physicalCountertests": [
+    "declared target write succeeds",
+    "sibling and parent write denied",
+    "protected credential read denied",
+    "network denied",
+    "child and grandchild contained",
+    "cancel and runtime crash leave late effect zero",
+    "Unicode space UNC and long paths",
+    "Windows 11 supported release matrix",
+    "Defender and enterprise policy interaction"
+  ],
+  "decision": "Do not implement an unverified third confinement mechanism on macOS. Carry AppContainer host implementation and physical proof as one Windows blocker family.",
+  "nextRepairFamily": "WP0-F4 windows_g_program_admission"
+}
