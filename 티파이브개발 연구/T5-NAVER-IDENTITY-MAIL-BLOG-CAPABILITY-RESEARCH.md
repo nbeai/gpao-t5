@@ -13,6 +13,24 @@
 이 문서는 현재 `T5-NX.md` Gate를 자동 변경하지 않는 연구 계획이다. 오너가 Naver Gate를 열기 전 제품 구현을
 시작하지 않는다.
 
+## NX-2 공통 승격 계약
+
+NX-2 귀속: `NX2-6 — Naver Identity·Mail·Blog Native Work`
+
+로그인·메일·블로그 각각의 자동화가 동작했다는 사실만으로 완료하지 않는다. 제품 승격에는 다음이 모두 필요하다.
+
+- 하나의 T5 Naver identity와 authority 아래 Mail protocol·Blog Browser·후속 authenticated collection이 결속된다.
+- 메일 검색·첨부·답장·전송과 블로그 초안·craft·예약·발행의 실제 사용자 목적이 end-to-end로 완료된다.
+- draft·send·save·schedule·publish·public reopen을 서로 다른 실제 effect로 보존한다.
+- 일반 비밀번호·cookie·app password가 모델·Prompt·로그·guest code에 노출되지 않는다.
+- ACK unknown·로그인 만료·2FA·화면 변경·restart에서 중복 전송·중복 발행·가짜 성공이 없다.
+- 기존 Direct·Web·Browser 요청을 느리게 하거나 raw Selenium/agent-browser의 두 번째 현실을 만들지 않는다.
+- 현재 수동 작업 및 T5 자연 경로와 wall·round·사용자 클릭·교정 부담·결과 품질을 비교한다.
+- 실제 Console에서 입력→진행→Preview→교정→외부 effect→재개방→후속 사용을 확인한다.
+
+한국 자영업자에게 유용하다는 주장이나 기능 수는 승격 근거가 아니다. 실제 Mail·Blog 인간 HQ에서 더 빠르고 정확하며
+안전하고 사용하기 쉬워야 한다.
+
 ---
 
 ## 1. 결론

@@ -5,6 +5,20 @@
 상태: `ABSORBED_INTO_T5_NX · RESEARCH_HISTORY · NO_LONGER_CURRENT_DEVELOPMENT_SOURCE`
 현재 제품 변경: `0`
 
+## NX-2 승계 상태
+
+이 문서는 현재 개발 계획이 아니라 6차 이후 비GUI 연구를 NX로 전환한 역사다. 남은 제품 개발 책임은
+`T5-NX2-GENERALIZED-MASTERY-DEVELOPMENT-PLAN.md`로 승계됐다.
+
+- NG-0·NG-1·NG-2: 완료된 성능·streaming·Tool economy 역사로 재개하지 않는다.
+- NG-3: NX2-3 Cognitive Flow·Practical Judgment 자격으로 승계한다.
+- NG-4·NG-5: NX-1 Reality·Method·Evidence·Closure에 흡수됐으므로 다시 만들지 않는다.
+- NG-6: NX2-4 Auditory Intelligence로 승계한다.
+- NG-7: NX2-7 Experience Promotion으로 승계한다.
+- NG-HQ: NX2-HQ의 속도·정확성·결과 품질·인간 체감과 clean second pass로 강화됐다.
+
+따라서 이 문서의 세부 순서로 제품 Gate를 열지 않으며, NX-2 정본과 충돌하면 NX-2가 우선한다.
+
 ## 0. 범위와 판정
 
 이 계획은 `티파이브개발 연구/`의 모든 문서와 현재 6차 source·증거를 대조해 작성한 비정본 후속 개발안이다.

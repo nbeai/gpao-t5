@@ -3,6 +3,22 @@
 기록일: 2026-08-30
 상태: `RESEARCHED · EXTERNAL_EVAL_PRINCIPLES_MAPPED · EXECUTION_NOT_OPEN`
 
+## NX-2 공통 승격 계약
+
+NX-2 귀속: `NX2-3 qualification source` 및 `NX2-HQ`
+
+이 HQ는 Cognitive Flow 후보만 따로 칭찬하는 평가가 아니다. NX-2 candidate가 다음 네 축에서 현재 T5를 실제로
+업그레이드했는지 판정한다.
+
+- **속도**: TTFT·first useful·final wall·model/Tool rounds·tokens·bytes.
+- **정확성**: end-state·source·coverage·effect·현재 교정·복구.
+- **결과 품질**: 핵심·우선순위·사용처·중요값·Artifact 사용성·언어와 정보 구조.
+- **인간 체감**: 질문·승인·대기·교정 부담, 자연스러운 중단, 주체성, 다시 맡길 의향.
+
+한 실제 Console은 한 runner가 순차 조작하고 read-only oracle 분석만 병렬화한다. `T0 Enter→T1 수신→T2 실제 진행
+→T3 첫 유용 결과→T4 최종 답→T5 실제 사용→T6 교정·Stop·Undo·재접속`을 기록한다. 첫 whole-flow에서 P0/P1을
+수리한 뒤 clean second whole-flow가 PASS해야 한다. 최종 답만 맞거나 내부 Tool 검사가 통과한 것은 HQ PASS가 아니다.
+
 ## 1. 목적
 
 이 문서는 [T5 Cognitive Flow 연구](./T5-COGNITIVE-FLOW-RESEARCH.md)의 후보 개발이 실제로 성공했는지 증명하는

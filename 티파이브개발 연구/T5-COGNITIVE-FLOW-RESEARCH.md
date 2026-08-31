@@ -4,6 +4,24 @@
 최초 종합 기준 head: `c96cc1b1`
 상태: `SYNTHESIS_COMPLETE · EXTERNAL_RESEARCH_MAPPED · PRODUCT_IMPLEMENTATION_NOT_OPEN`
 
+## NX-2 공통 승격 계약
+
+NX-2 귀속: `NX2-3 — Cognitive Flow & Practical Judgment Qualification`
+
+이 연구는 새 판단 Engine이나 듣기 좋은 철학을 제품에 추가하는 계획이 아니다. 후보는 다음을 모두 증명할 때만 승격한다.
+
+- 일반 사용자식·전문가식 표현이 같은 목적 end-state에 도달하고 핵심 결과 격차가 줄어든다.
+- Direct는 Work·Method·Tool 0을 유지하고 TTFT·언어 품질이 무회귀한다.
+- 질문·Tool·검증·Method 깊이가 목적의 실제 불확실성과 위험에 비례한다.
+- current correction·dual-control·Tool failure·ACK unknown에서 방향을 바꾸고 blind retry하지 않는다.
+- 충분할 때 자연스럽게 멈추고, 불충분할 때만 더 관측한다.
+- 열린 문제의 관점 다양성·사용자 차이·중요 결정의 사용자 주체성을 보존한다.
+- 현재 T5 대비 목적 정확성·wall·round·tokens·인간 체감을 같은 Mission AB/BA로 비교한다.
+- 실제 Console에서 일반 표현·교정·진행·최종 결과·후속 사용까지 전 여정을 확인한다.
+
+Prompt 문구·Intent Router·상시 Practical Lens로 결과를 강제하거나 단순 요청을 무겁게 만들면 폐기한다. 실제 제품
+수리는 CFH Mission이 특정한 기존 Context·Hand·settlement 경계 하나에만 허용한다.
+
 ## 1. 연구 목적
 
 인간의 생활과 사업은 다음 순환을 반복한다.

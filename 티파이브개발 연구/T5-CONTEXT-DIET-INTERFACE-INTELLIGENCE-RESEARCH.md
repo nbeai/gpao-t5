@@ -13,6 +13,23 @@
 이 문서는 현재 `T5-NX.md` Gate를 자동 변경하지 않는다. NX-1 Integral Outcome Method를 닫기 전 제품 instruction과
 provider wire를 수정하지 않는다.
 
+## NX-2 공통 승격 계약
+
+NX-2 귀속: `NX2-2 — Context Diet & Interface Intelligence`
+
+이 연구는 Prompt 길이·schema bytes·코드 줄을 줄였다는 이유로 완료하지 않는다. 제품 승격에는 다음이 모두 필요하다.
+
+- Direct 요청의 TTFT와 자연스러운 언어 품질이 현재 T5보다 좋아지거나 최소 무회귀한다.
+- Single Reality의 final wall·model/Tool round가 줄고, 불필요한 Method·capability 발견은 0이다.
+- NX2-1 Multi-source·Crafted Artifact의 source truth·핵심값·Human Closure 품질이 유지된다.
+- 장기 대화·Memory·현재 교정·provider reasoning continuity가 깨지지 않는다.
+- instruction·Tool·Skill·Memory·Evidence마다 owner·incident·countertest가 있고 validator와 Tool schema는 SSOT다.
+- 최소 두 모델에서 같은 공통 contract를 사용하며 모델별 Prompt·Tool fork를 만들지 않는다.
+- 실제 Console에서 `Enter→첫 반응→첫 유용 결과→최종 답→후속 사용`을 확인한다.
+
+후보가 Context를 줄였지만 정확성·결과 품질·교정 수용을 낮추거나 Direct를 딱딱하게 만들면 폐기한다. 상세 공통
+합격식과 순서는 `T5-NX2-GENERALIZED-MASTERY-DEVELOPMENT-PLAN.md`가 관리한다.
+
 ---
 
 ## 1. 결론

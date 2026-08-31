@@ -3,6 +3,24 @@
 기록일: 2026-08-30
 상태: `RESEARCHED · RIGIDITY_RISK_EXPLICIT · NOT_APPROVED_FOR_PRODUCT_ADOPTION`
 
+## NX-2 공통 승격 계약
+
+NX-2 귀속: `NX2-3 — Cognitive Flow & Practical Judgment Qualification`
+
+실천지능은 오너의 결론·말투·일하는 형식을 모든 사용자에게 복제하는 기능이 아니다. 다음이 함께 성립할 때만 NX-2
+제품 이익으로 인정한다.
+
+- 사용자가 목적·자료·형식을 완벽히 설명하지 않아도 필요한 핵심 결과의 격차가 줄어든다.
+- 필요한 질문만 하고, 안전하게 진행 가능한 요청에는 질문·승인 부담을 추가하지 않는다.
+- 가장 단순하고 충분한 방법을 고르되 정확성·coverage·중요 불확실성을 희생하지 않는다.
+- 사용자의 현재 교정과 결정권이 모든 과거 원리·경험보다 우선한다.
+- 단순 요청 비개입·열린 문제 다양성·서로 다른 사용자 holdout을 통과한다.
+- wall·model/Tool rounds·tokens와 결과 사용성을 현재 T5와 실제 A/B한다.
+- 실제 Console에서 사용자가 더 적게 설명하고도 결과를 더 빨리 이해하고 사용할 수 있다.
+
+고정 질문 순서·Intent Router·상시 컨설팅 persona·Runtime 의미 규칙이 필요하면 후보를 폐기한다. 이 문서의 원리
+후보는 NX2-7 Experience Promotion의 반복 실제 증거 없이 Core 불변식으로 승격하지 않는다.
+
 ## 1. 연구 목적
 
 같은 AI를 사용해도 문제를 구조화하고 맥락·결과 형식·검증 조건을 잘 설명하는 사용자와 그렇지 못한 사용자 사이에

@@ -35,6 +35,23 @@ Whisper는 선택형 장식품이나 설정 속 숨은 기능이 아니다. T5�
 이 문서는 연구실의 비정본 차기 계획이다. 현재 6차 release·Windows 기본 제품선을 확장하지 않으며, 오너가 다음
 개발 Gate를 명시적으로 열기 전에는 구현하지 않는다.
 
+## NX-2 공통 승격 계약
+
+NX-2 귀속: `NX2-4 — Auditory Intelligence`
+
+Whisper helper가 전사 문장을 만들었다는 사실만으로 청각기관을 완료하지 않는다. 제품 승격에는 다음이 모두 필요하다.
+
+- exact input identity·duration·track·decode range·chunk coverage가 transcript와 Artifact에 결속된다.
+- 한국어 고유명사·숫자·날짜·화자·저품질 구간을 corpus와 인간 oracle로 평가한다.
+- 빠른 음성 메모·긴 회의·영상 자막에서 accuracy·RTF·RSS·first partial·final wall을 측정한다.
+- TXT·SRT·VTT·회의록·할 일 결과가 요청한 목적과 형식에 맞고 source quote와 요약이 구분된다.
+- Stop·helper crash·asset 손상·restart에서 중복 전사·late effect·거짓 coverage가 없다.
+- audio/video가 아닌 Direct·Single Reality·기존 File/Document 요청에 schema·model call·startup 비용을 추가하지 않는다.
+- 실제 Console에서 첨부→준비 progress→첫 transcript→최종 Artifact→교정→Download/Reveal/Undo를 확인한다.
+
+한 엔진의 벤치마크가 좋아도 T5 전체 결과·복구·인간 체감이 현재 제품보다 나아지지 않으면 채택하지 않는다. 플랫폼별
+엔진 차이는 adapter 아래에 두고 모델 Prompt·사용자 workflow를 분기하지 않는다.
+
 ---
 
 ## 1. 왜 지금 필요한가

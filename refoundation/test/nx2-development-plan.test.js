@@ -51,3 +51,25 @@ test('research index and NX canonical source link the same NX-2 plan without ope
   assert.match(nx, /ABSORBED_AS_NX2_7 · NOT_SEPARATELY_OPEN/);
   assert.match(nx, /ABSORBED_AS_NX2_4 · NOT_SEPARATELY_OPEN/);
 });
+
+test('every remaining specialist plan is bound to NX-2 competitive promotion instead of feature-only completion', async () => {
+  const plans = [
+    ['T5-CONTEXT-DIET-INTERFACE-INTELLIGENCE-RESEARCH.md', 'NX2-2'],
+    ['T5-COGNITIVE-FLOW-RESEARCH.md', 'NX2-3'],
+    ['T5-PRACTICAL-JUDGMENT-RESEARCH.md', 'NX2-3'],
+    ['T5-COGNITIVE-FLOW-HQ-RESEARCH.md', 'NX2-HQ'],
+    ['T5-AUDITORY-INTELLIGENCE-WHISPER-RESEARCH.md', 'NX2-4'],
+    ['T5-NAVER-IDENTITY-MAIL-BLOG-CAPABILITY-RESEARCH.md', 'NX2-6'],
+  ];
+  for (const [filename, gate] of plans) {
+    const body = await readFile(new URL(`../../티파이브개발 연구/${filename}`, import.meta.url), 'utf8');
+    assert.match(body, /NX-2 공통 승격 계약/);
+    assert.match(body, new RegExp(gate));
+    assert.match(body, /현재 T5|현재 제품/);
+    assert.match(body, /실제 Console/);
+  }
+  const history = await readFile(new URL('../../티파이브개발 연구/T5-NON-GUI-INTEGRATED-DEVELOPMENT-PLAN.md', import.meta.url), 'utf8');
+  assert.match(history, /NX-2 승계 상태/);
+  assert.match(history, /NG-4·NG-5: NX-1/);
+  assert.match(history, /NX2-HQ/);
+});
