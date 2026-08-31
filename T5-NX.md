@@ -1,10 +1,10 @@
 # T5 NX — Integral Outcome, Mastery, Performance & Comparative Quality
 
-상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1A_BASELINE_FROZEN · NX_1_FLAGSHIP_MASTERY_CURRENT`
+상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1A_BASELINE_FROZEN · NX_1B_QUALIFICATION_CONTRACT_COMPLETE · NX_1_FLAGSHIP_MASTERY_CURRENT`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
 현재 Gate: `NX-1 FIRST FLAGSHIP MASTERY · INTEGRAL OUTCOME METHOD`
-현재 작업: `NX-1A exact baseline·blind human oracle을 고정하고 qualification-only Integral Method의 첫 RED를 구현으로 전환`
+현재 작업: `qualification-only Integral Method 계약을 7/7로 닫고 12개 exact source의 Method 실행·독립 ClaimEvidence 검증을 구현`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -653,6 +653,17 @@ NX-1은 인문·전략·개발·디자인을 네 번 호출하는 개발이 아�
 | `refoundation/evidence/nx1-integral-flagship-*.json` | content-free 성능·정확성·품질 판정 증거 |
 
 후보가 실제 우위를 증명하기 전 `console-server.js·agent-loop.js·interaction-core.js·work-store.js` 제품 배선은 0이다.
+
+2026-09-01 NX-1B qualification contract:
+
+- 6KiB·12 source 한도와 exact active Work revision·verified source manifest·opaque input handle을 결속했다.
+- source manifest 부재와 single source는 각각 Direct·단일 Hand 비개입으로 닫고, stale revision·foreign manifest·handle
+  escape·raw path·secret·unsupported effect·열린 schema를 실행 전에 거부한다.
+- 의미 점수·업무 enum·사용자 직업·절대경로·원문 전체는 계약에 들어가지 않는다.
+- 구현은 `refoundation/test/helpers/`의 qualification-only 경계이며 제품 server·agent loop·Prompt·Work Store 참조는 0이다.
+- NX-1A RED는 집중 검사 7/7 GREEN으로 전환됐다. 다음은 같은 helper에서 실행과 독립 ClaimEvidence를 붙이는 NX-1C다.
+
+근거: `refoundation/evidence/nx1-integral-contract-qualification-2026-09-01.json`.
 
 #### Method가 재사용할 현재 능력
 

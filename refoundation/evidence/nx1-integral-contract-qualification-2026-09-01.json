@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "gate": "NX_1B_QUALIFICATION_ONLY_INTEGRAL_CONTRACT",
+  "status": "QUALIFICATION_CONTRACT_COMPLETE_PRODUCT_WIRING_ZERO",
+  "recordedOn": "2026-09-01",
+  "baselineCommit": "14782ac8",
+  "boundary": {
+    "serializedBytesMax": 6144,
+    "sourceHandlesMax": 12,
+    "work": "exact active Work id and revision",
+    "source": "verified exact source manifest and opaque input handles",
+    "effects": ["observe", "managed_local_artifact"],
+    "operators": [
+      "select", "filter", "join", "group", "deduplicate", "compare",
+      "reconcile", "aggregate", "calculate", "validate", "order", "format"
+    ]
+  },
+  "countertests": {
+    "directWithoutSourceManifest": "NOT_ELIGIBLE",
+    "singleSource": "NOT_ELIGIBLE",
+    "staleWorkRevision": "REJECTED",
+    "foreignManifest": "REJECTED",
+    "sourceHandleEscape": "REJECTED",
+    "rawPath": "REJECTED",
+    "secret": "REJECTED",
+    "unsupportedEffect": "REJECTED",
+    "over6KiB": "REJECTED",
+    "openSchema": "REJECTED"
+  },
+  "verification": {
+    "focused": { "tests": 7, "passed": 7, "failed": 0 },
+    "productReferences": 0
+  },
+  "productChanges": 0,
+  "globalPromptChanges": 0,
+  "newStore": false,
+  "newRouter": false,
+  "next": "Implement qualification-only Method execution and independent ClaimEvidence verification on the 12 exact DR-0 sources."
+}
