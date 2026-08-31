@@ -1,25 +1,42 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "gate": "S6_WP0_CURRENT_HEAD_WINDOWS_RUNNER",
   "status": "BLOCKED_BEFORE_STEPS_EXTERNAL_RUNNER_ALLOCATION",
-  "sourceCommit": "a6ae7ddc62a88d802ab6853899903aecfde45249",
+  "sourceCommit": "4d14b7af80e0718fa393a3dab96f737d57c164d0",
   "workflow": {
-    "runId": 33352108442,
+    "runId": 33352959860,
     "event": "push",
-    "url": "https://github.com/nbeai/gpao-t5/actions/runs/33352108442",
-    "startedAt": "2026-08-31T02:54:07Z",
-    "updatedAt": "2026-08-31T02:54:12Z",
+    "url": "https://github.com/nbeai/gpao-t5/actions/runs/33352959860",
+    "startedAt": "2026-08-31T03:10:13Z",
+    "updatedAt": "2026-08-31T03:10:17Z",
     "conclusion": "failure"
   },
   "jobs": [
-    { "name": "windows-terminal", "jobId": 99367350764, "stepsStarted": 0, "conclusion": "failure" },
-    { "name": "macos-product", "jobId": 99367350930, "stepsStarted": 0, "conclusion": "failure" }
+    { "name": "windows-terminal", "jobId": 99369676644, "stepsStarted": 0, "conclusion": "failure" },
+    { "name": "macos-product", "jobId": 99369676700, "stepsStarted": 0, "conclusion": "failure" }
+  ],
+  "attempts": [
+    {
+      "sourceCommit": "a6ae7ddc62a88d802ab6853899903aecfde45249",
+      "runId": 33352108442,
+      "windowsJobId": 99367350764,
+      "macosJobId": 99367350930,
+      "stepsStarted": 0
+    },
+    {
+      "sourceCommit": "4d14b7af80e0718fa393a3dab96f737d57c164d0",
+      "runId": 33352959860,
+      "windowsJobId": 99369676644,
+      "macosJobId": 99369676700,
+      "stepsStarted": 0
+    }
   ],
   "classification": {
     "productCodeExecuted": false,
     "windowsCompileAttempted": false,
     "windowsTestsAttempted": false,
     "sameRunRetried": false,
+    "distinctCodeHeadsAttempted": 2,
     "failureFamily": "external_runner_allocation",
     "exactExternalReason": "unknown from run metadata"
   },

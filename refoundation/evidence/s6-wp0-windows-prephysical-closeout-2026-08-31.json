@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_WP0_WINDOWS_PREPHYSICAL_READINESS",
+  "status": "PREPHYSICAL_COMPLETE_RUNNER_ALLOCATION_BLOCKED_PHYSICAL_PENDING",
+  "recordedOn": "2026-08-31",
+  "sourceBaseline": "7a47f69afb1480c887d7bf641dad062c584e28f9",
+  "productCodeHead": "4d14b7af80e0718fa393a3dab96f737d57c164d0",
+  "completionCommit": "same_commit_as_evidence",
+  "branch": "codex/t5-sixth-windows",
+  "worktree": "/Users/jyp/Developer/t5-windows",
+  "possibleBeforePhysicalWindows": {
+    "status": "COMPLETE",
+    "implementedRepairs": [
+      "sealed Windows package version truth",
+      "bounded default Windows file roots",
+      "local bounded Windows OCR adapter and native helper contract",
+      "case-insensitive target identity",
+      "drive UNC Unicode whitespace lexical path contract",
+      "pinned x64 and ARM64 Node runtime materials",
+      "target-platform native dependency install and PE architecture verification",
+      "Windows OCR x64 and ARM64 compile workflow"
+    ],
+    "boundedOpenFamilies": [
+      "G protected execution fail-closed admission",
+      "Windows document rendering capability boundary",
+      "Windows Terminal confinement candidate and physical admission boundary"
+    ],
+    "newStores": 0,
+    "newRouters": 0,
+    "modelSpecificRuntimeOrPrompt": 0,
+    "windowsInstallerBuilt": false
+  },
+  "verification": {
+    "fullCi": {
+      "command": "npm run refoundation:ci",
+      "exitCode": 0,
+      "integration": { "tests": 209, "passed": 207, "failed": 0, "skippedPhysicalWindows": 2 },
+      "mutation": { "killed": 2, "survived": 0 }
+    },
+    "hostedRunner": {
+      "status": "BLOCKED_BEFORE_STEPS_EXTERNAL_RUNNER_ALLOCATION",
+      "attemptedCodeHeads": 2,
+      "latestRunId": 33352959860,
+      "windowsStepsStarted": 0,
+      "macosStepsStarted": 0,
+      "productCodeExecuted": false,
+      "exactExternalReason": "unknown from run metadata"
+    }
+  },
+  "evidence": {
+    "featureAdapterMatrix": "refoundation/evidence/s6-wp0-windows-prephysical-baseline-2026-08-31.json",
+    "posixAudit": "refoundation/evidence/s6-wp0-posix-assumption-audit-2026-08-31.json",
+    "pathAndIdentity": [
+      "refoundation/evidence/s6-wp0-windows-path-contract-2026-08-31.json",
+      "refoundation/evidence/s6-wp0-windows-case-insensitive-identity-2026-08-31.json"
+    ],
+    "runtimeAndNativeDependencies": [
+      "refoundation/evidence/s6-wp0-windows-node-runtime-material-2026-08-31.json",
+      "refoundation/evidence/s6-wp0-windows-native-dependency-architecture-2026-08-31.json"
+    ],
+    "remainingBoundaryDesigns": [
+      "refoundation/evidence/s6-wp0-windows-terminal-confinement-design-2026-08-31.json",
+      "refoundation/evidence/s6-wp0-windows-g-program-design-2026-08-31.json",
+      "refoundation/evidence/s6-wp0-windows-document-render-design-2026-08-31.json"
+    ],
+    "runner": "refoundation/evidence/s6-wp0-current-head-runner-blocked-2026-08-31.json"
+  },
+  "physicalBlockers": [
+    "AppContainer or equivalent declared-target Terminal confinement",
+    "G protected same-language program execution after confinement and NTFS qualification",
+    "DOCX native all-page visual quality rendering",
+    "actual Windows Search add update delete query readback",
+    "NTFS junction reparse hardlink ACL lock stale identity and cross-volume behavior",
+    "DPAPI Job Object ConPTY and OCR current-head execution",
+    "x64 and ARM64 package build install upgrade rollback uninstall",
+    "Explorer Browser IME Preview Download Reveal human Console qualification",
+    "Defender UAC and enterprise policy behavior"
+  ],
+  "windowsInstallerDecision": "OWNER_PENDING",
+  "claims": {
+    "prePhysicalSourcePrepared": true,
+    "currentHeadWindowsRunnerPass": false,
+    "physicalWindowsX64Pass": false,
+    "physicalWindowsArm64Pass": false,
+    "windowsInstallerReady": false,
+    "publicWindowsReleaseReady": false
+  },
+  "next": "Use a physical Windows x64 machine for the first adapter and package qualification. Do not transfer macOS or lexical contract PASS to Windows physical reality."
+}

@@ -2557,7 +2557,7 @@ semantic version은 `6.0.0`으로 통일하며 과거 `0.3.x·0.4.x·0.5.x` buil
 
 #### S6-WP0 — Windows Pre-Physical Readiness
 
-현재 상태: `WP0_OPEN · READ_ONLY_BASELINE_COMPLETE · REPAIR_FAMILIES_OPEN · PHYSICAL_PASS_NOT_CLAIMED`
+현재 상태: `PREPHYSICAL_COMPLETE · RUNNER_ALLOCATION_BLOCKED · PHYSICAL_WINDOWS_PENDING · INSTALLER_OWNER_PENDING`
 
 목적:
 
@@ -2712,6 +2712,22 @@ windowsInstallerDecision: OWNER_PENDING
 finding을 고정했다. 첫 수리는 package version truth이며, Windows 설치본 제작과 physical PASS는 계속 금지한다.
 
 근거: `refoundation/evidence/s6-wp0-windows-prephysical-baseline-2026-08-31.json`.
+
+2026-08-31 WP0 종료 결과:
+
+- source HQ exact commit `7a47f69a`에서 독립 Windows worktree와 branch를 만들고 macOS source와 상태를 섞지 않았다.
+- package version·기본 파일 범위·OCR helper·대소문자 target identity·UNC/path 계약을 선행 수리했다.
+- x64·ARM64 Node runtime의 공식 bytes·SHA-256과 native dependency PE architecture를 package 입력에 결속했다.
+- Terminal confinement·G program admission·DOCX all-page render는 검증되지 않은 대체 구현으로 열지 않고 물리 자격
+  전까지 fail-closed 경계와 후보 계약으로 고정했다.
+- 전체 `refoundation:ci`는 exit 0, 제품 통합 207 PASS·Windows 물리 전용 2 SKIP, mutation 2/2였다.
+- hosted runner는 서로 다른 두 code head에서 Windows·macOS job 모두 step 0으로 끝났다. 제품 code·compile·test는
+  실행되지 않았고 정확한 외부 원인은 metadata에서 알 수 없으므로 Windows 실패나 PASS로 표현하지 않는다.
+- Windows 설치본은 만들지 않았고 x64·ARM64 physical PASS도 주장하지 않는다. 남은 항목은 NTFS·AppContainer·
+  DPAPI·Job Object·ConPTY·Windows Search·OCR·native render·실제 설치와 인간 Console처럼 Windows 현실이 필요한
+  blocker로 축소했다.
+
+종료 근거: `refoundation/evidence/s6-wp0-windows-prephysical-closeout-2026-08-31.json`.
 
 ---
 
