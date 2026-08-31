@@ -55,12 +55,9 @@ test('bind_sources가 연 optional Method는 Reality 1회 뒤 모델의 직접 �
           const firstAtom = visible.find((tool) => tool.name === 'integral_method').parameters.properties
             .claimEvidence.properties.claims.items.properties.evidenceAtomIds.items.enum[0];
           return { text: '', toolCalls: [{ id: 'method', name: 'integral_method', args: {
-            contract: { schema: 't5.integral-outcome-method.v1', work: { workId: 'work-11111111', revision: 1 },
-              human: { purpose: '차이 확인', useContext: '지급 전', audience: '담당자' },
+            contract: { human: { purpose: '차이 확인', useContext: '지급 전', audience: '담당자' },
               strategy: { primaryOutcome: '차이', requestedScope: ['금액 차이'], excludedScope: ['정상'],
                 sufficientWhen: ['두 금액과 차이 확인'] },
-              reality: { sourceManifestId: manifestId,
-                exactInputHandles: ['source-00000001', 'source-00000002'], unresolvedFacts: [] },
               method: { operators: ['compare', 'calculate'], checks: ['전체 source'],
                 expectedOutputs: [{ name: 'answer', kind: 'answer', effect: 'observe' }] },
               form: { deliverableForms: ['answer'], informationOrder: ['결론', '근거'],

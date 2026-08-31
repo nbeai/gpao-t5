@@ -19,12 +19,9 @@ const sourceObserver = async (source, { handle }) => ({ handle, displayName: sou
   ].join('\n') });
 
 function contract() {
-  return { schema: 't5.integral-outcome-method.v1', work: { workId: 'work-11111111', revision: 1 },
-    human: { purpose: '차이 확인', useContext: '지급 전 검토', audience: '담당자' },
+  return { human: { purpose: '차이 확인', useContext: '지급 전 검토', audience: '담당자' },
     strategy: { primaryOutcome: '차이만 전달', requestedScope: ['금액 차이'],
       excludedScope: ['정상 항목'], sufficientWhen: ['두 자료의 차이와 근거 확인'] },
-    reality: { sourceManifestId: manifestId,
-      exactInputHandles: ['source-00000001', 'source-00000002'], unresolvedFacts: [] },
     method: { operators: ['compare', 'calculate'], checks: ['exact source coverage'],
       expectedOutputs: [{ name: 'answer', kind: 'answer', effect: 'observe' }] },
     form: { deliverableForms: ['answer'], informationOrder: ['결론', '근거'],

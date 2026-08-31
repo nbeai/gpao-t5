@@ -4,7 +4,7 @@ import { extname } from 'node:path';
 import { inspectBusinessDocument } from './document-data-inspector.js';
 import {
   buildIntegralMethodContractBinding, executeIntegralMethodCandidate,
-  integralMethodCandidateJsonSchema,
+  integralMethodProductProposalJsonSchema, materializeIntegralMethodProductProposal,
 } from './integral-method-contract.js';
 import {
   atomClaimEvidenceJsonSchema, evidenceAtomsFromProjection, materializeAtomClaimEvidence,
@@ -150,10 +150,10 @@ export function makeIntegralMethodRuntime({ sourceManifestStore, sessionId, curr
     const sourceManifest = { state: verified.state, manifestId,
       inputHandles: records.map((record) => record.handle) };
     prepared = { currentWork: { workId: work.workId, revision: work.revision, status: work.status },
-      sourceManifest, records, evidenceAtoms };
+      sourceManifest, records, evidenceAtoms, unresolvedFacts: verified.unknowns ?? [] };
     modelProjection = null;
     replaceObject(parameters, { type: 'object', additionalProperties: false, properties: {
-      contract: integralMethodCandidateJsonSchema(),
+      contract: integralMethodProductProposalJsonSchema(),
       claimEvidence: atomClaimEvidenceJsonSchema({ atomIds: evidenceAtoms.map((atom) => atom.atomId) }),
     }, required: ['contract', 'claimEvidence'] });
     return { state: 'ready', activatedTools: ['integral_method'],
@@ -171,7 +171,11 @@ export function makeIntegralMethodRuntime({ sourceManifestStore, sessionId, curr
     async execute(args = {}) {
       if (!prepared) return { state: 'not_prepared', stopFurtherResearch: true };
       try {
-        const result = await executeIntegralMethodCandidate(args.contract, {
+        const contract = materializeIntegralMethodProductProposal(args.contract, {
+          currentWork: prepared.currentWork, sourceManifest: prepared.sourceManifest,
+          unresolvedFacts: prepared.unresolvedFacts,
+        });
+        const result = await executeIntegralMethodCandidate(contract, {
           currentWork: prepared.currentWork, sourceManifest: prepared.sourceManifest,
           verifyCurrentSourceManifest: async () => {
             const verified = await sourceManifestStore.verify({ sessionId,
@@ -200,7 +204,7 @@ export function makeIntegralMethodRuntime({ sourceManifestStore, sessionId, curr
         const displayNames = Object.fromEntries(prepared.records.map((record) => [record.handle, record.displayName]));
         const atomKinds = Object.fromEntries(prepared.evidenceAtoms.map((atom) => [atom.atomId, atom.kind]));
         modelProjection = { schema: 't5.integral-human-outcomes.v1', state: 'verified',
-          human: args.contract.human, strategy: args.contract.strategy, form: args.contract.form,
+          human: contract.human, strategy: contract.strategy, form: contract.form,
           sourceCoverage: 'complete', outcomes: humanOutcomes(result.claimEvidence.claims, atomKinds)
             .map((outcome) => ({ corroborated: outcome.corroborated, states: outcome.states,
               summaries: outcome.summaries,

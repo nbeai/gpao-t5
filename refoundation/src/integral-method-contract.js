@@ -201,6 +201,26 @@ export function integralMethodCandidateJsonSchema() {
   }, required: ['schema', 'work', 'human', 'strategy', 'reality', 'method', 'form'] });
 }
 
+export function integralMethodProductProposalJsonSchema() {
+  const full = integralMethodCandidateJsonSchema();
+  return { type: 'object', additionalProperties: false, properties: {
+    human: full.properties.human, strategy: full.properties.strategy,
+    method: full.properties.method, form: full.properties.form,
+  }, required: ['human', 'strategy', 'method', 'form'] };
+}
+
+export function materializeIntegralMethodProductProposal(input, { currentWork, sourceManifest,
+  unresolvedFacts = [] } = {}) {
+  exactObject(input, ['human', 'strategy', 'method', 'form'], 'Integral Method product proposal');
+  return validateIntegralMethodCandidate({ schema: 't5.integral-outcome-method.v1',
+    work: { workId: currentWork?.workId, revision: currentWork?.revision },
+    human: input.human, strategy: input.strategy,
+    reality: { sourceManifestId: sourceManifest?.manifestId,
+      exactInputHandles: sourceManifest?.inputHandles, unresolvedFacts },
+    method: input.method, form: input.form,
+  }, { currentWork, sourceManifest });
+}
+
 export function compactClaimEvidenceJsonSchema() {
   const ref = schemaSourceRef();
   return structuredClone({ type: 'object', additionalProperties: false, properties: {
