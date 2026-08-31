@@ -73,6 +73,29 @@ test('한 번의 실제 모델 전환은 후속 fallback 응답마다 새 transi
   assert.equal(primaryCalls, 1); assert.equal(fallbackCalls, 2);
 });
 
+test('provider가 partial text 뒤 실패하면 fallback 시작 전에 이전 임시 답을 reset한다', async () => {
+  const visible = [];
+  const model = makeModelContinuity({ connections: [{
+    id: 'primary', provider: 'openai', modelId: 'gpt-primary', capabilityManifest: manifest('openai'),
+    create: async () => ({ async respond({ onTextDelta }) {
+      await onTextDelta?.({ text: '끊긴 답' });
+      throw Object.assign(new Error('network offline'), { code: 'network_error' });
+    } }),
+  }, {
+    id: 'fallback', provider: 'anthropic', modelId: 'claude-fallback', capabilityManifest: manifest('anthropic'),
+    create: async () => ({ async respond({ onTextDelta }) {
+      await onTextDelta?.({ text: '새 답' }); return { text: '새 답', toolCalls: [] };
+    } }),
+  }] });
+  const response = await model.respond({
+    messages: [{ role: 'user', content: '답해줘' }], tools: [],
+    onTextDelta: ({ text }) => visible.push(text),
+    onTextReset: ({ reason }) => visible.push(`reset:${reason}`),
+  });
+  assert.equal(response.text, '새 답');
+  assert.deepEqual(visible, ['끊긴 답', 'reset:provider_fallback', '새 답']);
+});
+
 test('필수 이미지 능력이 없는 주 모델은 호출하지 않고 허용된 다음 모델로 admission한다', async () => {
   let primaryCalls = 0; let fallbackCalls = 0;
   const model = makeModelContinuity({ connections: [{

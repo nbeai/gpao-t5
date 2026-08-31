@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_STR_REALTIME_ANSWER_STREAMING",
+  "status": "COMPLETE_WITH_PROVIDER_FIRST_DELTA_CARRY",
+  "recordedOn": "2026-08-31",
+  "sourceBaseline": "71c9dbba00386d4b5900b7b0c39b8989b8c09354",
+  "completionCommit": "same_commit_as_evidence",
+  "implemented": {
+    "provider": "chatgpt_oauth_responses_sse",
+    "incrementalUtf8SseReader": true,
+    "agentLoopDeltaAndReset": true,
+    "consoleLiveSse": true,
+    "canonicalFinalPersistedOnce": true,
+    "adaptiveMarkdownRenderMs": { "foreground": 70, "background": 180 },
+    "maximumConfiguredRenderFps": 14.286,
+    "otherProvidersFallbackToFinalAnswer": true
+  },
+  "countertests": {
+    "utf8SplitAcrossNetworkChunks": "PASS",
+    "sseEventSplitAndCombined": "PASS",
+    "toolTransitionReset": "PASS",
+    "providerInternalRetryReset": "PASS",
+    "providerFallbackReset": "PASS",
+    "canonicalMismatchReset": "PASS",
+    "stopBlocksLateDelta": "PASS",
+    "lateCallbackAfterRespond": "PASS",
+    "twoConcurrentSessionsRemainIsolated": "PASS",
+    "consoleDeltaBeforeExecuteTurnCompletion": "PASS",
+    "singleCanonicalAssistantMessage": "PASS",
+    "manualScrollContractPreserved": "PASS"
+  },
+  "actualConsole": {
+    "environment": {
+      "model": "gpt-5.5",
+      "provider": "chatgpt_oauth",
+      "isolatedHomeDataWorkspace": true,
+      "actualUserData": false,
+      "externalWrites": 0
+    },
+    "shortDirect": {
+      "status": "PASS",
+      "modelCalls": 1,
+      "toolCalls": 0,
+      "firstFeedbackMs": 33.4,
+      "firstAnswerDeltaReceivedMs": 2838,
+      "firstAnswerDeltaVisibleMs": 2865.1,
+      "answerDeltaToVisibleMs": 27.1,
+      "turnCompleteMs": 3200,
+      "outputTokens": 11,
+      "duplicateFinalMessages": 0
+    },
+    "longDirect": {
+      "status": "PASS_WITH_PROVIDER_LATENCY_CARRY",
+      "modelCalls": 1,
+      "toolCalls": 0,
+      "firstFeedbackMs": 37.7,
+      "firstVisibleAnswerMs": 3869.7,
+      "turnCompleteMs": 14235.4,
+      "outputTokens": 568,
+      "finalCharacters": 933,
+      "visibleGrowthObserved": true,
+      "finalStructuredMarkdown": true
+    },
+    "weatherToolTransition": {
+      "status": "PASS",
+      "modelCalls": 3,
+      "toolCalls": 2,
+      "firstFeedbackMs": 22.7,
+      "firstGroundedContentMs": 7638.8,
+      "firstVisibleFinalAnswerMs": 10347,
+      "turnCompleteMs": 13621.8,
+      "stalePartialAnswerMixed": false,
+      "duplicateProgressAndFinal": false,
+      "publicNetworkReadOnly": true
+    }
+  },
+  "verification": {
+    "focusedStreamingRegression": { "tests": 73, "passed": 73, "failed": 0 },
+    "fullCi": {
+      "command": "npm run refoundation:ci",
+      "exitCode": 0,
+      "integration": { "tests": 210, "passed": 208, "failed": 0, "skippedPhysicalWindows": 2 },
+      "mutation": { "killed": 2, "survived": 0 }
+    }
+  },
+  "nonGoalsPreserved": {
+    "newStore": 0,
+    "newIntentRouter": 0,
+    "promptChanges": 0,
+    "toolSchemaChanges": 0,
+    "addedModelCalls": 0,
+    "addedToolCalls": 0,
+    "persistedPartialAnswers": 0,
+    "reasoningOrToolArgumentStreaming": 0,
+    "telegramTokenStreaming": 0,
+    "installerBuilt": false
+  },
+  "carry": {
+    "productTargetFirstSemanticAnswerMs": 2000,
+    "observedShortProviderFirstDeltaMs": 2838,
+    "observedLongProviderFirstDeltaMs": 3869.7,
+    "runtimeAbsoluteDeltaToVisibleTargetMs": 120,
+    "observedRuntimeDeltaToVisibleMs": 27.1,
+    "interpretation": "Runtime delivery passes. The 2 second product target remains provider-first-delta dependent and is not claimed."
+  }
+}

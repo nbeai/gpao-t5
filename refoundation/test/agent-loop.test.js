@@ -6,6 +6,91 @@ import { join } from 'node:path';
 
 import { runAgent } from '../src/agent-loop.js';
 
+test('직접 답변 delta는 모델 완료 전에 순서대로 전달되고 정본이 같으면 reset하지 않는다', async () => {
+  const deltas = []; const resets = [];
+  const model = { async respond({ onTextDelta }) {
+    await onTextDelta({ text: '첫 ' }); await onTextDelta({ text: '답변' });
+    return { text: '첫 답변', toolCalls: [] };
+  } };
+  const result = await runAgent({
+    request: '인사해줘', model, tools: [],
+    onAnswerDelta: (event) => deltas.push(event.text),
+    onAnswerReset: (event) => resets.push(event.reason),
+  });
+  assert.equal(result.answer, '첫 답변');
+  assert.deepEqual(deltas, ['첫 ', '답변']);
+  assert.deepEqual(resets, []);
+});
+
+test('Tool로 전환한 model turn의 임시 답은 지우고 다음 최종 답만 이어 보인다', async () => {
+  let turn = 0; const deltas = []; const resets = [];
+  const model = { async respond({ onTextDelta }) {
+    turn += 1;
+    if (turn === 1) {
+      await onTextDelta({ text: '먼저 답할게요.' });
+      return { text: '먼저 답할게요.', toolCalls: [{ id: 'read', name: 'observe', args: {} }] };
+    }
+    await onTextDelta({ text: '확인된 최종 답' });
+    return { text: '확인된 최종 답', toolCalls: [] };
+  } };
+  const result = await runAgent({
+    request: '확인해줘', model,
+    tools: [{ name: 'observe', description: 'observe', parameters: { type: 'object' },
+      async execute() { return { state: 'observed' }; } }],
+    onAnswerDelta: (event) => deltas.push(event.text),
+    onAnswerReset: (event) => resets.push(event.reason),
+  });
+  assert.equal(result.answer, '확인된 최종 답');
+  assert.deepEqual(deltas, ['먼저 답할게요.', '확인된 최종 답']);
+  assert.deepEqual(resets, ['tool_call_transition']);
+});
+
+test('누적 stream과 최종 정본이 다르면 임시 답을 reset하고 정본을 한 번 다시 전달한다', async () => {
+  const deltas = []; const resets = [];
+  const model = { async respond({ onTextDelta }) {
+    await onTextDelta({ text: '임시 답' }); return { text: '검증된 정본', toolCalls: [] };
+  } };
+  const result = await runAgent({
+    request: '답해줘', model, tools: [],
+    onAnswerDelta: (event) => deltas.push(event.text),
+    onAnswerReset: (event) => resets.push(event.reason),
+  });
+  assert.equal(result.answer, '검증된 정본');
+  assert.deepEqual(resets, ['canonical_text_mismatch']);
+  assert.deepEqual(deltas, ['임시 답', '검증된 정본']);
+});
+
+test('사용자 Stop 뒤 delta와 canonical 보정은 보이지 않고 임시 답만 reset된다', async () => {
+  const controller = new AbortController(); const deltas = []; const resets = [];
+  const model = { async respond({ onTextDelta }) {
+    await onTextDelta({ text: '보이던 답' }); controller.abort();
+    await onTextDelta({ text: '늦은 답' });
+    return { text: '보이던 답늦은 답', toolCalls: [] };
+  } };
+  const result = await runAgent({
+    request: '답해줘', model, tools: [], signal: controller.signal,
+    onAnswerDelta: ({ text }) => deltas.push(text),
+    onAnswerReset: ({ reason }) => resets.push(reason),
+  });
+  assert.equal(result.status, 'cancelled');
+  assert.deepEqual(deltas, ['보이던 답']);
+  assert.deepEqual(resets, ['cancelled']);
+});
+
+test('model respond가 끝난 뒤 도착한 이전 callback은 다음 표면에 쓰이지 않는다', async () => {
+  const deltas = []; let late;
+  const model = { async respond({ onTextDelta }) {
+    late = onTextDelta; await onTextDelta({ text: '정상 답' });
+    return { text: '정상 답', toolCalls: [] };
+  } };
+  const result = await runAgent({
+    request: '답해줘', model, tools: [], onAnswerDelta: ({ text }) => deltas.push(text),
+  });
+  await late({ text: '뒤늦은 오염' });
+  assert.equal(result.answer, '정상 답');
+  assert.deepEqual(deltas, ['정상 답']);
+});
+
 test('현재 사용자 첨부의 provider input은 agent loop 첫 모델 호출에만 결속된다', async () => {
   const calls = [];
   const model = { async respond(input) {

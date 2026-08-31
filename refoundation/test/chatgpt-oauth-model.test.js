@@ -87,6 +87,62 @@ function sseResponse(lines, status = 200) {
   });
 }
 
+function controlledStreamingResponse({ firstEvents, finalEvents }) {
+  const encoder = new TextEncoder(); let releaseFinal;
+  const finalGate = new Promise((resolve) => { releaseFinal = resolve; });
+  const encode = (events, done = false) => encoder.encode([
+    ...events.map((event) => `data: ${JSON.stringify(event)}\n\n`),
+    ...(done ? ['data: [DONE]\n\n'] : []),
+  ].join(''));
+  const first = encode(firstEvents); const marker = encoder.encode('한')[0];
+  const splitAt = Math.max(1, first.indexOf(marker) + 1);
+  return {
+    releaseFinal,
+    response: new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(first.slice(0, splitAt));
+        controller.enqueue(first.slice(splitAt));
+        finalGate.then(() => {
+          controller.enqueue(encode(finalEvents, true)); controller.close();
+        });
+      },
+    }), { status: 200, headers: { 'content-type': 'text/event-stream' } }),
+  };
+}
+
+test('ChatGPT OAuth adapter는 UTF-8·SSE 경계를 복원해 completed 전에 output_text delta를 전달한다', async () => {
+  const stream = controlledStreamingResponse({
+    firstEvents: [
+      { type: 'response.output_text.delta', delta: '한글 ' },
+      { type: 'response.output_text.delta', delta: '첫 문장' },
+    ],
+    finalEvents: [{ type: 'response.completed', response: {
+      id: 'stream-response', model: 'gpt-account-model',
+      output: [{ type: 'message', role: 'assistant', status: 'completed',
+        content: [{ type: 'output_text', text: '한글 첫 문장입니다.' }] }],
+      usage: { input_tokens: 2, output_tokens: 4, total_tokens: 6 },
+    } }],
+  });
+  const deltas = []; let settled = false; let firstDelta;
+  const firstSeen = new Promise((resolve) => { firstDelta = resolve; });
+  const model = makeChatGptResponsesModel({
+    credentials: { async get() { return { access: ACCESS, modelId: 'gpt-account-model' }; } },
+    fetchImpl: async () => stream.response,
+  });
+  const pending = model.respond({
+    messages: [{ role: 'user', content: '길게 답해줘' }], tools: [],
+    onTextDelta: async ({ text }) => { deltas.push(text); if (deltas.length === 2) firstDelta(); },
+  }).finally(() => { settled = true; });
+  await firstSeen;
+  assert.equal(settled, false);
+  assert.deepEqual(deltas, ['한글 ', '첫 문장']);
+  stream.releaseFinal();
+  const result = await pending;
+  assert.equal(result.text, '한글 첫 문장입니다.');
+  assert.equal(result.streamedText, '한글 첫 문장');
+  assert.equal(result.streamTextMatchesFinal, false);
+});
+
 test('ChatGPT OAuth adapter는 현재 사용자 이미지 첨부를 input_image로 보낸다', async () => {
   const requests = [];
   const model = makeChatGptResponsesModel({
@@ -394,6 +450,35 @@ test('ChatGPT OAuth adapter는 transient provider 실패만 제한적으로 재�
   assert.equal(result.text, '복구됐습니다.');
   assert.equal(calls, 2);
   assert.deepEqual(waits, [10]);
+});
+
+test('ChatGPT OAuth 내부 retry는 실패한 attempt의 partial text를 다음 답과 이어 붙이지 않는다', async () => {
+  const credentials = { async get() { return {
+    access: ACCESS, accountId: 'acct-7', modelId: 'gpt-account-model', expiresAt: Date.now() + 600_000,
+  }; } };
+  let calls = 0; const visible = [];
+  const model = makeChatGptResponsesModel({
+    credentials, maxAttempts: 2, wait: async () => {},
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) return sseResponse([
+        { type: 'response.output_text.delta', delta: '끊긴 답' },
+        { type: 'response.failed', response: { error: { code: 'server_error', message: 'retry' } } },
+      ]);
+      return sseResponse([
+        { type: 'response.output_text.delta', delta: '복구된 답' },
+        { type: 'response.completed', response: { id: 'retry-ok', model: 'gpt-account-model',
+          output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '복구된 답' }] }] } },
+      ]);
+    },
+  });
+  const result = await model.respond({
+    messages: [{ role: 'user', content: '답해줘' }], tools: [],
+    onTextDelta: ({ text }) => visible.push(text),
+    onTextReset: ({ reason }) => visible.push(`reset:${reason}`),
+  });
+  assert.equal(result.text, '복구된 답');
+  assert.deepEqual(visible, ['끊긴 답', 'reset:provider_retry', '복구된 답']);
 });
 
 test('계정 backend가 내부 prompt_cache_retention 힌트를 간헐적으로 거부할 때만 같은 body를 bounded 재시도한다', async () => {

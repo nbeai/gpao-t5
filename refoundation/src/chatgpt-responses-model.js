@@ -84,32 +84,73 @@ function callsFromOutput(output) {
   });
 }
 
-function readSse(raw) {
-  const items = [];
-  const deltas = [];
-  let completed = null;
-  let failure = null;
-  for (const line of raw.split('\n')) {
-    if (!line.startsWith('data:')) continue;
-    const payload = line.slice(5).trim();
-    if (!payload || payload === '[DONE]') continue;
-    let event;
-    try { event = JSON.parse(payload); } catch { continue; }
-    if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') deltas.push(event.delta);
-    else if (event.type === 'response.output_item.done' && event.item) items.push(event.item);
-    else if (event.type === 'response.completed' && event.response) completed = event.response;
-    else if (event.type === 'response.failed') failure = event.response?.error ?? event.error ?? { code: 'response_failed' };
-    else if (event.type === 'error') failure ??= event.error ?? { code: 'response_error' };
-  }
-  const output = Array.isArray(completed?.output) && completed.output.length ? completed.output : items;
+function makeSseAccumulator(onTextDelta) {
+  const items = []; const deltas = [];
+  let completed = null; let failure = null;
   return {
-    id: completed?.id ?? null,
-    model: completed?.model ?? null,
-    output,
-    text: deltas.length ? deltas.join('') : textFromOutput(output),
-    usage: completed?.usage ?? null,
-    failure,
+    async accept(block) {
+      const payload = String(block).split(/\r?\n/u)
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice(5).replace(/^ /u, '')).join('\n').trim();
+      if (!payload || payload === '[DONE]') return;
+      let event;
+      try { event = JSON.parse(payload); } catch { return; }
+      if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') {
+        deltas.push(event.delta);
+        await onTextDelta?.({ text: event.delta });
+      } else if (event.type === 'response.output_item.done' && event.item) items.push(event.item);
+      else if (event.type === 'response.completed' && event.response) completed = event.response;
+      else if (event.type === 'response.failed') {
+        failure = event.response?.error ?? event.error ?? { code: 'response_failed' };
+      } else if (event.type === 'error') failure ??= event.error ?? { code: 'response_error' };
+    },
+    result() {
+      const output = Array.isArray(completed?.output) && completed.output.length ? completed.output : items;
+      const streamedText = deltas.join(''); const completedText = textFromOutput(output);
+      return {
+        id: completed?.id ?? null,
+        model: completed?.model ?? null,
+        output,
+        text: completedText || streamedText,
+        streamedText,
+        streamTextMatchesFinal: !streamedText || !completedText || streamedText === completedText,
+        usage: completed?.usage ?? null,
+        failure,
+      };
+    },
   };
+}
+
+async function readSse(raw, onTextDelta) {
+  const accumulator = makeSseAccumulator(onTextDelta);
+  for (const block of String(raw).split(/\r?\n\r?\n/u)) await accumulator.accept(block);
+  return accumulator.result();
+}
+
+async function readSseStream(body, onTextDelta) {
+  if (!body || typeof body.getReader !== 'function') return null;
+  const accumulator = makeSseAccumulator(onTextDelta);
+  const decoder = new TextDecoder(); const reader = body.getReader();
+  let raw = ''; let pending = '';
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const decoded = decoder.decode(value, { stream: true }); raw += decoded; pending += decoded;
+      for (;;) {
+        const boundary = /\r?\n\r?\n/u.exec(pending);
+        if (!boundary) break;
+        const block = pending.slice(0, boundary.index);
+        pending = pending.slice(boundary.index + boundary[0].length);
+        await accumulator.accept(block);
+      }
+    }
+    const tail = decoder.decode(); raw += tail; pending += tail;
+    if (pending.trim()) await accumulator.accept(pending);
+    return { raw, parsed: accumulator.result() };
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 function scrub(text, access) {
@@ -149,7 +190,7 @@ export function makeChatGptResponsesModel({
   return {
     async respond({
       messages = [], tools = [], toolChoice = null, signal, onContextReceipt, onTransmissionReceipt, resourceObserver,
-      runtimeContext = '',
+      runtimeContext = '', onTextDelta, onTextReset,
     } = {}) {
       const requestInstructions = runtimeContext ? `${instructions}\n\n${runtimeContext}` : instructions;
       const credential = await credentials.get();
@@ -199,6 +240,10 @@ export function makeChatGptResponsesModel({
       const transmissionReceipt = makeTransmissionReceipt({ provider: 'chatgpt_oauth', model: requestModel,
         endpoint, serializedBody });
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        let attemptStreamed = false;
+        const deliverTextDelta = async (event) => {
+          attemptStreamed = true; await onTextDelta?.(event);
+        };
         await dump?.({
           body,
           meta: {
@@ -227,7 +272,9 @@ export function makeChatGptResponsesModel({
             signal,
           });
           await onTransmissionReceipt?.({ ...settleTransmissionReceipt(transmissionReceipt, 'response_received'), attempt });
-          const raw = await response.text();
+          let raw; let streamed = null;
+          if (response.ok) streamed = await readSseStream(response.body, deliverTextDelta);
+          raw = streamed?.raw ?? await response.text();
           await observeResponse?.({ status: response.status, raw, attempt });
           if (!response.ok) {
             const detail = scrub(raw.slice(0, 2_000), credential.access);
@@ -238,7 +285,7 @@ export function makeChatGptResponsesModel({
               retriable: cacheHintRejected || response.status === 429 || response.status >= 500,
             });
           } else {
-            parsed = readSse(raw);
+            parsed = streamed?.parsed ?? await readSse(raw, deliverTextDelta);
             if (parsed.failure) {
               const code = parsed.failure.code ?? parsed.failure.type ?? 'response_failed';
               transportError = new ChatGptTransportError(parsed.failure.message ?? code, {
@@ -273,6 +320,8 @@ export function makeChatGptResponsesModel({
             responseId: parsed.id,
             responseModel: parsed.model,
             usage: parsed.usage,
+            streamedText: parsed.streamedText,
+            streamTextMatchesFinal: parsed.streamTextMatchesFinal,
             contextReceipt,
             transmissionReceipt: settleTransmissionReceipt(transmissionReceipt, 'response_received'),
             wireContextMode,
@@ -281,6 +330,9 @@ export function makeChatGptResponsesModel({
         await settleProviderUnknown(resourceObserver, resourceHandle, 'provider_attempt_failed', {
           httpStatus: transportError.status ?? null,
           retryable: transportError.retriable === true,
+        });
+        if (attemptStreamed) await onTextReset?.({
+          reason: transportError.retriable && attempt < maxAttempts ? 'provider_retry' : 'provider_failed',
         });
         if (!transportError.retriable || attempt === maxAttempts) throw transportError;
         await wait(retryDelayMs * attempt);

@@ -12,6 +12,84 @@ const terminalSessionArgs = (overrides = {}) => ({
   stream: null, offset: null, limit: null, ...overrides,
 });
 
+test('Console SSE는 executeTurn 완료 전에 답변 delta를 내고 최종 정본은 한 번만 저장한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-console-live-answer-stream-'));
+  const stateDir = join(room, 'state'); const workspace = join(room, 'workspace'); await mkdir(workspace);
+  let releaseFinal; const finalGate = new Promise((resolve) => { releaseFinal = resolve; });
+  const modelFactory = () => ({ async respond({ onTextDelta }) {
+    await onTextDelta?.({ text: '첫 문장' }); await finalGate;
+    await onTextDelta?.({ text: '이 이어집니다.' });
+    return { text: '첫 문장이 이어집니다.', toolCalls: [] };
+  } });
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory,
+    modelStatus: () => ({ connected: true, provider: 'test', modelId: 'stream-model' }) });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const start = await fetch(`${base}/turn/stream-start`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: '장문으로 답해줘' }),
+    }).then((response) => response.json());
+    const response = await fetch(`${base}/turn/stream?streamId=${start.streamId}`);
+    const reader = response.body.getReader(); const decoder = new TextDecoder(); let wire = '';
+    while (!wire.includes('event: answer_delta')) {
+      const chunk = await reader.read(); assert.equal(chunk.done, false); wire += decoder.decode(chunk.value, { stream: true });
+    }
+    assert.match(wire, /첫 문장/u);
+    assert.doesNotMatch(wire, /event: complete/u);
+    releaseFinal();
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      wire += decoder.decode(chunk.value, { stream: true });
+    }
+    wire += decoder.decode();
+    assert.equal((wire.match(/event: answer_delta/gu) ?? []).length, 2);
+    assert.equal((wire.match(/event: complete/gu) ?? []).length, 1);
+    const reopened = await fetch(`${base}/sessions/${session.id}`).then((item) => item.json());
+    const replies = reopened.transcript.filter((entry) => entry.role === 'assistant');
+    assert.equal(replies.length, 1);
+    assert.equal(replies[0].result.reply, '첫 문장이 이어집니다.');
+  } finally {
+    releaseFinal(); await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
+test('두 Session의 동시 answer stream은 서로의 delta와 final을 섞지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-console-parallel-answer-stream-'));
+  const stateDir = join(room, 'state'); const workspace = join(room, 'workspace'); await mkdir(workspace);
+  const modelFactory = () => ({ async respond({ messages, onTextDelta }) {
+    const label = messages.at(-1).content.includes('ALPHA') ? 'ALPHA' : 'BETA';
+    await onTextDelta?.({ text: `${label}-첫` });
+    await new Promise((resolve) => setTimeout(resolve, label === 'ALPHA' ? 25 : 10));
+    await onTextDelta?.({ text: `-${label}-끝` });
+    return { text: `${label}-첫-${label}-끝`, toolCalls: [] };
+  } });
+  const server = makeConsoleServer({ stateDir, workspace, modelFactory,
+    modelStatus: () => ({ connected: true, provider: 'test', modelId: 'parallel-stream-model' }) });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const [alpha, beta] = await Promise.all(['ALPHA', 'BETA'].map(async (label) => {
+      const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+      const start = await fetch(`${base}/turn/stream-start`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId: session.id, text: `${label} 답변` }),
+      }).then((response) => response.json());
+      return fetch(`${base}/turn/stream?streamId=${start.streamId}`).then((response) => response.text());
+    }));
+    assert.match(alpha, /ALPHA-첫/u); assert.match(alpha, /ALPHA-끝/u); assert.doesNotMatch(alpha, /BETA/u);
+    assert.match(beta, /BETA-첫/u); assert.match(beta, /BETA-끝/u); assert.doesNotMatch(beta, /ALPHA/u);
+    assert.equal((alpha.match(/event: complete/gu) ?? []).length, 1);
+    assert.equal((beta.match(/event: complete/gu) ?? []).length, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
 test('제품 콘솔은 safe login PATH와 configured HOME을 실제 모델 Terminal 호출에 배선한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-console-terminal-environment-'));
   const stateDir = join(room, 'state'); const workspace = join(room, 'workspace');
@@ -328,7 +406,9 @@ test('기존 콘솔 UI가 새 session → agent loop → terminal → persisted 
     assert.equal(run.events.at(-1).type, 'surface_metric');
     const speed = await fetch(`${base}/runs/${run.runId}/speed`).then((response) => response.json());
     assert.deepEqual(speed.visible, {
-      firstFeedbackMs: 12, firstGroundedContentMs: 34, turnCompleteMs: 56,
+      firstFeedbackMs: 12, firstGroundedContentMs: 34,
+      firstAnswerDeltaReceivedMs: null, firstAnswerDeltaVisibleMs: null,
+      answerDeltaToVisibleMs: null, turnCompleteMs: 56,
     });
     assert.equal(speed.model.calls, 2);
     assert.equal(speed.tools.calls, 1);

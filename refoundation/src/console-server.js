@@ -2280,6 +2280,11 @@ export function makeConsoleServer({
         .filter(Boolean).join('\n\n');
       const agentRequest = `${modelRequest}\n\n${runtimeContexts}`;
       const observedToolActivity = new Set();
+      let answerStreamRaw = ''; let answerStreamProjected = ''; let answerStreamSuppressed = false;
+      const resetProjectedAnswer = () => {
+        if (answerStreamProjected) emit('answer_reset', {});
+        answerStreamRaw = ''; answerStreamProjected = ''; answerStreamSuppressed = false;
+      };
       const result = await runAgent({
         request: agentRequest,
         requestAttachments: imageInputs,
@@ -2299,6 +2304,25 @@ export function makeConsoleServer({
         resourceSituationMode,
         activeOptimizationMode,
         currentRunEvidenceMode,
+        onAnswerDelta: ({ text: piece }) => {
+          if (answerStreamSuppressed || typeof piece !== 'string' || !piece) return;
+          answerStreamRaw += piece;
+          if (/\[T5 [A-Z]|\b(?:processId|runId|workId|toolCallId|outputHandle)\s*:|attachment:\/\//iu
+            .test(answerStreamRaw)) {
+            resetProjectedAnswer(); answerStreamSuppressed = true; return;
+          }
+          const projected = userSafeConsoleReply(answerStreamRaw);
+          if (!projected.startsWith(answerStreamProjected)) {
+            resetProjectedAnswer(); answerStreamRaw = piece;
+            answerStreamProjected = userSafeConsoleReply(piece);
+            if (answerStreamProjected) emit('answer_delta', { text: answerStreamProjected });
+            return;
+          }
+          const delta = projected.slice(answerStreamProjected.length);
+          answerStreamProjected = projected;
+          if (delta) emit('answer_delta', { text: delta });
+        },
+        onAnswerReset: () => resetProjectedAnswer(),
         onToolCallsAccepted: async ({ toolCalls: calls }) => {
           await ensureActiveWork();
           const boundedObservationOnly = calls.length > 0 && calls.every((call) => {
@@ -3102,7 +3126,8 @@ export function makeConsoleServer({
 
   async function recordSurfaceMetric(input = {}) {
     const measurementId = String(input.measurementId ?? '');
-    if (!measurementId || !['first_feedback_visible', 'first_grounded_content', 'turn_complete'].includes(input.event)
+    if (!measurementId || !['first_feedback_visible', 'first_grounded_content',
+      'first_answer_delta_received', 'first_answer_delta_visible', 'turn_complete'].includes(input.event)
       || !Number.isFinite(input.elapsedMs)) return false;
     const metric = {
       event: input.event,
@@ -5110,7 +5135,12 @@ export function makeConsoleServer({
         res.writeHead(200, {
           'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache', connection: 'keep-alive',
         });
-        const emit = (type, payload) => res.write(`event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`);
+        let emittedAnswer = '';
+        const emit = (type, payload) => {
+          if (type === 'answer_reset') emittedAnswer = '';
+          else if (type === 'answer_delta' && typeof payload?.text === 'string') emittedAnswer += payload.text;
+          return res.write(`event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`);
+        };
         if (!pending || pending.expiresAt < Date.now()) {
           emit('recoverable_error', { text: '요청이 만료됐어요.' }); emit('complete', { kind: 'error' }); res.end(); return;
         }
@@ -5120,11 +5150,20 @@ export function makeConsoleServer({
             measurementId: pending.measurementId, attachmentIds: pending.attachmentIds,
             admittedInput: pending.admittedInput,
           });
-          if (completed.kind === 'cancelled') emit('recoverable_error', { text: '멈췄어요.' });
-          else emit('answer_delta', { text: completed.result.answer });
+          if (completed.kind === 'cancelled') {
+            if (emittedAnswer) emit('answer_reset', {});
+            emit('recoverable_error', { text: '멈췄어요.' });
+          } else {
+            const finalAnswer = String(completed.surfaceResult?.reply ?? completed.result.answer ?? '');
+            if (emittedAnswer !== finalAnswer) {
+              if (emittedAnswer) emit('answer_reset', {});
+              if (finalAnswer) emit('answer_delta', { text: finalAnswer });
+            }
+          }
           emit('complete', { kind: completed.kind });
         } catch (error) {
           onError?.(error);
+          if (emittedAnswer) emit('answer_reset', {});
           const failure = error?.surfaceResult ?? {
             kind: 'error', ...userSafeTurnFailure(
               error, await Promise.resolve().then(() => status()).catch(() => null),

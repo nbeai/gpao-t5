@@ -53,6 +53,20 @@ test('도구 없는 직접 답변도 입력 직후 본문에 한 줄 진행 상�
   assert.match(html.slice(answerStart, answerEnd), /trace\.hidden = true/u);
 });
 
+test('답변 stream은 첫 delta를 즉시 그리고 이후 Markdown render를 적응형으로 제한한다', async () => {
+  const html = await readFile(resolve(root, 'refoundation/ui/index.html'), 'utf8');
+  const start = html.indexOf('const flushPreview =');
+  const end = html.indexOf('const completed =', start);
+  const renderer = html.slice(start, end);
+  assert.match(renderer, /const first = !renderedPreviewText/u);
+  assert.match(renderer, /setTimeout\(flushPreview, document\.hidden \? 180 : 70\)/u);
+  assert.match(renderer, /previewText\.length - renderedPreviewText\.length >= 96/u);
+  assert.match(renderer, /scrollToBottom\(\)/u);
+  assert.match(renderer, /first_answer_delta_received/u);
+  assert.match(renderer, /first_answer_delta_visible/u);
+  assert.equal((renderer.match(/renderMarkdownInto\(preview, previewText\)/gu) ?? []).length, 1);
+});
+
 test('Artifact 인간 영수증은 기존 카드 안에서 접혀 있고 textContent만 사용한다', async () => {
   const html = await readFile(resolve(root, 'refoundation/ui/index.html'), 'utf8');
   const start = html.indexOf('function appendHumanArtifactReceipt');

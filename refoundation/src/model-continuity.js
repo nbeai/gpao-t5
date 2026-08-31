@@ -83,6 +83,7 @@ export function makeModelContinuity({ connections = [] } = {}) {
       }
       for (;;) {
         tried.add(index);
+        let attemptStreamed = false;
         try {
           const model = await modelAt(index);
           const continuityContext = activeReceipt ? [
@@ -92,7 +93,16 @@ export function makeModelContinuity({ connections = [] } = {}) {
             'Do not repeat a prior successful Tool call or external effect.',
             `transition=${activeReceipt.from.provider}:${activeReceipt.from.modelId}->${activeReceipt.to.provider}:${activeReceipt.to.modelId}`,
           ].filter(Boolean).join('\n') : input.runtimeContext;
-          const response = await model.respond({ ...input, ...(continuityContext ? { runtimeContext: continuityContext } : {}) });
+          const response = await model.respond({
+            ...input,
+            ...(input.onTextDelta ? { onTextDelta: async (event) => {
+              attemptStreamed = true; await input.onTextDelta(event);
+            } } : {}),
+            ...(input.onTextReset ? { onTextReset: async (event) => {
+              attemptStreamed = false; await input.onTextReset(event);
+            } } : {}),
+            ...(continuityContext ? { runtimeContext: continuityContext } : {}),
+          });
           return {
             ...response,
             continuityGuardActive: Boolean(activeReceipt),
@@ -105,6 +115,7 @@ export function makeModelContinuity({ connections = [] } = {}) {
           if (input.signal?.aborted) throw error;
           const reason = modelContinuityFailure(error); if (!reason) throw error;
           const next = nextCandidate(tried, required); if (next < 0) throw error;
+          if (attemptStreamed) await input.onTextReset?.({ reason: 'provider_fallback' });
           activeReceipt = receipt(candidates[index], candidates[next], reason, required);
           transitionReceipts.push(activeReceipt);
           index = next; activeModel = null;

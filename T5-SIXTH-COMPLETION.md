@@ -2729,6 +2729,76 @@ finding을 고정했다. 첫 수리는 package version truth이며, Windows 설�
 
 종료 근거: `refoundation/evidence/s6-wp0-windows-prephysical-closeout-2026-08-31.json`.
 
+#### S6-STR — Realtime Answer Streaming
+
+현재 상태: `COMPLETE · CHATGPT_OAUTH_LIVE · RUNTIME_DELTA_TO_VISIBLE_PASS · PROVIDER_FIRST_DELTA_CARRY`
+
+사용자 완료 문장:
+
+> T5에 직접 답할 수 있는 질문이나 글쓰기 요청을 보내면 사용자는 모델이 만든 첫 문장을 즉시 읽기 시작하고 이후
+> 답변이 자연스럽게 이어지는 것을 본다. 도구가 필요하면 임시 답은 실제 진행 상태로 정리되고 최종 답은 기존과
+> 동일하게 정확히 한 번 저장된다.
+
+현재 실패는 모델 속도가 아니라 연결부다. ChatGPT Responses transport는 `stream: true`와
+`response.output_text.delta` parser를 이미 사용하지만 `response.text()`가 완료될 때까지 모두 모았고, Console도
+`executeTurn()` 종료 뒤 완성 답 전체를 `answer_delta` 한 번으로 보냈다. 기존 Run에서 provider 시작 약 1.38초,
+4,373 output token 생성 완료 약 81.3초, 사용자 본문 표시 약 88.7초가 관측됐다. 이 Run을 replay source로 사용하며
+같은 유료 표본을 개발 중 반복하지 않는다.
+
+실행 순서:
+
+1. `STR-0` — 현재 한 번의 model call·Tool 0 실패 원본과 최종 canonical text를 고정한다.
+2. `STR-1` — ChatGPT OAuth Responses body를 incremental UTF-8·SSE reader로 읽고 `output_text.delta`만 전달한다.
+3. `STR-2` — AgentLoop가 delta·reset을 임시 사용자 표면으로 전달하되 Tool 전환·fallback·새 입력·취소에서 지운다.
+4. `STR-3` — Console SSE를 실행 중 callback에 연결하고 최종 정본과 다르면 reset 뒤 정본 한 번으로 교체한다.
+5. `STR-4` — 첫 delta는 즉시, 이후 Markdown은 기본 70ms·background 180ms·문장/줄 경계 조기 flush로 제한한다.
+6. `STR-5` — Stop·transport failure·late delta·두 Session·재접속·canonical persistence를 반대시험한다.
+
+불변식:
+
+- reasoning·Tool arguments·명령·비밀·Runtime 내부 marker를 stream하지 않는다.
+- 임시 text는 Conversation·Run·Memory의 최종 메시지가 아니며 최종 정본만 한 번 저장한다.
+- provider delta가 없으면 기존 완성 답 경로가 그대로 작동한다.
+- Tool call·fallback·새 사용자 입력 뒤 이전 partial text를 새 답과 이어 붙이지 않는다.
+- UI 연결이 끊겨도 실행과 canonical final persistence는 계속되고 partial을 완료로 복구하지 않는다.
+- 새 Store·Intent Router·Prompt·Tool schema·model call·provider token을 추가하지 않는다.
+- Telegram token 단위 edit와 설치 package 제작은 이 Gate의 범위가 아니다.
+
+합격식:
+
+```yaml
+final_text_digest_matches_canonical: true
+duplicate_final_messages: 0
+persisted_partial_answers: 0
+leaked_reasoning_or_tool_arguments: 0
+provider_delta_to_console_emit_p95_ms: 120_or_less
+visible_pause_while_deltas_arrive_ms: 250_or_less
+added_model_or_tool_calls: 0
+added_provider_tokens_or_request_bytes: 0
+ui_render_rate_fps: 20_or_less
+stop_blocks_late_output: true
+manual_scroll_preserved: true
+```
+
+실전 자격은 전체 HQ를 반복하지 않고 `짧은 직접 답 · 같은 장문 직접 작성 · 현재정보 Tool 사용` 세 Console
+여정만 수행한다. provider의 첫 delta 자체가 늦은 경우 T5가 거짓 2초 PASS를 만들지 않으며 Runtime의 절대 계약은
+받은 delta를 120ms 안에 사용자 표면으로 전달하는 것이다.
+
+2026-08-31 actual Console 결과:
+
+- 짧은 직접 답은 model 1·Tool 0으로 끝났고 첫 delta 2.838초, 첫 화면 2.865초, delta→visible 27.1ms,
+  전체 3.20초였다. 최종 assistant message는 한 개였다.
+- 933자 장문 직접 작성은 model 1·Tool 0, 첫 본문 3.870초부터 실제로 자라 14.235초에 같은 Markdown 정본으로
+  완료됐다.
+- 서울 날씨는 실제 진행 상태 뒤 최종 답이 10.347초부터 흘렀고 13.622초에 완료됐다. Tool turn의 임시 답,
+  진행 문구와 최종 답 중복은 0이었다.
+- 사용자 자료·외부 쓰기는 0이며 공개 날씨 read만 사용했다.
+- `2초` 제품 목표는 현재 provider 첫 delta에서 통과하지 못했다. 이를 숨기지 않고 carry한다. Runtime이 받은 delta를
+  화면에 표시한 27.1ms는 절대 120ms 계약을 통과했다.
+- 전체 CI는 exit 0, 제품 통합 208 PASS·Windows 물리 전용 2 SKIP, mutation 2/2였다.
+
+근거: `refoundation/evidence/s6-str-realtime-answer-streaming-2026-08-31.json`.
+
 ---
 
 ### S6-L — Windows Physical Product Qualification

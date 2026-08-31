@@ -4376,7 +4376,11 @@ async function streamTurn(sessionId, t, trace, { surfaceStartedAt, firstFeedback
     // 미리보기는 진실이 아니다. 조각이 안 와도 동작은 같다(스트림 미지원 provider 등).
     let preview = null;
     let previewText = '';
+    let renderedPreviewText = '';
+    let previewFlushTimer = 0;
     let firstGroundedReported = false;
+    let firstAnswerDeltaReceivedReported = false;
+    let firstAnswerDeltaVisibleReported = false;
     // P90-2: 확인된 중간 결과. 기다리는 동안 화면이 비어 있지 않게, **이미 일어난 사실만**
     // 쌓는다(성공 영수증의 사용자 문장 — 커널이 실행 뒤에만 내보낸다). 미리보기와 같은
     // 계약이다: 진행 중엔 보이고 완료되면 지속된 결과가 대체한다.
@@ -4407,13 +4411,47 @@ async function streamTurn(sessionId, t, trace, { surfaceStartedAt, firstFeedback
     // **되돌린 답은 앞의 것을 지우고 다시 쓴다**(F-8). 이어붙이면 서로 어긋난 두 답이
     // 한 답으로 보인다 — 라이브에서 "터미널로 가져올게요" 뒤에 "직접 실행할 수는 없어요"가 붙었다.
     es.addEventListener('answer_reset', () => {
+      if (previewFlushTimer) clearTimeout(previewFlushTimer);
+      previewFlushTimer = 0;
       previewText = '';
+      renderedPreviewText = '';
       if (preview) renderMarkdownInto(preview, '');
     });
+    const flushPreview = () => {
+      if (previewFlushTimer) clearTimeout(previewFlushTimer);
+      previewFlushTimer = 0;
+      if (!preview || renderedPreviewText === previewText) return;
+      renderMarkdownInto(preview, previewText);
+      renderedPreviewText = previewText;
+      markGrounded();
+      if (!firstAnswerDeltaVisibleReported) {
+        firstAnswerDeltaVisibleReported = true;
+        afterVisiblePaint(surfaceStartedAt).then((sample) => reportVisibleTiming(
+          start.measurementId, 'first_answer_delta_visible', sample,
+        ));
+      }
+      scrollToBottom();
+    };
+    const schedulePreviewFlush = (piece) => {
+      const first = !renderedPreviewText;
+      const semanticBoundary = /[\n.!?。！？]\s*$/u.test(piece);
+      const buffered = previewText.length - renderedPreviewText.length >= 96;
+      if (first || semanticBoundary || buffered) { flushPreview(); return; }
+      if (previewFlushTimer) return;
+      previewFlushTimer = setTimeout(flushPreview, document.hidden ? 180 : 70);
+    };
     es.addEventListener('answer_delta', (e) => {
       try {
         const { text: piece } = JSON.parse(e.data);
         if (!piece) return;
+        if (!firstAnswerDeltaReceivedReported) {
+          firstAnswerDeltaReceivedReported = true;
+          reportVisibleTiming(start.measurementId, 'first_answer_delta_received', {
+            elapsedMs: performance.now() - surfaceStartedAt,
+            visibilityState: ['visible', 'hidden', 'prerender'].includes(document.visibilityState)
+              ? document.visibilityState : 'hidden',
+          });
+        }
         if (!preview) {
           trace.hidden = true;
           // 확인된 중간 결과는 **기다림을 채우는 것**이다. 답이 오기 시작하면 채울 공백이
@@ -4426,9 +4464,9 @@ async function streamTurn(sessionId, t, trace, { surfaceStartedAt, firstFeedback
           trace.parentNode.insertBefore(preview, trace);
         }
         previewText += piece;
-        renderMarkdownInto(preview, previewText); // 최종 답변과 **같은 렌더러** — 흐르는 동안과 끝난 뒤가 같다
-        markGrounded();
-        scrollToBottom(); // 흐르는 동안 따라 내려간다(위로 올려 읽는 중이면 그대로 둔다)
+        // 첫 내용은 즉시, 이후에는 최대 초당 약 14회만 같은 Markdown 렌더러로 갱신한다.
+        // 사용자가 위를 읽는 중이면 기존 scrollToBottom 경계가 위치를 보존한다.
+        schedulePreviewFlush(piece);
       } catch {}
     });
     const completed = () => ({
@@ -4440,8 +4478,13 @@ async function streamTurn(sessionId, t, trace, { surfaceStartedAt, firstFeedback
     // 임시 표면은 **스트림이 끝나면** 걷는다. 완료만 끝이 아니다 — 끊긴 턴에서도 끝난다.
     // 철거를 완료 한 곳에만 걸면, 연결이 끊겼을 때 검증 안 된 미리보기 답과 확인 사실이
     // "연결에 문제가 있었어요" 아래에 그대로 눌러앉는다.
-    const 임시표면정리 = () => { preview?.remove(); preview = null; steps?.remove(); steps = null; };
-    es.addEventListener('complete', () => { done = true; 임시표면정리(); es.close(); resolve(completed()); });
+    const 임시표면정리 = () => {
+      if (previewFlushTimer) clearTimeout(previewFlushTimer);
+      previewFlushTimer = 0; preview?.remove(); preview = null; steps?.remove(); steps = null;
+    };
+    es.addEventListener('complete', () => {
+      done = true; flushPreview(); 임시표면정리(); es.close(); resolve(completed());
+    });
     es.onerror = () => { 임시표면정리(); es.close(); done ? resolve(completed()) : reject(new Error('stream')); };
   });
 }

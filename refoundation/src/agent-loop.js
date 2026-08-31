@@ -262,6 +262,8 @@ async function executeCall(call, tools, signal, activeTools, priorReceipts = [],
  *   takeAdmittedWorkInputs?:()=>Promise<Array<{inputId:string,text:string,attachmentIds?:string[],source?:object,currentWork?:object,modelAttachments?:object[]}>>,
  *   applyAdmittedWorkInputs?:(inputs:Array<{inputId:string}>)=>Promise<unknown>,
  *   onToolCallsAccepted?:(facts:{turn:number,toolCalls:Array<object>})=>Promise<{activateTools?:string[]}|void>|{activateTools?:string[]}|void,
+ *   onAnswerDelta?:(event:{turn:number,text:string})=>void|Promise<void>,
+ *   onAnswerReset?:(event:{turn:number,reason:string})=>void|Promise<void>,
  *   onEvent?:(event:object)=>void|Promise<void>,
  * }} input
  */
@@ -285,6 +287,8 @@ export async function runAgent({
   takeAdmittedWorkInputs = null,
   applyAdmittedWorkInputs = null,
   onToolCallsAccepted = null,
+  onAnswerDelta = null,
+  onAnswerReset = null,
   onEvent,
   onToolActivity = null,
 }) {
@@ -424,27 +428,57 @@ export async function runAgent({
       throw new TypeError('runtimeContextProvider must return a string or null');
     }
     const runtimeContext = [observedRuntimeContext, situationBlock].filter(Boolean).join('\n\n');
-    const response = normalizeResponse(await model.respond({
-      messages: structuredClone(modelTranscript),
-      tools: structuredClone(definitions),
-      ...(runtimeContext ? { runtimeContext } : {}),
-      ...(completionReminderSent && requiredCompletionName() && !completionSatisfied() ? {
-        toolChoice: { requiredToolName: requiredCompletionName() },
-      } : modelTurns === 1 && requiredInitialTool ? {
-        toolChoice: { requiredToolName: requiredInitialTool },
-      } : {}),
-      signal,
-      ...(resourceObserver ? { resourceObserver } : {}),
-      onContextReceipt: async (contextReceipt) => {
-        await onEvent?.({
-          type: 'model_context', turn: modelTurns, contextReceipt: structuredClone(contextReceipt),
-        });
-      },
-      onTransmissionReceipt: async (transmissionReceipt) => {
-        await onEvent?.({ type: 'model_transmission', turn: modelTurns,
-          transmissionReceipt: structuredClone(transmissionReceipt) });
-      },
-    }));
+    let streamedText = '';
+    let acceptingStreamDeltas = true;
+    const resetAnswerStream = async (reason) => {
+      if (!streamedText) return;
+      streamedText = '';
+      await Promise.resolve(onAnswerReset?.({ turn: modelTurns, reason })).catch(() => {});
+    };
+    let rawResponse;
+    try {
+      rawResponse = await model.respond({
+        messages: structuredClone(modelTranscript),
+        tools: structuredClone(definitions),
+        ...(runtimeContext ? { runtimeContext } : {}),
+        ...(completionReminderSent && requiredCompletionName() && !completionSatisfied() ? {
+          toolChoice: { requiredToolName: requiredCompletionName() },
+        } : modelTurns === 1 && requiredInitialTool ? {
+          toolChoice: { requiredToolName: requiredInitialTool },
+        } : {}),
+        signal,
+        ...(resourceObserver ? { resourceObserver } : {}),
+        onTextDelta: async ({ text }) => {
+          if (!acceptingStreamDeltas || signal?.aborted || typeof text !== 'string' || !text) return;
+          streamedText += text;
+          await Promise.resolve(onAnswerDelta?.({ turn: modelTurns, text })).catch(() => {});
+        },
+        onTextReset: async ({ reason = 'provider_reset' } = {}) => resetAnswerStream(reason),
+        onContextReceipt: async (contextReceipt) => {
+          await onEvent?.({
+            type: 'model_context', turn: modelTurns, contextReceipt: structuredClone(contextReceipt),
+          });
+        },
+        onTransmissionReceipt: async (transmissionReceipt) => {
+          await onEvent?.({ type: 'model_transmission', turn: modelTurns,
+            transmissionReceipt: structuredClone(transmissionReceipt) });
+        },
+      });
+    } catch (error) {
+      acceptingStreamDeltas = false;
+      await resetAnswerStream('model_failed'); throw error;
+    }
+    acceptingStreamDeltas = false;
+    const response = normalizeResponse(rawResponse);
+    if (signal?.aborted) await resetAnswerStream('cancelled');
+    else if (response.toolCalls.length) await resetAnswerStream('tool_call_transition');
+    else if (streamedText && streamedText !== response.text) {
+      await resetAnswerStream('canonical_text_mismatch');
+      if (response.text) {
+        streamedText = response.text;
+        await Promise.resolve(onAnswerDelta?.({ turn: modelTurns, text: response.text })).catch(() => {});
+      }
+    }
     if (situationBlock) await onEvent?.({
       type: 'resource_optimization_choice', turn: modelTurns,
       ...observeResourceOptimizationChoice({
@@ -485,6 +519,9 @@ export async function runAgent({
         } : {}),
       },
     });
+    if (signal?.aborted) {
+      return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
+    }
     if (providerBudgetExceeded) {
       const error = new Error('run provider token budget exceeded');
       error.reason = 'run_resource_budget_exceeded';
@@ -493,7 +530,10 @@ export async function runAgent({
     }
     if (typeof takeAdmittedWorkInputs === 'function') {
       const boundaryAfterModelCall = await takeAdmittedWorkInputs();
-      if (signal?.aborted) return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
+      if (signal?.aborted) {
+        await resetAnswerStream('cancelled');
+        return { status: 'cancelled', answer: null, transcript, receipts, modelCalls, modelTurns };
+      }
       const startedWith = new Set(admittedWorkInputs.map((input) => input.inputId));
       const arrivedDuringModelCall = boundaryAfterModelCall.filter((input) => !startedWith.has(input.inputId));
       if (arrivedDuringModelCall.length) {
@@ -510,6 +550,7 @@ export async function runAgent({
         await onEvent?.({ type: 'model_superseded_by_admission', turn: modelTurns,
           inputCount: boundaryAfterModelCall.length, newlyArrived: arrivedDuringModelCall.length,
           discardedToolCalls: response.toolCalls.length, discardedAnswer: Boolean(response.text) });
+        await resetAnswerStream('new_user_input');
         continue;
       }
     }
@@ -559,6 +600,7 @@ export async function runAgent({
           'The completion proposal is recorded. Write the final user answer now.',
           'Do not call another tool and do not mention this internal state.',
         ].join('\n') });
+        await resetAnswerStream('final_answer_required');
         continue;
       }
       const completionName = requiredCompletionName();
@@ -583,6 +625,7 @@ export async function runAgent({
           ].join('\n')
             : `[T5 RUNTIME COMPLETION CONTRACT] Before ending this scheduled Run, call ${completionName}. Declare not_achieved if any requested effect, delivery, verification, or result URL is still missing. A normal final answer cannot close this Run.`,
         });
+        await resetAnswerStream('completion_receipt_required');
         continue;
       }
       return { status: 'completed', answer: response.text, transcript, receipts, modelCalls, modelTurns };

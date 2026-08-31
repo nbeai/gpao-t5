@@ -59,6 +59,8 @@ export function deriveRunSpeedReceipt(run) {
     if (receipt.outcome !== 'succeeded') failedCalls += 1;
   }
 
+  const firstAnswerDeltaReceivedMs = elapsed(events, 'first_answer_delta_received');
+  const firstAnswerDeltaVisibleMs = elapsed(events, 'first_answer_delta_visible');
   return {
     runId: run?.runId ?? null,
     status: run?.status ?? 'unknown',
@@ -80,6 +82,10 @@ export function deriveRunSpeedReceipt(run) {
     visible: {
       firstFeedbackMs: elapsed(events, 'first_feedback_visible'),
       firstGroundedContentMs: elapsed(events, 'first_grounded_content'),
+      firstAnswerDeltaReceivedMs,
+      firstAnswerDeltaVisibleMs,
+      answerDeltaToVisibleMs: firstAnswerDeltaReceivedMs != null && firstAnswerDeltaVisibleMs != null
+        ? Math.max(0, firstAnswerDeltaVisibleMs - firstAnswerDeltaReceivedMs) : null,
       turnCompleteMs: elapsed(events, 'turn_complete'),
     },
   };

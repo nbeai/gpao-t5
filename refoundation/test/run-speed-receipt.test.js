@@ -25,6 +25,8 @@ test('Run 사건에서 모델·도구·출력·토큰·사용자 가시 시간�
       event(8, 4, 'model_completed', { turn: 2, response: {
         usage: { input_tokens: 150, output_tokens: 30, total_tokens: 180 }, toolCalls: [],
       } }, 'model-2'),
+      event(8.1, 4, 'surface_metric', { event: 'first_answer_delta_received', elapsedMs: 2200, visibilityState: 'visible' }),
+      event(8.2, 4, 'surface_metric', { event: 'first_answer_delta_visible', elapsedMs: 2275, visibilityState: 'visible' }),
       event(9, 4, 'surface_metric', { event: 'first_grounded_content', elapsedMs: 4050, visibilityState: 'visible' }),
       event(10, 4, 'run_completed', { modelTurns: 2, receiptCount: 1 }),
       event(11, 5, 'surface_metric', { event: 'turn_complete', elapsedMs: 5100, visibilityState: 'visible' }),
@@ -35,7 +37,9 @@ test('Run 사건에서 모델·도구·출력·토큰·사용자 가시 시간�
     wallMs: 4000,
     model: { calls: 2, durationMs: 3000, inputTokens: 250, outputTokens: 50, totalTokens: 300 },
     tools: { calls: 1, durationMs: 900, outputChars: 6, omittedChars: 4, failedCalls: 0 },
-    visible: { firstFeedbackMs: 80, firstGroundedContentMs: 4050, turnCompleteMs: 5100 },
+    visible: { firstFeedbackMs: 80, firstGroundedContentMs: 4050,
+      firstAnswerDeltaReceivedMs: 2200, firstAnswerDeltaVisibleMs: 2275,
+      answerDeltaToVisibleMs: 75, turnCompleteMs: 5100 },
   });
 });
 
@@ -48,7 +52,9 @@ test('없는 가시성·사용량 값은 성공처럼 0으로 꾸미지 않고 n
   const receipt = deriveRunSpeedReceipt(run);
   assert.equal(receipt.wallMs, null);
   assert.deepEqual(receipt.visible, {
-    firstFeedbackMs: null, firstGroundedContentMs: null, turnCompleteMs: null,
+    firstFeedbackMs: null, firstGroundedContentMs: null,
+    firstAnswerDeltaReceivedMs: null, firstAnswerDeltaVisibleMs: null,
+    answerDeltaToVisibleMs: null, turnCompleteMs: null,
   });
   assert.equal(receipt.model.inputTokens, null);
 });
