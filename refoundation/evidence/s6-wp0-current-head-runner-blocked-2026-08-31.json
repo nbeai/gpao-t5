@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_WP0_CURRENT_HEAD_WINDOWS_RUNNER",
+  "status": "BLOCKED_BEFORE_STEPS_EXTERNAL_RUNNER_ALLOCATION",
+  "sourceCommit": "a6ae7ddc62a88d802ab6853899903aecfde45249",
+  "workflow": {
+    "runId": 33352108442,
+    "event": "push",
+    "url": "https://github.com/nbeai/gpao-t5/actions/runs/33352108442",
+    "startedAt": "2026-08-31T02:54:07Z",
+    "updatedAt": "2026-08-31T02:54:12Z",
+    "conclusion": "failure"
+  },
+  "jobs": [
+    { "name": "windows-terminal", "jobId": 99367350764, "stepsStarted": 0, "conclusion": "failure" },
+    { "name": "macos-product", "jobId": 99367350930, "stepsStarted": 0, "conclusion": "failure" }
+  ],
+  "classification": {
+    "productCodeExecuted": false,
+    "windowsCompileAttempted": false,
+    "windowsTestsAttempted": false,
+    "sameRunRetried": false,
+    "failureFamily": "external_runner_allocation",
+    "exactExternalReason": "unknown from run metadata"
+  },
+  "notClaimed": [
+    "current-head Windows runner PASS",
+    "Windows OCR helper compile",
+    "ARM64 helper compile",
+    "macOS regression failure"
+  ],
+  "next": "use an owner-provided runnable Windows environment or restore hosted runner allocation; do not patch product code for a zero-step run"
+}
