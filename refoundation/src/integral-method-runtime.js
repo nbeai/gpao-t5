@@ -156,6 +156,7 @@ export function makeIntegralMethodRuntime({ sourceManifestStore, sessionId, curr
       claimEvidence: atomClaimEvidenceJsonSchema({ atomIds: evidenceAtoms.map((atom) => atom.atomId) }),
     }, required: ['contract', 'claimEvidence'] });
     return { state: 'ready', activatedTools: ['integral_method'],
+      ...(verified.unknowns?.length ? { requiredNextTool: 'integral_method' } : {}),
       integralMethod: { sourceManifestId: manifestId, sourceCount: records.length,
         sourcePacket: modelSourcePacket(prepared) } };
   };

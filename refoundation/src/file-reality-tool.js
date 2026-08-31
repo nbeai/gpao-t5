@@ -809,7 +809,8 @@ export function makeFileRealityTool({
             ? { state: activation.state, ...activation.integralMethod }
             : { state: activation.state, reason: activation.reason ?? null } } : {}),
           ...(Array.isArray(activation?.activatedTools)
-            ? { activatedTools: activation.activatedTools } : {}) };
+            ? { activatedTools: activation.activatedTools } : {}),
+          ...(activation?.requiredNextTool ? { requiredNextTool: activation.requiredNextTool } : {}) };
       }
       if (action === 'visual_candidates') {
         if (!Array.isArray(requestedHandles) || requestedHandles.length < 1 || requestedHandles.length > 12) {

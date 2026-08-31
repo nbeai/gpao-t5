@@ -37,7 +37,7 @@ test('bind_sources가 연 optional Method는 Reality 1회 뒤 모델의 직접 �
     const tools = deferTools([reality, integral.tool], { coreNames: ['file_reality'] });
     let turn = 0; let handles = null;
     const result = await runAgent({ request: '두 원장의 금액 차이만 알려줘', tools,
-      model: { async respond({ tools: visible, messages }) {
+      model: { async respond({ tools: visible, messages, toolChoice }) {
         turn += 1;
         if (turn === 1) return { text: '', toolCalls: [{ id: 'search', name: 'file_reality',
           args: args({ action: 'search', query: 'ledger', scope: 'workspace', maxCandidates: 5 }) }] };
@@ -45,10 +45,11 @@ test('bind_sources가 연 optional Method는 Reality 1회 뒤 모델의 직접 �
           const observed = JSON.parse(messages.at(-1).content).result; handles = observed.candidates.map((item) => item.handle);
           return { text: '', toolCalls: [{ id: 'bind', name: 'file_reality', args: args({ action: 'bind_sources',
             sourceUses: handles.map((handle) => ({ handle, usage: '금액 대조', columnMappings: null })),
-            purpose: '두 원장 금액 차이 확인', unknowns: [] }) }] };
+            purpose: '두 원장 금액 차이 확인', unknowns: ['한 원장의 상태가 미확인'] }) }] };
         }
         if (turn === 3) {
           assert.ok(visible.some((tool) => tool.name === 'integral_method'));
+          assert.deepEqual(toolChoice, { requiredToolName: 'integral_method' });
           const packet = JSON.parse(messages.at(-1).content).result.integralMethod.sourcePacket;
           const manifestId = packet.match(/sourceManifest=.*"manifestId":"([^"]+)/u)[1];
           const firstAtom = visible.find((tool) => tool.name === 'integral_method').parameters.properties
@@ -73,6 +74,7 @@ test('bind_sources가 연 optional Method는 Reality 1회 뒤 모델의 직접 �
               excludedFindings: [] },
           } }] };
         }
+        assert.equal(toolChoice, undefined);
         assert.equal(visible.some((tool) => tool.name === 'integral_method'), false);
         assert.match(JSON.parse(messages.at(-1).content).result.outcomes[0].summaries[0], /10,000원/u);
         return { text: '두 원장은 100,000원과 90,000원으로 10,000원 차이입니다.', toolCalls: [] };

@@ -342,6 +342,7 @@ export async function runAgent({
   let lastResourceSituationKey = null;
   let completionReminderSent = false;
   let finalAnswerReminderSent = false;
+  let requiredNextTool = null;
   let busySettlementRequired = false;
   let lastTurnToolCalls = 0;
   const projectedWorkInputIds = new Set();
@@ -441,7 +442,9 @@ export async function runAgent({
         messages: structuredClone(modelTranscript),
         tools: structuredClone(definitions),
         ...(runtimeContext ? { runtimeContext } : {}),
-        ...(completionReminderSent && requiredCompletionName() && !completionSatisfied() ? {
+        ...(requiredNextTool ? {
+          toolChoice: { requiredToolName: requiredNextTool },
+        } : completionReminderSent && requiredCompletionName() && !completionSatisfied() ? {
           toolChoice: { requiredToolName: requiredCompletionName() },
         } : modelTurns === 1 && requiredInitialTool ? {
           toolChoice: { requiredToolName: requiredInitialTool },
@@ -766,6 +769,7 @@ export async function runAgent({
       const visualAttachments = receipt._modelAttachments ?? [];
       delete receipt._modelAttachments;
       receipts.push(receipt);
+      if (requiredNextTool === requested.name && receipt.actualCall) requiredNextTool = null;
       const resultProjector = registry.get(requested.name)?.projectResultForModel;
       const modelReceipt = typeof resultProjector === 'function'
         ? { ...receipt, result: resultProjector(receipt.result) } : receipt;
@@ -795,6 +799,13 @@ export async function runAgent({
           && !completedCapabilityGroups.has(candidate.capabilityGroup)) {
           activeTools.add(name); acceptedActivations.push(name); routeActivatedTools.add(name);
         }
+      }
+      if (receipt.result?.requiredNextTool) {
+        const required = String(receipt.result.requiredNextTool);
+        if (!registry.has(required) || !activeTools.has(required)) {
+          throw new Error('required next tool is unavailable');
+        }
+        requiredNextTool = required;
       }
       if (Array.isArray(receipt.result?.activatedTools)) {
         receipt.result.activatedTools = acceptedActivations;
