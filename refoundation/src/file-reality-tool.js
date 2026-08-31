@@ -438,9 +438,11 @@ export function makeFileRealityTool({
         }
         images.sort((left, right) => right.modifiedAt.localeCompare(left.modifiedAt) || left.displayName.localeCompare(right.displayName));
         const limit = safeInteger(maxCandidates, 12, 1, 20);
-        return { state: 'observed', scope: scope ?? 'computer', candidates: images.slice(0, limit).map((record) => ({
+        const candidates = images.slice(0, limit).map((record) => ({
           handle: remember(record), displayName: record.displayName, locationText: record.locationText,
-          extension: record.extension, bytes: record.bytes, modifiedAt: record.modifiedAt })), contentIncluded: false,
+          extension: record.extension, bytes: record.bytes, modifiedAt: record.modifiedAt }));
+        return { state: 'observed', scope: scope ?? 'computer', candidates, contentIncluded: false,
+        ...(candidates.length > 1 ? { requiredNextTool: 'file_reality' } : {}),
         coverage: { roots: roots.length, unavailableRoots: rootState.unavailableRoots,
           filesystemFilesVisited: walk.files.length, filesystemEntriesVisited: walk.visited,
           unreadableDirectories: walk.unreadable, truncated: walk.truncated, elapsedMs: Math.max(0, now() - startedAt) } };
@@ -600,7 +602,8 @@ export function makeFileRealityTool({
               delivery: { state: 'registered_selected_visual' } } : {}) };
         });
         return { state: 'observed', files, coverage: { requested: uniqueHandles.length,
-          observed: files.length, complete: files.length === uniqueHandles.length }, contentIncluded: true };
+          observed: files.length, complete: files.length === uniqueHandles.length }, contentIncluded: true,
+        requiredNextTool: 'file_reality' };
       }
       if (action === 'deliver') {
         if (!Array.isArray(requestedHandles) || requestedHandles.length !== 1) {

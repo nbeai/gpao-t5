@@ -326,6 +326,7 @@ test('inspect는 서로 다른 exact handle을 한 bounded 호출에서 관측�
       handles: selected.map((item) => item.handle), maxCandidates: null, placements: null,
       planId: null, effect: null, sourceUses: null, purpose: null, unknowns: null, standardization: null });
     assert.equal(many.state, 'observed'); assert.equal(many.files.length, 2);
+    assert.equal(many.requiredNextTool, 'file_reality');
     assert.deepEqual(many.coverage, { requested: 2, observed: 2, complete: true });
     assert.ok(many.files.every((item) => typeof item.content === 'string'));
     const one = await tool.execute({ action: 'inspect', query: null, scope: null, path: null,
