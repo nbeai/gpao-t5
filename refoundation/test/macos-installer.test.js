@@ -60,7 +60,7 @@ test('macOS team installer starts the console first and lets the user choose a m
   assert.doesNotMatch(verifier, /'-l', 'BEGIN \(RSA \)\?PRIVATE KEY/u);
 });
 
-test('6차 macOS package는 사용자 표시 6.0·내부 6.0.0을 분리하고 Windows package는 다음 Gate까지 유지한다', async () => {
+test('6차 macOS와 Windows package는 root 내부 version 6.0.0을 같은 진실로 사용한다', async () => {
   const packageMetadata = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
   const build = await readFile(new URL('../scripts/build-macos-installer.mjs', import.meta.url), 'utf8');
   const windowsBuild = await readFile(new URL('../scripts/build-windows-package.mjs', import.meta.url), 'utf8');
@@ -69,5 +69,6 @@ test('6차 macOS package는 사용자 표시 6.0·내부 6.0.0을 분리하고 W
   assert.match(build, /displayVersion:\s*'6\.0'/u);
   assert.match(build, /CFBundleShortVersionString<\/key><string>\$\{product\.displayVersion\}/u);
   assert.match(build, /CFBundleVersion<\/key><string>\$\{product\.version\}/u);
-  assert.match(windowsBuild, /version\s*=\s*'0\.3\.1'/u);
+  assert.match(windowsBuild, /windowsProductVersion\(JSON\.parse\(await readFile\(join\(repo, 'package\.json'/u);
+  assert.doesNotMatch(windowsBuild, /version\s*=\s*'0\.3\.1'/u);
 });
