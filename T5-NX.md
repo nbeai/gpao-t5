@@ -1,10 +1,10 @@
 # T5 NX — Integral Outcome, Mastery, Performance & Comparative Quality
 
-상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FLAGSHIP_MASTERY_CURRENT`
+상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1A_BASELINE_FROZEN · NX_1_FLAGSHIP_MASTERY_CURRENT`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
 현재 Gate: `NX-1 FIRST FLAGSHIP MASTERY · INTEGRAL OUTCOME METHOD`
-현재 작업: `혼합 문서 정산 Mission에서 인문·전략·개발·디자인을 한 Method로 결속해 현재 성공 경로를 실제로 능가하는 격리 후보 제작`
+현재 작업: `NX-1A exact baseline·blind human oracle을 고정하고 qualification-only Integral Method의 첫 RED를 구현으로 전환`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -607,6 +607,20 @@ NX-1은 인문·전략·개발·디자인을 네 번 호출하는 개발이 아�
 같은 evaluator가 후보 source나 내부 method를 보지 않으며, current T5와 candidate 결과의 순서를 무작위로 바꾼다.
 각 결과를 본 evaluator에게 hidden oracle의 세 질문인 `전체 차이`, `가장 큰 원인`, `바로 할 행동`을 답하게 하고,
 정답률·답을 찾는 시간·되돌아본 표/페이지 수를 함께 잰다. “보기 좋다”는 선호만으로 디자인 우위를 주장하지 않는다.
+
+2026-09-01 NX-1A freeze:
+
+- `93adf628` 이후 현재 `321a0327`까지 제품 source delta는 0이므로 구매·계약·비용의 비싼 live 세 건을 반복하지 않고
+  exact DR-0 evidence·oracle digest를 재사용했다.
+- baseline 중앙값은 final 64.153초·model 12·Tool 14·request 1,066,363 bytes·input 212,662 tokens다.
+- 기존 DR-0에는 first useful timestamp와 Artifact·Undo mission이 없으므로 0이나 성공으로 꾸미지 않았다. AB/BA에서 양 arm을
+  새로 같은 계측으로 측정한다.
+- blind human oracle은 후보·Method·실행 순서를 숨기고 `전체 차이·가장 큰 원인·바로 할 행동`의 정답률·탐색 시간·
+  재확인·클릭·수동 재가공과 인문·전략·기술·디자인 네 축을 함께 잰다.
+- 제품 구현은 0이며 `nx1-integral-method-contract.test.js`의 qualification helper 부재 RED가 NX-1B/C의 첫 개발 입력이다.
+
+근거: `refoundation/evidence/nx1-integral-baseline-freeze-2026-09-01.json`,
+`refoundation/fixtures/nx1-integral-human-blind-oracle.json`.
 
 ### NX-1B — Reality Scout
 

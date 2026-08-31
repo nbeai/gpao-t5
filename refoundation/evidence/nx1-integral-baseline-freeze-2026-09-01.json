@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "gate": "NX_1A_INTEGRAL_OUTCOME_BASELINE_FREEZE",
+  "status": "BASELINE_FROZEN_CANDIDATE_RED",
+  "recordedOn": "2026-09-01",
+  "currentHead": "321a032716ae9b2a4b61def94f633f69bd9ee88e",
+  "productSourceBaseline": "93adf628527a511106b0a15da19d528ce8541ddb",
+  "productSourceChangedSinceBaseline": false,
+  "liveReplay": {
+    "executed": false,
+    "reason": "The current head changes only development canon, evidence and contract tests after the exact DR-0 product source. Repeating three expensive model runs would not add a source delta.",
+    "reusedEvidence": "refoundation/evidence/s6-ng5-dr0-actual-baseline-2026-08-31.json",
+    "reusedEvidenceSha256": "ab31e056b625da8441f79c60290965f33759ad3def70b83f44032265e4d9ab73",
+    "hiddenOracle": "refoundation/evidence/s6-ng5-dr0-hidden-oracle-2026-08-31.json",
+    "hiddenOracleSha256": "522a1310d6ecc1067d6575c1a08f0c7bf46cdfd43a7e8bd2cf3087909a676a9a"
+  },
+  "baseline": {
+    "model": "gpt-5.5",
+    "provider": "chatgpt_oauth",
+    "actualUserData": false,
+    "externalWrites": 0,
+    "oracleProjectedToModel": 0,
+    "purposes": [
+      {
+        "id": "purchase_reconciliation",
+        "result": "PASS",
+        "strictScope": true,
+        "wallMs": 60481.174,
+        "modelCalls": 9,
+        "toolCalls": 11,
+        "requestBytes": 724284,
+        "inputTokens": 148594
+      },
+      {
+        "id": "contract_revision",
+        "result": "PARTIAL_SCOPE",
+        "strictScope": false,
+        "wallMs": 64153.004,
+        "modelCalls": 12,
+        "toolCalls": 14,
+        "requestBytes": 1131755,
+        "inputTokens": 212662
+      },
+      {
+        "id": "expense_evidence",
+        "result": "PARTIAL_SCOPE",
+        "strictScope": false,
+        "wallMs": 85000.093,
+        "modelCalls": 12,
+        "toolCalls": 18,
+        "requestBytes": 1066363,
+        "inputTokens": 215680
+      }
+    ],
+    "medians": {
+      "finalWallMs": 64153.004,
+      "modelCalls": 12,
+      "toolCalls": 14,
+      "requestBytes": 1066363,
+      "inputTokens": 212662,
+      "firstUsefulMs": null
+    },
+    "unavailableFacts": [
+      "first useful result timestamp was not present in the reused DR-0 evidence",
+      "baseline Artifact creation and Undo were outside the answer-only DR-0 mission"
+    ]
+  },
+  "requiredCandidateThresholds": {
+    "coreTruthAndCoverage": "NO_REGRESSION",
+    "strictScopePasses": 3,
+    "falseNormalOrExcludedCoreExposure": 0,
+    "medianFinalWallImprovementPercent": 20,
+    "medianModelCallsImprovementPercent": 20,
+    "medianProviderTokensImprovementPercent": 20,
+    "medianFirstUsefulImprovementPercent": 20,
+    "firstUsefulComparisonState": "REQUIRES_NEW_AB_BA_MEASUREMENT_FOR_BOTH_ARMS",
+    "directAndSingleHandCostIncrease": 0
+  },
+  "humanOracle": "refoundation/fixtures/nx1-integral-human-blind-oracle.json",
+  "productSourceChanges": 0,
+  "next": "Turn the deterministic Integral Method contract RED green in a qualification-only helper without product entry, Prompt, schema or Store changes."
+}

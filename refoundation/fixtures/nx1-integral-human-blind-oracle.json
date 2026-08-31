@@ -1,0 +1,87 @@
+{
+  "schema": "t5.nx1.integral-human-blind-oracle.v1",
+  "status": "FROZEN_BEFORE_CANDIDATE",
+  "candidateIdentityVisibleToEvaluator": false,
+  "methodIdentityVisibleToEvaluator": false,
+  "armLabels": ["Result 1", "Result 2"],
+  "armOrder": "randomized_per_packet_and_withheld_from_evaluator",
+  "mappingReceiptRequired": true,
+  "sameEvaluatorAcrossPair": true,
+  "independentEvaluation": true,
+  "packets": [
+    {
+      "id": "purchase_reconciliation",
+      "decisionQuestions": [
+        { "id": "total_difference", "expected": "KRW 50,000 and 2 units" },
+        { "id": "largest_cause", "expected": "accepted quantity 118 versus ordered and invoiced quantity 120" },
+        { "id": "immediate_action", "expected": "confirm or correct IV-991 before paying the excess" }
+      ]
+    },
+    {
+      "id": "contract_revision",
+      "decisionQuestions": [
+        { "id": "total_difference", "expected": "KRW 600,000 increase and end date moved to 2027-02-28" },
+        { "id": "largest_cause", "expected": "v2 changed backup cadence while the responsibility matrix remains stale at v1 weekly" },
+        { "id": "immediate_action", "expected": "update the responsibility matrix and obtain the provider signature" }
+      ]
+    },
+    {
+      "id": "expense_evidence",
+      "decisionQuestions": [
+        { "id": "total_difference", "expected": "C-102 differs by KRW 1,000; C-103 lacks KRW 15,500 evidence; C-101 evidence is duplicated" },
+        { "id": "largest_cause", "expected": "missing C-103 receipt is the largest unresolved monetary exposure" },
+        { "id": "immediate_action", "expected": "request C-103 evidence, reconcile C-102, and keep only one R-101-A evidence record" }
+      ]
+    }
+  ],
+  "observationForm": {
+    "objectiveMeasures": [
+      "answerCorrectnessPerDecisionQuestion",
+      "timeToAnswerEachQuestionMs",
+      "resultRevisitsPerQuestion",
+      "manualReformatActions",
+      "clarifyingQuestionsNeeded",
+      "clicksToLocateEvidence"
+    ],
+    "humanMeaning": [
+      "addresses the decision the user must make",
+      "preserves unknowns without shifting work back to the user",
+      "does not foreground normal or excluded facts"
+    ],
+    "strategy": [
+      "states the material difference and largest cause first",
+      "keeps requested and excluded scope distinct",
+      "offers a bounded immediate action rather than an expanded plan"
+    ],
+    "technicalReality": [
+      "all numbers and relations match the hidden oracle",
+      "every material claim has an exact source location",
+      "coverage, stale state and missing evidence remain explicit"
+    ],
+    "design": [
+      "the three decision answers can be found without scanning normal rows",
+      "numeric units and periods are visually consistent",
+      "conclusion, evidence and action have a clear reading order"
+    ],
+    "preferenceQuestions": [
+      "which result would you act on with less rechecking",
+      "which result required less explanation or cleanup",
+      "which result would you ask T5 to produce again"
+    ]
+  },
+  "passRule": {
+    "hiddenOracleAccuracy": "all material answers correct",
+    "humanMeaning": "candidate majority preference for every packet",
+    "strategy": "candidate majority preference for every packet",
+    "technicalReality": "no regression",
+    "design": "candidate improves answer finding time without accuracy loss",
+    "burden": "no increase in questions, clicks or manual reformatting"
+  },
+  "forbidden": [
+    "evaluator sees candidate name, method, source code or execution order",
+    "aesthetic preference alone passes design",
+    "model self-evaluation replaces independent humans",
+    "normal or excluded facts are counted as useful completeness",
+    "missing first-useful timing is imputed as zero"
+  ]
+}
