@@ -177,13 +177,31 @@ try {
   for (const definition of scenarios) {
     const arms = [];
     const executionOrder = [...order].filter((arm) => requestedArms.includes(arm));
-    for (const arm of executionOrder) arms.push(arm === 'A' ? await runBaseline(definition, room) : await runCandidate(definition, room));
+    for (const arm of executionOrder) {
+      try {
+        arms.push(arm === 'A' ? await runBaseline(definition, room) : await runCandidate(definition, room));
+      } catch (error) {
+        arms.push({ arm, kind: arm === 'A' ? 'current_product' : 'qualification_integral_method',
+          wallMs: null, firstUsefulMs: null, answer: null,
+          machine: { passed: false, reason: arm === 'A'
+            ? 'baseline_execution_failed' : 'candidate_execution_failed' },
+          performance: { modelCalls: null, toolCalls: null, inputTokens: null,
+            outputTokens: null, cachedInputTokens: null, requestBytes: null },
+          toolPath: [], executionFailure: { state: 'failed',
+            category: arm === 'A' ? 'baseline_process_failed' : 'candidate_process_failed',
+            code: typeof error?.code === 'string' ? error.code : null } });
+      }
+    }
     results.push({ scenarioId: definition.id, executionOrder: executionOrder.join(''), arms });
   }
   const payload = { schema: 't5.nx1.integral-flagship-comparison.v1', recordedOn: '2026-09-01', order,
     model: 'gpt-5.5', provider: 'chatgpt_oauth', actualUserData: false, externalWrites: 0,
     oracleProjectedToModel: 0, productChanges: 0,
     humanClosureConnectionPolicy: humanConnectionPolicy, results,
+    allBaselineExecutionsCompleted: results.every((item) => {
+      const arm = item.arms.find((candidate) => candidate.arm === 'A');
+      return arm ? arm.executionFailure == null : true;
+    }),
     allCandidateMachinePassed: results.every((item) => { const arm = item.arms.find((candidate) => candidate.arm === 'B');
       return arm ? arm.machine.passed && arm.qualification?.reality?.passed
         && arm.qualification?.human?.passed : true; }),

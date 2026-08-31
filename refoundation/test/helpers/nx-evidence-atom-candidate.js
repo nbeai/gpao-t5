@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto';
 import { validateCompactClaimEvidence } from './nx-integral-method-candidate.js';
 
 const MAX_ATOMS = 600;
-const MAX_ATOMS_PER_CLAIM = 48;
+const MAX_EXPLICIT_ATOMS_PER_CLAIM = 16;
+const MAX_MATERIALIZED_ATOMS_PER_CLAIM = 48;
 const OPERATORS = new Set(['add', 'subtract', 'multiply', 'divide']);
 const sha256 = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
@@ -15,7 +16,7 @@ function addAtom(output, seen, fact) {
   const key = JSON.stringify(normalized); if (seen.has(key)) return;
   seen.add(key); output.push(Object.freeze({ atomId: atomId(normalized), ...normalized }));
 }
-function tokenAtoms({ handle, location, text }, output, seen) {
+function tokenAtoms({ handle, location, text, unitHint = '' }, output, seen) {
   const value = clean(text); if (!value) return;
   addAtom(output, seen, { handle, location, kind: 'text', value: value.slice(0, 300), unit: '' });
   const tokens = new Set([
@@ -28,7 +29,8 @@ function tokenAtoms({ handle, location, text }, output, seen) {
   for (const match of value.matchAll(/(?<![A-Za-z0-9-])(-?\d+(?:,\d{3})*(?:\.\d+)?)(?![A-Za-z0-9-])/gu)) {
     const number = Number(match[1].replaceAll(',', '')); if (!Number.isFinite(number)) continue;
     const nearby = value.slice(Math.max(0, match.index - 24), Math.min(value.length, match.index + match[0].length + 24));
-    const unit = /KRW|원/iu.test(nearby) ? 'KRW' : /qty|quantity|units?|개|EA/iu.test(nearby) ? 'units' : '';
+    const unit = /KRW|원/iu.test(nearby) ? 'KRW' : /qty|quantity|units?|개|EA/iu.test(nearby)
+      ? 'units' : unitHint;
     addAtom(output, seen, { handle, location, kind: 'number', value: number, unit });
   }
 }
@@ -37,21 +39,30 @@ export function evidenceAtomsFromProjection({ handle, kind, projection } = {}) {
   if (!/^source-[0-9]{8}$/u.test(String(handle ?? '')) || !['pdf', 'xlsx', 'image'].includes(kind)) {
     throw new TypeError('Evidence Atom source is invalid');
   }
-  const output = []; const seen = new Set(); let scope = kind;
+  const output = []; const seen = new Set(); const columnUnits = new Map(); let scope = kind;
   for (const [index, raw] of String(projection ?? '').split(/\r?\n/u).entries()) {
     const line = clean(raw); if (!line) continue;
     const section = line.match(/^\[(page|sheet|image):([^\]]+)\]$/u);
     if (section) { scope = `${section[1]}:${section[2]}`; continue; }
     const cell = line.match(/^([A-Z]{1,3}[1-9][0-9]{0,6})=(.*)$/u);
     const location = cell ? `${scope}!${cell[1]}` : `${scope}:line:${index + 1}`;
-    tokenAtoms({ handle, location, text: cell ? cell[2] : line }, output, seen);
+    let unitHint = '';
+    if (cell && scope.startsWith('sheet:')) {
+      const column = cell[1].match(/^[A-Z]{1,3}/u)?.[0] ?? '';
+      const headerUnit = /KRW|원/iu.test(cell[2]) ? 'KRW'
+        : /qty|quantity|units?|수량|개|EA/iu.test(cell[2]) ? 'units'
+          : /date|날짜|일자/iu.test(cell[2]) ? 'excel_date_serial' : '';
+      if (headerUnit) columnUnits.set(`${scope}!${column}`, headerUnit);
+      unitHint = columnUnits.get(`${scope}!${column}`) ?? '';
+    }
+    tokenAtoms({ handle, location, text: cell ? cell[2] : line, unitHint }, output, seen);
   }
   return output.slice(0, 200);
 }
 
 export function atomClaimEvidenceJsonSchema({ atomIds = null } = {}) {
   if (atomIds != null && (!Array.isArray(atomIds) || !atomIds.length
-    || atomIds.some((id) => !/^atom-[a-f0-9]{20}$/u.test(String(id))))) {
+    || atomIds.some((id) => !/^atom-(?:[a-f0-9]{20}|[0-9]{4})$/u.test(String(id))))) {
     throw new TypeError('dynamic Evidence Atom schema IDs are invalid');
   }
   const ref = { type: 'object', additionalProperties: false, properties: {
@@ -70,7 +81,7 @@ export function atomClaimEvidenceJsonSchema({ atomIds = null } = {}) {
         state: { type: 'string', enum: ['supported', 'conflict', 'unknown'] },
         summary: { type: 'string', maxLength: 500 },
         sourceRefs: { type: 'array', minItems: 1, maxItems: 8, items: ref },
-        evidenceAtomIds: { type: 'array', minItems: 1, maxItems: MAX_ATOMS_PER_CLAIM,
+        evidenceAtomIds: { type: 'array', minItems: 1, maxItems: MAX_EXPLICIT_ATOMS_PER_CLAIM,
           items: atomIds ? { type: 'string', enum: [...atomIds] } : { type: 'string', maxLength: 80 } },
         calculations: { type: 'array', maxItems: 4, items: { type: 'object', additionalProperties: false,
           properties: { calculationId: { type: 'string', maxLength: 80 },
@@ -118,6 +129,13 @@ function locationMatches(atom, reference) {
   }
   const exactCell = target.match(/^(.+)!([A-Z]{1,3}[1-9][0-9]{0,6})$/u);
   if (exactCell) return atom.location === `sheet:${exactCell[1]}!${exactCell[2]}`;
+  const lineRange = clean(reference.location).match(/^((?:page|image):[^:]+):line:(\d+)-(?:\1:)?line:(\d+)$/u);
+  if (lineRange) {
+    const from = Number(lineRange[2]); const to = Number(lineRange[3]);
+    if (Math.abs(to - from) > 12) return false;
+    const current = atom.location.match(new RegExp(`^${lineRange[1].replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}:line:(\\d+)$`, 'u'));
+    return current != null && Number(current[1]) >= Math.min(from, to) && Number(current[1]) <= Math.max(from, to);
+  }
   return atom.location === clean(reference.location);
 }
 
@@ -144,7 +162,7 @@ export function materializeAtomClaimEvidence(input, { sourceManifestId, exactInp
     const expandedAtomIds = evidenceAtoms.filter((atom) => (claim.sourceRefs ?? []).some(
       (reference) => locationMatches(atom, reference))).map((atom) => atom.atomId);
     const atomIds = [...new Set([...explicitAtomIds, ...expandedAtomIds])];
-    if (atomIds.length > MAX_ATOMS_PER_CLAIM) throw new Error('claim source region expands beyond the atom boundary');
+    if (atomIds.length > MAX_MATERIALIZED_ATOMS_PER_CLAIM) throw new Error('claim source region expands beyond the atom boundary');
     const calculationValues = new Map(); const calculations = [];
     for (const calculation of claim.calculations ?? []) {
       if (calculationValues.has(calculation.calculationId)) throw new Error('calculation ID is duplicated');
@@ -166,12 +184,15 @@ export function materializeAtomClaimEvidence(input, { sourceManifestId, exactInp
       evidenceValues.push({ valueId: item.calculationId, label: item.label, value: item.value, unit: item.unit,
         source: { handle: source?.handle ?? exactInputHandles[0], location: `calculation:${item.calculationId}` } });
     }
-    if (claim.state === 'conflict') {
+    {
       const numeric = atomIds.map((id) => atomMap.get(id)).filter((atom) => typeof atom.value === 'number');
       const seenDifferences = new Set(); let generated = 0;
       for (let left = 0; left < numeric.length && generated < 12; left += 1) {
         for (let right = left + 1; right < numeric.length && generated < 12; right += 1) {
-          if (numeric[left].location === numeric[right].location) continue;
+          if (numeric[left].handle === numeric[right].handle
+            && numeric[left].location === numeric[right].location) continue;
+          if (numeric[left].unit !== numeric[right].unit && claim.state !== 'conflict') continue;
+          if (clean(numeric[left].unit) === '' && claim.state !== 'conflict') continue;
           const value = Math.abs(numeric[left].value - numeric[right].value); if (!value) continue;
           const unit = numeric[left].unit === numeric[right].unit ? numeric[left].unit : '';
           const key = JSON.stringify([value, unit]); if (seenDifferences.has(key)) continue;

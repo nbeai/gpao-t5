@@ -1,0 +1,133 @@
+{
+  "schema": "t5.nx1.density-performance-qualification.v1",
+  "recordedOn": "2026-09-01",
+  "productSourceChanges": 0,
+  "actualUserData": false,
+  "externalWrites": 0,
+  "oracleProjectedToModel": 0,
+  "model": "gpt-5.5",
+  "solarPro4": {
+    "executed": false,
+    "role": "NON_GATING_OPTIONAL_OBSERVATION"
+  },
+  "adoptedStructure": [
+    "Reality Closure retains complete exact source evidence",
+    "Human Closure selects a verified claim subset and authors the final answer in the same second model call",
+    "exact cell, row, and bounded line regions materialize evidence without repeating every atom ID",
+    "manifest-scoped short atom aliases preserve runtime identity while reducing provider wire cost",
+    "same-unit numeric difference facts are available independent of the model claim-state label",
+    "cross-source identity uses handle plus location rather than location alone",
+    "XLSX header-observed units bind following numeric cells and Excel date serials stay out of Human Closure"
+  ],
+  "adverseObservations": [
+    {
+      "family": "claim_scope",
+      "observation": "forcing every Reality claim into the final answer exposed normal or supporting facts",
+      "resolution": "the Human model owns the smallest sufficient verified claim subset"
+    },
+    {
+      "family": "qualification_evaluator",
+      "observation": "structured value 2 units was rejected because the evaluator only searched summary prose",
+      "resolution": "the qualification evaluator reads structured evidence value plus unit"
+    },
+    {
+      "family": "cross_source_identity",
+      "observation": "two different contracts at page 1 line 7 were treated as the same observation",
+      "resolution": "numeric observation identity now includes source handle and location"
+    },
+    {
+      "family": "human_context_density",
+      "observation": "C-103 amount 15500 existed in Reality but was hidden among unitless XLSX numbers and an Excel date serial",
+      "resolution": "observer-derived column units and date-serial filtering restored the amount in Human Closure"
+    },
+    {
+      "family": "baseline_operation",
+      "observation": "one current-product BA arm stopped with verified resource runaway",
+      "resolution": "qualification runner preserves an arm execution failure and continues the matrix"
+    }
+  ],
+  "currentProductFreshPairedAb": [
+    {
+      "purpose": "purchase_reconciliation",
+      "wallMs": 67712.462,
+      "passed": true,
+      "modelCalls": 11,
+      "toolCalls": 14,
+      "inputTokens": 188345,
+      "requestBytes": 925863
+    },
+    {
+      "purpose": "contract_revision",
+      "wallMs": 78233.335,
+      "passed": false,
+      "modelCalls": 12,
+      "toolCalls": 20,
+      "inputTokens": 215966,
+      "requestBytes": 1070476
+    },
+    {
+      "purpose": "expense_evidence",
+      "wallMs": 81840.95,
+      "passed": true,
+      "modelCalls": 12,
+      "toolCalls": 20,
+      "inputTokens": 230043,
+      "requestBytes": 1127228
+    }
+  ],
+  "finalCandidateRelatedQualification": [
+    {
+      "purpose": "purchase_reconciliation",
+      "wallMs": 56970.88,
+      "passed": true,
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "inputTokens": 7166,
+      "requestBytes": 26210
+    },
+    {
+      "purpose": "contract_revision",
+      "wallMs": 72456.822,
+      "passed": true,
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "inputTokens": 6974,
+      "requestBytes": 27644
+    },
+    {
+      "purpose": "expense_evidence",
+      "wallMs": 47698.942,
+      "passed": true,
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "inputTokens": 6201,
+      "requestBytes": 24380
+    }
+  ],
+  "medianComparison": {
+    "currentWallMs": 78233.335,
+    "candidateWallMs": 56970.88,
+    "wallImprovementPercent": 27.18,
+    "currentModelCalls": 12,
+    "candidateModelCalls": 2,
+    "modelCallReductionPercent": 83.33,
+    "currentToolCalls": 20,
+    "candidateToolCalls": 2,
+    "toolCallReductionPercent": 90,
+    "currentInputTokens": 215966,
+    "candidateInputTokens": 6974,
+    "inputTokenReductionPercent": 96.77,
+    "currentRequestBytes": 1070476,
+    "candidateRequestBytes": 26210,
+    "requestByteReductionPercent": 97.55
+  },
+  "decision": {
+    "realityAndHumanAccuracy": "QUALIFIED_FOR_THREE_PURPOSES",
+    "performanceGate": "PASS",
+    "firstUseful": "NOT_SEPARATELY_OBSERVED_FROM_FINAL_IN_THIS_TOOL_CALL_TOPOLOGY",
+    "blindHumanEvaluation": "PENDING",
+    "artifactUndoQualification": "PENDING",
+    "productPromotion": "NOT_ALLOWED_YET"
+  },
+  "stopLine": "Do not add more Reality or Human prompt clauses, business routing, or a third model call. Continue to blind human result quality and product activation only."
+}

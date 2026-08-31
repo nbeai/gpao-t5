@@ -17,6 +17,8 @@ test('NX-1 runner source packet은 exact fixture 1 packet만 포함하고 hidden
   const definition = oracle.scenarios[0]; const reality = await buildNx1ScenarioReality({ definition, fixtureRoot });
   assert.equal(reality.records.length, definition.sources.length);
   assert.deepEqual(reality.sourceManifest.inputHandles, reality.records.map((record) => record.handle));
+  assert.equal(reality.evidenceAtoms[0].atomId, 'atom-0001');
+  assert.equal(new Set(reality.evidenceAtoms.map((atom) => atom.atomId)).size, reality.evidenceAtoms.length);
   const context = nx1CandidateRuntimeContext(reality);
   assert.match(context, /PO-2026-104/u);
   assert.doesNotMatch(context, /hidden oracle|purchase_amount_variance|KRW 50,000 excess/u);
@@ -50,6 +52,16 @@ test('NX-1 machine evaluator는 핵심 정답과 normal·excluded 전면화 금�
   assert.equal(evaluateNx1PresentationCoverage(projection, '누락 금액은 15,500원입니다.').passed, false);
   projection.claims[0].presentationValues.pop();
   assert.equal(evaluateNx1PresentationCoverage(projection, '누락 금액은 15,500원입니다.').passed, true);
+  const purchase = { claims: [{ summary: '입고 승인 수량이 발주보다 적다.',
+    evidenceValues: [
+      { label: 'ordered', value: 120, unit: 'units' },
+      { label: 'accepted', value: 118, unit: 'units' },
+      { label: 'short quantity', value: 2, unit: 'units' },
+      { label: 'invoice', value: 3000000, unit: 'KRW' },
+      { label: 'accepted basis', value: 2950000, unit: 'KRW' },
+      { label: 'difference', value: 50000, unit: 'KRW' },
+    ] }], excludedFindings: [{ findingId: 'control', reason: 'control packet 밖 대조 제외' }] };
+  assert.equal(evaluateNx1ClaimEvidence('purchase_reconciliation', purchase).passed, true);
 });
 
 test('NX-1 live runner는 AB·BA와 product-promotion pending을 명시한다', async () => {
@@ -70,6 +82,8 @@ test('NX-1 live runner는 AB·BA와 product-promotion pending을 명시한다', 
   assert.match(source, /humanBlindEvaluation: 'PENDING'/u);
   assert.match(source, /productPromotion: 'NOT_EVALUATED'/u);
   assert.match(source, /gatingHumanClosuresPassed/u);
+  assert.match(source, /baseline_execution_failed/u);
+  assert.match(source, /allBaselineExecutionsCompleted/u);
   assert.doesNotMatch(source, /console-server\.js.*writeFile|agent-loop\.js.*writeFile/iu);
 });
 
@@ -87,7 +101,7 @@ test('verified Reality projection은 evidence pool만 주고 excluded 내용은 
   assert.doesNotMatch(String(source), /excludedFindings.*map|sourceRefs.*handle/su);
 });
 
-test('Human Closure는 verified Claim 전체와 모델 작성 finalAnswer를 세 번째 호출 없이 검증한다', async () => {
+test('Human Closure는 verified Claim subset과 모델 작성 finalAnswer를 세 번째 호출 없이 검증한다', async () => {
   const verifiedReality = { currentWork: { workId: 'work-11111111', revision: 2, status: 'active' },
     sourceManifestId: 'sources-11111111', excludedFindingCount: 1,
     candidate: { human: { purpose: '차이 확인', useContext: '지급 전', audience: '담당자' },
@@ -118,6 +132,27 @@ test('Human Closure는 verified Claim 전체와 모델 작성 finalAnswer를 세
   assert.equal(closure.qualification().rejectedFinalAnswer, missing.finalAnswer);
   const stale = structuredClone(base); stale.work.revision = 3;
   assert.equal((await closure.tool.execute(stale)).reason, 'stale_or_foreign_work');
+});
+
+test('Human Closure는 부수 Claim을 선택하지 않을 수 있지만 핵심 답 누락은 qualification에서 실패한다', async () => {
+  const verifiedReality = { currentWork: { workId: 'work-11111111', revision: 1, status: 'active' },
+    sourceManifestId: 'sources-11111111', excludedFindingCount: 0,
+    candidate: { human: {}, strategy: {}, form: {} },
+    claimEvidence: { claims: [
+      { claimId: 'purchase-gap', state: 'conflict', summary: '수량·금액 차이', sourceRefs: [], evidenceValues: [], calculation: null },
+      { claimId: 'supporting-note', state: 'supported', summary: '부수 확인', sourceRefs: [], evidenceValues: [], calculation: null },
+    ] } };
+  const closure = makeNx1HumanClosureTool({ verifiedReality, scenarioId: 'purchase_reconciliation' });
+  const selected = await closure.tool.execute({ schema: 't5.human-closure.v1',
+    work: { workId: 'work-11111111', revision: 1 }, sourceManifestId: 'sources-11111111',
+    selectedClaimIds: ['purchase-gap'],
+    finalAnswer: '발주 120개, 입고 118개로 2개 부족하며 3,000,000원과 2,950,000원의 차이는 50,000원입니다.' });
+  assert.equal(selected.state, 'verified');
+  assert.deepEqual(selected.claimSelection, { selected: 1, available: 2, allAvailableSelected: false });
+  const omitted = await closure.tool.execute({ schema: 't5.human-closure.v1',
+    work: { workId: 'work-11111111', revision: 1 }, sourceManifestId: 'sources-11111111',
+    selectedClaimIds: ['supporting-note'], finalAnswer: '부수 확인만 했습니다.' });
+  assert.equal(omitted.state, 'closure_failed');
 });
 
 test('Human Closure Context는 number·literal·calculation만 열고 긴 text atom은 근거로만 보존한다', async () => {
@@ -155,4 +190,9 @@ test('Human Closure는 내부 Evidence Atom ID를 사용자 답으로 내보내�
     selectedClaimIds: ['purchase-gap'],
     finalAnswer: 'atom-1234567890abcdef1234 기준으로 발주 120개, 입고 118개, 2개 부족이며 3,000,000원과 2,950,000원의 차이는 50,000원입니다.' });
   assert.equal(result.reason, 'final_answer_boundary');
+  const alias = await closure.tool.execute({ schema: 't5.human-closure.v1',
+    work: { workId: 'work-11111111', revision: 1 }, sourceManifestId: 'sources-11111111',
+    selectedClaimIds: ['purchase-gap'],
+    finalAnswer: 'atom-0001 기준으로 발주 120개, 입고 118개, 2개 부족이며 차이는 50,000원입니다.' });
+  assert.equal(alias.reason, 'final_answer_boundary');
 });

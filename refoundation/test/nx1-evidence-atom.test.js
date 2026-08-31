@@ -30,6 +30,7 @@ function candidate() {
 test('Runtime Evidence Atom은 exact source location의 cell·number·ID를 결정적으로 만든다', () => {
   assert.ok(atoms.length >= 7);
   assert.equal(atomBy(42000).location, 'sheet:Card Ledger!D3');
+  assert.equal(atomBy(42000).unit, 'KRW');
   assert.equal(atomBy(41000).kind, 'number');
   assert.ok(atoms.some((atom) => atom.value === 'C-102' && atom.kind === 'literal'));
   assert.deepEqual(evidenceAtomsFromProjection({ handle, kind: 'xlsx', projection: [
@@ -66,6 +67,39 @@ test('모델이 exact spreadsheet row를 sourceRef로 선택하면 Runtime이 �
     && item.label === 'observed numeric difference candidate'));
 });
 
+test('supported 변경 Claim도 같은 단위의 두 숫자에서 bounded 차액 후보를 받는다', () => {
+  const feeAtoms = evidenceAtomsFromProjection({ handle, kind: 'pdf', projection: [
+    '[page:1]', 'Service fee KRW 4500000', 'Service fee KRW 5100000',
+  ].join('\n') });
+  const value = candidate(); value.claims[0].state = 'supported';
+  value.claims[0].evidenceAtomIds = feeAtoms.filter((atom) => typeof atom.value === 'number')
+    .map((atom) => atom.atomId);
+  value.claims[0].sourceRefs = [{ handle, location: 'page:1:line:2-page:1:line:3' }];
+  value.claims[0].calculations = [];
+  const result = materializeAtomClaimEvidence(value, {
+    sourceManifestId: 'sources-11111111', exactInputHandles: [handle], evidenceAtoms: feeAtoms,
+  });
+  assert.ok(result.claims[0].evidenceValues.some((item) => item.value === 600000
+    && item.unit === 'KRW' && item.label === 'observed numeric difference candidate'));
+});
+
+test('서로 다른 source의 같은 page·line 위치는 같은 관측으로 오인하지 않는다', () => {
+  const otherHandle = 'source-00000002';
+  const left = evidenceAtomsFromProjection({ handle, kind: 'pdf', projection: '[page:1]\nService fee KRW 4500000' });
+  const right = evidenceAtomsFromProjection({ handle: otherHandle, kind: 'pdf', projection: '[page:1]\nService fee KRW 5100000' });
+  const evidenceAtoms = [...left, ...right];
+  const input = candidate(); input.coverage.observedHandles = [handle, otherHandle];
+  input.claims[0].state = 'supported';
+  input.claims[0].sourceRefs = [{ handle, location: 'page:1:line:2' },
+    { handle: otherHandle, location: 'page:1:line:2' }];
+  input.claims[0].evidenceAtomIds = evidenceAtoms.filter((atom) => typeof atom.value === 'number')
+    .map((atom) => atom.atomId);
+  input.claims[0].calculations = [];
+  const result = materializeAtomClaimEvidence(input, { sourceManifestId: 'sources-11111111',
+    exactInputHandles: [handle, otherHandle], evidenceAtoms });
+  assert.ok(result.claims[0].evidenceValues.some((item) => item.value === 600000 && item.unit === 'KRW'));
+});
+
 test('넓은 PDF page·OCR 표시는 provenance일 뿐 source 전체 atom을 자동 확장하지 않는다', () => {
   const pdfAtoms = evidenceAtomsFromProjection({ handle, kind: 'pdf', projection: [
     '[page:1]', 'Invoice IV-991 total KRW 3000000', 'Unrelated control PO-2026-099 KRW 720000',
@@ -79,6 +113,21 @@ test('넓은 PDF page·OCR 표시는 provenance일 뿐 source 전체 atom을 자
     sourceManifestId: 'sources-11111111', exactInputHandles: [handle], evidenceAtoms: pdfAtoms,
   });
   assert.deepEqual(result.claims[0].evidenceValues.map((item) => item.value), ['IV-991']);
+});
+
+test('bounded PDF line range는 그 exact line atoms만 자동 결속한다', () => {
+  const pdfAtoms = evidenceAtomsFromProjection({ handle, kind: 'pdf', projection: [
+    '[page:1]', 'Header control 999', 'Accepted 118 units', 'Amount KRW 2950000', 'Unrelated 720000',
+  ].join('\n') });
+  const accepted = pdfAtoms.find((atom) => atom.value === 118);
+  const input = candidate(); input.claims[0].sourceRefs = [{ handle, location: 'page:1:line:3-page:1:line:4' }];
+  input.claims[0].evidenceAtomIds = [accepted.atomId]; input.claims[0].calculations = [];
+  const result = materializeAtomClaimEvidence(input, {
+    sourceManifestId: 'sources-11111111', exactInputHandles: [handle], evidenceAtoms: pdfAtoms,
+  });
+  assert.ok(result.claims[0].evidenceValues.some((item) => item.value === 2950000));
+  assert.equal(result.claims[0].evidenceValues.some((item) => item.value === 720000), false);
+  assert.equal(result.claims[0].evidenceValues.some((item) => item.value === 999), false);
 });
 
 test('foreign atom·미래 calculation은 차단하고 중복 atom 참조는 canonical set으로 합친다', () => {
@@ -103,6 +152,7 @@ test('foreign atom·미래 calculation은 차단하고 중복 atom 참조는 can
 test('atom Tool schema에는 모델이 source value나 calculation result를 다시 쓰는 필드가 없다', () => {
   const schema = atomClaimEvidenceJsonSchema({ atomIds: atoms.map((atom) => atom.atomId) }); const claim = schema.properties.claims.items;
   assert.ok(claim.properties.evidenceAtomIds);
+  assert.equal(claim.properties.evidenceAtomIds.maxItems, 16);
   assert.deepEqual(claim.properties.evidenceAtomIds.items.enum, atoms.map((atom) => atom.atomId));
   assert.equal('evidenceValues' in claim.properties, false);
   assert.equal('presentationValueIds' in claim.properties, false);

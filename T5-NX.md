@@ -4,7 +4,7 @@
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
 현재 Gate: `NX-1 FIRST FLAGSHIP MASTERY · INTEGRAL OUTCOME METHOD`
-현재 작업: `verified Claim 전체를 최종 모델이 직접 닫는 Human Closure topology 자격 · 계약 안정성 미완료`
+현재 작업: `NX-1 Reality·Human 정확성 및 성능 Gate 통과 · blind 인간 품질 자격 준비`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -914,6 +914,25 @@ AND current correction·Stop·restart·Artifact·Undo 무회귀
   분산을 덮지 않고, 계약 Reality의 재현 안정성이 증명되기 전 product promotion은 금지한다.
 
 근거: `refoundation/evidence/nx1-claim-covering-human-closure-2026-09-01.json`.
+
+2026-09-01 Claim subset·Evidence density 성능 자격:
+
+- Runtime이 Reality의 모든 Claim을 사용자 답에 강제하던 구조를 폐기했다. 두 번째이자 최종 Human 모델이 verified Claim 중
+  현재 사용자 범위에 필요한 subset을 선택하고 같은 call에서 finalAnswer를 작성한다. Runtime은 선택 identity와 출력 경계만
+  검증하며 의미 중요도는 선택하지 않는다.
+- exact cell·row·bounded line region은 Runtime이 evidence를 materialize하고 모델은 계산 입력이나 region 밖 값만 최대
+  16개 atom으로 참조한다. manifest-scoped `atom-0001` alias로 긴 content hash의 provider wire 반복을 제거했다.
+- qualifier에서 드러난 세 사실 경계를 수리했다. 구조값 `2 units`를 prose regex만으로 놓치던 evaluator, 서로 다른 source의
+  같은 `page:line`을 같은 관측으로 합치던 identity, XLSX `Card Amount (KRW)` 헤더와 날짜 serial을 잃던 Human projection이다.
+- final candidate 관련 자격에서 구매·계약·비용은 모두 정확성·strict scope PASS, model 2·Tool 2를 유지했다. fresh paired
+  current product 중앙값과 비교하면 wall `78.233초 → 56.971초`로 27.18%, model calls `12 → 2`, Tool calls `20 → 2`,
+  input tokens `215,966 → 6,974`, request bytes `1,070,476 → 26,210`으로 개선됐다.
+- current product는 fresh paired AB의 계약 strict scope를 실패했고, 별도 BA에서는 resource runaway로 한 arm이 중단됐다.
+  runner는 이제 이런 운영 실패를 전체 시험 소실이 아니라 해당 arm FAIL로 보존하고 다음 목적을 계속한다.
+- first useful은 현재 Tool-call topology에서 final과 분리 계측되지 않았으므로 별도 개선으로 꾸미지 않는다. blind 인간 품질·
+  Artifact/Undo·제품 배선은 아직 열지 않았고, Solar Pro 4는 계속 미실행 비게이팅 관측이다.
+
+근거: `refoundation/evidence/nx1-density-performance-qualification-2026-09-01.json`.
 
 ## NX-2 — Mastery Generalization
 
