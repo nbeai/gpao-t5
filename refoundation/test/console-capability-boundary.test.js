@@ -42,7 +42,7 @@ test('기본 위치를 이유로 사용자가 지정한 경로의 터미널 관�
   assert.match(instructions, /Before saying.*files.*exports.*local evidence.*absent.*exec.*bounded observation.*disconnected external service.*does not prove/i);
   assert.match(instructions, /shallow or depth-limited file listing cannot prove absence.*expand the search once.*current workspace.*file names and metadata.*do not broadly read unrelated file contents/i);
   assert.match(instructions, /file organization.*never move.*rename.*overwrite.*delete during discovery.*file reality plan.*source.*destination.*already-there.*collision.*not authorization.*filenames alone.*final version/i);
-  assert.match(instructions, /reconciled document.*spreadsheet.*report.*merged deliverable.*file_reality bind_sources.*source usage.*user purpose.*unresolved facts.*sourceManifestId.*attachment register_output.*source changes.*not call.*complete/i);
+  assert.match(instructions, /reconciling multiple local files.*answer.*document.*spreadsheet.*report.*merged deliverable.*file_reality bind_sources.*source usage.*user purpose.*unresolved facts.*optional Integral Method.*sourceManifestId.*attachment register_output.*source changes.*not call.*complete/i);
   assert.match(instructions, /CSV.*TSV.*append-and-standardize.*source-to-output column mapping.*ordered outputColumns.*verify every output row.*matching total alone.*not proof/i);
   assert.match(instructions, /local image.*scanned document.*words.*company names.*dates.*amounts.*file_reality local OCR.*not semantic truth.*passport portrait.*no OCR guarantee.*bounded visual candidate/i);
   assert.match(instructions, /exact folder.*photo by appearance.*image_candidates.*visual_candidates.*at most 12 handles.*C-number.*opaque handle.*not send the whole folder.*identify a person/i);

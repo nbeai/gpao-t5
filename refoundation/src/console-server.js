@@ -2245,7 +2245,7 @@ export function makeConsoleServer({
       // Rendered-page interaction is not a generally discoverable shortcut. It is promoted
       // by an interaction-scoped web_read only after the exact destination is established.
       const searchable = deferredTools.filter((tool) => tool.deferred
-        && tool.name !== 'browser' && tool.name !== 'work_control');
+        && tool.name !== 'browser' && tool.name !== 'work_control' && tool.name !== 'integral_method');
       if (informationControl === 'research-first-v1') {
         for (const tool of deferredTools) {
           if (tool.name !== 'browser' && tool.name !== 'work_control'
