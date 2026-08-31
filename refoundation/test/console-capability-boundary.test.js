@@ -34,12 +34,13 @@ test('기본 위치를 이유로 사용자가 지정한 경로의 터미널 관�
   assert.match(instructions, /command family=cmd/);
   assert.match(instructions, /smallest sufficient observation/i);
   assert.match(instructions, /shortest useful answer.*conclusion.*compact next step/i);
-  assert.match(instructions, /use the available exec tool whenever computer work or evidence is needed/i);
+  assert.match(instructions, /choose the narrowest exact observation Hand.*Use exec only when no dedicated File Reality.*document observer/iu);
+  assert.match(instructions, /one exact named local file.*tool_search.*file_reality.*instead of running shell libraries.*bounded exec fallback only if that observer is unavailable/iu);
   assert.match(instructions, /approximate file names.*contents.*dates.*amounts.*people.*projects.*locations.*tool_search.*file reality.*before.*broad shell scan/i);
   assert.match(instructions, /file organization[\s\S]*file_reality[\s\S]*tool_search[\s\S]*skill search and exec are not substitutes/i);
   assert.match(instructions, /Protect personal identifiers.*do not repeat customer.*member.*patient.*employee.*account IDs.*masked labels/i);
   assert.match(instructions, /work remains.*tool is available.*do not end.*promise or preamble.*Call the tool.*same response/i);
-  assert.match(instructions, /Before saying.*files.*exports.*local evidence.*absent.*exec.*bounded observation.*disconnected external service.*does not prove/i);
+  assert.match(instructions, /Before saying requested files.*exports.*local evidence are absent.*File Reality scope first.*bounded exec fallback.*disconnected external service.*does not prove/iu);
   assert.match(instructions, /shallow or depth-limited file listing cannot prove absence.*expand the search once.*current workspace.*file names and metadata.*do not broadly read unrelated file contents/i);
   assert.match(instructions, /file organization.*never move.*rename.*overwrite.*delete during discovery.*file reality plan.*source.*destination.*already-there.*collision.*not authorization.*filenames alone.*final version/i);
   assert.match(instructions, /reconciling multiple local files.*answer.*deliverable.*tool_search.*file_reality first.*do not begin with exec.*attachment path guesses.*search.*inspect.*bind_sources.*exact selected handle.*usage.*user purpose.*unresolved facts.*optional Integral Method.*sourceManifestId.*attachment register_output.*bound source changes.*not call.*complete/i);
