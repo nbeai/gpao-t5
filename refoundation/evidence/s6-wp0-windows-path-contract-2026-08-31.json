@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_WP0_WINDOWS_PATH_CONTRACT",
+  "status": "LEXICAL_CONTRACT_COMPLETE_FILESYSTEM_PHYSICAL_PENDING",
+  "baseCommit": "b74f85de",
+  "qualifiedWithoutWindows": [
+    "drive letter absolute path",
+    "UNC server share path",
+    "Korean filename",
+    "space-preserving whole-line path",
+    "Explorer direct argv",
+    "case-insensitive transaction target identity",
+    "manifest case-insensitive duplicate and root escape rejection"
+  ],
+  "physicalOnly": [
+    "long path policy and extended namespace",
+    "reserved device names",
+    "trailing dot and space",
+    "junction and reparse points",
+    "hardlinks",
+    "ACL denial",
+    "locked files",
+    "cross-volume atomicity",
+    "OneDrive hydration and Files On-Demand"
+  ],
+  "nonClaims": ["NTFS PASS", "Explorer human PASS", "OneDrive physical PASS"],
+  "next": "execute exact countertests on physical Windows and preserve unsupported facts without lexical emulation"
+}

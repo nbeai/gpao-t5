@@ -19,6 +19,9 @@ test('Windows 파일과 폴더는 Explorer 호출로 변환한다', () => {
   assert.deepEqual(revealInvocation('win32', 'C:\\Temp', 'directory'), {
     program: 'explorer.exe', args: ['C:\\Temp'],
   });
+  assert.deepEqual(revealInvocation('win32', '\\\\server\\share\\한글 보고서.pdf', 'file'), {
+    program: 'explorer.exe', args: ['/select,\\\\server\\share\\한글 보고서.pdf'],
+  });
 });
 
 test('삭제된 경로를 누르면 가장 가까운 존재하는 상위 폴더를 연다', async () => {

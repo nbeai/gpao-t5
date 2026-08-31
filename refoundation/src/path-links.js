@@ -14,7 +14,7 @@ export function absolutePathSegments(input, { wholeLine = false } = {}) {
   const text = String(input ?? '');
   if (wholeLine) return wholeLineSegment(text);
   const found = [];
-  const pattern = /~\/[^\s<>"'`]+|[A-Za-z]:\\[^\s<>"'`]+|\/(?!\/)[^\s<>"'`]+/g;
+  const pattern = /\\\\[^\\\s<>"'`]+\\[^\s<>"'`]+(?:\\[^\s<>"'`]+)*|~\/[^\s<>"'`]+|[A-Za-z]:\\[^\s<>"'`]+|\/(?!\/)[^\s<>"'`]+/g;
   for (const match of text.matchAll(pattern)) {
     const start = match.index;
     if (start > 0 && text[start - 1] === '/') continue;
@@ -44,7 +44,8 @@ function pathAncestors(path) {
 
 export function resolveRelativeReference(reference, knownAbsolutePaths = []) {
   const raw = String(reference ?? '').trim().replace(/^\.([\\/])/, '');
-  if (!raw || raw.startsWith('/') || /^[A-Za-z]:[\\/]/.test(raw) || /^https?:\/\//i.test(raw)) return null;
+  if (!raw || raw.startsWith('/') || raw.startsWith('\\\\')
+    || /^[A-Za-z]:[\\/]/.test(raw) || /^https?:\/\//i.test(raw)) return null;
   const matches = new Set();
   for (const known of knownAbsolutePaths) {
     for (const candidate of pathAncestors(known)) {
