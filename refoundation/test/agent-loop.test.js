@@ -493,6 +493,19 @@ test('work completion proposal 뒤 빈 응답은 한 번만 최종 답 상태를
   assert.equal(result.answer, '사용자 최종 답입니다.'); assert.equal(turn, 3);
 });
 
+test('격리 Human model이 작성한 verified Tool finalAnswer는 세 번째 model call 없이 공동 정산된다', async () => {
+  let turns = 0;
+  const tool = { name: 'integral_method', description: 'fixture', completionProposalOptional: true,
+    parameters: { type: 'object' }, async execute() { return {
+      state: 'verified', finalAnswer: '검증된 모델 최종 답', internalModelCalls: 1,
+    }; }, finalAnswerFromResult(result) { return result.finalAnswer; } };
+  const result = await runAgent({ request: '대조해줘', tools: [tool], model: { async respond() {
+    turns += 1; return { text: '', toolCalls: [{ id: 'method', name: 'integral_method', args: {} }] };
+  } } });
+  assert.equal(result.answer, '검증된 모델 최종 답'); assert.equal(turns, 1);
+  assert.equal(result.modelTurns, 1); assert.equal(result.receipts.length, 1);
+});
+
 test('검증된 무진전 차단 영수증 뒤에도 같은 호출을 고집하면 Run을 멈춘다', async () => {
   let executed = 0;
   const model = { async respond() { return {

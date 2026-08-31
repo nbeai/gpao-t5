@@ -1784,7 +1784,14 @@ export function makeConsoleServer({
         sessionId, currentWork: async () => {
           const work = await ensureActiveWork();
           return work ? { workId: work.workId, revision: work.revision, status: work.status } : null;
-        }, ocrProbe: localImageOcr });
+        }, ocrProbe: localImageOcr, currentRequest: () => modelRequest,
+        makeHumanModel: () => modelFactory({ sessionId, workspace, computer: computerFacts,
+          instructionsOverride: [
+            'You are T5 completing one verified multi-source result for a human user.',
+            'Use only the runtime-owned verified outcomes and the current user request.',
+            'Preserve exact facts and requested scope while writing the shortest natural answer that is immediately usable.',
+            'Do not call tools, expose internal identifiers, repeat excluded findings, or describe runtime mechanics.',
+          ].join(' ') }) });
       const offeredTools = [...terminal.tools];
       offeredTools.unshift(integralMethod.tool);
       offeredTools.unshift(workspacePatchTool);

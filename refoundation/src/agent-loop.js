@@ -861,6 +861,22 @@ export async function runAgent({
         ...(toolResourceWallMs == null ? {} : { wallMs: toolResourceWallMs }),
         evidenceFingerprint: currentEvidenceFingerprint,
       }).catch(() => {});
+      const finalAnswerProjector = registry.get(requested.name)?.finalAnswerFromResult;
+      const coSettledAnswer = typeof finalAnswerProjector === 'function'
+        ? String(finalAnswerProjector(receipt.result) ?? '').trim() : '';
+      if (coSettledAnswer) {
+        if (parallelResults || response.toolCalls.length !== 1) {
+          throw new Error('tool-authored final answer requires one exact tool call');
+        }
+        if (requiredCompletionName() && !completionSatisfied()) {
+          throw new Error('tool-authored final answer cannot bypass required completion');
+        }
+        transcript.push({ role: 'assistant', content: coSettledAnswer });
+        await onEvent?.({ type: 'tool_final_answer_settled', turn: modelTurns,
+          name: requested.name, answerChars: coSettledAnswer.length });
+        return { status: 'completed', answer: coSettledAnswer,
+          transcript, receipts, modelCalls, modelTurns };
+      }
       if (receipt.outcome === 'failed') {
         failedToolCalls += 1;
         if (maxFailedToolCalls != null && failedToolCalls >= maxFailedToolCalls) {

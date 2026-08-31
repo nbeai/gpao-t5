@@ -43,7 +43,13 @@ test('다중 exact manifest만 deferred Integral Method를 준비하고 동적 a
 
 test('Integral Method는 source를 전후 재검증하고 내부 handle 없는 human outcomes만 모델에 돌려준다', async () => {
   const runtime = makeIntegralMethodRuntime({ sourceManifestStore: store(), sessionId,
-    currentWork: async () => ({ workId: 'work-11111111', revision: 1, status: 'active' }), sourceObserver });
+    currentWork: async () => ({ workId: 'work-11111111', revision: 1, status: 'active' }), sourceObserver,
+    currentRequest: () => '두 금액 차이만 알려줘', makeHumanModel: async () => ({
+      async respond(input) { assert.equal(input.tools.length, 0); assert.match(input.runtimeContext, /verified human outcomes/iu); return {
+        text: '두 자료는 10,000원 차이입니다.', toolCalls: [], responseModel: 'fixture-model',
+        usage: { input_tokens: 100, output_tokens: 20 }, contextReceipt: { provider: 'fixture', model: 'fixture-model', requestBytes: 500 },
+      }; }, async close() {},
+    }) });
   await runtime.prepare({ manifestId });
   const atomIds = runtime.tool.parameters.properties.claimEvidence.properties.claims.items
     .properties.evidenceAtomIds.items.enum;
@@ -56,6 +62,8 @@ test('Integral Method는 source를 전후 재검증하고 내부 handle 없는 h
       evidenceAtomIds: [atomIds[0]], calculations: [] }], excludedFindings: [],
   } });
   assert.equal(result.state, 'verified'); assert.equal(result.outcomeCount, 1);
+  assert.equal(result.finalAnswer, '두 자료는 10,000원 차이입니다.');
+  assert.equal(result.internalModelCalls, 1); assert.equal(result.internalModelReceipt.usage.input_tokens, 100);
   const projection = runtime.tool.projectResultForModel(result);
   assert.equal(projection.state, 'verified'); assert.equal(projection.outcomes.length, 1);
   assert.deepEqual(projection.outcomes[0].states, ['conflict']);
