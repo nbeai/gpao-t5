@@ -48,7 +48,7 @@
     {
       "id": "reality.file_and_work",
       "kind": "measured_failure_guard",
-      "ownerSource": "S4-HQ file discovery, reconciliation, and absence incidents",
+      "ownerSource": "S4-HQ file discovery and absence incidents; NX-1 exact-file and multi-source activation evidence",
       "currentEnforcement": "global_instructions",
       "targetEnforcement": "candidate_for_contextual_projection",
       "appliesTo": ["local_file_reality", "reconciliation", "work_discovery"],
@@ -56,7 +56,7 @@
       "lifecycle": "retain until contextual projection proves equal recall",
       "removalCondition": "same-purpose file and absence countertests pass without global placement",
       "globalLineCount": 14,
-      "globalSha256": "3bad93311552907dfc117bf2bc30717c74b26da7c9e24f06a4f035bb18b78796"
+      "globalSha256": "c984dbbafc063248aeb3f24b3ba4acec3853b28bb3802f448fae46d56802a95a"
     },
     {
       "id": "judgment.feasibility_and_automation_design",

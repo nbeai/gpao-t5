@@ -64,7 +64,7 @@ test('CJ1 이후 추가된 전역 규율도 family admission에 포함되고 his
   const current = consoleInstructions(fixture.workspace, fixture.computer, {
     interactionCoreMode: fixture.interactionCoreMode,
   });
-  assert.equal(Buffer.byteLength(current), 29_362);
+  assert.equal(Buffer.byteLength(current), 29_742);
   assert.equal(current.split('\n').length, 98);
-  assert.equal(30_277 - Buffer.byteLength(current), 915);
+  assert.equal(30_277 - Buffer.byteLength(current), 535);
 });
