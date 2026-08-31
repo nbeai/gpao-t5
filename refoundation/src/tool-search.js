@@ -79,6 +79,7 @@ export function makeToolSearchTool({ tools = [], prerequisites = {} } = {}) {
         state: ranked.length ? 'activated' : 'no_match', query: String(query),
         tools: activated.map((name) => publicTool(byName.get(name))),
         activatedTools: activated,
+        ...(ranked.length ? { requiredNextTool: ranked[0].tool.name } : {}),
       };
     },
   };

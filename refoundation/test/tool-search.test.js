@@ -18,7 +18,7 @@ test('주변 도구 schema는 검색 전 숨고 선택된 도구만 다음 모�
     visual,
   ], { coreNames: ['exec'] });
   tools.unshift(makeToolSearchTool({ tools: [visual] }));
-  const model = { async respond({ tools: visible }) {
+  const model = { async respond({ tools: visible, toolChoice }) {
     turn += 1;
     if (turn === 1) {
       assert.deepEqual(visible.map((tool) => tool.name), ['tool_search', 'exec']);
@@ -26,6 +26,7 @@ test('주변 도구 schema는 검색 전 숨고 선택된 도구만 다음 모�
     }
     if (turn === 2) {
       assert.deepEqual(visible.map((tool) => tool.name), ['tool_search', 'exec', 'visual_reference']);
+      assert.deepEqual(toolChoice, { requiredToolName: 'visual_reference' });
       return { text: '', toolCalls: [{ id: 'use', name: 'visual_reference', args: { query: 'beige cafe' } }] };
     }
     return { text: '미리보기 3개', toolCalls: [] };
@@ -39,6 +40,7 @@ test('선택된 도구가 필요한 보조 도구는 이름을 사용자가 몰�
   const video = { name: 'video_text', description: 'Read a public video caption.', relatedTools: ['cli_prepare'] };
   const result = await makeToolSearchTool({ tools: [cli, video] }).execute({ query: 'video caption' });
   assert.deepEqual(result.activatedTools, ['video_text', 'cli_prepare']);
+  assert.equal(result.requiredNextTool, 'video_text');
 });
 
 test('한 번의 검색은 가장 관련 있는 도구 하나와 그 명시적 의존성만 연다', async () => {
