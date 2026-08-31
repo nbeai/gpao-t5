@@ -140,6 +140,9 @@ export function makeIntegralMethodRuntime({ sourceManifestStore, sessionId, curr
     const verified = await sourceManifestStore.verify({ sessionId, manifestId });
     const manifest = await sourceManifestStore.read(manifestId);
     if (manifest.sources.length < 2) return { state: 'not_activated', reason: 'single_source_path' };
+    if (!verified.unknowns?.length) return {
+      state: 'not_activated', reason: 'verified_sources_sufficient_for_direct_closure',
+    };
     const work = await currentWork();
     if (!work || work.status !== 'active') return { state: 'not_activated', reason: 'active_work_revision_absent' };
     const records = [];
@@ -157,8 +160,7 @@ export function makeIntegralMethodRuntime({ sourceManifestStore, sessionId, curr
       contract: integralMethodProductProposalJsonSchema(),
       claimEvidence: atomClaimEvidenceJsonSchema({ atomIds: evidenceAtoms.map((atom) => atom.atomId) }),
     }, required: ['contract', 'claimEvidence'] });
-    return { state: 'ready', activatedTools: ['integral_method'],
-      ...(verified.unknowns?.length ? { requiredNextTool: 'integral_method' } : {}),
+    return { state: 'ready', activatedTools: ['integral_method'], requiredNextTool: 'integral_method',
       integralMethod: { sourceManifestId: manifestId, sourceCount: records.length,
         sourcePacket: modelSourcePacket(prepared) } };
   };

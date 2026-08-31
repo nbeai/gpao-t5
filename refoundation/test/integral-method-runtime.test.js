@@ -4,12 +4,12 @@ import test from 'node:test';
 import { makeIntegralMethodRuntime } from '../src/integral-method-runtime.js';
 
 const manifestId = 'sources-11111111'; const sessionId = 'session-11111111';
-function store(sourceCount = 2) {
+function store(sourceCount = 2, unknowns = ['material source boundary']) {
   const sources = Array.from({ length: sourceCount }, (_, index) => ({
     path: `/synthetic/source-${index + 1}.xlsx`, displayName: `source-${index + 1}.xlsx`,
     sha256: String(index + 1).repeat(64),
   }));
-  return { async verify() { return { state: 'verified', manifestId }; },
+  return { async verify() { return { state: 'verified', manifestId, unknowns }; },
     async read() { return { manifestId, sessionId, sources }; } };
 }
 const sourceObserver = async (source, { handle }) => ({ handle, displayName: source.displayName,
@@ -80,5 +80,10 @@ test('단일 source와 active Work 부재는 제품 Method를 활성화하지 �
     currentWork: async () => null, sourceObserver });
   assert.deepEqual(await inactive.prepare({ manifestId }), {
     state: 'not_activated', reason: 'active_work_revision_absent',
+  });
+  const sufficient = makeIntegralMethodRuntime({ sourceManifestStore: store(2, []), sessionId,
+    currentWork: async () => ({ workId: 'work-11111111', revision: 1, status: 'active' }), sourceObserver });
+  assert.deepEqual(await sufficient.prepare({ manifestId }), {
+    state: 'not_activated', reason: 'verified_sources_sufficient_for_direct_closure',
   });
 });
