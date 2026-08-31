@@ -9,6 +9,18 @@
 - 첫 NX Flagship은 이 연구실의 Document Reality·Method Runtime·Cognitive Flow를 조합하되, DR-0 혼합 문서
   baseline을 실제로 이기는 `Reality Scout + Method Capsule + Quality Closure` 후보 하나다.
 
+## Context Diet & Interface Intelligence
+
+- 문서: `T5-CONTEXT-DIET-INTERFACE-INTELLIGENCE-RESEARCH.md`
+- 상태: `RESEARCH_COMPLETE · PRODUCT_IMPLEMENTATION_NOT_OPEN · OWNER_GATE_REQUIRED`
+- 기준: NX `9e2daf0c`, `consoleInstructions` 98줄·29,362 bytes, instruction family manifest와 현재 Context/Tool/Skill 원장
+- 목표: Prompt를 임의로 줄이지 않고 각 instruction·Tool·Skill·Memory·Evidence의 소유자를 하나로 정리해 Direct 속도와
+  복합 작업의 Context·왕복 효율을 실제 A/B로 개선한다.
+- 첫 작업: 제품 변경 0의 전체 Context surface inventory와 `KEEP / MOVE / REVISE / REMOVE_CANDIDATE` audit report.
+- 핵심 경계: actual incident·countertest 없는 삭제 금지, Tool schema SSOT, progressive disclosure, final Human Closure epoch,
+  multi-model qualification.
+- 현재 NX-1을 중단하거나 이 연구 문서의 존재만으로 전역 Prompt를 수정하지 않는다.
+
 ## GUI 제외 통합 개발 계획
 
 - 문서: `T5-NON-GUI-INTEGRATED-DEVELOPMENT-PLAN.md`
