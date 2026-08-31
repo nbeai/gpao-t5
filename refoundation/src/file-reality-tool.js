@@ -553,7 +553,8 @@ export function makeFileRealityTool({
             visualScope: typeof ocrProbe !== 'function' ? 'unavailable'
               : walk.truncated || imagePool.length > ocrProbes ? 'partial' : 'complete',
             truncated: walk.truncated || now() >= deadline, elapsedMs: Math.max(0, now() - startedAt) },
-          contentIncluded: false };
+          contentIncluded: false,
+          ...(candidates.length > 1 ? { requiredNextTool: 'file_reality' } : {}) };
       }
       if (action === 'inspect') {
         if (!Array.isArray(requestedHandles) || requestedHandles.length < 1 || requestedHandles.length > 12) {

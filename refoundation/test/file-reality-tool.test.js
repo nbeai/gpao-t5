@@ -401,7 +401,7 @@ test('on-demand tool search 뒤 파일 후보→exact reopen을 한 Run에서 �
     const tools = deferTools([reality], { coreNames: [] });
     tools.unshift(makeToolSearchTool({ tools: [reality] }));
     let turn = 0;
-    const model = { async respond({ tools: visible, messages }) {
+    const model = { async respond({ tools: visible, messages, toolChoice }) {
       turn += 1;
       if (turn === 1) {
         assert.deepEqual(visible.map((item) => item.name), ['tool_search']);
@@ -416,6 +416,7 @@ test('on-demand tool search 뒤 파일 후보→exact reopen을 한 Run에서 �
         } }] };
       }
       if (turn === 3) {
+        assert.deepEqual(toolChoice, { requiredToolName: 'file_reality' });
         const result = JSON.parse(messages.at(-1).content).result;
         return { text: '', toolCalls: [{ id: 'inspect', name: 'file_reality', args: {
           action: 'inspect', query: null, scope: null, path: null,
