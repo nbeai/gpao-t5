@@ -1,12 +1,12 @@
-# T5 Refoundation Engineering Contract
+# T5 NX Engineering Contract
 
 이 저장소의 제품 방향은 오너가 정한다. 작업자는 기존 코드·테스트·문서를 제품의 진리로
 간주하지 않는다. 현재 T5의 목적과 진행 상태는 아래 문서만 먼저 읽는다.
 
 1. `T5-PRODUCT.md` — 무엇을 만드는가
-2. `T5-SIXTH-COMPLETION.md` — 지금 어느 Gate를 어떤 범위로 통과하는가
+2. `T5-NX.md` — 지금 어느 Gate에서 현재 T5보다 무엇을 실제로 더 잘 만드는가
 
-`T5-FIFTH-COMPLETION.md`, `T5-FOURTH-COMPLETION.md`, `T5-SECOND-COMPLETION.md`, `T5-THIRD-ACTIVATION-PREPARATION.md`, `T5-THIRD-ALPHA.md`,
+`T5-SIXTH-COMPLETION.md`, `T5-FIFTH-COMPLETION.md`, `T5-FOURTH-COMPLETION.md`, `T5-SECOND-COMPLETION.md`, `T5-THIRD-ACTIVATION-PREPARATION.md`, `T5-THIRD-ALPHA.md`,
 `T5-REFOUNDATION.md`는 완료 역사·실패·증거 참조다. 현재 Gate가 직접 가리킨 과거 근거가 필요할 때만
 해당 부분을 읽고, 현재 계획이나 작업 범위를 그 문서에서 추론하지 않는다.
 
@@ -29,11 +29,15 @@
 - 현재 콘솔 디자인과 대화 UX는 R4에서 재사용한다. 새 코어 개발을 이유로 UI를 다시 디자인하지 않는다.
 - legacy 조사는 archive에서 읽기 전용으로만 수행한다. 수정·재실행이 필요하면 현재 제품 작업과
   분리된 별도 archive 작업으로 열며 결과를 현재 제품의 성공으로 간주하지 않는다.
-- 5차 `f42e4db7`은 6차의 불변 귀환선이다. 6차 implementation은 별도 branch·worktree를 만든 뒤 시작한다.
-- Capability Acquisition, Experience Growth, Scoped Computer Hand, Professional Deliverable, Actual External Mission,
-  Economy, Windows physical qualification은 `T5-SIXTH-COMPLETION.md`의 현재 Gate가 열기 전에는 구현하지 않는다.
-- Reflection·Principle·Capability package의 휴면 연구 source는 교재이지 제품 정본이 아니다. 현재 실패와
-  반대시험 없이 product entry로 import하거나 package payload에 되돌리지 않는다.
+- 1~6차는 완료 역사다. `93adf628`의 Core·Hand·Receipt·Recovery를 NX 출발점으로 보존한다.
+- NX는 Core를 다시 만드는 차수가 아니라 현재 T5를 실제로 이기는 `Reality Scout·Method·Mastery·Craft` 후보를
+  만드는 세대다.
+- Core 변경은 계속 보수적으로 다룬다. Mastery 후보는 격리 Lab에서 고가치 목적 하나로 먼저 제작할 수 있으며,
+  승격 전까지 제품 entry·기본 Prompt·canonical state를 바꾸지 않는다.
+- `티파이브개발 연구/`는 NX 후보의 교재다. `INDEX.md`를 먼저 읽되 현재 Gate와 관련된 문서만 사용한다.
+- 새 derived cache·ephemeral Method·quality profile은 canonical truth를 복제하지 않고 source·revision·rollback이
+  명확할 때 후보화할 수 있다. 새 Store라는 이유만으로 금지하거나 허용하지 않는다.
+- 설치·서명·공증·배포는 NX 기능 개발선과 분리한다. 설치 파일 제작을 NX 개발 목록에 넣지 않는다.
 
 ## 3. 한 작업의 시작
 
@@ -52,17 +56,23 @@
 ## 4. 개발 순환
 
 ```
-사용자 목적·실패 원본 → 비교군 source 확인 → 비교군이 실제로 막는 실패 사례 추출
-→ 그 실패 사례를 T5 반대시험으로 먼저 작성 → 가장 검증된 상태 전이를 기본 후보로 사용
-→ T5 계약과 충돌하는 부분만 변경 → 실제 모델 입력·작은 구현 → 동일 사용자 목적 A/B
-→ 통과/폐기/재설계
+고가치 사용자 목적과 현재 성공 baseline
+→ 현재 T5의 정확성·wall·calls·tokens·결과 품질
+→ 비교 우위를 만들 Reality·Method·Craft 가설
+→ 격리 Mastery 후보 실제 제작
+→ Core 불변식·hidden oracle·same-purpose A/B
+→ 현재 T5보다 이기면 일반화·field qualification
+→ 지면 제거하고 현재 경로 유지
 ```
 
 - 추론만으로 원인을 확정하지 않는다.
 - 모델 입력 문제는 실제 prompt dump를 읽는다.
-- 작업 단위는 작게 유지하되 제품 판정은 사용자 목적 전체로 한다.
+- 작업 단위는 작게 유지하되 후보를 허가하기 위해 세 분야 반복 실패를 기다릴 필요는 없다.
+- 대표 목적 하나에서 후보를 만들 수 있지만 Core 승격은 독립 목적·반례·field evidence를 요구한다.
 - 도구 호출 수, 테스트 수, 코드 줄 수를 제품 성공으로 보고하지 않는다.
 - 도구 하나가 성공해도 과업 영역이 서지 않았으면 완료가 아니다.
+- 안전·진실성은 절대 경계다. 속도·비용·결과 품질은 목적별 Pareto로 판정한다.
+- 제품 변경 0은 정확한 연구 결과일 수 있지만, 경쟁 우위를 만들지 못했으면 기능 개발 성과로 보고하지 않는다.
 
 ## 5. 실행과 진실
 
@@ -122,10 +132,9 @@ baseline으로 보고하고 오너 결정 없이 의미를 바꾸지 않는다.
 개발자가 아니며, 내부 Run·Tool·Thread·상태 기계는 일반 사용자가 설명 없이 이해할 T5의 경험과
 언어로 다시 설계한다.
 
-6차의 각 기술 Gate를 구현하는 동안 전체 인간 시나리오 wave를 반복하지 않는다. 최초 실패 하나로 구현을
-열고 관련 최소 시나리오만 사용하되, Gate 완료는 같은 결함 가족이 서로 다른 세 목적 분야에서도 전용 규칙
-없이 성립해야 한다. 모든 기술선이 닫힌 뒤에만 `T5-SIXTH-COMPLETION.md`의 S6-HQ 전체 인간 시나리오와
-비교군 A/B를 수행한다.
+NX의 각 후보를 만드는 동안 전체 인간 HQ를 반복하지 않는다. 첫 Flagship에서는 hidden oracle·same-purpose A/B와
+영향받는 Core 불변식만 자격한다. 현재 T5를 실제로 이긴 후보만 독립 목적과 field holdout으로 일반화하고,
+`T5-NX.md`의 NX-HQ에서 비교군·현재 T5·NX 후보를 실제 인간이 blind 비교한다.
 
 완료된 3차의 판정 규율도 역사 증거와의 호환을 위해 보존한다. 모든 3차 기술 개발선이 닫힌 뒤에는
 `T5-THIRD-ACTIVATION-PREPARATION.md`의 S3-WA에서 읽기 전용 다중 에이전트 배선 감사를 먼저 수행하고,
@@ -138,12 +147,15 @@ baseline으로 보고하고 오너 결정 없이 의미를 바꾸지 않는다.
 
 - 같은 결함 가족에 세 번째 패치를 붙이려 한다.
 - 새 코어가 legacy `turn.js`, Intent, ActionPlan, T-cell을 import하려 한다.
-- 사용자 흐름 없이 타입·저장소·관리 화면부터 만든다.
+- 사용자 Flagship과 baseline 없이 타입·저장소·관리 화면부터 만든다.
 - 모델이 판단할 내용을 런타임 정규식으로 옮긴다.
 - 테스트는 통과하지만 실제 모델 과업이 실패한다.
 - 현재 Gate 밖 기능을 편의상 구현한다.
 - 같은 내용을 설명하는 새 정본·인계서·봉인문을 만든다.
 - 변경 이유를 사용자 목적 한 문장으로 설명할 수 없다.
+- Mastery 후보가 현재 T5보다 이기지 못했는데 기능 수나 연구 가치로 채택하려 한다.
+- 속도를 위해 source·coverage·Effect·Artifact·Undo를 약화한다.
+- 실패 후보가 제품 entry·기본 Prompt·schema·Store에 잔재를 남긴다.
 
 ## 9. 저장소와 Git
 

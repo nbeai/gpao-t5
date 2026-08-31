@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "gate": "T5_NX_GENERATION_TRANSITION",
+  "status": "NX0_COMPLETE_NX1_FLAGSHIP_MASTERY_CURRENT",
+  "recordedOn": "2026-08-31",
+  "sourceBaseline": "93adf628527a511106b0a15da19d528ce8541ddb",
+  "completionCommit": "same_commit_as_evidence",
+  "currentSources": {
+    "product": "T5-PRODUCT.md",
+    "development": "T5-NX.md",
+    "engineeringContract": "AGENTS.md",
+    "researchIndex": "티파이브개발 연구/INDEX.md"
+  },
+  "historicalSources": [
+    "T5-SIXTH-COMPLETION.md",
+    "T5-FIFTH-COMPLETION.md",
+    "T5-FOURTH-COMPLETION.md",
+    "T5-SECOND-COMPLETION.md",
+    "T5-THIRD-ACTIVATION-PREPARATION.md",
+    "T5-THIRD-ALPHA.md",
+    "T5-REFOUNDATION.md"
+  ],
+  "inheritedCore": [
+    "canonical conversation memory work run resource and input settlement",
+    "terminal process output cancellation and restart recovery",
+    "file document web browser connection and capability reality",
+    "authority secret effect unknown and blind retry boundaries",
+    "managed mutation F transaction G program Artifact Version and Undo",
+    "capability acquisition exact Work resume and Experience Growth rollback",
+    "context economy provider continuity fallback and answer streaming"
+  ],
+  "changedDevelopmentConstitution": [
+    "one high-value flagship can authorize an isolated Mastery candidate before three-domain repetition",
+    "new derived cache ephemeral Method and quality profile are judged by canonical density instead of a blanket Store ban",
+    "Core remains conservative while Mastery Lab may build aggressive isolated candidates",
+    "safety and truth remain absolute while speed cost and craft quality use purpose-specific Pareto judgment",
+    "product-change-zero is not reported as competitive product advancement"
+  ],
+  "currentGate": {
+    "id": "NX-1",
+    "name": "FIRST FLAGSHIP MASTERY",
+    "mission": "이번 달 정산이 왜 안 맞는지 자료 보고 정리해줘.",
+    "baselineEvidence": "refoundation/evidence/s6-ng5-dr0-actual-baseline-2026-08-31.json",
+    "candidate": ["Reality Scout", "Method Capsule", "Quality Closure"]
+  },
+  "baseline": {
+    "purchase": { "status": "PASS", "wallMs": 60481.174, "modelCalls": 9, "toolCalls": 11 },
+    "contract": { "status": "PARTIAL_SCOPE", "wallMs": 64153.004, "modelCalls": 12, "toolCalls": 14 },
+    "expense": { "status": "PARTIAL_SCOPE", "wallMs": 85000.093, "modelCalls": 12, "toolCalls": 18 },
+    "coreAccuracyQualified": true,
+    "strictScopeUniversal": false,
+    "methodCostPassed": false
+  },
+  "productSourceChanges": 0,
+  "packageOrReleaseWork": 0,
+  "desktopComputerUseOpened": false,
+  "verification": {
+    "focusedCurrentSource": { "tests": 11, "passed": 11, "failed": 0 },
+    "dailyCheck": { "tests": 2035, "passed": 2034, "failed": 0, "skipped": 1 },
+    "doctor": "PASS",
+    "legacyImports": 0,
+    "invalidRestrictedEnvironmentRun": "superseded by exact unrestricted daily check"
+  },
+  "next": "Build the isolated NX-1 Reality Scout candidate against the exact DR-0 baseline without modifying Core truth or release packaging."
+}
