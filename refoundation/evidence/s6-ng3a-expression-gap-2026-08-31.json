@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_NG3A_EXPRESSION_GAP_BASELINE",
+  "status": "CLOSED_WITH_MODEL_JUDGMENT_OBSERVATION_CANDIDATE_REJECTED",
+  "recordedOn": "2026-08-31",
+  "sourceBaseline": "6d089335",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "productChanges": 0,
+  "baseline": {
+    "sales": {
+      "ordinary": { "purposePass": false, "modelCalls": 1, "toolCalls": 0, "wallMs": 10056, "failure": "generic advice without observing the current sales source" },
+      "expert": { "purposePass": true, "modelCalls": 5, "toolCalls": 4, "wallMs": 41456 }
+    },
+    "contracts": {
+      "ordinary": { "coreIssueParity": true, "exactIdentityUsable": false, "modelCalls": 4, "toolCalls": 3, "wallMs": 28629 },
+      "expert": { "coreIssueParity": true, "exactIdentityUsable": false, "modelCalls": 4, "toolCalls": 3, "wallMs": 24180 },
+      "separateObservation": "both answers found the same expiration and missing-signature issues but model-masked employee names"
+    },
+    "receivables": {
+      "ordinary": { "purposePass": false, "modelCalls": 6, "toolCalls": 5, "wallMs": 42943,
+        "failure": "joined unrelated sales data, invented a billing-versus-sales mismatch frame, and omitted invoice A-1" },
+      "expert": { "purposePass": true, "modelCalls": 4, "toolCalls": 3, "wallMs": 15511 }
+    },
+    "inventory": {
+      "ordinary": { "purposePass": true, "modelCalls": 7, "toolCalls": 6, "wallMs": 45255,
+        "costFailure": "opened unrelated sales evidence and speculated beyond the direct mismatch" },
+      "expert": { "purposePass": true, "modelCalls": 4, "toolCalls": 3, "wallMs": 12906 }
+    }
+  },
+  "qualificationOnlyPracticalLens": {
+    "contract": {
+      "helpsWhen": "ordinary request asks about a current operational condition and direct current evidence is available",
+      "mustNotActivateWhen": "definition, general explanation, opinion, brainstorming, creative work, or already answerable direct request",
+      "behavior": "inspect the smallest direct source first and separate observed discrepancy from causal explanation"
+    },
+    "sales": { "purposePass": false, "modelCalls": 4, "toolCalls": 3, "wallMs": 34470 },
+    "receivables": { "purposePass": false, "modelCalls": 5, "toolCalls": 4, "wallMs": 37221 },
+    "inventory": { "purposePass": true, "modelCalls": 5, "toolCalls": 4, "wallMs": 26177 },
+    "directHoldout": { "passed": true, "modelCalls": 1, "toolCalls": 0, "wallMs": 2122 },
+    "decision": "REJECTED",
+    "reason": "the lens preserved Direct and reduced inventory cost but failed the two outcome-gap purposes and still expanded to unrelated sources"
+  },
+  "failureFamily": {
+    "name": "ordinary_expression_proportional_source_and_depth_selection",
+    "observedAcross": ["sales", "receivables", "inventory_cost"],
+    "runtimeInformationMissingProven": false,
+    "modelJudgmentQualityObservation": true,
+    "newRuntimeOrPromptAuthorized": false
+  },
+  "separateCarry": [
+    "model privacy over-masking made employee identities unusable in both expression variants",
+    "work_completion to final-answer round trip remains expensive",
+    "ordinary inventory succeeded but used unnecessary evidence and cost"
+  ],
+  "stopRule": "Do not attach a second phrasing or source-selection rule to this lens family. Reassess with a stronger model or future CF-HQ evidence before another candidate.",
+  "next": "Open NG5 DR-0 as a separate read-only document reality audit; do not use Method Runtime or the rejected lens to hide perception, relation, or evidence failures."
+}

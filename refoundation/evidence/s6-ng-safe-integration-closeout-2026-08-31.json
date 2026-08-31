@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_NG_SAFE_INTEGRATION_CLOSEOUT",
+  "status": "NONGUI_PLAN_INTEGRATED_NG3A_CLOSED_NG5_DR0_BASELINED",
+  "recordedOn": "2026-08-31",
+  "sourceBaseline": "6d089335",
+  "completionCommit": "same_commit_as_evidence",
+  "researchRead": { "markdownFiles": 10, "lines": 5377, "complete": true },
+  "absorbed": {
+    "NG0": "PERF-0 complete",
+    "NG1": "S6-STR complete",
+    "NG2": "safe performance slice closed with no product policy adoption",
+    "NG7": "existing Experience Growth retained"
+  },
+  "executed": {
+    "NG3A": {
+      "status": "CLOSED_WITH_MODEL_JUDGMENT_OBSERVATION_CANDIDATE_REJECTED",
+      "expressionGap": ["sales outcome", "receivables source scope and identity", "inventory proportional cost"],
+      "practicalLens": "REJECTED",
+      "productChanges": 0
+    },
+    "NG5_DR0": {
+      "status": "CURRENT_CAPABILITY_STRONG_MIXED_PACKET_AND_CLAIM_SOURCE_UNPROVEN",
+      "productChanges": 0,
+      "next": "bounded fixture and hidden-oracle preparation"
+    }
+  },
+  "notOpened": [
+    "Method Runtime",
+    "Auditory implementation",
+    "Computer Use",
+    "new Document platform or Store",
+    "Runtime intent or business Router",
+    "global Practical Judgment Prompt"
+  ],
+  "productSourceChanges": 0,
+  "newStores": 0,
+  "newRouters": 0,
+  "verification": {
+    "focused": { "tests": 25, "passed": 25, "failed": 0 },
+    "fullCiBeforeEvidenceOnlyNgAdditions": {
+      "exitCode": 0,
+      "integration": { "tests": 211, "passed": 209, "failed": 0, "skippedPhysicalWindows": 2 },
+      "mutation": { "killed": 2, "survived": 0 }
+    }
+  },
+  "nextSafeTask": "Prepare DR-0 non-identifying mixed document packets and hidden oracles without changing product source; Auditory AU-0 stays separate."
+}

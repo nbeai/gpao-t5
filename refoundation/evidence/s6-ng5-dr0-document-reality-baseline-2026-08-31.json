@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_NG5_DR0_DOCUMENT_REALITY_BASELINE",
+  "status": "CURRENT_CAPABILITY_STRONG_MIXED_PACKET_AND_CLAIM_SOURCE_UNPROVEN",
+  "recordedOn": "2026-08-31",
+  "sourceBaseline": "6d089335",
+  "productChanges": 0,
+  "existingCapabilities": {
+    "exactFileIdentityAndDigest": true,
+    "pdfAllPageLocalSearch": true,
+    "pdfExactPageHandleReopen": true,
+    "xlsxSheetRowCellFormulaObservation": true,
+    "sourceManifestRevisionAndDigestRecheck": true,
+    "csvTsvWholeRowReconciliation": true,
+    "sameLanguageProgramIndependentVerification": true,
+    "artifactPreviewVersionUndo": true
+  },
+  "reusedEvidence": [
+    {
+      "source": "refoundation/evidence/file-reconciliation-foundation-2026-08-27.json",
+      "proven": "two exact selected CSV/TSV sources, column mapping, complete ordered rows, source revalidation and Artifact receipt",
+      "notProven": "arbitrary semantic reconciliation for every document format"
+    },
+    {
+      "source": "refoundation/evidence/s4-h-existing-capability-closeout-2026-08-29.json",
+      "proven": "source-key join, required-field coverage, output closure, receivables actual",
+      "notProven": "personal cross-source join and universal completion; accurate baseline cost 122 to 156 seconds"
+    },
+    {
+      "source": "refoundation/evidence/s6-h-professional-presentation-closeout-2026-08-30.json",
+      "proven": "editable PPTX, all-slide reopen and preview, source notes and Artifact",
+      "notProven": "all claims have sources or arbitrary document fidelity"
+    }
+  ],
+  "currentGaps": {
+    "mixedPdfXlsxImagePacketThreePurposeActual": false,
+    "commonWorkDocumentSetProjection": false,
+    "commonClaimToSourceProjection": false,
+    "naturalLanguageClaimToExactPageSheetRowCell": false,
+    "lowResolutionRotationStampCheckboxSharedQualification": false,
+    "professionalLegalMedicalFinancialDecision": false
+  },
+  "causeNotYetKnown": [
+    "perception",
+    "selection",
+    "relation",
+    "reconciliation",
+    "evidence_ux",
+    "method_cost"
+  ],
+  "firstActualPurposesRequired": [
+    "purchase receiving invoice statement reconciliation",
+    "contract revision amount period responsibility comparison",
+    "card receipt tax-invoice missing-evidence reconciliation"
+  ],
+  "openingRule": "Prepare bounded non-identifying mixed packets and hidden oracles, then run the current product unchanged. Open only the first repeated cause family across three purposes.",
+  "notOpened": [
+    "new document platform",
+    "DocumentPacket Store",
+    "Claim Fact database",
+    "industry Router or workflow pack",
+    "Method Runtime",
+    "external Document AI",
+    "professional approval or eligibility judgment"
+  ],
+  "next": "Fixture and oracle preparation only; product implementation remains closed."
+}

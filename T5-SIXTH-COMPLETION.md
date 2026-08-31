@@ -2951,6 +2951,74 @@ preflight·post-observation·projected result bytes는 unknown으로 남긴다.
 
 근거: `refoundation/evidence/s6-perf-safe-slice-closeout-2026-08-31.json`.
 
+#### S6-NG — Non-GUI Android Integration
+
+현재 상태: `NG0/1_ABSORBED_COMPLETE · NG2_SAFE_SLICE_CLOSED · NG3A_CLOSED_WITH_MODEL_OBSERVATION · NG5_DR0_BASELINE_COMPLETE_NO_IMPLEMENTATION · NG4/6_NOT_OPENED`
+
+연구실 current corpus는 `INDEX·README`를 포함한 Markdown 10개·5,377줄이다. 인계문에 기록된 9개·4,528줄보다
+뒤에 추가된 현재 filesystem 자료가 있으므로 이를 숨기지 않고 전부 읽었다.
+
+통합 판정:
+
+- NG-0은 `S6-PERF PERF-0`, NG-1은 `S6-STR`로 이미 완료됐다.
+- NG-2에서 제안한 병렬 provider flag·전역 guidance·Browser after 설명은 동일 목적 A/B에서 이익이 없어 폐기됐다.
+  이름을 바꿔 다시 열지 않는다.
+- Cognitive Flow와 Experience Growth의 상당 부분은 현재 제품에 있으므로 새 Engine·Store·Planner를 만들지 않는다.
+- Method Runtime은 현재 compound Terminal·기존 Hand가 이긴 actual 때문에 아직 열지 않는다.
+- Document Reality는 별도 세 목적 DR-0, Auditory는 별도 AU-0와 helper/model/platform lifecycle이 필요하다.
+- Computer Use·AX/UIA·좌표·상시 screenshot·Console 디자인은 이 통합 Gate 범위 밖이다.
+
+연구안 교정:
+
+- Browser Runtime은 `additionalSnapshotNeeded·postcondition achieved`를 의미 판단하지 않고 after observation 사실만 준다.
+- Round Yield·Context Density의 목적 관련성은 qualification evaluator가 판단하며 Runtime 정책이 아니다.
+- 문서와 Whisper는 연구 가치가 크다는 이유만으로 동시에 개통하지 않는다.
+
+다음 한 Gate는 제품 변경 0의 `NG-3A Expression Gap Baseline`이다. 같은 사업 자료와 oracle에서 Expert와 Ordinary
+표현의 핵심 목적 결과·질문·Tool·wall 차이를 먼저 잰다. 이 한 목적이 충분하면 제품 변경 0으로 닫고, 다른 두
+분야까지 같은 실패가 생기기 전 Practical Lens를 만들지 않는다.
+
+근거: `refoundation/evidence/s6-ng-nongui-integration-admission-2026-08-31.json`.
+
+2026-08-31 NG-3A 결과:
+
+- 같은 합성 사업 현실에서 Ordinary/Expert 표현을 비교했다. 매출 Ordinary는 자료를 보지 않고 일반론으로 끝났고,
+  미수금 Ordinary는 관련 없는 매출까지 결속해 새 차이를 만들며 청구번호를 누락했다. Expert는 두 목적을 통과했다.
+- 재고는 둘 다 정답이었지만 Ordinary는 model 7·Tool 6·45.255초, Expert는 4·3·12.906초였고 무관한 매출을 더 봤다.
+- 계약은 두 표현 모두 같은 만료·서명 누락을 찾았지만 모델이 직원 이름을 마스킹해 exact 사용자 결과가 함께
+  낮았다. 이는 표현 격차가 아닌 별도 model-output privacy 관측이다.
+- `smallest direct source first` qualification Lens는 Direct Tool 0과 재고 비용 일부를 보존했지만 매출·미수금 목적을
+  회복하지 못하고 관련 없는 source 확대도 막지 못했다. 제품 Prompt·Runtime delta 0으로 폐기했다.
+- 현재 실패는 ordinary 표현에서 proportional source/depth를 고르는 model judgment 관측이다. Runtime 정보 부족은
+  증명되지 않았으므로 Router·전역 Prompt·두 번째 문구 patch를 열지 않는다.
+- NG-3A는 `CLOSED_WITH_MODEL_JUDGMENT_OBSERVATION`으로 닫고, 별도 원인축인 NG-5 DR-0 read-only 감사로 이동한다.
+
+근거: `refoundation/evidence/s6-ng3a-expression-gap-2026-08-31.json`.
+
+2026-08-31 NG-5 DR-0 read-only 결과:
+
+- 현재 T5는 exact file identity·digest, PDF 전체 page search·page handle reopen, XLSX sheet/row/cell/formula,
+  source manifest 재검사, CSV/TSV 전체 행 reconciliation, G 독립 검증, Artifact·Version·Undo를 이미 갖췄다.
+- 기존 actual은 두 CSV/TSV source 취합·receivables·편집 가능한 PPTX를 증명하지만, PDF·XLSX·이미지 혼합 packet의
+  세 목적과 일반 Claim→exact page/sheet/row/cell projection은 증명하지 않는다.
+- 현재 미달 원인이 perception·selection·relation·reconciliation·evidence UX·method cost 중 무엇인지 아직 모른다.
+- 구매·계약 revision·비용 증빙의 bounded 비식별 packet과 hidden oracle을 준비해 current product를 변경 없이 실행하기
+  전에는 새 Document platform·Store·Method Runtime·외부 Document AI를 열지 않는다.
+- 제품 구현 delta는 0이며 DR-0은 fixture·oracle 준비 경계에서 닫는다.
+
+근거: `refoundation/evidence/s6-ng5-dr0-document-reality-baseline-2026-08-31.json`.
+
+현재 NG safe integration 종료 판정:
+
+> 비GUI 통합 계획은 현재 정본에 흡수됐다. 완료된 NG-0·1·2·7은 재개발하지 않았고, NG-3A는 실제 표현 격차와
+> model judgment 관측을 남긴 채 실패 Lens를 폐기했으며, NG-5 DR-0은 현재 강점과 mixed packet·ClaimEvidence
+> 비주장을 분리했다. Method Runtime·Auditory 구현·Computer Use·새 Document Store는 동시에 열지 않았다.
+
+다음 안전 작업은 제품 변경 없는 DR-0 비식별 mixed packet·hidden oracle 준비다. Auditory AU-0는 별도 오너 Gate와
+platform lifecycle에서 독립적으로 시작한다.
+
+근거: `refoundation/evidence/s6-ng-safe-integration-closeout-2026-08-31.json`.
+
 ---
 
 ### S6-L — Windows Physical Product Qualification

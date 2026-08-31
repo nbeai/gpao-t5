@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_NG_NONGUI_INTEGRATION_ADMISSION",
+  "status": "INTEGRATED_ONE_GATE_OPEN",
+  "recordedOn": "2026-08-31",
+  "sourceBaseline": "7a47f69afb1480c887d7bf641dad062c584e28f9",
+  "currentSourceAtAdmission": "6d089335",
+  "researchCorpus": {
+    "directory": "/Users/jyp/Developer/t5-sixth/티파이브개발 연구",
+    "markdownFiles": 10,
+    "lines": 5377,
+    "ownerSummaryCount": 9,
+    "ownerSummaryLines": 4528,
+    "decision": "use the current filesystem corpus; do not hide the later additions"
+  },
+  "absorbed": {
+    "NG0": "S6-PERF PERF-0 COMPLETE",
+    "NG1": "S6-STR COMPLETE",
+    "NG2": "safe slice COMPLETE; parallel flag, global guidance, Browser description rejected; segmented execution not opened",
+    "NG7": "existing Experience Growth retained and not redeveloped"
+  },
+  "notOpened": {
+    "NG4_Method_Runtime": "current natural Tool and compound Terminal paths remain positive in the latest qualification",
+    "NG5_Document_Reality": "requires its own three-purpose DR-0 actual baseline",
+    "NG6_Auditory": "explicit product gap and valuable next institution, but separate AU-0 gate and platform lifecycle required",
+    "Computer_Use": "excluded from the non-GUI scope and still needs independent necessity evidence"
+  },
+  "opened": {
+    "gate": "NG3A_EXPRESSION_GAP_BASELINE",
+    "productChanges": 0,
+    "firstPurpose": "business sales evidence, expert versus ordinary natural-language expression",
+    "reason": "Cognitive Flow is mostly present; only expression-level outcome parity can justify a further judgment candidate"
+  },
+  "correctionsToResearchCandidate": [
+    "Browser Runtime must not emit additionalSnapshotNeeded or postcondition-achieved semantic judgments",
+    "Round Yield and Context Density are qualification evaluator metrics, not Runtime policy",
+    "PERF2 rejected candidates are not reopened by renaming them NG2",
+    "Whisper and Document Reality do not open automatically because the integrated plan lists them"
+  ],
+  "forbiddenConcurrentDevelopment": [
+    "NG3 plus Method Runtime",
+    "NG3 plus Document Reality",
+    "NG3 plus Auditory",
+    "Computer Use or Console visual redesign"
+  ]
+}
