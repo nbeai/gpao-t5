@@ -15,10 +15,9 @@ test('WP0 baseline은 source HQ 기준선과 Windows physical 비주장을 함�
   assert.ok(evidence.prePhysicalFindings.length >= 8);
 });
 
-test('WP0 baseline은 현재 source의 공개 blocker를 추측이 아닌 exact source 사실로 보존한다', async () => {
-  const [evidence, builder, entry, terminal, program, ocr, renderer] = await Promise.all([
+test('WP0 baseline은 당시 공개 blocker와 현재 남은 source 경계를 분리한다', async () => {
+  const [evidence, entry, terminal, program, ocr, renderer] = await Promise.all([
     readFile(evidenceUrl, 'utf8').then(JSON.parse),
-    readFile(new URL('../scripts/build-windows-package.mjs', import.meta.url), 'utf8'),
     readFile(new URL('../scripts/start-console.mjs', import.meta.url), 'utf8'),
     readFile(new URL('../src/terminal-platform-adapter.js', import.meta.url), 'utf8'),
     readFile(new URL('../src/console-server.js', import.meta.url), 'utf8'),
@@ -29,7 +28,8 @@ test('WP0 baseline은 현재 source의 공개 blocker를 추측이 아닌 exact 
   for (const family of ['windows_package_version_truth', 'windows_default_file_scope',
     'windows_terminal_confinement', 'windows_g_program_admission', 'windows_ocr',
     'windows_document_render']) assert.ok(families.has(family), family);
-  assert.match(builder, /const version = '0\.3\.1'/u);
+  assert.equal(evidence.sourceDigests['refoundation/scripts/build-windows-package.mjs'],
+    '64363f6bcdf41cf96df6f484851782ee71fb58fb73ff493b414a0dbd0f5053d6');
   assert.match(entry, /\[parse\(homedir\(\)\)\.root\]/u);
   assert.match(terminal, /platform_passthrough[\s\S]*qualified: false/u);
   assert.match(program, /computer\.platform === 'darwin'[\s\S]*programExecutionAdapter/u);

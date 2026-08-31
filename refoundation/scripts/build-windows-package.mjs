@@ -7,13 +7,14 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 
-import { makeWindowsIconIco, windowsPeArchitecture, WINDOWS_INSTALL_SCRIPT, WINDOWS_UNINSTALL_SCRIPT } from './windows-package-contract.mjs';
+import { makeWindowsIconIco, windowsPeArchitecture, windowsProductVersion,
+  WINDOWS_INSTALL_SCRIPT, WINDOWS_UNINSTALL_SCRIPT } from './windows-package-contract.mjs';
 import { assertFourthCycleDormantSourceExcluded, assertQualificationOnlySourceExcluded,
   removeFourthCycleDormantSource, removeQualificationOnlySource } from './product-source-boundary.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..', '..');
-const version = '0.3.1';
+const version = windowsProductVersion(JSON.parse(await readFile(join(repo, 'package.json'), 'utf8')));
 const option = (name) => { const index = process.argv.indexOf(name); return index < 0 ? null : process.argv[index + 1]; };
 const architecture = option('--architecture') ?? process.arch;
 const run = (program, args, options = {}) => execFileSync(program, args, { encoding: 'utf8', ...options });

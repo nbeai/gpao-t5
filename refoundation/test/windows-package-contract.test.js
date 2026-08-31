@@ -2,7 +2,19 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import { makeWindowsIconIco, windowsPeArchitecture, WINDOWS_INSTALL_SCRIPT, WINDOWS_UNINSTALL_SCRIPT } from '../scripts/windows-package-contract.mjs';
+import { makeWindowsIconIco, windowsPeArchitecture, windowsProductVersion,
+  WINDOWS_INSTALL_SCRIPT, WINDOWS_UNINSTALL_SCRIPT } from '../scripts/windows-package-contract.mjs';
+
+test('Windows package version은 sealed root 제품 version을 사용하고 잘못된 값을 거부한다', async () => {
+  const product = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
+  assert.equal(windowsProductVersion(product), '6.0.0');
+  for (const version of ['', '6.0', 'v6.0.0', '../6.0.0']) {
+    assert.throws(() => windowsProductVersion({ version }), /version is invalid/u);
+  }
+  const source = await readFile(new URL('../scripts/build-windows-package.mjs', import.meta.url), 'utf8');
+  assert.match(source, /windowsProductVersion\(JSON\.parse\(await readFile\(join\(repo, 'package\.json'/u);
+  assert.doesNotMatch(source, /const version = '0\.3\.1'/u);
+});
 
 test('Windows installer는 incoming 검증 뒤 교체하고 실패하면 이전 설치만 복원한다', () => {
   assert.match(WINDOWS_INSTALL_SCRIPT,/\.GPAO-T5\.incoming/u);assert.match(WINDOWS_INSTALL_SCRIPT,/Get-FileHash/u);

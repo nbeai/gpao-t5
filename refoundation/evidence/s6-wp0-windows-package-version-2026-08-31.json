@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_WP0_F1_WINDOWS_PACKAGE_VERSION_TRUTH",
+  "status": "COMPLETE_CONTRACT_ONLY_INSTALLER_NOT_BUILT",
+  "baseCommit": "600fcf81",
+  "failure": {
+    "family": "windows_package_version_truth",
+    "sealedProductVersion": "6.0.0",
+    "builderVersionBefore": "0.3.1",
+    "impact": "payload manifest and package filenames would identify the wrong product generation"
+  },
+  "repair": {
+    "source": "root package.json",
+    "validatedVersion": "6.0.0",
+    "duplicateVersionConstant": 0,
+    "windowsInstallerBuilt": false
+  },
+  "verification": {
+    "validVersion": "6.0.0",
+    "invalidValuesRejected": ["empty", "6.0", "v6.0.0", "path escape"],
+    "focusedTestsPassed": 19,
+    "focusedTestsFailed": 0
+  },
+  "nonClaims": [
+    "Windows package was built",
+    "Windows installer was signed",
+    "Windows installation was physically qualified"
+  ],
+  "nextRepairFamily": "WP0-F2 windows_default_file_scope"
+}

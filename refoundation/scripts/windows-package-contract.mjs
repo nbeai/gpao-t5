@@ -1,3 +1,11 @@
+const PRODUCT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u;
+
+export function windowsProductVersion(packageMetadata) {
+  const version = String(packageMetadata?.version ?? '');
+  if (!PRODUCT_VERSION.test(version)) throw new TypeError('Windows product version is invalid');
+  return version;
+}
+
 export const WINDOWS_INSTALL_SCRIPT = String.raw`param(
   [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA 'Programs\GPAO-T5')
 )
