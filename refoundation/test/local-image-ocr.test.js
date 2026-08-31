@@ -21,11 +21,19 @@ test('macOS local OCR은 exact argv와 bounded receipt만 돌려준다', async (
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 
-test('Windows와 malformed native receipt는 OCR 성공으로 꾸미지 않는다', async () => {
+test('Windows helper는 confidence unknown을 보존하고 malformed receipt는 성공으로 꾸미지 않는다', async () => {
   const windows = makeLocalImageOcr({ platform: 'win32', runCommand: async () => { throw new Error('must not run'); } });
   assert.deepEqual(await windows('/tmp/x'), { state: 'unavailable', reason: 'local_image_ocr_not_qualified' });
   const room = await mkdtemp(join(tmpdir(), 't5-local-ocr-')); const image = join(room, 'x.png'); await writeFile(image, 'x');
-  try { const malformed = makeLocalImageOcr({ platform: 'darwin', runCommand: async () => ({ stdout: '{}' }) });
+  try {
+    const native = makeLocalImageOcr({ platform: 'win32', helper: 'C:\\T5\\t5-windows-image-ocr.exe',
+      runCommand: async () => ({ stdout: JSON.stringify({ schema: 't5.local-image-ocr.v1',
+        width: 100, height: 50, truncated: false,
+        observations: [{ text: '한빛상사', confidence: null, box: { x: 0, y: 0, width: 1, height: 1 } }] }) }) });
+    const observed = await native(image); assert.equal(observed.state, 'observed');
+    assert.equal(observed.engine, 'windows-media-ocr-local');
+    assert.equal(observed.observations[0].confidence, null);
+    const malformed = makeLocalImageOcr({ platform: 'darwin', runCommand: async () => ({ stdout: '{}' }) });
     assert.deepEqual(await malformed(image), { state: 'unavailable', reason: 'local_image_ocr_failed' });
   } finally { await rm(room, { recursive: true, force: true }); }
 });

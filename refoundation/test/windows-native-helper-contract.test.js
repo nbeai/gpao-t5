@@ -29,3 +29,11 @@ test('Windows folder picker와 launcher는 password shell이나 broad command �
   assert.match(attach,/\['--port-file', portFile\]|'--port-file', portFile/u);
   assert.doesNotMatch(`${picker}\n${launcher}`,/powershell|cmd\.exe/u);
 });
+
+test('Windows OCR helper는 local Windows.Media.Ocr만 사용하고 bounded receipt를 만든다', async () => {
+  const text=await source('t5-windows-image-ocr.cpp');
+  assert.match(text,/Windows::Media::Ocr/u);assert.match(text,/OcrEngine::TryCreateFromLanguage/u);
+  assert.match(text,/StorageFile::GetFileFromPathAsync/u);assert.match(text,/kMaximumObservations = 200/u);
+  assert.match(text,/t5\.local-image-ocr\.v1/u);assert.equal(text.includes('confidence\\\":null'),true);
+  assert.doesNotMatch(text,/WinHttp|InternetOpen|URLDownload|Clipboard|CreateProcess/u);
+});

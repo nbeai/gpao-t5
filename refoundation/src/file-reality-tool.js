@@ -97,8 +97,9 @@ function ocrEvidence(query, observed) {
   const matching = (observed?.observations ?? []).filter((item) => evidence.matched.some(
     (term) => compact(item?.text).includes(compact(term)),
   )).slice(0, 3);
+  const confidence = matching.map((item) => item.confidence).filter(Number.isFinite);
   return { ...evidence, excerpt: matching.map((item) => String(item.text)).join(' · ').slice(0, 240) || null,
-    minimumConfidence: matching.length ? Math.min(...matching.map((item) => Number(item.confidence))) : null };
+    minimumConfidence: confidence.length ? Math.min(...confidence) : null };
 }
 function safeInteger(value, fallback, min, max) {
   const parsed = Number(value ?? fallback); return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : fallback;

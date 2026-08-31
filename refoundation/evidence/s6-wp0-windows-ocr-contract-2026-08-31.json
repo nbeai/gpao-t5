@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_WP0_F5_WINDOWS_OCR",
+  "status": "SOURCE_AND_PAYLOAD_CONTRACT_COMPLETE_PHYSICAL_QUALIFICATION_PENDING",
+  "baseCommit": "b1716f39",
+  "implementation": {
+    "engine": "Windows.Media.Ocr",
+    "helper": "t5-windows-image-ocr.exe",
+    "localOnly": true,
+    "maximumObservations": 200,
+    "confidence": "unknown when the Windows API does not expose a calibrated score",
+    "receipt": "t5.local-image-ocr.v1",
+    "packageRole": "image_ocr_helper",
+    "architectures": ["x64", "arm64"]
+  },
+  "boundaries": {
+    "network": false,
+    "clipboard": false,
+    "processLaunch": false,
+    "exactInput": true,
+    "maximumInputBytes": 20971520,
+    "malformedReceiptFailsClosed": true
+  },
+  "verification": {
+    "sourceContract": "PASS",
+    "runtimeAdapter": "PASS_SYNTHETIC_RECEIPT",
+    "packageReachability": "PASS_CONTRACT_ONLY",
+    "windowsCompile": "PENDING_RUNNER",
+    "koreanActual": "PENDING_PHYSICAL_WINDOWS",
+    "ocrVisualFocusedPassed": 36
+  },
+  "nonClaims": [
+    "Windows helper compiled",
+    "Korean OCR accuracy",
+    "Windows OCR physical PASS",
+    "Windows package built"
+  ],
+  "next": "compile x64 and ARM64 on the Windows runner, then use the existing 한빛상사 4,780,000 fixture on physical Windows"
+}

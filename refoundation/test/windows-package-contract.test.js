@@ -41,8 +41,8 @@ test('Windows package는 PE machine을 x64와 ARM64로 구분하고 다른 runti
   assert.equal(windowsPeArchitecture(Buffer.from('MZ invalid')),null);
 });
 
-test('Windows package recipe는 네 native helper와 x64 ARM64 architecture contract를 함께 묶는다', async () => {
+test('Windows package recipe는 native helper와 x64 ARM64 architecture contract를 함께 묶는다', async () => {
   const source=await readFile(new URL('../scripts/build-windows-package.mjs',import.meta.url),'utf8');
-  for(const name of ['t5-windows-job-host.c','t5-windows-folder-picker.c','t5-windows-file-activity.c','t5-windows-coarse-app-activity.c','t5-windows-launcher.c'])assert.match(source,new RegExp(name.replaceAll('.','\\.')));
+  for(const name of ['t5-windows-job-host.c','t5-windows-folder-picker.c','t5-windows-file-activity.c','t5-windows-coarse-app-activity.c','t5-windows-image-ocr.cpp','t5-windows-launcher.c'])assert.match(source,new RegExp(name.replaceAll('.','\\.')));
   assert.match(source,/\['x64','arm64'\]/u);assert.match(source,/UNSIGNED_NOT_PHYSICALLY_QUALIFIED/u);
 });

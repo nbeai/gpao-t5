@@ -56,6 +56,7 @@ import { LocalRuntimeOwnership } from '../src/durable-process-ownership.js';
 import { RuntimeContinuityLedger, makeRuntimeContinuityMonitor } from '../src/runtime-continuity.js';
 import { makeLocalNotificationService, makeMacOSNotificationAdapter } from '../src/local-notification.js';
 import { deleteT5OwnedLocalData } from '../src/local-data-deletion.js';
+import { makeLocalImageOcr } from '../src/local-image-ocr.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -238,6 +239,8 @@ const processRegistry = new ManagedProcessRegistry({ platform: computerEnvironme
   windowsJobHost: windowsProduct?.jobCredentialHost ?? null });
 const localNotifications = makeLocalNotificationService({ deliver: process.platform === 'darwin'
   ? makeMacOSNotificationAdapter({ spawnProcess: spawn }) : null });
+const fileOcrProbe = computerEnvironment.platform === 'win32'
+  ? makeLocalImageOcr({ platform: 'win32', helper: windowsProduct?.imageOcrHelper }) : null;
 let resolveRuntimeStopRequest;
 const runtimeStopReady = new Promise((resolveStop) => { resolveRuntimeStopRequest = resolveStop; });
 const server = makeConsoleServer({
@@ -269,6 +272,7 @@ const server = makeConsoleServer({
   quickPreviewProgram: cloudflaredCli,
   videoTextFetchImpl: globalThis.fetch,
   workspaceConnectionServices,
+  ...(fileOcrProbe ? { fileOcrProbe } : {}),
   messengerCredentialStore,
   fileActivityService,
   fileActivityRootSelector,

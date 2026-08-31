@@ -16,12 +16,11 @@ test('WP0 baseline은 source HQ 기준선과 Windows physical 비주장을 함�
 });
 
 test('WP0 baseline은 당시 공개 blocker와 현재 남은 source 경계를 분리한다', async () => {
-  const [evidence, entry, terminal, program, ocr, renderer] = await Promise.all([
+  const [evidence, entry, terminal, program, renderer] = await Promise.all([
     readFile(evidenceUrl, 'utf8').then(JSON.parse),
     readFile(new URL('../scripts/start-console.mjs', import.meta.url), 'utf8'),
     readFile(new URL('../src/terminal-platform-adapter.js', import.meta.url), 'utf8'),
     readFile(new URL('../src/console-server.js', import.meta.url), 'utf8'),
-    readFile(new URL('../src/local-image-ocr.js', import.meta.url), 'utf8'),
     readFile(new URL('../src/docx-visual-renderer.js', import.meta.url), 'utf8'),
   ]);
   const families = new Set(evidence.prePhysicalFindings.map((item) => item.family));
@@ -34,7 +33,8 @@ test('WP0 baseline은 당시 공개 blocker와 현재 남은 source 경계를 �
     'start-console uses the drive root for non-darwin standard computer roots');
   assert.match(terminal, /platform_passthrough[\s\S]*qualified: false/u);
   assert.match(program, /computer\.platform === 'darwin'[\s\S]*programExecutionAdapter/u);
-  assert.match(ocr, /platform !== 'darwin'[\s\S]*local_image_ocr_not_qualified/u);
+  assert.equal(evidence.prePhysicalFindings.find((item) => item.id === 'WP0-F5')?.fact,
+    'local-image-ocr is explicitly unavailable on non-darwin platforms');
   assert.match(renderer, /platform !== 'darwin'[\s\S]*docx_all_page_renderer_not_qualified/u);
 });
 
