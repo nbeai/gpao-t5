@@ -131,6 +131,23 @@ test('한국어·영어 최신 문서 요청은 내용 없이 표준 폴더의 �
   } finally { await rm(room.root, { recursive: true, force: true }); }
 });
 
+test('한국어 문서 역할 단서는 영문 계약·책임표·서명·revision 파일명 후보를 함께 찾는다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-file-role-alias-')); const workspace = join(root, 'workspace');
+  await mkdir(workspace);
+  try {
+    await Promise.all(['contract-v1.pdf', 'contract-v2.pdf', 'responsibility-matrix.xlsx', 'signature-page-v2.png']
+      .map((name) => writeFile(join(workspace, name), 'synthetic')));
+    const tool = makeFileRealityTool({ workspace, home: root, platform: 'test',
+      computerRoots: [root], indexSearch: async () => [] });
+    const result = await tool.execute({ action: 'search', query: '계약서 1판 2판 책임표 서명 이미지',
+      scope: 'workspace', path: null, handles: null, maxCandidates: 10, placements: null,
+      planId: null, effect: null, sourceUses: null, purpose: null, unknowns: null, standardization: null });
+    assert.deepEqual(result.candidates.map((item) => item.displayName).sort(), [
+      'contract-v1.pdf', 'contract-v2.pdf', 'responsibility-matrix.xlsx', 'signature-page-v2.png',
+    ]);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test('일반 사진 검색은 사진 보관함 패키지 내부를 직접 순회하거나 Spotlight 후보로 받지 않는다', async () => {
   const room = await fixture();
   const pictures = join(room.root, 'Pictures');

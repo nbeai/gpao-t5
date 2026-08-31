@@ -29,6 +29,9 @@ const DOCUMENT_KIND_ALIASES = [
   ['quote', ['quote', 'quotation', 'estimate', '견적', '견적서']],
   ['invoice', ['invoice', 'bill', '청구', '청구서']],
   ['contract', ['contract', 'agreement', '계약', '계약서']],
+  ['responsibility', ['responsibility', 'responsibility matrix', 'RACI', '책임', '책임표', '책임 매트릭스']],
+  ['signature', ['signature', 'signatures', 'signed', '서명', '서명란', '서명 페이지']],
+  ['revision', ['revision', 'version', 'revisions', 'versions', '개정', '버전', '판']],
   ['presentation', ['presentation', 'slides', 'deck', '발표', '발표자료']],
   ['spreadsheet', ['spreadsheet', 'workbook', 'sheet', '스프레드시트', '엑셀']],
   ['receipt', ['receipt', '영수증', '증빙']],
@@ -477,6 +480,7 @@ export function makeFileRealityTool({
           let stat; try { stat = await lstat(candidate); } catch { continue; }
           if (!stat.isFile() || stat.isSymbolicLink()) continue;
           const lexical = lexicalEvidence(clue, basename(candidate), locationText(candidate, home));
+          const kindMatches = documentKindMatches(clue, basename(candidate));
           if (IMAGE_EXTENSIONS.has(extname(candidate).toLowerCase())) imagePool.push({ candidate, stat, lexical,
             indexed: indexedSet.has(resolve(candidate)) });
           const indexedCandidate = indexedSet.has(resolve(candidate));
@@ -485,9 +489,10 @@ export function makeFileRealityTool({
             contentProbes += 1;
             contentJobs.push({ candidate, stat, lexical, indexed: indexedCandidate });
           }
-          const score = lexical.score + (indexedCandidate ? 10 : 0);
+          const score = lexical.score + kindMatches.length * 6 + (indexedCandidate ? 10 : 0);
           if (score <= 0) continue;
           ranked.push({ record: exactRecord(candidate, stat, home, { indexed: indexedCandidate,
+            kindMatches,
             matchedNameTerms: lexical.matchedName, matchedLocationTerms: lexical.matchedPath,
             matchedContentTerms: [], nameSimilarity: Number(lexical.nameSimilarity.toFixed(3)) }), score });
         }
