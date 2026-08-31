@@ -4,7 +4,7 @@
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
 현재 Gate: `NX-1 FIRST FLAGSHIP MASTERY · INTEGRAL OUTCOME METHOD`
-현재 작업: `NX-1C orchestration·ClaimEvidence를 14/14로 닫고 현재 observer·G·F·Artifact를 주입하는 AB/BA runner 구현`
+현재 작업: `첫 Integral Method actual에서 확인한 강한 Reality Closure와 불안정한 presentation 선택을 분리해 bounded Human Closure settlement로 재설계`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -823,6 +823,25 @@ AND current correction·Stop·restart·Artifact·Undo 무회귀
 - 품질 개선이 Prompt 문체 효과뿐이고 다른 모델·표현에서 사라지면 승격 금지
 
 현재 baseline 숫자는 목표가 아니라 반드시 이겨야 할 비교선이다.
+
+2026-09-01 첫 actual diagnostic:
+
+- qualification runner가 현재 제품 A와 Integral Method B를 같은 gpt-5.5·source·authority에서 AB/BA 순서로 실행한다.
+- B는 세 목적 모두 개별 표본에서 정확성·strict scope PASS를 만들었고 model 2·Tool 1, input 약 13~14K로 현재 제품의
+  5~15 model·7~21 Tool·51K~328K input보다 압도적으로 가벼운 경로를 실제로 보였다.
+- 그러나 split Claim BA 표본에서 구매만 동시 PASS했고, 계약은 600,000원 증가를 presentation에서 누락했으며 비용은
+  C-103 exposure·C-102 차이를 presentation에서 누락했다. 다른 단일 표본에서는 각각 PASS해 model 분산도 남았다.
+- 구매 wall도 표본에 따라 current 38.2초 대 candidate 45.8초, current 65.4초 대 candidate 69.7초처럼 이기지 못한
+  경우가 있어 모든 지표 우위를 주장할 수 없다.
+- `materialValues`가 증거와 표현을 합치던 구조는 폐기했다. `evidenceValues`는 검증 사실 전체, `presentationValueIds`는
+  사용자에게 반드시 보여줄 값으로 분리했고 EA·개·unit(s)는 qualification evaluator 안에서만 canonicalize한다.
+- 그럼에도 첫 모델이 evidence와 presentation을 동시에 고르는 구조는 안정적이지 않았다. 같은 필드·문구 patch를 더
+  붙이지 않고 Reality Closure 뒤 별도 bounded Human Closure settlement가 verified evidence에서 presentation IDs와
+  model-authored final answer를 함께 결속하는 다른 구조를 연다.
+- 공식 전체 AB는 첫 topology가 BA에서 안정성 Gate를 통과하지 못해 중단했다. blind 인간 평가·Artifact·Undo·제품 배선은
+  아직 열지 않았고 product source delta는 0이다.
+
+근거: `refoundation/evidence/nx1-integral-flagship-diagnostic-2026-09-01.json`.
 
 ## NX-2 — Mastery Generalization
 

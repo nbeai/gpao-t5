@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "gate": "NX_1F_INTEGRAL_FLAGSHIP_DIAGNOSTIC",
+  "status": "REALITY_CLOSURE_PROMISING_HUMAN_CLOSURE_UNSTABLE_PRODUCT_ZERO",
+  "recordedOn": "2026-09-01",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "oracleProjectedToModel": 0,
+  "productChanges": 0,
+  "runner": {
+    "orders": ["AB", "BA"],
+    "arms": { "A": "current product", "B": "qualification-only Integral Method" },
+    "sameSourceModelAuthority": true,
+    "hiddenOracleMachineEvaluation": true,
+    "humanBlindEvaluation": "PENDING"
+  },
+  "structuralCorrections": [
+    "Method handles now equal the complete source manifest set",
+    "Tool schema is generated from the same validator constants instead of duplicated definitions",
+    "EA, 개, unit and units are normalized only inside the qualification evaluator",
+    "verified core claims are projected to a fresh final model epoch without excluded finding content",
+    "evidenceValues preserve verification facts while presentationValueIds select final-display values",
+    "unitless identifiers, dates and states are valid evidence values"
+  ],
+  "supersededDiagnostics": [
+    { "failure": "work fields are invalid", "cause": "JSON-string tool contract hid nested strict schema" },
+    { "failure": "unsupported method operator", "cause": "Tool schema duplicated validator without operator enum" },
+    { "failure": "unsupported deliverable form", "cause": "Tool schema duplicated validator without deliverable enum" },
+    { "failure": "materialValues forced all verification facts into prose", "cause": "evidence and presentation were one layer" }
+  ],
+  "positiveActuals": {
+    "purchase": { "machineAndMethodPassObserved": true, "bestWallMs": 44962.331,
+      "modelCalls": 2, "toolCalls": 1, "inputTokens": 14100 },
+    "contract": { "machineAndMethodPassObserved": true, "bestWallMs": 46171.011,
+      "modelCalls": 2, "toolCalls": 1, "inputTokens": 13862 },
+    "expense": { "machineAndMethodPassObserved": true, "bestWallMs": 47873.887,
+      "modelCalls": 2, "toolCalls": 1, "inputTokens": 14257 }
+  },
+  "splitContractBaDiagnostic": [
+    {
+      "scenario": "purchase_reconciliation",
+      "candidate": { "wallMs": 56568.4, "modelCalls": 2, "toolCalls": 1, "inputTokens": 14363,
+        "methodPassed": true, "finalPassed": true },
+      "baseline": { "wallMs": 76285.358, "modelCalls": 12, "toolCalls": 17, "inputTokens": 224686 }
+    },
+    {
+      "scenario": "contract_revision",
+      "candidate": { "wallMs": 59996.593, "modelCalls": 2, "toolCalls": 1, "inputTokens": 13497,
+        "methodPassed": false, "finalPassed": false,
+        "reason": "presentation omitted the computed KRW 600,000 increase" },
+      "baseline": { "wallMs": 104452.378, "modelCalls": 13, "toolCalls": 15, "inputTokens": 272399 }
+    },
+    {
+      "scenario": "expense_evidence",
+      "candidate": { "wallMs": 59911.868, "modelCalls": 2, "toolCalls": 1, "inputTokens": 13418,
+        "methodPassed": false, "finalPassed": false,
+        "reason": "presentation omitted the C-103 exposure and C-102 difference in this sample" },
+      "baseline": { "wallMs": 58839.564, "modelCalls": 9, "toolCalls": 10, "inputTokens": 139078 }
+    }
+  ],
+  "decision": {
+    "methodTopology": "STRONG_POSITIVE",
+    "modelAndToolRoundReduction": "STRONG_POSITIVE",
+    "tokenEconomy": "STRONG_POSITIVE",
+    "wallImprovement": "MIXED_AND_ORDER_SENSITIVE",
+    "realityClosure": "CAN_PASS_ALL_THREE_BUT_NOT_YET_STABLE",
+    "humanClosure": "UNSTABLE_PRESENTATION_SELECTION",
+    "blindHumanQuality": "NOT_RUN",
+    "productPromotion": false
+  },
+  "stopLine": "Do not add more field wording or run the remaining AB matrix on this first topology. Separate verified evidence closure from a bounded model-authored Human Closure settlement, then rerun one expense countertest before full AB/BA.",
+  "next": "Design qualification-only Human Closure settlement that selects presentation value IDs from verified evidence and binds the model-authored final answer without a third model turn."
+}

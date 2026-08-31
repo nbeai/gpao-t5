@@ -156,6 +156,95 @@ export const NX_INTEGRAL_METHOD_LIMITS = deepFreeze({
   operators: [...OPERATORS], effects: [...EFFECTS], outputKinds: [...OUTPUT_KINDS],
 });
 
+function schemaSourceRef() {
+  return { type: 'object', additionalProperties: false, properties: {
+    handle: { type: 'string', maxLength: 80 }, location: { type: 'string', maxLength: 200 },
+  }, required: ['handle', 'location'] };
+}
+function schemaStringList(maxItems, maxLength, minItems = 0, values = null) {
+  return { type: 'array', minItems, maxItems, items: values
+    ? { type: 'string', enum: [...values] } : { type: 'string', maxLength } };
+}
+
+export function integralMethodCandidateJsonSchema() {
+  return structuredClone({ type: 'object', additionalProperties: false, properties: {
+    schema: { type: 'string', enum: ['t5.integral-outcome-method.v1'] },
+    work: { type: 'object', additionalProperties: false, properties: {
+      workId: { type: 'string', maxLength: 80 }, revision: { type: 'integer', minimum: 1 },
+    }, required: ['workId', 'revision'] },
+    human: { type: 'object', additionalProperties: false, properties: {
+      purpose: { type: 'string', maxLength: MAX_TEXT }, useContext: { type: 'string', maxLength: MAX_TEXT },
+      audience: { type: 'string', maxLength: MAX_TEXT },
+    }, required: ['purpose', 'useContext', 'audience'] },
+    strategy: { type: 'object', additionalProperties: false, properties: {
+      primaryOutcome: { type: 'string', maxLength: MAX_TEXT },
+      requestedScope: schemaStringList(12, 300, 1), excludedScope: schemaStringList(12, 300),
+      sufficientWhen: schemaStringList(12, 300, 1),
+    }, required: ['primaryOutcome', 'requestedScope', 'excludedScope', 'sufficientWhen'] },
+    reality: { type: 'object', additionalProperties: false, properties: {
+      sourceManifestId: { type: 'string', maxLength: 80 },
+      exactInputHandles: schemaStringList(MAX_SOURCES, 80, 1),
+      unresolvedFacts: schemaStringList(20, 300),
+    }, required: ['sourceManifestId', 'exactInputHandles', 'unresolvedFacts'] },
+    method: { type: 'object', additionalProperties: false, properties: {
+      operators: schemaStringList(16, 32, 1, OPERATORS), checks: schemaStringList(20, 300, 1),
+      expectedOutputs: { type: 'array', minItems: 1, maxItems: 8,
+        items: { type: 'object', additionalProperties: false, properties: {
+          name: { type: 'string', maxLength: 120 }, kind: { type: 'string', enum: [...OUTPUT_KINDS] },
+          effect: { type: 'string', enum: [...EFFECTS] },
+        }, required: ['name', 'kind', 'effect'] } },
+    }, required: ['operators', 'checks', 'expectedOutputs'] },
+    form: { type: 'object', additionalProperties: false, properties: {
+      deliverableForms: schemaStringList(4, 32, 1, OUTPUT_KINDS),
+      informationOrder: schemaStringList(8, 300, 1), visualHierarchyGoals: schemaStringList(8, 300, 1),
+    }, required: ['deliverableForms', 'informationOrder', 'visualHierarchyGoals'] },
+  }, required: ['schema', 'work', 'human', 'strategy', 'reality', 'method', 'form'] });
+}
+
+export function compactClaimEvidenceJsonSchema() {
+  const ref = schemaSourceRef();
+  return structuredClone({ type: 'object', additionalProperties: false, properties: {
+    schema: { type: 'string', enum: ['t5.compact-claim-evidence.v1'] },
+    sourceManifestId: { type: 'string', maxLength: 80 },
+    coverage: { type: 'object', additionalProperties: false, properties: {
+      state: { type: 'string', enum: ['complete'] },
+      observedHandles: schemaStringList(MAX_SOURCES, 80, 1), unresolvedHandles: schemaStringList(MAX_SOURCES, 80),
+    }, required: ['state', 'observedHandles', 'unresolvedHandles'] },
+    claims: { type: 'array', minItems: 1, maxItems: 32, items: { type: 'object', additionalProperties: false,
+      properties: { claimId: { type: 'string', maxLength: 80 }, state: { type: 'string', enum: [...CLAIM_STATES] },
+        summary: { type: 'string', maxLength: MAX_TEXT,
+          description: 'Compact semantic claim summary. Verification and final-display values are carried separately.' },
+        sourceRefs: { type: 'array', minItems: 1, maxItems: 8, items: ref },
+        evidenceValues: { type: 'array', minItems: 1, maxItems: 16,
+          description: 'All values needed to verify this claim. These values do not all need to appear in the final answer.',
+          items: { type: 'object', additionalProperties: false, properties: {
+            valueId: { type: 'string', maxLength: 80 }, label: { type: 'string', maxLength: 80 },
+            value: { type: ['string', 'number'] },
+            unit: { type: 'string', maxLength: 40,
+              description: 'Physical or business unit. Use an empty string for an identifier, date, state, or other unitless value.' }, source: ref,
+          }, required: ['valueId', 'label', 'value', 'unit', 'source'] } },
+        presentationValueIds: { type: 'array', minItems: 1, maxItems: 16,
+          description: 'IDs of evidenceValues that must appear in the final user result.',
+          items: { type: 'string', maxLength: 80 } },
+        calculation: { type: ['object', 'null'], additionalProperties: false, properties: {
+          expression: { type: 'string', maxLength: 200 },
+          inputs: { type: 'array', minItems: 1, maxItems: 16,
+            items: { type: 'object', additionalProperties: false, properties: {
+              label: { type: 'string', maxLength: 80 }, value: { type: 'number' },
+              unit: { type: 'string', maxLength: 40 }, source: ref,
+            }, required: ['label', 'value', 'unit', 'source'] } },
+          result: { type: 'object', additionalProperties: false, properties: {
+            value: { type: 'number' }, unit: { type: 'string', maxLength: 40 },
+          }, required: ['value', 'unit'] },
+        }, required: ['expression', 'inputs', 'result'] } },
+      required: ['claimId', 'state', 'summary', 'sourceRefs', 'evidenceValues', 'presentationValueIds', 'calculation'] } },
+    excludedFindings: { type: 'array', maxItems: 32, items: { type: 'object', additionalProperties: false,
+      properties: { findingId: { type: 'string', maxLength: 80 }, reason: { type: 'string', maxLength: MAX_TEXT },
+        sourceRefs: { type: 'array', minItems: 1, maxItems: 8, items: ref } },
+      required: ['findingId', 'reason', 'sourceRefs'] } },
+  }, required: ['schema', 'sourceManifestId', 'coverage', 'claims', 'excludedFindings'] });
+}
+
 const digest = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export function buildIntegralMethodContractBinding(candidate) {
   return deepFreeze({
@@ -228,15 +317,41 @@ export function validateCompactClaimEvidence(input, { sourceManifestId, exactInp
     throw new TypeError('ClaimEvidence claims are invalid');
   }
   const claims = input.claims.map((claim) => {
-    exactObject(claim, ['claimId', 'state', 'summary', 'sourceRefs', 'calculation'], 'claim');
+    exactObject(claim, ['claimId', 'state', 'summary', 'sourceRefs', 'evidenceValues', 'presentationValueIds', 'calculation'], 'claim');
     const state = boundedText(claim.state, 'claim state', 20);
     if (!CLAIM_STATES.has(state)) throw new TypeError('claim state is invalid');
     if (!Array.isArray(claim.sourceRefs) || claim.sourceRefs.length < 1 || claim.sourceRefs.length > 8) {
       throw new TypeError('claim source references are invalid');
     }
+    if (!Array.isArray(claim.evidenceValues) || claim.evidenceValues.length < 1 || claim.evidenceValues.length > 16) {
+      throw new TypeError('claim evidence values are invalid');
+    }
+    const evidenceValues = claim.evidenceValues.map((item) => {
+      exactObject(item, ['valueId', 'label', 'value', 'unit', 'source'], 'claim evidence value');
+      if (!['string', 'number'].includes(typeof item.value)
+        || (typeof item.value === 'number' && !Number.isFinite(item.value))) {
+        throw new TypeError('claim evidence value is invalid');
+      }
+      const unit = String(item.unit ?? '').trim();
+      if (unit.length > 40) throw new TypeError('claim evidence value unit is invalid');
+      return { valueId: boundedText(item.valueId, 'claim evidence value ID', 80),
+        label: boundedText(item.label, 'claim evidence value label', 80), value: item.value,
+        unit,
+        source: sourceRef(item.source, exactInputHandles) };
+    });
+    if (new Set(evidenceValues.map((item) => item.valueId)).size !== evidenceValues.length) {
+      throw new TypeError('claim evidence value IDs are duplicated');
+    }
+    const presentationValueIds = boundedList(claim.presentationValueIds, 'presentationValueIds', {
+      maxItems: 16, maxLength: 80,
+    });
+    if (presentationValueIds.some((valueId) => !evidenceValues.some((item) => item.valueId === valueId))) {
+      throw new TypeError('presentation value escapes claim evidence values');
+    }
     return { claimId: boundedText(claim.claimId, 'claimId', 80), state,
       summary: boundedText(claim.summary, 'claim summary'),
       sourceRefs: claim.sourceRefs.map((item) => sourceRef(item, exactInputHandles)),
+      evidenceValues, presentationValueIds,
       calculation: calculation(claim.calculation, exactInputHandles) };
   });
   if (new Set(claims.map((claim) => claim.claimId)).size !== claims.length) {

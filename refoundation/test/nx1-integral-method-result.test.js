@@ -56,9 +56,16 @@ function claimEvidence() {
   return {
     schema: 't5.compact-claim-evidence.v1', sourceManifestId: sourceManifest.manifestId,
     coverage: { state: 'complete', observedHandles: [...exactInputHandles], unresolvedHandles: [] },
-    claims: oracle.scenarios.flatMap((scenario) => scenario.requiredClaims.map((claim) => ({
-      claimId: claim.id, state: 'supported', summary: claim.claim,
+    claims: oracle.scenarios.flatMap((scenario) => scenario.requiredClaims.map((claim) => {
+      const firstEvidence = claim.evidence[0]; const firstHandle = matchingHandle(firstEvidence);
+      return { claimId: claim.id, state: 'supported', summary: claim.claim,
       sourceRefs: claim.evidence.map((evidence) => ({ handle: matchingHandle(evidence), location: evidence.slice(0, 200) })),
+      evidenceValues: [{ valueId: 'value-1', label: 'presentation fact',
+        value: claim.claim.slice(0, 120), unit: 'text',
+        source: { handle: firstHandle, location: firstEvidence.slice(0, 200) } },
+      { valueId: 'value-2', label: 'verification-only fact', value: 'supporting only', unit: 'text',
+        source: { handle: firstHandle, location: firstEvidence.slice(0, 200) } }],
+      presentationValueIds: ['value-1'],
       calculation: claim.id === 'purchase_amount_variance' ? {
         expression: '118 * 25000; 3000000 - 2950000',
         inputs: [
@@ -69,8 +76,8 @@ function claimEvidence() {
           { label: 'invoice amount', value: 3000000, unit: 'KRW',
             source: { handle: handleFor.get('purchase/tax-invoice-IV-991.png'), location: 'OCR:Supply amount' } },
         ], result: { value: 50000, unit: 'KRW' },
-      } : null,
-    }))),
+      } : null };
+    })),
     excludedFindings: [
       { findingId: 'purchase-control-rows', reason: 'packet 밖 control',
         sourceRefs: [{ handle: handleFor.get('purchase/receiving-ledger.xlsx'), location: 'Receiving!H4:H5' }] },
@@ -163,6 +170,22 @@ test('ClaimEvidence는 incomplete coverage·foreign source·duplicate claim을 �
   assert.throws(() => validateCompactClaimEvidence(duplicate, {
     sourceManifestId: sourceManifest.manifestId, exactInputHandles,
   }), /duplicated/u);
+  const missingValue = claimEvidence(); missingValue.claims[0].evidenceValues = [];
+  assert.throws(() => validateCompactClaimEvidence(missingValue, {
+    sourceManifestId: sourceManifest.manifestId, exactInputHandles,
+  }), /evidence values are invalid/u);
+  const escapedPresentation = claimEvidence(); escapedPresentation.claims[0].presentationValueIds = ['unknown-value'];
+  assert.throws(() => validateCompactClaimEvidence(escapedPresentation, {
+    sourceManifestId: sourceManifest.manifestId, exactInputHandles,
+  }), /escapes claim evidence/u);
+  const omittedFromSummary = claimEvidence(); omittedFromSummary.claims[0].evidenceValues[0].value = 'not in summary';
+  assert.doesNotThrow(() => validateCompactClaimEvidence(omittedFromSummary, {
+    sourceManifestId: sourceManifest.manifestId, exactInputHandles,
+  }));
+  const unitless = claimEvidence(); unitless.claims[0].evidenceValues[1].unit = '';
+  assert.doesNotThrow(() => validateCompactClaimEvidence(unitless, {
+    sourceManifestId: sourceManifest.manifestId, exactInputHandles,
+  }));
 });
 
 test('source revision이 실행 뒤 바뀌면 publication 전에 닫힌다', async () => {

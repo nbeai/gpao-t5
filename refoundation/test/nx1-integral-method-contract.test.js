@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import {
-  NX_INTEGRAL_METHOD_LIMITS, assessIntegralMethodAdmission, validateIntegralMethodCandidate,
+  NX_INTEGRAL_METHOD_LIMITS, assessIntegralMethodAdmission, compactClaimEvidenceJsonSchema,
+  integralMethodCandidateJsonSchema, validateIntegralMethodCandidate,
 } from './helpers/nx-integral-method-candidate.js';
 
 const root = new URL('../../', import.meta.url);
@@ -82,6 +83,17 @@ test('NX-1B/C qualification contract는 6KiB 이하 exact schema를 active Work�
   assert.equal(Object.isFrozen(validated), true);
   assert.equal(Object.isFrozen(validated.strategy.requestedScope), true);
   assert.equal(NX_INTEGRAL_METHOD_LIMITS.serializedBytes, 6 * 1024);
+});
+
+test('Tool input schema는 validator의 operator·effect·deliverable 정본에서 생성돼 drift하지 않는다', () => {
+  const schema = integralMethodCandidateJsonSchema();
+  assert.deepEqual(schema.properties.method.properties.operators.items.enum, NX_INTEGRAL_METHOD_LIMITS.operators);
+  assert.deepEqual(schema.properties.method.properties.expectedOutputs.items.properties.effect.enum,
+    NX_INTEGRAL_METHOD_LIMITS.effects);
+  assert.deepEqual(schema.properties.form.properties.deliverableForms.items.enum,
+    NX_INTEGRAL_METHOD_LIMITS.outputKinds);
+  assert.deepEqual(compactClaimEvidenceJsonSchema().properties.claims.items.properties.state.enum,
+    ['supported', 'conflict', 'unknown']);
 });
 
 test('NX-1B admission은 source manifest가 없거나 source 하나뿐인 Direct·single Hand에 개입하지 않는다', () => {

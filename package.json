@@ -76,6 +76,7 @@
     "refoundation:qualify:document-data": "node refoundation/scripts/run-document-data-qualification.mjs",
     "refoundation:qualify:attachments": "node refoundation/scripts/run-attachment-qualification.mjs",
     "refoundation:qualify:restart-hygiene": "node refoundation/scripts/run-incomplete-tool-restart-qualification.mjs",
+    "refoundation:qualify:nx-integral": "node refoundation/scripts/run-nx1-integral-flagship.mjs",
     "refoundation:package:macos": "node refoundation/scripts/build-macos-installer.mjs",
     "refoundation:package:windows": "node refoundation/scripts/build-windows-package.mjs",
     "refoundation:release:configure": "node refoundation/scripts/configure-macos-release.mjs",
