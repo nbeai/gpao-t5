@@ -2799,6 +2799,158 @@ manual_scroll_preserved: true
 
 근거: `refoundation/evidence/s6-str-realtime-answer-streaming-2026-08-31.json`.
 
+#### S6-PERF — Dense Judgment, Execution & Context
+
+현재 상태: `PERF-0_COMPLETE · PERF-1_STREAMING_COMPLETE · PERF-2A/4A_COMPLETE_NO_ADOPTION · PERF-2B/3_NOT_OPENED · PERF-5_BASELINE_COMPLETE_NOT_OPENED`
+
+사용자 완료 문장:
+
+> T5는 이미 가진 강한 손을 필요한 순간에 더 적은 왕복으로 사용하고, 같은 현실을 반복해서 읽지 않으며, 속도를
+> 위해 정확성·현재 교정·Effect·Artifact·Undo를 희생하지 않는다.
+
+성능 개발은 “Tool을 묶는 기능”이 아니다. 세 밀도를 같은 사용자 목적에서 측정한다.
+
+```text
+Round Yield   = 새롭고 검증된 목적 관련 Evidence / model round
+Tool Density  = 실제 실행 + 직접 검증 + 재사용 가능한 handle / Tool call
+Context Density = 다음 판단을 바꿀 수 있는 사실 / provider wire bytes
+```
+
+이 세 비율의 목적 관련성은 Runtime 정책이 아니라 qualification evaluator가 판정한다. Runtime은 call·bytes·effect·
+identity·timing 사실만 기록한다.
+
+##### 안전 순서
+
+1. `PERF-0 Current-Head Performance Projection` — 기존 Run·Resource·Context·Transmission 원장을 content-free call
+   timeline으로 재계산한다. 새 Store·사용자 UI·실행 정책은 0이다.
+2. `PERF-1 Realtime Answer Streaming` — `S6-STR COMPLETE`; 다시 개발하지 않는다.
+3. `PERF-2A Parallel Opportunity Qualification` — provider가 독립 Tool을 한 model response에 실제로 내는지 제품 변경
+   0 A/B한다. `parallel_tool_calls`·짧은 cross-tool guidance·기존 기본을 서로 분리한다.
+4. `PERF-2B Call-Level Concurrency Contract` — 실제 이익이 확인될 때만 Tool preflight가 factual
+   `readSet·writeSet·effect·nestedParallelism·orderBarrier`를 공급한다.
+5. `PERF-3 Segmented Execution` — 모델 호출 순서를 보존하고 순차 Tool을 barrier로 삼아 barrier 사이의 연속된
+   conflict-free 호출만 병렬 wave로 실행한다.
+6. `PERF-4A Browser Post-Observation` — `afterObservationId·URL·DOM/network scope·navigation/modal fact`만 명확히 한다.
+   Runtime이 `postcondition achieved`나 `additional snapshot unnecessary`를 판단하지 않는다.
+7. `PERF-4B Publishable Output Handoff` — declared output을 exact readback·format 검증한 경우에만 기존 Artifact/F
+   settlement로 결속한다.
+8. `PERF-5 Observation Cache` — OCR·document parse부터 exact identity·digest·observer version으로 자격한다. Web은
+   freshness·validator·bounded TTL 없이 재사용하지 않는다.
+9. `PERF-6 Managed Readiness` — 반복 poll이 실제 재현된 process 과업에서만 model-declared pattern·port·loopback HTTP
+   관측을 한 start call에 결속한다.
+10. `PERF-7 Completion Co-settlement` — settlement 결과가 사용자 답을 바꾸지 않는 좁은 성공 경로에서만 후보화한다.
+11. `PERF-8 Provider Wire Epoch` — CJ6의 append 우위를 유지하고, 실제 threshold를 넘은 Tool-heavy milestone에서만
+    provider별 A/B한다.
+12. `PERF-9 Programmatic Tool Graph` — 앞 단계 후에도 남은 대규모 read-only/idempotent fan-out에만 연다. 현재
+    gpt-5.5 ChatGPT OAuth의 공통 능력으로 주장하지 않는다.
+
+##### 병렬 불변식
+
+- 모델이 낸 Tool 호출 순서를 바꾸지 않는다.
+- 순차·external effect·파괴·결제·승인 Tool은 barrier다.
+- barrier 사이에서도 read/write set이 겹치거나 identity가 unknown이면 순차다.
+- 이미 시작한 호출과 아직 시작하지 않은 호출을 구분하며 Stop·새 사용자 입력은 미시작 호출을 취소한다.
+- Receipt는 모델의 원래 호출 순서로 반환한다.
+- Tool 이름·업무 종류·명령 문자열 정규식으로 독립성을 추측하지 않는다.
+
+##### Cache 불변식
+
+```yaml
+identity:
+revision_or_mtime:
+bytes:
+content_digest:
+observer_version:
+observation_options:
+```
+
+모두 일치할 때만 파생 관측을 재사용한다. 사용자 답·effect·publication 직전에는 exact source를 reopen하며, 권한·
+revision·observer 변경과 forget·전체 삭제에서 cache를 무효화한다. Cache는 canonical source truth가 아니다.
+
+##### 중단선
+
+- 목적 성공률·정확성·완전성·현재 교정·Undo·Effect·Artifact 중 하나라도 하락한다.
+- Tool/call 숫자만 줄고 first useful result 또는 전체 wall이 좋아지지 않는다.
+- 모델별 Prompt·업무 Router·새 성능 Store가 필요해진다.
+- Runtime이 Evidence 충분성·업무 의미·사용자 완료를 판정한다.
+- 병렬화가 외부 effect 순서나 post-write verification을 앞당긴다.
+- stale cache 또는 provider continuity 품질 하락이 한 번이라도 재현된다.
+- 같은 결함 가족의 두 후보가 실패한 뒤 세 번째 조건 patch를 시도한다.
+
+##### 합격식
+
+```text
+정확성·완전성·권한·현재 교정·Undo·Effect·Artifact 무회귀
+AND 동일 사용자 목적 성공률 유지 또는 향상
+AND first useful result 또는 total wall 실질 개선
+AND model calls·Tool calls·tokens·wire bytes 중 최소 하나 실질 개선
+AND 새 내부 복잡성이 사용자에게 노출되지 않음
+```
+
+`PERF-0`은 기존 정확 회계를 새 원장으로 중복하지 않는다. `run-speed-receipt`가 기존 Run 사건으로 model별 Context·
+cache·Tool wall·Receipt bytes·Tool→다음 model 간격을 재계산하고, 현재 사건으로 알 수 없는 provider Tool-call TTFT·
+preflight·post-observation·projected result bytes는 unknown으로 남긴다.
+
+2026-08-31 PERF-0 결과:
+
+- 기존 Run·Resource·Context·Transmission 원장 위에 content-free `t5.run-performance-timeline.v1` projection을 추가했다.
+- 현재 병렬 가능 Tool은 `session_search·web_search·web_read·web_research` 네 개뿐이고 AgentLoop는 한 응답의 모든
+  Tool이 이 정적 조건을 만족할 때만 병렬화한다.
+- File Reality text 관측은 16개 병렬이지만 OCR 후보는 최대 12개 순차이며, Browser action은 이미 after observation을
+  반환한다.
+- ChatGPT OAuth·OpenAI Adapter는 `parallel_tool_calls`를 명시하지 않고 capability도 `unknown`이다.
+- 과거 aggregate만으로 각 Tool이 독립이었다고 주장하지 않는다. 제품 실행 변경 없이 `PERF-2A` provider/model
+  selection qualification만 연다.
+
+근거: `refoundation/evidence/s6-perf0-current-head-timeline-2026-08-31.json`.
+
+2026-08-31 PERF-2A 결과:
+
+- gpt-5.5는 현재 기본값만으로 세 독립 read-only Tool을 첫 response에 3개 모두 묶었다.
+- `parallel_tool_calls:true`와 짧은 전역 guidance도 같은 2 model call·첫 batch 3개였으므로 제품 채택 근거가 없다.
+- 실제 제품형 세 파일 목적에서는 모델이 세 검색을 나누지 않고 compound read-only Terminal 한 번으로 정확히 끝냈다.
+  이는 현재 T5 Tool Density가 이미 작동한 양성 대조다.
+- 최초 두 제품 runner는 Terminal platform adapter 누락으로 `observation_probe_unavailable`이 발생한 무효 환경이었다.
+  제품 patch 0으로 폐기하고 실제 adapter가 선 runner 한 번만 유효 evidence로 채택했다.
+- 병렬 flag·전역 Prompt·segmented executor·call-level concurrency contract를 모두 열지 않는다.
+- 남은 model 왕복 하나는 `work_completion proposal → final answer` 가족이지만 truth 위험이 있으므로 바로 수리하지 않고
+  기존 Browser post-observation 재사용 자격으로 이동한다.
+
+근거: `refoundation/evidence/s6-perf2a-parallel-selection-2026-08-31.json`.
+
+2026-08-31 PERF-4A 결과:
+
+- 현재 Browser 설명만으로 gpt-5.5는 navigate→click의 `after` observation에서 Counter 1을 읽고 종료했다. 추가
+  snapshot은 0이었다.
+- `after`를 더 강조한 후보도 같은 3 model call·snapshot 0이었지만 tokens 4,867→4,981, request bytes
+  24,983→25,647, wall 12.567→13.321초로 악화됐다.
+- 과거 대형 프로젝트의 한 반복 cycle은 P2 model variance·task context 관측으로 유지하고 구조 결함으로 확대하지 않는다.
+- 설명·Prompt·결과 field 제품 변경은 0이다. Runtime은 postcondition 달성·추가 snapshot 필요성·사용자 목적을
+  판단하지 않는다.
+
+근거: `refoundation/evidence/s6-perf4a-browser-post-observation-2026-08-31.json`.
+
+2026-08-31 PERF-5 baseline 결과:
+
+- File Reality text 관측은 최대 16개 병렬이지만 OCR 후보 최대 12개는 순차이고, search 뒤 inspect에서 같은 이미지
+  OCR이 다시 실행될 수 있다.
+- 현재 search identity는 dev·ino·nlink·size·mtime이며 inspect에서만 content SHA-256을 계산한다. OCR cache는 없다.
+- 그러나 현재 head의 실제 반복 OCR helper wall·호출 수 증거가 없고, OCR text는 개인정보를 포함할 수 있어 forget·
+  whole delete와 함께 지워지지 않는 cache를 만들 수 없다.
+- 가장 작은 후보는 content digest·observer version·옵션에 결속된 bounded resident-memory cache지만, 설치 제품에서
+  같은 unchanged image를 두 대화가 실제로 요구해 helper 2→1과 RSS·삭제 경계가 증명될 때만 연다.
+- 새 cache Store·제품 배선은 0이다.
+
+근거: `refoundation/evidence/s6-perf5-observation-cache-baseline-2026-08-31.json`.
+
+현재 safe slice 종료 판정:
+
+> PERF-0 projection만 채택했고 병렬 flag·전역 guidance·Browser 설명 후보는 사용자 이익이 없어 폐기했다. Segmented
+> executor·cache·completion co-settlement·wire epoch·programmatic graph는 실제 current-head 실패가 생기기 전 열지
+> 않는다. 전체 CI와 정확성 경계를 보존한 이 지점이 다음 실제 성능 미달을 기다리는 안전한 종료선이다.
+
+근거: `refoundation/evidence/s6-perf-safe-slice-closeout-2026-08-31.json`.
+
 ---
 
 ### S6-L — Windows Physical Product Qualification

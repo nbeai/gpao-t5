@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { deriveRunSpeedReceipt } from '../src/run-speed-receipt.js';
+import { deriveRunPerformanceTimeline, deriveRunSpeedReceipt } from '../src/run-speed-receipt.js';
 
 test('Run 사건에서 모델·도구·출력·토큰·사용자 가시 시간을 분리해 계산한다', () => {
   const event = (sequence, seconds, type, payload = {}, stepId) => ({
@@ -57,4 +57,49 @@ test('없는 가시성·사용량 값은 성공처럼 0으로 꾸미지 않고 n
     answerDeltaToVisibleMs: null, turnCompleteMs: null,
   });
   assert.equal(receipt.model.inputTokens, null);
+});
+
+test('PERF-0 timeline은 기존 model·tool·context·cache 사실만 content-free로 재계산한다', () => {
+  const event = (sequence, milliseconds, type, payload = {}, stepId) => ({
+    schema: 't5.run-event.v1', runId: 'perf-run', sequence,
+    recordedAt: new Date(Date.parse('2026-08-31T00:00:00.000Z') + milliseconds).toISOString(),
+    type, ...(stepId ? { stepId } : {}), payload,
+  });
+  const timeline = deriveRunPerformanceTimeline({ runId: 'perf-run', status: 'completed', events: [
+    event(1, 0, 'model_started', { turn: 1 }, 'model-1'),
+    event(2, 100, 'model_completed', { turn: 1, response: {
+      toolCalls: [{ name: 'observe' }],
+      contextReceipt: { requestBytes: 1000, instructionsBytes: 300,
+        input: { bytes: 400, byKind: { function_call_output: { bytes: 0 } } },
+        tools: { bytes: 200 } },
+      usage: { input_tokens: 100, output_tokens: 10,
+        input_tokens_details: { cached_tokens: 80, cache_write_tokens: 5 } },
+    } }, 'model-1'),
+    event(3, 130, 'tool_started', { turn: 1 }, 'tool-call-1'),
+    event(4, 230, 'tool_completed', { turn: 1, receipt: {
+      requestedCall: { name: 'observe' }, actualCall: { name: 'observe' }, outcome: 'succeeded',
+      result: { stdout: 'OK', stderr: '', durationMs: 70 },
+    } }, 'tool-call-1'),
+    event(5, 250, 'model_started', { turn: 2 }, 'model-2'),
+    event(6, 350, 'model_completed', { turn: 2, response: {
+      toolCalls: [], contextReceipt: { requestBytes: 1200, instructionsBytes: 300,
+        input: { bytes: 600, byKind: { function_call_output: { bytes: 150 } } },
+        tools: { bytes: 200 } },
+      usage: { input_tokens: 120, output_tokens: 20,
+        input_tokens_details: { cached_tokens: 80, cache_write_tokens: 0 } },
+    } }, 'model-2'),
+  ] });
+  assert.deepEqual(timeline.models.map((item) => ({ turn: item.turn, durationMs: item.durationMs,
+    requestBytes: item.requestBytes, cachedInputTokens: item.cachedInputTokens })), [
+    { turn: 1, durationMs: 100, requestBytes: 1000, cachedInputTokens: 80 },
+    { turn: 2, durationMs: 100, requestBytes: 1200, cachedInputTokens: 80 },
+  ]);
+  assert.equal(timeline.tools[0].wallMs, 100);
+  assert.equal(timeline.tools[0].reportedExecutionMs, 70);
+  assert.equal(timeline.tools[0].nextModelStartMs, 20);
+  assert.equal(timeline.totals.requestBytes, 2200);
+  assert.equal(timeline.totals.functionOutputBytes, 150);
+  assert.equal(timeline.totals.cachedInputTokens, 160);
+  assert.ok(timeline.unavailableFacts.includes('tool_preflight_duration'));
+  assert.doesNotMatch(JSON.stringify(timeline), /OK/u);
 });

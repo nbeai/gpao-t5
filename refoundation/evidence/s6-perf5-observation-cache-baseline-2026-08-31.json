@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_PERF5_OBSERVATION_CACHE_BASELINE",
+  "status": "BASELINE_COMPLETE_IMPLEMENTATION_NOT_OPENED",
+  "recordedOn": "2026-08-31",
+  "sourceBaseline": "b0ab39893401fd5c54d3cc01e5fd1ae7ec8eca4e",
+  "productChanges": 0,
+  "currentFacts": {
+    "fileSearchTextObservationConcurrency": 16,
+    "fileSearchOcrCandidatesMaximum": 12,
+    "fileSearchOcrExecution": "sequential",
+    "fileSearchDeadlineMs": 7500,
+    "fileInspectMayRunOcrAgain": true,
+    "localImageOcrCache": false,
+    "searchIdentity": ["dev", "ino", "nlink", "size", "mtimeMs"],
+    "inspectComputesContentSha256": true,
+    "observerVersionInCacheKey": false
+  },
+  "whyNotOpened": [
+    "no current-head actual repeated OCR helper wall and call-count baseline",
+    "OCR text can contain private user data and cannot outlive forget or whole-delete boundaries",
+    "metadata identity alone cannot prove unchanged bytes",
+    "observer binary and option changes must invalidate derived observations",
+    "a durable cache would create a new Store before user benefit is measured"
+  ],
+  "smallestCandidate": {
+    "scope": "resident-memory OCR only",
+    "requiredKey": ["contentSha256", "observerVersion", "observationOptions"],
+    "maximumEntries": 128,
+    "requiredClearEvents": ["forget", "whole_delete", "runtime_stop", "observer_update"],
+    "sourceReopenBeforeUserAnswerOrEffect": true,
+    "canonicalTruth": false
+  },
+  "openingEvidenceRequired": {
+    "purpose": "same unchanged user-authorized image needed in two actual conversations",
+    "baselineNativeHelperCalls": 2,
+    "candidateNativeHelperCalls": 1,
+    "correctnessDigestMatch": true,
+    "staleMutationCountertest": true,
+    "forgetAndDeletePhysicalClear": true,
+    "rssBoundMeasured": true
+  },
+  "next": "Do not implement until an installed-product repeated OCR purpose reproduces the helper cost."
+}

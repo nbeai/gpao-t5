@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_PERF0_CURRENT_HEAD_PERFORMANCE_PROJECTION",
+  "status": "COMPLETE_PERF2A_QUALIFICATION_OPEN",
+  "recordedOn": "2026-08-31",
+  "sourceCommit": "b0ab39893401fd5c54d3cc01e5fd1ae7ec8eca4e",
+  "productBehaviorChanges": 0,
+  "newStores": 0,
+  "newRuntimePolicy": 0,
+  "projection": {
+    "schema": "t5.run-performance-timeline.v1",
+    "source": "existing Run model_started/model_completed/tool_started/tool_completed plus ContextReceipt and provider usage",
+    "contentFree": true,
+    "newCanonicalEvents": 0,
+    "measures": [
+      "per-model wall and requested Tool count",
+      "request input instruction Tool-schema and function-output bytes",
+      "input cached cache-write and output tokens",
+      "per-Tool wall reported execution wall Receipt bytes output chars and Tool-to-next-model gap"
+    ],
+    "explicitUnknowns": [
+      "provider Tool-call TTFT",
+      "Tool preflight duration",
+      "Tool post-observation duration",
+      "per-call projected Tool result bytes",
+      "purpose relevance of Evidence"
+    ]
+  },
+  "reusedEvidence": [
+    {
+      "source": "refoundation/evidence/fifth-cj0-context-reality-2026-08-30.json",
+      "direct": { "modelCalls": 1, "toolCalls": 0, "tokens": 9750, "toolSchemaBytesPerCall": 20781, "wallMs": 3225 },
+      "newProject": { "modelCalls": 19, "toolCalls": 20, "tokens": 596925, "requestBytes": 2637449, "wallMs": 153069 },
+      "existingProject": { "modelCalls": 25, "toolCalls": 24, "tokens": 688770, "requestBytes": 3358623, "wallMs": 174033 }
+    },
+    {
+      "source": "refoundation/evidence/s6-total-human-hq-two-wave-closeout-2026-08-31.json",
+      "complexJourney": { "modelCalls": 28, "toolCalls": 26, "tokens": 1229863, "wallMsApprox": 287000 }
+    },
+    {
+      "source": "refoundation/evidence/s6-str-realtime-answer-streaming-2026-08-31.json",
+      "shortDirect": { "modelCalls": 1, "toolCalls": 0, "turnCompleteMs": 3200 },
+      "weather": { "modelCalls": 3, "toolCalls": 2, "turnCompleteMs": 13621.8 }
+    }
+  ],
+  "currentSourceAudit": {
+    "agentLoopParallelSelection": "all calls in one response must be statically executionMode parallel",
+    "parallelTools": ["session_search", "web_search", "web_read", "web_research"],
+    "parallelToolCount": 4,
+    "mixedSequentialParallelSegmentation": false,
+    "callLevelReadWriteConflictContract": false,
+    "chatgptOAuthParallelToolCallsRequestField": "omitted",
+    "openAIParallelToolCallsRequestField": "omitted",
+    "providerParallelCapability": "unknown",
+    "webResearchNestedParallelism": true,
+    "fileTextObservationConcurrency": 16,
+    "fileOcrCandidateExecution": "sequential_up_to_12",
+    "browserActionIncludesAfterObservation": true
+  },
+  "firstOpenedDefectFamily": {
+    "family": "parallel_tool_selection_and_static_call_granularity",
+    "currentEvidence": "large actual journeys have near one Tool call per model call while the executor is rarely eligible",
+    "qualificationNeeded": true,
+    "productImplementationAuthorized": false,
+    "next": "A/B current provider default, explicit parallel_tool_calls, and one admitted cross-tool guidance family on fixed read-only purposes"
+  },
+  "forbiddenClaims": [
+    "fewer calls already improves user outcome",
+    "model calls are independent from aggregate counts alone",
+    "OpenClaw or Hermes behavior transfers to T5",
+    "provider parallel Tool support is qualified",
+    "segmented execution is safe before call-level conflict facts"
+  ]
+}
