@@ -5,14 +5,14 @@ import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { runAgent } from '../src/agent-loop.js';
 import { makeConsoleModelAccess } from '../src/console-model-factory.js';
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
 import { makeLocalImageOcr } from '../src/local-image-ocr.js';
 import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 import {
-  buildNx1ScenarioReality, evaluateNx1Answer, evaluateNx1PresentationCoverage,
-  makeNx1IntegralTool, nx1CandidateRuntimeContext,
+  buildNx1ScenarioReality, evaluateNx1Answer, makeNx1HumanClosureTool, makeNx1IntegralTool,
+  NX1_HUMAN_CLOSURE_INSTRUCTIONS, NX1_REALITY_CLOSURE_INSTRUCTIONS,
+  nx1CandidateRuntimeContext, nx1HumanClosureRuntimeContext,
 } from '../test/helpers/nx-integral-flagship-qualification.js';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -78,48 +78,60 @@ async function runCandidate(definition, room) {
     secretStore: makePlatformSecretStore({ platform: process.platform }) });
   const modelInput = { sessionId: `nx1-${definition.id}`, workspace,
     computer: discoverComputerEnvironment({ userHome: home }) };
-  const firstModel = await access.model(modelInput);
-  let finalModel = null; let modelTurn = 0;
-  const model = { async respond(request) {
-    modelTurn += 1;
-    if (modelTurn === 1) return firstModel.respond(request);
-    finalModel ??= await access.model({ ...modelInput, sessionId: `${modelInput.sessionId}-final` });
-    const projection = integral.modelProjection();
-    return finalModel.respond({ ...request, messages: [{ role: 'user', content: definition.userPrompt }], tools: [],
-      runtimeContext: [
-        '[T5 NX VERIFIED CORE CLAIMS — runtime-owned qualification projection]',
-        'Use only these verified core claims in the final answer. Excluded findings were verified but their content is intentionally not supplied.',
-        'For every claim, include every presentationValues entry. Verification-only evidence values are intentionally not supplied.',
-        JSON.stringify(projection),
-      ].join('\n'), toolChoice: undefined });
-  }, async supersedeLastResponse(...args) { return firstModel.supersedeLastResponse?.(...args); } };
+  const firstModel = await access.model({ ...modelInput,
+    instructionsOverride: NX1_REALITY_CLOSURE_INSTRUCTIONS });
   const integral = makeNx1IntegralTool({ reality, scenarioId: definition.id });
-  const started = performance.now(); let toolEnded = false; let firstUsefulMs = null;
-  const run = await runAgent({ request: definition.userPrompt, model, tools: [integral.tool],
-    requiredInitialTool: 'integral_method', maxModelTurns: 3, maxToolCalls: 1,
-    resourceSituationMode: 'off', activeOptimizationMode: 'off',
-    runtimeContextProvider: ({ turn }) => turn === 1 ? nx1CandidateRuntimeContext(reality) : null,
-    onEvent: (event) => { if (event.type === 'tool_end') toolEnded = true; },
-    onAnswerDelta: () => { if (toolEnded && firstUsefulMs == null) firstUsefulMs = performance.now() - started; },
-  });
-  await Promise.all([firstModel.close?.(), finalModel?.close?.()]);
-  const usage = run.modelCalls.reduce((sum, call) => ({
-    inputTokens: sum.inputTokens + Number(call.usage?.input_tokens ?? 0),
-    outputTokens: sum.outputTokens + Number(call.usage?.output_tokens ?? 0),
-    cachedInputTokens: sum.cachedInputTokens + Number(call.usage?.input_tokens_details?.cached_tokens ?? 0),
-    requestBytes: sum.requestBytes + Number(call.contextReceipt?.requestBytes ?? 0),
+  const started = performance.now(); const modelResponses = []; const toolPath = [];
+  let finalModel = null;
+  const toolDefinition = (tool) => ({ name: tool.name, description: tool.description, parameters: tool.parameters });
+  const accumulateUsage = () => modelResponses.reduce((sum, response) => ({
+    inputTokens: sum.inputTokens + Number(response.usage?.input_tokens ?? 0),
+    outputTokens: sum.outputTokens + Number(response.usage?.output_tokens ?? 0),
+    cachedInputTokens: sum.cachedInputTokens + Number(response.usage?.input_tokens_details?.cached_tokens ?? 0),
+    requestBytes: sum.requestBytes + Number(response.contextReceipt?.requestBytes ?? 0),
   }), { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, requestBytes: 0 });
-  const machine = evaluateNx1Answer(definition.id, run.answer);
-  const presentationCoverage = evaluateNx1PresentationCoverage(integral.modelProjection(), run.answer);
-  machine.presentationCoverage = presentationCoverage;
-  machine.passed = machine.passed && presentationCoverage.passed;
-  return { arm: 'B', kind: 'qualification_integral_method',
-    wallMs: Number((performance.now() - started).toFixed(3)), firstUsefulMs: firstUsefulMs == null ? null : Number(firstUsefulMs.toFixed(3)),
-    answer: run.answer, machine,
-    qualification: integral.qualification(), performance: { modelCalls: run.modelCalls.length,
-      toolCalls: run.receipts.length, ...usage }, toolPath: run.receipts.map((receipt) => ({
-      name: receipt.actualCall?.name ?? receipt.requestedCall?.name, outcome: receipt.outcome,
-      state: receipt.result?.state ?? null })) };
+  try {
+    const realityResponse = await firstModel.respond({ messages: [{ role: 'user', content: definition.userPrompt }],
+      tools: [toolDefinition(integral.tool)], runtimeContext: nx1CandidateRuntimeContext(reality),
+      toolChoice: { requiredToolName: 'integral_method' } });
+    modelResponses.push(realityResponse);
+    const realityCalls = Array.isArray(realityResponse.toolCalls) ? realityResponse.toolCalls : [];
+    const realityCall = realityCalls.length === 1 && realityCalls[0].name === 'integral_method' ? realityCalls[0] : null;
+    const realityResult = realityCall ? await integral.tool.execute(realityCall.args) : {
+      state: 'candidate_invalid', reason: 'integral_method_call_missing',
+    };
+    toolPath.push({ name: 'integral_method', outcome: realityCall ? 'succeeded' : 'not_executed', state: realityResult.state });
+    if (realityResult.state !== 'verified') return { arm: 'B', kind: 'qualification_integral_method',
+      wallMs: Number((performance.now() - started).toFixed(3)), firstUsefulMs: null, answer: null,
+      machine: { passed: false, reason: 'reality_closure_failed' }, qualification: {
+        reality: integral.qualification(), human: null }, performance: { modelCalls: modelResponses.length,
+        toolCalls: toolPath.length, ...accumulateUsage() }, toolPath };
+
+    const verifiedReality = integral.verifiedReality();
+    const closure = makeNx1HumanClosureTool({ verifiedReality, scenarioId: definition.id });
+    finalModel = await access.model({ ...modelInput, sessionId: `${modelInput.sessionId}-human-closure`,
+      instructionsOverride: NX1_HUMAN_CLOSURE_INSTRUCTIONS });
+    const closureResponse = await finalModel.respond({ messages: [{ role: 'user', content: definition.userPrompt }],
+      tools: [toolDefinition(closure.tool)], runtimeContext: nx1HumanClosureRuntimeContext(verifiedReality),
+      toolChoice: { requiredToolName: 'human_closure' } });
+    modelResponses.push(closureResponse);
+    const closureCalls = Array.isArray(closureResponse.toolCalls) ? closureResponse.toolCalls : [];
+    const closureCall = closureCalls.length === 1 && closureCalls[0].name === 'human_closure' ? closureCalls[0] : null;
+    const closureResult = closureCall ? await closure.tool.execute(closureCall.args) : {
+      state: 'closure_invalid', reason: 'human_closure_call_missing',
+    };
+    toolPath.push({ name: 'human_closure', outcome: closureCall ? 'succeeded' : 'not_executed', state: closureResult.state });
+    const answer = closureResult.state === 'verified' ? closureResult.finalAnswer : null;
+    const firstUsefulMs = answer ? Number((performance.now() - started).toFixed(3)) : null;
+    return { arm: 'B', kind: 'qualification_integral_method_human_closure',
+      wallMs: Number((performance.now() - started).toFixed(3)), firstUsefulMs, answer,
+      machine: closureResult.state === 'verified'
+        ? closure.qualification()?.answerQuality ?? { passed: false }
+        : { passed: false, reason: 'human_closure_failed' },
+      qualification: { reality: integral.qualification(), human: closure.qualification() },
+      performance: { modelCalls: modelResponses.length, toolCalls: toolPath.length,
+        ...accumulateUsage() }, toolPath };
+  } finally { await Promise.all([firstModel.close?.(), finalModel?.close?.()]); }
 }
 
 const room = await mkdtemp(join(tmpdir(), `t5-nx1-${order.toLowerCase()}-`));
@@ -135,7 +147,8 @@ try {
     model: 'gpt-5.5', provider: 'chatgpt_oauth', actualUserData: false, externalWrites: 0,
     oracleProjectedToModel: 0, productChanges: 0, results,
     allCandidateMachinePassed: results.every((item) => { const arm = item.arms.find((candidate) => candidate.arm === 'B');
-      return arm ? arm.machine.passed && arm.qualification?.passed : true; }),
+      return arm ? arm.machine.passed && arm.qualification?.reality?.passed
+        && arm.qualification?.human?.passed : true; }),
     humanBlindEvaluation: 'PENDING', productPromotion: 'NOT_EVALUATED' };
   if (outputPath) await writeFile(resolve(outputPath), JSON.stringify(payload, null, 2));
   process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);

@@ -65,7 +65,6 @@ function claimEvidence() {
         source: { handle: firstHandle, location: firstEvidence.slice(0, 200) } },
       { valueId: 'value-2', label: 'verification-only fact', value: 'supporting only', unit: 'text',
         source: { handle: firstHandle, location: firstEvidence.slice(0, 200) } }],
-      presentationValueIds: ['value-1'],
       calculation: claim.id === 'purchase_amount_variance' ? {
         expression: '118 * 25000; 3000000 - 2950000',
         inputs: [
@@ -174,10 +173,6 @@ test('ClaimEvidence는 incomplete coverage·foreign source·duplicate claim을 �
   assert.throws(() => validateCompactClaimEvidence(missingValue, {
     sourceManifestId: sourceManifest.manifestId, exactInputHandles,
   }), /evidence values are invalid/u);
-  const escapedPresentation = claimEvidence(); escapedPresentation.claims[0].presentationValueIds = ['unknown-value'];
-  assert.throws(() => validateCompactClaimEvidence(escapedPresentation, {
-    sourceManifestId: sourceManifest.manifestId, exactInputHandles,
-  }), /escapes claim evidence/u);
   const omittedFromSummary = claimEvidence(); omittedFromSummary.claims[0].evidenceValues[0].value = 'not in summary';
   assert.doesNotThrow(() => validateCompactClaimEvidence(omittedFromSummary, {
     sourceManifestId: sourceManifest.manifestId, exactInputHandles,

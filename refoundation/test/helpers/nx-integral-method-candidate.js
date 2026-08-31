@@ -223,9 +223,6 @@ export function compactClaimEvidenceJsonSchema() {
             unit: { type: 'string', maxLength: 40,
               description: 'Physical or business unit. Use an empty string for an identifier, date, state, or other unitless value.' }, source: ref,
           }, required: ['valueId', 'label', 'value', 'unit', 'source'] } },
-        presentationValueIds: { type: 'array', minItems: 1, maxItems: 16,
-          description: 'IDs of evidenceValues that must appear in the final user result.',
-          items: { type: 'string', maxLength: 80 } },
         calculation: { type: ['object', 'null'], additionalProperties: false, properties: {
           expression: { type: 'string', maxLength: 200 },
           inputs: { type: 'array', minItems: 1, maxItems: 16,
@@ -237,7 +234,7 @@ export function compactClaimEvidenceJsonSchema() {
             value: { type: 'number' }, unit: { type: 'string', maxLength: 40 },
           }, required: ['value', 'unit'] },
         }, required: ['expression', 'inputs', 'result'] } },
-      required: ['claimId', 'state', 'summary', 'sourceRefs', 'evidenceValues', 'presentationValueIds', 'calculation'] } },
+      required: ['claimId', 'state', 'summary', 'sourceRefs', 'evidenceValues', 'calculation'] } },
     excludedFindings: { type: 'array', maxItems: 32, items: { type: 'object', additionalProperties: false,
       properties: { findingId: { type: 'string', maxLength: 80 }, reason: { type: 'string', maxLength: MAX_TEXT },
         sourceRefs: { type: 'array', minItems: 1, maxItems: 8, items: ref } },
@@ -317,7 +314,7 @@ export function validateCompactClaimEvidence(input, { sourceManifestId, exactInp
     throw new TypeError('ClaimEvidence claims are invalid');
   }
   const claims = input.claims.map((claim) => {
-    exactObject(claim, ['claimId', 'state', 'summary', 'sourceRefs', 'evidenceValues', 'presentationValueIds', 'calculation'], 'claim');
+    exactObject(claim, ['claimId', 'state', 'summary', 'sourceRefs', 'evidenceValues', 'calculation'], 'claim');
     const state = boundedText(claim.state, 'claim state', 20);
     if (!CLAIM_STATES.has(state)) throw new TypeError('claim state is invalid');
     if (!Array.isArray(claim.sourceRefs) || claim.sourceRefs.length < 1 || claim.sourceRefs.length > 8) {
@@ -342,16 +339,10 @@ export function validateCompactClaimEvidence(input, { sourceManifestId, exactInp
     if (new Set(evidenceValues.map((item) => item.valueId)).size !== evidenceValues.length) {
       throw new TypeError('claim evidence value IDs are duplicated');
     }
-    const presentationValueIds = boundedList(claim.presentationValueIds, 'presentationValueIds', {
-      maxItems: 16, maxLength: 80,
-    });
-    if (presentationValueIds.some((valueId) => !evidenceValues.some((item) => item.valueId === valueId))) {
-      throw new TypeError('presentation value escapes claim evidence values');
-    }
     return { claimId: boundedText(claim.claimId, 'claimId', 80), state,
       summary: boundedText(claim.summary, 'claim summary'),
       sourceRefs: claim.sourceRefs.map((item) => sourceRef(item, exactInputHandles)),
-      evidenceValues, presentationValueIds,
+      evidenceValues,
       calculation: calculation(claim.calculation, exactInputHandles) };
   });
   if (new Set(claims.map((claim) => claim.claimId)).size !== claims.length) {

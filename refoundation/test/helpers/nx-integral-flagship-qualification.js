@@ -14,6 +14,24 @@ const compact = (value) => String(value ?? '').normalize('NFKC').replaceAll(',',
   .replace(/\b(?:EA|units?)\b/giu, '개').replace(/\s+/gu, ' ');
 const containsAll = (value, patterns) => patterns.every((pattern) => pattern.test(compact(value)));
 
+export const NX1_REALITY_CLOSURE_INSTRUCTIONS = [
+  'You are T5 operating one qualification-only Reality Closure stage.',
+  'Use only the supplied verified source packet and call integral_method exactly once.',
+  'Observe the user requested scope completely. Put discrepancies, conflicts, missing evidence, and requested calculations in claims.',
+  'Put normal matches, explicit control rows, and out-of-scope facts only in excludedFindings; never repeat them in a claim summary.',
+  'Bind every verification value and exact source location. Do not choose presentation values and do not write the final user answer.',
+  'Do not ask for files, call another tool, expose internal handles, or infer an unobserved cause.',
+].join(' ');
+
+export const NX1_HUMAN_CLOSURE_INSTRUCTIONS = [
+  'You are T5 operating one qualification-only Human Closure stage.',
+  'Use only the supplied verified claims. Call human_closure exactly once and write the complete finalAnswer in that same call.',
+  'Select the smallest sufficient set of claims and exact values needed for the user decision and requested scope.',
+  'Do not mention excluded findings, internal systems, handles, tools, or unavailable file access.',
+  'Keep the result easy to scan: conclusion, material differences, exact evidence, and immediate action only when supported.',
+  'There is no third model call.',
+].join(' ');
+
 export const NX1_SCENARIO_PATTERNS = Object.freeze({
   purchase_reconciliation: {
     required: [/(?:120).*(?:118)|(?:118).*(?:120)/u, /(?:2\s*개|shortage)/iu,
@@ -54,12 +72,11 @@ export function evaluateNx1PresentationCoverage(projection, answer) {
 
 export function evaluateNx1ClaimEvidence(scenarioId, claimEvidence) {
   const rules = NX1_SCENARIO_PATTERNS[scenarioId]; if (!rules) throw new Error('unknown NX-1 scenario');
-  const core = JSON.stringify(claimEvidence.claims.map((claim) => ({ summary: claim.summary,
-    presentationValues: claim.presentationValueIds.map((valueId) => claim.evidenceValues.find(
-      (value) => value.valueId === valueId)) })));
+  const core = JSON.stringify(claimEvidence.claims);
+  const coreSummaries = claimEvidence.claims.map((claim) => claim.summary).join('\n');
   const excluded = claimEvidence.excludedFindings.map((finding) => `${finding.findingId} ${finding.reason}`).join('\n');
   const requiredFacts = containsAll(core, rules.required);
-  const forbiddenCoreAbsent = !rules.forbiddenCore.some((pattern) => pattern.test(compact(core)));
+  const forbiddenCoreAbsent = !rules.forbiddenCore.some((pattern) => pattern.test(compact(coreSummaries)));
   const exclusionsApplied = rules.requiredExcluded.every((pattern) => pattern.test(compact(excluded)));
   return { requiredFacts, forbiddenCoreAbsent, exclusionsApplied,
     passed: requiredFacts && forbiddenCoreAbsent && exclusionsApplied };
@@ -115,13 +132,13 @@ export function nx1CandidateRuntimeContext(reality) {
     'Call integral_method exactly once with the strict contract and claimEvidence objects exposed by its schema.',
     'Use every sourceManifest input handle exactly once in reality.exactInputHandles. expectedOutputs must contain one answer/observe output.',
     'claimEvidence must be t5.compact-claim-evidence.v1 with exact fields sourceManifestId,coverage,claims,excludedFindings.',
-    'coverage must name every handle and no unresolved handle. Each claim has claimId,state,summary,sourceRefs,evidenceValues,presentationValueIds,calculation. evidenceValues holds every verification value; presentationValueIds selects only values that must appear in the final answer. Each sourceRef has handle and bounded page/sheet/cell/OCR location.',
+    'coverage must name every handle and no unresolved handle. Each claim has claimId,state,summary,sourceRefs,evidenceValues,calculation. evidenceValues holds all values needed to verify the claim. The Reality model must not choose presentation values. Each sourceRef has handle and bounded page/sheet/cell/OCR location.',
     'Put normal or explicitly excluded comparison facts only in excludedFindings, never in claims. Do not expose internal handles in the final user answer.',
   ].join('\n\n');
 }
 
 export function makeNx1IntegralTool({ reality, scenarioId } = {}) {
-  let latestQualification = null; let latestModelProjection = null;
+  let latestQualification = null; let latestModelProjection = null; let latestVerifiedReality = null;
   const tool = {
     name: 'integral_method',
     description: 'Bind one Work-scoped Integral Outcome Method and proposed compact ClaimEvidence for the supplied verified multi-source packet. This qualification tool performs no external effect and does not accept paths, secrets, or partial source sets.',
@@ -153,11 +170,6 @@ export function makeNx1IntegralTool({ reality, scenarioId } = {}) {
             const qualification = evaluateNx1ClaimEvidence(scenarioId, guest.proposed);
             latestQualification = { ...qualification,
               proposedClaimSummaries: guest.proposed.claims.map((claim) => claim.summary),
-              proposedPresentationValues: guest.proposed.claims.map((claim) => ({ claimId: claim.claimId,
-                values: claim.presentationValueIds.map((valueId) => {
-                  const value = claim.evidenceValues.find((item) => item.valueId === valueId);
-                  return { label: value?.label ?? null, value: value?.value ?? null, unit: value?.unit ?? null };
-                }) })),
               proposedExcludedReasons: guest.proposed.excludedFindings.map((finding) => finding.reason) };
             return { schema: 't5.integral-method-verification.v1', passed: qualification.passed,
               contractBinding: buildIntegralMethodContractBinding(active), claimEvidence: guest.proposed };
@@ -168,25 +180,120 @@ export function makeNx1IntegralTool({ reality, scenarioId } = {}) {
         latestQualification = { passed: false, reason: error.message };
         return { state: 'candidate_invalid', reason: error.message, stopFurtherResearch: true };
       }
-      if (result.state === 'verified') latestModelProjection = {
+      if (result.state === 'verified') {
+        latestVerifiedReality = { candidate, claimEvidence: result.claimEvidence,
+          contractBinding: result.contractBinding, currentWork: reality.currentWork,
+          sourceManifestId: reality.sourceManifest.manifestId,
+          excludedFindingCount: result.claimEvidence.excludedFindings.length };
+        latestModelProjection = {
         schema: 't5.nx1.verified-core-claims.v1', state: 'verified', sourceCoverage: 'complete',
         claims: result.claimEvidence.claims.map((claim) => ({ claimId: claim.claimId,
           state: claim.state, summary: claim.summary,
           sourceLocations: claim.sourceRefs.map((reference) => reference.location),
-          presentationValues: claim.presentationValueIds.map((valueId) => {
-            const item = claim.evidenceValues.find((value) => value.valueId === valueId);
-            return { label: item.label, value: item.value, unit: item.unit,
-              sourceLocation: item.source.location };
-          }),
+          evidenceValues: claim.evidenceValues.map((item) => ({ valueId: item.valueId,
+            label: item.label, value: item.value, unit: item.unit, sourceLocation: item.source.location })),
           calculation: claim.calculation })),
         excludedFindingsVerified: true,
         excludedFindingCount: result.claimEvidence.excludedFindings.length,
       };
+      }
       return { ...result, qualification: latestQualification, stopFurtherResearch: true };
     },
   };
   tool.projectResultForModel = () => structuredClone(latestModelProjection
     ?? { schema: 't5.nx1.verified-core-claims.v1', state: 'unverified' });
   return { tool, qualification: () => structuredClone(latestQualification),
-    modelProjection: () => structuredClone(latestModelProjection) };
+    modelProjection: () => structuredClone(latestModelProjection),
+    verifiedReality: () => structuredClone(latestVerifiedReality) };
+}
+
+export function nx1HumanClosureRuntimeContext(verified) {
+  if (!verified?.candidate || !verified?.claimEvidence) throw new TypeError('verified Reality Closure is required');
+  return [
+    '[T5 NX VERIFIED REALITY — runtime-owned qualification projection]',
+    `currentWork=${JSON.stringify(verified.currentWork)}`,
+    `sourceManifestId=${verified.sourceManifestId}`,
+    `human=${JSON.stringify(verified.candidate.human)}`,
+    `strategy=${JSON.stringify(verified.candidate.strategy)}`,
+    `form=${JSON.stringify(verified.candidate.form)}`,
+    `claims=${JSON.stringify(verified.claimEvidence.claims.map((claim) => ({ claimId: claim.claimId,
+      state: claim.state, summary: claim.summary,
+      evidenceValues: claim.evidenceValues.map((item) => ({ valueId: item.valueId,
+        label: item.label, value: item.value, unit: item.unit, sourceLocation: item.source.location })),
+      calculation: claim.calculation, sourceLocations: claim.sourceRefs.map((item) => item.location) })))}`,
+    `excludedFindingCount=${verified.excludedFindingCount}`,
+    '[T5 NX HUMAN CLOSURE CONTRACT]',
+    'Call human_closure exactly once. Select the smallest sufficient set of claims and exact evidence values that the user must see, and write the complete finalAnswer in the same tool call.',
+    'Do not mention excluded findings, internal handles, tools, runtime state, or missing file access. There will be no third model call.',
+  ].join('\n\n');
+}
+
+export function makeNx1HumanClosureTool({ verifiedReality, scenarioId } = {}) {
+  if (!verifiedReality?.candidate || !verifiedReality?.claimEvidence) throw new TypeError('verified Reality Closure is required');
+  let latest = null;
+  const tool = {
+    name: 'human_closure',
+    description: 'Select the human-relevant verified claims and evidence values, then author the complete final user answer in this same call. The runtime validates identity and exact value inclusion but does not choose importance, order, or wording.',
+    parameters: { type: 'object', additionalProperties: false, properties: {
+      schema: { type: 'string', enum: ['t5.human-closure.v1'] },
+      work: { type: 'object', additionalProperties: false, properties: {
+        workId: { type: 'string', maxLength: 80 }, revision: { type: 'integer', minimum: 1 },
+      }, required: ['workId', 'revision'] },
+      sourceManifestId: { type: 'string', maxLength: 80 },
+      selectedClaimIds: { type: 'array', minItems: 1, maxItems: 32,
+        items: { type: 'string', maxLength: 80 } },
+      selectedEvidenceValues: { type: 'array', minItems: 1, maxItems: 16,
+        items: { type: 'object', additionalProperties: false, properties: {
+          claimId: { type: 'string', maxLength: 80 }, valueId: { type: 'string', maxLength: 80 },
+        }, required: ['claimId', 'valueId'] } },
+      finalAnswer: { type: 'string', minLength: 1, maxLength: 12000 },
+    }, required: ['schema', 'work', 'sourceManifestId', 'selectedClaimIds', 'selectedEvidenceValues', 'finalAnswer'] },
+    async execute(args = {}) {
+      const candidate = verifiedReality.candidate; const claims = verifiedReality.claimEvidence.claims;
+      if (args.schema !== 't5.human-closure.v1'
+        || args.work?.workId !== verifiedReality.currentWork.workId
+        || args.work?.revision !== verifiedReality.currentWork.revision) {
+        latest = { passed: false, reason: 'stale_or_foreign_work' }; return { state: 'closure_invalid', ...latest };
+      }
+      if (args.sourceManifestId !== verifiedReality.sourceManifestId) {
+        latest = { passed: false, reason: 'stale_or_foreign_manifest' }; return { state: 'closure_invalid', ...latest };
+      }
+      const selectedClaimIds = [...new Set(args.selectedClaimIds ?? [])];
+      if (selectedClaimIds.length < 1 || selectedClaimIds.length > 32
+        || selectedClaimIds.length !== args.selectedClaimIds?.length
+        || selectedClaimIds.some((claimId) => !claims.some((claim) => claim.claimId === claimId))) {
+        latest = { passed: false, reason: 'unknown_or_duplicate_claim' }; return { state: 'closure_invalid', ...latest };
+      }
+      if (!Array.isArray(args.selectedEvidenceValues) || args.selectedEvidenceValues.length < 1
+        || args.selectedEvidenceValues.length > 16) {
+        latest = { passed: false, reason: 'presentation_selection_boundary' };
+        return { state: 'closure_invalid', ...latest };
+      }
+      const keys = new Set(); const selectedValues = [];
+      for (const selection of args.selectedEvidenceValues ?? []) {
+        const key = `${selection.claimId}\0${selection.valueId}`;
+        const claim = claims.find((item) => item.claimId === selection.claimId);
+        const value = claim?.evidenceValues.find((item) => item.valueId === selection.valueId);
+        if (!selectedClaimIds.includes(selection.claimId) || !value || keys.has(key)) {
+          latest = { passed: false, reason: 'unknown_duplicate_or_unselected_value' };
+          return { state: 'closure_invalid', ...latest };
+        }
+        keys.add(key); selectedValues.push({ claimId: selection.claimId, ...value });
+      }
+      if (selectedClaimIds.some((claimId) => !selectedValues.some((item) => item.claimId === claimId))) {
+        latest = { passed: false, reason: 'selected_claim_has_no_value' }; return { state: 'closure_invalid', ...latest };
+      }
+      const answer = String(args.finalAnswer ?? '').trim();
+      if (!answer || answer.length > 12000 || /source-[0-9]|sources-[0-9]|work-[0-9]/iu.test(answer)) {
+        latest = { passed: false, reason: 'final_answer_boundary' }; return { state: 'closure_invalid', ...latest };
+      }
+      const valueCoverage = evaluateNx1PresentationCoverage({ claims: [{ presentationValues: selectedValues }] }, answer);
+      const answerQuality = evaluateNx1Answer(scenarioId, answer);
+      latest = { passed: valueCoverage.passed && answerQuality.passed,
+        valueCoverage, answerQuality, selectedClaimIds, selectedValueCount: selectedValues.length };
+      return latest.passed ? { state: 'verified', finalAnswer: answer, ...latest }
+        : { state: 'closure_failed', ...latest };
+    },
+  };
+  return { tool, qualification: () => structuredClone(latest) };
 }

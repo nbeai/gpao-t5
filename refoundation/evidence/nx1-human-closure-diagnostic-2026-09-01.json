@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "gate": "NX_1D_BOUNDED_HUMAN_CLOSURE_DIAGNOSTIC",
+  "status": "TOPOLOGY_QUALIFIED_STABILITY_NOT_PROVEN_PRODUCT_ZERO",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "9e2daf0c",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "oracleProjectedToModel": 0,
+  "productChanges": 0,
+  "topology": [
+    "model call 1 authors Reality Closure and calls integral_method",
+    "runtime validates complete source, claims, evidence values, calculations and exclusions",
+    "model call 2 sees only verified claims, human, strategy, form and exclusion count",
+    "model call 2 calls human_closure with selected claim IDs, selected evidence value IDs and finalAnswer",
+    "runtime validates identities, selected values and final answer then returns that exact model-authored text",
+    "third model call zero"
+  ],
+  "deterministicQualification": {
+    "tests": 20,
+    "passed": 20,
+    "failed": 0,
+    "countertests": [
+      "unknown claim",
+      "unknown evidence value",
+      "selected value omitted from final answer",
+      "stale Work revision",
+      "stale source manifest",
+      "more than 16 presentation selections",
+      "normal or excluded final content"
+    ]
+  },
+  "positiveActuals": {
+    "purchase": { "realityAndHumanPassObserved": true, "modelCalls": 2, "toolCalls": 2,
+      "inputTokens": 15229, "wallMs": 61869.741 },
+    "contract": { "realityAndHumanPassObserved": true, "modelCalls": 2, "toolCalls": 2,
+      "inputTokens": 4437, "wallMs": 83618.598 },
+    "expense": { "realityAndHumanPassObserved": true, "modelCalls": 2, "toolCalls": 2,
+      "inputTokens": 15090, "wallMs": 58239.946 }
+  },
+  "officialBaDiagnostic": {
+    "purchase": {
+      "reality": "PASS",
+      "human": "FAIL",
+      "reason": "the model selected long supporting source sentences as exact display values and paraphrased them in finalAnswer"
+    },
+    "contract": {
+      "reality": "PASS",
+      "human": "PASS",
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "inputTokens": 4437,
+      "wallMs": 83618.598
+    },
+    "expense": {
+      "reality": "FAIL",
+      "human": "NOT_OPENED",
+      "reason": "the Reality model found all three claim families but omitted required numeric and identity atoms from its structured evidence"
+    }
+  },
+  "interpretation": {
+    "twoModelTwoToolNoThirdCall": "PROVEN",
+    "exactModelAuthoredFinalAnswer": "PROVEN",
+    "realityToHumanInformationBoundary": "PROVEN",
+    "modelAuthoredEvidenceValuesStable": false,
+    "modelPresentationSelectionStable": false,
+    "wallWinAllPurposes": false,
+    "blindHumanQuality": "NOT_RUN",
+    "productPromotion": false
+  },
+  "stopLine": "Do not add more stage wording or Claim fields to the current topology. The next candidate must create exact Evidence Atoms from runtime-owned document and OCR observations, then let the model reference atom IDs instead of rewriting source values.",
+  "next": "Qualification-only runtime Evidence Atom projection for XLSX cells, PDF lines/tokens and OCR lines, with Claim references and calculation result atoms."
+}

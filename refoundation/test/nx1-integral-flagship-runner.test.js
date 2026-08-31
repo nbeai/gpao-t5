@@ -5,7 +5,7 @@ import test from 'node:test';
 import {
   buildNx1ScenarioReality, evaluateNx1Answer, evaluateNx1ClaimEvidence,
   evaluateNx1PresentationCoverage,
-  makeNx1IntegralTool, nx1CandidateRuntimeContext,
+  makeNx1HumanClosureTool, makeNx1IntegralTool, nx1CandidateRuntimeContext,
 } from './helpers/nx-integral-flagship-qualification.js';
 
 const root = new URL('../../', import.meta.url);
@@ -40,7 +40,7 @@ test('NX-1 machine evaluator는 핵심 정답과 normal·excluded 전면화 금�
       { valueId: 'variance', label: 'variance', value: 1000, unit: 'KRW' },
       { valueId: 'c103', label: 'C-103', value: 15500, unit: 'KRW' },
       { valueId: 'tax', label: 'verification only tax', value: 3727, unit: 'KRW' }],
-    presentationValueIds: ['receipt', 'c101', 'c102-ledger', 'c102-evidence', 'variance', 'c103'] }],
+  }],
     excludedFindings: [{ findingId: 'expense-control-C104', reason: 'C-104 control 대조 제외' }] };
   assert.equal(evaluateNx1ClaimEvidence('expense_evidence', evidence).passed, true);
   evidence.claims[0].summary += ' C-104도 누락.';
@@ -56,15 +56,20 @@ test('NX-1 live runner는 AB·BA와 product-promotion pending을 명시한다', 
   const source = await readFile(new URL('../scripts/run-nx1-integral-flagship.mjs', import.meta.url), 'utf8');
   assert.match(source, /--order/u); assert.match(source, /\['AB', 'BA'\]/u);
   assert.match(source, /--arms/u);
-  assert.match(source, /requiredInitialTool: 'integral_method'/u);
-  assert.match(source, /T5 NX VERIFIED CORE CLAIMS/u);
-  assert.match(source, /modelProjection/u);
+  assert.match(source, /buildNx1ScenarioReality, evaluateNx1Answer, makeNx1HumanClosureTool/u);
+  assert.match(source, /requiredToolName: 'integral_method'/u);
+  assert.match(source, /requiredToolName: 'human_closure'/u);
+  assert.match(source, /closureResult\.finalAnswer/u);
+  assert.match(source, /human_closure_failed/u);
+  assert.match(source, /instructionsOverride: NX1_REALITY_CLOSURE_INSTRUCTIONS/u);
+  assert.match(source, /instructionsOverride: NX1_HUMAN_CLOSURE_INSTRUCTIONS/u);
+  assert.doesNotMatch(source, /runAgent/u);
   assert.match(source, /humanBlindEvaluation: 'PENDING'/u);
   assert.match(source, /productPromotion: 'NOT_EVALUATED'/u);
   assert.doesNotMatch(source, /console-server\.js.*writeFile|agent-loop\.js.*writeFile/iu);
 });
 
-test('verified model projection은 core claim만 주고 excluded 내용·opaque handle을 최종 답 Context에서 제거한다', () => {
+test('verified Reality projection은 evidence pool만 주고 excluded 내용은 Human Closure에서 숨긴다', () => {
   const reality = { currentWork: { workId: 'work-11111111', revision: 1, status: 'active' },
     sourceManifest: { state: 'verified', manifestId: 'sources-11111111', inputHandles: ['source-11111111', 'source-22222222'] },
     records: [], projections: [] };
@@ -75,4 +80,42 @@ test('verified model projection은 core claim만 주고 excluded 내용·opaque 
   });
   const source = integral.tool.projectResultForModel;
   assert.doesNotMatch(String(source), /excludedFindings.*map|sourceRefs.*handle/su);
+});
+
+test('Human Closure는 존재하는 claim/value만 선택하고 모델 작성 finalAnswer를 세 번째 호출 없이 검증한다', async () => {
+  const verifiedReality = { currentWork: { workId: 'work-11111111', revision: 2, status: 'active' },
+    sourceManifestId: 'sources-11111111', excludedFindingCount: 1,
+    candidate: { human: { purpose: '차이 확인', useContext: '지급 전', audience: '담당자' },
+      strategy: { primaryOutcome: '차이만', requestedScope: ['차이'], excludedScope: ['정상'], sufficientWhen: ['근거 완료'] },
+      form: { deliverableForms: ['answer'], informationOrder: ['결론', '근거'], visualHierarchyGoals: ['핵심 우선'] } },
+    claimEvidence: { claims: [
+      { claimId: 'purchase-gap', state: 'supported', summary: '120과 118의 차이 2', sourceRefs: [], calculation: null,
+        evidenceValues: [
+          { valueId: 'ordered', label: 'ordered', value: 120, unit: '개', source: { location: 'p1' } },
+          { valueId: 'accepted', label: 'accepted', value: 118, unit: '개', source: { location: 'F3' } },
+          { valueId: 'gap', label: 'gap', value: 2, unit: '개', source: { location: 'H3' } },
+          { valueId: 'invoice', label: 'invoice', value: 3000000, unit: 'KRW', source: { location: 'OCR' } },
+          { valueId: 'accepted-amount', label: 'accepted amount', value: 2950000, unit: 'KRW', source: { location: 'F3:G3' } },
+          { valueId: 'amount-gap', label: 'amount gap', value: 50000, unit: 'KRW', source: { location: 'calc' } },
+        ] },
+    ] } };
+  const closure = makeNx1HumanClosureTool({ verifiedReality, scenarioId: 'purchase_reconciliation' });
+  const base = { schema: 't5.human-closure.v1', work: { workId: 'work-11111111', revision: 2 },
+    sourceManifestId: 'sources-11111111', selectedClaimIds: ['purchase-gap'],
+    selectedEvidenceValues: ['ordered', 'accepted', 'gap', 'invoice', 'accepted-amount', 'amount-gap']
+      .map((valueId) => ({ claimId: 'purchase-gap', valueId })),
+    finalAnswer: '발주 120개, 입고 118개로 2개 부족하며 3,000,000원과 2,950,000원의 차이는 50,000원입니다.' };
+  const result = await closure.tool.execute(base);
+  assert.equal(result.state, 'verified'); assert.equal(result.finalAnswer, base.finalAnswer);
+  const foreign = structuredClone(base); foreign.selectedEvidenceValues[0].valueId = 'unknown';
+  assert.equal((await closure.tool.execute(foreign)).reason, 'unknown_duplicate_or_unselected_value');
+  const missing = structuredClone(base); missing.finalAnswer = '발주 120개와 입고 118개를 확인했습니다.';
+  assert.equal((await closure.tool.execute(missing)).state, 'closure_failed');
+  const stale = structuredClone(base); stale.work.revision = 3;
+  assert.equal((await closure.tool.execute(stale)).reason, 'stale_or_foreign_work');
+  const tooMany = structuredClone(base);
+  tooMany.selectedEvidenceValues = Array.from({ length: 17 }, (_, index) => ({
+    claimId: 'purchase-gap', valueId: index < 6 ? base.selectedEvidenceValues[index].valueId : 'ordered',
+  }));
+  assert.equal((await closure.tool.execute(tooMany)).reason, 'presentation_selection_boundary');
 });

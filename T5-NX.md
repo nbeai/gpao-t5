@@ -4,7 +4,7 @@
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
 현재 Gate: `NX-1 FIRST FLAGSHIP MASTERY · INTEGRAL OUTCOME METHOD`
-현재 작업: `첫 Integral Method actual에서 확인한 강한 Reality Closure와 불안정한 presentation 선택을 분리해 bounded Human Closure settlement로 재설계`
+현재 작업: `두 model·두 Tool·세 번째 호출 0의 Human Closure topology를 자격하고, 모델이 source 값을 다시 쓰지 않는 runtime Evidence Atom 후보로 안정성 재설계`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -842,6 +842,24 @@ AND current correction·Stop·restart·Artifact·Undo 무회귀
   아직 열지 않았고 product source delta는 0이다.
 
 근거: `refoundation/evidence/nx1-integral-flagship-diagnostic-2026-09-01.json`.
+
+2026-09-01 bounded Human Closure 진단:
+
+- 첫 모델은 Reality Closure만 작성하고, 두 번째 모델이 verified claim/value pool에서 `selectedClaimIds·
+  selectedEvidenceValues·finalAnswer`를 한 `human_closure` 호출로 제출한다. Runtime 검증 뒤 그 모델 문장을 그대로
+  결과로 사용하며 세 번째 모델 호출은 0이다.
+- deterministic 20/20에서 unknown claim/value, selected value 누락, stale Work/manifest, presentation 16개 초과,
+  excluded core 노출을 모두 차단했다.
+- 구매·계약·비용은 각각 개별 actual에서 Reality+Human 동시 PASS를 만들었고 model 2·Tool 2를 유지했다.
+- 그러나 공식 BA에서 구매는 긴 supporting sentence를 exact display value로 과선택한 뒤 paraphrase해 Human Closure가
+  실패했고, 비용은 첫 Reality model이 claim family는 찾았지만 required numeric/identity atom을 구조값에 빠뜨려 Human
+  Closure를 열지 못했다. 계약만 동시 PASS했다.
+- 따라서 topology와 정보 경계는 성립했지만 안정성은 미완료다. 같은 stage 문구·Claim field를 더 붙이지 않는다.
+- 다음 후보는 XLSX cell·PDF line/token·OCR line에서 Runtime observer가 exact Evidence Atom을 만들고, 모델이 값을 다시
+  작성하지 않고 atom ID만 참조하도록 한다. 이는 업무 Router가 아니라 감각 사실의 identity projection이다.
+- blind 인간 평가·Artifact·Undo·제품 배선은 계속 0이다.
+
+근거: `refoundation/evidence/nx1-human-closure-diagnostic-2026-09-01.json`.
 
 ## NX-2 — Mastery Generalization
 
