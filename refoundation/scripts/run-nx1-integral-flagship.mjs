@@ -35,6 +35,17 @@ const order = String(argument('--order', 'AB')).toUpperCase();
 if (!['AB', 'BA'].includes(order)) throw new Error('--order must be AB or BA');
 const requestedArms = String(argument('--arms', 'AB')).toUpperCase();
 if (!/^(?:A|B|AB|BA)$/u.test(requestedArms)) throw new Error('--arms must be A, B, AB, or BA');
+const humanConnectionIds = [...new Set(String(argument('--human-connections', selected.id))
+  .split(',').map((item) => item.trim()).filter(Boolean))];
+const humanConnections = humanConnectionIds.map((id) => sourceConnections.connections?.find((item) => item.id === id));
+if (!humanConnections.length || humanConnections.some((item) => !item)) {
+  throw new Error('every --human-connections id must be an available exact connection');
+}
+const SOLAR_CONNECTION_ID = 'api_key:upstage:solar-pro4';
+const humanConnectionPolicy = humanConnections.map((connection) => ({ id: connection.id,
+  modelId: connection.modelId, provider: connection.provider,
+  gating: connection.id !== SOLAR_CONNECTION_ID,
+  role: connection.id === SOLAR_CONNECTION_ID ? 'NON_GATING_OPTIONAL_OBSERVATION' : 'GATING_COMPARISON' }));
 const selectedIds = new Set(String(argument('--scenarios', oracle.scenarios.map((item) => item.id).join(',')))
   .split(',').map((item) => item.trim()).filter(Boolean));
 const scenarios = oracle.scenarios.filter((item) => selectedIds.has(item.id));
@@ -81,10 +92,9 @@ async function runCandidate(definition, room) {
   const firstModel = await access.model({ ...modelInput,
     instructionsOverride: NX1_REALITY_CLOSURE_INSTRUCTIONS });
   const integral = makeNx1IntegralTool({ reality, scenarioId: definition.id });
-  const started = performance.now(); const modelResponses = []; const toolPath = [];
-  let finalModel = null;
+  const started = performance.now(); const toolPath = [];
   const toolDefinition = (tool) => ({ name: tool.name, description: tool.description, parameters: tool.parameters });
-  const accumulateUsage = () => modelResponses.reduce((sum, response) => ({
+  const usageFor = (responses) => responses.reduce((sum, response) => ({
     inputTokens: sum.inputTokens + Number(response.usage?.input_tokens ?? 0),
     outputTokens: sum.outputTokens + Number(response.usage?.output_tokens ?? 0),
     cachedInputTokens: sum.cachedInputTokens + Number(response.usage?.input_tokens_details?.cached_tokens ?? 0),
@@ -94,7 +104,6 @@ async function runCandidate(definition, room) {
     const realityResponse = await firstModel.respond({ messages: [{ role: 'user', content: definition.userPrompt }],
       tools: [toolDefinition(integral.tool)], runtimeContext: nx1CandidateRuntimeContext(reality),
       toolChoice: { requiredToolName: 'integral_method' } });
-    modelResponses.push(realityResponse);
     const realityCalls = Array.isArray(realityResponse.toolCalls) ? realityResponse.toolCalls : [];
     const realityCall = realityCalls.length === 1 && realityCalls[0].name === 'integral_method' ? realityCalls[0] : null;
     const realityResult = realityCall ? await integral.tool.execute(realityCall.args) : {
@@ -104,34 +113,62 @@ async function runCandidate(definition, room) {
     if (realityResult.state !== 'verified') return { arm: 'B', kind: 'qualification_integral_method',
       wallMs: Number((performance.now() - started).toFixed(3)), firstUsefulMs: null, answer: null,
       machine: { passed: false, reason: 'reality_closure_failed' }, qualification: {
-        reality: integral.qualification(), human: null }, performance: { modelCalls: modelResponses.length,
-        toolCalls: toolPath.length, ...accumulateUsage() }, toolPath };
+        reality: integral.qualification(), human: null }, performance: { modelCalls: 1,
+        toolCalls: toolPath.length, ...usageFor([realityResponse]) }, toolPath };
 
     const verifiedReality = integral.verifiedReality();
-    const closure = makeNx1HumanClosureTool({ verifiedReality, scenarioId: definition.id });
-    finalModel = await access.model({ ...modelInput, sessionId: `${modelInput.sessionId}-human-closure`,
-      instructionsOverride: NX1_HUMAN_CLOSURE_INSTRUCTIONS });
-    const closureResponse = await finalModel.respond({ messages: [{ role: 'user', content: definition.userPrompt }],
-      tools: [toolDefinition(closure.tool)], runtimeContext: nx1HumanClosureRuntimeContext(verifiedReality),
-      toolChoice: { requiredToolName: 'human_closure' } });
-    modelResponses.push(closureResponse);
-    const closureCalls = Array.isArray(closureResponse.toolCalls) ? closureResponse.toolCalls : [];
-    const closureCall = closureCalls.length === 1 && closureCalls[0].name === 'human_closure' ? closureCalls[0] : null;
-    const closureResult = closureCall ? await closure.tool.execute(closureCall.args) : {
-      state: 'closure_invalid', reason: 'human_closure_call_missing',
-    };
-    toolPath.push({ name: 'human_closure', outcome: closureCall ? 'succeeded' : 'not_executed', state: closureResult.state });
-    const answer = closureResult.state === 'verified' ? closureResult.finalAnswer : null;
+    const humanComparisons = [];
+    for (const [index, connection] of humanConnections.entries()) {
+      const safeConnection = connection.id.replace(/[^a-z0-9-]+/giu, '-');
+      const closureStateDir = join(room, `${definition.id}-human-${safeConnection}`);
+      await mkdir(closureStateDir, { recursive: true });
+      const closureConnectionFile = join(closureStateDir, 'model-connection.json');
+      await writeFile(closureConnectionFile, JSON.stringify({ version: sourceConnections.version,
+        activeId: connection.id, roleBindings: {}, connections: [connection] }), { mode: 0o600 });
+      const closureAccess = makeConsoleModelAccess({ connectionFile: closureConnectionFile,
+        stateDir: closureStateDir, secretStore: makePlatformSecretStore({ platform: process.platform }) });
+      const closureModel = await closureAccess.model({ ...modelInput,
+        sessionId: `${modelInput.sessionId}-human-${safeConnection}`,
+        instructionsOverride: NX1_HUMAN_CLOSURE_INSTRUCTIONS });
+      const closure = makeNx1HumanClosureTool({ verifiedReality, scenarioId: definition.id });
+      const closureStarted = performance.now();
+      try {
+        const closureResponse = await closureModel.respond({ messages: [{ role: 'user', content: definition.userPrompt }],
+          tools: [toolDefinition(closure.tool)], runtimeContext: nx1HumanClosureRuntimeContext(verifiedReality),
+          toolChoice: { requiredToolName: 'human_closure' } });
+        const closureCalls = Array.isArray(closureResponse.toolCalls) ? closureResponse.toolCalls : [];
+        const closureCall = closureCalls.length === 1 && closureCalls[0].name === 'human_closure' ? closureCalls[0] : null;
+        const closureResult = closureCall ? await closure.tool.execute(closureCall.args) : {
+          state: 'closure_invalid', reason: 'human_closure_call_missing',
+        };
+        const policy = humanConnectionPolicy.find((item) => item.id === connection.id);
+        humanComparisons.push({ connectionId: connection.id, modelId: connection.modelId,
+          provider: connection.provider, gating: policy.gating, role: policy.role,
+          passed: closureResult.state === 'verified', state: closureResult.state,
+          wallMs: Number((performance.now() - closureStarted).toFixed(3)),
+          answer: closureResult.state === 'verified' ? closureResult.finalAnswer : null,
+          qualification: closure.qualification(), performance: { modelCalls: 1, toolCalls: 1,
+            ...usageFor([closureResponse]) } });
+        if (index === 0) toolPath.push({ name: 'human_closure',
+          outcome: closureCall ? 'succeeded' : 'not_executed', state: closureResult.state });
+      } finally { await closureModel.close?.(); }
+    }
+    const primaryHuman = humanComparisons[0]; const answer = primaryHuman.answer;
     const firstUsefulMs = answer ? Number((performance.now() - started).toFixed(3)) : null;
     return { arm: 'B', kind: 'qualification_integral_method_human_closure',
       wallMs: Number((performance.now() - started).toFixed(3)), firstUsefulMs, answer,
-      machine: closureResult.state === 'verified'
-        ? closure.qualification()?.answerQuality ?? { passed: false }
+      machine: primaryHuman.passed
+        ? primaryHuman.qualification?.answerQuality ?? { passed: false }
         : { passed: false, reason: 'human_closure_failed' },
-      qualification: { reality: integral.qualification(), human: closure.qualification() },
-      performance: { modelCalls: modelResponses.length, toolCalls: toolPath.length,
-        ...accumulateUsage() }, toolPath };
-  } finally { await Promise.all([firstModel.close?.(), finalModel?.close?.()]); }
+      qualification: { reality: integral.qualification(), human: primaryHuman.qualification,
+        humanComparisons },
+      performance: { modelCalls: 2, toolCalls: 2,
+        ...usageFor([realityResponse, { usage: {
+          input_tokens: primaryHuman.performance.inputTokens,
+          output_tokens: primaryHuman.performance.outputTokens,
+          input_tokens_details: { cached_tokens: primaryHuman.performance.cachedInputTokens },
+        }, contextReceipt: { requestBytes: primaryHuman.performance.requestBytes } }]) }, toolPath };
+  } finally { await firstModel.close?.(); }
 }
 
 const room = await mkdtemp(join(tmpdir(), `t5-nx1-${order.toLowerCase()}-`));
@@ -145,10 +182,16 @@ try {
   }
   const payload = { schema: 't5.nx1.integral-flagship-comparison.v1', recordedOn: '2026-09-01', order,
     model: 'gpt-5.5', provider: 'chatgpt_oauth', actualUserData: false, externalWrites: 0,
-    oracleProjectedToModel: 0, productChanges: 0, results,
+    oracleProjectedToModel: 0, productChanges: 0,
+    humanClosureConnectionPolicy: humanConnectionPolicy, results,
     allCandidateMachinePassed: results.every((item) => { const arm = item.arms.find((candidate) => candidate.arm === 'B');
       return arm ? arm.machine.passed && arm.qualification?.reality?.passed
         && arm.qualification?.human?.passed : true; }),
+    gatingHumanClosuresPassed: results.every((item) => { const arm = item.arms.find((candidate) => candidate.arm === 'B');
+      if (!arm) return true; const comparisons = arm.qualification?.humanComparisons ?? [];
+      const gating = comparisons.filter((comparison) => comparison.gating);
+      return arm.qualification?.reality?.passed === true && gating.length > 0
+        && gating.every((comparison) => comparison.passed); }),
     humanBlindEvaluation: 'PENDING', productPromotion: 'NOT_EVALUATED' };
   if (outputPath) await writeFile(resolve(outputPath), JSON.stringify(payload, null, 2));
   process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);

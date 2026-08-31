@@ -4,7 +4,7 @@
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
 현재 Gate: `NX-1 FIRST FLAGSHIP MASTERY · INTEGRAL OUTCOME METHOD`
-현재 작업: `Runtime Evidence Atom으로 Reality truth를 안정화하고, 남은 Human Closure 중요도 선택을 model/provider 품질 경계에서 분리`
+현재 작업: `동일 verified atom pool에서 gpt-5.5·Terra가 함께 실패한 Human Closure 선택 계약을 다른 topology로 재설계`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -879,6 +879,22 @@ AND current correction·Stop·restart·Artifact·Undo 무회귀
 - 제품 source·global Prompt·Store·Router·blind 인간 평가·제품 승격은 계속 0이다.
 
 근거: `refoundation/evidence/nx1-evidence-atom-diagnostic-2026-09-01.json`.
+
+2026-09-01 Human Closure model/provider 비교:
+
+- 비용 Reality Closure를 한 번만 실행해 C-103 15,500원, C-102 42,000/41,000과 bounded numeric-difference candidate
+  1,000원, C-101 R-101-A·18,700원을 같은 verified atom pool로 고정했다.
+- Human Closure만 gpt-5.5와 Terra에 같은 contract·value pool로 공급했다. gpt-5.5는 12개, Terra는 9개 값을 선택했고
+  선택한 값의 finalAnswer 반영은 둘 다 100%였지만, 사용자 결과에 필요한 사실 선택은 둘 다 FAIL했다.
+- Terra는 8.686초로 gpt-5.5의 24.738초보다 빨랐지만 결과가 틀렸으므로 성능 승격 근거가 아니다.
+- Solar Pro 4는 오너 지시에 따라 실행하지 않았고 `NON_GATING_OPTIONAL_OBSERVATION`으로만 남겼다.
+- dynamic atom enum·source region expansion·numeric difference affordance·text atom 제외·value dedupe까지 적용한 같은 Reality가
+  두 gating 모델에서 함께 실패했으므로 특정 모델 문제가 아니라 현재 `preselect value IDs → finalAnswer` 계약 문제다.
+- 같은 stage 문장·업무별 중요도 규칙·선택 상한 확대를 더 붙이지 않는다. 다음은 verified claim에서 모델이 final answer를
+  직접 작성하고 Runtime이 claim coverage를 bounded 검증하는 다른 Human Closure topology다.
+- blind 인간 평가·제품 배선은 계속 0이다.
+
+근거: `refoundation/evidence/nx1-human-model-comparison-2026-09-01.json`.
 
 ## NX-2 — Mastery Generalization
 

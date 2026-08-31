@@ -62,6 +62,8 @@ test('모델이 exact spreadsheet row를 sourceRef로 선택하면 Runtime이 �
   });
   assert.ok(result.claims[0].evidenceValues.some((item) => item.value === 42000));
   assert.ok(result.claims[0].evidenceValues.some((item) => item.value === 41000));
+  assert.ok(result.claims[0].evidenceValues.some((item) => item.value === 1000
+    && item.label === 'observed numeric difference candidate'));
 });
 
 test('foreign atom·미래 calculation은 차단하고 중복 atom 참조는 canonical set으로 합친다', () => {

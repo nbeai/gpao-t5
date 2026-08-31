@@ -56,6 +56,9 @@ test('NX-1 live runner는 AB·BA와 product-promotion pending을 명시한다', 
   const source = await readFile(new URL('../scripts/run-nx1-integral-flagship.mjs', import.meta.url), 'utf8');
   assert.match(source, /--order/u); assert.match(source, /\['AB', 'BA'\]/u);
   assert.match(source, /--arms/u);
+  assert.match(source, /--human-connections/u);
+  assert.match(source, /NON_GATING_OPTIONAL_OBSERVATION/u);
+  assert.match(source, /api_key:upstage:solar-pro4/u);
   assert.match(source, /buildNx1ScenarioReality, evaluateNx1Answer, makeNx1HumanClosureTool/u);
   assert.match(source, /requiredToolName: 'integral_method'/u);
   assert.match(source, /requiredToolName: 'human_closure'/u);
@@ -66,6 +69,7 @@ test('NX-1 live runner는 AB·BA와 product-promotion pending을 명시한다', 
   assert.doesNotMatch(source, /runAgent/u);
   assert.match(source, /humanBlindEvaluation: 'PENDING'/u);
   assert.match(source, /productPromotion: 'NOT_EVALUATED'/u);
+  assert.match(source, /gatingHumanClosuresPassed/u);
   assert.doesNotMatch(source, /console-server\.js.*writeFile|agent-loop\.js.*writeFile/iu);
 });
 
@@ -124,13 +128,15 @@ test('Human Closure는 존재하는 claim/value만 선택하고 모델 작성 fi
 test('Human Closure 선택 pool은 number·literal·calculation만 열고 긴 text atom은 근거로만 보존한다', async () => {
   const verifiedReality = { currentWork: { workId: 'work-11111111', revision: 1, status: 'active' },
     sourceManifestId: 'sources-11111111', excludedFindingCount: 0,
-    evidenceAtomKinds: { 'atom-number': 'number', 'atom-literal': 'literal', 'atom-text': 'text' },
+    evidenceAtomKinds: { 'atom-number': 'number', 'atom-number-copy': 'number',
+      'atom-literal': 'literal', 'atom-text': 'text' },
     candidate: { human: { purpose: '차이', useContext: '검토', audience: '담당자' },
       strategy: { primaryOutcome: '차이', requestedScope: ['차이'], excludedScope: [], sufficientWhen: ['완료'] },
       form: { deliverableForms: ['answer'], informationOrder: ['결론'], visualHierarchyGoals: ['핵심'] } },
     claimEvidence: { claims: [{ claimId: 'claim-1', state: 'supported', summary: '차이', sourceRefs: [], calculation: null,
       evidenceValues: [
-        { valueId: 'atom-number', label: 'amount', value: 1000, unit: 'KRW', source: { location: 'D4' } },
+        { valueId: 'atom-number', label: 'amount', value: 42000, unit: 'KRW', source: { location: 'D4' } },
+        { valueId: 'atom-number-copy', label: 'same amount', value: 42000, unit: 'KRW', source: { location: 'p1' } },
         { valueId: 'atom-literal', label: 'id', value: 'C-102', unit: '', source: { location: 'A4' } },
         { valueId: 'atom-text', label: 'source sentence', value: 'The invoice total is the evidence amount.', unit: '', source: { location: 'p1' } },
         { valueId: 'calc-gap', label: 'difference', value: 1000, unit: 'KRW', source: { location: 'calc' } },
@@ -138,6 +144,7 @@ test('Human Closure 선택 pool은 number·literal·calculation만 열고 긴 te
   const context = (await import('./helpers/nx-integral-flagship-qualification.js'))
     .nx1HumanClosureRuntimeContext(verifiedReality);
   assert.match(context, /atom-number/u); assert.match(context, /atom-literal/u); assert.match(context, /calc-gap/u);
+  assert.doesNotMatch(context, /atom-number-copy/u);
   assert.doesNotMatch(context, /atom-text|invoice total is the evidence amount/iu);
   const closure = makeNx1HumanClosureTool({ verifiedReality, scenarioId: 'expense_evidence' });
   const invalid = await closure.tool.execute({ schema: 't5.human-closure.v1',

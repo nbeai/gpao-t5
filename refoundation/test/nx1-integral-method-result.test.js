@@ -182,7 +182,7 @@ test('ClaimEvidence는 incomplete coverage·foreign source·duplicate claim을 �
     sourceManifestId: sourceManifest.manifestId, exactInputHandles,
   }));
   const tooManyEvidence = claimEvidence();
-  tooManyEvidence.claims[0].evidenceValues = Array.from({ length: 49 }, (_, index) => ({
+  tooManyEvidence.claims[0].evidenceValues = Array.from({ length: 65 }, (_, index) => ({
     valueId: `value-${index + 1}`, label: `value ${index + 1}`, value: index + 1, unit: '',
     source: { handle: exactInputHandles[0], location: `cell:${index + 1}` },
   }));

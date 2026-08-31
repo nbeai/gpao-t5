@@ -248,8 +248,17 @@ export function nx1HumanClosureRuntimeContext(verified) {
 
 function humanSelectableEvidenceValues(verified, claim) {
   const kinds = verified.evidenceAtomKinds ?? {};
-  return claim.evidenceValues.filter((item) => !String(item.valueId).startsWith('atom-')
-    || kinds[item.valueId] == null || ['number', 'literal'].includes(kinds[item.valueId]));
+  const candidates = claim.evidenceValues.filter((item) => !String(item.valueId).startsWith('atom-')
+    || kinds[item.valueId] == null || ['number', 'literal'].includes(kinds[item.valueId]))
+    .sort((left, right) => Number(String(left.valueId).startsWith('atom-'))
+      - Number(String(right.valueId).startsWith('atom-')));
+  const seen = new Set(); const output = [];
+  for (const item of candidates) {
+    const key = JSON.stringify([item.value, item.unit]);
+    if (seen.has(key)) continue;
+    seen.add(key); output.push(item);
+  }
+  return output;
 }
 
 export function makeNx1HumanClosureTool({ verifiedReality, scenarioId } = {}) {

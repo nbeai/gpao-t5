@@ -169,6 +169,23 @@ export function materializeAtomClaimEvidence(input, { sourceManifestId, exactInp
       evidenceValues.push({ valueId: item.calculationId, label: item.label, value: item.value, unit: item.unit,
         source: { handle: source?.handle ?? exactInputHandles[0], location: `calculation:${item.calculationId}` } });
     }
+    if (claim.state === 'conflict') {
+      const numeric = atomIds.map((id) => atomMap.get(id)).filter((atom) => typeof atom.value === 'number');
+      const seenDifferences = new Set(); let generated = 0;
+      for (let left = 0; left < numeric.length && generated < 12; left += 1) {
+        for (let right = left + 1; right < numeric.length && generated < 12; right += 1) {
+          if (numeric[left].location === numeric[right].location) continue;
+          const value = Math.abs(numeric[left].value - numeric[right].value); if (!value) continue;
+          const unit = numeric[left].unit === numeric[right].unit ? numeric[left].unit : '';
+          const key = JSON.stringify([value, unit]); if (seenDifferences.has(key)) continue;
+          seenDifferences.add(key); generated += 1;
+          const valueId = `difference-${sha256([numeric[left].atomId, numeric[right].atomId]).slice(0, 20)}`;
+          evidenceValues.push({ valueId, label: 'observed numeric difference candidate', value, unit,
+            source: { handle: numeric[left].handle,
+              location: `difference:${numeric[left].location}|${numeric[right].location}` } });
+        }
+      }
+    }
     return { claimId: claim.claimId, state: claim.state, summary: claim.summary,
       sourceRefs: claim.sourceRefs, evidenceValues, calculation: null };
   });

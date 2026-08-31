@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "gate": "NX_1_HUMAN_CLOSURE_MODEL_COMPARISON",
+  "status": "BOTH_GATING_MODELS_FAIL_SAME_VERIFIED_POOL_CONTRACT_REDESIGN_REQUIRED",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "770df5aa",
+  "scenario": "expense_evidence",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "oracleProjectedToModel": 0,
+  "productChanges": 0,
+  "reality": {
+    "executions": 1,
+    "status": "PASS",
+    "sameVerifiedAtomPoolForAllHumanModels": true,
+    "facts": [
+      "C-103 KRW 15,500",
+      "C-102 KRW 42,000 and KRW 41,000",
+      "runtime numeric-difference affordance KRW 1,000",
+      "C-101 R-101-A and KRW 18,700"
+    ]
+  },
+  "humanClosure": [
+    {
+      "connectionId": "chatgpt_oauth:gpt-5.5",
+      "modelId": "gpt-5.5",
+      "provider": "chatgpt_oauth",
+      "gating": true,
+      "status": "FAIL",
+      "wallMs": 24738.257,
+      "selectedValueCount": 12,
+      "selectedValueCoverage": "PASS",
+      "answerRequiredFacts": "FAIL",
+      "inputTokens": 3201,
+      "outputTokens": 1280
+    },
+    {
+      "connectionId": "api_key:openai:gpt-5.6-terra",
+      "modelId": "gpt-5.6-terra",
+      "provider": "openai",
+      "gating": true,
+      "status": "FAIL",
+      "wallMs": 8685.743,
+      "selectedValueCount": 9,
+      "selectedValueCoverage": "PASS",
+      "answerRequiredFacts": "FAIL",
+      "inputTokens": 3201,
+      "outputTokens": 794
+    }
+  ],
+  "solar": {
+    "connectionId": "api_key:upstage:solar-pro4",
+    "executed": false,
+    "gating": false,
+    "role": "NON_GATING_OPTIONAL_OBSERVATION",
+    "reason": "owner requested that the uncertain model not influence the product gate"
+  },
+  "runtimeRefinementsBeforeComparison": [
+    "dynamic atom enum prevents foreign IDs",
+    "exact source regions auto-expand their atom set",
+    "conflict claims receive bounded numeric-difference affordances",
+    "Human pool removes long text atoms",
+    "same value and unit are deduplicated within a claim",
+    "calculation values are preferred over equivalent source atoms",
+    "Reality pool up to 64 and Human selection up to 16"
+  ],
+  "decision": {
+    "specificModelFailure": false,
+    "humanClosureContractStable": false,
+    "terraSpeedObservation": "faster but incorrect, not a promotion basis",
+    "solarCanPassGate": false,
+    "blindHumanEvaluation": "NOT_OPENED",
+    "productPromotion": false
+  },
+  "stopLine": "Do not add another stage sentence, business importance rule, or larger selection cap. The same verified reality failed under both gating models, so the Human Closure contract requires a different topology.",
+  "next": "Redesign Human Closure so the model authors the final answer from verified claims while a bounded runtime closure checks required claim coverage without asking the model to preselect a lossy value subset."
+}
