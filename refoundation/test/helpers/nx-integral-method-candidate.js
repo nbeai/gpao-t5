@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 const MAX_SERIALIZED_BYTES = 6 * 1024;
 const MAX_SOURCES = 12;
 const MAX_TEXT = 500;
@@ -97,8 +99,9 @@ export function validateIntegralMethodCandidate(input, { currentWork, sourceMani
   const exactInputHandles = boundedList(input.reality.exactInputHandles, 'exactInputHandles', {
     maxItems: MAX_SOURCES, maxLength: 80,
   }).map((handle) => opaqueId(handle, 'input handle'));
-  if (exactInputHandles.some((handle) => !sourceManifest.inputHandles.includes(handle))) {
-    throw new Error('input handle escapes the source manifest');
+  if (JSON.stringify([...exactInputHandles].sort())
+    !== JSON.stringify([...sourceManifest.inputHandles].sort())) {
+    throw new Error('input handles must equal the exact source manifest set');
   }
 
   const operators = boundedList(input.method.operators, 'operators', { maxItems: 16, maxLength: 32 });
@@ -152,3 +155,187 @@ export const NX_INTEGRAL_METHOD_LIMITS = deepFreeze({
   serializedBytes: MAX_SERIALIZED_BYTES, sourceHandles: MAX_SOURCES,
   operators: [...OPERATORS], effects: [...EFFECTS], outputKinds: [...OUTPUT_KINDS],
 });
+
+const digest = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+export function buildIntegralMethodContractBinding(candidate) {
+  return deepFreeze({
+    schema: 't5.integral-method-contract-binding.v1',
+    humanSha256: digest(candidate.human), strategySha256: digest(candidate.strategy),
+    formSha256: digest(candidate.form),
+  });
+}
+
+function exactContractBinding(value, candidate) {
+  const expected = buildIntegralMethodContractBinding(candidate);
+  if (!value || JSON.stringify(value) !== JSON.stringify(expected)) {
+    throw new Error('Integral Method human strategy form binding is missing');
+  }
+  return expected;
+}
+
+const CLAIM_EVIDENCE_MAX_BYTES = 32 * 1024;
+const CLAIM_STATES = new Set(['supported', 'conflict', 'unknown']);
+
+function sourceRef(value, allowedHandles) {
+  exactObject(value, ['handle', 'location'], 'claim source reference');
+  const handle = opaqueId(value.handle, 'claim source handle');
+  if (!allowedHandles.includes(handle)) throw new Error('ClaimEvidence source escapes the manifest');
+  return { handle, location: boundedText(value.location, 'claim source location', 200) };
+}
+
+function calculation(value, allowedHandles) {
+  if (value == null) return null;
+  exactObject(value, ['expression', 'inputs', 'result'], 'calculation');
+  if (!Array.isArray(value.inputs) || value.inputs.length < 1 || value.inputs.length > 16) {
+    throw new TypeError('calculation inputs are invalid');
+  }
+  const inputs = value.inputs.map((input) => {
+    exactObject(input, ['label', 'value', 'unit', 'source'], 'calculation input');
+    if (!Number.isFinite(input.value)) throw new TypeError('calculation input value is invalid');
+    return { label: boundedText(input.label, 'calculation input label', 80), value: input.value,
+      unit: boundedText(input.unit, 'calculation input unit', 40),
+      source: sourceRef(input.source, allowedHandles) };
+  });
+  exactObject(value.result, ['value', 'unit'], 'calculation result');
+  if (!Number.isFinite(value.result.value)) throw new TypeError('calculation result value is invalid');
+  return { expression: boundedText(value.expression, 'calculation expression', 200), inputs,
+    result: { value: value.result.value, unit: boundedText(value.result.unit, 'calculation result unit', 40) } };
+}
+
+export function validateCompactClaimEvidence(input, { sourceManifestId, exactInputHandles } = {}) {
+  let serialized;
+  try { serialized = JSON.stringify(input); } catch { throw new TypeError('ClaimEvidence must be serializable'); }
+  if (Buffer.byteLength(serialized ?? '', 'utf8') > CLAIM_EVIDENCE_MAX_BYTES) {
+    throw new TypeError('ClaimEvidence exceeds 32KiB');
+  }
+  if (unsafeContent(input)) throw new TypeError('ClaimEvidence contains a raw path or secret');
+  exactObject(input, ['schema', 'sourceManifestId', 'coverage', 'claims', 'excludedFindings'], 'ClaimEvidence');
+  if (input.schema !== 't5.compact-claim-evidence.v1'
+    || input.sourceManifestId !== sourceManifestId) throw new Error('ClaimEvidence manifest is stale or foreign');
+  exactObject(input.coverage, ['state', 'observedHandles', 'unresolvedHandles'], 'ClaimEvidence coverage');
+  const observedHandles = boundedList(input.coverage.observedHandles, 'observedHandles', {
+    maxItems: MAX_SOURCES, maxLength: 80,
+  }).map((handle) => opaqueId(handle, 'observed handle'));
+  const unresolvedHandles = boundedList(input.coverage.unresolvedHandles, 'unresolvedHandles', {
+    maxItems: MAX_SOURCES, maxLength: 80, allowEmpty: true,
+  }).map((handle) => opaqueId(handle, 'unresolved handle'));
+  const expected = [...exactInputHandles].sort();
+  if (input.coverage.state !== 'complete' || unresolvedHandles.length
+    || JSON.stringify([...observedHandles].sort()) !== JSON.stringify(expected)) {
+    throw new Error('ClaimEvidence source coverage is incomplete');
+  }
+  if (!Array.isArray(input.claims) || input.claims.length < 1 || input.claims.length > 32) {
+    throw new TypeError('ClaimEvidence claims are invalid');
+  }
+  const claims = input.claims.map((claim) => {
+    exactObject(claim, ['claimId', 'state', 'summary', 'sourceRefs', 'calculation'], 'claim');
+    const state = boundedText(claim.state, 'claim state', 20);
+    if (!CLAIM_STATES.has(state)) throw new TypeError('claim state is invalid');
+    if (!Array.isArray(claim.sourceRefs) || claim.sourceRefs.length < 1 || claim.sourceRefs.length > 8) {
+      throw new TypeError('claim source references are invalid');
+    }
+    return { claimId: boundedText(claim.claimId, 'claimId', 80), state,
+      summary: boundedText(claim.summary, 'claim summary'),
+      sourceRefs: claim.sourceRefs.map((item) => sourceRef(item, exactInputHandles)),
+      calculation: calculation(claim.calculation, exactInputHandles) };
+  });
+  if (new Set(claims.map((claim) => claim.claimId)).size !== claims.length) {
+    throw new TypeError('ClaimEvidence claim IDs are duplicated');
+  }
+  if (!Array.isArray(input.excludedFindings) || input.excludedFindings.length > 32) {
+    throw new TypeError('excluded findings are invalid');
+  }
+  const excludedFindings = input.excludedFindings.map((finding) => {
+    exactObject(finding, ['findingId', 'reason', 'sourceRefs'], 'excluded finding');
+    if (!Array.isArray(finding.sourceRefs) || finding.sourceRefs.length < 1 || finding.sourceRefs.length > 8) {
+      throw new TypeError('excluded finding source references are invalid');
+    }
+    return { findingId: boundedText(finding.findingId, 'findingId', 80),
+      reason: boundedText(finding.reason, 'excluded finding reason'),
+      sourceRefs: finding.sourceRefs.map((item) => sourceRef(item, exactInputHandles)) };
+  });
+  if (new Set(excludedFindings.map((finding) => finding.findingId)).size !== excludedFindings.length) {
+    throw new TypeError('excluded finding IDs are duplicated');
+  }
+  return deepFreeze({ schema: input.schema, sourceManifestId: input.sourceManifestId,
+    coverage: { state: 'complete', observedHandles, unresolvedHandles: [] }, claims, excludedFindings });
+}
+
+function manifestReceipt(value, candidate) {
+  if (!value || value.state !== 'verified' || value.manifestId !== candidate.reality.sourceManifestId
+    || !Array.isArray(value.inputHandles)
+    || JSON.stringify([...value.inputHandles].sort())
+      !== JSON.stringify([...candidate.reality.exactInputHandles].sort())) {
+    throw new Error('source manifest verification failed');
+  }
+  return value;
+}
+
+export async function executeIntegralMethodCandidate(input, dependencies = {}) {
+  const { currentWork, sourceManifest, verifyCurrentSourceManifest, observeSource,
+    runMethod, independentVerify, publishResult = null, cleanup = async () => ({ state: 'cleaned' }),
+    signal = null } = dependencies;
+  const candidate = validateIntegralMethodCandidate(input, { currentWork, sourceManifest });
+  const admission = assessIntegralMethodAdmission({ currentWork, sourceManifest,
+    requestedEffect: candidate.method.expectedOutputs.some((item) => item.effect === 'managed_local_artifact')
+      ? 'managed_local_artifact' : 'observe' });
+  if (!admission.eligible) return { state: 'not_admitted', reason: admission.reason };
+  if (![verifyCurrentSourceManifest, observeSource, runMethod, independentVerify, cleanup]
+    .every((item) => typeof item === 'function')) throw new TypeError('Integral Method dependencies are incomplete');
+  let publication = null; let result; let cleanupResult;
+  try {
+    if (signal?.aborted) return { state: 'cancelled', publication: 'not_started' };
+    manifestReceipt(await verifyCurrentSourceManifest(), candidate);
+    const observations = [];
+    for (const handle of candidate.reality.exactInputHandles) {
+      if (signal?.aborted) return { state: 'cancelled', publication: 'not_started' };
+      const observed = await observeSource(handle);
+      if (!observed || observed.state !== 'observed' || observed.handle !== handle
+        || observed.coverage !== 'complete') return { state: 'observation_failed', handle, publication: 'not_started' };
+      observations.push(observed);
+    }
+    if (new Set(observations.map((item) => item.handle)).size !== candidate.reality.exactInputHandles.length) {
+      return { state: 'observation_failed', reason: 'duplicate_observation', publication: 'not_started' };
+    }
+    const guest = await runMethod(deepFreeze({ candidate, observations: deepFreeze(observations) }));
+    const verified = await independentVerify(deepFreeze({ candidate, observations, guest }));
+    if (!verified || verified.schema !== 't5.integral-method-verification.v1'
+      || verified.passed !== true) return { state: 'verification_failed', publication: 'not_started' };
+    const contractBinding = exactContractBinding(verified.contractBinding, candidate);
+    const claimEvidence = validateCompactClaimEvidence(verified.claimEvidence, {
+      sourceManifestId: candidate.reality.sourceManifestId,
+      exactInputHandles: candidate.reality.exactInputHandles,
+    });
+    manifestReceipt(await verifyCurrentSourceManifest(), candidate);
+    if (signal?.aborted) return { state: 'cancelled', publication: 'not_started' };
+    const requiresPublication = candidate.method.expectedOutputs.some(
+      (item) => item.effect === 'managed_local_artifact');
+    if (requiresPublication) {
+      if (typeof publishResult !== 'function') throw new TypeError('managed artifact publisher is unavailable');
+      const artifactPurpose = deepFreeze({ audience: candidate.human.audience,
+        usePurpose: candidate.human.useContext,
+        deliveryMedium: [...candidate.form.deliverableForms],
+        visualHierarchyGoals: [...candidate.form.visualHierarchyGoals] });
+      publication = await publishResult(deepFreeze({ candidate, verified, claimEvidence,
+        contractBinding, artifactPurpose }));
+      if (!publication || publication.state !== 'published_verified' || !publication.undoHandle
+        || publication.qualityQualified !== true
+        || JSON.stringify(publication.contractBinding) !== JSON.stringify(contractBinding)) {
+        return { state: 'publication_failed', publication: publication ?? 'unknown' };
+      }
+    }
+    result = { state: requiresPublication ? 'published_verified' : 'verified',
+      sourceUniverse: { coverage: 'complete', manifestId: candidate.reality.sourceManifestId,
+        observedHandles: [...candidate.reality.exactInputHandles] },
+      contractBinding, claimEvidence, publication };
+    return result;
+  } finally {
+    try { cleanupResult = await cleanup(); } catch { cleanupResult = { state: 'unknown' }; }
+    if (result) {
+      result.cleanup = cleanupResult?.state === 'cleaned' ? { state: 'cleaned' } : { state: 'unknown' };
+      if (result.state === 'published_verified' && result.cleanup.state === 'unknown') {
+        result.state = 'published_verified_cleanup_unknown';
+      }
+    }
+  }
+}

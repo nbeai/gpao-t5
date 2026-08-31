@@ -1,10 +1,10 @@
 # T5 NX — Integral Outcome, Mastery, Performance & Comparative Quality
 
-상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1A_BASELINE_FROZEN · NX_1B_QUALIFICATION_CONTRACT_COMPLETE · NX_1_FLAGSHIP_MASTERY_CURRENT`
+상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1A_BASELINE_FROZEN · NX_1B_QUALIFICATION_CONTRACT_COMPLETE · NX_1C_ORCHESTRATION_CONTRACT_COMPLETE · NX_1_FLAGSHIP_MASTERY_CURRENT`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
 현재 Gate: `NX-1 FIRST FLAGSHIP MASTERY · INTEGRAL OUTCOME METHOD`
-현재 작업: `qualification-only Integral Method 계약을 7/7로 닫고 12개 exact source의 Method 실행·독립 ClaimEvidence 검증을 구현`
+현재 작업: `NX-1C orchestration·ClaimEvidence를 14/14로 닫고 현재 observer·G·F·Artifact를 주입하는 AB/BA runner 구현`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -676,6 +676,22 @@ NX-1은 인문·전략·개발·디자인을 네 번 호출하는 개발이 아�
 - 회복: current Stop·restart·cleanup·Undo
 
 새 parser·Document Store·Artifact Store·program sandbox·completion engine을 만들지 않는다.
+
+2026-09-01 NX-1C qualification orchestration:
+
+- 오너 교정대로 `exactInputHandles ⊆ manifest`를 `exactInputHandles = manifest handles`로 강화했다. 일부만 필요하면 먼저
+  그 일부의 새 exact manifest를 결속해야 한다.
+- 실행은 source pre-verify→모든 handle exact 1회 관측→injected existing method body 1회→independent verifier→source
+  post-verify→필요한 경우 existing publisher→cleanup 순서만 결속한다. 새 executor는 없다.
+- guest exit 0·selfVerified는 독립 verifier 실패를 이기지 못하며 source 변화·Stop·불완전 coverage에서는 publication 0이다.
+- compact ClaimEvidence는 32KiB 이하, complete handle coverage, exact source location, 계산 입력·식·결과, normal/excluded
+  finding 분리를 보존한다.
+- human·strategy·form은 contract binding digest로 verifier에 결속되고, audience·useContext·deliverableForms·
+  visualHierarchyGoals는 publisher의 Artifact purpose 입력으로 전달된다. 각 축을 바꾸거나 무시하면 반대시험이 실제 RED다.
+- 현재 단계는 qualification helper와 dependency contract만 완료했다. 실제 G program·F Artifact 발행·blind 인간 평가는
+  아직 실행하지 않았으므로 제품 성능 우위를 주장하지 않는다.
+
+근거: `refoundation/evidence/nx1-integral-execution-qualification-2026-09-01.json`.
 
 #### 첫 허용 연산
 

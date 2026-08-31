@@ -94,13 +94,15 @@ test('NX-1B admission은 source manifest가 없거나 source 하나뿐인 Direct
     { eligible: true, reason: 'verified_multi_source_reality' });
 });
 
-test('NX-1B contract는 stale revision·foreign manifest·source escape를 실행 전에 거부한다', () => {
+test('NX-1B contract는 stale revision·foreign manifest·source set 부분집합·escape를 실행 전에 거부한다', () => {
   const stale = validCandidate(); stale.work.revision += 1;
   assert.throws(() => validateIntegralMethodCandidate(stale, { currentWork, sourceManifest }), /stale or foreign Work/u);
   const foreignManifest = validCandidate(); foreignManifest.reality.sourceManifestId = 'sources-99999999';
   assert.throws(() => validateIntegralMethodCandidate(foreignManifest, { currentWork, sourceManifest }), /stale or foreign/u);
-  const escape = validCandidate(); escape.reality.exactInputHandles.push('source-99999999');
-  assert.throws(() => validateIntegralMethodCandidate(escape, { currentWork, sourceManifest }), /escapes/u);
+  const subset = validCandidate(); subset.reality.exactInputHandles.pop();
+  assert.throws(() => validateIntegralMethodCandidate(subset, { currentWork, sourceManifest }), /equal the exact source manifest set/u);
+  const escape = validCandidate(); escape.reality.exactInputHandles[0] = 'source-99999999';
+  assert.throws(() => validateIntegralMethodCandidate(escape, { currentWork, sourceManifest }), /equal the exact source manifest set/u);
 });
 
 test('NX-1B contract는 6KiB 초과·열린 schema·raw path·secret·unsupported effect를 거부한다', () => {

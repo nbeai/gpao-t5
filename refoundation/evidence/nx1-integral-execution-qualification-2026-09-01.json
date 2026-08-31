@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "gate": "NX_1C_QUALIFICATION_ONLY_METHOD_ORCHESTRATION",
+  "status": "ORCHESTRATION_CONTRACT_COMPLETE_ACTUAL_AB_NEXT",
+  "recordedOn": "2026-09-01",
+  "contractCommit": "ab5bf703",
+  "ownerCorrections": {
+    "exactSourceSet": "Method exactInputHandles must equal the complete manifest handle set; a subset requires a newly bound exact manifest",
+    "nonDecorativeAxes": "human, strategy and form are exact-bound to independent verification; Artifact publication also receives human/form as purpose facts"
+  },
+  "executionOrder": [
+    "validate bounded Integral Method",
+    "verify exact current source manifest",
+    "observe every exact source handle once",
+    "run injected existing method body once",
+    "ignore guest exit zero and self verification as success evidence",
+    "independent ClaimEvidence verification",
+    "verify the exact source manifest again",
+    "publish only through an injected existing publisher when requested",
+    "settle cleanup separately"
+  ],
+  "currentRealityReused": {
+    "sources": 12,
+    "pdfAndXlsx": "current document-data-inspector",
+    "images": "exact bytes and metadata in focused orchestration; prior DR-0 macOS Vision OCR evidence reused",
+    "program": "injected existing G boundary; no new executor",
+    "publication": "injected existing F/Artifact boundary requiring published_verified, qualityQualified and Undo",
+    "productWiring": 0
+  },
+  "claimEvidence": {
+    "maxBytes": 32768,
+    "coverage": "complete exact handle set",
+    "states": ["supported", "conflict", "unknown"],
+    "sourceLocations": "opaque handle plus bounded exact location",
+    "calculationLineage": "numeric inputs with source references, expression and result",
+    "excludedFindings": "separate from core claims"
+  },
+  "countertests": {
+    "methodSourceSubset": "REJECTED",
+    "guestExitZeroVerifierFail": "PUBLICATION_ZERO",
+    "incompleteCoverage": "REJECTED",
+    "foreignClaimSource": "REJECTED",
+    "duplicateClaim": "REJECTED",
+    "sourceChangedAfterRun": "PUBLICATION_ZERO",
+    "stopBeforePublication": "PUBLICATION_ZERO_CLEANUP_ONCE",
+    "publicationSuccessCleanupFailure": "NO_REPUBLICATION_UNDO_PRESERVED",
+    "humanAudienceIgnored": "VERIFICATION_FAILED",
+    "strategyExcludedScopeIgnored": "VERIFICATION_FAILED",
+    "strategySufficientWhenIgnored": "VERIFICATION_FAILED",
+    "formInformationOrderIgnored": "VERIFICATION_FAILED",
+    "formVisualHierarchyIgnored": "VERIFICATION_FAILED"
+  },
+  "verification": {
+    "focused": { "tests": 14, "passed": 14, "failed": 0 },
+    "actualProductModelRun": false,
+    "actualArtifactPublication": false,
+    "actualBlindHumanEvaluation": false
+  },
+  "productChanges": 0,
+  "newExecutor": false,
+  "newStore": false,
+  "newRouter": false,
+  "globalPromptChanges": 0,
+  "next": "Build the AB/BA runner that injects current observers, the existing G/F/Artifact boundaries and actual gpt-5.5 without changing product entry."
+}
