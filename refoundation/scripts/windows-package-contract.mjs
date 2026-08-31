@@ -6,6 +6,25 @@ export function windowsProductVersion(packageMetadata) {
   return version;
 }
 
+export function windowsRuntimeMaterial(input, architecture) {
+  if (input?.schema !== 't5.windows-runtime-materials.v1'
+    || !/^\d+\.\d+\.\d+$/u.test(String(input.nodeVersion ?? ''))
+    || !['x64', 'arm64'].includes(architecture)) {
+    throw new TypeError('Windows runtime material is invalid');
+  }
+  const material = input.architectures?.[architecture];
+  let url;
+  try { url = new URL(String(material?.url)); } catch { throw new TypeError('Windows runtime material is invalid'); }
+  if (url.protocol !== 'https:' || url.hostname !== 'nodejs.org'
+    || !url.pathname.endsWith(`/win-${architecture}/node.exe`)
+    || !Number.isSafeInteger(material?.bytes) || material.bytes < 50 * 1024 * 1024
+    || !/^[a-f0-9]{64}$/u.test(String(material?.sha256 ?? ''))) {
+    throw new TypeError('Windows runtime material is invalid');
+  }
+  return Object.freeze({ version: input.nodeVersion, architecture, url: url.href,
+    bytes: material.bytes, sha256: material.sha256, source: String(input.source ?? '') });
+}
+
 export const WINDOWS_INSTALL_SCRIPT = String.raw`param(
   [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA 'Programs\GPAO-T5')
 )

@@ -7,7 +7,7 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 
-import { makeWindowsIconIco, windowsPeArchitecture, windowsProductVersion,
+import { makeWindowsIconIco, windowsPeArchitecture, windowsProductVersion, windowsRuntimeMaterial,
   WINDOWS_INSTALL_SCRIPT, WINDOWS_UNINSTALL_SCRIPT } from './windows-package-contract.mjs';
 import { assertFourthCycleDormantSourceExcluded, assertQualificationOnlySourceExcluded,
   removeFourthCycleDormantSource, removeQualificationOnlySource } from './product-source-boundary.mjs';
@@ -15,6 +15,7 @@ import { assertFourthCycleDormantSourceExcluded, assertQualificationOnlySourceEx
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..', '..');
 const version = windowsProductVersion(JSON.parse(await readFile(join(repo, 'package.json'), 'utf8')));
+const runtimeMaterials = JSON.parse(await readFile(join(repo, 'refoundation', 'config', 'windows-runtime-materials.json'), 'utf8'));
 const option = (name) => { const index = process.argv.indexOf(name); return index < 0 ? null : process.argv[index + 1]; };
 const architecture = option('--architecture') ?? process.arch;
 const run = (program, args, options = {}) => execFileSync(program, args, { encoding: 'utf8', ...options });
@@ -53,7 +54,9 @@ async function main(){
   const packageRoot=join(work,'package');const payload=join(packageRoot,'payload');const bin=join(payload,'bin');
   try{
     await mkdir(bin,{recursive:true});await copyRuntimeApp(join(payload,'app'));
-    if(windowsPeArchitecture(await readFile(nodeInput))!==architecture)throw new Error('Node runtime architecture does not match package architecture');
+    const runtimeMaterial=windowsRuntimeMaterial(runtimeMaterials,architecture);const nodeBytes=await readFile(nodeInput);
+    if(windowsPeArchitecture(nodeBytes)!==architecture)throw new Error('Node runtime architecture does not match package architecture');
+    if(nodeBytes.length!==runtimeMaterial.bytes||createHash('sha256').update(nodeBytes).digest('hex')!==runtimeMaterial.sha256)throw new Error('Node runtime does not match the pinned official material');
     await copyFile(nodeInput,join(bin,'node.exe'));
     compile(join(repo,'refoundation','native','windows','t5-windows-job-host.c'),join(bin,'t5-windows-job-host.exe'));
     compile(join(repo,'refoundation','native','windows','t5-windows-folder-picker.c'),join(bin,'t5-windows-folder-picker.exe'));
@@ -74,7 +77,7 @@ async function main(){
     ];
     const roles=Object.fromEntries(required.map(([role,path])=>[role,path.replaceAll('\\','/')]));
     const files=[];for(const exact of await walk(payload)){const path=relative(payload,exact).replaceAll('\\','/');files.push({path,bytes:(await stat(exact)).size,sha256:await sha256(exact)});}files.sort((a,b)=>a.path.localeCompare(b.path));
-    const manifest={schema:'t5.windows-product-payload.v1',product:'GPAO-T5',version,architecture,sourceCommit:run('git.exe',['rev-parse','HEAD'],{cwd:repo}).trim(),signed:false,roles,files};
+    const manifest={schema:'t5.windows-product-payload.v1',product:'GPAO-T5',version,architecture,sourceCommit:run('git.exe',['rev-parse','HEAD'],{cwd:repo}).trim(),signed:false,runtimeMaterial,roles,files};
     await writeFile(join(payload,'windows-product-manifest.json'),`${JSON.stringify(manifest,null,2)}\n`);
     await writeFile(join(packageRoot,'install.ps1'),WINDOWS_INSTALL_SCRIPT,'utf8');
     const out=join(repo,'dist');await mkdir(out,{recursive:true});const zip=join(out,`GPAO-T5-${version}-windows-${architecture}-unsigned.zip`);

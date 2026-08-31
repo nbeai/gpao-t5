@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import { makeWindowsIconIco, windowsPeArchitecture, windowsProductVersion,
+import { makeWindowsIconIco, windowsPeArchitecture, windowsProductVersion, windowsRuntimeMaterial,
   WINDOWS_INSTALL_SCRIPT, WINDOWS_UNINSTALL_SCRIPT } from '../scripts/windows-package-contract.mjs';
 
 test('Windows package version은 sealed root 제품 version을 사용하고 잘못된 값을 거부한다', async () => {
@@ -14,6 +14,21 @@ test('Windows package version은 sealed root 제품 version을 사용하고 잘�
   const source = await readFile(new URL('../scripts/build-windows-package.mjs', import.meta.url), 'utf8');
   assert.match(source, /windowsProductVersion\(JSON\.parse\(await readFile\(join\(repo, 'package\.json'/u);
   assert.doesNotMatch(source, /const version = '0\.3\.1'/u);
+});
+
+test('Windows Node runtime은 공식 x64 ARM64 source·bytes·SHA에 고정된다', async () => {
+  const materials = JSON.parse(await readFile(new URL('../config/windows-runtime-materials.json', import.meta.url), 'utf8'));
+  assert.deepEqual(windowsRuntimeMaterial(materials, 'x64'), {
+    version: '24.14.0', architecture: 'x64',
+    url: 'https://nodejs.org/dist/v24.14.0/win-x64/node.exe', bytes: 91380224,
+    sha256: '63c259c81e5d472b5f11c8d506070130cb04a1ecf84b80377a34ed6ec9048088',
+    source: 'https://nodejs.org/dist/v24.14.0/SHASUMS256.txt',
+  });
+  assert.equal(windowsRuntimeMaterial(materials, 'arm64').sha256,
+    '8c5fd45a4a1fd3cc4a6f07da8803b05194108906cb6fb7d962448a12582a5922');
+  assert.throws(() => windowsRuntimeMaterial({ ...materials, architectures: { x64: {
+    ...materials.architectures.x64, url: 'https://example.com/node.exe',
+  } } }, 'x64'), /material is invalid/u);
 });
 
 test('Windows installer는 incoming 검증 뒤 교체하고 실패하면 이전 설치만 복원한다', () => {

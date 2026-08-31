@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_WP0_WINDOWS_NODE_RUNTIME_MATERIAL",
+  "status": "COMPLETE_SOURCE_CONTRACT_PACKAGE_NOT_BUILT",
+  "baseCommit": "a6ae7ddc",
+  "nodeVersion": "24.14.0",
+  "materials": {
+    "x64": {
+      "url": "https://nodejs.org/dist/v24.14.0/win-x64/node.exe",
+      "bytes": 91380224,
+      "sha256": "63c259c81e5d472b5f11c8d506070130cb04a1ecf84b80377a34ed6ec9048088"
+    },
+    "arm64": {
+      "url": "https://nodejs.org/dist/v24.14.0/win-arm64/node.exe",
+      "bytes": 80470176,
+      "sha256": "8c5fd45a4a1fd3cc4a6f07da8803b05194108906cb6fb7d962448a12582a5922"
+    }
+  },
+  "source": "https://nodejs.org/dist/v24.14.0/SHASUMS256.txt",
+  "builder": {
+    "peArchitectureRequired": true,
+    "expectedBytesRequired": true,
+    "sha256Required": true,
+    "arbitraryNodeRuntimeAccepted": false
+  },
+  "nonClaims": ["Windows runtime downloaded", "Windows package built", "Node runtime executed on Windows"]
+}
