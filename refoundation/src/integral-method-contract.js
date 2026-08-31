@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 const MAX_SERIALIZED_BYTES = 6 * 1024;
 const MAX_SOURCES = 12;
 const MAX_TEXT = 500;
-const OPAQUE_ID = /^[a-z][a-z0-9-]{7,80}$/iu;
+const OPAQUE_ID = /^[a-z0-9][a-z0-9-]{7,80}$/iu;
 const OPERATORS = new Set([
   'select', 'filter', 'join', 'group', 'deduplicate', 'compare', 'reconcile',
   'aggregate', 'calculate', 'validate', 'order', 'format',

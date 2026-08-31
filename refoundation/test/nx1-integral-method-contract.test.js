@@ -117,6 +117,13 @@ test('NX-1B contract는 stale revision·foreign manifest·source set 부분집�
   assert.throws(() => validateIntegralMethodCandidate(escape, { currentWork, sourceManifest }), /equal the exact source manifest set/u);
 });
 
+test('제품 Work의 숫자로 시작하는 opaque UUID도 qualification 별칭과 같은 identity 계약으로 받는다', () => {
+  const input = validCandidate(); input.work.workId = '3e86a900-0aa2-487b-bc53-e1189eca956c';
+  const productWork = { ...currentWork, workId: input.work.workId };
+  assert.equal(validateIntegralMethodCandidate(input, { currentWork: productWork, sourceManifest })
+    .work.workId, input.work.workId);
+});
+
 test('NX-1B contract는 6KiB 초과·열린 schema·raw path·secret·unsupported effect를 거부한다', () => {
   const tooLarge = validCandidate(); tooLarge.human.purpose = '가'.repeat(6 * 1024);
   assert.throws(() => validateIntegralMethodCandidate(tooLarge, { currentWork, sourceManifest }), /6KiB/u);
