@@ -16,6 +16,8 @@ const candidateFiles = {
 };
 const output = argument('--output'); const mappingOutput = argument('--mapping-output');
 const seed = String(process.env.T5_NX1_BLIND_SEED ?? 'nx1-owner-blind-v1');
+const requestedScenarios = new Set(String(process.env.T5_NX1_BLIND_SCENARIOS
+  ?? Object.keys(candidateFiles).join(',')).split(',').map((item) => item.trim()).filter(Boolean));
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 const promptByScenario = new Map([
   ['purchase_reconciliation', '이 폴더의 발주·입고·세금계산서·거래명세를 서로 맞춰 보고, 실제로 확인된 누락이나 금액 차이만 근거 위치와 함께 알려줘.'],
@@ -29,7 +31,7 @@ const displayName = new Map([
 ]);
 const mapping = [];
 const sections = [];
-for (const scenarioId of Object.keys(candidateFiles)) {
+for (const scenarioId of Object.keys(candidateFiles).filter((id) => requestedScenarios.has(id))) {
   const currentResult = current.results.find((item) => item.scenarioId === scenarioId)?.arms
     ?.find((arm) => arm.arm === 'A');
   const candidate = JSON.parse(await readFile(candidateFiles[scenarioId], 'utf8'));

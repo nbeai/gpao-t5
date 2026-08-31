@@ -934,6 +934,19 @@ AND current correction·Stop·restart·Artifact·Undo 무회귀
 
 근거: `refoundation/evidence/nx1-density-performance-qualification-2026-09-01.json`.
 
+2026-09-01 blind 인간 평가 round 1:
+
+- current와 candidate identity를 숨기고 구매·계약·비용 결과를 독립 `결과 1/2`로 섞었다. 오너는 세 목적 모두 결과 2를
+  선택했고 mapping 공개 결과 candidate는 계약·비용에서 승리했지만 구매에서는 current에 졌다.
+- 정확성과 성능이 통과했어도 구매 인간 품질 패배를 숨기지 않고 product promotion을 중단했다. 첫 구매 후보는 같은 사실을
+  결론·상세·근거·계산에서 반복했고 영문 단위와 source 이름 없는 observer 위치를 노출했다.
+- Human Closure에 exact source display name과 사람이 읽는 page·image·sheet·cell 위치를 공급하고, 같은 사실을 반복하지
+  않는 가장 짧은 충분한 형식과 사용자 언어 단위를 요구하는 measured failure guard만 추가했다.
+- 구매 수리 actual은 정확성 PASS를 유지하며 1,260자·38줄에서 696자·7줄로 줄고 wall 51.974초·model 2·Tool 2였다.
+  계약·비용 PASS를 반복하지 않고 구매 한 목적만 두 번째 blind 평가한다.
+
+근거: `refoundation/evidence/nx1-blind-human-round1-2026-09-01.json`.
+
 ## NX-2 — Mastery Generalization
 
 NX-1이 이긴 경우에만 공통 Method를 다음으로 확장한다.

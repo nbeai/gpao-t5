@@ -145,6 +145,7 @@ test('Human Closure는 verified Claim subset과 모델 작성 finalAnswer를 세
 test('Human Closure는 부수 Claim을 선택하지 않을 수 있지만 핵심 답 누락은 qualification에서 실패한다', async () => {
   const verifiedReality = { currentWork: { workId: 'work-11111111', revision: 1, status: 'active' },
     sourceManifestId: 'sources-11111111', excludedFindingCount: 0,
+    sourceDisplayNames: { 'source-11111111': 'card-ledger.xlsx' },
     candidate: { human: {}, strategy: {}, form: {} },
     claimEvidence: { claims: [
       { claimId: 'purchase-gap', state: 'conflict', summary: '수량·금액 차이', sourceRefs: [], evidenceValues: [], calculation: null },
@@ -166,6 +167,7 @@ test('Human Closure는 부수 Claim을 선택하지 않을 수 있지만 핵심 
 test('Human Closure Context는 number·literal·calculation만 열고 긴 text atom은 근거로만 보존한다', async () => {
   const verifiedReality = { currentWork: { workId: 'work-11111111', revision: 1, status: 'active' },
     sourceManifestId: 'sources-11111111', excludedFindingCount: 0,
+    sourceDisplayNames: { 'source-11111111': 'card-ledger.xlsx' },
     evidenceAtomKinds: { 'atom-number': 'number', 'atom-number-copy': 'number',
       'atom-literal': 'literal', 'atom-text': 'text' },
     candidate: { human: { purpose: '차이', useContext: '검토', audience: '담당자' },
@@ -173,16 +175,18 @@ test('Human Closure Context는 number·literal·calculation만 열고 긴 text a
       form: { deliverableForms: ['answer'], informationOrder: ['결론'], visualHierarchyGoals: ['핵심'] } },
     claimEvidence: { claims: [{ claimId: 'claim-1', state: 'supported', summary: '차이', sourceRefs: [], calculation: null,
       evidenceValues: [
-        { valueId: 'atom-number', label: 'amount', value: 42000, unit: 'KRW', source: { location: 'D4' } },
-        { valueId: 'atom-number-copy', label: 'same amount', value: 42000, unit: 'KRW', source: { location: 'p1' } },
-        { valueId: 'atom-literal', label: 'id', value: 'C-102', unit: '', source: { location: 'A4' } },
-        { valueId: 'atom-text', label: 'source sentence', value: 'The invoice total is the evidence amount.', unit: '', source: { location: 'p1' } },
-        { valueId: 'calc-gap', label: 'difference', value: 1000, unit: 'KRW', source: { location: 'calc' } },
+        { valueId: 'atom-number', label: 'amount', value: 42000, unit: 'KRW', source: { handle: 'source-11111111', location: 'sheet:Card Ledger!D4' } },
+        { valueId: 'atom-number-copy', label: 'same amount', value: 42000, unit: 'KRW', source: { handle: 'source-11111111', location: 'page:1:line:5' } },
+        { valueId: 'atom-literal', label: 'id', value: 'C-102', unit: '', source: { handle: 'source-11111111', location: 'sheet:Card Ledger!A4' } },
+        { valueId: 'atom-text', label: 'source sentence', value: 'The invoice total is the evidence amount.', unit: '', source: { handle: 'source-11111111', location: 'page:1:line:6' } },
+        { valueId: 'calc-gap', label: 'difference', value: 1000, unit: 'KRW', source: { handle: 'source-11111111', location: 'calculation:gap' } },
       ] }] } };
   const context = (await import('./helpers/nx-integral-flagship-qualification.js'))
     .nx1HumanClosureRuntimeContext(verifiedReality);
   assert.doesNotMatch(context, /atom-number|atom-literal|calc-gap|atom-number-copy/u);
   assert.match(context, /42000|C-102|1000/u);
+  assert.match(context, /card-ledger\.xlsx|sheet Card Ledger, cell D4/u);
+  assert.doesNotMatch(context, /sheet:Card Ledger!D4/u);
   assert.doesNotMatch(context, /atom-text|invoice total is the evidence amount/iu);
 });
 

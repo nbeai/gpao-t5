@@ -30,7 +30,8 @@ export const NX1_HUMAN_CLOSURE_INSTRUCTIONS = [
   'Use only the supplied verified claims. Call human_closure exactly once and write the complete finalAnswer in that same call.',
   'Select the smallest sufficient subset of verified claims for the requested scope, then write only the material facts needed for the user decision.',
   'Do not mention excluded findings, internal systems, handles, tools, or unavailable file access.',
-  'Keep the result easy to scan: conclusion, material differences, exact evidence, and immediate action only when supported.',
+  'Use the shortest form that preserves the requested facts and evidence; do not repeat the same fact across summary, table, detail, and calculation.',
+  'Write ordinary units and source descriptions naturally in the user language.',
   'There is no third model call.',
 ].join(' ');
 
@@ -204,6 +205,7 @@ export function makeNx1IntegralTool({ reality, scenarioId } = {}) {
         latestVerifiedReality = { candidate, claimEvidence: result.claimEvidence,
           contractBinding: result.contractBinding, currentWork: reality.currentWork,
           sourceManifestId: reality.sourceManifest.manifestId,
+          sourceDisplayNames: Object.fromEntries(reality.records.map((record) => [record.handle, record.displayName])),
           evidenceAtomKinds: Object.fromEntries(reality.evidenceAtoms.map((atom) => [atom.atomId, atom.kind])),
           excludedFindingCount: result.claimEvidence.excludedFindings.length };
         latestModelProjection = {
@@ -240,13 +242,30 @@ export function nx1HumanClosureRuntimeContext(verified) {
     `claims=${JSON.stringify(verified.claimEvidence.claims.map((claim) => ({ claimId: claim.claimId,
       state: claim.state, summary: claim.summary,
       evidenceValues: humanSelectableEvidenceValues(verified, claim).map((item) => ({
-        label: item.label, value: item.value, unit: item.unit, sourceLocation: item.source.location })),
-      calculation: claim.calculation, sourceLocations: claim.sourceRefs.map((item) => item.location) })))}`,
+        label: item.label, value: item.value, unit: item.unit,
+        source: humanSourceReference(verified, item.source) })),
+      calculation: claim.calculation,
+      sources: claim.sourceRefs.map((item) => humanSourceReference(verified, item)) })))}`,
     `excludedFindingCount=${verified.excludedFindingCount}`,
     '[T5 NX HUMAN CLOSURE CONTRACT]',
     'Call human_closure exactly once. Select only the verified claims required by the user scope and write the complete finalAnswer in the same tool call.',
     'Do not mention excluded findings, internal handles, tools, runtime state, or missing file access. There will be no third model call.',
   ].join('\n\n');
+}
+
+function humanSourceReference(verified, source = {}) {
+  const displayName = verified.sourceDisplayNames?.[source.handle] ?? 'verified source';
+  const location = String(source.location ?? '');
+  const sheet = location.match(/^sheet:([^!]+)!([A-Z]{1,3}[1-9][0-9]{0,6})$/u);
+  if (sheet) return { document: displayName, location: `sheet ${sheet[1]}, cell ${sheet[2]}` };
+  const pageLine = location.match(/^page:(\d+):line:(\d+)$/u);
+  if (pageLine) return { document: displayName, location: `page ${pageLine[1]}, line ${pageLine[2]}` };
+  const imageLine = location.match(/^image:[^:]+:line:(\d+)$/u);
+  if (imageLine) return { document: displayName, location: `image line ${imageLine[1]}` };
+  if (location.startsWith('calculation:') || location.startsWith('difference:')) {
+    return { document: displayName, location: 'verified calculation' };
+  }
+  return { document: displayName, location: location.slice(0, 120) || 'observed section' };
 }
 
 function humanSelectableEvidenceValues(verified, claim) {

@@ -1,0 +1,52 @@
+{
+  "schema": "t5.nx1.blind-human-evaluation.v1",
+  "recordedOn": "2026-09-01",
+  "actualUserData": false,
+  "evaluatorSawIdentity": false,
+  "ownerSelections": {
+    "purchase_reconciliation": "result2",
+    "contract_revision": "result2",
+    "expense_evidence": "result2"
+  },
+  "revealedMapping": {
+    "purchase_reconciliation": {
+      "result1": "candidate",
+      "result2": "current"
+    },
+    "contract_revision": {
+      "result1": "current",
+      "result2": "candidate"
+    },
+    "expense_evidence": {
+      "result1": "current",
+      "result2": "candidate"
+    }
+  },
+  "outcome": {
+    "candidateWins": ["contract_revision", "expense_evidence"],
+    "currentWins": ["purchase_reconciliation"],
+    "overall": "PARTIAL_TWO_OF_THREE",
+    "productPromotion": "BLOCKED_BY_PURCHASE_HUMAN_QUALITY"
+  },
+  "observedPurchaseGap": [
+    "candidate repeated the same facts across conclusion, sections, evidence, and calculations",
+    "candidate used English units in a Korean answer",
+    "candidate exposed observer-style page and sheet locations without source display names"
+  ],
+  "boundedRepair": [
+    "project source display names and human-readable page, image, sheet, and cell facts into Human Closure",
+    "ask the final model to use the shortest form preserving requested facts and evidence",
+    "ask the final model to express ordinary units and source descriptions in the user language"
+  ],
+  "purchaseRepairActual": {
+    "machineResult": "PASS",
+    "wallMs": 51974.426,
+    "modelCalls": 2,
+    "toolCalls": 2,
+    "answerCharacters": 696,
+    "answerLines": 7,
+    "priorCandidateCharacters": 1260,
+    "priorCandidateLines": 38,
+    "next": "PURCHASE_ONLY_BLIND_REVIEW"
+  }
+}
