@@ -1,10 +1,10 @@
-# T5 NX — Mastery, Performance & Comparative Quality
+# T5 NX — Integral Outcome, Mastery, Performance & Comparative Quality
 
 상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FLAGSHIP_MASTERY_CURRENT`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
-현재 Gate: `NX-1 FIRST FLAGSHIP MASTERY · REALITY SCOUT AND METHOD CAPSULE`
-현재 작업: `혼합 문서 정산 Mission에서 현재 성공 경로를 실제로 능가하는 격리 Mastery 후보 제작`
+현재 Gate: `NX-1 FIRST FLAGSHIP MASTERY · INTEGRAL OUTCOME METHOD`
+현재 작업: `혼합 문서 정산 Mission에서 인문·전략·개발·디자인을 한 Method로 결속해 현재 성공 경로를 실제로 능가하는 격리 후보 제작`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -21,6 +21,31 @@ NX는 7차라는 숫자 변경이 아니다.
 > T5 NX는 1~6차에서 완성한 현실·권한·실행·검증·복구 Core를 계승하고, 같은 모델과 컴퓨터를 사용해도 사용자의
 > 목적을 더 빨리 파악하고 더 적은 시행착오로 정확하게 완수하며, 숫자·문서·디자인·프로그램·자동화에서 비교
 > 우위의 결과물을 만드는 컴퓨터 안드로이드다.
+
+## 1.1 T5 NX의 중심 함수
+
+T5 NX의 기능·성능·사용자 경험은 다음 네 관점을 더하는 것이 아니라 동시에 만족시키는 곱으로 판정한다.
+
+```text
+인간 성과 가치
+=
+인문적 의미 적합성
+× 전략적 효과
+× 기술적 현실성
+× 미학적 완성도
+────────────────────
+시간 + 비용 + 위험 + 사용자 인지 부담
+```
+
+- **인문적 의미 적합성**: 현재 사용자가 실제로 원하는 변화·맥락·사용처·부담을 놓치지 않는다.
+- **전략적 효과**: 본질·우선순위·범위·충분한 완료를 골라 중요하지 않은 행동을 줄인다.
+- **기술적 현실성**: 현재 source·권한·Hand·실행·Effect·복구로 실제 성립하는 결과만 만든다.
+- **미학적 완성도**: 언어·정보 구조·시간 흐름·시각·상호작용을 인간이 빠르게 이해하고 편하게 쓰는 형태로 만든다.
+
+이 식은 Runtime의 숫자 점수나 네 명의 고정 Agent가 아니다. 모델이 현재 사용자 목적에서 하나의 선택을 할 때 보는 네
+차원이며, Runtime은 그 선택에 필요한 현실·비용·관측·불변식만 공급한다.
+
+> 논리는 현실과의 정합을, 미학은 인간과의 정합을 책임진다. 어느 한쪽의 성공만으로 기능 완료를 주장하지 않는다.
 
 ---
 
@@ -369,6 +394,127 @@ mastery:
 Runtime은 미적·경영적 의미를 선택하지 않는다. deterministic structure·formula·geometry·render·source coverage를
 관측하고, 모델과 blind human evaluation이 품질을 판정한다.
 
+## 6.5 현재 제품 경계 전수 대조
+
+통합 성과 지능은 새 기관을 무조건 추가하는 개발이 아니다. 현재 제품에는 네 축의 상당 부분이 이미 다음 경계로 서
+있다. 아래 책임을 다시 만들지 않는다.
+
+| 현재 경계 | 이미 선 책임 | 통합 성과 개발에서의 처리 |
+|---|---|---|
+| `interaction-core.js` v5 | 현재 목적·사실/추정 분리·상황·사람·우선순위·최소 깊이·자연 종료 | 인문·전략 Prompt를 추가하지 않고 baseline으로 사용 |
+| `console-model-factory.js` | 제품 불변식·도구별 실측 실패 규율·현재 98줄/29,362 bytes instruction family | 네 역할의 장문 전역 Prompt 추가 금지; 후보는 global bytes 증가 0 |
+| `information-context.js`·`conversation-projection.js` | 현재 목적 중심 과거 Context·ToolReceipt·Browser observation 축약 | 새 Context Store 없이 다음 판단을 바꾸는 통합 성과 delta만 투영 |
+| `work-store.js`·`input-settlement-scope.js` | Work revision·동시 입력·교정·취소·완료·전달 identity | 새 Work Store 금지; 후보 상태가 필요하면 같은 revision event로만 결속 |
+| `resource-controller.js`·`resource-situation.js` | wall·model/Tool·tokens·bytes·새/반복 Evidence·unknown 계측 | 사람·전략·미학의 의미 점수를 Runtime에 추가하지 않음; 실제 비용 사실만 재사용 |
+| `file-reality-tool.js`·Document observer | source identity·revision·coverage·OCR·구조 관측 | Reality Scout와 exact source universe에 재사용 |
+| D·E·F·G·Terminal | 실행·대출력·격리·confinement·transaction·program·cleanup | Method의 몸으로 재사용; 새 executor를 먼저 만들지 않음 |
+| `artifact-quality-qualification.js` | audience·usePurpose·deliveryMedium·source facts·visual hierarchy·screen/print QA | 디자인·사용 품질 계약을 여기에 결속; 별도 Design Store 금지 |
+| `work-completion-tool.js` | 모델의 목적 완료 제안과 Runtime blocker 검증 | Reality Closure 유지; Runtime이 Human Closure 문장을 대신하지 않음 |
+| `progress-language.js`·Console | 실제 사건 기반 진행·stream·Stop·Artifact·Undo | 시간 미학과 통제감의 현재 표면으로 재사용 |
+| Learning·Reflection·Skill | 실제 field evidence·비교·승격·rollback | 한 번의 좋은 결과나 스타일 선호를 즉시 영구화하지 않음 |
+
+현재 실제 연결 미달은 다음 네 가지다.
+
+1. 인문·전략 원리는 Interaction instruction에 있으나 현재 Work의 Method·산출물 품질 계약과 exact identity로 이어지지
+   않는다.
+2. Resource는 비용과 Evidence를 정확히 재지만 어떤 행동이 현재 인간 성과에 더 큰 가치가 있는지는 모델이 매 Turn
+   다시 구성한다.
+3. Artifact 품질 계약은 강하지만 주로 제작 말단에서 열려, 처음 source·방법을 고를 때의 인간 사용처와 시각·언어
+   형식이 같은 계약으로 이어지지 않는다.
+4. Reality Closure는 강하지만 Human Closure는 final answer에만 남아, 정확하지만 범위가 넓거나 사용자가 다시
+   정리해야 하는 결과도 기술적으로 완료될 수 있다.
+
+따라서 새 개발의 단위는 네 Agent나 네 Engine이 아니라 하나의 **Work-scoped Integral Outcome Method**다.
+
+## 6.6 Integral Outcome Method
+
+복합 Work에서 모델이 한 번 선택한 인간 목적·전략적 범위·실행 방법·결과 형식을 같은 revision에 결속하고,
+Runtime이 기존 Hand로 실행·관측·발행한다.
+
+```yaml
+schema: t5.integral-outcome-method.v1
+work:
+  workId:
+  revision:
+human:
+  purpose:
+  useContext:
+  audience:
+strategy:
+  primaryOutcome:
+  requestedScope:
+  excludedScope:
+  sufficientWhen:
+reality:
+  sourceManifestId:
+  exactInputHandles:
+  unresolvedFacts:
+method:
+  operators:
+  checks:
+  expectedOutputs:
+form:
+  deliverableForms:
+  informationOrder:
+  visualHierarchyGoals:
+```
+
+계약 규율:
+
+- 모델의 내부 사고 원문이 아니라 실행과 결과를 구속하는 작은 외부 계약이다.
+- 전체 JSON은 6KiB 이하, 각 목록은 bounded하며 절대경로·원문 전체·비밀·새 사용자 추론을 담지 않는다.
+- `workId·revision·sourceManifestId·input handles`는 Runtime이 exact current reality로 검증한다.
+- `purpose·priority·scope·form`의 의미는 모델이 소유한다. Runtime은 미적·전략적 정답을 점수화하지 않는다.
+- current correction으로 Work revision이 바뀌면 이전 계약은 stale이며 자동 적용하지 않는다.
+- Direct·단일 Hand·단순 질문에는 만들지 않는다.
+- 별도 orientation model call을 만들지 않는다. 모델이 Method를 선택한 기존 Turn의 한 Tool call로 계약과 실행을 함께
+  제안한다.
+- 정상 제품 요청마다 별도 평가 Agent를 호출하지 않는다. 현재 final model turn과 existing observers를 재사용한다.
+
+흐름:
+
+```text
+사용자 원문·현재 교정
+→ 모델이 직접 답 / 한 Hand / Integral Method 중 선택
+→ exact source universe가 필요하면 Reality Scout
+→ 한 Tool call로 Integral Outcome Method 결속
+→ bounded observer·filter·join·reconcile·calculate·render·verify
+→ compact ClaimEvidence + Artifact quality facts
+→ Reality Closure + Human Closure
+→ 모델의 자연어·표·문서·Preview·Download·Undo
+```
+
+이 구조의 속도 이익은 더 작은 모델을 쓰거나 검증을 빼서 얻지 않는다.
+
+- 인문: 잘못 이해한 일을 하는 왕복 제거
+- 전략: 결과를 바꾸지 않는 source·조사·검증 제거
+- 개발: deterministic 반복을 모델 현장 감독 없이 수행
+- 디자인: 사용자가 다시 정리·설명·수정하는 비용 제거
+
+## 6.7 두 종류의 완료
+
+### Reality Closure
+
+- exact source·revision·coverage
+- calculation·unit·date lineage
+- actual execution·Effect·Artifact·Delivery
+- unknown·partial·stale·failed
+- Stop·restart·Undo
+
+기존 Receipt·Work completion·Artifact qualification이 담당한다.
+
+### Human Closure
+
+- 사용자가 원한 변화와 결과 사용처에 맞음
+- 핵심과 범위가 정확하며 정상·제외 항목을 불필요하게 전면화하지 않음
+- 결론·근거·미확인·다음 행동의 순서가 현재 목적에 적합함
+- 언어·표·숫자·시각·진행 흐름이 이해 가능하고 바로 사용 가능함
+- 추가 설명·교정·재가공 부담이 baseline보다 작음
+
+Human Closure는 모델과 독립 인간 qualification이 판정한다. Runtime은 이 의미를 boolean으로 만들거나 final answer를
+갈아치우지 않는다. Artifact가 있을 때는 기존 `ArtifactPurposeContract`의 `audience·usePurpose·deliveryMedium·
+visualHierarchyGoals`와 같은 사실로 결속한다.
+
 ---
 
 ## 7. 현재 실제 기준선
@@ -433,44 +579,207 @@ Runtime은 미적·경영적 의미를 선택하지 않는다. deterministic str
 
 현재 DR-0 구매·계약·비용 packet과 hidden oracle을 재사용한다.
 
-### NX-1A Reality Scout
+NX-1은 인문·전략·개발·디자인을 네 번 호출하는 개발이 아니다. 같은 모델 Turn에서 `Integral Outcome Method` 하나를
+결속하고 기존 T5의 신체가 고밀도로 실행하는 첫 제품 자격이다.
+
+### NX-1A — Baseline & Human Oracle
+
+제품 변경 0으로 현재 세 packet을 exact head에서 한 번 재생하고 기존 증거가 현재와 같으면 재사용한다.
+
+기계 Oracle:
+
+- source identity·revision·coverage
+- expected difference·missing·duplicate·excluded·normal
+- exact 계산과 source location
+- output file content·formula·render·Artifact·Undo
+- first acknowledgement·first evidence·first usable result·final
+- model calls·Tool calls·tokens·request bytes·wall
+
+인간 Oracle은 결과만 보고 다음을 독립 판정한다.
+
+| 축 | 질문 |
+|---|---|
+| 인문 | 사용자가 실제로 알고 결정해야 할 것을 다뤘는가 |
+| 전략 | 핵심 원인·범위·우선순위·조치가 명확한가 |
+| 개발 | 모든 수치·근거·파일이 실제로 맞고 다시 열리는가 |
+| 디자인 | 읽는 순서·표·공간·강조·언어가 빠른 이해와 즉시 사용을 돕는가 |
+
+같은 evaluator가 후보 source나 내부 method를 보지 않으며, current T5와 candidate 결과의 순서를 무작위로 바꾼다.
+각 결과를 본 evaluator에게 hidden oracle의 세 질문인 `전체 차이`, `가장 큰 원인`, `바로 할 행동`을 답하게 하고,
+정답률·답을 찾는 시간·되돌아본 표/페이지 수를 함께 잰다. “보기 좋다”는 선호만으로 디자인 우위를 주장하지 않는다.
+
+### NX-1B — Reality Scout
 
 - Ordinary 표현에서 관련 source 후보를 local-only로 bounded 발견
 - packet 밖 control·무관 source를 후보 reason과 함께 구분
 - 최대 5개 metadata·relation 후보만 모델에 공급
-- candidate가 없는 Direct holdout Context 증가 0
+- candidate score를 truth로 사용하지 않음
+- packet 선택 뒤 기존 `file_reality bind_sources`로 exact source universe 결속
+- candidate가 없는 Direct holdout Context·Tool schema·model calls 증가 0
 
-### NX-1B Method Capsule
+반대시험:
 
-- exact selected source universe
-- PDF·XLSX·이미지 observation
-- identity·revision·coverage
-- relation·value·date·quantity join
-- duplicate·missing·excluded·conflicting
-- calculation·ClaimEvidence
-- intermediate 원문 전체의 model Context 반복 0
+- 같은 이름의 무관 자료가 더 최신이어도 자동 선택하지 않음
+- packet 밖 정상 control을 핵심 결과 source로 승격하지 않음
+- source revision이 바뀌면 이전 후보·Method·결과를 stale 처리
+- “자료 없이 의견만” 같은 Direct 요청에서 Scout 실행 0
 
-### NX-1C Quality Closure
+### NX-1C — Integral Method Candidate
 
-- 사용자가 요구한 차이·누락만
-- 정상·excluded control은 결과 scope에서 제외하되 근거에는 보존
-- 경영 요약·전체 대사표·문의·조치 목록
-- exact page/sheet/row/cell source
-- XLSX + PDF/DOCX 결과
-- Preview·Download·Version·Undo
+#### 자격 단계 파일 책임
 
-### NX-1 합격
+제품 배선 전에 다음 qualification-only 경계에서 후보를 만든다.
 
-현재 successful baseline과 비교한다.
+| 파일 | 책임 |
+|---|---|
+| `refoundation/test/helpers/nx-integral-method-candidate.js` | 6KiB bounded 계약 검증·exact handle 결속·후보 실행 |
+| `refoundation/scripts/run-nx1-integral-flagship.mjs` | 동일 fixture/model/source로 baseline·candidate AB/BA 실행 |
+| `refoundation/test/nx1-integral-method-contract.test.js` | schema·stale revision·source escape·Direct 비개입 반대시험 |
+| `refoundation/test/nx1-integral-method-result.test.js` | ClaimEvidence·scope·Artifact·cleanup·Undo 반대시험 |
+| `refoundation/evidence/nx1-integral-flagship-*.json` | content-free 성능·정확성·품질 판정 증거 |
+
+후보가 실제 우위를 증명하기 전 `console-server.js·agent-loop.js·interaction-core.js·work-store.js` 제품 배선은 0이다.
+
+#### Method가 재사용할 현재 능력
+
+- source 선택·identity: `file_reality bind_sources`와 source manifest
+- PDF·XLSX·이미지: 현재 document observer·OCR·visual observation
+- bounded program: G의 snapshot·QuickJS/Python·independent observer
+- publish: F transaction·atomic publication
+- 품질: `ArtifactPurposeContract`와 trusted observers
+- 완료: Work completion·Artifact handoff
+- 회복: current Stop·restart·cleanup·Undo
+
+새 parser·Document Store·Artifact Store·program sandbox·completion engine을 만들지 않는다.
+
+#### 첫 허용 연산
 
 ```text
-핵심 사실·source·coverage 100% 유지
-AND strict requested scope PASS
-AND false missing·normal item 0
-AND first useful·wall·model rounds·Tool rounds 개선
-AND blind 인간 결과 품질 우위
-AND current correction·Stop·Undo 무회귀
+select · filter · join · group · deduplicate
+compare · reconcile · aggregate · calculate
+validate · order · format
 ```
+
+- 입력은 exact observer output과 source handles만 사용한다.
+- source 원문 전체를 매 model Turn에 다시 보내지 않는다.
+- method program의 exit 0·자체 JSON은 성공 근거가 아니다.
+- 독립 observer가 전체 source coverage·계산·excluded/normal 분리를 다시 확인한다.
+- 외부 network·secret·Browser·새 상대 전송·결제·파괴는 NX-1 범위 밖이다.
+
+### NX-1D — Dual Quality Closure
+
+#### Reality Closure
+
+- 핵심 사실·source·coverage 100%
+- false missing·false duplicate·wrong normal 0
+- exact page/sheet/row/cell 또는 image observation 위치
+- stale source·partial read·observer failure를 success로 합치지 않음
+- 산출물 readback·Artifact handoff·Undo
+
+#### Human Closure
+
+결과 순서는 고정 템플릿이 아니라 현재 목적에서 모델이 선택한다. 다만 다음 내용이 실제 사용 가능해야 한다.
+
+- 가장 중요한 결론과 금액·차이
+- 차이를 만든 항목과 영향
+- 요청 범위 전체를 덮는 대사표
+- 중요한 미확인과 결과 영향
+- 바로 가능한 문의·수정·의사결정
+
+디자인 기본기:
+
+- 한눈에 결론→근거→행동의 위계가 보임
+- 숫자·단위·기간의 typography와 정렬이 일관됨
+- 정상·제외 항목은 근거에는 남지만 핵심 결과의 시선을 빼앗지 않음
+- 표가 screen·print에서 잘리지 않고 header·subtotal·unknown이 구분됨
+- 색은 의미와 상태에만 사용하고 장식을 위해 수치를 왜곡하지 않음
+- XLSX와 PDF/DOCX가 같은 source·계산·version을 가리킴
+
+기존 `ArtifactPurposeContract`에 현재 Method의 `audience·usePurpose·deliveryMedium·visualHierarchyGoals`를 결속한다.
+별도 미학 boolean이나 모델 자기 칭찬을 품질 증거로 사용하지 않는다.
+
+### NX-1E — Product Activation Contract
+
+qualification A/B가 통과한 뒤에만 최소 제품 배선을 연다.
+
+1. 제품 코드는 `refoundation/src/integral-method-contract.js`와
+   `refoundation/src/integral-method-runtime.js` 두 경계로만 승격한다.
+2. `integral_method`는 deferred capability다. Direct와 첫 기본 Tool surface에는 나타나지 않는다.
+3. 활성 후보 사실은 사용자 문장 정규식이 아니라 다음 current reality다.
+   - active Work revision
+   - current exact source manifest
+   - 지원되는 observer 조합
+   - observe 또는 managed local artifact effect
+4. 모델은 다음 Turn에서 현재 경로와 Integral Method 중 선택한다. Runtime은 사용을 강제하지 않는다.
+5. 실제 live A/B에서 모델이 Method를 선택하지 않으면 기능 완료가 아니다. 설명 문구를 세 번째로 붙이지 않고 activation
+   구조를 재판정한다.
+6. Method를 선택한 Turn 자체가 계약 제안이므로 별도 orientation model call은 0이다.
+7. 내부 단계는 existing Run·Tool·Effect receipt를 유지하되 모델에는 compact ClaimEvidence 한 번만 투영한다.
+8. current correction으로 revision이 바뀌면 진행 중 Method를 Stop 또는 stale로 정산하고 새 목적에서 재선택한다.
+9. normal product path에 별도 planner·critic·designer Agent call을 추가하지 않는다.
+10. 후보를 제거하면 global Prompt·Tool surface·Store·payload delta가 0이어야 한다.
+
+제품 배선 예상 변경점:
+
+| 파일 | 허용 변경 |
+|---|---|
+| `console-server.js` | current source-manifest 사실에서 deferred Method surface를 여는 최소 배선 |
+| `agent-loop.js` | 기존 Tool call·Receipt 흐름 재사용; 전용 분기 추가는 필요할 때만 |
+| `work-store.js` | restart에 필요할 경우 같은 Work revision의 method event만 추가; 새 Store 금지 |
+| `artifact-quality-qualification.js` | 새 requirement kind보다 기존 audience/use/visual goal 결속 우선 |
+| `interaction-core.js` | 기본 후보는 변경 0; 실측 중복 제거가 증명된 경우에만 기존 family 교체 |
+| `instruction-family-manifest.json` | 전역 문장이 실제로 바뀐 경우 기존 family provenance와 함께 갱신 |
+
+### NX-1F — Actual A/B & Promotion
+
+#### 실행 순서
+
+```text
+deterministic RED
+→ qualification candidate
+→ 구매 AB / BA
+→ 계약 BA / AB
+→ 비용 AB / BA
+→ Ordinary wording holdout
+→ current correction·Stop·Undo holdout
+→ Direct·서울 날씨·단일 파일 비개입
+→ 최소 제품 배선
+→ 같은 live matrix 재실행
+→ 전체 CI 1회
+```
+
+같은 source·model·fixture를 사용하며 provider 장애·sandbox 제약은 제품 실패와 분리한다. 실패한 환경을 통과시키기 위해
+fixture·권한·oracle을 완화하지 않는다.
+
+#### 합격 기준
+
+```text
+세 packet 핵심 사실·source·coverage 100%
+AND 세 packet strict requested scope PASS
+AND false missing·normal·excluded 핵심 노출 0
+AND stale·partial·unknown false completion 0
+AND median first useful wall 20% 이상 개선
+AND median final wall 20% 이상 개선
+AND median model rounds 20% 이상 개선
+AND median provider tokens 20% 이상 개선
+AND Tool rounds 증가 없음 또는 증가 이유가 독립 품질 우위로 설명됨
+AND blind 인간 평가에서 인문·전략·디자인 세 축 모두 baseline 우위
+AND 질문·교정·클릭·재가공 부담 증가 0
+AND Direct·단일 Hand의 Context·schema·calls·wall 유의미한 회귀 0
+AND current correction·Stop·restart·Artifact·Undo 무회귀
+```
+
+인간 평가는 최소 3명, 결과 순서 blind, 각 packet별 다수 선호로 판정한다. 미세한 취향 차이를 제품 실패로 만들지 않되,
+핵심 이해 속도·즉시 사용성·다시 맡길 의향이 baseline보다 낮으면 승격하지 않는다.
+
+#### 폐기·재설계
+
+- 정확성을 잃고 속도만 좋아지면 폐기
+- 결과는 좋지만 Direct에 상주 비용을 만들면 activation 재설계
+- 한 packet 전용 column·회사명·업무 Router가 필요하면 일반화 실패
+- 네 역할을 네 Agent로 분리해 비용이 증가하면 폐기
+- Method가 current user correction을 덮으면 폐기
+- 품질 개선이 Prompt 문체 효과뿐이고 다른 모델·표현에서 사라지면 승격 금지
 
 현재 baseline 숫자는 목표가 아니라 반드시 이겨야 할 비교선이다.
 
@@ -484,6 +793,25 @@ NX-1이 이긴 경우에만 공통 Method를 다음으로 확장한다.
 4. 계약 revision
 
 업종별 workflow를 만들지 않고 source selection·relation·reconciliation·ClaimEvidence·Quality Closure 공통 원리를 확인한다.
+
+그 뒤 통합 성과 함수가 특정 정산 업무가 아니라 T5 전체에서 비례적으로 작동하는지 다섯 lane으로 자격한다.
+
+| lane | 대표 사용자 문장 | 기대 작동 |
+|---|---|---|
+| Direct | “이 생각에 대해 어떻게 봐?” | Work·Method·Tool 0, 의미와 언어 품질만 높음 |
+| Single Reality | “서울 오늘 날씨 알려줘.” | 한 Hand·짧은 결과·추가 조사 0 |
+| Multi-source Work | “자료 보고 왜 안 맞는지 정리해줘.” | Integral Method·이중 완료 |
+| Crafted Artifact | “대표가 10분 안에 볼 자료로 만들어줘.” | source truth와 디자인 계약 동시 결속 |
+| Program/Project | “이 업무를 줄이는 작은 도구를 만들어줘.” | 실제 사용자 흐름·기술 검증·시각/상호작용 품질 |
+
+일반화 규율:
+
+- 같은 `Integral Outcome Method` contract와 observer 경계를 재사용하고 업무별 필드를 추가하지 않는다.
+- Direct·Single Reality의 무개입과 속도가 깨지면 전체 일반화 실패다.
+- Crafted Artifact의 디자인은 고정 테마가 아니라 목적·청중·매체에서 모델이 선택하고 Runtime이 geometry·render·contrast·
+  coverage를 관측한다.
+- Program/Project는 기능 테스트와 Browser actual use를 함께 보며 보기 좋은 stub을 성공으로 처리하지 않는다.
+- 공급자별 Prompt·Router·method fork를 만들지 않는다. model adapter는 같은 계약을 받는다.
 
 ## NX-3 — Experience Promotion
 
@@ -518,6 +846,10 @@ NX-1이 이긴 경우에만 공통 Method를 다음으로 확장한다.
 - first useful·final wall
 - model/Tool rounds·tokens·bytes
 - source·calculation·Effect truth
+- 인문: 현재 사람·상황·사용처·부담을 결과가 실제로 반영하는가
+- 전략: 본질·우선순위·범위·다음 행동이 명료한가
+- 개발: 결과·파일·프로그램·Effect·복구가 실제로 성립하는가
+- 디자인: 언어·정보 구조·시간·시각·상호작용이 빠른 이해와 편한 사용을 만드는가
 - 결과물 사용성·디자인·편집 가능성
 - 질문·교정·승인 부담
 - Stop·restart·Undo
@@ -541,9 +873,14 @@ Context Density
 
 Craft Yield
 = 실제 사용 가능한 품질 결과 / 전체 사용자 부담·시간·비용
+
+Human Outcome Yield
+= 인문 적합성 × 전략 효과 × 기술 현실성 × 미학 완성도
+  / wall·tokens·위험·질문·교정·클릭·인지 부담
 ```
 
-각 지표의 목적 관련성과 품질은 Runtime이 아니라 qualification evaluator와 인간이 판정한다.
+`Human Outcome Yield`는 Runtime의 자동 숫자 score가 아니다. Runtime은 분모의 실제 비용과 분자의 기술 사실을
+계측하고, 인문·전략·미학 품질은 blind evaluator와 인간이 판정한다. 한 축이 0이면 평균 점수로 숨기지 않는다.
 
 ---
 
@@ -552,6 +889,9 @@ Craft Yield
 - Core invariant를 느슨하게 만들어 속도를 얻으려 한다.
 - Reality Scout가 사용자 목적을 확정하거나 무관한 source를 전량 주입한다.
 - Method가 모든 요청에 상주한다.
+- 네 관점을 네 고정 Agent·네 model call·네 단계 출력 양식으로 만든다.
+- Integral Outcome contract를 chain-of-thought·사용자 심리 진단·장문 기획서로 사용한다.
+- global instructions 또는 Direct Tool schema bytes를 증가시켜 복합 Work의 품질을 산다.
 - 업무명·확장자·사용자 직업 Router를 만든다.
 - Method 자체 exit 0이나 self-report를 완료로 사용한다.
 - 결과 품질을 한 모델의 자기평가로 PASS한다.
@@ -575,12 +915,127 @@ macOS source·package·Windows x64·Windows ARM64 PASS는 서로 이전하지 �
 
 ## 12. 현재 개발 순서
 
+개발 세션은 아래 순서를 바꾸거나 여러 단계를 한 커밋에 섞지 않는다.
+
+### Commit 1 — NX-1A baseline freeze
+
+제품 source 변경 0.
+
+- 기존 DR-0 fixture·hidden oracle·render를 재사용한다.
+- 현재 head에서 구매·계약·비용 결과와 timing ledger를 재생한다.
+- 기존 증거와 같으면 비싼 live run을 반복하지 않고 exact source commit과 차이만 기록한다.
+- human blind evaluation 양식에 인문·전략·개발·디자인 네 축과 사용 시간·교정 부담을 추가한다.
+- `nx1-integral-method-contract.test.js`에 제품 구현이 아직 없어 실패하는 첫 RED를 만든다.
+
+검사:
+
+```bash
+node --test refoundation/test/nx1-integral-method-contract.test.js
+npm run refoundation:check
+```
+
+첫 테스트 파일이 아직 없어서 RED인 상태부터 시작하며, baseline commit에는 제품 코드가 없어야 한다.
+
+### Commit 2 — qualification-only Integral Contract
+
+- `refoundation/test/helpers/nx-integral-method-candidate.js` 생성
+- exact schema·6KiB·bounded list·Work revision·source manifest 검증
+- Direct·single Hand 비개입
+- stale correction·foreign handle·secret/raw path·unsupported effect 거부
+- 새 Store·global Prompt·Console entry 0
+
+집중 검사:
+
+```bash
+node --test refoundation/test/nx1-integral-method-contract.test.js
+```
+
+### Commit 3 — qualification-only Method execution
+
+- current observers로 12개 source를 전량 관측
+- exact handle 기반 select·join·reconcile·calculate
+- G independent observer로 program 자기주장 배제
+- compact ClaimEvidence 생성
+- F publication과 current Artifact quality qualification 재사용
+- 실패·Stop·stale source에서 publication 0·잔여 process/scratch 0
+
+집중 검사:
+
+```bash
+node --test refoundation/test/nx1-integral-method-contract.test.js \
+  refoundation/test/nx1-integral-method-result.test.js
+```
+
+### Commit 4 — same-purpose qualification A/B
+
+- `refoundation/scripts/run-nx1-integral-flagship.mjs`와
+  `refoundation:qualify:nx-integral` package script 추가
+- 구매·계약·비용을 AB/BA 순서로 실행
+- source·model·fixture·authority 동일
+- timing·calls·tokens·Tool rounds·scope·result files 자동 비교
+- blind human 결과에는 candidate 이름·방법·순서를 숨김
+
+실행:
+
+```bash
+npm run refoundation:qualify:nx-integral -- --order AB
+npm run refoundation:qualify:nx-integral -- --order BA
+```
+
+NX-1F 합격식에 미달하면 이 시점에서 candidate를 제거하고 제품 source delta 0으로 종료한다. Prompt 문구를 덧붙여
+통과시키지 않는다.
+
+### Commit 5 — 최소 product integration
+
+A/B 통과 시에만 연다.
+
+- `integral-method-contract.js`·`integral-method-runtime.js` 승격
+- source manifest 이후 deferred capability activation
+- Work revision·correction·Stop·restart 결속
+- compact result projection
+- 기존 ArtifactPurposeContract·Work completion 연결
+- `consoleInstructions` bytes와 Direct Tool surface 증가 0 검증
+
+집중 검사 뒤:
+
+```bash
+node --test refoundation/test/nx1-integral-*.test.js
+npm run refoundation:check
+```
+
+### Commit 6 — product Console live qualification
+
+- 제품 Console에서 Ordinary 문장으로 구매·계약·비용 각 1회
+- 입력→첫 반응→source 발견→Method→첫 유용 결과→Artifact→Undo 전체 UX 관측
+- current correction·Stop 한 번씩 실제 수행
+- Direct·서울 날씨·단일 파일 positive control
+- 같은 모델 외 한 대체 provider에서 contract·Tool schema·result truth 반대시험
+- 모델별 Prompt fork 0
+- 실제 사건 없는 침묵 시간, 사용자가 현재 일을 이해하는지, 결과에서 핵심을 찾는 시간, 추가 질문·클릭·수동 재가공을
+  기록해 심리적 통제감·지적 명료성·편리성을 분리 판정
+
+### Commit 7 — NX-1 closeout
+
+- 전체 CI는 exact candidate에서 한 번 실행
+- 기계 evidence·blind human 결과·불리한 수치 동시 기록
+- 제품 source·evidence·정본·Git clean 확인
+- NX-1 합격일 때만 NX-2 CURRENT로 이동
+
+```bash
+npm run refoundation:ci
+git status --short
+```
+
+전체 순서:
+
 ```text
 NX-0 세대 전환
-→ NX-1A Reality Scout
-→ NX-1B Method Capsule
-→ NX-1C Quality Closure
-→ NX-1 same-purpose actual A/B
+→ NX-1A baseline/human oracle
+→ NX-1B Reality Scout
+→ NX-1C Integral Method candidate
+→ NX-1D Dual Quality Closure
+→ NX-1E product activation
+→ NX-1F actual A/B and promotion
 → NX-2 일반화
 → NX-3 Experience promotion
 → NX-HQ
@@ -594,10 +1049,10 @@ Auditory는 오너가 별도 Gate를 열 때 NX-AU로 독립 진행한다. Compu
 
 1. **제품 약속**: 사용자는 평소 말로 목적을 맡기고 T5는 비교 우위의 실제 결과를 만든다.
 2. **현재 Gate**: 이 문서에 CURRENT로 열린 NX Gate 하나.
-3. **완료 문장**: 현재 baseline보다 무엇이 실제로 좋아져야 하는가.
+3. **완료 문장**: 같은 정확성을 유지하면서 first useful·wall·rounds·tokens와 인간 결과 품질이 실제로 좋아져야 한다.
 4. **계승할 Core**: 현재 source의 exact Hand·Store·Receipt·Evidence·Undo.
 5. **현재 baseline**: 같은 목적의 정확성·wall·calls·tokens·결과 품질.
-6. **후보의 우위 가설**: 어떤 새로운 Method·Reality·Craft 연결이 baseline을 이기는가.
+6. **후보의 우위 가설**: 인문·전략·개발·디자인을 한 Work-scoped Method에 결속해 어떤 왕복·오류·재가공을 줄이는가.
 7. **Non-goals**: 다른 NX Gate·GUI·release·새 canonical truth·업무 Router.
 
 ---

@@ -29,10 +29,11 @@ test('NX는 Refoundation Core를 계승하면서 Mastery Lab의 공격적 후보
   assert.match(nx, /설치 파일 제작은 NX 개발 목록에 포함하지 않는다/u);
 });
 
-test('NX-1은 DR-0 actual을 첫 Flagship baseline으로 계승한다', async () => {
-  const [nx, evidence] = await Promise.all([
+test('NX-1은 DR-0 actual을 통합 성과 Method의 첫 Flagship baseline으로 계승한다', async () => {
+  const [nx, evidence, plan] = await Promise.all([
     read('T5-NX.md'),
     read('refoundation/evidence/t5-nx-generation-transition-2026-08-31.json').then(JSON.parse),
+    read('refoundation/evidence/t5-nx-integral-outcome-plan-2026-08-31.json').then(JSON.parse),
   ]);
   assert.equal(evidence.status, 'NX0_COMPLETE_NX1_FLAGSHIP_MASTERY_CURRENT');
   assert.equal(evidence.currentGate.id, 'NX-1');
@@ -41,9 +42,20 @@ test('NX-1은 DR-0 actual을 첫 Flagship baseline으로 계승한다', async ()
   assert.equal(evidence.baseline.expense.status, 'PARTIAL_SCOPE');
   assert.equal(evidence.baseline.methodCostPassed, false);
   assert.equal(evidence.productSourceChanges, 0);
+  assert.equal(plan.status, 'NX1_INTEGRAL_OUTCOME_IMPLEMENTATION_PLAN_READY');
+  assert.equal(plan.productSourceChanges, 0);
+  assert.equal(plan.candidate.newPersistentStore, false);
+  assert.equal(plan.candidate.newGlobalPrompt, false);
+  assert.equal(plan.requiredMeasuredUpgrade.medianFinalWallImprovementPercent, 20);
   assert.match(nx, /Reality Scout/u);
-  assert.match(nx, /Method Capsule/u);
-  assert.match(nx, /Quality Closure/u);
+  assert.match(nx, /Integral Outcome Method/u);
+  assert.match(nx, /Reality Closure \+ Human Closure/u);
+  assert.match(nx, /인문적 의미 적합성[\s\S]*전략적 효과[\s\S]*기술적 현실성[\s\S]*미학적 완성도/u);
+  assert.match(nx, /Direct·단일 Hand·단순 질문에는 만들지 않는다/u);
+  assert.match(nx, /median final wall 20% 이상 개선/u);
+  assert.match(nx, /네 관점을 네 고정 Agent·네 model call/u);
+  assert.match(nx, /Commit 1 — NX-1A baseline freeze/u);
+  assert.match(nx, /Commit 7 — NX-1 closeout/u);
   assert.match(nx, /60\.481초·model 9·Tool 11/u);
   assert.match(nx, /85\.000초·12·18/u);
 });

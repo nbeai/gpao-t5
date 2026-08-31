@@ -1,0 +1,49 @@
+{
+  "schema": "t5.nx.integral-outcome-plan.v1",
+  "status": "NX1_INTEGRAL_OUTCOME_IMPLEMENTATION_PLAN_READY",
+  "currentGate": "NX-1",
+  "productSourceChanges": 0,
+  "currentFacts": {
+    "interactionCore": "v5",
+    "globalInstructionLines": 98,
+    "globalInstructionBytes": 29362,
+    "workIdentity": "existing_work_revision",
+    "sourceIdentity": "existing_file_reality_source_manifest",
+    "execution": "existing_terminal_d_e_f_g",
+    "quality": "existing_artifact_purpose_contract_and_trusted_observers",
+    "completion": "existing_work_completion_and_human_final_answer"
+  },
+  "flagshipBaseline": {
+    "purchase": { "wallSeconds": 60.481, "modelCalls": 9, "toolCalls": 11, "scope": "PASS" },
+    "contract": { "wallSeconds": 64.153, "modelCalls": 12, "toolCalls": 14, "scope": "PARTIAL_SCOPE" },
+    "expense": { "wallSeconds": 85.0, "modelCalls": 12, "toolCalls": 18, "scope": "PARTIAL_SCOPE" }
+  },
+  "candidate": {
+    "name": "Work-scoped Integral Outcome Method",
+    "dimensions": ["human_meaning", "strategic_effect", "technical_reality", "aesthetic_completion"],
+    "newPersistentStore": false,
+    "newGlobalPrompt": false,
+    "fixedAgentTeam": false,
+    "directPathIntervention": false,
+    "qualificationBeforeProductWiring": true
+  },
+  "requiredMeasuredUpgrade": {
+    "truthAndCoverage": "100_percent_preserved",
+    "allThreeStrictScope": "PASS",
+    "medianFirstUsefulWallImprovementPercent": 20,
+    "medianFinalWallImprovementPercent": 20,
+    "medianModelRoundImprovementPercent": 20,
+    "medianProviderTokenImprovementPercent": 20,
+    "directAndSingleHandRegression": 0,
+    "blindHumanPreference": "candidate_wins_human_strategy_design"
+  },
+  "implementationOrder": [
+    "baseline_and_human_oracle",
+    "qualification_only_contract",
+    "qualification_only_method_execution",
+    "same_purpose_ab_ba",
+    "minimal_product_integration",
+    "installed_path_live_qualification",
+    "nx1_closeout"
+  ]
+}
