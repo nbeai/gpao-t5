@@ -844,3 +844,40 @@ export function makeFileRealityTool({
     },
   };
 }
+
+export function makeFileObservationTool({ fileReality } = {}) {
+  if (!fileReality || typeof fileReality.execute !== 'function') {
+    throw new TypeError('File Reality tool is required');
+  }
+  return {
+    name: 'file_observe', informationFamily: 'file_reality', completionProposalOptional: true,
+    description: 'Use the existing File Reality Hand to search bounded local scope, inspect one to twelve exact handles, or bind two to twelve exact sources before a multi-source answer. This is the lightweight observation surface; use tool_search for full file organization, visual candidates, delivery, compare, apply, or rollback.',
+    parameters: { type: 'object', additionalProperties: false, properties: {
+      action: { type: 'string', enum: ['search', 'inspect', 'bind_sources'] },
+      query: { type: ['string', 'null'], maxLength: 500 },
+      scope: { type: ['string', 'null'], enum: ['computer', 'workspace', 'path', null] },
+      path: { type: ['string', 'null'], maxLength: 4096 },
+      handles: { type: ['array', 'null'], maxItems: 12, items: { type: 'string', maxLength: 64 } },
+      maxCandidates: { type: ['integer', 'null'], minimum: 1, maximum: 20 },
+      sourceUses: { type: ['array', 'null'], maxItems: 12,
+        items: { type: 'object', additionalProperties: false, properties: {
+          handle: { type: 'string', maxLength: 64 }, usage: { type: 'string', maxLength: 500 },
+          columnMappings: { type: ['array', 'null'], maxItems: 100,
+            items: { type: 'object', additionalProperties: false, properties: {
+              sourceColumn: { type: 'string', maxLength: 200 }, outputColumn: { type: 'string', maxLength: 200 },
+            }, required: ['sourceColumn', 'outputColumn'] } },
+        }, required: ['handle', 'usage', 'columnMappings'] } },
+      purpose: { type: ['string', 'null'], maxLength: 500 },
+      unknowns: { type: ['array', 'null'], maxItems: 20, items: { type: 'string', maxLength: 500 } },
+      standardization: { type: ['object', 'null'], additionalProperties: false, properties: {
+        mode: { type: 'string', enum: ['append_rows'] },
+        outputColumns: { type: 'array', minItems: 1, maxItems: 100,
+          items: { type: 'string', maxLength: 200 } },
+      }, required: ['mode', 'outputColumns'] },
+    }, required: ['action', 'query', 'scope', 'path', 'handles', 'maxCandidates',
+      'sourceUses', 'purpose', 'unknowns', 'standardization'] },
+    async execute(args = {}) {
+      return fileReality.execute({ ...args, placements: null, planId: null, effect: null });
+    },
+  };
+}
