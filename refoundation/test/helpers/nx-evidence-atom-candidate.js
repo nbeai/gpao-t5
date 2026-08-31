@@ -118,10 +118,7 @@ function locationMatches(atom, reference) {
   }
   const exactCell = target.match(/^(.+)!([A-Z]{1,3}[1-9][0-9]{0,6})$/u);
   if (exactCell) return atom.location === `sheet:${exactCell[1]}!${exactCell[2]}`;
-  const page = target.match(/(?:page[: ]\s*|p\.?)\s*(\d+)/iu);
-  if (page) return atom.location.startsWith(`page:${page[1]}:`);
-  if (/OCR|image/iu.test(target)) return atom.location.startsWith('image:');
-  return atom.location === target || atom.location.includes(target);
+  return atom.location === clean(reference.location);
 }
 
 export function materializeAtomClaimEvidence(input, { sourceManifestId, exactInputHandles, evidenceAtoms } = {}) {

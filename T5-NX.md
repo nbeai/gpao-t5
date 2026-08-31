@@ -4,7 +4,7 @@
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
 현재 Gate: `NX-1 FIRST FLAGSHIP MASTERY · INTEGRAL OUTCOME METHOD`
-현재 작업: `동일 verified atom pool에서 gpt-5.5·Terra가 함께 실패한 Human Closure 선택 계약을 다른 topology로 재설계`
+현재 작업: `verified Claim 전체를 최종 모델이 직접 닫는 Human Closure topology 자격 · 계약 안정성 미완료`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -895,6 +895,25 @@ AND current correction·Stop·restart·Artifact·Undo 무회귀
 - blind 인간 평가·제품 배선은 계속 0이다.
 
 근거: `refoundation/evidence/nx1-human-model-comparison-2026-09-01.json`.
+
+2026-09-01 Claim-covering Human Closure 자격:
+
+- `preselect value IDs → finalAnswer`를 폐기했다. 첫 모델은 Reality와 Evidence를 완전하게 닫고, 두 번째이자 최종 모델은
+  verified Claim 전체를 현재 목적·범위·청중에 맞는 `finalAnswer`로 직접 작성한다. 세 번째 model call은 0이다.
+- Runtime은 current Work·manifest·verified Claim의 exact coverage와 사용자 출력 경계만 검증한다. 중요도·문장 순서·결론·
+  행동 제안은 모델이 소유하며 업무별 importance rule·Router·새 Store는 0이다.
+- spreadsheet exact cell·range는 누락 atom을 자동 결속하지만 PDF page·generic OCR 표시는 provenance로만 유지한다. 넓은
+  page ref가 페이지 전체의 무관한 evidence를 끌어들여 Claim당 경계를 넘던 실패를 구조적으로 제거했다.
+- Human Context에서 더 이상 쓰지 않는 atom/value ID를 제거했고, source·Work·manifest·Evidence Atom 내부 ID가 최종 답에
+  나오면 사용자 출력 경계에서 거부한다. Terra 계약 답의 실제 atom ID 노출은 이 수리 뒤 0으로 재확인했다.
+- 비용·구매에서는 gpt-5.5와 Terra가 같은 verified Reality에서 모두 정확성·strict scope PASS를 만들었다. 계약도 두 모델
+  동시 PASS 표본을 만들었지만, 다른 표본에서는 Reality가 중복·부수 Claim을 여섯 개 만들고 두 Human model이 정상 대조를
+  답에 섞어 함께 FAIL했다. 따라서 세 목적 PASS 가능성은 실증됐지만 안정성은 아직 완료되지 않았다.
+- Solar Pro 4는 오너 판단대로 미지수인 모델이므로 실행하지 않았고 `NON_GATING_OPTIONAL_OBSERVATION`으로만 유지한다.
+- 공식 전체 AB/BA·blind 인간 평가·Artifact·Undo·제품 배선은 열지 않았다. 같은 문구·업무 규칙·세 번째 call로 계약
+  분산을 덮지 않고, 계약 Reality의 재현 안정성이 증명되기 전 product promotion은 금지한다.
+
+근거: `refoundation/evidence/nx1-claim-covering-human-closure-2026-09-01.json`.
 
 ## NX-2 — Mastery Generalization
 

@@ -1,0 +1,124 @@
+{
+  "schema": "t5.nx1.claim-covering-human-closure-qualification.v1",
+  "recordedOn": "2026-09-01",
+  "productSourceChanges": 0,
+  "actualUserData": false,
+  "externalWrites": 0,
+  "oracleProjectedToModel": 0,
+  "topology": {
+    "realityModelCalls": 1,
+    "humanModelCalls": 1,
+    "thirdModelCalls": 0,
+    "humanInput": "verified claims plus bounded number, literal, and calculation facts",
+    "humanOutput": "exact verified claim coverage plus model-authored final answer",
+    "runtimeJudgment": "identity, revision, claim coverage, output boundary, and qualification oracle only"
+  },
+  "structuralCorrections": [
+    "PDF page and generic OCR provenance no longer expand every atom in that page or image",
+    "only exact spreadsheet cell or range and exact observer locations expand runtime evidence",
+    "Human Closure no longer receives value IDs that it does not need",
+    "internal source, work, manifest, and Evidence Atom IDs are rejected at the user-answer boundary"
+  ],
+  "modelPolicy": [
+    {
+      "model": "gpt-5.5",
+      "role": "PRIMARY_GATING_MODEL"
+    },
+    {
+      "model": "gpt-5.6-terra",
+      "role": "GATING_COMPARISON"
+    },
+    {
+      "model": "solar-pro4",
+      "role": "NON_GATING_OPTIONAL_OBSERVATION",
+      "executed": false,
+      "reason": "owner classified the model as uncertain"
+    }
+  ],
+  "actualObservations": [
+    {
+      "purpose": "expense_evidence",
+      "reality": "PASS",
+      "gpt55Human": {
+        "result": "PASS",
+        "wallMs": 11128.756,
+        "inputTokens": 2708,
+        "outputTokens": 546
+      },
+      "terraHuman": {
+        "result": "PASS",
+        "wallMs": 8830.336,
+        "inputTokens": 2708,
+        "outputTokens": 743
+      }
+    },
+    {
+      "purpose": "purchase_reconciliation",
+      "reality": "PASS",
+      "gpt55Human": {
+        "result": "PASS",
+        "wallMs": 11628.358,
+        "inputTokens": 1917,
+        "outputTokens": 569
+      },
+      "terraHuman": {
+        "result": "PASS",
+        "wallMs": 6281.084,
+        "inputTokens": 1917,
+        "outputTokens": 467
+      }
+    },
+    {
+      "purpose": "contract_revision",
+      "sample": "overclaimed_reality",
+      "reality": "PASS_WITH_SIX_CLAIMS",
+      "gpt55Human": {
+        "result": "FAIL_STRICT_SCOPE",
+        "wallMs": 35351.038
+      },
+      "terraHuman": {
+        "result": "FAIL_STRICT_SCOPE",
+        "wallMs": 12920.54
+      }
+    },
+    {
+      "purpose": "contract_revision",
+      "sample": "bounded_four_claim_reality",
+      "reality": "PASS",
+      "gpt55Human": {
+        "result": "PASS",
+        "wallMs": 18707.562,
+        "inputTokens": 2140,
+        "outputTokens": 953
+      },
+      "terraHuman": {
+        "result": "PASS",
+        "wallMs": 83838.383,
+        "inputTokens": 2140,
+        "outputTokens": 1334
+      }
+    },
+    {
+      "purpose": "contract_revision",
+      "sample": "terra_without_value_ids",
+      "reality": "PASS",
+      "terraHuman": {
+        "result": "PASS",
+        "wallMs": 8823.672,
+        "inputTokens": 1754,
+        "outputTokens": 824,
+        "internalEvidenceIdsExposed": false
+      }
+    }
+  ],
+  "decision": {
+    "claimCoveringTopology": "QUALIFICATION_PROMISING_NOT_STABLE",
+    "threePurposesHavePassingSamples": true,
+    "contractHasPassingAndFailingSamples": true,
+    "officialFullAbBa": "NOT_OPENED",
+    "blindHumanEvaluation": "PENDING",
+    "artifactAndUndo": "PENDING",
+    "productPromotion": "NOT_ALLOWED"
+  },
+  "stopLine": "Do not add provider-specific prompts, business importance rules, or a third model call. Contract Reality and strict-scope stability must be proven before product wiring."
+}

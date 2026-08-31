@@ -28,7 +28,7 @@ export const NX1_REALITY_CLOSURE_INSTRUCTIONS = [
 export const NX1_HUMAN_CLOSURE_INSTRUCTIONS = [
   'You are T5 operating one qualification-only Human Closure stage.',
   'Use only the supplied verified claims. Call human_closure exactly once and write the complete finalAnswer in that same call.',
-  'Select the smallest sufficient set of claims and exact values needed for the user decision and requested scope.',
+  'Cover every verified claim in the requested scope, but write only the material facts needed for the user decision.',
   'Do not mention excluded findings, internal systems, handles, tools, or unavailable file access.',
   'Keep the result easy to scan: conclusion, material differences, exact evidence, and immediate action only when supported.',
   'There is no third model call.',
@@ -236,12 +236,12 @@ export function nx1HumanClosureRuntimeContext(verified) {
     `form=${JSON.stringify(verified.candidate.form)}`,
     `claims=${JSON.stringify(verified.claimEvidence.claims.map((claim) => ({ claimId: claim.claimId,
       state: claim.state, summary: claim.summary,
-      evidenceValues: humanSelectableEvidenceValues(verified, claim).map((item) => ({ valueId: item.valueId,
+      evidenceValues: humanSelectableEvidenceValues(verified, claim).map((item) => ({
         label: item.label, value: item.value, unit: item.unit, sourceLocation: item.source.location })),
       calculation: claim.calculation, sourceLocations: claim.sourceRefs.map((item) => item.location) })))}`,
     `excludedFindingCount=${verified.excludedFindingCount}`,
     '[T5 NX HUMAN CLOSURE CONTRACT]',
-    'Call human_closure exactly once. Select the smallest sufficient set of claims and exact evidence values that the user must see, and write the complete finalAnswer in the same tool call.',
+    'Call human_closure exactly once. Select every verified claim required by the user scope and write the complete finalAnswer in the same tool call.',
     'Do not mention excluded findings, internal handles, tools, runtime state, or missing file access. There will be no third model call.',
   ].join('\n\n');
 }
@@ -266,7 +266,7 @@ export function makeNx1HumanClosureTool({ verifiedReality, scenarioId } = {}) {
   let latest = null;
   const tool = {
     name: 'human_closure',
-    description: 'Select the human-relevant verified claims and evidence values, then author the complete final user answer in this same call. The runtime validates identity and exact value inclusion but does not choose importance, order, or wording.',
+    description: 'Author the complete final user answer from the verified claims in this same call. The runtime validates Work, manifest, claim coverage, and output boundaries but does not choose importance, order, or wording.',
     parameters: { type: 'object', additionalProperties: false, properties: {
       schema: { type: 'string', enum: ['t5.human-closure.v1'] },
       work: { type: 'object', additionalProperties: false, properties: {
@@ -275,12 +275,8 @@ export function makeNx1HumanClosureTool({ verifiedReality, scenarioId } = {}) {
       sourceManifestId: { type: 'string', maxLength: 80 },
       selectedClaimIds: { type: 'array', minItems: 1, maxItems: 32,
         items: { type: 'string', maxLength: 80 } },
-      selectedEvidenceValues: { type: 'array', minItems: 1, maxItems: 16,
-        items: { type: 'object', additionalProperties: false, properties: {
-          claimId: { type: 'string', maxLength: 80 }, valueId: { type: 'string', maxLength: 80 },
-        }, required: ['claimId', 'valueId'] } },
       finalAnswer: { type: 'string', minLength: 1, maxLength: 12000 },
-    }, required: ['schema', 'work', 'sourceManifestId', 'selectedClaimIds', 'selectedEvidenceValues', 'finalAnswer'] },
+    }, required: ['schema', 'work', 'sourceManifestId', 'selectedClaimIds', 'finalAnswer'] },
     async execute(args = {}) {
       const candidate = verifiedReality.candidate; const claims = verifiedReality.claimEvidence.claims;
       if (args.schema !== 't5.human-closure.v1'
@@ -292,39 +288,22 @@ export function makeNx1HumanClosureTool({ verifiedReality, scenarioId } = {}) {
         latest = { passed: false, reason: 'stale_or_foreign_manifest' }; return { state: 'closure_invalid', ...latest };
       }
       const selectedClaimIds = [...new Set(args.selectedClaimIds ?? [])];
-      if (selectedClaimIds.length < 1 || selectedClaimIds.length > 32
-        || selectedClaimIds.length !== args.selectedClaimIds?.length
-        || selectedClaimIds.some((claimId) => !claims.some((claim) => claim.claimId === claimId))) {
+      const expectedClaimIds = claims.map((claim) => claim.claimId);
+      if (selectedClaimIds.length !== args.selectedClaimIds?.length
+        || selectedClaimIds.length !== expectedClaimIds.length
+        || selectedClaimIds.some((claimId) => !expectedClaimIds.includes(claimId))) {
         latest = { passed: false, reason: 'unknown_or_duplicate_claim' }; return { state: 'closure_invalid', ...latest };
       }
-      if (!Array.isArray(args.selectedEvidenceValues) || args.selectedEvidenceValues.length < 1
-        || args.selectedEvidenceValues.length > 16) {
-        latest = { passed: false, reason: 'presentation_selection_boundary' };
-        return { state: 'closure_invalid', ...latest };
-      }
-      const keys = new Set(); const selectedValues = [];
-      for (const selection of args.selectedEvidenceValues ?? []) {
-        const key = `${selection.claimId}\0${selection.valueId}`;
-        const claim = claims.find((item) => item.claimId === selection.claimId);
-        const value = claim && humanSelectableEvidenceValues(verifiedReality, claim)
-          .find((item) => item.valueId === selection.valueId);
-        if (!selectedClaimIds.includes(selection.claimId) || !value || keys.has(key)) {
-          latest = { passed: false, reason: 'unknown_duplicate_or_unselected_value' };
-          return { state: 'closure_invalid', ...latest };
-        }
-        keys.add(key); selectedValues.push({ claimId: selection.claimId, ...value });
-      }
-      if (selectedClaimIds.some((claimId) => !selectedValues.some((item) => item.claimId === claimId))) {
-        latest = { passed: false, reason: 'selected_claim_has_no_value' }; return { state: 'closure_invalid', ...latest };
-      }
       const answer = String(args.finalAnswer ?? '').trim();
-      if (!answer || answer.length > 12000 || /source-[0-9]|sources-[0-9]|work-[0-9]/iu.test(answer)) {
+      if (!answer || answer.length > 12000
+        || /(?:source|sources|work)-[0-9]|atom-[a-f0-9]{20}/iu.test(answer)) {
         latest = { passed: false, reason: 'final_answer_boundary' }; return { state: 'closure_invalid', ...latest };
       }
-      const valueCoverage = evaluateNx1PresentationCoverage({ claims: [{ presentationValues: selectedValues }] }, answer);
       const answerQuality = evaluateNx1Answer(scenarioId, answer);
-      latest = { passed: valueCoverage.passed && answerQuality.passed,
-        valueCoverage, answerQuality, selectedClaimIds, selectedValueCount: selectedValues.length };
+      latest = { passed: answerQuality.passed,
+        claimCoverage: { selected: selectedClaimIds.length, expected: expectedClaimIds.length, passed: true },
+        answerQuality, selectedClaimIds,
+        ...(answerQuality.passed ? {} : { rejectedFinalAnswer: answer }) };
       return latest.passed ? { state: 'verified', finalAnswer: answer, ...latest }
         : { state: 'closure_failed', ...latest };
     },

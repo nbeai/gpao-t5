@@ -87,7 +87,7 @@ test('verified Reality projection은 evidence pool만 주고 excluded 내용은 
   assert.doesNotMatch(String(source), /excludedFindings.*map|sourceRefs.*handle/su);
 });
 
-test('Human Closure는 존재하는 claim/value만 선택하고 모델 작성 finalAnswer를 세 번째 호출 없이 검증한다', async () => {
+test('Human Closure는 verified Claim 전체와 모델 작성 finalAnswer를 세 번째 호출 없이 검증한다', async () => {
   const verifiedReality = { currentWork: { workId: 'work-11111111', revision: 2, status: 'active' },
     sourceManifestId: 'sources-11111111', excludedFindingCount: 1,
     candidate: { human: { purpose: '차이 확인', useContext: '지급 전', audience: '담당자' },
@@ -107,25 +107,20 @@ test('Human Closure는 존재하는 claim/value만 선택하고 모델 작성 fi
   const closure = makeNx1HumanClosureTool({ verifiedReality, scenarioId: 'purchase_reconciliation' });
   const base = { schema: 't5.human-closure.v1', work: { workId: 'work-11111111', revision: 2 },
     sourceManifestId: 'sources-11111111', selectedClaimIds: ['purchase-gap'],
-    selectedEvidenceValues: ['ordered', 'accepted', 'gap', 'invoice', 'accepted-amount', 'amount-gap']
-      .map((valueId) => ({ claimId: 'purchase-gap', valueId })),
     finalAnswer: '발주 120개, 입고 118개로 2개 부족하며 3,000,000원과 2,950,000원의 차이는 50,000원입니다.' };
   const result = await closure.tool.execute(base);
   assert.equal(result.state, 'verified'); assert.equal(result.finalAnswer, base.finalAnswer);
-  const foreign = structuredClone(base); foreign.selectedEvidenceValues[0].valueId = 'unknown';
-  assert.equal((await closure.tool.execute(foreign)).reason, 'unknown_duplicate_or_unselected_value');
+  const foreign = structuredClone(base); foreign.selectedClaimIds = ['unknown-claim'];
+  assert.equal((await closure.tool.execute(foreign)).reason, 'unknown_or_duplicate_claim');
   const missing = structuredClone(base); missing.finalAnswer = '발주 120개와 입고 118개를 확인했습니다.';
-  assert.equal((await closure.tool.execute(missing)).state, 'closure_failed');
+  const rejected = await closure.tool.execute(missing);
+  assert.equal(rejected.state, 'closure_failed');
+  assert.equal(closure.qualification().rejectedFinalAnswer, missing.finalAnswer);
   const stale = structuredClone(base); stale.work.revision = 3;
   assert.equal((await closure.tool.execute(stale)).reason, 'stale_or_foreign_work');
-  const tooMany = structuredClone(base);
-  tooMany.selectedEvidenceValues = Array.from({ length: 17 }, (_, index) => ({
-    claimId: 'purchase-gap', valueId: index < 6 ? base.selectedEvidenceValues[index].valueId : 'ordered',
-  }));
-  assert.equal((await closure.tool.execute(tooMany)).reason, 'presentation_selection_boundary');
 });
 
-test('Human Closure 선택 pool은 number·literal·calculation만 열고 긴 text atom은 근거로만 보존한다', async () => {
+test('Human Closure Context는 number·literal·calculation만 열고 긴 text atom은 근거로만 보존한다', async () => {
   const verifiedReality = { currentWork: { workId: 'work-11111111', revision: 1, status: 'active' },
     sourceManifestId: 'sources-11111111', excludedFindingCount: 0,
     evidenceAtomKinds: { 'atom-number': 'number', 'atom-number-copy': 'number',
@@ -143,13 +138,21 @@ test('Human Closure 선택 pool은 number·literal·calculation만 열고 긴 te
       ] }] } };
   const context = (await import('./helpers/nx-integral-flagship-qualification.js'))
     .nx1HumanClosureRuntimeContext(verifiedReality);
-  assert.match(context, /atom-number/u); assert.match(context, /atom-literal/u); assert.match(context, /calc-gap/u);
-  assert.doesNotMatch(context, /atom-number-copy/u);
+  assert.doesNotMatch(context, /atom-number|atom-literal|calc-gap|atom-number-copy/u);
+  assert.match(context, /42000|C-102|1000/u);
   assert.doesNotMatch(context, /atom-text|invoice total is the evidence amount/iu);
-  const closure = makeNx1HumanClosureTool({ verifiedReality, scenarioId: 'expense_evidence' });
-  const invalid = await closure.tool.execute({ schema: 't5.human-closure.v1',
+});
+
+test('Human Closure는 내부 Evidence Atom ID를 사용자 답으로 내보내지 않는다', async () => {
+  const verifiedReality = { currentWork: { workId: 'work-11111111', revision: 1, status: 'active' },
+    sourceManifestId: 'sources-11111111', excludedFindingCount: 0,
+    candidate: { human: {}, strategy: {}, form: {} },
+    claimEvidence: { claims: [{ claimId: 'purchase-gap', state: 'conflict', summary: '차이',
+      sourceRefs: [], evidenceValues: [], calculation: null }] } };
+  const closure = makeNx1HumanClosureTool({ verifiedReality, scenarioId: 'purchase_reconciliation' });
+  const result = await closure.tool.execute({ schema: 't5.human-closure.v1',
     work: { workId: 'work-11111111', revision: 1 }, sourceManifestId: 'sources-11111111',
-    selectedClaimIds: ['claim-1'], selectedEvidenceValues: [{ claimId: 'claim-1', valueId: 'atom-text' }],
-    finalAnswer: 'The invoice total is the evidence amount.' });
-  assert.equal(invalid.reason, 'unknown_duplicate_or_unselected_value');
+    selectedClaimIds: ['purchase-gap'],
+    finalAnswer: 'atom-1234567890abcdef1234 기준으로 발주 120개, 입고 118개, 2개 부족이며 3,000,000원과 2,950,000원의 차이는 50,000원입니다.' });
+  assert.equal(result.reason, 'final_answer_boundary');
 });

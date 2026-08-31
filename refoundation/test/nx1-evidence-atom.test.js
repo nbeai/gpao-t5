@@ -66,6 +66,21 @@ test('모델이 exact spreadsheet row를 sourceRef로 선택하면 Runtime이 �
     && item.label === 'observed numeric difference candidate'));
 });
 
+test('넓은 PDF page·OCR 표시는 provenance일 뿐 source 전체 atom을 자동 확장하지 않는다', () => {
+  const pdfAtoms = evidenceAtomsFromProjection({ handle, kind: 'pdf', projection: [
+    '[page:1]', 'Invoice IV-991 total KRW 3000000', 'Unrelated control PO-2026-099 KRW 720000',
+  ].join('\n') });
+  const invoice = pdfAtoms.find((atom) => atom.value === 'IV-991');
+  const input = candidate();
+  input.claims[0].sourceRefs = [{ handle, location: 'page:1' }];
+  input.claims[0].evidenceAtomIds = [invoice.atomId];
+  input.claims[0].calculations = [];
+  const result = materializeAtomClaimEvidence(input, {
+    sourceManifestId: 'sources-11111111', exactInputHandles: [handle], evidenceAtoms: pdfAtoms,
+  });
+  assert.deepEqual(result.claims[0].evidenceValues.map((item) => item.value), ['IV-991']);
+});
+
 test('foreign atom·미래 calculation은 차단하고 중복 atom 참조는 canonical set으로 합친다', () => {
   const foreign = candidate(); foreign.claims[0].evidenceAtomIds[0] = 'atom-ffffffffffffffffffff';
   assert.throws(() => materializeAtomClaimEvidence(foreign, {
