@@ -143,7 +143,6 @@ test('제품 승격은 Console의 deferred runtime 한 경계만 열고 AgentLoo
     read('refoundation/src/console-model-factory.js'), read('refoundation/src/work-store.js'),
   ]);
   assert.match(server, /makeIntegralMethodRuntime/u);
-  assert.match(server, /'exec', 'file_observe', 'web_read', 'web_research'/u);
   assert.match(server, /onSourcesBound:.*integralMethod\.prepare/su);
   for (const source of [loop, modelFactory, workStore]) assert.doesNotMatch(source,
     /integral[-_]method|integral outcome method/iu);

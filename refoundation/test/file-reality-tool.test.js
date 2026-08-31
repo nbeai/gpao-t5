@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 import { runAgent } from '../src/agent-loop.js';
-import { makeFileObservationTool, makeFileRealityTool } from '../src/file-reality-tool.js';
+import { makeFileRealityTool } from '../src/file-reality-tool.js';
 import { FileSourceManifestStore } from '../src/file-source-manifest-store.js';
 import { deferTools, makeToolSearchTool } from '../src/tool-search.js';
 
@@ -31,17 +31,6 @@ test('파일을 찾아 보여 달라는 목적은 경로 출력이 아니라 exa
   assert.match(tool.description, /find and show, give, open/u);
   assert.match(tool.description, /call deliver once for every exact selected non-image file/u);
   assert.match(tool.description, /do not finish with printed paths alone/u);
-});
-
-test('file_observe는 같은 File Reality handle·observer로 search·inspect·bind만 얇게 연다', async () => {
-  const calls = []; const observation = makeFileObservationTool({ fileReality: {
-    async execute(args) { calls.push(args); return { state: 'observed' }; },
-  } });
-  assert.deepEqual(observation.parameters.properties.action.enum, ['search', 'inspect', 'bind_sources']);
-  assert.equal(observation.completionProposalOptional, true);
-  await observation.execute({ action: 'search', query: 'x', scope: 'workspace', path: null,
-    handles: null, maxCandidates: 5, sourceUses: null, purpose: null, unknowns: null, standardization: null });
-  assert.equal(calls[0].placements, null); assert.equal(calls[0].planId, null); assert.equal(calls[0].effect, null);
 });
 
 test('컴퓨터 scope는 위치·파일명을 몰라도 내용 단서로 workspace 밖 실제 파일을 찾는다', async () => {

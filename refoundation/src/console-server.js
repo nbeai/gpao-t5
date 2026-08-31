@@ -52,7 +52,7 @@ import { makeEffectForensicProductAdapter,
 import { makeWorkHistoryProductAdapter } from './work-history-projection.js';
 import { makePurposeBoundedHistoryAdapter } from './purpose-bounded-history.js';
 import { makePurposeHistoryTool } from './purpose-history-tool.js';
-import { makeFileObservationTool, makeFileRealityTool } from './file-reality-tool.js';
+import { makeFileRealityTool } from './file-reality-tool.js';
 import { FileSourceManifestStore } from './file-source-manifest-store.js';
 import { makeIntegralMethodRuntime } from './integral-method-runtime.js';
 import { makeLocalImageOcr } from './local-image-ocr.js';
@@ -1795,7 +1795,7 @@ export function makeConsoleServer({
       const offeredTools = [...terminal.tools];
       offeredTools.unshift(integralMethod.tool);
       offeredTools.unshift(workspacePatchTool);
-      const fileRealityTool = makeFileRealityTool({ workspace, home: computer.userHome, platform: computer.platform,
+      offeredTools.unshift(makeFileRealityTool({ workspace, home: computer.userHome, platform: computer.platform,
         computerRoots: computerFileRoots ?? [homedir()], protectedRoots: [...protectedFileRoots, stateDir],
         organizationRoot: join(stateDir, 'file-organization'), sourceManifestStore: fileSourceManifests, sessionId,
         ocrProbe: localImageOcr,
@@ -1818,9 +1818,7 @@ export function makeConsoleServer({
         onVisualCandidatesObserved: (items) => {
           for (const item of items) visualCandidatePaths.add(resolve(item.path).normalize('NFC'));
         },
-        ...(fileIndexSearch ? { indexSearch: fileIndexSearch } : {}) });
-      offeredTools.unshift(fileRealityTool);
-      offeredTools.unshift(makeFileObservationTool({ fileReality: fileRealityTool }));
+        ...(fileIndexSearch ? { indexSearch: fileIndexSearch } : {}) }));
       const nativeComputer = makeNativeComputerTool({ revealPath: reveal, platform: computer.platform });
       if (nativeComputer) offeredTools.unshift(nativeComputer);
       if (!options.observationOnly && options.trigger !== 'automation') {
@@ -2232,7 +2230,7 @@ export function makeConsoleServer({
       const coreToolNames = capabilitySurfaceMode === 'directory-first-v1'
         && options.trigger !== 'automation'
         ? [
-          'exec', 'file_observe', 'web_read', 'web_research', 'attachment', 'skill',
+          'exec', 'web_read', 'web_research', 'attachment', 'skill',
           // 기억·삭제를 약속만 하고 실제 원장에 반영하지 않은 설치 제품 반례 때문에
           // 의미 Router 없이 기존 쓰기·삭제 손만 항상 보인다. read는 후보가 있을 때만 연다.
           'memory_claim', 'memory_control',
