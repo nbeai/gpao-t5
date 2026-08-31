@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_TOTAL_HUMAN_HQ_TWO_WAVE_SOURCE_CLOSEOUT",
+  "status": "MACOS_SOURCE_TWO_WAVE_HQ_COMPLETE_PACKAGE_AND_WINDOWS_EXCLUDED",
+  "candidateCommit": "same_commit_as_evidence",
+  "scope": {
+    "platform": "macos",
+    "artifact": "source",
+    "packageBuilt": false,
+    "installedCandidateQualified": false,
+    "windowsQualified": false
+  },
+  "humanExecution": {
+    "actualConsole": true,
+    "actualTelegramApp": true,
+    "waves": 2,
+    "syntheticFixtures": true,
+    "actualSensitiveUserDataStoredInEvidence": false,
+    "externalWritesOutsideApprovedTelegramHqChat": 0
+  },
+  "secondWave": [
+    {
+      "id": "W2-1",
+      "name": "current information",
+      "status": "PASS_WITH_PERFORMANCE_CARRY",
+      "truthfulResult": true,
+      "wallMs": 29700
+    },
+    {
+      "id": "W2-2",
+      "name": "narrow cross-session reload stop",
+      "status": "PASS",
+      "reloadActivityAndStopMs": 886,
+      "stopTerminalMs": 1483,
+      "lateEffects": 0,
+      "orphanProcesses": 0
+    },
+    {
+      "id": "W2-3",
+      "name": "integrated files documents project browser correction undo",
+      "status": "PASS_WITH_PERFORMANCE_CARRY",
+      "runWallMs": 286824,
+      "modelCalls": 28,
+      "toolCalls": 26,
+      "providerTokens": 1229863,
+      "finalZipFiles": 8,
+      "internalFilesInZip": 0,
+      "privateBackupFolders": 0,
+      "cssDigestPreserved": true,
+      "projectUndoExact": true,
+      "zipPreservedAfterUndo": true
+    },
+    {
+      "id": "W2-4",
+      "name": "telegram text file correction restart dedupe",
+      "status": "PASS",
+      "singleReply": true,
+      "candidateFilesDelivered": 2,
+      "correctedFilesDelivered": 2,
+      "sameConsoleSession": true,
+      "restartContinuity": true,
+      "duplicateRepliesAfterRestart": 0,
+      "duplicateFilesAfterRestart": 0
+    },
+    {
+      "id": "W2-5",
+      "name": "ownership backup restore rollback",
+      "status": "PASS_SOURCE_PROFILE",
+      "encryptedBundle": true,
+      "wrongPasswordMutation": 0,
+      "correctRestoreRestart": true,
+      "rollbackSiblingRestored": true
+    }
+  ],
+  "uxRepair": {
+    "name": "immediate response preparation",
+    "inputToVisiblePreparationMs": 277,
+    "inConversationStatus": true,
+    "stopVisible": true,
+    "toolDetailsOnlyAfterActualToolEvent": true,
+    "preparationRemovedAtAnswer": true
+  },
+  "verification": {
+    "focusedUx": { "passed": 19, "failed": 0 },
+    "strictContractDrift": { "passed": 34, "failed": 0 },
+    "unit": { "passed": 1969, "failed": 0, "skippedWindows": 1 },
+    "productIntegration": { "passed": 207, "failed": 0, "skippedWindows": 2 },
+    "mutation": { "killed": 2, "total": 2 },
+    "legacyImports": 0
+  },
+  "nonClaims": [
+    "the complex integrated journey meets an optimal speed or token target",
+    "all model and provider variants have identical method selection quality",
+    "a macOS package was built or installed",
+    "a packaged candidate passed human qualification",
+    "Windows x64 or ARM64 passed physical qualification"
+  ],
+  "completionSentence": "The macOS source candidate passed two human Console waves across conversation, web, local work, automation, Browser, Telegram, recovery, controls, and UX; reproduced P0/P1 defects were repaired and requalified, while package and Windows stages remain explicitly unopened."
+}

@@ -1,9 +1,9 @@
 # T5 Sixth Completion — Android Capability, Growth & Computer Reality
 
-상태: `SIXTH_MACOS_SOURCE_CANDIDATE_COMPLETE · OWNER_UX_TOP_GOAL_LOCKED · S6_P0_REOPENED_INSTALLED_WEB_RESEARCH_LATENCY · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_ADMISSION_HARDENED · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · S6_J_COMPLETE · S6_WA_COMPLETE_MACOS_WINDOWS_EXPLICIT · S6_UX_PRODUCT_CANDIDATE_COMPLETE_ACTUAL_CONSOLE · TOTAL_HUMAN_HQ_REOPENED_INSTALLED_PRODUCT_WHOLE_FLOW_REQUIRED · MACOS_6_0_PACKAGE_DISTRIBUTION_HOLD · WINDOWS_PREPHYSICAL_BLOCKED_BY_MACOS_HQ · FIFTH_BASELINE_F42E4DB7 · WINDOWS_DEFERRED_NOT_WAIVED · INSTALLER_BUILT_NOT_RELEASED`
+상태: `SIXTH_MACOS_SOURCE_TWO_WAVE_HQ_COMPLETE · OWNER_UX_TOP_GOAL_LOCKED · S6_A_COMPLETE · S6_B_COMPLETE · S6_C_COMPLETE_WITH_STT_GAP · S6_D_PRODUCT_ACTIVE_ADMISSION_HARDENED · S6_E_PRODUCT_PIPELINE_ACTIVE_COMPLETE · S6_F_CLOSED_WITH_OBSERVATION · S6_G_NOT_OPEN · S6_H_COMPLETE · S6_I_PHYSICAL_HUMAN_QUALIFICATION_PENDING · S6_J_COMPLETE · S6_WA_COMPLETE_MACOS_WINDOWS_EXPLICIT · S6_UX_PRODUCT_CANDIDATE_COMPLETE_ACTUAL_CONSOLE · TOTAL_HUMAN_HQ_COMPLETE_SOURCE_MACOS · PACKAGE_ENTRY_PROHIBITED_BY_CURRENT_SCOPE · FIFTH_BASELINE_F42E4DB7 · WINDOWS_DEFERRED_NOT_WAIVED`
 5차 불변 귀환선: `f42e4db7 · FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE`
-현재 Gate: `SOURCE P0/P1 REPAIR → SOURCE CONSOLE WHOLE-FLOW HUMAN HQ · PACKAGE ENTRY PROHIBITED`
-현재 작업: `SOURCE HQ ONLY · NO PACKAGE BUILD/SIGN/NOTARY/INSTALL · NO WINDOWS WORK`
+현재 Gate: `MACOS SOURCE TWO-WAVE HQ COMPLETE · PACKAGE ENTRY PROHIBITED · WINDOWS DEFERRED_NOT_WAIVED`
+현재 작업: `SOURCE CLOSEOUT COMPLETE · NO PACKAGE BUILD/SIGN/NOTARY/INSTALL · NO WINDOWS WORK`
 
 이 문서는 T5 6차 개발의 단일 계획 정본이다. 제품 정의는 `T5-PRODUCT.md`, 5차 완료 역사와 실제 Console
 증거는 `T5-FIFTH-COMPLETION.md`와
@@ -2742,7 +2742,34 @@ GitHub runner·WSL·emulation·cross-build는 physical PASS를 대신하지 않�
 
 ### S6-HQ — Final Android Human Qualification
 
-현재 판정: `MACOS SOURCE CANDIDATE COMPLETE · RELEASE SPEED CARRY · DESKTOP OBSERVATION CLOSED · WINDOWS DEFERRED_NOT_WAIVED`
+현재 판정: `MACOS SOURCE TWO-WAVE HQ COMPLETE · PERFORMANCE CARRY · WINDOWS DEFERRED_NOT_WAIVED`
+
+2026-08-31 오너 지시에 따라 source 후보를 실제 인간 Console로 두 회차 다시 열었다. 직접 대화·현재 정보·웹 조사·
+파일/OCR·문서/Excel/ZIP·Terminal/TTY·Browser 프로젝트·Automation·대화 관리·백업/복원·Telegram을 자연어로
+순차 실행했고, 첫 회차에서 재현된 P0/P1만 수리한 뒤 결속 위험이 큰 다섯 여정을 두 번째 회차로 재검증했다.
+
+두 번째 회차의 실제 결과:
+
+- 입력 뒤 0.3초 안에 본문 `요청을 이해하고 있어요…`와 Stop이 표시되고 첫 답변에서 같은 자리로 교체됐다.
+- 390px·다른 대화 왕복·reload 뒤 관리 process의 활동과 Stop이 0.9초 안에 복원됐고, Stop은 1.5초 안에 끝났다.
+  late effect와 orphan process는 0이었다.
+- 복합 신청자 정리·Excel·지역 CSV·ZIP·대시보드·Browser·중간 교정은 최종 사용자 파일 8개만 담은 ZIP으로 끝났다.
+  내부 spec·진단 JSON·작업메모·private backup folder는 0이고, CSS는 원본 digest를 유지했다. 다음 자연어 Undo는
+  Project 변경만 원본 digest로 복원하고 ZIP을 보존했다.
+- Telegram DM은 단일 답, 오타 후보의 정직한 설명, 교정 뒤 정확한 DOCX/PDF 전달, Console 동일 Session,
+  Runtime 재시작 뒤 대화 연속과 지연 중복 0을 실제 앱에서 통과했다.
+- 암호화 백업·wrong-password 무변경·복원·Runtime 재시작·rollback sibling 복귀를 격리 profile에서 통과했다.
+
+복합 여정은 confinement 차단 뒤 안전 복구를 포함해 약 287초, model 28회, tool 26회, provider token 1,229,863을
+사용했다. 목적·안전·결과·Undo는 통과했지만 이 비용은 P2 성능 carry다. 같은 결함 가족에 조건 patch를 더 붙이거나
+검증을 줄여 숫자를 숨기지 않는다.
+
+최종 자격 환경 전체 CI는 unit 1,969/1,969(Windows skip 1), product integration 207/207(Windows skip 2),
+mutation 2/2를 통과했다. 최초 sandbox 실행의 localhost·Seatbelt·Python EPERM은 무효 환경 실행으로 분리했고,
+현재 strict Effect·Browser select·instruction family·Remote MCP typed failure를 따라오지 못한 stale expectation만
+제품 source 변경 없이 교정했다.
+
+근거: `refoundation/evidence/s6-total-human-hq-two-wave-closeout-2026-08-31.json`.
 
 최종 macOS wave는 이미 통과한 대형 여정을 반복하지 않고 S6-UX 실제 Console와 현재 head의 속도 carry만
 재확인했다. 날씨는 정확성·출처를 유지했지만 12.396초로 오너 7초 목표를 달성하지 못했고, 단일 첨부는

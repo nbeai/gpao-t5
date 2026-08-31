@@ -212,9 +212,12 @@ test('Remote MCP invalid_grant는 token만 지우고 연결을 재인증 필요 
     }),
   });
   const tool = await connection.makeTool({ authorizeEffect: async () => ({ allowed: true }) });
-  await assert.rejects(() => tool.execute({
+  const result = await tool.execute({
     action: 'list_tools', toolName: null, argumentsJson: null, effect: null,
-  }), (error) => error.reason === 'reauth_required');
+  });
+  assert.equal(result.state, 'remote_discovery_failed');
+  assert.equal(result.effectUnknown, false);
+  assert.equal(result.retrySafe, true);
   const state = await connection.inspect();
   assert.equal(state.state, 'needs_connection');
   assert.equal(state.reason, 'remote_mcp_not_connected');

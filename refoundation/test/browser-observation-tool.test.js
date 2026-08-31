@@ -156,7 +156,7 @@ test('browser W5 schema는 download·upload를 열고 credential·cookie 기능�
   const tool = makeBrowserObservationTool({ driver: fixtureDriver() });
   assert.equal(tool.name, 'browser');
   assert.deepEqual(tool.parameters.properties.action.enum, [
-    'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'fill_editable', 'submit',
+    'status', 'profiles', 'tabs', 'navigate', 'snapshot', 'screenshot', 'click', 'fill', 'select', 'fill_editable', 'submit',
     'login_start', 'login_status', 'login_cancel', 'download', 'upload',
   ]);
   assert.ok(tool.parameters.required.includes('filePath'));
@@ -167,7 +167,8 @@ test('browser W5 schema는 download·upload를 열고 credential·cookie 기능�
   assert.ok(tool.parameters.required.includes('textFilePath'));
   assert.ok(tool.parameters.required.includes('textFileStartLine'));
   assert.match(tool.parameters.properties.action.description, /local file.*browser text input.*not file upload/i);
-  assert.match(tool.parameters.properties.text.description, /user-authorized local file.*not a file upload/i);
+  assert.match(tool.parameters.properties.text.description, /non-secret text.*option value.*not a file upload/i);
+  assert.match(tool.parameters.properties.textFilePath.description, /user-provided local UTF-8 text path.*not file upload/i);
   const forbidden = ['type', 'press', 'evaluate', 'password', 'otp', 'cookies', 'storage'];
   assert.deepEqual(Object.keys(tool.parameters.properties).filter((key) => forbidden.includes(key)), []);
 });

@@ -4,12 +4,12 @@ import assert from 'node:assert/strict';
 import { makeAutomationTool } from '../src/automation-tool.js';
 
 const localEffect = {
-  kind: 'local_change', summary: '예약 생성', targets: ['T5 자동화 원장'],
-  reversible: true, backupAvailable: true, recipientNew: false, approvalToken: null,
+  kind: 'local_change', targets: ['T5 자동화 원장'],
+  confirmation: 'not_applicable', rollbackOfToolCallId: null,
 };
 const publishEffect = {
-  kind: 'external_send', summary: '내 블로그에 게시', targets: ['https://blog.example/me'],
-  reversible: false, backupAvailable: false, recipientNew: false, approvalToken: null,
+  kind: 'external_send', targets: ['https://blog.example/me'],
+  confirmation: 'known_recipient', rollbackOfToolCallId: null,
 };
 const base = {
   action: 'create', jobId: null, name: '게시 예약', prompt: '게시하고 URL을 확인해',
@@ -97,7 +97,7 @@ test('현재 browser 근거·도구·전달 경로·위임 범위가 모두 서�
   assert.deepEqual(built.created().requirements, {
     requiredTools: ['browser'], requiredEffect: 'external_send', requireResultUrl: true,
     delivery: { kind: 'origin_session', sessionId: null }, authorityEnvelope: {
-      toolName: 'browser', effect: publishEffect,
+      toolName: 'browser', effect: { ...publishEffect, approvalToken: null },
     },
   });
 });

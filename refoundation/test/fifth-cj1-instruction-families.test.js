@@ -59,12 +59,12 @@ test('video caption family는 일반 대화가 아니라 deferred video_text가 
   assert.match(tool.description, /caption_absent.*do not call video_text.*web_read once.*description-based/u);
 });
 
-test('첫 CJ1 family 이동은 direct 고정 instruction을 줄이고 tool activation 전 호출 수를 바꾸지 않는다', () => {
+test('CJ1 이후 추가된 전역 규율도 family admission에 포함되고 historical 절감 근거와 구분된다', () => {
   const fixture = manifest.fixture;
   const current = consoleInstructions(fixture.workspace, fixture.computer, {
     interactionCoreMode: fixture.interactionCoreMode,
   });
-  assert.equal(Buffer.byteLength(current), 28_650);
-  assert.equal(current.split('\n').length, 96);
-  assert.equal(30_277 - Buffer.byteLength(current), 1_627);
+  assert.equal(Buffer.byteLength(current), 29_362);
+  assert.equal(current.split('\n').length, 98);
+  assert.equal(30_277 - Buffer.byteLength(current), 915);
 });

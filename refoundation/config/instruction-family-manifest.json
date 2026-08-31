@@ -56,7 +56,7 @@
       "lifecycle": "retain until contextual projection proves equal recall",
       "removalCondition": "same-purpose file and absence countertests pass without global placement",
       "globalLineCount": 14,
-      "globalSha256": "ac75596eb51b0fe93422c83bbc5a6fde35346a319bda331cf8257b87d984817c"
+      "globalSha256": "3bad93311552907dfc117bf2bc30717c74b26da7c9e24f06a4f035bb18b78796"
     },
     {
       "id": "judgment.feasibility_and_automation_design",
@@ -146,8 +146,8 @@
       "countertests": ["console-capability-boundary.test.js", "terminal-execution.test.js"],
       "lifecycle": "safety_and_incident_bound",
       "removalCondition": "tool-local projection preserves execution truth and recovery countertests",
-      "globalLineCount": 7,
-      "globalSha256": "9e6d320e566968cebdd2829dce2a88924ff3138b1a7aaca05094c9bbc67e0ba6"
+      "globalLineCount": 9,
+      "globalSha256": "3a1c1d8a5838c5e1afb3875013b2ca75a91d85fc214fe2caffed03a01e110d40"
     },
     {
       "id": "computer.current_reality",
