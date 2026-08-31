@@ -1,6 +1,6 @@
 import { arch, homedir } from 'node:os';
 import { readdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, win32 } from 'node:path';
 
 function commandName(program) {
   return String(program).split(/[\\/]/).at(-1).toLowerCase();
@@ -56,6 +56,14 @@ export function defaultMacOSComputerFileRoots(userHome = homedir()) {
   return [
     'Desktop', 'Documents', 'Downloads', 'Movies', 'Music', 'Pictures', 'Public',
   ].map((name) => join(userHome, name)).concat(['/Users/Shared', '/Volumes']);
+}
+
+export function defaultWindowsComputerFileRoots(userHome = homedir()) {
+  const home = win32.resolve(String(userHome));
+  const usersRoot = win32.dirname(home);
+  return [
+    'Desktop', 'Documents', 'Downloads', 'Music', 'Pictures', 'Videos',
+  ].map((name) => win32.join(home, name)).concat([win32.join(usersRoot, 'Public')]);
 }
 
 export async function discoverMacOSComputerFileRoots(userHome = homedir(), readDirectory = readdir) {

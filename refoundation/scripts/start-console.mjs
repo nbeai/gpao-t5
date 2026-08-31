@@ -4,7 +4,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { access as accessFile, chmod, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, join, parse, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { makeConsoleModelAccess } from '../src/console-model-factory.js';
@@ -20,7 +20,8 @@ import { naverReadableUrlResolver } from '../src/naver-readable-url.js';
 import { makeConsoleServer } from '../src/console-server.js';
 import { makeAgentBrowserDriver, sessionNameForOwner } from '../src/agent-browser-driver.js';
 import { resolveConsoleWorkspace } from '../src/console-config.js';
-import { discoverComputerEnvironment, discoverMacOSComputerFileRoots } from '../src/computer-environment.js';
+import { defaultWindowsComputerFileRoots, discoverComputerEnvironment,
+  discoverMacOSComputerFileRoots } from '../src/computer-environment.js';
 import { resolveTerminalShellEnvironment } from '../src/terminal-shell-environment.js';
 import { makeTerminalPlatformAdapter } from '../src/terminal-platform-adapter.js';
 import {
@@ -97,7 +98,8 @@ const observedLocalSyncRoots = await discoverLocalSyncRoots({ platform: computer
   home: homedir(), env: process.env });
 const standardComputerFileRoots = computerEnvironment.platform === 'darwin'
   ? await discoverMacOSComputerFileRoots(homedir())
-  : [parse(homedir()).root];
+  : computerEnvironment.platform === 'win32'
+    ? defaultWindowsComputerFileRoots(homedir()) : [homedir()];
 const computerFileRoots = [...new Set([
   ...observedLocalSyncRoots.map((item) => item.path), ...standardComputerFileRoots,
 ])];

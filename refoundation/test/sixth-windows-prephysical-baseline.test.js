@@ -30,7 +30,8 @@ test('WP0 baseline은 당시 공개 blocker와 현재 남은 source 경계를 �
     'windows_document_render']) assert.ok(families.has(family), family);
   assert.equal(evidence.sourceDigests['refoundation/scripts/build-windows-package.mjs'],
     '64363f6bcdf41cf96df6f484851782ee71fb58fb73ff493b414a0dbd0f5053d6');
-  assert.match(entry, /\[parse\(homedir\(\)\)\.root\]/u);
+  assert.equal(evidence.prePhysicalFindings.find((item) => item.id === 'WP0-F2')?.fact,
+    'start-console uses the drive root for non-darwin standard computer roots');
   assert.match(terminal, /platform_passthrough[\s\S]*qualified: false/u);
   assert.match(program, /computer\.platform === 'darwin'[\s\S]*programExecutionAdapter/u);
   assert.match(ocr, /platform !== 'darwin'[\s\S]*local_image_ocr_not_qualified/u);

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_WP0_F2_WINDOWS_DEFAULT_FILE_SCOPE",
+  "status": "COMPLETE_CONTRACT_ONLY_PHYSICAL_DISCOVERY_PENDING",
+  "baseCommit": "9f9187ee",
+  "failure": {
+    "family": "windows_default_file_scope",
+    "before": "drive root",
+    "impact": ["ordinary file searches can traverse unrelated system reality", "first useful result can become unbounded"]
+  },
+  "repair": {
+    "defaultRoots": ["Desktop", "Documents", "Downloads", "Music", "Pictures", "Videos", "Public"],
+    "localSyncRoots": "existing observed OneDrive and other local sync roots remain additive",
+    "explicitPathOutsideDefaults": "still available when the user supplies a deliberate path",
+    "driveRootDefault": false,
+    "appDataDefault": false
+  },
+  "verification": {
+    "focusedTestsPassed": 24,
+    "focusedTestsFailed": 0,
+    "physicalKnownFolderRedirection": "pending"
+  },
+  "nonClaims": [
+    "redirected Windows Known Folders are physically resolved",
+    "OneDrive is physically qualified",
+    "whole-computer Windows search is physically qualified"
+  ],
+  "nextRepairFamily": "WP0-F3 windows_terminal_confinement"
+}
