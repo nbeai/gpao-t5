@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_WP0_WINDOWS_CASE_INSENSITIVE_IDENTITY",
+  "status": "COMPLETE_LEXICAL_CONTRACT_NTFS_PHYSICAL_PENDING",
+  "baseCommit": "69c54ac4",
+  "failure": {
+    "family": "windows_case_insensitive_target_identity",
+    "example": ["Result.xlsx", "result.xlsx"],
+    "impact": "two operations can target one NTFS file while appearing distinct to the transaction"
+  },
+  "repair": {
+    "authoringPlan": "case-insensitive source and destination identity on win32",
+    "externalUndo": "case-insensitive exact target set on win32",
+    "fileOrganization": "case-insensitive source and destination identity on win32",
+    "macosMeaningChanged": false
+  },
+  "verification": {
+    "focusedStatus": "PASS",
+    "ntfsActual": "PENDING_PHYSICAL_WINDOWS"
+  },
+  "nonClaims": ["NTFS reparse hardlink ACL lock and cross-volume behavior"],
+  "next": "add remaining lexical path countertests, then execute them on physical NTFS"
+}

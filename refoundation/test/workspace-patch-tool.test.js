@@ -114,3 +114,16 @@ test('workspace_patch 동일 transaction은 사업·개발·개인 파일 세 �
     } finally { await rm(root, { recursive: true, force: true }); }
   }
 });
+
+test('Windows workspace_patch는 대소문자만 다른 target을 하나의 NTFS identity로 차단한다', async () => {
+  const root = await mkdtemp(join(tmpdir(), 't5-workspace-patch-win-case-'));
+  try {
+    const tool = makeWorkspacePatchTool({ workspace: root, stateRoot: join(root, '.state'),
+      platform: 'win32' });
+    await assert.rejects(tool.execute({ action: 'preview', planHandle: null, undoHandle: null,
+      operations: [
+        { type: 'create', path: 'Result.xlsx', to: null, content: 'one' },
+        { type: 'create', path: 'result.xlsx', to: null, content: 'two' },
+      ] }), /target is duplicated/u);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

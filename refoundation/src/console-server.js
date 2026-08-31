@@ -819,7 +819,7 @@ export function makeConsoleServer({
     platform: computer.platform, userHome: computer.userHome,
   });
   const workspacePatchForSession = (sessionId) => makeWorkspacePatchTool({ workspace,
-    stateRoot: join(stateDir, 'authoring', sessionId), sessionId });
+    stateRoot: join(stateDir, 'authoring', sessionId), sessionId, platform: computer.platform });
   const pendingStreams = new Map();
   const running = new Map();
   let runtimeAcceptingWork = true;

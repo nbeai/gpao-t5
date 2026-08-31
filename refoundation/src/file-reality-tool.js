@@ -621,8 +621,9 @@ export function makeFileRealityTool({
         for (const placement of placements) {
           const { record, stat } = await reopen(placement.handle);
           if (stat.nlink !== 1) throw new Error('organization source hardlink is unavailable');
-          if (seenSources.has(record.path)) throw new TypeError('a file can appear only once in an organization plan');
-          seenSources.add(record.path);
+          const sourceKey = platform === 'win32' ? record.path.toLowerCase() : record.path;
+          if (seenSources.has(sourceKey)) throw new TypeError('a file can appear only once in an organization plan');
+          seenSources.add(sourceKey);
           const requestedDestination = resolve(placement.destinationDirectory);
           let destination; let destinationStat; let createDestination = false;
           let destinationContainer = null; let destinationContainerStat = null;
@@ -645,8 +646,9 @@ export function makeFileRealityTool({
             throw new Error('organization destination is unavailable');
           }
           const target = join(destination, record.displayName);
-          if (seenTargets.has(target)) throw new TypeError('organization plan has duplicate destinations');
-          seenTargets.add(target);
+          const targetKey = platform === 'win32' ? target.toLowerCase() : target;
+          if (seenTargets.has(targetKey)) throw new TypeError('organization plan has duplicate destinations');
+          seenTargets.add(targetKey);
           let targetStat = null; try { targetStat = await lstat(target); } catch (error) { if (error?.code !== 'ENOENT') throw error; }
           const alreadyThere = resolve(record.path) === resolve(target);
           const collision = targetStat != null && !alreadyThere;

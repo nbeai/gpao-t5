@@ -29,7 +29,8 @@ async function targetPath(workspace, value) {
   )), parentIdentity: { dev: stat.dev, ino: stat.ino } };
 }
 
-export async function buildAuthoringPreview({ workspace: rootValue, operations, makeId = randomUUID } = {}) {
+export async function buildAuthoringPreview({ workspace: rootValue, operations, makeId = randomUUID,
+  platform = process.platform } = {}) {
   const workspace = await realpath(resolve(rootValue));
   if (!Array.isArray(operations) || !operations.length) throw new TypeError('authoring operations required');
   const paths = new Set(); const prepared = [];
@@ -41,7 +42,8 @@ export async function buildAuthoringPreview({ workspace: rootValue, operations, 
     const destinationTarget = input.type === 'move' ? await targetPath(workspace, input.to) : null;
     const to = destinationTarget?.path ?? null;
     for (const candidate of [path, to].filter(Boolean)) {
-      if (paths.has(candidate)) throw new Error('authoring target is duplicated'); paths.add(candidate);
+      const key = platform === 'win32' ? candidate.toLowerCase() : candidate;
+      if (paths.has(key)) throw new Error('authoring target is duplicated'); paths.add(key);
     }
     const preimage = await observePublicationPreimage(path);
     if (input.type === 'create' && preimage) throw new Error('authoring create target exists');

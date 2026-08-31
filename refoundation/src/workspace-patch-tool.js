@@ -15,7 +15,8 @@ import { observePublicationPreimage } from './atomic-file-publication.js';
 const inside = (candidate, root) => { const value = relative(root, candidate); return value !== ''
   && value !== '..' && !value.startsWith(`..${sep}`) && !isAbsolute(value); };
 
-export function makeWorkspacePatchTool({ workspace, stateRoot, sessionId = 'local', makeId = randomUUID } = {}) {
+export function makeWorkspacePatchTool({ workspace, stateRoot, sessionId = 'local', makeId = randomUUID,
+  platform = process.platform } = {}) {
   if (!workspace || !stateRoot || !sessionId) throw new TypeError('workspace patch roots required');
   const plans = new Map(); const locks = new AuthoringLockCoordinator(join(stateRoot, 'locks'));
   const undoStore = new AuthoringUndoStore(join(stateRoot, 'undo'));
@@ -40,7 +41,7 @@ export function makeWorkspacePatchTool({ workspace, stateRoot, sessionId = 'loca
         const operations = args.operations.map((item) => ({ type: item.type, path: item.path,
           ...(item.to != null ? { to: item.to } : {}),
           ...(['create', 'modify'].includes(item.type) ? { content: item.content ?? '' } : {}) }));
-        const { plan, preview } = await buildAuthoringPreview({ workspace, operations });
+        const { plan, preview } = await buildAuthoringPreview({ workspace, operations, platform });
         const handle = `authoring_${makeId()}`; plans.set(handle, plan);
         return { ...preview, planHandle: handle, planId: undefined };
       }
@@ -73,7 +74,8 @@ export function makeWorkspacePatchTool({ workspace, stateRoot, sessionId = 'loca
   tool.prepareExternalUndo = async ({ targets }) => {
     if (!Array.isArray(targets) || !targets.length || targets.length > 32) return null;
     const root = await realpath(resolve(workspace)); const absolute = targets.map((target) => resolve(root, String(target)));
-    if (new Set(absolute).size !== absolute.length || absolute.some((target) => !inside(target, root))) return null;
+    const identities = absolute.map((target) => platform === 'win32' ? target.toLowerCase() : target);
+    if (new Set(identities).size !== absolute.length || absolute.some((target) => !inside(target, root))) return null;
     const pointers = [];
     try {
       for (const target of absolute) pointers.push(await createExactTargetRollbackPointer({ target,
