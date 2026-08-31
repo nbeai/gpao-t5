@@ -100,7 +100,8 @@ function humanOutcomes(claims, atomKinds) {
         if (!sourceKeys.has(key)) { sourceKeys.add(key); sources.push(source); }
       }
     }
-    return { corroborated: items.length > 1, summaries: items.map((item) => item.summary),
+    return { corroborated: items.length > 1, states: [...new Set(items.map((item) => item.state))],
+      summaries: items.map((item) => item.summary),
       evidenceValues: values, sources };
   });
 }
@@ -201,7 +202,8 @@ export function makeIntegralMethodRuntime({ sourceManifestStore, sessionId, curr
         modelProjection = { schema: 't5.integral-human-outcomes.v1', state: 'verified',
           human: args.contract.human, strategy: args.contract.strategy, form: args.contract.form,
           sourceCoverage: 'complete', outcomes: humanOutcomes(result.claimEvidence.claims, atomKinds)
-            .map((outcome) => ({ corroborated: outcome.corroborated, summaries: outcome.summaries,
+            .map((outcome) => ({ corroborated: outcome.corroborated, states: outcome.states,
+              summaries: outcome.summaries,
               evidenceValues: outcome.evidenceValues.map((item) => ({ label: item.label,
                 value: item.value, unit: item.unit, source: humanSourceReference(displayNames, item.source) })),
               sources: outcome.sources.map((source) => humanSourceReference(displayNames, source)) })),

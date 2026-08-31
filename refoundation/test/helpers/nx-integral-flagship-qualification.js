@@ -242,7 +242,7 @@ export function nx1HumanClosureRuntimeContext(verified) {
     `form=${JSON.stringify(verified.candidate.form)}`,
     `outcomes=${JSON.stringify(buildHumanOutcomes(verified).map((outcome) => ({
       outcomeId: outcome.outcomeId, corroborated: outcome.claimIds.length > 1,
-      summaries: outcome.summaries, evidenceValues: outcome.evidenceValues.map((item) => ({
+      states: outcome.states, summaries: outcome.summaries, evidenceValues: outcome.evidenceValues.map((item) => ({
         label: item.label, value: item.value, unit: item.unit,
         source: humanSourceReference(verified, item.source) })),
       sources: outcome.sources.map((item) => humanSourceReference(verified, item)) })))}`,
@@ -295,7 +295,8 @@ function buildHumanOutcomes(verified) {
       }
     }
     return { outcomeId: `outcome-${String(index + 1).padStart(3, '0')}`,
-      claimIds: items.map((item) => item.claimId), summaries: items.map((item) => item.summary),
+      claimIds: items.map((item) => item.claimId), states: [...new Set(items.map((item) => item.state))],
+      summaries: items.map((item) => item.summary),
       evidenceValues: values, sources };
   });
 }

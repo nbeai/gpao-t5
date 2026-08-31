@@ -225,6 +225,6 @@ test('Human Closure는 여러 Claim의 동일 결과값을 중복 결론이 아�
     ] } };
   const context = (await import('./helpers/nx-integral-flagship-qualification.js'))
     .nx1HumanClosureRuntimeContext(verifiedReality);
-  assert.match(context, /outcomes=.*corroborated":true.*invoice difference.*statement difference.*2950000.*50000/su);
+  assert.match(context, /outcomes=.*corroborated":true.*states":\["conflict"\].*invoice difference.*statement difference.*2950000.*50000/su);
   assert.doesNotMatch(context, /source-1|source-2/u);
 });

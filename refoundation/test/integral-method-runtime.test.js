@@ -61,6 +61,7 @@ test('Integral Method는 source를 전후 재검증하고 내부 handle 없는 h
   assert.equal(result.state, 'verified'); assert.equal(result.outcomeCount, 1);
   const projection = runtime.tool.projectResultForModel(result);
   assert.equal(projection.state, 'verified'); assert.equal(projection.outcomes.length, 1);
+  assert.deepEqual(projection.outcomes[0].states, ['conflict']);
   assert.match(JSON.stringify(projection), /source-1\.xlsx|source-2\.xlsx/u);
   assert.doesNotMatch(JSON.stringify(projection), /source-000000|atom-\d|\/synthetic\//u);
   assert.match(projection.next, /final user answer directly/u);
