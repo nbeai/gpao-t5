@@ -181,6 +181,14 @@ test('ClaimEvidence는 incomplete coverage·foreign source·duplicate claim을 �
   assert.doesNotThrow(() => validateCompactClaimEvidence(unitless, {
     sourceManifestId: sourceManifest.manifestId, exactInputHandles,
   }));
+  const tooManyEvidence = claimEvidence();
+  tooManyEvidence.claims[0].evidenceValues = Array.from({ length: 49 }, (_, index) => ({
+    valueId: `value-${index + 1}`, label: `value ${index + 1}`, value: index + 1, unit: '',
+    source: { handle: exactInputHandles[0], location: `cell:${index + 1}` },
+  }));
+  assert.throws(() => validateCompactClaimEvidence(tooManyEvidence, {
+    sourceManifestId: sourceManifest.manifestId, exactInputHandles,
+  }), /evidence values are invalid/u);
 });
 
 test('source revision이 실행 뒤 바뀌면 publication 전에 닫힌다', async () => {

@@ -4,7 +4,7 @@
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
 현재 Gate: `NX-1 FIRST FLAGSHIP MASTERY · INTEGRAL OUTCOME METHOD`
-현재 작업: `두 model·두 Tool·세 번째 호출 0의 Human Closure topology를 자격하고, 모델이 source 값을 다시 쓰지 않는 runtime Evidence Atom 후보로 안정성 재설계`
+현재 작업: `Runtime Evidence Atom으로 Reality truth를 안정화하고, 남은 Human Closure 중요도 선택을 model/provider 품질 경계에서 분리`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -860,6 +860,25 @@ AND current correction·Stop·restart·Artifact·Undo 무회귀
 - blind 인간 평가·Artifact·Undo·제품 배선은 계속 0이다.
 
 근거: `refoundation/evidence/nx1-human-closure-diagnostic-2026-09-01.json`.
+
+2026-09-01 Runtime Evidence Atom 진단:
+
+- XLSX cell·PDF line/token·local OCR line/token을 exact source handle·location·value·unit에 결속한 deterministic atom pool을
+  만들었다. 모델은 source 값과 계산 결과를 다시 작성하지 않고 atom ID와 `add·subtract·multiply·divide` 연산만 제출한다.
+- Tool schema의 atom ID는 current pool enum으로 생성돼 foreign ID는 provider 단계와 Runtime에서 닫히며, 동일 atom 중복은
+  canonical set으로 합친다.
+- 모델이 `Card Ledger!A5:G5` 같은 exact source region을 Claim 근거로 선택하면 Runtime이 그 region의 D5 15,500원을
+  포함한 atom 전체를 자동 결속한다. Human Closure에는 number·literal·calculation atom만 선택 후보로 보이고 긴 text line은
+  근거 Context로만 남는다.
+- 비용 actual에서 Reality Closure는 C-103 15,500원, C-102 42,000/41,000과 Runtime 계산 1,000원, C-101 R-101-A와
+  18,700원을 모델 값 재작성 없이 모두 회복해 PASS했다.
+- Human Closure는 선택한 15개 값을 finalAnswer에 모두 반영했지만 사용자 목적에 필요한 값 일부를 애초에 선택하지 않아
+  FAIL했다. 따라서 남은 미달은 source truth가 아니라 모델의 인간적 중요도 선택이다.
+- 같은 Claim field·stage instruction·regex·업무별 중요도 규칙을 더 추가하지 않는다. 다음은 동일 verified atom pool에서
+  Human Closure만 모델/provider 비교해 모델 품질과 계약 구조를 분리하는 작업이다.
+- 제품 source·global Prompt·Store·Router·blind 인간 평가·제품 승격은 계속 0이다.
+
+근거: `refoundation/evidence/nx1-evidence-atom-diagnostic-2026-09-01.json`.
 
 ## NX-2 — Mastery Generalization
 

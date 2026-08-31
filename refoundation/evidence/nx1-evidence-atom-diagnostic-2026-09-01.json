@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "gate": "NX_1_RUNTIME_EVIDENCE_ATOM_DIAGNOSTIC",
+  "status": "REALITY_ATOMS_QUALIFIED_HUMAN_SELECTION_UNSTABLE_PRODUCT_ZERO",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "06d7cb26",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "oracleProjectedToModel": 0,
+  "productChanges": 0,
+  "runtimeAtoms": {
+    "sources": ["xlsx_cell", "pdf_line_and_token", "local_ocr_line_and_token"],
+    "identity": "deterministic atom ID bound to source handle, exact location, kind, value and unit",
+    "modelWritesSourceValues": false,
+    "modelWritesCalculationResults": false,
+    "dynamicToolSchemaAtomEnum": true,
+    "sourceRegionAutoExpansion": true,
+    "foreignAtomRejected": true,
+    "duplicateAtomCanonicalized": true,
+    "calculationOperators": ["add", "subtract", "multiply", "divide"]
+  },
+  "deterministicQualification": {
+    "focusedTests": 26,
+    "passed": 26,
+    "failed": 0,
+    "evidenceAtomSpecificTests": 5
+  },
+  "expenseActual": {
+    "reality": {
+      "status": "PASS",
+      "claimFamilies": ["missing C-103 evidence", "C-102 amount mismatch", "duplicate C-101 evidence"],
+      "factsRecoveredWithoutModelValueRewrite": [
+        "C-103 KRW 15,500",
+        "C-102 ledger KRW 42,000",
+        "C-102 invoice KRW 41,000",
+        "Runtime calculation KRW 1,000",
+        "C-101 R-101-A and KRW 18,700"
+      ],
+      "referencedMaterializedValues": 101
+    },
+    "human": {
+      "status": "FAIL",
+      "selectedValues": 15,
+      "selectedValueCoverage": "PASS",
+      "answerRequiredFacts": "FAIL",
+      "reason": "the model included every value it selected, but did not select all values required by the user outcome"
+    },
+    "performance": {
+      "wallMs": 64365.267,
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "inputTokens": 9755,
+      "requestBytes": 32824
+    }
+  },
+  "decision": {
+    "runtimeRealityProjection": "STRONG_POSITIVE",
+    "sourceValueTruth": "QUALIFIED",
+    "calculationTruth": "QUALIFIED",
+    "humanImportanceSelection": "MODEL_PROVIDER_QUALITY_BOUNDARY_NOT_STABLE",
+    "thirdModelCall": false,
+    "blindHumanEvaluation": "NOT_OPENED",
+    "productPromotion": false
+  },
+  "stopLine": "Do not add another Claim field, stage instruction, regex, or business-specific importance rule. Human Closure needs a model/provider quality decision or a separately approved bounded correction topology; current product wiring remains zero.",
+  "next": "Compare the same verified Evidence Atom pool at Human Closure only, without rerunning Reality, to determine whether the instability is provider/model quality or the two-call closure contract."
+}

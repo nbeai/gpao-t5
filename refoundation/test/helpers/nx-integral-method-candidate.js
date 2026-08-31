@@ -215,7 +215,7 @@ export function compactClaimEvidenceJsonSchema() {
         summary: { type: 'string', maxLength: MAX_TEXT,
           description: 'Compact semantic claim summary. Verification and final-display values are carried separately.' },
         sourceRefs: { type: 'array', minItems: 1, maxItems: 8, items: ref },
-        evidenceValues: { type: 'array', minItems: 1, maxItems: 16,
+        evidenceValues: { type: 'array', minItems: 1, maxItems: 48,
           description: 'All values needed to verify this claim. These values do not all need to appear in the final answer.',
           items: { type: 'object', additionalProperties: false, properties: {
             valueId: { type: 'string', maxLength: 80 }, label: { type: 'string', maxLength: 80 },
@@ -320,7 +320,7 @@ export function validateCompactClaimEvidence(input, { sourceManifestId, exactInp
     if (!Array.isArray(claim.sourceRefs) || claim.sourceRefs.length < 1 || claim.sourceRefs.length > 8) {
       throw new TypeError('claim source references are invalid');
     }
-    if (!Array.isArray(claim.evidenceValues) || claim.evidenceValues.length < 1 || claim.evidenceValues.length > 16) {
+    if (!Array.isArray(claim.evidenceValues) || claim.evidenceValues.length < 1 || claim.evidenceValues.length > 48) {
       throw new TypeError('claim evidence values are invalid');
     }
     const evidenceValues = claim.evidenceValues.map((item) => {
