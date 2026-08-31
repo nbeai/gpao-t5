@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_WP0_POSIX_ASSUMPTION_AUDIT",
+  "status": "COMPLETE_FINDINGS_ROUTED",
+  "sourceCommit": "b049b19b",
+  "productChanges": 0,
+  "classifications": {
+    "macos_only_valid": [
+      "Seatbelt sandbox-exec profiles",
+      "Keychain security CLI",
+      "AVFoundation and Vision helpers",
+      "Quick Look DOCX all-page rendering",
+      "FSEvents and osascript notifications",
+      "APFS cp -c workspace snapshot"
+    ],
+    "windows_adapter_exists": [
+      "PowerShell CMD command runtime",
+      "Job Object process boundary",
+      "ConPTY",
+      "DPAPI",
+      "Explorer Reveal",
+      "IFileDialog folder picker",
+      "USN scoped file activity",
+      "foreground app activity",
+      "Windows Search derived projection",
+      "Windows product roots launcher and update scripts"
+    ],
+    "shared_core_defects_repaired": [
+      "Windows package 0.3.1 version constant",
+      "drive-root default file search",
+      "case-sensitive duplicate target identity",
+      "UNC path link detection",
+      "untrusted Node runtime material",
+      "host-architecture native dependency install"
+    ],
+    "runner_required": [
+      "x64 OCR helper C++ WinRT compile",
+      "ARM64 native helper cross-build",
+      "x64 node-pty Sharp runtime load",
+      "PowerShell Job Object ConPTY DPAPI current head"
+    ],
+    "physical_required": [
+      "NTFS junction reparse hardlink ACL lock cross-volume",
+      "Windows Search actual query readback",
+      "Defender UAC enterprise policy",
+      "AppContainer confinement",
+      "Explorer Browser IME and human UX",
+      "x64 and ARM64 real execution",
+      "install upgrade rollback uninstall state preservation"
+    ]
+  },
+  "remainingPublicBlockers": [
+    "Windows Terminal physical confinement",
+    "G Windows protected program execution",
+    "Windows all-page DOCX quality rendering",
+    "current-head runner unavailable",
+    "physical Windows qualification"
+  ],
+  "notOpened": [
+    "Computer Use",
+    "Method Runtime",
+    "Practical Judgment",
+    "new Document platform",
+    "model-specific Runtime or Prompt"
+  ]
+}

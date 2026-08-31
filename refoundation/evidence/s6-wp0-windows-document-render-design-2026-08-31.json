@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_WP0_F6_WINDOWS_DOCUMENT_RENDER",
+  "status": "USER_PREVIEW_COMMON_NATIVE_QUALITY_RENDERER_OPEN",
+  "sourceCommit": "b049b19b",
+  "productChanges": 0,
+  "currentTruth": {
+    "docxTextAndTables": "COMMON_CORE_COMPLETE",
+    "consoleDocumentPreview": "COMMON_CORE_COMPLETE",
+    "docxCreation": "COMMON_CORE_COMPLETE",
+    "docxAllPagePixelQualification": "MACOS_ONLY",
+    "windowsNativeRenderer": "NOT_IMPLEMENTED"
+  },
+  "candidates": [
+    {
+      "name": "Microsoft Word COM",
+      "state": "POSITIVE_CONTROL_ONLY",
+      "reason": "high fidelity when Word exists but not a general-user product dependency"
+    },
+    {
+      "name": "LibreOffice headless",
+      "state": "REJECTED_AS_DEFAULT",
+      "reason": "large package and prior Korean glyph failure evidence"
+    },
+    {
+      "name": "browser DOCX renderer",
+      "state": "QUALIFICATION_CANDIDATE",
+      "reason": "cross-platform and no Office dependency, but pixel pagination and print fidelity must be measured"
+    }
+  ],
+  "next": "On Windows, compare current HTML Preview, Word COM when present, and one browser renderer on the same Korean multi-page fixture. Adopt only if all-page glyph layout and print truth improve without a large runtime.",
+  "nonClaims": ["Windows native DOCX render", "Word dependency", "Windows all-page professional deliverable qualification"]
+}

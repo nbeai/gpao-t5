@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_WP0_F4_WINDOWS_G_PROGRAM_ADMISSION",
+  "status": "DEPENDENCIES_MAPPED_PRODUCT_ADMISSION_CLOSED",
+  "sourceCommit": "b049b19b",
+  "productChanges": 0,
+  "currentTruth": {
+    "consoleAdmission": "darwin_only",
+    "workspaceSnapshot": "APFS cp -c and POSIX identity assumptions",
+    "pythonExecution": "sandbox-exec and physical macOS required",
+    "windowsFallback": false
+  },
+  "portableCoreAlreadyPresent": [
+    "exec program contract",
+    "exact source bytes",
+    "source universe manifest",
+    "host output observer",
+    "F publication and durable output handoff",
+    "Artifact and cleanup settlement"
+  ],
+  "requiredBeforeWindowsAdmission": [
+    "qualified Windows confinement host",
+    "portable bounded workspace clone with exact digest readback",
+    "exact Windows Python interpreter source version and digest",
+    "Windows path delimiter and argv qualification",
+    "NTFS source identity and stale snapshot countertests",
+    "scratch-only write and network child denial",
+    "same-language actual execution exact once",
+    "F publication and cleanup after crash"
+  ],
+  "decision": "Keep G unavailable on Windows until the confinement family is physically qualified. Do not silently fall back to unconfined exec.",
+  "countertests": [
+    "computer.platform win32 never receives the macOS adapter",
+    "absence of a qualified adapter keeps product activation zero",
+    "ordinary Windows exec remains a separate explicit-effect path",
+    "model and user answer cannot claim protected G execution"
+  ],
+  "nonClaims": ["Windows G implementation", "Windows Python capsule", "NTFS immutable source universe"]
+}
