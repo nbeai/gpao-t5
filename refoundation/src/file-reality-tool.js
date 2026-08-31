@@ -556,24 +556,50 @@ export function makeFileRealityTool({
           contentIncluded: false };
       }
       if (action === 'inspect') {
-        if (!Array.isArray(requestedHandles) || requestedHandles.length !== 1) throw new TypeError('one file handle is required');
-        const { record } = await reopen(requestedHandles[0]); const sha256 = await streamSha256(record.path);
-        let content = await boundedText(record.path, 96 * 1024).catch(() => null);
-        if (content == null) content = await documentText(record.path);
-        let ocr = null;
-        if (content == null && typeof ocrProbe === 'function' && IMAGE_EXTENSIONS.has(record.extension)) {
-          ocr = await ocrProbe(record.path, { timeoutMs: 5_000 }); if (ocr?.state === 'observed') content = ocr.text;
+        if (!Array.isArray(requestedHandles) || requestedHandles.length < 1 || requestedHandles.length > 12) {
+          throw new TypeError('one to twelve file handles are required');
         }
-        const artifact = visualizedHandles.has(requestedHandles[0])
-          && IMAGE_EXTENSIONS.has(record.extension) && typeof registerSelectedImage === 'function'
-          ? await registerSelectedImage({ path: record.path, sha256, displayName: record.displayName }) : null;
-        return { state: 'observed', file: { handle: requestedHandles[0], displayName: record.displayName,
-          locationText: record.locationText, extension: record.extension, bytes: record.bytes,
-          modifiedAt: record.modifiedAt, sha256 },
-        content: content == null ? null : content.slice(0, 48_000), contentTruncated: content != null && content.length > 48_000,
-        ocr: ocr?.state === 'observed' ? { engine: ocr.engine, width: ocr.width, height: ocr.height,
-          observationCount: ocr.observations.length, truncated: ocr.truncated } : null,
-        ...(artifact ? { artifact, delivery: { state: 'registered_selected_visual' } } : {}) };
+        const uniqueHandles = [...new Set(requestedHandles.map(String))];
+        if (uniqueHandles.length !== requestedHandles.length) throw new TypeError('file handles must be unique');
+        const observed = await mapConcurrent(uniqueHandles, 4, async (handle) => {
+          const { record } = await reopen(handle); const sha256 = await streamSha256(record.path);
+          let content = await boundedText(record.path, 96 * 1024).catch(() => null);
+          if (content == null) content = await documentText(record.path);
+          let ocr = null;
+          if (content == null && typeof ocrProbe === 'function' && IMAGE_EXTENSIONS.has(record.extension)) {
+            ocr = await ocrProbe(record.path, { timeoutMs: 5_000 }); if (ocr?.state === 'observed') content = ocr.text;
+          }
+          const artifact = visualizedHandles.has(handle)
+            && IMAGE_EXTENSIONS.has(record.extension) && typeof registerSelectedImage === 'function'
+            ? await registerSelectedImage({ path: record.path, sha256, displayName: record.displayName }) : null;
+          return { file: { handle, displayName: record.displayName,
+            locationText: record.locationText, extension: record.extension, bytes: record.bytes,
+            modifiedAt: record.modifiedAt, sha256 }, content, ocr, artifact };
+        });
+        if (observed.length === 1) {
+          const item = observed[0]; return { state: 'observed', file: item.file,
+            content: item.content == null ? null : item.content.slice(0, 48_000),
+            contentTruncated: item.content != null && item.content.length > 48_000,
+            ocr: item.ocr?.state === 'observed' ? { engine: item.ocr.engine, width: item.ocr.width,
+              height: item.ocr.height, observationCount: item.ocr.observations.length,
+              truncated: item.ocr.truncated } : null,
+            ...(item.artifact ? { artifact: item.artifact,
+              delivery: { state: 'registered_selected_visual' } } : {}) };
+        }
+        let remaining = 96_000;
+        const files = observed.map((item) => {
+          const content = item.content == null ? null : item.content.slice(0, Math.min(24_000, remaining));
+          remaining -= content?.length ?? 0;
+          return { ...item.file, content,
+            contentTruncated: item.content != null && content.length < item.content.length,
+            ocr: item.ocr?.state === 'observed' ? { engine: item.ocr.engine, width: item.ocr.width,
+              height: item.ocr.height, observationCount: item.ocr.observations.length,
+              truncated: item.ocr.truncated } : null,
+            ...(item.artifact ? { artifact: item.artifact,
+              delivery: { state: 'registered_selected_visual' } } : {}) };
+        });
+        return { state: 'observed', files, coverage: { requested: uniqueHandles.length,
+          observed: files.length, complete: files.length === uniqueHandles.length }, contentIncluded: true };
       }
       if (action === 'deliver') {
         if (!Array.isArray(requestedHandles) || requestedHandles.length !== 1) {

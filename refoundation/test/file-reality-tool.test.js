@@ -312,6 +312,29 @@ test('선택한 exact handle만 runtime-owned 취합 원본 manifest로 결속�
   } finally { await rm(room.root, { recursive: true, force: true }); }
 });
 
+test('inspect는 서로 다른 exact handle을 한 bounded 호출에서 관측하고 단일 반환은 보존한다', async () => {
+  const room = await fixture();
+  try {
+    const tool = makeFileRealityTool({ workspace: room.workspace, home: room.root,
+      platform: 'test', computerRoots: [room.root], indexSearch: async () => [room.a, room.c] });
+    const found = await tool.execute({ action: 'search', query: '새봄 견적', scope: 'workspace', path: null,
+      handles: null, maxCandidates: 10, placements: null, planId: null, effect: null,
+      sourceUses: null, purpose: null, unknowns: null, standardization: null });
+    const selected = found.candidates.filter((item) => ['새봄_견적서_v1.txt', '새봄-견적서-수정.txt']
+      .includes(item.displayName));
+    const many = await tool.execute({ action: 'inspect', query: null, scope: null, path: null,
+      handles: selected.map((item) => item.handle), maxCandidates: null, placements: null,
+      planId: null, effect: null, sourceUses: null, purpose: null, unknowns: null, standardization: null });
+    assert.equal(many.state, 'observed'); assert.equal(many.files.length, 2);
+    assert.deepEqual(many.coverage, { requested: 2, observed: 2, complete: true });
+    assert.ok(many.files.every((item) => typeof item.content === 'string'));
+    const one = await tool.execute({ action: 'inspect', query: null, scope: null, path: null,
+      handles: [selected[0].handle], maxCandidates: null, placements: null, planId: null,
+      effect: null, sourceUses: null, purpose: null, unknowns: null, standardization: null });
+    assert.ok(one.file); assert.equal('files' in one, false);
+  } finally { await rm(room.root, { recursive: true, force: true }); }
+});
+
 test('무의미한 이미지 파일명도 bounded local OCR 단서로 후보가 된다', async () => {
   const room = await fixture(); const image = join(room.elsewhere, 'KakaoTalk_20260827_142233.png'); await writeFile(image, 'image-fixture');
   try {
