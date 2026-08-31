@@ -9,6 +9,19 @@
 - 첫 NX Flagship은 이 연구실의 Document Reality·Method Runtime·Cognitive Flow를 조합하되, DR-0 혼합 문서
   baseline을 실제로 이기는 `Reality Scout + Method Capsule + Quality Closure` 후보 하나다.
 
+## NX-2 Generalized Mastery 개발 정본
+
+- 문서: `T5-NX2-GENERALIZED-MASTERY-DEVELOPMENT-PLAN.md`
+- 상태: `PLAN_COMPLETE · NX_1_CLOSEOUT_REQUIRED · PRODUCT_IMPLEMENTATION_NOT_OPEN`
+- 범위: GUI·Selection Side Exploration과 NX-1에 이미 흡수된 Reality Scout·Method·Evidence Atom·이중 완료를 제외하고,
+  연구실에 남은 Mastery 일반화·Context Diet·Cognitive Flow·Auditory·Web Collector·Naver·Experience를 하나의 순차
+  NX-2 제품선으로 통합한다.
+- 순서: `NX2-0 귀환선 → NX2-1 업무 일반화 → NX2-2 Context/Interface → NX2-3 Cognitive Flow → NX2-4 청각
+  → NX2-5 공개 웹 수집 → NX2-6 네이버 실무 → NX2-7 Experience → NX2-HQ`.
+- 개통 조건: 현재 NX-1의 제품 승격 또는 폐기·closeout이 먼저 확정되고 오너가 NX-2를 CURRENT로 여는 경우.
+- 완료 기준: 기능 수가 아니라 Direct 무회귀와 실제 사용자 목적의 속도·정확성·결과 품질·교정·복구·인간 UX의
+  clean second whole-flow PASS.
+
 ## Context Diet & Interface Intelligence
 
 - 문서: `T5-CONTEXT-DIET-INTERFACE-INTELLIGENCE-RESEARCH.md`

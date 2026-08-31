@@ -985,6 +985,26 @@ AND current correction·Stop·restart·Artifact·Undo 무회귀
 
 ## NX-2 — Mastery Generalization — CURRENT
 
+상세 개발 정본: `티파이브개발 연구/T5-NX2-GENERALIZED-MASTERY-DEVELOPMENT-PLAN.md`
+
+상태: `PLANNED_NOT_OPEN · NX_1_CLOSEOUT_REQUIRED`
+
+NX-2는 아래 네 업무만 늘리는 단계가 아니다. GUI와 NX-1에 이미 흡수된 Reality·Method·Evidence 구조를 다시 만들지
+않고, 남은 연구를 다음 한 실행선으로 일반화한다.
+
+```text
+업무·lane 일반화
+→ Context Diet & Interface Intelligence
+→ Cognitive Flow·Practical Judgment 자격
+→ Auditory Intelligence
+→ Web Intelligence Collector
+→ Naver Identity·Mail·Blog
+→ Experience Promotion
+→ Competitive Whole Human HQ
+```
+
+이 순서는 NX-1이 종료된 뒤에만 열리며, 전문 연구 문서의 존재만으로 여러 제품 Gate를 동시에 시작하지 않는다.
+
 NX-1이 이긴 경우에만 공통 Method를 다음으로 확장한다.
 
 1. 매출 변동·기여도
@@ -1124,6 +1144,11 @@ AND 새 Store·업무 Router·provider Prompt fork·Runtime 의미 판정 0
 
 ## NX-3 — Experience Promotion
 
+상태: `ABSORBED_AS_NX2_7 · NOT_SEPARATELY_OPEN`
+
+이 절의 원리는 NX-2 상세 정본의 `NX2-7 — Experience Promotion`으로 흡수됐다. NX-2의 업무·Context·Cognitive
+Flow·감각·실무 능력에서 실제 성공과 실패가 생기기 전에 별도 학습 제품선을 열지 않는다.
+
 - 서로 다른 achieved Work
 - current baseline vs Method AB/BA
 - independent field·fresh purpose
@@ -1134,6 +1159,11 @@ AND 새 Store·업무 Router·provider Prompt fork·Runtime 의미 판정 0
 한 번 성공한 Method는 제품 숙련이 아니다.
 
 ## NX-AU — Auditory Intelligence
+
+상태: `ABSORBED_AS_NX2_4 · NOT_SEPARATELY_OPEN`
+
+청각기관의 상세 Gate와 자격은 NX-2 상세 정본의 `NX2-4 — Auditory Intelligence`가 관리한다. 엔진 연구의 독립성과
+source·coverage 계약은 유지하되 NX-2와 별도 CURRENT Gate로 병렬 개통하지 않는다.
 
 청각기관은 NX-1과 섞지 않는 독립 제품선이다.
 
