@@ -445,7 +445,6 @@ export function makeFileRealityTool({
           handle: remember(record), displayName: record.displayName, locationText: record.locationText,
           extension: record.extension, bytes: record.bytes, modifiedAt: record.modifiedAt }));
         return { state: 'observed', scope: scope ?? 'computer', candidates, contentIncluded: false,
-        ...(candidates.length > 1 ? { requiredNextTool: 'file_reality' } : {}),
         coverage: { roots: roots.length, unavailableRoots: rootState.unavailableRoots,
           filesystemFilesVisited: walk.files.length, filesystemEntriesVisited: walk.visited,
           unreadableDirectories: walk.unreadable, truncated: walk.truncated, elapsedMs: Math.max(0, now() - startedAt) } };
@@ -560,8 +559,7 @@ export function makeFileRealityTool({
             visualScope: typeof ocrProbe !== 'function' ? 'unavailable'
               : walk.truncated || imagePool.length > ocrProbes ? 'partial' : 'complete',
             truncated: walk.truncated || now() >= deadline, elapsedMs: Math.max(0, now() - startedAt) },
-          contentIncluded: false,
-          ...(candidates.length > 1 ? { requiredNextTool: 'file_reality' } : {}) };
+          contentIncluded: false };
       }
       if (action === 'inspect') {
         if (!Array.isArray(requestedHandles) || requestedHandles.length < 1 || requestedHandles.length > 12) {
@@ -607,8 +605,7 @@ export function makeFileRealityTool({
               delivery: { state: 'registered_selected_visual' } } : {}) };
         });
         return { state: 'observed', files, coverage: { requested: uniqueHandles.length,
-          observed: files.length, complete: files.length === uniqueHandles.length }, contentIncluded: true,
-        requiredNextTool: 'file_reality' };
+          observed: files.length, complete: files.length === uniqueHandles.length }, contentIncluded: true };
       }
       if (action === 'deliver') {
         if (!Array.isArray(requestedHandles) || requestedHandles.length !== 1) {
