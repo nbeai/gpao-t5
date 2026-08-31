@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "gate": "S6_WP0_WINDOWS_NATIVE_DEPENDENCY_ARCHITECTURE",
+  "status": "COMPLETE_CONTRACT_RUNNER_PENDING",
+  "baseCommit": "64e5a5fe",
+  "failure": {
+    "family": "windows_native_dependency_architecture",
+    "before": "npm ci used the build host architecture even when --architecture requested ARM64",
+    "impact": "an ARM64 payload could carry x64 node-pty or Sharp native modules"
+  },
+  "repair": {
+    "npmTargetPlatform": "win32",
+    "npmTargetArchitectures": ["x64", "arm64"],
+    "peVerified": [
+      "node-pty pty.node",
+      "node-pty conpty.node",
+      "node-pty conpty_console_list.node",
+      "OpenConsole.exe",
+      "winpty-agent.exe",
+      "Sharp native module"
+    ]
+  },
+  "verification": {
+    "sourceContract": "PASS",
+    "x64NpmInstall": "PENDING_WINDOWS_RUNNER",
+    "arm64NpmInstall": "PENDING_WINDOWS_RUNNER",
+    "runtimeLoad": "PENDING_PHYSICAL_WINDOWS"
+  },
+  "nonClaims": ["x64 native dependency execution", "ARM64 native dependency execution", "Windows package built"]
+}

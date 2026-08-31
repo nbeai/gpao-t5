@@ -7,7 +7,8 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 
-import { makeWindowsIconIco, windowsPeArchitecture, windowsProductVersion, windowsRuntimeMaterial,
+import { makeWindowsIconIco, windowsNativeDependencyPaths, windowsPeArchitecture,
+  windowsProductVersion, windowsRuntimeMaterial,
   WINDOWS_INSTALL_SCRIPT, WINDOWS_UNINSTALL_SCRIPT } from './windows-package-contract.mjs';
 import { assertFourthCycleDormantSourceExcluded, assertQualificationOnlySourceExcluded,
   removeFourthCycleDormantSource, removeQualificationOnlySource } from './product-source-boundary.mjs';
@@ -27,15 +28,20 @@ async function walk(root) {
   } return output;
 }
 
-async function copyRuntimeApp(target) {
+async function copyRuntimeApp(target, targetArchitecture) {
   const refoundation=join(target,'refoundation');await mkdir(join(refoundation,'scripts'),{recursive:true});
   for(const file of ['package.json','package-lock.json'])await copyFile(join(repo,'refoundation',file),join(refoundation,file));
   for(const directory of ['src','bin','skills','skill-packages','capabilities','config','ui'])await cp(join(repo,'refoundation',directory),join(refoundation,directory),{recursive:true,dereference:false});
   await removeFourthCycleDormantSource(refoundation);await removeQualificationOnlySource(refoundation);
   await assertFourthCycleDormantSourceExcluded(refoundation);await assertQualificationOnlySourceExcluded(refoundation);
   for(const script of ['start-console.mjs','ensure-local-runtime.mjs','stop-local-runtime.mjs','activate-whole-state-restore.mjs','connect-chatgpt.mjs','prepare-node-pty.mjs','restrict-kordoc-bin.mjs'])await copyFile(join(repo,'refoundation','scripts',script),join(refoundation,'scripts',script));
-  run('npm.cmd',['ci','--omit=dev'],{cwd:refoundation,stdio:'inherit'});
+  run('npm.cmd',['ci','--omit=dev'],{cwd:refoundation,stdio:'inherit',env:{...process.env,
+    npm_config_platform:'win32',npm_config_os:'win32',npm_config_arch:targetArchitecture,npm_config_cpu:targetArchitecture}});
   for(const item of ['@huggingface/transformers','onnxruntime-node','onnxruntime-common','adm-zip'])await rm(join(refoundation,'node_modules',item),{recursive:true,force:true});
+  for(const relativePath of windowsNativeDependencyPaths(targetArchitecture)){
+    const exact=join(refoundation,...relativePath.split('/'));const bytes=await readFile(exact);
+    if(windowsPeArchitecture(bytes)!==targetArchitecture)throw new Error(`Windows native dependency architecture mismatch: ${relativePath}`);
+  }
 }
 
 function compile(source, output, flags=[]) {
@@ -53,7 +59,7 @@ async function main(){
   const nodeInput=resolve(option('--node-runtime')??process.execPath);const work=await mkdtemp(join(tmpdir(),'t5-windows-package-'));
   const packageRoot=join(work,'package');const payload=join(packageRoot,'payload');const bin=join(payload,'bin');
   try{
-    await mkdir(bin,{recursive:true});await copyRuntimeApp(join(payload,'app'));
+    await mkdir(bin,{recursive:true});await copyRuntimeApp(join(payload,'app'),architecture);
     const runtimeMaterial=windowsRuntimeMaterial(runtimeMaterials,architecture);const nodeBytes=await readFile(nodeInput);
     if(windowsPeArchitecture(nodeBytes)!==architecture)throw new Error('Node runtime architecture does not match package architecture');
     if(nodeBytes.length!==runtimeMaterial.bytes||createHash('sha256').update(nodeBytes).digest('hex')!==runtimeMaterial.sha256)throw new Error('Node runtime does not match the pinned official material');

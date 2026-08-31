@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import { makeWindowsIconIco, windowsPeArchitecture, windowsProductVersion, windowsRuntimeMaterial,
+import { makeWindowsIconIco, windowsNativeDependencyPaths, windowsPeArchitecture,
+  windowsProductVersion, windowsRuntimeMaterial,
   WINDOWS_INSTALL_SCRIPT, WINDOWS_UNINSTALL_SCRIPT } from '../scripts/windows-package-contract.mjs';
 
 test('Windows package version은 sealed root 제품 version을 사용하고 잘못된 값을 거부한다', async () => {
@@ -14,6 +15,15 @@ test('Windows package version은 sealed root 제품 version을 사용하고 잘�
   const source = await readFile(new URL('../scripts/build-windows-package.mjs', import.meta.url), 'utf8');
   assert.match(source, /windowsProductVersion\(JSON\.parse\(await readFile\(join\(repo, 'package\.json'/u);
   assert.doesNotMatch(source, /const version = '0\.3\.1'/u);
+});
+
+test('Windows native dependency는 target architecture의 node-pty와 Sharp를 exact path로 요구한다', () => {
+  const x64 = windowsNativeDependencyPaths('x64'); const arm64 = windowsNativeDependencyPaths('arm64');
+  assert.ok(x64.includes('node_modules/node-pty/prebuilds/win32-x64/pty.node'));
+  assert.ok(x64.includes('node_modules/@img/sharp-win32-x64/lib/sharp-win32-x64-0.35.3.node'));
+  assert.ok(arm64.includes('node_modules/node-pty/prebuilds/win32-arm64/conpty/OpenConsole.exe'));
+  assert.ok(arm64.includes('node_modules/@img/sharp-win32-arm64/lib/sharp-win32-arm64-0.35.3.node'));
+  assert.throws(() => windowsNativeDependencyPaths('ia32'), /architecture is invalid/u);
 });
 
 test('Windows Node runtime은 공식 x64 ARM64 source·bytes·SHA에 고정된다', async () => {
@@ -60,4 +70,5 @@ test('Windows package recipe는 native helper와 x64 ARM64 architecture contract
   const source=await readFile(new URL('../scripts/build-windows-package.mjs',import.meta.url),'utf8');
   for(const name of ['t5-windows-job-host.c','t5-windows-folder-picker.c','t5-windows-file-activity.c','t5-windows-coarse-app-activity.c','t5-windows-image-ocr.cpp','t5-windows-launcher.c'])assert.match(source,new RegExp(name.replaceAll('.','\\.')));
   assert.match(source,/\['x64','arm64'\]/u);assert.match(source,/UNSIGNED_NOT_PHYSICALLY_QUALIFIED/u);
+  assert.match(source,/npm_config_platform:'win32'/u);assert.match(source,/windowsNativeDependencyPaths/u);
 });

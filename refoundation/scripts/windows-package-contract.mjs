@@ -25,6 +25,16 @@ export function windowsRuntimeMaterial(input, architecture) {
     bytes: material.bytes, sha256: material.sha256, source: String(input.source ?? '') });
 }
 
+export function windowsNativeDependencyPaths(architecture) {
+  if (!['x64', 'arm64'].includes(architecture)) throw new TypeError('Windows native dependency architecture is invalid');
+  const pty = `node_modules/node-pty/prebuilds/win32-${architecture}`;
+  return Object.freeze([
+    `${pty}/pty.node`, `${pty}/conpty.node`, `${pty}/conpty_console_list.node`,
+    `${pty}/conpty/OpenConsole.exe`, `${pty}/winpty-agent.exe`,
+    `node_modules/@img/sharp-win32-${architecture}/lib/sharp-win32-${architecture}-0.35.3.node`,
+  ]);
+}
+
 export const WINDOWS_INSTALL_SCRIPT = String.raw`param(
   [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA 'Programs\GPAO-T5')
 )
