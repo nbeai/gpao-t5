@@ -21,6 +21,19 @@
   multi-model qualification.
 - 현재 NX-1을 중단하거나 이 연구 문서의 존재만으로 전역 Prompt를 수정하지 않는다.
 
+## Naver Identity·Mail·Blog Capability
+
+- 문서: `T5-NAVER-IDENTITY-MAIL-BLOG-CAPABILITY-RESEARCH.md`
+- 상태: `RESEARCH_COMPLETE · PRODUCT_IMPLEMENTATION_NOT_OPEN · OWNER_GATE_REQUIRED`
+- 기준: NX `9e2daf0c`와 0.1.1~0.1.7 실제 Naver Browser 증거
+- 핵심: 하나의 T5 Naver profile identity 위에서 Mail은 공식 IMAP/SMTP, Blog는 현재 Browser UI, 로그인된 crawler는
+  후속 scoped session broker로 분리한다.
+- 첫 Gate: `로그인 상태 유지` 미선택/선택 opposing test와 clean restart 뒤 Mail·Blog read-only actual.
+- 기본 후보: Managed Playwright. Selenium·webdriver-manager는 Windows 물리 자격에서 실제 우위가 있을 때만 같은
+  Browser Hand 아래 provider 후보로 비교한다.
+- 금지: raw agent-browser/Selenium second reality, cookie·일반 비밀번호 노출, hidden Blog API, success log만으로 완료.
+- 현재 NX-1을 중단하거나 이 연구 문서의 존재만으로 구현을 시작하지 않는다.
+
 ## GUI 제외 통합 개발 계획
 
 - 문서: `T5-NON-GUI-INTEGRATED-DEVELOPMENT-PLAN.md`
