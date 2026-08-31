@@ -17,6 +17,14 @@ async function rooms(fn) {
   finally { await rm(root, { recursive: true, force: true }); }
 }
 
+test('foreground exec는 observe만 completion optional이고 실제 효과는 Work completion을 유지한다', () => {
+  const tool = makeExecTool({ workspace: process.cwd() });
+  assert.equal(tool.completionProposalOptional({ effect: null }), true);
+  assert.equal(tool.completionProposalOptional({ effect: { kind: 'observe' } }), true);
+  assert.equal(tool.completionProposalOptional({ effect: { kind: 'local_change', targets: ['x'] } }), false);
+  assert.equal(tool.completionProposalOptional({ effect: { kind: 'external_change' } }), false);
+});
+
 test('exec는 부모 프로세스의 자격 환경변수를 셸에 상속하지 않는다', async () => rooms(async ({ workspace }) => {
   const previous = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = 'must-not-reach-shell';

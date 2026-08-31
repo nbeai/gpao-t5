@@ -167,6 +167,10 @@ function makeCommandTool(options = {}, { managed }) {
 
   const tool = {
     name: managed ? 'process_start' : 'exec',
+    ...(managed ? {} : { completionProposalOptional: (args = {}) => {
+      try { return normalizeTerminalEffect(args.effect).kind === 'observe'; }
+      catch { return false; }
+    } }),
     description: managed
       ? 'Start a command that should continue as a managed process. Returns running processId when still active; use process_control afterward.'
       : `Run a foreground command to completion and return its complete observed stdout, stderr, and exit status in one result.${registeredCliDescription}`,
