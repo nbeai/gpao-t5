@@ -130,12 +130,14 @@ test('NX-1B contract는 6KiB 초과·열린 schema·raw path·secret·unsupporte
   assert.throws(() => validateIntegralMethodCandidate(effect, { currentWork, sourceManifest }), /unsupported output or effect/u);
 });
 
-test('qualification helper는 product source·Prompt·Store·Tool registry에 연결되지 않는다', async () => {
+test('제품 승격은 Console의 deferred runtime 한 경계만 열고 AgentLoop·전역 Prompt·Work Store를 분기하지 않는다', async () => {
   const [server, loop, modelFactory, workStore] = await Promise.all([
     read('refoundation/src/console-server.js'), read('refoundation/src/agent-loop.js'),
     read('refoundation/src/console-model-factory.js'), read('refoundation/src/work-store.js'),
   ]);
-  for (const source of [server, loop, modelFactory, workStore]) {
-    assert.doesNotMatch(source, /integral[-_]method|integral outcome method/iu);
-  }
+  assert.match(server, /makeIntegralMethodRuntime/u);
+  assert.match(server, /onSourcesBound:.*integralMethod\.prepare/su);
+  for (const source of [loop, modelFactory, workStore]) assert.doesNotMatch(source,
+    /integral[-_]method|integral outcome method/iu);
+  assert.doesNotMatch(server, /IntegralMethodStore|intent.*integral|purchase_reconciliation|contract_revision|expense_evidence/iu);
 });

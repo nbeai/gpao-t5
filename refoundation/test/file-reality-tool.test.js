@@ -286,9 +286,15 @@ test('선택한 exact handle만 runtime-owned 취합 원본 manifest로 결속�
   const room = await fixture();
   try {
     const manifests = new FileSourceManifestStore(join(room.root, 't5-state', 'source-manifests'));
+    let preparedManifest = null;
     const tool = makeFileRealityTool({ workspace: room.workspace, home: room.root, platform: 'test',
       computerRoots: [room.root], protectedRoots: [join(room.root, 't5-state')], sourceManifestStore: manifests,
-      sessionId: '11111111-1111-4111-8111-111111111111', indexSearch: async () => [room.a, room.c] });
+      sessionId: '11111111-1111-4111-8111-111111111111', indexSearch: async () => [room.a, room.c],
+      onSourcesBound: async (manifest) => { preparedManifest = manifest.manifestId; return {
+        state: 'ready', activatedTools: ['integral_method'], integralMethod: {
+          sourceManifestId: manifest.manifestId, sourceCount: manifest.sources.length,
+          sourcePacket: 'bounded synthetic packet',
+        } } } });
     const found = await tool.execute({ action: 'search', query: '새봄 견적', scope: 'workspace', path: null,
       handles: null, maxCandidates: 10, placements: null, planId: null, effect: null, sourceUses: null,
       purpose: null, unknowns: null });
@@ -298,6 +304,9 @@ test('선택한 exact handle만 runtime-owned 취합 원본 manifest로 결속�
       sourceUses: [{ handle: first.handle, usage: '기존 견적 금액 원문' }],
       purpose: '수정 견적서 작성', unknowns: ['배송비 확정 전'] });
     assert.equal(bound.state, 'bound'); assert.equal(bound.sources.length, 1);
+    assert.equal(preparedManifest, bound.manifestId);
+    assert.deepEqual(bound.activatedTools, ['integral_method']);
+    assert.equal(bound.integralMethod.sourcePacket, 'bounded synthetic packet');
     assert.deepEqual(bound.unknowns, ['배송비 확정 전']);
     assert.doesNotMatch(JSON.stringify(bound), new RegExp(room.a.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'));
   } finally { await rm(room.root, { recursive: true, force: true }); }

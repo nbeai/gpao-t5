@@ -54,6 +54,7 @@ import { makePurposeBoundedHistoryAdapter } from './purpose-bounded-history.js';
 import { makePurposeHistoryTool } from './purpose-history-tool.js';
 import { makeFileRealityTool } from './file-reality-tool.js';
 import { FileSourceManifestStore } from './file-source-manifest-store.js';
+import { makeIntegralMethodRuntime } from './integral-method-runtime.js';
 import { makeLocalImageOcr } from './local-image-ocr.js';
 import { makeWorkCompletionTool } from './work-completion-tool.js';
 import { evaluateWorkCompletion } from './work-completion-evaluator.js';
@@ -1779,12 +1780,19 @@ export function makeConsoleServer({
       ]);
       const skillSnapshot = mergeSkillSnapshots([bundledSkillSnapshot, managedSkillSnapshot]);
       const capabilitySnapshot = await capabilityCatalogPromise;
+      const integralMethod = makeIntegralMethodRuntime({ sourceManifestStore: fileSourceManifests,
+        sessionId, currentWork: async () => {
+          const work = await ensureActiveWork();
+          return work ? { workId: work.workId, revision: work.revision, status: work.status } : null;
+        }, ocrProbe: localImageOcr });
       const offeredTools = [...terminal.tools];
+      offeredTools.unshift(integralMethod.tool);
       offeredTools.unshift(workspacePatchTool);
       offeredTools.unshift(makeFileRealityTool({ workspace, home: computer.userHome, platform: computer.platform,
         computerRoots: computerFileRoots ?? [homedir()], protectedRoots: [...protectedFileRoots, stateDir],
         organizationRoot: join(stateDir, 'file-organization'), sourceManifestStore: fileSourceManifests, sessionId,
         ocrProbe: localImageOcr,
+        onSourcesBound: (manifest) => integralMethod.prepare({ manifestId: manifest.manifestId }),
         enforceComputerRoots: restrictFileRealityToComputerRoots,
         registerSelectedImage: async ({ path, sha256 }) => {
           const artifact = await attachments.registerExistingOutput({ sessionId, filePath: path,

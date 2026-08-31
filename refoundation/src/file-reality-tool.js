@@ -290,6 +290,7 @@ export function makeFileRealityTool({
   registerSelectedImage = null,
   registerSelectedFile = null,
   onVisualCandidatesObserved = null,
+  onSourcesBound = null,
   enforceComputerRoots = false,
   now = Date.now,
 } = {}) {
@@ -380,7 +381,7 @@ export function makeFileRealityTool({
   return {
     name: 'file_reality',
     completionProposalOptional: (args = {}) => [
-      'search', 'image_candidates', 'inspect', 'compare', 'visual_candidates',
+      'search', 'image_candidates', 'inspect', 'compare', 'bind_sources', 'visual_candidates',
     ].includes(args.action),
     description: 'Find real local files when the user remembers only approximate names, contents, dates, amounts, people, projects, or prior context. When the user did not name a folder and did not explicitly limit the request to the current project or workspace, use computer scope; the mere existence of a managed workspace is not a user-selected search boundary. Use workspace only for an explicitly current workspace/project request, and path for one exact user-named folder. Return bounded opaque candidates and evidence without sending the whole filesystem or file contents to the model. Inspect selected candidates. When the user asks to find and show, give, open, or otherwise use identified files, call deliver once for every exact selected non-image file that belongs in the result; do not finish with printed paths alone. Exact selected images are registered during visual inspect. Compare exact duplicates or possible versions, and preview an exact organization plan with collision facts before any file is changed. For an explicit request to undo the most recent file organization in the current Session, call rollback with planId null; the runtime selects only the latest still-applied plan owned by that Session. Do not answer with a future-tense rollback promise. Never declare a final version from the filename alone.',
     searchTerms: [
@@ -769,8 +770,19 @@ export function makeFileRealityTool({
         const sources = [];
         for (const item of sourceUses) { const { record } = await reopen(item.handle); sources.push({ ...record,
           usage: item.usage, columnMappings: item.columnMappings }); }
-        return { state: 'bound', ...(await sourceManifestStore.create({ sessionId, purpose,
-          unknowns: unknowns ?? [], sources, standardization })) };
+        const bound = await sourceManifestStore.create({ sessionId, purpose,
+          unknowns: unknowns ?? [], sources, standardization });
+        let activation = null;
+        if (typeof onSourcesBound === 'function') {
+          try { activation = await onSourcesBound(bound); }
+          catch { activation = { state: 'not_activated', reason: 'integral_method_unavailable' }; }
+        }
+        return { state: 'bound', ...bound,
+          ...(activation?.state ? { integralMethod: activation.integralMethod
+            ? { state: activation.state, ...activation.integralMethod }
+            : { state: activation.state, reason: activation.reason ?? null } } : {}),
+          ...(Array.isArray(activation?.activatedTools)
+            ? { activatedTools: activation.activatedTools } : {}) };
       }
       if (action === 'visual_candidates') {
         if (!Array.isArray(requestedHandles) || requestedHandles.length < 1 || requestedHandles.length > 12) {
