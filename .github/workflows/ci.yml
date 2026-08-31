@@ -78,6 +78,15 @@ jobs:
             & "$env:SystemRoot\System32\cmd.exe" /d /s /c $compileNativeArm64
             if ($LASTEXITCODE -ne 0 -or -not (Test-Path $nativeArm64)) { throw "$name ARM64 build failed" }
           }
+          $ocrSource = Join-Path $env:GITHUB_WORKSPACE "refoundation\native\windows\t5-windows-image-ocr.cpp"
+          $ocrOutput = Join-Path $outDir "t5-windows-image-ocr.exe"
+          $ocrArm64 = Join-Path $outDir "t5-windows-image-ocr-arm64.exe"
+          $compileOcr = "`"$vcvars`" && cl.exe /nologo /W4 /WX /O2 /utf-8 /EHsc /std:c++17 /Fe:`"$ocrOutput`" `"$ocrSource`" /link windowsapp.lib"
+          & "$env:SystemRoot\System32\cmd.exe" /d /s /c $compileOcr
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $ocrOutput)) { throw "Windows OCR helper x64 build failed" }
+          $compileOcrArm64 = "`"$vcvarsArm64`" && cl.exe /nologo /W4 /WX /O2 /utf-8 /EHsc /std:c++17 /Fe:`"$ocrArm64`" `"$ocrSource`" /link windowsapp.lib"
+          & "$env:SystemRoot\System32\cmd.exe" /d /s /c $compileOcrArm64
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $ocrArm64)) { throw "Windows OCR helper ARM64 build failed" }
           "T5_WINDOWS_JOB_HOST=$output" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Qualify Windows Job Object source and argv contract
         shell: pwsh
