@@ -1,0 +1,63 @@
+{
+  "schema": "t5.nx2.se3-explicit-apply.v1",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "c82fae5b",
+  "status": "SE3_COMPLETE_SE5_CLEAN_SECOND_PASS_PENDING",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "firstActual": {
+    "selectionApplyCommitted": true,
+    "relation": "current_revision",
+    "revision": 2,
+    "mainResultDelivered": true,
+    "workOutcome": "unresolved",
+    "blocker": "admitted_input_identity_mismatch"
+  },
+  "structuralRepair": {
+    "workingMemoryPatch": false,
+    "completionSchemaBoundToCurrentScope": true,
+    "zeroBusyHandlesRequiresEmptyArray": true,
+    "busyHandlesUseExactOpaqueEnum": true,
+    "promptPatch": 0,
+    "router": 0
+  },
+  "finalActual": {
+    "model": "gpt-5.5",
+    "selectionQuote": "초안",
+    "sideInstruction": "replace draft wording with confirmed wording",
+    "applyState": "committed",
+    "relation": "current_revision",
+    "baseRevision": 1,
+    "resultingRevision": 2,
+    "completionProposed": "achieved",
+    "completionVerified": "achieved",
+    "blockers": 0,
+    "inputExecuted": true,
+    "deliveryTerminal": true,
+    "finalAnswerCorrect": true
+  },
+  "deterministic": {
+    "activeR1ToR2": true,
+    "pausedResumeR1ToR2": true,
+    "completedDerivedWork": true,
+    "directDerivedWork": true,
+    "assistantAutoApplyBlocked": true,
+    "otherActiveWorkSilentRebind": 0,
+    "staleBlockedBeforeMainAdmission": true,
+    "requestCollisionBlocked": true,
+    "crashPointsRecoveredExactOnce": 4
+  },
+  "verification": {
+    "applyFocusedPassed": 40,
+    "completionFocusedPassed": 62,
+    "readOnlyFullCheckPassed": 2130,
+    "readOnlyFullCheckFailed": 0
+  },
+  "boundaries": {
+    "se4Opened": false,
+    "se4Reason": "Tool 0 selection context was sufficient; no repeated source evidence gap",
+    "cleanSecondWholeFlow": "PENDING_USER_TAB_STABLE_RUN",
+    "windowsPhysical": "NOT_RUN"
+  },
+  "next": { "gate": "SE-5 Human HQ clean second pass", "se3Complete": true }
+}

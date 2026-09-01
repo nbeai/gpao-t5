@@ -6,7 +6,7 @@
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-SE — SE-3 Explicit Apply & Work Provenance`
+현재 제품 Gate: `NX2-SE — SE-5 Human HQ Clean Second Pass`
 
 ---
 
