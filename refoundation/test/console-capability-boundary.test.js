@@ -136,6 +136,8 @@ test('일반 사용자 콘솔은 검색·URL 읽기를 바로 보이고 화면 �
   assert.match(coreBlock, /'web_research'/u);
   assert.match(coreBlock, /'visual_reference'/u);
   assert.match(source, /T5 CURRENT BROWSER RUNTIME/u);
+  assert.match(source, /\? \[\s*'connection', 'exec'/u,
+    'account reality must be visible before a private connected-service request loops through Tool Search');
   assert.match(source, /historical assistant statement that a login window is open is not current evidence/iu);
   assert.doesNotMatch(coreBlock, /'browser'/u);
   assert.doesNotMatch(coreBlock, /'process_start'|'pty_start'|'process_control'/u);

@@ -1,7 +1,7 @@
 {
   "schema": "t5.nx2-nv3-settings-browser-login-evidence.v1",
   "recordedAt": "2026-09-02T03:10:00+09:00",
-  "status": "CROSS_SESSION_PROFILE_P1_REPAIRED_OWNER_RECHECK_PENDING",
+  "status": "CONNECTION_BROWSER_ROUTE_P1_REPAIRED_OWNER_RECHECK_PENDING",
   "userPurpose": "Connect Naver once from Settings and use the same managed identity for Mail and Blog without separate credentials.",
   "adoptedPath": {
     "entry": "Settings > Tools and Connections > Naver Login",
@@ -23,6 +23,17 @@
     "firstMailJourney": "FAIL — a conversation-scoped Browser used a different profile and reopened the Naver login page",
     "repair": "product entry now binds one existing PersistentBrowserHost profile to independent per-conversation client sessions and tabs",
     "repairTests": "22/22 focused pass; actual persistent Browser countertest 1/1 pass across another conversation and host restart"
+    ,
+    "firstMailRouteFailure": {
+      "runId": "7396a264-0fbb-4493-8017-3eb207252113",
+      "result": "FAIL",
+      "modelTurns": 8,
+      "toolCalls": 7,
+      "providerTokensApprox": 70000,
+      "cause": "connection was absent from the first directory-first surface; Browser discovery was repeatedly blocked by a public web_read prerequisite; model later called connection start instead of the listed user action",
+      "consoleSeam": "the qualification runtime was restarted while the Run was active, so the new UI lost the old process live completion event and remained visually running after the result was persisted"
+    },
+    "routeRepair": "connection is now a foundational first-turn fact Hand; inspecting any current browser route activates the existing Browser Hand directly without Tool Search"
   },
   "nonClaims": [
     "Mail folder/search/open/attachment is not yet qualified on the actual owner account.",

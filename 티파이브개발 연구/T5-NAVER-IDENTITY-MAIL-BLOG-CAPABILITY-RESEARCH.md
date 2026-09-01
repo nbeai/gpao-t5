@@ -507,6 +507,12 @@ Browser reality는 0이다. 이제 같은 실제 Console에서 Mail list/search/
 session·pinned tab은 계속 분리한다. 실제 Browser 반대시험에서 다른 대화와 host restart 뒤 로그인 유지·서로 다른 tab
 identity를 통과했다. 오너의 기존 설정 로그인 profile을 공통 profile로 승계한 뒤 Mail actual을 다시 실행한다.
 
+같은 첫 Mail actual은 별도 P1 두 개도 드러냈다. directory-first 첫 surface에 `connection`이 없어 Browser 탐색이 public
+`web_read` prerequisite에 반복 차단됐고, model 8·Tool 7·약 7만 provider token 뒤 실패했다. 또한 자격 중 Runtime을
+재시작해 새 UI가 이전 process의 완료 사건을 놓쳐 결과가 원장에 저장된 뒤에도 작업 중처럼 남았다. 수리는 모든 private
+account 요청을 분류하는 Router가 아니라 기존 `connection` 사실 Hand를 첫 surface에 복원하고, inspect 결과에 실제
+Browser route가 있을 때 기존 Browser Hand를 바로 후속 개통한다. 실행 중 자격 Runtime 재시작은 금지한다.
+
 ### NV-4 — Mail Draft & Send
 
 - draft preview

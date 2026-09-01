@@ -22,6 +22,13 @@ export function makeConnectionTool({ doctor, startConnection, performConnection,
       },
       required: ['action', 'id', 'actionId'],
     },
+    activateToolsFromResult(result) {
+      const connections = result?.state === 'inspected' && result.connection
+        ? [result.connection] : result?.state === 'listed' ? result.connections ?? [] : [];
+      return connections.some((connection) => (connection.routes ?? []).some((route) => (
+        route.kind === 'browser' && ['ready', 'needs_connection', 'waiting_for_user'].includes(route.state)
+      ))) ? ['browser'] : [];
+    },
     async execute({ action, id, actionId }) {
       const report = await doctor.inspect();
       const catalogSnapshot = typeof catalog === 'function' ? await catalog() : null;

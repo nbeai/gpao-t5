@@ -2323,7 +2323,7 @@ export function makeConsoleServer({
       const coreToolNames = capabilitySurfaceMode === 'directory-first-v1'
         && options.trigger !== 'automation'
         ? [
-          'exec', currentRequestHasHttpUrl || !webSearchAvailable ? 'web_read' : 'web_search',
+          'connection', 'exec', currentRequestHasHttpUrl || !webSearchAvailable ? 'web_read' : 'web_search',
           'web_research', 'attachment', 'skill',
           // 기억·삭제를 약속만 하고 실제 원장에 반영하지 않은 설치 제품 반례 때문에
           // 의미 Router 없이 기존 쓰기·삭제 손만 항상 보인다. read는 후보가 있을 때만 연다.

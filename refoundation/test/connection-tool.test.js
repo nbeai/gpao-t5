@@ -67,6 +67,17 @@ test('연결 도구는 조회·사용자 행동·OAuth 시작을 구분하고 �
   assert.doesNotMatch(JSON.stringify(tool.parameters), /connector_connect|oauth_start|password|token/u);
 });
 
+test('현재 connection의 Browser route는 Tool Search 없이 기존 Browser Hand를 후속 개통한다', async () => {
+  const tool = makeConnectionTool({ doctor: { async inspect() { return { checkedAt: 'now',
+    userSafeSummary: '확인', connections: [{ id: 'naver', label: '네이버', category: 'workspace',
+      state: 'ready', capabilities: { mail_web: true }, routes: [{ kind: 'browser', state: 'ready' }], actions: [] }] }; } } });
+  const inspected = await tool.execute({ action: 'inspect', id: 'naver', actionId: null });
+  assert.deepEqual(tool.activateToolsFromResult(inspected), ['browser']);
+  assert.deepEqual(tool.activateToolsFromResult({ state: 'inspected', connection: {
+    routes: [{ kind: 'official_api', state: 'ready' }],
+  } }), []);
+});
+
 test('연결 시작은 등록된 서비스의 사용자 동의 handoff만 반환하고 자격을 받지 않는다', async () => {
   const tool = makeConnectionTool({
     doctor: { inspect: async () => report },
