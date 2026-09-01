@@ -29,6 +29,7 @@ test('Web Collection은 safe Web read→structure handle→same-origin collect�
   assert.equal(inspected.network.requestCount, 1);
   const collected = await tool.execute(collectArgs(inspected.structureHandle));
   assert.equal(collected.state, 'verified_collection'); assert.equal(collected.records.length, 4);
+  assert.match(collected.records[0].source.observedAt, /^\d{4}-\d{2}-\d{2}T/u);
   assert.equal(collected.network.requestCount, 2); assert.equal(collected.collector.terminalNetworkCalls, 0);
   assert.equal(collected.collector.generatedProgramExecutions, 0); assert.equal(collected.collector.pageScriptsExecuted, 0);
   assert.deepEqual(calls, ['https://catalog.example/page-1',

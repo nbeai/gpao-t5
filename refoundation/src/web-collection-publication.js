@@ -24,13 +24,19 @@ export function makeWebCollectionPublisher({ attachmentStore, sessionId, runId, 
       const rows = result.records.map((record) => Object.fromEntries([
         ...fields.map((key) => [key, record[key] ?? '']),
         ['source_page', record.source?.page ?? ''], ['source_url', record.source?.url ?? ''],
+        ['observed_at', record.source?.observedAt ?? ''],
       ]));
-      const columns = [...fields, 'source_page', 'source_url'].map((key) => ({ key, header: key, width: width(key) }));
+      const columns = [...fields, 'source_page', 'source_url', 'observed_at']
+        .map((key) => ({ key, header: key, width: width(key) }));
+      const observedTimes = (result.pages ?? []).map((page) => page.observedAt).filter(Boolean).sort();
       const summaryRows = [
         ['records', result.coverage.observedRecords], ['requested_pages', result.coverage.requestedPages],
         ['observed_pages', result.coverage.observedPages], ['coverage_complete', result.coverage.complete],
         ['required_missing', result.validation.requiredMissing], ['duplicates', result.validation.duplicateCount],
         ['origin', result.network.origin], ['request_count', result.network.requestCount],
+        ['observed_first', observedTimes[0] ?? 'unknown'],
+        ['observed_last', observedTimes.at(-1) ?? 'unknown'],
+        ['unknowns', result.coverage.complete ? 0 : result.coverage.requestedPages - result.coverage.observedPages],
       ].map(([metric, value]) => ({ metric, value }));
       const created = await createWorkbookFromSpec({ output, spec: { sheets: [
         { name: 'records', columns, rows },

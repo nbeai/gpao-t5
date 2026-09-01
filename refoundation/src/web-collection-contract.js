@@ -79,9 +79,11 @@ export async function runBoundedWebCollection({ spec: rawSpec, fetchPage, signal
     catch (error) { observed = { state: 'failed', reason: error?.message ?? String(error) }; }
     const finalUrl = observed?.finalUrl ? exactUrl(observed.finalUrl).href : requestedUrl;
     const bytes = Number(observed?.bytes ?? Buffer.byteLength(String(observed?.html ?? '')));
+    const observedAt = typeof observed?.source?.observedAt === 'string'
+      ? observed.source.observedAt : null;
     const readable = observed?.state === 'read' && typeof observed.html === 'string'
       && bytes >= 0 && bytes <= MAX_PAGE_BYTES && new URL(finalUrl).origin === spec.origin;
-    const page = { index: pageIndex + 1, requestedUrl, finalUrl,
+    const page = { index: pageIndex + 1, requestedUrl, finalUrl, observedAt,
       state: readable ? 'read' : 'failed', bytes,
       ...(!readable && observed?.state === 'read' ? { reason: new URL(finalUrl).origin !== spec.origin
         ? 'collection_origin_changed' : 'collection_response_invalid' }
@@ -99,7 +101,9 @@ export async function runBoundedWebCollection({ spec: rawSpec, fetchPage, signal
         values[field.key] = valueFrom(items[itemIndex], field);
         if (!values[field.key]) missingByField[field.key] += 1;
       }
-      records.push({ ...values, source: { page: pageIndex + 1, url: finalUrl, item: itemIndex + 1 } });
+      records.push({ ...values, source: {
+        page: pageIndex + 1, url: finalUrl, item: itemIndex + 1, observedAt,
+      } });
     }
   }
   const duplicateIndexes = [];

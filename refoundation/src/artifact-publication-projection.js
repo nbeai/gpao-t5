@@ -112,11 +112,11 @@ export function projectHumanArtifactReceipt(publication) {
   return human(publication);
 }
 
-export function makeArtifactPublicationProductAdapter({ attachmentStore, runLedger, workStore } = {}) {
+export function makeArtifactPublicationProductAdapter({ attachmentStore, runLedger, workStore,
+  automationStore = null } = {}) {
   if (!(attachmentStore instanceof AttachmentStore) || !(runLedger instanceof RunLedger)
     || !(workStore instanceof WorkStore)) throw new TypeError('canonical artifact stores are required');
-  return Object.freeze({
-    async materialize({ sessionId, runId, attachmentId } = {}) {
+  async function materialize({ sessionId, runId, attachmentId } = {}) {
       const [run, workState, record] = await Promise.all([
         runLedger.read(runId), workStore.read(), attachmentStore.get({ sessionId, attachmentId }),
       ]);
@@ -130,10 +130,68 @@ export function makeArtifactPublicationProductAdapter({ attachmentStore, runLedg
         && before.dev === after.dev && before.ino === after.ino && before.size === after.size
         && before.mtimeMs === after.mtimeMs;
       const artifact = safeArtifact(content.record);
-      if (artifact.sessionId !== sessionId || artifact.attachmentId !== attachmentId
-        || run.events[0]?.payload?.sessionId !== sessionId) throw new Error('artifact publication identity mismatch');
+      if (artifact.sessionId !== sessionId || artifact.attachmentId !== attachmentId) {
+        throw new Error('artifact publication identity mismatch');
+      }
       const observedSha = createHash('sha256').update(content.bytes).digest('hex');
       const exactReadback = stableRead && content.bytes.length === artifact.bytes && observedSha === artifact.sha256;
+      if (artifact.providerIdentity?.kind === 'automation_result_delivery') {
+        if (!automationStore || typeof automationStore.list !== 'function') {
+          throw new Error('automation delivery provenance is unavailable');
+        }
+        const identity = artifact.providerIdentity;
+        if (identity.sourceRunId !== runId || identity.sourceSha256 !== artifact.sha256
+          || identity.sourceBytes !== artifact.bytes || identity.sourceSessionId === sessionId) {
+          throw new Error('automation delivery artifact identity mismatch');
+        }
+        const automation = await automationStore.list();
+        const occurrence = automation.runs.find((item) => item.id === identity.automationRunId
+          && item.jobId === identity.jobId && item.sourceRunId === runId);
+        const job = automation.jobs.find((item) => item.id === identity.jobId);
+        if (!occurrence || !job) throw new Error('automation delivery receipt is missing');
+        const consoleDelivery = job.sessionId === sessionId
+          && occurrence.surfaceStatus === 'persisted'
+          && occurrence.surfaceReceipt?.artifacts?.some((item) => (
+            item.attachmentId === attachmentId
+            && item.sourceAttachmentId === identity.sourceAttachmentId
+            && item.sha256 === artifact.sha256 && item.bytes === artifact.bytes
+          ));
+        const messengerDelivery = job.delivery?.sessionId === sessionId
+          && occurrence.deliveryStatus === 'succeeded'
+          && occurrence.deliveryReceipt?.files?.some((item) => (
+            item?.artifact?.attachmentId === attachmentId
+            && item?.artifact?.sha256 === artifact.sha256
+          ));
+        if (!consoleDelivery && !messengerDelivery) {
+          throw new Error('exact automation destination receipt is required');
+        }
+        const sourcePublication = await materialize({ sessionId: identity.sourceSessionId,
+          runId, attachmentId: identity.sourceAttachmentId });
+        if (sourcePublication.artifact.bytes !== artifact.bytes
+          || sourcePublication.artifact.name !== artifact.originalName
+          || sourcePublication.state === 'unknown') {
+          throw new Error('automation source publication identity mismatch');
+        }
+        const core = { schema: 't5.artifact-publication.v1',
+          artifact: { name: artifact.originalName, bytes: artifact.bytes,
+            mimeType: artifact.mimeType, kind: artifact.kind },
+          classification: sourcePublication.classification,
+          storage: { registered: true, exactReadback },
+          publication: { linkedToRun: true, includedInSurfaceResult: true,
+            surfacePersisted: consoleDelivery === true,
+            delivery: consoleDelivery || messengerDelivery ? 'succeeded' : 'not_requested' },
+          verification: sourcePublication.verification,
+          sourceProvenance: sourcePublication.sourceProvenance,
+          temporary: sourcePublication.temporary,
+          rollback: sourcePublication.rollback };
+        const publication = deepFreeze({ ...core,
+          state: exactReadback && (consoleDelivery || messengerDelivery) ? 'delivered' : 'unknown',
+          receiptDigest: hash(core) });
+        MATERIALIZED.add(publication); return publication;
+      }
+      if (run.events[0]?.payload?.sessionId !== sessionId) {
+        throw new Error('artifact publication identity mismatch');
+      }
       const matches = run.events.filter((event) => event.type === 'tool_completed'
         && (event.payload?.receipt?.result?.artifact?.attachmentId === attachmentId
           || event.payload?.receipt?.result?.artifacts?.some((item) => item.attachmentId === attachmentId)));
@@ -209,6 +267,6 @@ export function makeArtifactPublicationProductAdapter({ attachmentStore, runLedg
         && core.publication.surfacePersisted ? core.publication.delivery === 'succeeded' ? 'delivered'
           : 'surface_persisted' : exactReadback ? 'verified' : 'unknown', receiptDigest: hash(core) });
       MATERIALIZED.add(publication); return publication;
-    },
-  });
+  }
+  return Object.freeze({ materialize });
 }

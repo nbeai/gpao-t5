@@ -6,7 +6,7 @@
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-5 WC-4 — Artifact & Automation`
+현재 제품 Gate: `NX2-5 WC-HQ — Field Qualification`
 
 ---
 
@@ -937,6 +937,21 @@ dynamic page는 기존 Browser Hand를 열되 rendered collection 완료는 아�
 - source URL·observed time·coverage·unknown
 - 변경 감시와 diff는 Automation에 결속
 - 사이트 구조 변경 시 stale method로 중단, 무한 재시도 0
+
+상태: `COMPLETE — 2026-09-02`
+
+기존 Automation이 내부 실행 Session에서 만든 verified Web Collection XLSX를 원래 대화와 Telegram 목적 Session에
+전달할 때, 수집이나 모델을 다시 실행하지 않고 exact bytes·digest를 기존 AttachmentStore로 materialize한다.
+AutomationStore는 source Run·source Artifact·destination Artifact를 한 surface/delivery receipt로 결속하며,
+surface crash 뒤에는 같은 destination identity를 재사용해 결과 생성·수집을 반복하지 않는다. Console에서는 같은
+identity의 Preview·Download와 generated-output 인간 영수증이 성립한다. 각 record는 exact source URL과 Web Hand의
+observed time을 보존하고 summary에는 coverage·missing·duplicate·unknown을 남긴다.
+
+첫 반대시험은 수집·XLSX 생성이 모두 성공했지만 원래 대화에는 text만 남고 Artifact가 사라지는 P1이었다. 수리 뒤
+4 records·3 bounded requests·missing 0·duplicate 0, Preview PASS, Download digest PASS, crash materialization exact-once,
+관련 Automation·Telegram·Artifact·Web Collection 회귀 53/53을 확인했다. 새 Store·Router·Browser·Terminal network는 0이다.
+
+근거: `refoundation/evidence/nx2-wc4-artifact-automation-2026-09-02.json`.
 
 #### WC-HQ
 

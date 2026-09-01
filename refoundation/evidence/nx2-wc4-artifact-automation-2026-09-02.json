@@ -1,0 +1,43 @@
+{
+  "schema": "t5.nx2-wc4-evidence.v1",
+  "recordedAt": "2026-09-02T00:00:00.000Z",
+  "gate": "NX2-5 WC-4 ARTIFACT & AUTOMATION",
+  "productDelta": {
+    "newStore": 0,
+    "newRouter": 0,
+    "newBrowser": 0,
+    "terminalNetwork": 0,
+    "artifactDeliveryBoundary": "existing AttachmentStore + AutomationStore exact receipt"
+  },
+  "countertest": {
+    "initialFailure": "scheduled collection produced a verified XLSX in its internal execution Session but the origin Session received text only",
+    "repaired": true,
+    "originArtifact": "catalog.xlsx",
+    "sourceRequests": 3,
+    "records": 4,
+    "missing": 0,
+    "duplicates": 0,
+    "preview": "PASS",
+    "downloadExactDigest": "PASS",
+    "humanReceipt": "new_generated_output_delivered",
+    "surfaceCrashMaterialization": "EXACT_ONCE",
+    "blindCollectionRerun": 0
+  },
+  "truth": {
+    "sourceUrlsPreserved": true,
+    "observedTimesPreserved": true,
+    "coveragePreserved": true,
+    "unknownsPreserved": true,
+    "telegramAckUnknownRemainsUnknown": true
+  },
+  "focusedRegression": {
+    "passed": 53,
+    "failed": 0
+  },
+  "nonClaims": [
+    "Windows physical qualification",
+    "authenticated collection",
+    "rendered dynamic-page collection",
+    "arbitrary anti-bot bypass"
+  ]
+}

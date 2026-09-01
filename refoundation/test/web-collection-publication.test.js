@@ -19,7 +19,9 @@ test('verified Web records는 기존 XLSX writer와 AttachmentStore로 즉시 Pr
       scratchRoot: join(room, 'scratch') });
     const result = { state: 'verified_collection', verified: true,
       records: [1, 2, 3, 4].map((index) => ({ title: `Book ${index}`, price: `£${index}`,
-        source: { page: index <= 2 ? 1 : 2, url: `https://catalog.example/page-${index <= 2 ? 1 : 2}`, item: index } })),
+        source: { page: index <= 2 ? 1 : 2, url: `https://catalog.example/page-${index <= 2 ? 1 : 2}`,
+          item: index, observedAt: '2026-09-02T00:00:00.000Z' } })),
+      pages: [{ observedAt: '2026-09-02T00:00:00.000Z' }, { observedAt: '2026-09-02T00:00:01.000Z' }],
       coverage: { observedRecords: 4, requestedPages: 2, observedPages: 2, complete: true },
       validation: { requiredMissing: 0, duplicateCount: 0 },
       network: { origin: 'https://catalog.example', requestCount: 2 } };
@@ -31,7 +33,7 @@ test('verified Web records는 기존 XLSX writer와 AttachmentStore로 즉시 Pr
     const stored = await store.get({ sessionId: SESSION, attachmentId: published.artifact.attachmentId });
     const observation = await inspectBusinessDocument({ file: stored.storedPath, maxCells: 200 });
     assert.equal(observation.workbook.sheets.find((sheet) => sheet.name === 'records').rowCount, 5);
-    assert.equal(observation.workbook.sheets.find((sheet) => sheet.name === 'summary').rowCount, 9);
+    assert.equal(observation.workbook.sheets.find((sheet) => sheet.name === 'summary').rowCount, 12);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
 

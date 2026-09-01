@@ -51,6 +51,7 @@ import { WorkCancellationCoordinator } from './work-cancellation-coordinator.js'
 import { projectPublicWorkReality, projectWorkReality } from './work-reality-projection.js';
 import { makeArtifactPublicationProductAdapter,
   projectHumanArtifactReceipt } from './artifact-publication-projection.js';
+import { deliverAutomationArtifacts } from './automation-artifact-delivery.js';
 import { makeEffectForensicProductAdapter,
   projectHumanEffectForensicReceipt, projectHumanEffectRollbackReceipt,
   projectHumanFileOrganizationReceipt } from './effect-forensic-projection.js';
@@ -594,7 +595,7 @@ export function makeConsoleServer({
   const attachments = attachmentStore ?? new AttachmentStore(join(stateDir, 'attachments'));
   const fileSourceManifests = new FileSourceManifestStore(join(stateDir, 'file-source-manifests'));
   const artifactPublications = makeArtifactPublicationProductAdapter({
-    attachmentStore: attachments, runLedger, workStore,
+    attachmentStore: attachments, runLedger, workStore, automationStore,
   });
   const effectForensics = makeEffectForensicProductAdapter({ runLedger });
   const workHistory = makeWorkHistoryProductAdapter({ sessions, conversations, workStore, runLedger,
@@ -3687,10 +3688,18 @@ export function makeConsoleServer({
         objectiveStatus: objective.achieved ? 'achieved' : 'unresolved',
         resultPointer: `work-result:${completed.runId}`, resultDigest: resultRecord.resultDigest });
       if (reply) {
+        const sourceArtifacts = Array.isArray(completed.surfaceResult?.artifacts)
+          ? completed.surfaceResult.artifacts : [];
+        const deliveredArtifacts = await deliverAutomationArtifacts({ attachmentStore: attachments,
+          sourceSessionId: executionSession.id, destinationSessionId: job.sessionId,
+          sourceArtifacts, jobId: job.id, automationRunId: automationRun.id,
+          sourceRunId: completed.runId });
+        const deliveredArtifactSurfaces = deliveredArtifacts.map(attachmentSurface);
         await sessions.append(job.sessionId, {
           role: 'assistant', result: {
             kind: 'reply', reply, runId: completed.runId, trigger: 'automation',
             automation: { jobId: job.id, automationRunId: automationRun.id },
+            ...(deliveredArtifactSurfaces.length ? { artifacts: deliveredArtifactSurfaces } : {}),
           },
         });
         await conversations.ensure({ sessionId: job.sessionId, legacyMessages: historyFrom(originSession) });
@@ -3701,24 +3710,37 @@ export function makeConsoleServer({
         broadcastEvent('automation_completed', { sessionId: job.sessionId, jobId: job.id, runId: completed.runId });
         await automationStore.markSurfacePersisted({ jobId: job.id, runId: automationRun.id, claim,
           surfaceReceipt: { surface: 'console_session', sessionId: job.sessionId,
-            runId: completed.runId, resultDigest: resultRecord.resultDigest } });
+            runId: completed.runId, resultDigest: resultRecord.resultDigest,
+            artifacts: deliveredArtifacts.map((artifact, index) => ({
+              attachmentId: artifact.attachmentId,
+              sourceAttachmentId: sourceArtifacts[index].attachmentId,
+              sha256: artifact.sha256, bytes: artifact.bytes,
+            })) } });
         if (job.delivery.kind === 'origin_session') deliveryStatus = 'succeeded';
       }
       if (job.delivery.kind === 'telegram') {
         const deliveryText = objective.achieved
           ? reply : `예약한 작업을 완료하지 못했습니다. ${objective.summary}`;
+        const sourceArtifacts = Array.isArray(completed.surfaceResult?.artifacts)
+          ? completed.surfaceResult.artifacts : [];
+        const deliveredArtifacts = await deliverAutomationArtifacts({ attachmentStore: attachments,
+          sourceSessionId: executionSession.id, destinationSessionId: job.delivery.sessionId,
+          sourceArtifacts, jobId: job.id, automationRunId: automationRun.id,
+          sourceRunId: completed.runId });
         const deliveryId = randomUUID();
         await automationStore.claimDelivery({ jobId: job.id, runId: automationRun.id, claim,
           deliveryId, provider: 'telegram' });
         try {
           const delivery = await messenger.sendToSession({
             sessionId: job.delivery.sessionId, text: deliveryText,
+            artifactIds: deliveredArtifacts.map((artifact) => artifact.attachmentId),
           });
           deliveryStatus = delivery.sent ? 'succeeded' : 'failed';
           await automationStore.settleDelivery({ jobId: job.id, runId: automationRun.id, claim,
             deliveryId, status: deliveryStatus, receipt: {
               provider: 'telegram', sent: delivery.sent,
               messageIds: structuredClone(delivery.messageIds ?? []),
+              files: structuredClone(delivery.files ?? []),
             } });
         } catch (error) {
           deliveryStatus = 'unknown';
@@ -3922,13 +3944,20 @@ export function makeConsoleServer({
       const reply = result.surfaceResult.reply ?? null;
       if (occurrence.surfaceStatus === 'pending') {
         const session = await sessions.load(job.sessionId); if (!session) continue;
+        const sourceArtifacts = Array.isArray(result.surfaceResult.artifacts)
+          ? result.surfaceResult.artifacts : [];
+        const deliveredArtifacts = await deliverAutomationArtifacts({ attachmentStore: attachments,
+          sourceSessionId: result.sessionId, destinationSessionId: job.sessionId,
+          sourceArtifacts, jobId: job.id, automationRunId: occurrence.id,
+          sourceRunId: occurrence.sourceRunId });
+        const deliveredArtifactSurfaces = deliveredArtifacts.map(attachmentSurface);
+        const deliveredSurfaceResult = { ...structuredClone(result.surfaceResult), trigger: 'automation',
+          automation: { jobId: job.id, automationRunId: occurrence.occurrenceId },
+          ...(deliveredArtifactSurfaces.length ? { artifacts: deliveredArtifactSurfaces } : {}) };
         const exists = (session.transcript ?? []).some((entry) => entry.role === 'assistant'
           && entry.result?.runId === occurrence.sourceRunId
           && entry.result?.automation?.automationRunId === occurrence.occurrenceId);
-        if (!exists) await sessions.append(job.sessionId, { role: 'assistant', result: {
-          ...structuredClone(result.surfaceResult), trigger: 'automation',
-          automation: { jobId: job.id, automationRunId: occurrence.occurrenceId },
-        } });
+        if (!exists) await sessions.append(job.sessionId, { role: 'assistant', result: deliveredSurfaceResult });
         await conversations.ensure({ sessionId: job.sessionId, legacyMessages: historyFrom(session) });
         const deliveryMessageId = `${occurrence.sourceRunId}:automation-delivery`;
         const canonical = await conversations.read(job.sessionId);
@@ -3940,6 +3969,11 @@ export function makeConsoleServer({
           runId: occurrence.id, claim: item.claim, surfaceReceipt: {
             surface: 'console_session', sessionId: job.sessionId,
             runId: occurrence.sourceRunId, resultDigest: occurrence.resultDigest, recovered: true,
+            artifacts: deliveredArtifacts.map((artifact, index) => ({
+              attachmentId: artifact.attachmentId,
+              sourceAttachmentId: sourceArtifacts[index].attachmentId,
+              sha256: artifact.sha256, bytes: artifact.bytes,
+            })),
           } });
       }
       let deliveryStatus = occurrence.deliveryStatus;
@@ -3950,16 +3984,24 @@ export function makeConsoleServer({
             state: 'runtime_restarted_after_delivery_dispatch' } });
         deliveryStatus = 'unknown';
       } else if (deliveryStatus === 'pending' && job.delivery.kind === 'telegram') {
+        const sourceArtifacts = Array.isArray(result.surfaceResult.artifacts)
+          ? result.surfaceResult.artifacts : [];
+        const deliveredArtifacts = await deliverAutomationArtifacts({ attachmentStore: attachments,
+          sourceSessionId: result.sessionId, destinationSessionId: job.delivery.sessionId,
+          sourceArtifacts, jobId: job.id, automationRunId: occurrence.id,
+          sourceRunId: occurrence.sourceRunId });
         const deliveryId = randomUUID();
         await automationStore.claimDelivery({ jobId: job.id, runId: occurrence.id,
           claim: item.claim, deliveryId, provider: 'telegram' });
         try {
-          const delivery = await messenger.sendToSession({ sessionId: job.delivery.sessionId, text: reply });
+          const delivery = await messenger.sendToSession({ sessionId: job.delivery.sessionId, text: reply,
+            artifactIds: deliveredArtifacts.map((artifact) => artifact.attachmentId) });
           deliveryStatus = delivery.sent ? 'succeeded' : 'failed';
           await automationStore.settleDelivery({ jobId: job.id, runId: occurrence.id,
             claim: item.claim, deliveryId, status: deliveryStatus,
             receipt: { provider: 'telegram', sent: delivery.sent,
-              messageIds: structuredClone(delivery.messageIds ?? []), recovered: true } });
+              messageIds: structuredClone(delivery.messageIds ?? []),
+              files: structuredClone(delivery.files ?? []), recovered: true } });
         } catch (error) {
           deliveryStatus = 'unknown';
           await automationStore.settleDelivery({ jobId: job.id, runId: occurrence.id,
