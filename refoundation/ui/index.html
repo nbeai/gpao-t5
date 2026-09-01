@@ -3833,11 +3833,16 @@ function refreshSelectionActionBar() {
 }
 
 wrap.addEventListener('mouseup', () => requestAnimationFrame(refreshSelectionActionBar));
+wrap.addEventListener('touchend', () => requestAnimationFrame(refreshSelectionActionBar), { passive:true });
 wrap.addEventListener('keyup', (event) => {
   if (event.shiftKey || event.key.startsWith('Arrow')) requestAnimationFrame(refreshSelectionActionBar);
 });
 document.addEventListener('selectionchange', () => {
   if (window.getSelection()?.isCollapsed) { selectionActionBar.hidden = true; selectedMessageRange = null; }
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  selectionActionBar.hidden = true; selectedMessageRange = null;
 });
 
 function appendSideMessage(role, content) {

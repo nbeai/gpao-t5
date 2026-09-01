@@ -19,6 +19,8 @@ test('persisted message selection만 side open handle과 canonical projection을
   assert.match(ui, /messageHandle: selected\.source\.dataset\.selectionMessageHandle/u);
   assert.match(ui, /projectionDigest: selected\.source\.dataset\.selectionProjectionDigest/u);
   assert.match(ui, /startUtf16: selected\.startUtf16, endUtf16: selected\.endUtf16/u);
+  assert.match(ui, /wrap\.addEventListener\('touchend'/u);
+  assert.match(ui, /event\.key !== 'Escape'/u);
 });
 
 test('side composer는 자체 stream·Stop을 쓰고 사용자 명시 버튼으로만 Work apply를 연다', () => {
