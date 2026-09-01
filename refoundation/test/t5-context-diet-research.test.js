@@ -147,3 +147,18 @@ test('CX-4는 memory discovery 계약 없이 Tool을 숨기거나 새 disclosure
     memorySource.indexOf("name: 'memory_claim'") + 500);
   assert.doesNotMatch(claim, /searchTerms/u);
 });
+
+test('CX-5는 같은 Context 계약을 두 모델에서 자격하고 증명된 한 줄만 product 후보로 좁힌다', async () => {
+  const evidence = JSON.parse(await read('refoundation/evidence/nx2-cx5-multi-model-context-qualification-2026-09-01.json'));
+  assert.equal(evidence.models['gpt-5.5'].abPassed, true);
+  assert.equal(evidence.models['gpt-5.5'].baPassed, true);
+  assert.equal(evidence.models['gpt-5.6-terra'].abPassed, true);
+  assert.equal(evidence.models['gpt-5.6-terra'].baPassed, true);
+  assert.equal(evidence.commonContract.providerPromptFork, 0);
+  assert.equal(evidence.commonContract.providerToolFork, 0);
+  assert.equal(evidence.promotionScope.qualifiedLineBytes, 196);
+  assert.equal(evidence.promotionScope.unknownApplied, false);
+  assert.equal(evidence.gateDecision.maximumAppliedLines, 1);
+  assert.equal(evidence.gateDecision.productChanges, 0);
+  assert.equal(evidence.next.gate, 'CX-6 Product Integration');
+});

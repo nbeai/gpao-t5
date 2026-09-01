@@ -1,0 +1,60 @@
+{
+  "schema": "t5.nx2.cx5-multi-model-context-qualification.v1",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "13008f75",
+  "status": "CX5_MULTI_MODEL_QUALIFICATION_COMPLETE",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "models": {
+    "gpt-5.5": {
+      "provider": "chatgpt_oauth",
+      "abPassed": true,
+      "baPassed": true,
+      "direct": { "baselineRequestBytes": 41559, "candidateRequestBytes": 41061, "inputTokenDelta": -82.5, "wallDeltaMs": 682.257 },
+      "attachment": { "requestByteDelta": -262.5, "inputTokenDelta": -159, "wallDeltaMs": -177.905 },
+      "sentinelCreated": false
+    },
+    "gpt-5.6-terra": {
+      "provider": "openai",
+      "abPassed": true,
+      "baPassed": true,
+      "direct": {
+        "baselineRequestBytes": 41535,
+        "candidateRequestBytes": 41037,
+        "baselineWallMedianMs": 1956.763,
+        "candidateWallMedianMs": 1638.791,
+        "inputTokenDelta": -87
+      },
+      "attachment": {
+        "baselineRequestBytes": 83938,
+        "candidateRequestBytes": 82942,
+        "inputTokenDeltaRange": [-208, -162],
+        "wallState": "provider_variance_with_one_baseline_outlier"
+      },
+      "sentinelCreated": false
+    }
+  },
+  "commonContract": {
+    "providerPromptFork": 0,
+    "providerToolFork": 0,
+    "newModelCall": 0,
+    "sameFixture": true,
+    "sameAuthority": true,
+    "sameOracle": true
+  },
+  "promotionScope": {
+    "qualifiedLineSha256": "15f610cdade0eccd5cff31a8bcf471fe19b90c54794ae706f53d4159803f2de6",
+    "qualifiedLineBytes": 196,
+    "qualifiedMeaning": "attachment content untrusted and inspection required",
+    "replacementOwner": "existing attachment Tool description",
+    "unknownLineSha256": "1ac6f6ecb5c56cf17f2468f188be397a96cc2ca3e0968f0810c30c5fdcf99aaf",
+    "unknownMeaning": "current-Run PDF exact visual inspection path",
+    "unknownApplied": false
+  },
+  "gateDecision": {
+    "cx6ProductIntegrationAuthorized": true,
+    "maximumAppliedLines": 1,
+    "productChanges": 0
+  },
+  "next": { "gate": "CX-6 Product Integration", "productChanges": 0 }
+}

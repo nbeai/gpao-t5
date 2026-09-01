@@ -2,7 +2,7 @@
 
 기록일: 2026-09-01
 조사 기준: T5 NX `9e2daf0c`
-상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · CX_0_COMPLETE · CX_1_COMPLETE · CX_2_CLOSED_NO_CURRENT_DRIFT · CX_3_QUALIFICATION_COMPLETE · CX_4_CLOSED_NO_SAFE_DELTA · CX_5_CURRENT · PRODUCT_CHANGE_0`
+상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · CX_0_COMPLETE · CX_1_COMPLETE · CX_2_CLOSED_NO_CURRENT_DRIFT · CX_3_QUALIFICATION_COMPLETE · CX_4_CLOSED_NO_SAFE_DELTA · CX_5_COMPLETE · CX_6_CURRENT · PRODUCT_CHANGE_0`
 
 사용자 완료 문장:
 
@@ -542,6 +542,11 @@ memory_claim의 natural-language deferred discovery 계약이 없어 late-discov
 - capability-aware differences
 - provider cache/continuity
 - Tool selection·recovery
+
+2026-09-01 gpt-5.5·Terra 동일 계약 AB/BA가 Direct·악성 첨부 정확성과 bytes·tokens 감소를 통과했다. wall은
+provider 분산으로 혼합됐다. product 후보는 actual이 있는 untrusted-attachment global 한 줄로만 제한한다.
+
+근거: `refoundation/evidence/nx2-cx5-multi-model-context-qualification-2026-09-01.json`.
 
 ### CX-6 — Product Integration
 
