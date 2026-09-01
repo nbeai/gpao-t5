@@ -513,6 +513,11 @@ identity를 통과했다. 오너의 기존 설정 로그인 profile을 공통 pr
 account 요청을 분류하는 Router가 아니라 기존 `connection` 사실 Hand를 첫 surface에 복원하고, inspect 결과에 실제
 Browser route가 있을 때 기존 Browser Hand를 바로 후속 개통한다. 실행 중 자격 Runtime 재시작은 금지한다.
 
+두 번째 Mail actual은 connection 진입과 Browser 개통을 model 3·Tool 2·first answer 12.4초로 회복했지만, 재시작한
+process-local broker의 `unknown`을 실제 login absence로 확대해 로그인 창을 다시 열었다. `unknown → login`을 폐기하고
+`unknown → same managed profile Mail·Blog read-only probe → actual Naver redirect일 때만 login`으로 교정했다. 이 후보가
+actual에서도 실패하면 같은 로그인 activation 방향에 조건을 더 붙이지 않고 NV-3 구조를 재판정한다.
+
 ### NV-4 — Mail Draft & Send
 
 - draft preview

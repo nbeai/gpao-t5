@@ -44,6 +44,7 @@ test('foreign profile과 비정상 protocol state는 Naver identity를 바꾸지
 test('설정의 Naver 연결은 credential 입력 없이 managed Browser login과 Mail·Blog readback으로 닫힌다', async () => {
   const broker = makeNaverIdentityBroker({ profileHandle: null }); const calls = [];
   const browserLogin = {
+    async probe() { calls.push(['probe']); return { state: 'observed', observations: [] }; },
     async begin(url) { calls.push(['begin', url]); return { state: 'user_control_required',
       profile: { id: 'managed-profile' } }; },
     async check(urls) { calls.push(['check', urls]); return { state: 'handoff_complete_candidate', observations: [
@@ -62,5 +63,19 @@ test('설정의 Naver 연결은 credential 입력 없이 managed Browser login�
   assert.equal(started.performed, true); assert.equal((await broker.inspect()).actions[0].label, '로그인 완료 확인');
   const checked = await broker.performAction('check-login', { browserLogin });
   assert.equal(checked.performed, true); assert.equal((await broker.inspect()).state, 'ready');
-  assert.deepEqual(calls.map((item) => item[0]), ['begin', 'check']);
+  assert.deepEqual(calls.map((item) => item[0]), ['probe', 'begin', 'check']);
+});
+
+test('process-local identity가 unknown이어도 기존 profile readback이 ready면 로그인 창을 다시 열지 않는다', async () => {
+  const broker = makeNaverIdentityBroker({ profileHandle: null }); let begins = 0;
+  const result = await broker.performAction('login', { browserLogin: {
+    async probe() { return { state: 'observed', observations: [
+      { args: { action: 'navigate', url: 'https://mail.naver.com/' }, result: {
+        ...observed('https://mail.naver.com/v2/folders/0/all', '받은메일함'), profile: { id: 'managed-profile' } } },
+      { args: { action: 'navigate', url: 'https://blog.naver.com/' }, result: {
+        ...observed('https://blog.naver.com/', '로그아웃 내 블로그 글쓰기'), profile: { id: 'managed-profile' } } },
+    ] }; }, async begin() { begins += 1; }, async check() {},
+  } });
+  assert.equal(result.performed, true); assert.match(result.userSafeSummary, /기존 네이버 로그인/u);
+  assert.equal(begins, 0); assert.equal((await broker.inspect()).state, 'ready');
 });

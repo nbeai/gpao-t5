@@ -68,14 +68,17 @@ test('기존 Browser observations가 기존 connection 표면의 하나의 Naver
 
 test('설정의 네이버 로그인 버튼은 managed Browser handoff를 열고 완료 확인 뒤 Mail·Blog를 함께 재관측한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-naver-settings-login-'));
-  const broker = makeNaverIdentityBroker({ profileHandle: null }); let handoff = false;
+  const broker = makeNaverIdentityBroker({ profileHandle: null }); let handoff = false; let loggedIn = false;
   const driver = {
     profile: { id: 'managed-profile', kind: 'managed_persistent', selected: true },
     async beginUserLogin(url) { handoff = true; return { state: 'user_control_required',
       profile: this.profile, tab: { url }, handoff: { visible: true, inputOwner: 'user' } }; },
-    async loginStatus() { assert.equal(handoff, true); handoff = false;
+    async loginStatus() { assert.equal(handoff, true); handoff = false; loggedIn = true;
       return { state: 'handoff_complete_candidate', profile: this.profile, tab: { url: 'https://www.naver.com/' } }; },
-    async navigate(url) { const mail = new URL(url).hostname === 'mail.naver.com'; return {
+    async navigate(url) { const mail = new URL(url).hostname === 'mail.naver.com';
+      if (!loggedIn) return { tab: { url: 'https://nid.naver.com/nidlogin.login' },
+        snapshot: { text: 'NAVER 로그인' } };
+      return {
       tab: { url: mail ? 'https://mail.naver.com/v2/folders/0/all' : 'https://blog.naver.com/' },
       snapshot: { text: mail ? '받은메일함 메일 검색' : '로그아웃 내 블로그 글쓰기' },
     }; }, async close() {},

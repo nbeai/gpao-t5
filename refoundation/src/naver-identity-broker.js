@@ -70,8 +70,18 @@ export function makeNaverIdentityBroker({ profileHandle = 'default', now = () =>
     },
     async performAction(actionId, context = {}) {
       if (actionId === 'login') {
-        if (!context.browserLogin?.begin || !context.browserLogin?.check) throw new Error('Naver login Browser is unavailable');
+        if (!context.browserLogin?.begin || !context.browserLogin?.check || !context.browserLogin?.probe) {
+          throw new Error('Naver login Browser is unavailable');
+        }
         browserLogin = context.browserLogin;
+        const probe = await browserLogin.probe(['https://mail.naver.com/', 'https://blog.naver.com/']);
+        for (const observation of probe.observations ?? []) connection.observeBrowserResult(observation);
+        const observed = publicSnapshot(state);
+        if (observed.services.mailWeb === 'ready' && observed.services.blogWeb === 'ready') {
+          browserLogin = null;
+          return { performed: true, refreshConnections: true,
+            userSafeSummary: '기존 네이버 로그인으로 메일과 블로그 연결을 확인했어요.' };
+        }
         const started = await browserLogin.begin('https://nid.naver.com/nidlogin.login');
         connection.observeBrowserResult({ args: { action: 'login_start', url: 'https://nid.naver.com/nidlogin.login' }, result: started });
         return { performed: true, refreshConnections: true,

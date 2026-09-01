@@ -4120,6 +4120,23 @@ export function makeConsoleServer({
           }
           return { ...status, observations };
         },
+        probe: async (urls = []) => {
+          const driver = await browserDriver(sessionId ?? `settings-connection:${id}`);
+          if (!driver?.navigate) throw new Error('connection Browser is unavailable');
+          const observations = [];
+          for (const url of urls.slice(0, 4)) {
+            const observed = await driver.navigate(url);
+            const finalUrl = String(observed.tab?.url ?? '');
+            observations.push({ args: { action: 'navigate', url }, result: {
+              state: /\/nidlogin\.login|nid\.naver\.com/iu.test(finalUrl) ? 'login_required' : 'observed',
+              profile: driver.profile, tab: observed.tab,
+              ...(finalUrl ? { loginBoundary: /\/nidlogin\.login|nid\.naver\.com/iu.test(finalUrl)
+                ? { url: finalUrl } : undefined } : {}),
+              observation: { text: String(observed.snapshot?.text ?? '') },
+            } });
+          }
+          return { state: 'observed', observations };
+        },
       },
     });
     return {
