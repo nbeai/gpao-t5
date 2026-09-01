@@ -1,0 +1,177 @@
+{
+  "schema": "t5.nx2.cx1-instruction-family-provenance-audit.v1",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "cc2f9ab9",
+  "status": "CX1_FAMILY_PROVENANCE_AUDIT_COMPLETE",
+  "productChanges": 0,
+  "manifestApplied": false,
+  "summary": {
+    "families": 12,
+    "globalLines": 98,
+    "KEEP": 5,
+    "MOVE": 2,
+    "REVISE": 4,
+    "REMOVE_CANDIDATE": 0,
+    "UNKNOWN": 1,
+    "staleCountertestNames": 5,
+    "instructionRemovalProbesRun": 0
+  },
+  "countertestDrift": [
+    {
+      "manifestRef": "file-reality-console.test.js",
+      "proposedActualRefs": ["file-reality-console.integration.js", "file-reality-tool.test.js"],
+      "protectedFacts": ["deferred discovery", "search and inspect", "opaque candidate identity"]
+    },
+    {
+      "manifestRef": "attachment-console.test.js",
+      "proposedActualRefs": ["attachment-console.integration.js"],
+      "protectedFacts": ["managed attachment inspect", "register_output", "artifact download and reopen"]
+    },
+    {
+      "manifestRef": "browser-tool.test.js",
+      "proposedActualRefs": ["browser-observation-tool.test.js", "browser-observation.integration.js"],
+      "protectedFacts": ["observation identity", "login boundary", "effect preflight", "download and upload"]
+    },
+    {
+      "manifestRef": "automation-console.test.js",
+      "proposedActualRefs": ["automation-console.integration.js"],
+      "protectedFacts": ["objective outcome", "delivery settlement", "unknown delivery"]
+    },
+    {
+      "manifestRef": "terminal-execution.test.js",
+      "proposedActualRefs": ["exec-tool.test.js", "terminal-sandbox-first.test.js"],
+      "protectedFacts": ["effect declaration", "managed process stop", "exact output recall", "sandbox-first mutation"]
+    }
+  ],
+  "families": [
+    {
+      "id": "identity.t5",
+      "sourceLines": "1-2",
+      "owner": "global",
+      "incident": ["T5-PRODUCT.md product identity"],
+      "countertests": ["console-capability-boundary.test.js"],
+      "runtimeInvariant": "Runtime cannot author the model self-identity sentence",
+      "currentNeed": "KEEP"
+    },
+    {
+      "id": "interaction.core.v5",
+      "sourceLines": "3-10",
+      "owner": "global",
+      "incident": ["T5-FIFTH-COMPLETION.md CJ1", "current correction and direct-answer human comparisons"],
+      "countertests": ["interaction-core.test.js", "console-capability-boundary.test.js"],
+      "runtimeInvariant": "Runtime supplies facts but does not replace purpose, priority, or answer authorship",
+      "currentNeed": "KEEP"
+    },
+    {
+      "id": "reality.file_and_work",
+      "sourceLines": "11-24",
+      "owner": "global_mixed_with_tool_and_runtime",
+      "incident": ["S4-HQ file discovery and absence", "NX1 exact source", "NX2 first-turn selection limit"],
+      "countertests": ["console-capability-boundary.test.js", "file-reality-console.integration.js", "file-reality-tool.test.js"],
+      "runtimeInvariant": "File Reality enforces exact search, reopen, bind, plan, collision, stale and rollback facts; model still owns initial selection and sufficiency",
+      "currentNeed": "REVISE",
+      "proposedOnly": "split minimal cross-tool selection and absence guard from OCR, organization, latest-file and bind details before any A/B"
+    },
+    {
+      "id": "judgment.feasibility_and_automation_design",
+      "sourceLines": "25-28",
+      "owner": "global",
+      "incident": ["S3/S4 feasibility and automation reports"],
+      "countertests": ["console-capability-boundary.test.js"],
+      "runtimeInvariant": "Capability and Automation stores provide physical state but the current evidence does not isolate each sentence's causal value",
+      "currentNeed": "UNKNOWN"
+    },
+    {
+      "id": "interaction.tool_use_and_continuity",
+      "sourceLines": "29-37",
+      "owner": "global",
+      "incident": ["T5 interaction contract", "S4-HQ continuity and untracked-input incidents"],
+      "countertests": ["console-capability-boundary.test.js", "tool-search.test.js"],
+      "runtimeInvariant": "Work and input settlement enforce identity, but tool choice, shortest answer, and current-response ownership remain model responsibilities",
+      "currentNeed": "KEEP"
+    },
+    {
+      "id": "artifact.document_delivery",
+      "sourceLines": "38-47",
+      "owner": "global_with_attachment_and_skill_duplicates",
+      "incident": ["S4-F/P/HQ Artifact and document delivery"],
+      "countertests": ["console-capability-boundary.test.js", "attachment-console.integration.js"],
+      "runtimeInvariant": "Attachment and Artifact runtime enforce exact registration, preview, download, version and quality receipts",
+      "currentNeed": "MOVE",
+      "proposedOnly": "move format and action details to attachment and on-demand document skills while retaining any proven cross-tool publication boundary"
+    },
+    {
+      "id": "web.research_and_provenance",
+      "sourceLines": "48-60",
+      "owner": "global_mixed_with_web_tools",
+      "incident": ["W8/W9", "S4-HQ and S6 current-web incidents"],
+      "countertests": ["console-capability-boundary.test.js", "web-research-tool.test.js"],
+      "runtimeInvariant": "Web tools enforce bounded source identity and coverage, while synthesis, source choice, and user presentation remain model decisions",
+      "currentNeed": "REVISE",
+      "proposedOnly": "separate model-level provenance invariant from web_read, web_research, Maps and visual-reference procedure"
+    },
+    {
+      "id": "browser.hand_safety",
+      "sourceLines": "61-76",
+      "owner": "global_mixed_with_deferred_browser",
+      "incident": ["Browser Hand login, tab, modal, effect, download and upload incidents"],
+      "countertests": ["console-capability-boundary.test.js", "browser-observation-tool.test.js", "browser-observation.integration.js"],
+      "runtimeInvariant": "Browser preflight and registry enforce observation identity, secret, effect and action boundaries; activation choice remains model-owned",
+      "currentNeed": "REVISE",
+      "proposedOnly": "retain only pre-activation cross-tool boundary globally and move action details to activated Browser contract"
+    },
+    {
+      "id": "authority.observation_and_future_effect",
+      "sourceLines": "77-84",
+      "owner": "global",
+      "incident": ["T5-PRODUCT.md authority", "Automation effect and delivery incidents"],
+      "countertests": ["console-capability-boundary.test.js", "automation-console.integration.js"],
+      "runtimeInvariant": "Runtime blocks undeclared effects and verifies settlement, but user choice, missing destination and first external action still require model-visible policy",
+      "currentNeed": "KEEP"
+    },
+    {
+      "id": "terminal.execution_truth",
+      "sourceLines": "85-93",
+      "owner": "global_mixed_with_terminal_and_artifact",
+      "incident": ["S4-D/E Terminal execution, confinement, output and recovery"],
+      "countertests": ["console-capability-boundary.test.js", "exec-tool.test.js", "terminal-sandbox-first.test.js"],
+      "runtimeInvariant": "Terminal runtime enforces effect declaration, sandbox, process ownership, stop and output recall",
+      "currentNeed": "REVISE",
+      "proposedOnly": "split exec and terminal_session selection from ZIP, Artifact cleanup, recoverable deletion and path procedure"
+    },
+    {
+      "id": "computer.current_reality",
+      "sourceLines": "94-98",
+      "owner": "global_with_runtime_values",
+      "incident": ["current computer, local time and workspace runtime facts"],
+      "countertests": ["console-capability-boundary.test.js", "workspace-runtime-context.test.js"],
+      "runtimeInvariant": "platform, time and workspace facts are already request-scoped runtime observations",
+      "currentNeed": "MOVE",
+      "proposedOnly": "move dynamic platform, time and workspace values to bounded runtimeContext; retain natural-language closure only if A/B proves it load-bearing"
+    },
+    {
+      "id": "tool.video_caption",
+      "sourceLines": "deferred tool only",
+      "owner": "tool",
+      "incident": ["video_text caption source qualification"],
+      "countertests": ["youtube-caption-tool.test.js", "youtube-caption-console.test.js", "console-capability-boundary.test.js"],
+      "runtimeInvariant": "guidance is already absent from global Context and appears only with the deferred Tool",
+      "currentNeed": "KEEP"
+    }
+  ],
+  "boundaries": {
+    "instructionDeleted": false,
+    "manifestCountertestNamesChanged": false,
+    "proposedCountertestCorrectionsApplied": false,
+    "promptCompressed": false,
+    "toolCountChanged": false,
+    "nx2_1Reopened": false,
+    "modelProviderFork": false,
+    "removeCandidateCount": 0
+  },
+  "next": {
+    "gate": "CX-2 Tool Contract SSOT Pilot",
+    "admission": "select one Tool family only after actual schema-validator-description drift is proven",
+    "productChanges": 0
+  }
+}

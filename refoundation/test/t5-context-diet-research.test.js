@@ -57,3 +57,34 @@ test('CX-0은 모든 Context surface를 계측하고 삭제 없이 CX-1 provenan
   assert.equal(evidence.productChanges, 0);
   assert.equal(evidence.next.gate, 'CX-1 Family Provenance Audit');
 });
+
+test('CX-1은 12개 family를 증거별로 분류하고 stale countertest 이름을 proposed correction으로만 남긴다', async () => {
+  const [evidence, fileReality, attachment, browser, automation, exec, sandbox] = await Promise.all([
+    read('refoundation/evidence/nx2-cx1-instruction-family-provenance-audit-2026-09-01.json').then(JSON.parse),
+    read('refoundation/test/file-reality-console.integration.js'),
+    read('refoundation/test/attachment-console.integration.js'),
+    read('refoundation/test/browser-observation-tool.test.js'),
+    read('refoundation/test/automation-console.integration.js'),
+    read('refoundation/test/exec-tool.test.js'),
+    read('refoundation/test/terminal-sandbox-first.test.js'),
+  ]);
+  assert.equal(evidence.summary.families, 12);
+  assert.equal(evidence.families.length, 12);
+  assert.equal(evidence.summary.KEEP, 5);
+  assert.equal(evidence.summary.MOVE, 2);
+  assert.equal(evidence.summary.REVISE, 4);
+  assert.equal(evidence.summary.REMOVE_CANDIDATE, 0);
+  assert.equal(evidence.summary.UNKNOWN, 1);
+  assert.equal(evidence.countertestDrift.length, 5);
+  assert.equal(evidence.boundaries.instructionDeleted, false);
+  assert.equal(evidence.boundaries.manifestCountertestNamesChanged, false);
+  assert.equal(evidence.boundaries.nx2_1Reopened, false);
+  assert.equal(evidence.productChanges, 0);
+  assert.equal(evidence.next.gate, 'CX-2 Tool Contract SSOT Pilot');
+  assert.match(fileReality, /file_reality[\s\S]*search/u);
+  assert.match(attachment, /register_output[\s\S]*download/u);
+  assert.match(browser, /effect_declaration_mismatch/u);
+  assert.match(automation, /deliveryStatus/u);
+  assert.match(exec, /effect_declaration_required|managed_process_required/u);
+  assert.match(sandbox, /effect_declaration_required/u);
+});

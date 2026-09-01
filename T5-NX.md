@@ -3,8 +3,8 @@
 상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE · NX_2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX_2_2_CONTEXT_DIET_CURRENT`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
-현재 Gate: `NX2-2 CONTEXT DIET & INTERFACE INTELLIGENCE · CX-1 FAMILY PROVENANCE AUDIT`
-현재 작업: `CX-0 surface inventory 완료 · 제품 변경 0 · KEEP/MOVE/REVISE/REMOVE_CANDIDATE 분류`
+현재 Gate: `NX2-2 CONTEXT DIET & INTERFACE INTELLIGENCE · CX-2 TOOL CONTRACT SSOT PILOT`
+현재 작업: `CX-1 family provenance audit 완료 · 실제 schema-validator-description drift 한 family 선정`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -1276,6 +1276,19 @@ countertest를 재계산한 audit report다.
 CX-0은 제품 변경 0으로 완료됐고 다음 current slice는 `CX-1 Family Provenance Audit`다.
 
 근거: `refoundation/evidence/nx2-cx0-context-surface-inventory-2026-09-01.json`.
+
+2026-09-01 CX-1 완료:
+
+- 12개 family·98줄을 실제 incident·countertest assertion·Runtime invariant에 대조했다.
+- `KEEP 5 · MOVE 2 · REVISE 4 · REMOVE_CANDIDATE 0 · UNKNOWN 1`로 분류했다. UNKNOWN은 변경하지 않는다.
+- manifest의 stale countertest 이름 5개를 실제 integration/tool test로 해소할 proposed mapping을 만들었지만 manifest에는
+  아직 적용하지 않았다.
+- instruction 삭제·압축·Tool 축소·NX2-1 재개통·provider fork는 모두 0이다.
+
+CX-1은 audit report로 완료됐고 다음 current slice는 실제 interface drift 한 family만 고르는 `CX-2 Tool Contract SSOT
+Pilot`이다.
+
+근거: `refoundation/evidence/nx2-cx1-instruction-family-provenance-audit-2026-09-01.json`.
 
 ### NX-2D — Five-Lane Proportionality — PENDING
 

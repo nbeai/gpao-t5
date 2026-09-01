@@ -2,7 +2,7 @@
 
 기록일: 2026-09-01
 조사 기준: T5 NX `9e2daf0c`
-상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · CX_0_COMPLETE · CX_1_CURRENT · PRODUCT_CHANGE_0`
+상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · CX_0_COMPLETE · CX_1_COMPLETE · CX_2_CURRENT · PRODUCT_CHANGE_0`
 
 사용자 완료 문장:
 
@@ -477,6 +477,12 @@ adapter가 capability fact를 제공하되 provider 이름별 장문 Prompt를 �
 - Runtime duplicate·Tool-local·dated workaround 분류
 - audit report와 proposed diff만 생성
 - 제품 적용 0
+
+2026-09-01 actual audit에서 12개 family를 `KEEP 5·MOVE 2·REVISE 4·REMOVE_CANDIDATE 0·UNKNOWN 1`로 분류했다.
+stale countertest 이름 5개는 실제 보호 assertion이 있는 현재 test로 proposed mapping만 만들었고 manifest·instruction은
+수정하지 않았다.
+
+근거: `refoundation/evidence/nx2-cx1-instruction-family-provenance-audit-2026-09-01.json`.
 
 ### CX-2 — Tool Contract SSOT Pilot
 
