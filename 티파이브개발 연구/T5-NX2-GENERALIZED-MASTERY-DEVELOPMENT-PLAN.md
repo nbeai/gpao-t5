@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED · NX2_5_WC0_COMPLETE · NX2_5_WC1_COMPLETE · NX2_5_WC2_COMPLETE · NX2_5_WC3_CURRENT`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED · NX2_5_WC0_COMPLETE · NX2_5_WC1_COMPLETE · NX2_5_WC2_COMPLETE · NX2_5_WC3_COMPLETE · NX2_5_WC4_CURRENT`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-5 WC-3 — Generated Collector Capsule`
+현재 제품 Gate: `NX2-5 WC-4 — Artifact & Automation`
 
 ---
 
@@ -919,6 +919,17 @@ instruction authority가 아니다. 새 Browser·network inspector·site parser�
 - actual public input에서 bounded 1회 실행
 - host observer가 record count·schema·duplicates·coverage 재검증
 - network host allowlist·rate·deadline
+
+종료 상태: `COMPLETE_FIRST_STATIC_PRODUCT_SCOPE`. 기존 `web_read`가 실제 반복 구조 handle을 한 Run에 결속하고,
+`web_collection`은 모델이 선택한 observed selector·same-origin URL·필수값·unique key·예상 건수만 실행한다. verified
+records는 기존 XLSX writer와 AttachmentStore로 즉시 2-sheet Artifact가 되어 전체 records를 다시 모델이나 Terminal에
+넘기지 않는다. 동일 목적 실제 Console은 60건·누락 0·중복 0을 유지하면서 133.1초→31.0초, 모델 10→5,
+Tool 11→6, input token 363,326→68,208로 줄었다. Terminal network·새 Browser·page script·runtime install은 0이다.
+
+모델이 첫 턴에 세 대표 page를 모두 읽은 비용은 관측으로 남기고 같은 activation 가족의 세 번째 patch는 붙이지 않는다.
+dynamic page는 기존 Browser Hand를 열되 rendered collection 완료는 아직 주장하지 않는다.
+
+근거: `refoundation/evidence/nx2-wc3-web-collector-product-2026-09-01.json`.
 
 #### WC-4 — Artifact·Automation
 

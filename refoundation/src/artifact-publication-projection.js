@@ -38,6 +38,10 @@ function classify({ receipt, artifact, produced, previous, run }) {
     && receipt.result?.coverage?.verified === true
     && receipt.result?.artifact?.attachmentId === artifact.attachmentId
     && sameBytes(receipt.result.artifact, artifact)) return 'generated_output';
+  if (receipt.requestedCall?.name === 'web_collection'
+    && receipt.result?.state === 'verified_collection' && receipt.result?.verified === true
+    && receipt.result?.artifact?.attachmentId === artifact.attachmentId
+    && sameBytes(receipt.result.artifact, artifact)) return 'generated_output';
   if (receipt.requestedCall?.name === 'file_reality' && action === 'inspect'
     && receipt.result?.delivery?.state === 'registered_selected_visual'
     && receipt.result?.artifact?.attachmentId === artifact.attachmentId
@@ -148,7 +152,11 @@ export function makeArtifactPublicationProductAdapter({ attachmentStore, runLedg
         && receipt.result?.state === 'verified_transcript'
         && receipt.result?.coverage?.verified === true
         && receipt.result?.artifact?.attachmentId === attachmentId;
-      if (receipt.outcome !== 'succeeded' || (!selectedVisual && !selectedFile && !producedBatch && !auditoryOutput && (receipt.requestedCall?.name !== 'attachment'
+      const webCollectionOutput = receipt.requestedCall?.name === 'web_collection'
+        && receipt.result?.state === 'verified_collection' && receipt.result?.verified === true
+        && receipt.result?.artifact?.attachmentId === attachmentId;
+      if (receipt.outcome !== 'succeeded' || (!selectedVisual && !selectedFile && !producedBatch
+        && !auditoryOutput && !webCollectionOutput && (receipt.requestedCall?.name !== 'attachment'
         || !['register_existing_file', 'register_output'].includes(receipt.requestedCall?.args?.action)))) {
         throw new Error('qualified artifact registration receipt is required');
       }
@@ -194,7 +202,8 @@ export function makeArtifactPublicationProductAdapter({ attachmentStore, runLedg
         temporary: { userWorkspaceCopiesCreated: classification === 'existing_file'
           && receipt.result?.publication?.managedCopy === true
           ? receipt.result.publication.userWorkspaceCopiesCreated : null,
-        cleanup: auditoryOutput && receipt.result?.cleanup === 'verified' ? 'verified' : 'unknown' },
+        cleanup: (auditoryOutput || webCollectionOutput) && receipt.result?.cleanup === 'verified'
+          ? 'verified' : 'unknown' },
         rollback: { available: null, kind: 'unknown' } };
       const publication = deepFreeze({ ...core, state: exactReadback && linked && included
         && core.publication.surfacePersisted ? core.publication.delivery === 'succeeded' ? 'delivered'

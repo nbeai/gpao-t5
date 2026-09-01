@@ -363,8 +363,10 @@ export function makeWebReadTool({
   allowPrivateUrls = false,
   urlResolvers = [],
   userAgent = webUserAgentForPlatform(),
+  onHtmlObserved = null,
 } = {}) {
   if (typeof fetchImpl !== 'function') throw new TypeError('fetch implementation is required');
+  if (onHtmlObserved != null && typeof onHtmlObserved !== 'function') throw new TypeError('HTML observer is invalid');
   return {
     name: 'web_read',
     executionMode: 'parallel',
@@ -372,7 +374,7 @@ export function makeWebReadTool({
     capabilityGroup: 'web_observation',
     relatedTools: ['browser'],
     searchTerms: ['exact public URL page content static read', '정확한 주소 페이지 읽기'],
-    description: 'Read one exact public HTTP(S) URL. Returns observed source identity, redirects, content type, readable text, and honest login/dynamic/block/truncation boundaries.',
+    description: 'Read one exact public HTTP(S) URL. Returns observed source identity, redirects, content type, readable text, and honest login/dynamic/block/truncation boundaries. For repeated records across pages, read one representative page first; when the result supplies collectionAffordance, use web_collection with that observed handle instead of reading every page or writing Terminal network code.',
     parameters: {
       type: 'object',
       properties: {
@@ -556,7 +558,13 @@ export function makeWebReadTool({
             kind: 'readable', observedTextChars: facts.text.length,
             observedEmbeddedChars: embedded.text.length, browserMayRevealMore: false,
           };
+          let collectionAffordance = null;
+          if (onHtmlObserved) {
+            try { collectionAffordance = await onHtmlObserved({ html: body.text, url: currentUrl, source }); }
+            catch { collectionAffordance = null; }
+          }
           return { state: 'read', source, content: { format: 'text', ...contentWindow(combinedText, maxChars) },
+            ...(collectionAffordance ? { collectionAffordance } : {}),
             ...requestedBrowserActivation(visibleBrowser) };
         }
         if (type === 'application/json' || type.endsWith('+json')) {

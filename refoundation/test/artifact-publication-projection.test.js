@@ -12,7 +12,7 @@ import { WorkStore } from '../src/work-store.js';
 
 const SESSION = '11111111-1111-4111-8111-111111111111';
 async function fixture({ existing = true, sourceProvenance = null, selectedVisual = false, selectedFile = false,
-  producedBatch = false, auditory = false } = {}) {
+  producedBatch = false, auditory = false, webCollection = false } = {}) {
   const room = await mkdtemp(join(tmpdir(), 't5-artifact-publication-')); const workspace = join(room, 'workspace');
   await mkdir(workspace); const file = join(workspace, '결과.xlsx'); await writeFile(file, 'exact-bytes');
   const attachments = new AttachmentStore(join(room, 'attachments'));
@@ -31,8 +31,10 @@ async function fixture({ existing = true, sourceProvenance = null, selectedVisua
     outputHandoff: { state: 'artifacts_registered', outputCount: 1 }, artifacts: [result.artifact] };
   if (auditory) result = { state: 'verified_transcript', coverage: { verified: true },
     cleanup: 'verified', artifact: result.artifact };
+  if (webCollection) result = { state: 'verified_collection', verified: true,
+    cleanup: 'verified', artifact: result.artifact };
   await writer.append({ type: 'tool_completed', payload: { receipt: { outcome: 'succeeded',
-    requestedCall: { name: auditory ? 'auditory' : producedBatch ? 'exec' : selectedVisual || selectedFile ? 'file_reality' : 'attachment', args: { action: auditory ? 'poll' : selectedVisual
+    requestedCall: { name: webCollection ? 'web_collection' : auditory ? 'auditory' : producedBatch ? 'exec' : selectedVisual || selectedFile ? 'file_reality' : 'attachment', args: { action: webCollection ? 'collect' : auditory ? 'poll' : selectedVisual
       ? 'inspect' : selectedFile ? 'deliver' : existing ? 'register_existing_file' : 'register_output',
       filePath: file } }, result } } });
   await work.recordResultReady({ runId: writer.runId, sessionId: SESSION,
@@ -63,6 +65,16 @@ test('G protected exec batch가 직접 등록한 Artifact는 generated output �
 
 test('Auditory verified transcript Artifact는 generated output과 verified cleanup 영수증을 만든다', async () => {
   const f = await fixture({ auditory: true }); const adapter = makeArtifactPublicationProductAdapter({
+    attachmentStore: f.attachments, runLedger: f.runs, workStore: f.work });
+  const publication = await adapter.materialize({ sessionId: SESSION, runId: f.writer.runId,
+    attachmentId: f.result.artifact.attachmentId });
+  assert.equal(publication.classification, 'generated_output');
+  assert.equal(publication.temporary.cleanup, 'verified');
+  assert.doesNotMatch(projectHumanArtifactReceipt(publication).unknowns.join(' '), /임시 파일/u);
+});
+
+test('verified Web Collection XLSX는 generated output과 verified cleanup 영수증을 만든다', async () => {
+  const f = await fixture({ webCollection: true }); const adapter = makeArtifactPublicationProductAdapter({
     attachmentStore: f.attachments, runLedger: f.runs, workStore: f.work });
   const publication = await adapter.materialize({ sessionId: SESSION, runId: f.writer.runId,
     attachmentId: f.result.artifact.attachmentId });

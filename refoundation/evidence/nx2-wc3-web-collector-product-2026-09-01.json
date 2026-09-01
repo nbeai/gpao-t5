@@ -1,0 +1,50 @@
+{
+  "schema": "t5.nx2.wc3-web-collector-product.v1",
+  "recordedOn": "2026-09-01",
+  "baseCommit": "995a4b4e",
+  "status": "WC3_COMPLETE_WC4_OPEN",
+  "samePurposeComparison": {
+    "purpose": "collect title price and stock from the first three pages of a public practice site and publish XLSX",
+    "baseline": { "wallMs": 133134, "modelCalls": 10, "toolCalls": 11, "inputTokens": 363326,
+      "rows": 60, "missing": 0, "duplicates": 0, "terminalNetworkCalls": 2, "networkOwnership": "partial" },
+    "candidate": { "runId": "f986f444-294a-4c75-895b-f0509011caf4", "wallMs": 30988,
+      "modelCalls": 5, "toolCalls": 6, "inputTokens": 68208, "outputTokens": 827,
+      "rows": 60, "missing": 0, "duplicates": 0, "terminalNetworkCalls": 0,
+      "webReadCalls": 3, "collectionCalls": 1, "collectionRequestCount": 3,
+      "networkOwnership": "complete" },
+    "improvement": { "wallPercent": 76.7, "modelCallsPercent": 50.0,
+      "toolCallsPercent": 45.5, "inputTokensPercent": 81.2 },
+    "accuracyRegression": false
+  },
+  "productContract": {
+    "inspectHandleBoundToRun": true,
+    "onlyObservedSelectorsAccepted": true,
+    "sameOriginOnly": true,
+    "privateNetworkBlockedByWebRead": true,
+    "dynamicPageActivatesExistingBrowser": true,
+    "pageScriptsExecuted": 0,
+    "generatedProgramExecutions": 0,
+    "terminalNetworkCalls": 0,
+    "verifiedXlsxDirectPublication": true,
+    "artifactReopened": true,
+    "artifactCleanup": "verified",
+    "artifactReceiptAfterRestart": "generated_output"
+  },
+  "artifact": { "name": "books_toscrape_first_3_pages.xlsx", "bytes": 6808,
+    "sha256": "85a8836bf34ae77f6c6a0d544d81c327299c8ce4865449d7ed8b479e08237f67",
+    "sheetCount": 2, "recordRowsIncludingHeader": 61, "preview": true, "download": true },
+  "remainingObservation": {
+    "representativePageReadOptimization": "not_adopted",
+    "reason": "the model read three pages before collection; accuracy and ownership passed, and a third activation patch is not justified",
+    "repeatAutomation": "WC-4_CURRENT",
+    "dynamicRenderedCollection": "not_yet_qualified"
+  },
+  "upstreamImport": 0,
+  "newCrawlerAgent": 0,
+  "newBrowserRuntime": 0,
+  "runtimePackageInstall": 0,
+  "platform": { "portableNodeSource": true, "windowsMeaning": "same fetch DOM and Artifact contract",
+    "windowsPhysical": "DEFERRED_BY_OWNER" },
+  "verification": { "focusedPassed": 76, "focusedFailed": 0 },
+  "next": "WC-4 Artifact and Automation"
+}

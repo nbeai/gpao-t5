@@ -97,6 +97,8 @@ import { makeWebResearchTool } from './web-research-tool.js';
 import { makeImageSearchTool } from './image-search-tool.js';
 import { makeVisualReferenceTool } from './visual-reference-tool.js';
 import { makeWebReadTool } from './web-read-tool.js';
+import { makeWebCollectionTool } from './web-collection-tool.js';
+import { makeWebCollectionPublisher } from './web-collection-publication.js';
 import { makeBrowserObservationTool } from './browser-observation-tool.js';
 import { makeBrowserObservationRegistry } from './browser-action-state.js';
 import { makeQuickPreviewTool } from './quick-preview-tool.js';
@@ -173,7 +175,7 @@ const founderManifestoPath = resolve(
 );
 
 function informationFamily(name) {
-  if (['web_search', 'web_read', 'web_research', 'visual_reference', 'browser'].includes(name)) return 'web';
+  if (['web_search', 'web_read', 'web_research', 'web_collection', 'visual_reference', 'browser'].includes(name)) return 'web';
   if (['memory', 'session_search', 'conversation_recall'].includes(name)) return 'continuity';
   if (name === 'connection') return 'connection';
   if (name === 'automation' || name === 'automation_outcome') return 'automation';
@@ -1086,9 +1088,7 @@ export function makeConsoleServer({
     }
     return text;
   }
-  const webReadTool = makeWebReadTool(webReadOptions);
   const webSearchTool = makeWebSearchTool({ providers: webSearchProviders });
-  const webResearchTool = makeWebResearchTool({ searchTool: webSearchTool, readTool: webReadTool });
   const imageCandidateProviders = [...new Map([
     ...imageSearchProviders,
     ...webSearchProviders.filter((provider) => provider.imageCandidateMode === 'structured_search_fields'),
@@ -1834,6 +1834,15 @@ export function makeConsoleServer({
             'Preserve exact facts and requested scope while writing the shortest natural answer that is immediately usable.',
             'Do not call tools, expose internal identifiers, repeat excluded findings, or describe runtime mechanics.',
           ].join(' ') }) });
+      const webCollectionTool = makeWebCollectionTool({ webReadOptions,
+        publishResult: makeWebCollectionPublisher({ attachmentStore: attachments,
+          sessionId, runId: run.runId, scratchRoot: join(stateDir, 'web-collection-publications', sessionId) }) });
+      const webReadTool = makeWebReadTool({ ...webReadOptions,
+        onHtmlObserved: (observation) => webCollectionTool.observePage(observation) });
+      const webResearchTool = makeWebResearchTool({ searchTool: webSearchTool, readTool: webReadTool });
+      webReadTool.activateToolsFromResult = (result) => result?.collectionAffordance?.structureHandle
+        ? ['web_collection'] : [];
+      webReadTool.relatedTools = [...new Set([...(webReadTool.relatedTools ?? []), 'web_collection'])];
       const offeredTools = [...terminal.tools];
       offeredTools.unshift(integralMethod.tool);
       offeredTools.unshift(workspacePatchTool);
@@ -2006,6 +2015,7 @@ export function makeConsoleServer({
         }),
       }));
       offeredTools.unshift(webReadTool);
+      offeredTools.unshift(webCollectionTool);
       const webSearchAvailable = (await Promise.all(webSearchProviders.map(async (provider) => {
         try { return (await provider.available())?.available === true; }
         catch { return false; }
@@ -2619,15 +2629,19 @@ export function makeConsoleServer({
             });
             publishProgress('tool_progress', toolProgressText(event.name, event.args), 'tool');
           } else if (event.type === 'tool_end') {
-            const auditoryArtifact = event.receipt.requestedCall?.name === 'auditory'
-              && event.receipt.outcome === 'succeeded' ? event.receipt.result?.artifact : null;
-            if (auditoryArtifact?.attachmentId && auditoryArtifact.direction === 'output'
-              && Number.isSafeInteger(auditoryArtifact.bytes)
-              && /^[a-f0-9]{64}$/u.test(String(auditoryArtifact.sha256 ?? ''))) {
-              await run.append({ type: 'output_produced', stepId: `output-${auditoryArtifact.attachmentId}`,
-                payload: { name: auditoryArtifact.originalName, bytes: auditoryArtifact.bytes,
-                  sha256: auditoryArtifact.sha256, producerRunId: run.runId,
-                  verified: true, reopened: true, attachmentId: auditoryArtifact.attachmentId } });
+            const directArtifact = event.receipt.outcome === 'succeeded'
+              && ((event.receipt.requestedCall?.name === 'auditory'
+                && event.receipt.result?.state === 'verified_transcript')
+                || (event.receipt.requestedCall?.name === 'web_collection'
+                  && event.receipt.result?.state === 'verified_collection'))
+              ? event.receipt.result?.artifact : null;
+            if (directArtifact?.attachmentId && directArtifact.direction === 'output'
+              && Number.isSafeInteger(directArtifact.bytes)
+              && /^[a-f0-9]{64}$/u.test(String(directArtifact.sha256 ?? ''))) {
+              await run.append({ type: 'output_produced', stepId: `output-${directArtifact.attachmentId}`,
+                payload: { name: directArtifact.originalName, bytes: directArtifact.bytes,
+                  sha256: directArtifact.sha256, producerRunId: run.runId,
+                  verified: true, reopened: true, attachmentId: directArtifact.attachmentId } });
             }
             if (event.receipt.result?.outputHandoff?.state === 'artifacts_registered') {
               for (const [index, output] of (event.receipt.result.outputs ?? []).entries()) {
