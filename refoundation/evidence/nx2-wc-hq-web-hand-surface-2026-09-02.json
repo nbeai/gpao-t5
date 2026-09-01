@@ -1,0 +1,34 @@
+{
+  "schema": "t5.nx2-wc-hq-web-hand-surface.v1",
+  "recordedOn": "2026-09-02",
+  "gate": "NX2-5 WC-HQ WEB HAND PROGRESSIVE DISCLOSURE",
+  "userBenefit": "Public Web discovery no longer pays a capability-search round before candidate search, while exact-URL reading keeps its direct path.",
+  "surface": {
+    "withoutExactPublicUrl": ["web_search", "web_research"],
+    "withExactPublicUrl": ["web_read", "web_research"],
+    "afterSearchCandidates": ["web_read"],
+    "afterRepeatedStructure": ["web_collection"],
+    "afterInteractionScopedDynamicBoundary": ["browser"],
+    "visualVideoConnection": "existing deferred capability paths"
+  },
+  "mechanicalBoundary": {
+    "semanticRouter": 0,
+    "newTool": 0,
+    "newStore": 0,
+    "globalPromptDelta": 0,
+    "requestMeaningRegex": 0,
+    "factualAdmission": "syntactically valid public HTTP(S) URL presence and actual search candidates"
+  },
+  "expectedRoundDelta": {
+    "candidateDiscovery": {"modelCalls": -1, "toolSearchCalls": -1},
+    "exactUrlRead": {"modelCalls": 0, "toolCalls": 0},
+    "boundedCurrentResearch": {"modelCalls": 0, "toolCalls": 0}
+  },
+  "focusedRegression": {"passed": 41, "failed": 0},
+  "nonClaims": [
+    "WC-HQ whole field completion",
+    "provider wall-time improvement",
+    "authenticated or dynamic collection completion",
+    "Windows physical qualification"
+  ]
+}

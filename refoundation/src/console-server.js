@@ -185,6 +185,15 @@ function informationFamily(name) {
   if (name === 'exec' || name === 'terminal_session') return 'computer';
   return null;
 }
+function hasExactPublicWebUrl(value) {
+  for (const match of String(value ?? '').matchAll(/https?:\/\/[^\s<>"'`]+/giu)) {
+    try {
+      const url = new URL(match[0]);
+      if (['http:', 'https:'].includes(url.protocol) && !url.username && !url.password) return true;
+    } catch { /* only a current syntactic URL fact is needed */ }
+  }
+  return false;
+}
 function attachmentSurface(record) {
   return {
     attachmentId: record.attachmentId,
@@ -1841,6 +1850,9 @@ export function makeConsoleServer({
       const webReadTool = makeWebReadTool({ ...webReadOptions,
         onHtmlObserved: (observation) => webCollectionTool.observePage(observation) });
       const webResearchTool = makeWebResearchTool({ searchTool: webSearchTool, readTool: webReadTool });
+      webSearchTool.activateToolsFromResult = (result) => Array.isArray(result?.candidates)
+        && result.candidates.length ? ['web_read'] : [];
+      webSearchTool.relatedTools = [...new Set([...(webSearchTool.relatedTools ?? []), 'web_read'])];
       webReadTool.activateToolsFromResult = (result) => result?.collectionAffordance?.structureHandle
         ? ['web_collection'] : [];
       webReadTool.relatedTools = [...new Set([...(webReadTool.relatedTools ?? []), 'web_collection'])];
@@ -2298,10 +2310,12 @@ export function makeConsoleServer({
       );
       if (currentAttachmentNeedsAuditorySurface) currentCoreToolNames.push('auditory');
       const activeManagedProcesses = processes.active(sessionId);
+      const currentRequestHasPublicWebUrl = hasExactPublicWebUrl(modelRequest);
       const coreToolNames = capabilitySurfaceMode === 'directory-first-v1'
         && options.trigger !== 'automation'
         ? [
-          'exec', 'web_read', 'web_research', 'attachment', 'skill',
+          'exec', currentRequestHasPublicWebUrl || !webSearchAvailable ? 'web_read' : 'web_search',
+          'web_research', 'attachment', 'skill',
           // 기억·삭제를 약속만 하고 실제 원장에 반영하지 않은 설치 제품 반례 때문에
           // 의미 Router 없이 기존 쓰기·삭제 손만 항상 보인다. read는 후보가 있을 때만 연다.
           'memory_claim', 'memory_control',

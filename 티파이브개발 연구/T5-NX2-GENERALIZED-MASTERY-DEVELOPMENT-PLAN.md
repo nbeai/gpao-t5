@@ -1,6 +1,6 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED · NX2_5_WC0_COMPLETE · NX2_5_WC1_COMPLETE · NX2_5_WC2_COMPLETE · NX2_5_WC3_COMPLETE · NX2_5_WC4_CURRENT`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED · NX2_5_WC0_COMPLETE · NX2_5_WC1_COMPLETE · NX2_5_WC2_COMPLETE · NX2_5_WC3_COMPLETE · NX2_5_WC4_COMPLETE · NX2_5_WC_HQ_CURRENT`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
@@ -954,6 +954,20 @@ observed time을 보존하고 summary에는 coverage·missing·duplicate·unknow
 근거: `refoundation/evidence/nx2-wc4-artifact-automation-2026-09-02.json`.
 
 #### WC-HQ
+
+현재 첫 제품 수리: `WEB_HAND_PROGRESSIVE_DISCLOSURE_COMPLETE`.
+
+기존 Hand를 합치거나 새 Router를 만들지 않고, 현재 요청에 exact public HTTP(S) URL이 있는 물리적 사실만으로
+첫 관측 표면을 분리한다. URL이 없고 실제 Search provider가 있으면 `web_search`, exact URL이 있거나 Search가
+없으면 `web_read`가 보인다. `web_research`의 bounded current-information fast path는 유지한다. 검색 후보가 실제로
+생긴 뒤에는 같은 Run에 `web_read`가 자동 개통되고, 이후 반복 구조·동적 interaction은 기존
+`web_collection`·`browser` activation을 그대로 사용한다. visual·video·connection도 기존 deferred 경계를 유지한다.
+
+따라서 후보 검색은 `tool_search→web_search` 한 왕복을 제거하고 exact URL·날씨 경로에는 추가 호출이 없다.
+업무 Router·새 Tool·Store·전역 Prompt 변화는 0이며 관련 Console·Browser·Collection 회귀 41/41을 통과했다.
+실제 provider wall 개선과 WC-HQ 전체 완료는 아직 주장하지 않는다.
+
+근거: `refoundation/evidence/nx2-wc-hq-web-hand-surface-2026-09-02.json`.
 
 - 단일 목록 수집
 - list→detail 다단계 수집

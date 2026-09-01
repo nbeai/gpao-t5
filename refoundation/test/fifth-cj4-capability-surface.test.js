@@ -54,6 +54,34 @@ test('directory-first 후보는 Direct의 schema를 최소 손과 capability dir
   assert.ok(toolBytes(candidate.calls[0]) < toolBytes(baseline.calls[0]));
 });
 
+test('directory-first Web 손은 현재 exact URL 사실에 따라 search와 read를 겹치지 않는다', async () => {
+  const searched = await run({ mode: 'directory-first-v1', request: '공개 자료를 찾아줘',
+    respond(input, turn) {
+      if (turn === 1) {
+        assert.equal(input.tools.some((tool) => tool.name === 'web_search'), true);
+        assert.equal(input.tools.some((tool) => tool.name === 'web_read'), false);
+        return { text: '', toolCalls: [{ id: 'search', name: 'web_search', args: {
+          query: '공개 자료', provider: null, limit: 3, domains: null,
+        } }] };
+      }
+      assert.equal(input.tools.some((tool) => tool.name === 'web_read'), true);
+      return { text: '검색 후보를 읽을 준비가 됐습니다.', toolCalls: [] };
+    },
+    webSearchProviders: [{ id: 'fixture', label: 'Fixture',
+      async available() { return { available: true }; },
+      async search() { return [{ title: '자료', url: 'https://example.test/', snippet: '근거' }]; } }],
+  });
+  assert.equal(searched.calls.length, 2);
+
+  const exact = await run({ mode: 'directory-first-v1', request: 'https://example.test/report 를 읽어줘',
+    respond(input) {
+      assert.equal(input.tools.some((tool) => tool.name === 'web_read'), true);
+      assert.equal(input.tools.some((tool) => tool.name === 'web_search'), false);
+      return { text: '정확한 주소를 읽을 수 있습니다.', toolCalls: [] };
+    } });
+  assert.equal(exact.calls.length, 1);
+});
+
 test('directory-first는 새 기억과 forget을 약속 문장으로 끝내지 않도록 기존 쓰기·삭제 손을 항상 연다', async () => {
   const observed = await run({ mode: 'directory-first-v1', request: '이 기준을 기억했다가 나중에 잊어줘',
     respond(input) {
