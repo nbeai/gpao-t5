@@ -1917,6 +1917,7 @@ export function makeConsoleServer({
           return { text: String(response?.text ?? ''), model: response?.responseModel ?? null };
         },
         ...(audioRealityProbe ? { observeAudioReality: audioRealityProbe } : {}),
+        auditoryCapabilityAvailable: Boolean(auditoryTranscriptionSpine),
       }));
       if (auditoryTranscriptionSpine && auditoryScratchRoot) offeredTools.unshift(makeAuditoryTool({
         spine: auditoryTranscriptionSpine, attachmentStore: attachments,

@@ -156,6 +156,7 @@ test('audio inspect는 native duration·track reality를 주되 전사 완료로
   const record = await store.receive({ sessionId: SESSION, originalName: '회의.wav', bytes: wav });
   try {
     const tool = makeAttachmentTool({ store, sessionId: SESSION, workspace: room,
+      auditoryCapabilityAvailable: true,
       observeAudioReality: async ({ expectedSha256 }) => ({ state: 'observed',
         engine: 'macos-avfoundation-audiotoolbox', source: { sha256: expectedSha256, bytes: wav.length },
         container: { identifier: 'WAVE', evidence: 'audio_file_property' }, durationMs: 5000,
@@ -165,7 +166,8 @@ test('audio inspect는 native duration·track reality를 주되 전사 완료로
     const result = await tool.execute({ action: 'inspect', attachmentId: record.attachmentId,
       filePath: null, maxChars: null, maxCells: null, maxPages: null });
     assert.equal(result.state, 'capability_boundary');
-    assert.equal(result.observation.reason, 'speech_transcription_not_connected');
+    assert.equal(result.observation.reason, 'auditory_transcription_available');
+    assert.equal(result.observation.availableThrough, 'auditory');
     assert.equal(result.observation.audioReality.sourceVerified, true);
     assert.equal(result.observation.audioReality.durationMs, 5000);
     assert.equal(result.observation.audioReality.audioTrackCount, 1);

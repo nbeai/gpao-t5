@@ -302,6 +302,7 @@ export function makeAttachmentTool({
   authorizeExistingFilePath = null,
   observeImagePixels = null, inspectQualifiedDocumentImpl = inspectQualifiedDocument,
   observeAudioReality = null,
+  auditoryCapabilityAvailable = false,
   renderDocxPreview = renderDocxFirstPage, renderVisualPreview = renderVisualDeliverable,
   executableOperationStore = null,
   sourceManifestStore = null,
@@ -609,8 +610,11 @@ export function makeAttachmentTool({
               kind: record.kind, attachmentId: record.attachmentId,
               mimeType: record.mimeType, bytes: record.bytes, contentUnderstood: false,
               reason: reality.audioTrackCount === 0 ? 'audio_track_not_present'
-                : record.kind === 'audio' ? 'speech_transcription_not_connected'
-                  : 'video_understanding_not_connected',
+                : auditoryCapabilityAvailable ? 'auditory_transcription_available'
+                  : record.kind === 'audio' ? 'speech_transcription_not_connected'
+                    : 'video_understanding_not_connected',
+              ...(reality.audioTrackCount > 0 && auditoryCapabilityAvailable
+                ? { availableThrough: 'auditory' } : {}),
               audioReality: {
                 engine: reality.engine, sourceVerified: reality.source.sha256 === record.sha256,
                 durationMs: reality.durationMs, container: reality.container,
