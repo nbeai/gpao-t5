@@ -64,6 +64,12 @@ export class WorkStore {
     for (const event of events) {
       if (event.type === 'work_created') works.set(event.workId, { workId: event.workId,
         sessionId: event.sessionId, revision: 1, status: 'active', sourceMessageId: event.sourceMessageId });
+      if (event.type === 'work_derived_from_selection') works.set(event.workId, { workId: event.workId,
+        sessionId: event.sessionId, revision: 1, status: 'active', sourceMessageId: event.sourceMessageId,
+        provenance: { derivedFromWorkId: event.derivedFromWorkId,
+          derivedFromRevision: event.derivedFromRevision, selectionAnchorId: event.selectionAnchorId,
+          sourceInputId: event.sourceInputId, sourceMessageId: event.sourceMessageId,
+          reason: 'explicit_selection_apply' } });
       if (event.type === 'input_admission_prepared') inputs.set(event.inputId, { inputId: event.inputId,
         sessionId: event.sessionId, messageId: event.messageId, origin: event.origin,
         attachmentIds: event.attachmentIds ?? [], source: event.source ?? {}, state: 'prepared' });
@@ -376,6 +382,35 @@ export class WorkStore {
   async create({ sessionId, sourceMessageId }) {
     const workId = this.makeId(); await this.append('work_created', { workId, sessionId, sourceMessageId });
     return { workId, revision: 1, status: 'active' };
+  }
+  async createDerivedFromSelection({ sessionId, sourceMessageId, sourceInputId,
+    derivedFromWorkId, derivedFromRevision, selectionAnchorId, requestId }) {
+    const values = [sessionId, sourceMessageId, sourceInputId, derivedFromWorkId, selectionAnchorId, requestId]
+      .map((value) => String(value ?? '').trim());
+    if (values.some((value) => !value) || !Number.isInteger(derivedFromRevision)
+      || derivedFromRevision < 1) throw new TypeError('derived Work provenance is required');
+    return this.serialize(async () => {
+      const state = await this.read();
+      const source = state.works.find((work) => work.workId === values[3]);
+      if (!source || source.sessionId !== values[0] || source.revision !== derivedFromRevision
+        || source.status !== 'completed') throw new Error('stale completed source Work');
+      const fingerprint = hash({ sessionId: values[0], sourceMessageId: values[1],
+        sourceInputId: values[2], derivedFromWorkId: values[3], derivedFromRevision,
+        selectionAnchorId: values[4] });
+      const existing = state.events.find((event) => event.type === 'work_derived_from_selection'
+        && event.requestId === values[5]);
+      if (existing) {
+        if (existing.fingerprint !== fingerprint) throw new Error('selection apply request conflict');
+        return clone(state.works.find((work) => work.workId === existing.workId));
+      }
+      const workId = this.makeId();
+      await this.appendUnlocked('work_derived_from_selection', { workId, sessionId: values[0],
+        sourceMessageId: values[1], sourceInputId: values[2], derivedFromWorkId: values[3],
+        derivedFromRevision, selectionAnchorId: values[4], requestId: values[5], fingerprint });
+      return { workId, revision: 1, status: 'active', provenance: {
+        derivedFromWorkId: values[3], derivedFromRevision, selectionAnchorId: values[4],
+        sourceInputId: values[2], sourceMessageId: values[1], reason: 'explicit_selection_apply' } };
+    });
   }
   async activeForSession(sessionId) {
     const state = await this.read();
