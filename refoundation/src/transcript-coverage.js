@@ -11,13 +11,15 @@ async function waveData(path) {
     while (offset + 8 <= bytesRead) {
       const kind = header.toString('ascii', offset, offset + 4); const size = header.readUInt32LE(offset + 4);
       const body = offset + 8; if (body + size > bytesRead && kind !== 'data') break;
-      if (kind === 'fmt ' && size >= 16) format = { encoding: header.readUInt16LE(body),
-        channels: header.readUInt16LE(body + 2), sampleRate: header.readUInt32LE(body + 4),
-        bits: header.readUInt16LE(body + 14) };
+      if (kind === 'fmt ' && size >= 16) { const encoding = header.readUInt16LE(body);
+        const extensiblePcm = encoding === 0xfffe && size >= 40 && header.readUInt32LE(body + 24) === 1;
+        format = { encoding, pcm: encoding === 1 || extensiblePcm,
+          channels: header.readUInt16LE(body + 2), sampleRate: header.readUInt32LE(body + 4),
+          bits: header.readUInt16LE(body + 14) }; }
       if (kind === 'data') { data = { offset: body, bytes: size }; break; }
       offset = body + size + (size % 2);
     }
-    if (!format || !data || format.encoding !== 1 || format.channels !== 1
+    if (!format || !data || format.pcm !== true || format.channels !== 1
       || format.sampleRate !== 16000 || format.bits !== 16 || data.bytes % 2 !== 0) {
       throw new Error('decoded PCM format is invalid');
     }

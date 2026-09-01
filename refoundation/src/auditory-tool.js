@@ -23,7 +23,13 @@ export function makeAuditoryTool({ spine, attachmentStore, sessionId, runId, scr
   if (!spine?.start || !attachmentStore?.get || !sessionId || !runId || !scratchRoot) throw new TypeError('auditory tool inputs are required');
   const artifacts = makeTranscriptArtifactAdapter({ attachmentStore }); const requests = new Map();
   async function finish(result, request) {
-    if (result.state !== 'verified_transcript') return projection(result);
+    if (result.state !== 'verified_transcript') {
+      if (['coverage_rejected', 'verification_failed', 'failed'].includes(result.state)) {
+        const cleaned = await spine.cleanup({ ownerId: sessionId, operationId: result.operationId });
+        return { ...projection(result), cleanup: cleaned ? 'verified' : 'unknown' };
+      }
+      return projection(result);
+    }
     const published = await artifacts.publish({ sessionId, runId,
       messageId: `${runId}:auditory:${result.operationId}`, result,
       form: request.form, outputName: request.outputName });

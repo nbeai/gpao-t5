@@ -42,3 +42,19 @@ test('비무음 empty transcript와 역전 overlap은 성공이 아니다', asyn
         { text: '둘째', offsets: { from: 400, to: 900 } }] } }); assert.equal(overlap.defects.overlapCount, 1);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
+
+test('WAVE_FORMAT_EXTENSIBLE은 exact PCM subtype 1일 때만 16k mono로 인정한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-transcript-extensible-')); const path = join(room, 'speech.wav');
+  const base = wav(Array(16000).fill(500)); const data = base.subarray(44);
+  const output = Buffer.alloc(68 + data.length); output.write('RIFF'); output.writeUInt32LE(60 + data.length, 4);
+  output.write('WAVEfmt ', 8); output.writeUInt32LE(40, 16); output.writeUInt16LE(0xfffe, 20);
+  output.writeUInt16LE(1, 22); output.writeUInt32LE(16000, 24); output.writeUInt32LE(32000, 28);
+  output.writeUInt16LE(2, 32); output.writeUInt16LE(16, 34); output.writeUInt16LE(22, 36);
+  output.writeUInt16LE(16, 38); output.writeUInt32LE(4, 40); output.writeUInt32LE(1, 44);
+  Buffer.from('00001000800000aa00389b71', 'hex').copy(output, 48); output.write('data', 60);
+  output.writeUInt32LE(data.length, 64); data.copy(output, 68); await writeFile(path, output);
+  try { const result = await verifyTranscriptCoverage({ pcmPath: path, sourceDurationMs: 1000,
+    decodedDurationMs: 1000, transcript: { transcription: [{ text: '확인', offsets: { from: 0, to: 900 } }] } });
+    assert.equal(result.verified, true);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});

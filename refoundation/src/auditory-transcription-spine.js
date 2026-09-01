@@ -26,6 +26,7 @@ export function makeAuditoryTranscriptionSpine({
       return { state: 'running', operationId: operation.operationId, process: publicProcess(snapshot) };
     }
     if (snapshot.state !== 'completed' || snapshot.exitCode !== 0) {
+      operation.terminal = true;
       return { state: snapshot.state === 'stopped' ? 'stopped' : 'failed',
         operationId: operation.operationId, process: publicProcess(snapshot), publishable: false };
     }
@@ -40,14 +41,15 @@ export function makeAuditoryTranscriptionSpine({
         pcmPath: operation.pcmPath, sourceDurationMs: operation.source.durationMs,
         decodedDurationMs: operation.decoded.durationMs, transcript: output,
       }) : null;
+      operation.terminal = true;
       if (coverage && coverage.verified !== true) return { state: 'coverage_rejected',
         operationId: operation.operationId, process: publicProcess(snapshot), coverage, publishable: false };
-      operation.terminal = true;
       return { state: coverage ? 'verified_transcript' : 'transcribed_unverified', operationId: operation.operationId,
         process: publicProcess(snapshot), source: operation.source, model: operation.model,
         decoded: operation.decoded, transcriptPath: path, transcript: output,
         ...(coverage ? { coverage } : {}), publishable: Boolean(coverage) };
     } catch {
+      operation.terminal = true;
       return { state: 'verification_failed', operationId: operation.operationId,
         process: publicProcess(snapshot), publishable: false };
     }
