@@ -34,6 +34,9 @@ test('진행 언어는 판단을 말하지 않고 실제 작업 단계에 맞는
     ['terminal_session', { action: 'poll' }, '진행 중인 작업의 상태를 확인하고 있어요'],
     ['terminal_session', { action: 'start_tty' }, '대화형 터미널 작업을 시작하고 있어요'],
     ['terminal_session', { action: 'read_output' }, '필요한 컴퓨터 작업 결과를 정확히 확인하고 있어요'],
+    ['auditory', { action: 'start' }, '음성 내용을 들을 준비를 하고 있어요'],
+    ['auditory', { action: 'poll' }, '음성 내용을 전사하고 확인하고 있어요'],
+    ['auditory', { action: 'stop' }, '음성 작업을 멈추고 정리하고 있어요'],
   ];
   for (const [name, args, expected] of starts) assert.equal(toolProgressText(name, args), expected);
   assert.ok(new Set(starts.map(([, , text]) => text)).size >= 15);
@@ -45,11 +48,12 @@ test('진행 언어는 판단을 말하지 않고 실제 작업 단계에 맞는
   assert.equal(toolCompletedProgressText('attachment', {}), '파일에서 확인한 내용을 정리하고 있어요');
   assert.equal(toolCompletedProgressText('exec', {}), '컴퓨터 작업 결과를 다시 확인하고 있어요');
   assert.equal(toolCompletedProgressText('terminal_session', {}), '진행 중인 컴퓨터 작업 결과를 확인하고 있어요');
+  assert.equal(toolCompletedProgressText('auditory', {}), '전사 범위와 결과 파일을 확인하고 있어요');
 
   const publicTexts = [
     modelProgressText(1), modelProgressText(2), safeProgressText('secret-token'),
     ...starts.map(([name, args]) => toolProgressText(name, args)),
-    ...['web_search', 'web_read', 'video_text', 'browser', 'attachment', 'exec']
+    ...['web_search', 'web_read', 'video_text', 'browser', 'attachment', 'exec', 'auditory']
       .map((name) => toolCompletedProgressText(name, {})),
   ];
   for (const text of publicTexts) assert.doesNotMatch(text, /판단/u);

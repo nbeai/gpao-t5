@@ -89,6 +89,12 @@ const PROCESS_PROGRESS = Object.freeze({
   stop: '실행 중인 작업을 멈추고 있어요',
 });
 
+const AUDITORY_PROGRESS = Object.freeze({
+  start: '음성 내용을 들을 준비를 하고 있어요',
+  poll: '음성 내용을 전사하고 확인하고 있어요',
+  stop: '음성 작업을 멈추고 정리하고 있어요',
+});
+
 const COMPLETED_PROGRESS = Object.freeze({
   web_search: '찾은 자료들을 비교하고 있어요',
   web_read: '읽은 내용을 요청과 맞춰보고 있어요',
@@ -105,6 +111,7 @@ const COMPLETED_PROGRESS = Object.freeze({
   conversation_recall: '이전 작업에서 찾은 내용을 정리하고 있어요',
   exec: '컴퓨터 작업 결과를 다시 확인하고 있어요',
   terminal_session: '진행 중인 컴퓨터 작업 결과를 확인하고 있어요',
+  auditory: '전사 범위와 결과 파일을 확인하고 있어요',
 });
 
 const FIXED_PROGRESS_TEXT = new Set([
@@ -116,6 +123,7 @@ const FIXED_PROGRESS_TEXT = new Set([
   ...Object.values(CAPABILITY_LIFECYCLE_PROGRESS),
   ...Object.values(MEMORY_PROGRESS), ...Object.values(SESSION_PROGRESS),
   ...Object.values(RECALL_PROGRESS), ...Object.values(PROCESS_PROGRESS),
+  ...Object.values(AUDITORY_PROGRESS),
   ...Object.values(COMPLETED_PROGRESS),
   '웹에서 관련 자료를 찾고 있어요', '선택한 자료를 자세히 읽고 있어요',
   '컴퓨터에서 필요한 정보를 확인하고 있어요',
@@ -162,6 +170,7 @@ export function toolProgressText(name, args = {}) {
     if (action === 'read_output') return '필요한 컴퓨터 작업 결과를 정확히 확인하고 있어요';
     return PROCESS_PROGRESS[action] ?? '진행 중인 작업을 확인하고 있어요';
   }
+  if (name === 'auditory') return AUDITORY_PROGRESS[action] ?? '음성 내용을 확인하고 있어요';
   if (name === 'exec') return args?.effect?.kind === 'observe'
     ? '컴퓨터에서 필요한 정보를 확인하고 있어요'
     : '컴퓨터에서 요청한 작업을 진행하고 있어요';
