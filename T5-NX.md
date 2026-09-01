@@ -3,8 +3,8 @@
 상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE · NX_2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX_2_2_CONTEXT_DIET_CURRENT`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
-현재 Gate: `NX2-2 CONTEXT DIET & INTERFACE INTELLIGENCE · CX-6 PRODUCT INTEGRATION`
-현재 작업: `두 모델 자격 완료 · 악성 첨부 경계 global 한 줄만 existing attachment Tool owner로 이동`
+현재 Gate: `NX2-2 CONTEXT DIET & INTERFACE INTELLIGENCE · CX-HQ HUMAN CONTEXT QUALIFICATION`
+현재 작업: `CX-6 한 qualified line 제품 통합·전체 회귀 완료 · 실제 Console Context edge 자격`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -987,7 +987,7 @@ AND current correction·Stop·restart·Artifact·Undo 무회귀
 
 상세 개발 정본: `티파이브개발 연구/T5-NX2-GENERALIZED-MASTERY-DEVELOPMENT-PLAN.md`
 
-상태: `CURRENT · NX_1_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · CURRENT_SLICE_NX2_2_CX6_PRODUCT_INTEGRATION`
+상태: `CURRENT · NX_1_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · CURRENT_SLICE_NX2_2_CX_HQ_HUMAN_CONTEXT_QUALIFICATION`
 
 NX-2는 아래 네 업무만 늘리는 단계가 아니다. GUI와 NX-1에 이미 흡수된 Reality·Method·Evidence 구조를 다시 만들지
 않고, 남은 연구를 다음 한 실행선으로 일반화한다.
@@ -1340,9 +1340,20 @@ MOVE_CANDIDATE와 공통 Context를 모델별 fork 없이 비교하는 `CX-5 Mul
 - product 후보는 actual로 증명된 untrusted-attachment 한 줄 196 bytes로 제한하고, current-Run PDF 한 줄은 UNKNOWN으로
   적용하지 않는다.
 
-다음 current slice는 이 한 줄만 기존 attachment Tool owner로 이동하는 `CX-6 Product Integration`이다.
-
 근거: `refoundation/evidence/nx2-cx5-multi-model-context-qualification-2026-09-01.json`.
+
+2026-09-01 CX-6 제품 통합 완료:
+
+- actual이 있는 악성 첨부 경계 한 줄만 global instruction에서 기존 attachment Tool description으로 이동했다.
+- global instruction은 98줄·29,742 bytes에서 97줄·29,545 bytes가 됐다.
+- 통합 후 gpt-5.5 Direct 1 model·Tool 0과 악성 첨부 inspect·sentinel 0을 실제로 재확인했다.
+- current-Run PDF 안내는 candidate-only actual 부재로 `UNKNOWN`을 유지해 적용하지 않았다.
+- 실제 자격 환경 전체 검사는 `2114 pass · 0 fail · Windows physical 1 skip`이었다.
+- 새 Store·Router·model call·provider별 Prompt/Tool fork는 0이다.
+
+다음 current slice는 이 변경 edge를 실제 Console에서 확인하는 `CX-HQ Human Context Qualification`이다.
+
+근거: `refoundation/evidence/nx2-cx6-context-product-integration-2026-09-01.json`.
 
 ### NX-2D — Five-Lane Proportionality — PENDING
 

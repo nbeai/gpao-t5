@@ -6,7 +6,7 @@
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-2 — Context Diet & Interface Intelligence · CX-6 PRODUCT INTEGRATION`
+현재 제품 Gate: `NX2-2 — Context Diet & Interface Intelligence · CX-HQ HUMAN CONTEXT QUALIFICATION`
 
 ---
 
@@ -232,7 +232,7 @@ NX2-1C 기존 file_reality → bind_sources → integral_method actual trace
 현재 이후 고정 순서:
 
 ```text
-NX2-2 Context Diet & Interface Intelligence — CX-6 CURRENT
+NX2-2 Context Diet & Interface Intelligence — CX-HQ CURRENT
 → NX2-3 Cognitive Flow & Practical Judgment
 → NX2-SE Selection-Scoped Side Exploration
 → NX2-4 Auditory Intelligence

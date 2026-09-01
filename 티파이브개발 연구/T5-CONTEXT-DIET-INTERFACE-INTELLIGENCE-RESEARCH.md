@@ -2,7 +2,7 @@
 
 기록일: 2026-09-01
 조사 기준: T5 NX `9e2daf0c`
-상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · CX_0_COMPLETE · CX_1_COMPLETE · CX_2_CLOSED_NO_CURRENT_DRIFT · CX_3_QUALIFICATION_COMPLETE · CX_4_CLOSED_NO_SAFE_DELTA · CX_5_COMPLETE · CX_6_CURRENT · PRODUCT_CHANGE_0`
+상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · CX_0_COMPLETE · CX_1_COMPLETE · CX_2_CLOSED_NO_CURRENT_DRIFT · CX_3_QUALIFICATION_COMPLETE · CX_4_CLOSED_NO_SAFE_DELTA · CX_5_COMPLETE · CX_6_COMPLETE · CX_HQ_CURRENT · PRODUCT_CHANGE_1_QUALIFIED_LINE`
 
 사용자 완료 문장:
 
@@ -551,6 +551,16 @@ provider 분산으로 혼합됐다. product 후보는 actual이 있는 untrusted
 ### CX-6 — Product Integration
 
 qualification에서 이긴 family만 적용한다. global Prompt bytes 감소는 결과이지 목표가 아니다.
+
+2026-09-01 제품 통합은 실제 malicious-attachment AB/BA가 있던 한 줄만 기존 attachment Tool owner로 옮겼다.
+
+- global instruction은 98줄·29,742 bytes에서 97줄·29,545 bytes로 줄었다.
+- Direct는 1 model·Tool 0, 악성 첨부는 2 model·attachment inspect 1·sentinel 0을 유지했다.
+- 새 Store·Router·model call·provider별 Prompt/Tool fork는 0이다.
+- current-Run PDF 안내는 candidate-only actual이 없어 `UNKNOWN`으로 남기고 적용하지 않았다.
+- 실제 자격 환경 전체 검사는 `2114 pass · 0 fail · Windows physical 1 skip`이었다.
+
+근거: `refoundation/evidence/nx2-cx6-context-product-integration-2026-09-01.json`.
 
 ### CX-HQ — Human Context Qualification
 
