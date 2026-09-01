@@ -5118,19 +5118,40 @@ export function makeConsoleServer({
           emit('recoverable_error', { text: '옆 질문이 만료됐어요.' }); emit('complete', { state: 'failed' }); res.end(); return;
         }
         const controller = new AbortController(); runningSelectionStreams.set(pending.explorationId, controller);
+        const sideRun = await runLedger.start({ sessionId: pending.sessionId,
+          request: pending.question, metadata: { trigger: 'selection_exploration',
+            explorationId: pending.explorationId, toolPolicy: 'none' } });
+        const sideResourceRun = await resourceController.startRun({ sessionId: pending.sessionId,
+          runId: sideRun.runId, trigger: 'selection_exploration' });
+        let sideResourceStatus = 'failed'; let sideRunFinished = false;
         try {
           emit('trace_status', { text: '질문을 살펴보고 있어요' });
-          const result = await selectionRuntime.answer({ ...pending, signal: controller.signal,
+          const result = await selectionRuntime.answer({ ...pending, runId: sideRun.runId,
+            resourceRun: sideResourceRun, signal: controller.signal,
             onAnswerDelta: ({ text }) => emit('answer_delta', { text }),
-            onAnswerReset: () => emit('answer_reset', {}) });
+            onAnswerReset: () => emit('answer_reset', {}),
+            onEvent: async (event) => sideRun.append({ type: 'selection_side_runtime_event',
+              payload: { kind: event.type, turn: event.turn ?? null,
+                toolCallCount: event.response?.toolCalls?.length ?? null } }) });
           const current = await conversations.read(pending.sessionId);
           const branch = current.explorations.find((item) => item.explorationId === pending.explorationId);
           if (branch) emit('side_state', projectSelectionExplorationPublic(branch));
           emit('complete', { state: result.state });
+          await sideRun.finish(result.state === 'completed' ? 'completed' : 'cancelled', {
+            modelTurns: result.modelCalls, toolReceipts: result.toolCalls });
+          sideRunFinished = true; sideResourceStatus = result.state === 'completed' ? 'completed' : 'cancelled';
         } catch (error) {
           onError?.(error); emit('recoverable_error', { text: '옆 답변을 마치지 못했어요.' });
           emit('complete', { state: 'failed' });
-        } finally { runningSelectionStreams.delete(pending.explorationId); res.end(); }
+          await sideRun.finish('failed', { error: error?.message ?? String(error) }).catch(() => {});
+          sideRunFinished = true;
+        } finally {
+          if (!sideRunFinished) await sideRun.finish('failed', {
+            error: 'selection_exploration_settlement_interrupted',
+          }).catch(() => {});
+          await sideResourceRun.close(sideResourceStatus).catch((error) => onError?.(error));
+          runningSelectionStreams.delete(pending.explorationId); res.end();
+        }
         return;
       }
       if (req.method === 'POST' && url.pathname === '/selection-explorations/stop') {

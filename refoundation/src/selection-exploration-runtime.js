@@ -19,7 +19,8 @@ export function makeSelectionExplorationRuntime({ ledger, modelFactory,
     throw new TypeError('selection exploration runtime dependencies are required');
   }
   return { async answer({ sessionId, explorationId, question, requestId,
-    signal, onAnswerDelta, onAnswerReset } = {}) {
+    runId: providedRunId = null, resourceRun = null, signal, onAnswerDelta, onAnswerReset,
+    onEvent = null } = {}) {
     const text = String(question ?? '').trim();
     if (!text || Buffer.byteLength(text, 'utf8') > 8192) {
       throw new TypeError('bounded side question is required');
@@ -27,7 +28,7 @@ export function makeSelectionExplorationRuntime({ ledger, modelFactory,
     const before = await ledger.read(sessionId);
     const branch = before.explorations.find((item) => item.explorationId === explorationId);
     if (!branch || branch.state === 'closed') throw new Error('selection exploration is unavailable');
-    const runId = makeId(); const userMessageId = makeId(); const assistantMessageId = makeId();
+    const runId = providedRunId ?? makeId(); const userMessageId = makeId(); const assistantMessageId = makeId();
     await ledger.appendSelectionSideMessage({ sessionId, explorationId,
       sideMessageId: userMessageId, role: 'user', content: text,
       requestId: `${requestId}:user` });
@@ -39,6 +40,7 @@ export function makeSelectionExplorationRuntime({ ledger, modelFactory,
         history: [selectionContext(branch), ...branch.messages.map((message) => ({
           role: message.role, content: message.content,
         }))], maxModelTurns: 4, maxToolCalls: 1,
+        resourceRun, resourcePurpose: 'selection_exploration', onEvent,
         resourceSituationMode: 'off', activeOptimizationMode: 'off',
         onAnswerDelta, onAnswerReset });
       const state = result.status === 'cancelled' ? 'stopped' : 'completed';

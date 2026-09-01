@@ -15,6 +15,15 @@ test('Console selection open→Tool 0 stream은 main transcript·Work를 바꾸�
   const server = makeConsoleServer({ stateDir, workspace,
     modelFactory: ({ purpose }) => ({ async respond(input) {
       calls.push({ purpose, tools: structuredClone(input.tools), messages: structuredClone(input.messages) });
+      const reservation = await input.resourceObserver?.reserve({
+        provider: 'fixture', model: 'fixture', attempt: 1,
+        contextReceipt: { requestBytes: 256, input: { bytes: 128 }, instructionsBytes: 64,
+          tools: { bytes: 2 }, source: { bytes: 64, messages: 1 } },
+      });
+      if (reservation) await input.resourceObserver.commit(reservation, {
+        usage: { input_tokens: 16, output_tokens: 4, total_tokens: 20 },
+        responseId: `fixture-${calls.length}`,
+      });
       return { text: purpose === 'selection_exploration'
         ? '선택한 15,500원은 검증된 차액입니다.' : '정산 결과는 **15,500원 차이**입니다.', toolCalls: [] };
     } }), modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }) });
@@ -53,6 +62,21 @@ test('Console selection open→Tool 0 stream은 main transcript·Work를 바꾸�
     assert.equal(after.entries.length, 2); assert.equal(after.explorations.length, 1);
     assert.deepEqual(after.explorations[0].messages.map((item) => item.role), ['user', 'assistant']);
     assert.equal(calls.at(-1).purpose, 'selection_exploration'); assert.deepEqual(calls.at(-1).tools, []);
+    const sideRuns = (await server.runLedger.list({ sessionId: session.id }))
+      .filter((run) => run.metadata.trigger === 'selection_exploration');
+    assert.equal(sideRuns.length, 1); assert.equal(sideRuns[0].status, 'completed');
+    assert.equal(sideRuns[0].request, '이 금액은 무슨 뜻이야?');
+    assert.equal(sideRuns[0].events.some((event) => event.type === 'selection_side_runtime_event'), true);
+    assert.equal(JSON.stringify(sideRuns[0]).includes('선택한 15,500원은'), false);
+    const resourceEvents = await server.resourceLedger.read();
+    const sideRunScope = resourceEvents.find((event) => event.type === 'ScopeCreated'
+      && event.payload.trigger === 'selection_exploration');
+    assert.ok(sideRunScope);
+    assert.equal(resourceEvents.some((event) => event.type === 'ScopeCreated'
+      && event.parentScopeId === sideRunScope.scopeId
+      && event.payload.purpose === 'selection_exploration'), true);
+    assert.equal(resourceEvents.some((event) => event.type === 'ScopeClosed'
+      && event.scopeId === sideRunScope.scopeId && event.payload.status === 'completed'), true);
     const sideState = JSON.parse([...stream.matchAll(/event: side_state\ndata: ([^\n]+)/gu)].at(-1)[1]);
     const instruction = sideState.messages.find((message) => message.role === 'user');
     const applied = await fetch(`${base}/selection-explorations/apply`, { method: 'POST',
