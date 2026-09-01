@@ -1047,6 +1047,13 @@ login handoff, stale tab/dead Browser recovery, 범용 rich editor 관측·입�
 - clean restart 뒤 Mail·Blog read-only actual
 - cookie export·복사 없이 same managed profile
 
+현재 상태: `CONTRACT_COMPLETE · ACTUAL_OWNER_CONTROLLED_CONSOLE_PENDING`. 동일 managed profile에서 로그인 상태 유지
+미선택/선택 두 회차, clean Browser shutdown, Runtime restart, Mail·Blog read-only 재관측을 하나의 qualification
+contract로 고정했다. profile이 다르거나 cookie·secret을 관측하거나 shutdown/restart receipt가 없으면 자격하지 않는다.
+실제 Naver 계정은 자동 시험하지 않았고 제품 변경은 0이다.
+
+근거: `refoundation/evidence/nx2-nv1-login-persistence-contract-2026-09-02.json`.
+
 #### NV-2 — Naver Identity Broker
 
 - signed-in/expired/2FA-required/locked/unknown

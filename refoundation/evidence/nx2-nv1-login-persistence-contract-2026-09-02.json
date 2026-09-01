@@ -1,0 +1,22 @@
+{
+  "schema": "t5.nx2-nv1-contract-evidence.v1",
+  "recordedOn": "2026-09-02",
+  "gate": "NX2-6 NV-1 LOGIN PERSISTENCE OPPOSING TEST",
+  "contract": "QUALIFIED",
+  "actualNaverAccountRun": "PENDING_OWNER_CONTROLLED_CONSOLE",
+  "requiredRounds": ["keep_signed_in_not_selected", "keep_signed_in_selected"],
+  "sameManagedProfileRequired": true,
+  "requiredReadback": ["mailWeb", "blogWeb"],
+  "privacy": {
+    "cookieExport": 0,
+    "secretObservation": 0,
+    "userChromeProfileControl": 0
+  },
+  "productChanges": 0,
+  "nonClaims": [
+    "Naver login persistence actual PASS",
+    "Naver Identity Broker",
+    "Mail protocol connection",
+    "Windows physical qualification"
+  ]
+}
