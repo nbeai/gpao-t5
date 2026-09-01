@@ -41,28 +41,26 @@ test('foreign profile과 비정상 protocol state는 Naver identity를 바꾸지
   assert.throws(() => broker.observeMailProtocol('connected'), /protocol state/u);
 });
 
-test('mail protocol만 ready일 때 Browser·Blog까지 준비됐다고 확대하지 않는다', async () => {
-  const mailConnection = {
-    async inspect() { return { state: 'ready', identity: { accountId: 'owner@naver.com' },
-      capabilities: { read: true }, routes: [{ kind: 'official_protocol', label: '네이버 IMAP', state: 'ready', canStart: false }],
-      actions: [] }; }, async makeTool() { return { name: 'naver_mail', execute() {} }; },
+test('설정의 Naver 연결은 credential 입력 없이 managed Browser login과 Mail·Blog readback으로 닫힌다', async () => {
+  const broker = makeNaverIdentityBroker({ profileHandle: null }); const calls = [];
+  const browserLogin = {
+    async begin(url) { calls.push(['begin', url]); return { state: 'user_control_required',
+      profile: { id: 'managed-profile' } }; },
+    async check(urls) { calls.push(['check', urls]); return { state: 'handoff_complete_candidate', observations: [
+      { args: { action: 'navigate', url: 'https://mail.naver.com/' },
+        result: observed('https://mail.naver.com/v2/folders/0/all', '받은메일함') },
+      { args: { action: 'navigate', url: 'https://blog.naver.com/' },
+        result: observed('https://blog.naver.com/', '로그아웃 내 블로그 글쓰기') },
+    ].map((item) => ({ ...item, result: { ...item.result, profile: { id: 'managed-profile' } } })) }; },
   };
-  const broker = makeNaverIdentityBroker({ profileHandle: null, mailConnection });
-  const result = await broker.inspect();
-  assert.equal(result.state, 'ready');
-  assert.equal(result.capabilities.mail_protocol, true);
-  assert.equal(result.capabilities.blog_web, false);
-  assert.match(result.userSafeSummary, /블로그 로그인은 아직 확인하지 않았/u);
-  assert.equal(result.routes.find((route) => route.kind === 'browser').state, 'needs_connection');
-  assert.doesNotMatch(result.userSafeSummary, /메일·블로그를 사용할 준비/u);
-});
-
-test('미연결 Naver는 일반 비밀번호가 아닌 app password와 Browser 경계를 분명히 안내한다', async () => {
-  const broker = makeNaverIdentityBroker({ profileHandle: null, mailConnection: {
-    async inspect() { return { state: 'needs_connection', routes: [], actions: [],
-      credentialRequest: { fields: [] } }; },
-  } });
-  const result = await broker.inspect();
-  assert.match(result.userSafeSummary, /일반 비밀번호가 아닌 애플리케이션 비밀번호/u);
-  assert.match(result.userSafeSummary, /블로그 로그인은 T5 브라우저/u);
+  const before = await broker.inspect();
+  assert.match(before.userSafeSummary, /메일을 찾고 읽고 답장을 준비/u);
+  assert.match(before.userSafeSummary, /블로그 글을 작성·저장·예약·발행/u);
+  assert.equal(before.actions[0].label, '네이버 로그인');
+  assert.equal('credentialRequest' in before, false);
+  const started = await broker.performAction('login', { browserLogin });
+  assert.equal(started.performed, true); assert.equal((await broker.inspect()).actions[0].label, '로그인 완료 확인');
+  const checked = await broker.performAction('check-login', { browserLogin });
+  assert.equal(checked.performed, true); assert.equal((await broker.inspect()).state, 'ready');
+  assert.deepEqual(calls.map((item) => item[0]), ['begin', 'check']);
 });

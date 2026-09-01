@@ -2,7 +2,7 @@
 
 기록일: 2026-09-01
 조사 기준: T5 NX `9e2daf0c` 및 과거 Naver 실제 설치본 증거
-상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · NV0_COMPLETE · NV1_COMPLETE · NV1R_COMPLETE · NV2_COMPLETE · NV3_CONTRACT_COMPLETE_ACTUAL_OWNER_SECRET_PENDING · PRODUCT_IMPLEMENTATION_GATE_OPEN`
+상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · NV0_COMPLETE · NV1_COMPLETE · NV1R_COMPLETE · NV2_COMPLETE · NV3_BROWSER_LOGIN_CURRENT · IMAP_CANDIDATE_REJECTED_BY_OWNER_UX · PRODUCT_IMPLEMENTATION_GATE_OPEN`
 
 NV-1 현재 상태: `COMPLETE`. A 미선택은 restart 뒤 Mail·Blog login_required, B 선택은 같은 profile·restart 뒤
 둘 다 ready였다. 실제 여정에서 발견된 restart provider continuity P1도 NV-1R에서 수리·실제 재자격했다.
@@ -493,10 +493,10 @@ Browser core를 Naver selector로 오염시키지 않는다. Naver UI knowledge�
 - folder/search/read/attachment
 - restart·needs_reauth
 
-현재 상태: `CONTRACT_COMPLETE · ACTUAL_OWNER_SECRET_PENDING`. 공식 IMAP 경로, 전용 secret 입력면, read-only
-folder/search/read, UIDVALIDITY 결속, pagination coverage, unread 전후 사실, 첨부 digest 재검증과 기존 Artifact 인계가
-제품에 결속됐다. 집중 검사와 실제 Console 입력면은 통과했지만 실제 계정 앱 비밀번호가 아직 입력되지 않아 live mailbox
-read는 완료 주장하지 않는다. 근거: `refoundation/evidence/nx2-nv3-mail-read-contract-2026-09-02.json`.
+현재 상태: `BROWSER_LOGIN_CURRENT · IMAP_CANDIDATE_REJECTED_BY_OWNER_UX`. 공식 IMAP 후보는 별도 2단계 인증·IMAP
+설정·앱 비밀번호 발급과 입력을 사용자에게 요구해 T5의 기본 경험을 악화했고 실제 연결도 인증 단계에서 실패했다. 제품
+입력면·dependency·Tool은 제거하며 Git 역사에만 실패 증거로 보존한다. 설정의 `네이버 로그인`은 기존 managed persistent
+Browser의 공식 로그인 화면을 열고, 완료 뒤 같은 profile에서 Mail·Blog를 각각 read-only 재관측한다.
 
 ### NV-4 — Mail Draft & Send
 

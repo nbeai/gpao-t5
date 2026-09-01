@@ -1,0 +1,29 @@
+{
+  "schema": "t5.nx2-nv3-settings-browser-login-evidence.v1",
+  "recordedAt": "2026-09-02T03:10:00+09:00",
+  "status": "PRODUCT_WIRING_QUALIFIED_OWNER_ACTUAL_PENDING",
+  "userPurpose": "Connect Naver once from Settings and use the same managed identity for Mail and Blog without separate credentials.",
+  "adoptedPath": {
+    "entry": "Settings > Tools and Connections > Naver Login",
+    "loginOwner": "user",
+    "browser": "existing managed persistent Browser",
+    "postLoginReadback": ["mail.naver.com", "blog.naver.com"],
+    "credentialFields": 0,
+    "cookieOrSecretObservation": 0,
+    "newBrowserReality": 0
+  },
+  "rejectedCandidate": {
+    "kind": "official_imap_app_password",
+    "reason": "required separate account settings and app-password preparation, failed the owner connection journey, and worsened the default T5 experience",
+    "finalProductDelta": 0
+  },
+  "verification": {
+    "focusedAndConnectionRegression": "29/29 pass in loopback-capable qualification environment",
+    "actualOwnerLogin": "PENDING"
+  },
+  "nonClaims": [
+    "Mail folder/search/open/attachment is not yet qualified on the actual owner account.",
+    "Draft, send, save, schedule, and publish remain unopened.",
+    "Windows physical Browser qualification remains deferred."
+  ]
+}

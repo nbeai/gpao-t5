@@ -4097,7 +4097,31 @@ export function makeConsoleServer({
       userSafeSummary: sessionId
         ? '이미 같은 연결을 준비하고 있어요. 준비되면 이 대화의 부탁도 이어갈게요.'
         : '이미 같은 연결을 준비하고 있어요.',
-    } : await service.performAction(actionId);
+    } : await service.performAction(actionId, {
+      sessionId,
+      browserLogin: {
+        begin: async (url) => {
+          const driver = await browserDriver(sessionId ?? `settings-connection:${id}`);
+          if (!driver?.beginUserLogin) throw new Error('connection login Browser is unavailable');
+          return driver.beginUserLogin(url);
+        },
+        check: async (urls = []) => {
+          const driver = await browserDriver(sessionId ?? `settings-connection:${id}`);
+          if (!driver?.loginStatus) throw new Error('connection login Browser is unavailable');
+          const status = await driver.loginStatus();
+          if (status.state !== 'handoff_complete_candidate') return status;
+          const observations = [];
+          for (const url of urls.slice(0, 4)) {
+            const observed = await driver.navigate(url);
+            observations.push({ args: { action: 'navigate', url }, result: {
+              state: 'observed', profile: driver.profile, tab: observed.tab,
+              observation: { text: String(observed.snapshot?.text ?? '') },
+            } });
+          }
+          return { ...status, observations };
+        },
+      },
+    });
     return {
       ...performed,
       connection: { id: service.id, label: service.label },

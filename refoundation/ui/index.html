@@ -2261,6 +2261,7 @@ async function renderConnectionDoctor(target, { excludeIds = new Set() } = {}) {
                 actionStatus.textContent = performed.ok
                   ? (performed.data?.userSafeSummary ?? '필요한 화면을 열었어요.')
                   : endpointError(performed, '필요한 화면을 열지 못했어요.');
+                if (performed.ok && performed.data?.refreshConnections === true) await load();
                 button.disabled = false;
                 return;
               }

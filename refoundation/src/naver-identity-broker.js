@@ -28,9 +28,9 @@ function overall(state, previouslyAuthenticated = false) {
   return 'unknown';
 }
 
-export function makeNaverIdentityBroker({ profileHandle = 'default', mailConnection = null,
-  now = () => new Date() } = {}) {
+export function makeNaverIdentityBroker({ profileHandle = 'default', now = () => new Date() } = {}) {
   let handle = profileHandle == null ? null : safeHandle(profileHandle);
+  let browserLogin = null;
   let state = { profileHandle: handle, state: 'unknown', services: {
     mailWeb: 'unknown', blogWeb: 'unknown', mailProtocol: 'unknown',
   }, profileGeneration: 1, lastObservedAt: null, browserProcess: 'absent', currentHandoff: null };
@@ -44,24 +44,15 @@ export function makeNaverIdentityBroker({ profileHandle = 'default', mailConnect
   const connection = {
     id: 'naver', label: '네이버', category: 'workspace',
     async inspect() {
-      const mail = await mailConnection?.inspect?.().catch(() => null);
-      if (mail?.state === 'ready' && state.services.mailProtocol !== 'ready') {
-        update({ services: { mailProtocol: 'ready' }, lastObservedAt: now().toISOString() });
-      } else if (mail?.state === 'needs_connection' && state.services.mailProtocol === 'ready') {
-        update({ services: { mailProtocol: 'needs_reauth' }, lastObservedAt: now().toISOString() });
-      }
       const snapshot = publicSnapshot(state); const ready = snapshot.state === 'authenticated';
-      const mailProtocolReady = snapshot.services.mailProtocol === 'ready';
       const mailWebReady = snapshot.services.mailWeb === 'ready';
       const blogWebReady = snapshot.services.blogWeb === 'ready';
       const browserReady = mailWebReady && blogWebReady;
-      const summary = mailProtocolReady && browserReady
-        ? '네이버 메일 공식 연결과 같은 T5 네이버 로그인으로 메일·블로그를 사용할 준비가 되어 있어요.'
-        : mailProtocolReady ? '네이버 메일 공식 연결을 사용할 준비가 되어 있어요. 블로그 로그인은 아직 확인하지 않았어요.'
-          : browserReady ? '같은 T5 네이버 로그인으로 메일 웹과 블로그를 사용할 준비가 되어 있어요. 메일 공식 연결은 아직 필요해요.'
-            : snapshot.state === 'expired' ? '네이버 로그인이 만료되어 다시 로그인이 필요해요.'
-              : snapshot.state === 'user_control' ? 'T5 브라우저에서 네이버 로그인을 진행하고 있어요.'
-                : '메일은 네이버에서 IMAP/SMTP를 켠 뒤 일반 비밀번호가 아닌 애플리케이션 비밀번호로 연결해요. 블로그 로그인은 T5 브라우저에서 별도로 확인해요.';
+      const summary = browserReady
+        ? '네이버 로그인으로 메일을 찾고 읽고 답장을 준비하며, 블로그 글을 작성·저장·예약·발행할 수 있어요.'
+        : snapshot.state === 'expired' ? '네이버 로그인이 만료됐어요. 다시 로그인하면 메일과 블로그를 이어서 사용할 수 있어요.'
+          : snapshot.state === 'user_control' ? '열린 T5 브라우저에서 네이버 로그인을 마친 뒤 연결 화면에서 완료를 확인해 주세요.'
+            : '네이버에 한 번 로그인하면 메일을 찾고 읽고 답장을 준비하며, 블로그 글을 작성·저장·예약·발행할 수 있어요.';
       return { state: ready ? 'ready' : snapshot.state === 'user_control' ? 'needs_attention' : 'needs_connection',
         reason: ready ? 'same_managed_naver_identity_ready'
           : snapshot.state === 'expired' ? 'naver_login_expired'
@@ -70,25 +61,35 @@ export function makeNaverIdentityBroker({ profileHandle = 'default', mailConnect
         capabilities: { mail_web: snapshot.services.mailWeb === 'ready',
           blog_web: snapshot.services.blogWeb === 'ready',
           mail_protocol: snapshot.services.mailProtocol === 'ready' },
-        ...(mail?.identity ? { identity: mail.identity } : {}),
-        ...(mail?.credentialRequest ? { credentialRequest: mail.credentialRequest } : {}),
-        routes: [...(mail?.routes ?? []), { kind: 'browser', label: 'T5 네이버 브라우저',
+        routes: [{ kind: 'browser', label: 'T5 네이버 브라우저',
           state: browserReady ? 'ready' : 'needs_connection', canStart: !browserReady,
-        startUrl: 'https://mail.naver.com/' }],
-        actions: mail?.actions ?? [], naverIdentity: snapshot };
+        startUrl: 'https://nid.naver.com/nidlogin.login' }],
+        actions: browserReady ? [] : [{ id: snapshot.currentHandoff === 'active' ? 'check-login' : 'login',
+          label: snapshot.currentHandoff === 'active' ? '로그인 완료 확인' : '네이버 로그인',
+          kind: 'user_action', endpoint: '/connections/naver/action' }], naverIdentity: snapshot };
     },
-    async connectCredentials(input) {
-      if (!mailConnection?.connectCredentials) throw new Error('Naver Mail protocol connection is unavailable');
-      const connected = await mailConnection.connectCredentials(input);
-      update({ services: { mailProtocol: 'ready' }, lastObservedAt: now().toISOString() });
-      return connected;
-    },
-    async makeTool(context) { return mailConnection?.makeTool?.(context) ?? null; },
-    async disconnect() {
-      if (!mailConnection?.disconnect) throw new Error('Naver Mail protocol connection is unavailable');
-      const disconnected = await mailConnection.disconnect();
-      update({ services: { mailProtocol: 'setup_required' }, lastObservedAt: now().toISOString() });
-      return disconnected;
+    async performAction(actionId, context = {}) {
+      if (actionId === 'login') {
+        if (!context.browserLogin?.begin || !context.browserLogin?.check) throw new Error('Naver login Browser is unavailable');
+        browserLogin = context.browserLogin;
+        const started = await browserLogin.begin('https://nid.naver.com/nidlogin.login');
+        connection.observeBrowserResult({ args: { action: 'login_start', url: 'https://nid.naver.com/nidlogin.login' }, result: started });
+        return { performed: true, refreshConnections: true,
+          userSafeSummary: 'T5 브라우저를 열었어요. 네이버 로그인을 직접 마친 뒤 로그인 완료 확인을 눌러 주세요.' };
+      }
+      if (actionId !== 'check-login' || !browserLogin) throw new Error('Naver login handoff is unavailable');
+      const checked = await browserLogin.check(['https://mail.naver.com/', 'https://blog.naver.com/']);
+      if (checked.state !== 'handoff_complete_candidate') return { performed: false, refreshConnections: true,
+        userSafeSummary: checked.state === 'user_control_cancelled'
+          ? '로그인 창이 닫혔어요. 필요하면 네이버 로그인을 다시 시작해 주세요.'
+          : '아직 로그인이 끝나지 않았어요. 열린 T5 브라우저에서 마쳐 주세요.' };
+      for (const observation of checked.observations ?? []) connection.observeBrowserResult(observation);
+      browserLogin = null;
+      const snapshot = publicSnapshot(state); const complete = snapshot.services.mailWeb === 'ready'
+        && snapshot.services.blogWeb === 'ready';
+      return { performed: complete, refreshConnections: true,
+        userSafeSummary: complete ? '네이버 메일과 블로그 연결을 확인했어요.'
+          : '로그인은 확인했지만 메일과 블로그 중 일부를 다시 확인해야 해요.' };
     },
     observeBrowserResult({ args = {}, result = {} } = {}) {
       if (result?.profile?.id) {

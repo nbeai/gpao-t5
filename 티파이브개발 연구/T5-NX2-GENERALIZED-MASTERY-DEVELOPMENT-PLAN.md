@@ -1084,12 +1084,10 @@ Responses provider wire가 function output을 exact call 바로 뒤에 배치하
 - sender·recipient·date·message identity
 - pagination·coverage·unread state의 실제 효과 분리
 
-현재 상태: `CONTRACT_COMPLETE · ACTUAL_OWNER_SECRET_PENDING`. 공식 IMAP·platform secret·read-only mailbox·exact
-message/attachment identity까지 제품 배선과 반대시험을 닫았다. 실제 Console에 네이버 아이디와 애플리케이션 비밀번호
-전용 입력면이 보이며, 실제 계정 read는 오너가 그 입력면에서 secret을 제공한 뒤 자격한다. 그 전에는 NV-3 COMPLETE와
-NV-4 external send 개통을 주장하지 않는다.
-
-근거: `refoundation/evidence/nx2-nv3-mail-read-contract-2026-09-02.json`.
+현재 상태: `BROWSER_LOGIN_CURRENT · IMAP_CANDIDATE_REJECTED_BY_OWNER_UX`. IMAP 후보는 별도 계정 설정과 앱 비밀번호
+입력을 요구하고 실제 owner 연결도 인증 단계에서 실패해 제품에서 제거한다. 기본 경로는 설정의 `네이버 로그인` 한 번으로
+managed persistent Browser를 열고, 완료 뒤 같은 profile의 Mail·Blog를 각각 read-only 재관측하는 흐름이다. Mail read
+자격은 이 Browser 경로의 folder/search/open/attachment와 unread effect 분리로 다시 닫는다.
 
 #### NV-4 — Mail Draft & Send
 

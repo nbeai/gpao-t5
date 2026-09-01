@@ -65,3 +65,46 @@ test('기존 Browser observations가 기존 connection 표면의 하나의 Naver
     await new Promise((done) => server.close(done)); await rm(room, { recursive: true, force: true });
   }
 });
+
+test('설정의 네이버 로그인 버튼은 managed Browser handoff를 열고 완료 확인 뒤 Mail·Blog를 함께 재관측한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-naver-settings-login-'));
+  const broker = makeNaverIdentityBroker({ profileHandle: null }); let handoff = false;
+  const driver = {
+    profile: { id: 'managed-profile', kind: 'managed_persistent', selected: true },
+    async beginUserLogin(url) { handoff = true; return { state: 'user_control_required',
+      profile: this.profile, tab: { url }, handoff: { visible: true, inputOwner: 'user' } }; },
+    async loginStatus() { assert.equal(handoff, true); handoff = false;
+      return { state: 'handoff_complete_candidate', profile: this.profile, tab: { url: 'https://www.naver.com/' } }; },
+    async navigate(url) { const mail = new URL(url).hostname === 'mail.naver.com'; return {
+      tab: { url: mail ? 'https://mail.naver.com/v2/folders/0/all' : 'https://blog.naver.com/' },
+      snapshot: { text: mail ? '받은메일함 메일 검색' : '로그아웃 내 블로그 글쓰기' },
+    }; }, async close() {},
+  };
+  const server = makeConsoleServer({ stateDir: join(room, 'state'), workspace: room,
+    browserDriverFactory: () => driver, workspaceConnectionServices: [broker],
+    modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
+    modelFactory: () => ({ async respond() { return { text: 'fixture', toolCalls: [] }; } }),
+  });
+  await new Promise((done, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', done); });
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const before = await fetch(`${base}/connections/doctor`).then((response) => response.json());
+    const naver = before.connections.find((item) => item.id === 'naver');
+    assert.equal(naver.actions[0].label, '네이버 로그인'); assert.equal('credentialRequest' in naver, false);
+    const started = await fetch(`${base}/connections/naver/action`, { method: 'POST',
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify({ actionId: 'login' }) });
+    assert.equal(started.status, 200); assert.equal((await started.json()).refreshConnections, true);
+    const during = await fetch(`${base}/connections/doctor`).then((response) => response.json());
+    assert.equal(during.connections.find((item) => item.id === 'naver').actions[0].label, '로그인 완료 확인');
+    const checked = await fetch(`${base}/connections/naver/action`, { method: 'POST',
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify({ actionId: 'check-login' }) });
+    assert.equal(checked.status, 200); assert.equal((await checked.json()).performed, true);
+    const after = await fetch(`${base}/connections/doctor`).then((response) => response.json());
+    const ready = after.connections.find((item) => item.id === 'naver');
+    assert.equal(ready.state, 'ready'); assert.equal(ready.capabilities.mail_web, true);
+    assert.equal(ready.capabilities.blog_web, true); assert.equal(ready.actions.length, 0);
+  } finally {
+    await server.closeBrowsers(); server.closeWakeStreams(); await server.closeMessengers();
+    await new Promise((done) => server.close(done)); await rm(room, { recursive: true, force: true });
+  }
+});
