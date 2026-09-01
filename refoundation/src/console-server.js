@@ -185,7 +185,7 @@ function informationFamily(name) {
   if (name === 'exec' || name === 'terminal_session') return 'computer';
   return null;
 }
-function hasExactPublicWebUrl(value) {
+function hasExactHttpUrl(value) {
   for (const match of String(value ?? '').matchAll(/https?:\/\/[^\s<>"'`]+/giu)) {
     try {
       const url = new URL(match[0]);
@@ -1850,11 +1850,17 @@ export function makeConsoleServer({
       const webReadTool = makeWebReadTool({ ...webReadOptions,
         onHtmlObserved: (observation) => webCollectionTool.observePage(observation) });
       const webResearchTool = makeWebResearchTool({ searchTool: webSearchTool, readTool: webReadTool });
+      let webSearchAvailable = false;
       webSearchTool.activateToolsFromResult = (result) => Array.isArray(result?.candidates)
         && result.candidates.length ? ['web_read'] : [];
       webSearchTool.relatedTools = [...new Set([...(webSearchTool.relatedTools ?? []), 'web_read'])];
-      webReadTool.activateToolsFromResult = (result) => result?.collectionAffordance?.structureHandle
-        ? ['web_collection'] : [];
+      webResearchTool.activateToolsFromResult = (result) => Array.isArray(result?.sources)
+        && result.sources.length ? ['web_read'] : [];
+      webResearchTool.relatedTools = [...new Set([...(webResearchTool.relatedTools ?? []), 'web_read'])];
+      webReadTool.activateToolsFromResult = (result) => [
+        ...(result?.state === 'read' && webSearchAvailable ? ['web_search'] : []),
+        ...(result?.collectionAffordance?.structureHandle ? ['web_collection'] : []),
+      ];
       webReadTool.relatedTools = [...new Set([...(webReadTool.relatedTools ?? []), 'web_collection'])];
       const offeredTools = [...terminal.tools];
       offeredTools.unshift(integralMethod.tool);
@@ -2029,7 +2035,7 @@ export function makeConsoleServer({
       }));
       offeredTools.unshift(webReadTool);
       offeredTools.unshift(webCollectionTool);
-      const webSearchAvailable = (await Promise.all(webSearchProviders.map(async (provider) => {
+      webSearchAvailable = (await Promise.all(webSearchProviders.map(async (provider) => {
         try { return (await provider.available())?.available === true; }
         catch { return false; }
       }))).some(Boolean);
@@ -2310,11 +2316,11 @@ export function makeConsoleServer({
       );
       if (currentAttachmentNeedsAuditorySurface) currentCoreToolNames.push('auditory');
       const activeManagedProcesses = processes.active(sessionId);
-      const currentRequestHasPublicWebUrl = hasExactPublicWebUrl(modelRequest);
+      const currentRequestHasHttpUrl = hasExactHttpUrl(modelRequest);
       const coreToolNames = capabilitySurfaceMode === 'directory-first-v1'
         && options.trigger !== 'automation'
         ? [
-          'exec', currentRequestHasPublicWebUrl || !webSearchAvailable ? 'web_read' : 'web_search',
+          'exec', currentRequestHasHttpUrl || !webSearchAvailable ? 'web_read' : 'web_search',
           'web_research', 'attachment', 'skill',
           // 기억·삭제를 약속만 하고 실제 원장에 반영하지 않은 설치 제품 반례 때문에
           // 의미 Router 없이 기존 쓰기·삭제 손만 항상 보인다. read는 후보가 있을 때만 연다.

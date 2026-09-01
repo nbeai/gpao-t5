@@ -73,13 +73,25 @@ test('directory-first Web 손은 현재 exact URL 사실에 따라 search와 rea
   });
   assert.equal(searched.calls.length, 2);
 
-  const exact = await run({ mode: 'directory-first-v1', request: 'https://example.test/report 를 읽어줘',
-    respond(input) {
-      assert.equal(input.tools.some((tool) => tool.name === 'web_read'), true);
-      assert.equal(input.tools.some((tool) => tool.name === 'web_search'), false);
-      return { text: '정확한 주소를 읽을 수 있습니다.', toolCalls: [] };
+  const exact = await run({ mode: 'directory-first-v1', request: 'https://example.test/report 를 읽고 비슷한 자료도 찾아줘',
+    webSearchProviders: [{ id: 'fixture', label: 'Fixture',
+      async available() { return { available: true }; }, async search() { return []; } }],
+    webReadOptions: { resolveHost: async () => ['93.184.216.34'],
+      fetchImpl: async () => new Response('<html><body><article>정확한 원문</article></body></html>',
+        { status: 200, headers: { 'content-type': 'text/html' } }) },
+    respond(input, turn) {
+      if (turn === 1) {
+        assert.equal(input.tools.some((tool) => tool.name === 'web_read'), true);
+        assert.equal(input.tools.some((tool) => tool.name === 'web_search'), false);
+        return { text: '', toolCalls: [{ id: 'read', name: 'web_read', args: {
+          url: 'https://example.test/report', maxChars: 2_000, visibleBrowser: 'never',
+        } }] };
+      }
+      assert.equal(input.tools.some((tool) => tool.name === 'web_search'), true);
+      assert.equal(input.tools.some((tool) => tool.name === 'tool_search'), true);
+      return { text: '원문을 읽었고 필요하면 관련 자료를 바로 검색할 수 있습니다.', toolCalls: [] };
     } });
-  assert.equal(exact.calls.length, 1);
+  assert.equal(exact.calls.length, 2);
 });
 
 test('directory-first는 새 기억과 forget을 약속 문장으로 끝내지 않도록 기존 쓰기·삭제 손을 항상 연다', async () => {
@@ -141,6 +153,7 @@ test('좁은 현재 정보는 capability 발견·완료 의식 없이 한 Web �
         } }] };
       }
       assert.equal(input.tools.some((tool) => tool.name === 'work_completion'), false);
+      assert.equal(input.tools.some((tool) => tool.name === 'web_read'), true);
       const receipt = JSON.parse(input.messages.findLast((message) => message.name === 'web_research').content);
       assert.equal(receipt.result.sources.length, 1);
       assert.match(receipt.result.sources[0].content.text, /현재 26도/u);

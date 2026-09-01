@@ -5,8 +5,10 @@
   "userBenefit": "Public Web discovery no longer pays a capability-search round before candidate search, while exact-URL reading keeps its direct path.",
   "surface": {
     "withoutExactPublicUrl": ["web_search", "web_research"],
-    "withExactPublicUrl": ["web_read", "web_research"],
+    "withSyntacticallyValidHttpUrl": ["web_read", "web_research"],
     "afterSearchCandidates": ["web_read"],
+    "afterSuccessfulExactUrlRead": ["web_search"],
+    "afterBoundedResearchSources": ["web_read"],
     "afterRepeatedStructure": ["web_collection"],
     "afterInteractionScopedDynamicBoundary": ["browser"],
     "visualVideoConnection": "existing deferred capability paths"
@@ -17,17 +19,34 @@
     "newStore": 0,
     "globalPromptDelta": 0,
     "requestMeaningRegex": 0,
-    "factualAdmission": "syntactically valid public HTTP(S) URL presence and actual search candidates"
+    "factualAdmission": "syntactically valid HTTP(S) URL presence and actual search/read results; public-network eligibility remains enforced by web_read"
   },
   "expectedRoundDelta": {
     "candidateDiscovery": {"modelCalls": -1, "toolSearchCalls": -1},
     "exactUrlRead": {"modelCalls": 0, "toolCalls": 0},
     "boundedCurrentResearch": {"modelCalls": 0, "toolCalls": 0}
   },
-  "focusedRegression": {"passed": 41, "failed": 0},
+  "focusedRegression": {"initial": {"passed": 41, "failed": 0},
+    "afterReadAndResearchContinuation": {"passed": 17, "failed": 0}},
+  "actualModel": {
+    "provider": "chatgpt_oauth",
+    "model": "gpt-5.5",
+    "actualUserData": false,
+    "externalWrites": 0,
+    "direct": {"route": [], "modelCalls": 1, "toolCalls": 0, "wallMs": 1912, "status": "PASS"},
+    "candidateDiscovery": {"route": ["web_research"], "modelCalls": 2, "toolCalls": 1,
+      "wallMs": 24234, "toolSearchCalls": 0, "status": "PASS"},
+    "exactUrl": {"route": ["web_read"], "modelCalls": 2, "toolCalls": 1,
+      "wallMs": 6434, "toolSearchCalls": 0, "status": "PASS"},
+    "exactUrlAndRelatedSources": {"route": ["web_read", "web_research"], "modelCalls": 4,
+      "toolCalls": 11, "wallMs": 50472, "toolSearchCalls": 0,
+      "status": "PASS_WITH_ECONOMY_OBSERVATION"},
+    "weather": {"route": ["web_research"], "modelCalls": 2, "toolCalls": 1,
+      "wallMs": 9089, "toolSearchCalls": 0, "status": "PASS"}
+  },
   "nonClaims": [
     "WC-HQ whole field completion",
-    "provider wall-time improvement",
+    "universal provider wall-time improvement",
     "authenticated or dynamic collection completion",
     "Windows physical qualification"
   ]

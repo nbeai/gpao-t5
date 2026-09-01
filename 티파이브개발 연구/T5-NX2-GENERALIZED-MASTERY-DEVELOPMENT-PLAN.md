@@ -957,15 +957,26 @@ observed time을 보존하고 summary에는 coverage·missing·duplicate·unknow
 
 현재 첫 제품 수리: `WEB_HAND_PROGRESSIVE_DISCLOSURE_COMPLETE`.
 
-기존 Hand를 합치거나 새 Router를 만들지 않고, 현재 요청에 exact public HTTP(S) URL이 있는 물리적 사실만으로
+기존 Hand를 합치거나 새 Router를 만들지 않고, 현재 요청에 syntactically valid HTTP(S) URL이 있는 물리적 사실만으로
 첫 관측 표면을 분리한다. URL이 없고 실제 Search provider가 있으면 `web_search`, exact URL이 있거나 Search가
 없으면 `web_read`가 보인다. `web_research`의 bounded current-information fast path는 유지한다. 검색 후보가 실제로
-생긴 뒤에는 같은 Run에 `web_read`가 자동 개통되고, 이후 반복 구조·동적 interaction은 기존
+생긴 뒤에는 같은 Run에 `web_read`가 자동 개통된다. exact URL을 성공적으로 읽은 뒤에도 Search provider가 있으면
+`web_search`가 후속 개통되므로, “이 링크를 읽고 관련 사례도 찾아줘”는 중간 Tool Search 없이 이어진다. 이후 반복 구조·동적 interaction은 기존
 `web_collection`·`browser` activation을 그대로 사용한다. visual·video·connection도 기존 deferred 경계를 유지한다.
+
+실제 모델은 “최근 공개된 지원사업 자료”처럼 여러 현재 source가 유리한 목적에서 `web_search`보다 기존
+`web_research`를 선택했다. 이 판단은 보존한다. bounded research가 실제 source를 반환하면 `web_read`도 후속 개통해,
+모델이 그중 exact PDF·페이지를 더 읽을 때 Tool Search를 다시 거치지 않는다.
 
 따라서 후보 검색은 `tool_search→web_search` 한 왕복을 제거하고 exact URL·날씨 경로에는 추가 호출이 없다.
 업무 Router·새 Tool·Store·전역 Prompt 변화는 0이며 관련 Console·Browser·Collection 회귀 41/41을 통과했다.
 실제 provider wall 개선과 WC-HQ 전체 완료는 아직 주장하지 않는다.
+
+gpt-5.5 실제 격리 Console 최소 자격에서 Direct는 1 model·Tool 0, exact URL은 `web_read` 1회,
+날씨는 `web_research` 1회, 일반 공개 지원사업 탐색은 `web_research` 1회로 끝났고 네 경로 모두 Tool Search 0이었다.
+URL+관련 공식 사례는 `web_read→web_research`로 정확한 결과를 냈지만 내부 source read를 포함해 model 4·Tool 11,
+약 50.5초가 들어 경제성 관측으로 남긴다. 모델이 여러 현재 source 목적에서 `web_research`를 선택한 것을
+`web_search` 미사용 실패로 보지 않으며, Runtime은 두 경로 중 하나를 강제하지 않는다.
 
 근거: `refoundation/evidence/nx2-wc-hq-web-hand-surface-2026-09-02.json`.
 
