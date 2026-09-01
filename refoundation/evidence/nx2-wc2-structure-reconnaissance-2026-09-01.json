@@ -1,0 +1,35 @@
+{
+  "schema": "t5.nx2.wc2-structure-reconnaissance.v1",
+  "recordedOn": "2026-09-01",
+  "baseCommit": "92e7b5b8",
+  "status": "WC2_COMPLETE_WC3_OPEN",
+  "contract": {
+    "inputs": ["exact public page URL", "bounded HTML observation"],
+    "outputs": ["repeated item selector candidates", "field selector and source candidates", "population coverage", "pagination candidates", "canonical URL"],
+    "maximumHtmlBytes": 4000000,
+    "maximumCandidates": 10,
+    "maximumFieldsPerCandidate": 16,
+    "scriptsExecuted": 0,
+    "contentInstructionAuthority": "none",
+    "runtimeMeaningDecision": 0
+  },
+  "actual": {
+    "fixture": "books.toscrape.com public practice page",
+    "state": "structure_observed",
+    "itemSelector": "article.product_pod",
+    "itemCount": 20,
+    "fields": [
+      { "selector": "h3 a", "source": "attribute", "attribute": "title", "populated": 20 },
+      { "selector": "p.price_color", "source": "text", "attribute": null, "populated": 20 },
+      { "selector": "p.instock.availability", "source": "text", "attribute": null, "populated": 20 }
+    ],
+    "nextUrl": "https://books.toscrape.com/catalogue/page-2.html",
+    "scriptsExecuted": 0
+  },
+  "verification": { "deterministicPassed": 3, "deterministicFailed": 0, "actualPassed": true },
+  "reuse": ["linkedom already used by web_read", "exact Web URL reality", "WC-1 collection specification"],
+  "notAdded": ["Browser runtime", "network inspector", "site-specific parser", "selector self-healing store", "intent router"],
+  "platform": { "portableNodeContract": true, "windowsMeaning": "same DOM contract", "windowsPhysical": "DEFERRED_BY_OWNER" },
+  "productSourceChanges": 0,
+  "next": "WC-3 Generated Collector Capsule"
+}

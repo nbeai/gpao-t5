@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED · NX2_5_WC0_COMPLETE · NX2_5_WC1_COMPLETE · NX2_5_WC2_CURRENT`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED · NX2_5_WC0_COMPLETE · NX2_5_WC1_COMPLETE · NX2_5_WC2_COMPLETE · NX2_5_WC3_CURRENT`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-5 WC-2 — Structure Reconnaissance`
+현재 제품 Gate: `NX2-5 WC-3 — Generated Collector Capsule`
 
 ---
 
@@ -904,6 +904,13 @@ Runtime은 이 의미를 만들지 않고 exact contract·권한·실행만 보�
 - robots·rate limit·terms 관측
 - 공개 범위와 로그인 범위 분리
 - hidden oracle fixture에서 coverage 검증
+
+종료 상태: `COMPLETE_QUALIFICATION_ONLY`. exact page HTML에서 script 실행 없이 반복 container·상대 field selector·attribute/text
+source·population coverage·canonical URL·pagination 후보를 bounded facts로 만든다. 실제 공개 연습 페이지에서
+`article.product_pod` 20개와 `h3 a[title]`·가격·재고·다음 페이지를 모두 관측했다. 페이지 문구는 untrusted Evidence이며
+instruction authority가 아니다. 새 Browser·network inspector·site parser·selector Store는 0이다.
+
+근거: `refoundation/evidence/nx2-wc2-structure-reconnaissance-2026-09-01.json`.
 
 #### WC-3 — Generated Collector Capsule
 
