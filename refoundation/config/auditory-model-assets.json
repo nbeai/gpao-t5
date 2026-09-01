@@ -1,0 +1,28 @@
+{
+  "schema": "t5.auditory-model-assets.v1",
+  "defaultAssetId": "large-v3-turbo-full",
+  "assets": [
+    {
+      "id": "large-v3-turbo-full",
+      "model": "openai/whisper-large-v3-turbo",
+      "format": "ggml-f16",
+      "sourceRevision": "5359861c739e955e79d9a303bcbc70fb988958b1",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo.bin",
+      "bytes": 1624555275,
+      "sha256": "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
+      "license": "MIT",
+      "default": true
+    },
+    {
+      "id": "large-v3-turbo-q5-0",
+      "model": "openai/whisper-large-v3-turbo",
+      "format": "ggml-q5_0",
+      "sourceRevision": "5359861c739e955e79d9a303bcbc70fb988958b1",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q5_0.bin",
+      "bytes": 574041195,
+      "sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+      "license": "MIT",
+      "default": false
+    }
+  ]
+}

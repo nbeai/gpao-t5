@@ -1,0 +1,36 @@
+{
+  "schema": "t5.nx2.au2a-model-generation.v1",
+  "recordedOn": "2026-09-01",
+  "baseCommit": "894f90a6",
+  "status": "AU2A_COMPLETE_AU2_HELPER_QUALIFICATION_CURRENT",
+  "catalog": {
+    "defaultAssetId": "large-v3-turbo-full",
+    "fullBytes": 1624555275,
+    "fullSha256": "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
+    "q5Bytes": 574041195,
+    "q5Default": false,
+    "sourceRevisionPinned": true,
+    "license": "MIT"
+  },
+  "modelStore": {
+    "dedicatedAuditoryAssetBoundary": true,
+    "wholeAssetBufferedInMemory": false,
+    "rangeResume": true,
+    "contentLengthAndExactBytes": true,
+    "sha256BeforeGeneration": true,
+    "diskPreflight": true,
+    "partialIsActive": false,
+    "fixtureQualificationRequired": true,
+    "activeReopenDigestVerified": true
+  },
+  "nonGoals": {
+    "globalCliLimitRaised": false,
+    "genericModelMarketplace": false,
+    "newPrompt": false,
+    "newTool": false,
+    "userUi": false,
+    "automaticAudioIndex": false
+  },
+  "verification": { "focusedPassed": 4, "focusedFailed": 0 },
+  "next": { "gate": "AU-2 t5-whisper-host fixture qualification and original Work resume" }
+}

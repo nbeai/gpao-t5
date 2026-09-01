@@ -1,6 +1,6 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_CURRENT`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2A_COMPLETE · NX2_4_AU2_CURRENT`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
@@ -729,6 +729,14 @@ digest, Node adapter까지 준비했다. Windows physical compile·track 관측�
 - 최초 사용 전 명시적 다운로드와 progress
 - partial/corrupt asset fail-closed
 - 제거·재설치·platform path
+
+현재 slice: `AU2A_MODEL_GENERATION_COMPLETE_AU2_REMAINS_OPEN`. 기존 Managed CLI/Capability package 경계는
+64MB 상한과 whole-buffer download라 574MB~1.62GB model에 재사용하지 않았다. Whisper model에만 한정된 store가
+immutable catalog, disk preflight, streaming·Range resume, exact bytes·SHA-256, inactive generation,
+fixture qualification, active generation reopen을 제공한다. full이 유일한 제품 기본이고 Q5는 실제 인간 corpus 전까지
+qualification candidate다. 범용 Model Marketplace·Prompt·Tool·사용자 UI는 추가하지 않았다.
+
+근거: `refoundation/evidence/nx2-au2a-model-generation-2026-09-01.json`.
 
 #### AU-3 — Managed Transcription Spine
 
