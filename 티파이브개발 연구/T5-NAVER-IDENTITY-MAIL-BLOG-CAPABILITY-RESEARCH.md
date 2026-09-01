@@ -2,7 +2,7 @@
 
 기록일: 2026-09-01
 조사 기준: T5 NX `9e2daf0c` 및 과거 Naver 실제 설치본 증거
-상태: `RESEARCH_COMPLETE · PRODUCT_IMPLEMENTATION_NOT_OPEN · OWNER_GATE_REQUIRED`
+상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · NV0_COMPLETE · NV1_CURRENT · PRODUCT_IMPLEMENTATION_NOT_OPEN`
 사용자 완료 문장:
 
 > 사용자는 T5가 연 네이버 창에서 한 번 직접 로그인하고, T5는 같은 네이버 신분을 정확히 보존해 메일을 찾고 읽고

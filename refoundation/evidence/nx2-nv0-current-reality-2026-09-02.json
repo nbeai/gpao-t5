@@ -1,0 +1,41 @@
+{
+  "schema": "t5.nx2-nv0-current-reality.v1",
+  "recordedOn": "2026-09-02",
+  "sourceCommit": "77c88667",
+  "gate": "NX2-6 NV-0 CURRENT REALITY BASELINE",
+  "status": "COMPLETE",
+  "existing": {
+    "managedPersistentBrowserProfile": true,
+    "modelVisibleBrowserHand": true,
+    "userControlledLoginHandoff": true,
+    "staleTabAndDeadBrowserRecovery": true,
+    "genericRichEditorObservationAndFill": true,
+    "rawCookieProjectionToModel": false,
+    "historicalNaverMailboxRead": true,
+    "historicalNaverEditorTitleAndBodyMatched": true,
+    "historicalObservedBodyChars": 8053
+  },
+  "gaps": {
+    "cleanRestartNaverLoginPersistence": "unproven_prior_login_required",
+    "naverIdentityBroker": false,
+    "naverMailProtocolHand": false,
+    "imapflowDependency": false,
+    "nodemailerDependency": false,
+    "appPasswordSecretBinding": false,
+    "mailSendQualification": false,
+    "blogPublishQualification": false
+  },
+  "boundaries": {
+    "currentUserChromeProfileControlled": false,
+    "rawAgentBrowserSecondReality": false,
+    "cookieExport": false,
+    "actualAccountWrite": false,
+    "windowsPhysicalQualification": "deferred_not_waived"
+  },
+  "historicalEvidence": [
+    "p0-h1-browser-provider-qualification-2026-08-22.json",
+    "p0-h1-0.1.3-rc-installed-live-2026-08-23.json",
+    "p0-browser-lifecycle-0.1.7-installed-2026-08-24.json"
+  ],
+  "productChanges": 0
+}

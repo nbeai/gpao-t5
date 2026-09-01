@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED · NX2_5_WC0_COMPLETE · NX2_5_WC1_COMPLETE · NX2_5_WC2_COMPLETE · NX2_5_WC3_COMPLETE · NX2_5_WC4_COMPLETE · NX2_5_WC_HQ_CURRENT`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED · NX2_5_WC0_TO_WC4_COMPLETE · NX2_5_WC_HQ_CLOSED_WITH_CROSS_HAND_ECONOMY_OBSERVATION · NX2_6_NV0_COMPLETE · NX2_6_NV1_CURRENT`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-5 WC-HQ — Field Qualification`
+현재 제품 Gate: `NX2-6 NV-1 — Login Persistence Opposing Test`
 
 ---
 
@@ -980,6 +980,12 @@ URL+관련 공식 사례는 `web_read→web_research`로 정확한 결과를 냈
 
 근거: `refoundation/evidence/nx2-wc-hq-web-hand-surface-2026-09-02.json`.
 
+종료 상태: `CLOSED_WITH_CROSS_HAND_ECONOMY_OBSERVATION`. 정적 반복 목록 수집·Artifact·Automation 전달과 Web Hand
+progressive disclosure는 제품에 채택했다. list→detail은 실제 사용자 목적과 결과 정확성은 통과했으나 경제성이
+보편적으로 자격되지 않았고, URL+관련 공식 자료도 정확하지만 약 50.5초·model 4·내부 source read 포함 Tool 11이었다.
+같은 activation 가족에 추가 Prompt·Router·세 번째 조건 패치를 붙이지 않는다. 이 관측은 NX2-HQ에서 다시 확인하며
+NX2-5 완료를 보편적인 dynamic/authenticated collection 성공으로 확대하지 않는다.
+
 - 단일 목록 수집
 - list→detail 다단계 수집
 - 날짜/조건 필터와 중복 제거
@@ -1026,6 +1032,14 @@ T5 Naver Identity Broker
 - 과거 Naver 로그인 실패·성공 증거
 - 현재 browser profile·mail protocol·blog UI reality
 - 제품 변경 0
+
+종료 상태: `COMPLETE — 2026-09-02`. 현재 제품은 하나의 managed persistent Browser profile, user-controlled
+login handoff, stale tab/dead Browser recovery, 범용 rich editor 관측·입력을 이미 갖고 있다. 과거 실제 Naver에서
+메일함 읽기와 블로그 제목·본문 8,053자 exact 입력도 성공했다. 그러나 clean restart 뒤 session-only login은
+`login_required`였고, Naver identity broker·IMAP/SMTP Hand·app-password binding·메일 발송·블로그 발행은 없다.
+제품 변경과 실제 계정 쓰기는 0이다.
+
+근거: `refoundation/evidence/nx2-nv0-current-reality-2026-09-02.json`.
 
 #### NV-1 — Login Persistence Opposing Test
 
