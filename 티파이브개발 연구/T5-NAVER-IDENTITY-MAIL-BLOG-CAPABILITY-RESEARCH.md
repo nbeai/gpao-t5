@@ -544,6 +544,11 @@ compact 후보 actual은 같은 검색의 최대 provider request를 368,657B에
 handoff가 생겼고, 정답 전달 뒤 한 번 중복 resume됐다. 해당 handoff는 terminal이며 추가 replay는 없다. Runtime은 이제
 `connectionReady=true`를 `ready`로 반환하고 실제 사용자 행동이 남은 경우에만 handoff를 연다.
 
+ready-handoff 수리 뒤 동일 검색 최종 actual은 model 10회까지 늘고 90초를 넘겨 종료하지 못해 안전하게 Stop했다.
+terminal·claim release·unknown effect 0을 확인했다. ref compact는 bytes 한 축을 줄였지만 사용자 wall과 Hand 선택을
+개선하지 못했으므로 제품에서 제거하며 같은 방향에 추가 패치를 붙이지 않는다. NV-3의 Browser 목록 read 정확성은
+PASS, 범용 검색 경제성은 미달 관측으로 남긴다.
+
 ### NV-4 — Mail Draft & Send
 
 - draft preview

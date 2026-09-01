@@ -74,8 +74,8 @@
       "mailBodyOpened": false,
       "readStateMutationAction": false
     },
-    "browserWireCandidate": "project only refs named in the shown text and omit repeated ancestor chains from provider wire while retaining the full exact facts in the local action registry",
-    "browserWireFocusedTests": "36/36 pass",
+    "browserWireCandidate": "REJECTED — compact refs reduced bytes in one sample but the same search exceeded 90 seconds and was safely cancelled",
+    "browserWireFocusedTests": "36/36 pass before actual rejection; unit success did not establish user benefit",
     "browserWireActual": {
       "runId": "ee7011f8-9b23-45e1-b641-91c22218b2f6",
       "result": "CONTENT_PASS_SETTLEMENT_FAIL",
@@ -86,7 +86,15 @@
       "toolCalls": 6
     },
     "readyHandoffRepair": "connection perform results with connectionReady=true now return ready rather than user_action_started, preventing a false pending handoff and duplicate resume",
-    "observedDuplicateBeforeRepair": "the false handoff resumed once as run e807cadc-335e-4f89-8bc5-ee70c57fd30a after the correct answer was already delivered; it is terminal and will not replay again"
+    "observedDuplicateBeforeRepair": "the false handoff resumed once as run e807cadc-335e-4f89-8bc5-ee70c57fd30a after the correct answer was already delivered; it is terminal and will not replay again",
+    "browserWireFinalActual": {
+      "runId": "91b03a98-4e6d-4d12-9ebb-fc85ab74207d",
+      "result": "FAIL_CANCELLED",
+      "wallBoundary": ">90000ms",
+      "modelTurnsObservedBeforeStop": 10,
+      "stop": "terminal, resumable, claim released, unknown effect false",
+      "productCandidateAdopted": false
+    }
   },
   "nonClaims": [
     "Mail folder/search/open/attachment is not yet qualified on the actual owner account.",

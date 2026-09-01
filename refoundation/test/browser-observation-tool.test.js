@@ -317,24 +317,6 @@ test('navigate는 실제 탭과 같은 snapshot의 observationId·refs를 한 Re
   ]);
 });
 
-test('Browser wire는 보이는 text의 ref만 compact 투영하고 exact action registry에는 전체 fact를 보존한다', async () => {
-  const driver = fixtureDriver(); const navigate = driver.navigate.bind(driver);
-  driver.navigate = async (...args) => { const result = await navigate(...args);
-    result.snapshot.refs.e1.context = { modal: false,
-      ancestors: Array.from({ length: 40 }, () => ({ role: 'generic', name: '' })) };
-    return result; };
-  const registry = makeBrowserObservationRegistry();
-  const result = await makeBrowserObservationTool({ driver, observationRegistry: registry }).execute({
-    action: 'navigate', url: 'https://example.com/', tabId: null,
-    full: null, maxChars: 20_000, fullPage: null,
-  });
-  assert.equal(result.observation.refs.e8, undefined);
-  assert.equal(result.observation.refsOmitted, 1);
-  assert.equal(result.observation.refs.e1.context.ancestors, undefined);
-  const internal = registry.resolve({ observationId: result.observation.observationId, tabId: 't1', ref: 'e8' });
-  assert.equal(internal.ok, true);
-});
-
 test('navigate가 secret field를 보면 사용자 handoff가 아니라 login_start 경계를 반환한다', async () => {
   const driver = fixtureDriver(); driver.pageSecretFacts = async () => ({ secretFieldCount: 1, secretValuesObserved: false });
   const tool = makeBrowserObservationTool({ driver });
