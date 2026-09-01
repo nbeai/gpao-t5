@@ -12,14 +12,15 @@
 ## NX-2 Generalized Mastery 개발 정본
 
 - 문서: `T5-NX2-GENERALIZED-MASTERY-DEVELOPMENT-PLAN.md`
-- 상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_1_CURRENT`
+- 상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_1C_EXISTING_PATH_CURRENT`
 - 범위: GUI·Selection Side Exploration과 NX-1에 이미 흡수된 Reality Scout·Method·Evidence Atom·이중 완료를 제외하고,
   연구실에 남은 Mastery 일반화·Context Diet·Cognitive Flow·Auditory·Web Collector·Naver·Experience를 하나의 순차
   NX-2 제품선으로 통합한다.
 - 순서: `NX2-0 귀환선 → NX2-1 업무 일반화 → NX2-2 Context/Interface → NX2-3 Cognitive Flow → NX2-4 청각
   → NX2-5 공개 웹 수집 → NX2-6 네이버 실무 → NX2-7 Experience → NX2-HQ`.
-- 현재 위치: NX-1은 `ad3e685c`에서 완료됐고 NX-2가 개통됐다. NX2-1C에서 selected Reality를 공통
-  Evidence Atom·ClaimEvidence·Human Closure로 연결하는 중이며, NX2-1D five-lane 종료 뒤에만 NX2-2로 이동한다.
+- 현재 위치: NX-1은 `ad3e685c`에서 완료됐고 NX-2가 개통됐다. metadata-only 후보와 model-selected batch는
+  qualification 관측으로 제품 채택 0 종료했다. NX2-1C는 기존 `file_reality → bind_sources → integral_method` 경로에서
+  두 목적에 공통으로 재현되는 observer gap만 수리하며, NX2-1D five-lane 종료 뒤에만 NX2-2로 이동한다.
 - 완료 기준: 기능 수가 아니라 Direct 무회귀와 실제 사용자 목적의 속도·정확성·결과 품질·교정·복구·인간 UX의
   clean second whole-flow PASS.
 

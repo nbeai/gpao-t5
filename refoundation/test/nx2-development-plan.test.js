@@ -6,11 +6,11 @@ const planPath = new URL('../../티파이브개발 연구/T5-NX2-GENERALIZED-MAS
 const indexPath = new URL('../../티파이브개발 연구/INDEX.md', import.meta.url);
 const nxPath = new URL('../../T5-NX.md', import.meta.url);
 
-test('NX-2 plan records NX-1 closeout, the current NX2-1C slice, and excludes generic GUI work', async () => {
+test('NX-2 plan records NX-1 closeout, the existing-path NX2-1C slice, and excludes generic GUI work', async () => {
   const plan = await readFile(planPath, 'utf8');
   assert.match(plan, /NX_1_COMPLETE/);
   assert.match(plan, /NX2_1_CURRENT/);
-  assert.match(plan, /CURRENT_SLICE_NX2_1C/);
+  assert.match(plan, /CURRENT_SLICE_NX2_1C_EXISTING_PATH/);
   assert.match(plan, /범용 Computer Use·좌표 클릭·데스크톱 앱 조작/);
   assert.match(plan, /독립 미래 Gate 유지/);
   assert.match(plan, /NX-2 후보가 실패해도 NX-1 제품 경계를 바꾸거나 약화해 성공으로 꾸미지 않는다/);
@@ -46,7 +46,7 @@ test('research index and NX canonical source link the active NX-2 plan and curre
   const filename = 'T5-NX2-GENERALIZED-MASTERY-DEVELOPMENT-PLAN.md';
   assert.match(index, new RegExp(filename));
   assert.match(nx, new RegExp(filename));
-  assert.match(nx, /CURRENT · NX_1_COMPLETE · CURRENT_SLICE_NX2_1C/);
+  assert.match(nx, /CURRENT · NX_1_COMPLETE · CURRENT_SLICE_NX2_1C_EXISTING_PATH/);
   assert.match(nx, /현재 개발 순서/);
   assert.match(nx, /NX-1 합격일 때만 NX-2 CURRENT로 이동/);
   assert.match(nx, /ABSORBED_AS_NX2_7 · NOT_SEPARATELY_OPEN/);
@@ -59,12 +59,14 @@ test('current NX-2A through NX-2D are bound inside NX2-1 and cannot bypass the r
     'NX-2A Evidence Reuse & Exact-Head Baseline',
     'NX-2B metadata-only Reality Scout 두 후보',
     'NX-2B2 model-selected bounded batch',
-    'NX-2C Selected Reality to Common Integral Closure',
+    'NX-2C Existing Path Common Observer Delta',
     'NX-2D Five-Lane Proportionality',
   ]) assert.match(plan, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.match(plan, /NX2-1 closeout\n→ NX2-2 Context Diet & Interface Intelligence/);
   assert.match(plan, /NX2-7 Experience Promotion\n→ NX2-HQ Competitive Whole Human Qualification/);
   assert.match(plan, /현재 계획에 없는 새 Gate를 임의로 끼워 넣지 않는다/);
+  assert.match(plan, /별도 selection Tool·selection model call·selection→Reality→Human 3-model pipeline은 NX2-1의 제품 구조가 아니다/);
+  assert.match(plan, /기존 `file_reality → bind_sources → integral_method`/);
 });
 
 test('every remaining specialist plan is bound to NX-2 competitive promotion instead of feature-only completion', async () => {

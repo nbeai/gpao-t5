@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CURRENT · CURRENT_SLICE_NX2_1C`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CURRENT · CURRENT_SLICE_NX2_1C_EXISTING_PATH`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-1C — Selected Reality to Common Integral Closure`
+현재 제품 Gate: `NX2-1C — Existing Path Common Observer Delta`
 
 ---
 
@@ -212,14 +212,15 @@ NX2-HQ Competitive Whole Human Qualification
 |---|---|---|
 | NX-2A Evidence Reuse & Exact-Head Baseline | NX2-0 종료 증거·NX2-1 baseline | COMPLETE |
 | NX-2B metadata-only Reality Scout 두 후보 | NX2-1 source selection 부정 증거 | CLOSED_REJECTED |
-| NX-2B2 model-selected bounded batch | NX2-1 Reality selection mechanics | MECHANICS_QUALIFIED |
-| NX-2C Selected Reality to Common Integral Closure | NX2-1 Reality/Human Closure | CURRENT |
+| NX-2B2 model-selected bounded batch | NX2-1 qualification 관측·부정 증거 | PRODUCT_CANDIDATE_REJECTED |
+| NX-2C Existing Path Common Observer Delta | NX2-1 기존 경로의 실제 공통 미달 | CURRENT |
 | NX-2D Five-Lane Proportionality | NX2-1 일반화·무회귀 자격 | PENDING |
 
 현재 고정 순서:
 
 ```text
-NX2-1C selected Reality → Evidence Atom → ClaimEvidence → Human Closure
+NX2-1C 기존 file_reality → bind_sources → integral_method actual trace
+→ 서로 다른 두 목적의 동일 observer gap만 기존 경계에서 최소 보강
 → 매출·미수금·재고·계약 공통 자격
 → NX2-1D Direct·Single·Multi-source·Artifact·Program five-lane
 → NX2-1 closeout
@@ -234,6 +235,10 @@ NX2-1C selected Reality → Evidence Atom → ClaimEvidence → Human Closure
 
 NX2-1C가 실패하면 같은 문구·업무별 규칙을 더하지 않고 NX-1 귀환선을 유지한다. 실패한 NX2-1을 건너뛰어 NX2-2
 이후 기능으로 목적 실패를 덮지 않는다. 반대로 NX2-1이 닫힌 뒤에는 현재 계획에 없는 새 Gate를 임의로 끼워 넣지 않는다.
+
+별도 selection Tool·selection model call·selection→Reality→Human 3-model pipeline은 NX2-1의 제품 구조가 아니다.
+`129b1db4`의 model-selected batch는 qualification 관측으로만 보존하며, 현재 자연 경로의 실제 공통 observer gap이
+증명되기 전에는 CSV Evidence Atom·새 parser·새 Tool을 열지 않는다.
 
 ---
 
@@ -272,8 +277,9 @@ NX2-1C가 실패하면 같은 문구·업무별 규칙을 더하지 않고 NX-1 
 - NX-1은 `ad3e685c`에서 제품·Console·CI까지 완료됐다.
 - NX-2A는 같은 fixture를 current head에서 다시 실행해 과거 증거의 무비판적 이전을 막았다.
 - NX-2B의 metadata-only 후보 두 개는 목적·경제성 실패로 제품 delta 0 폐기됐다.
-- NX-2B2는 model-selected exact handles만 Runtime이 batch reopen하는 mechanics를 자격했다.
-- 현재 제품 변경 후보는 NX2-1C 안에서만 열 수 있다.
+- NX-2B2는 model-selected exact handles의 batch reopen mechanics를 관측했지만 제품 후보에서는 폐기했다.
+- 현재 제품 변경 후보는 기존 `file_reality → bind_sources → integral_method`의 동일 observer gap이 두 목적에서
+  재현될 때 NX2-1C 안에서만 열 수 있다.
 
 ---
 

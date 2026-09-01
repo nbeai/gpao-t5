@@ -3,8 +3,8 @@
 상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE · NX_2_MASTERY_GENERALIZATION_CURRENT`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
-현재 Gate: `NX-2 MASTERY GENERALIZATION · REALITY SCOUT FIRST GAP`
-현재 작업: `NX-2A exact-head 일반 표현 baseline 완료 · 첫 upstream Reality 연결 결함 개통`
+현재 Gate: `NX-2 MASTERY GENERALIZATION · EXISTING PATH COMMON OBSERVER GAP`
+현재 작업: `metadata·selection Tool 후보 제품 채택 0 · 기존 file_reality → bind_sources → integral_method 경로의 공통 미달 재판정`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -987,7 +987,7 @@ AND current correction·Stop·restart·Artifact·Undo 무회귀
 
 상세 개발 정본: `티파이브개발 연구/T5-NX2-GENERALIZED-MASTERY-DEVELOPMENT-PLAN.md`
 
-상태: `CURRENT · NX_1_COMPLETE · CURRENT_SLICE_NX2_1C`
+상태: `CURRENT · NX_1_COMPLETE · CURRENT_SLICE_NX2_1C_EXISTING_PATH`
 
 NX-2는 아래 네 업무만 늘리는 단계가 아니다. GUI와 NX-1에 이미 흡수된 Reality·Method·Evidence 구조를 다시 만들지
 않고, 남은 연구를 다음 한 실행선으로 일반화한다.
@@ -1121,11 +1121,62 @@ Closure`에 결속하는 NX-2C다.
 
 근거: `refoundation/evidence/nx2-model-selected-batch-qualification-2026-09-01.json`.
 
-### NX-2C — Selected Reality to Common Integral Closure — OPEN
+2026-09-01 최종 제품 판정:
 
-NX-2B가 ordinary source 현실을 회복한 경우에만 매출 변동·미수금 대사·재고 차이·계약 revision에서 동일한
-`source selection·relation·reconciliation·ClaimEvidence·Reality/Human Closure`를 자격한다. 기존 NX-1 contract에
-업무별 필드를 추가하지 않는다.
+- 이 후보는 원래 NX-2 실행계획에 없던 qualification 파생 구조다.
+- 별도 selection Tool과 그 뒤 Reality→Human 호출을 결합하면 기존 경로 앞에 새 선택 모델을 두는 다단계 구조가 된다.
+- 정확한 미수금 한 표본은 회복했지만 모호한 표현에서 잘못된 source set을 골랐고, Human Closure까지 붙이면 NX 속도 목표와
+  Direct/Single 비례성에 불필요한 위험이 생긴다.
+- `129b1db4`는 mechanics 관측·부정 증거로 보존하되 제품 activation·Console entry·기본 Tool surface는 0이다.
+- 미커밋 CSV Evidence Atom·selected Closure 후보는 제거했다.
+
+따라서 상태는 `QUALIFICATION_OBSERVATION_ONLY · PRODUCT_CANDIDATE_REJECTED`다. 이 구조를 NX-2C의 전제로 사용하지 않는다.
+
+### NX-2C — Existing Path Common Observer Delta — OPEN
+
+원래 NX-2 계획으로 돌아가 현재 제품 경로를 유지한다.
+
+```text
+현재 모델의 자연스러운 File Reality 사용
+→ 기존 file_reality search/inspect
+→ 기존 bind_sources exact manifest
+→ unresolved reality일 때만 NX-1 integral_method
+→ verified outcomes
+→ 기존 Human Closure
+```
+
+매출·미수금·재고·계약의 일반 표현에서 이 경로가 실제로 실패하는 최초 공통 observer 사실을 current prompt·ToolReceipt·
+source manifest에서 분리한다. 기존 observer가 이미 공급하는 사실은 다시 만들지 않는다.
+
+허용:
+
+- 기존 File Reality·Document observer가 정확한 source에 도달한 뒤 공통 형식에서 빠지는 coverage·relation·freshness 사실
+- exact source region에서 Evidence Atom으로 일반화 가능한 실제 값·관계
+- 현재 Tool contract와 Runtime receipt의 단일 source of truth 보강
+
+금지:
+
+- 별도 selection Tool·selection model call
+- selection→Reality→Human의 3-model pipeline
+- filename metadata score·업무 동의어·회사명·column rule
+- 미수금·매출·재고·계약 parser
+- 결과 문장 삭제·고정 답변 형식
+- 현재 실패 원본 없이 CSV·문서 형식을 먼저 확장
+
+첫 작업은 제품 변경 0의 네 목적 actual trace 비교다. source 진입 실패와 진입 후 Closure 실패를 분리하고, 서로 다른 두
+목적에서 같은 observer gap이 재현될 때만 가장 작은 기존 경계를 연다.
+
+합격:
+
+- 네 목적 정확성·strict scope·source truth PASS
+- 기존 NX-1 Method contract 재사용
+- NX-1 이후 추가 preselection model call 0
+- Direct·Single Reality Tool/Method 개입 0
+- current 자연 경로 대비 wall·round·tokens의 실제 사용자 이익
+- 새 Store·Router·업무별 규칙 0
+
+NX-2C가 공통 observer gap을 닫은 경우에만 매출 변동·미수금 대사·재고 차이·계약 revision에서 동일한
+`source selection·relation·reconciliation·ClaimEvidence·Reality/Human Closure`를 자격한다.
 
 ### NX-2D — Five-Lane Proportionality — PENDING
 
