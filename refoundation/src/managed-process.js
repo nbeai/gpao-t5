@@ -265,7 +265,12 @@ export class ManagedProcessRegistry {
     }); });
     if (waitMs == null) await record.closePromise;
     else await Promise.race([record.closePromise, delay(Math.max(0, waitMs))]);
-    return this.#snapshot(record);
+    const snapshot = this.#snapshot(record);
+    // A caller that deliberately waited for the terminal snapshot has already
+    // observed this completion.  Do not publish the same terminal fact again as
+    // a background wake after the foreground Work settles.
+    if (terminal(record.state)) record.terminalObserved = true;
+    return snapshot;
   }
 
   async startPty({ ptyProcess, command, cwd, ownerId, waitMs = 1000, metadata = {},

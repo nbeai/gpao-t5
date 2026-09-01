@@ -189,3 +189,14 @@ test('모델이 poll로 terminal 상태를 이미 관측한 process는 다시 wa
   await delay(10);
   assert.equal(registry.claimTerminalWake(started.processId), null);
 }));
+
+test('동기 start가 terminal 결과를 반환하면 같은 완료는 background wake로 재출판되지 않는다', async () => room(async ({ root, registry }) => {
+  const started = await registry.start({
+    program: '/bin/sh', args: ['-lc', "printf 'foreground-observed'"], cwd: root,
+    env: process.env, ownerId: 'session-foreground', waitMs: null,
+    metadata: { kind: 'managed', originRunId: 'run-foreground' },
+  });
+  assert.equal(started.state, 'completed');
+  assert.equal(started.stdout, 'foreground-observed');
+  assert.equal(registry.claimTerminalWake(started.processId), null);
+}));

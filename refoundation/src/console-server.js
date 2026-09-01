@@ -2407,7 +2407,7 @@ export function makeConsoleServer({
             && options.trigger !== 'automation' && !boundedObservationOnly
             ? { activateTools: ['work_completion'] } : undefined;
         },
-        onToolActivity: async ({ toolCallId, name, stream, deltaChars, totalChars, state }) => {
+        onToolActivity: async ({ toolCallId, name, phase, stream, deltaChars, totalChars, state }) => {
           if (observedToolActivity.has(toolCallId) || !['stdout', 'stderr'].includes(stream)
             || !Number.isSafeInteger(deltaChars) || deltaChars < 1
             || !Number.isSafeInteger(totalChars) || totalChars < deltaChars) return;
@@ -2415,6 +2415,9 @@ export function makeConsoleServer({
           await run.append({ type: 'process_output_observed', stepId: `process-output-${toolCallId}`,
             payload: { toolCallId, tool: name, stream, deltaChars, totalChars,
               state: ['running', 'completed', 'failed', 'stopped'].includes(state) ? state : 'unknown' } });
+          if (name === 'auditory' && phase === 'transcribing') {
+            publishProgress('tool_progress', toolProgressText('auditory', { action: 'poll' }), 'auditory');
+          }
           await publishWorkReality(sessionId, emit).catch((error) => onError?.(error));
         },
         runtimeContextProvider: async () => workspaceRuntimeContextBlock({

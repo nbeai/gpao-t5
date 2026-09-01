@@ -28,6 +28,8 @@ test('자연어 audio Hand는 exact attachment를 verified requested Artifact로
     assert.equal(result.artifactForm, 'srt'); assert.equal(cleaned, 1);
     const projected = tool.projectResultForModel(result);
     assert.equal(projected.artifact.originalName, '회의.srt');
+    assert.equal(projected.operationTerminal, true); assert.equal(projected.furtherPollRequired, false);
+    assert.equal(projected.operationId, undefined);
     assert.doesNotMatch(JSON.stringify(projected), /storedPath|sourcePath|sha256|downloadUrl/u);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
