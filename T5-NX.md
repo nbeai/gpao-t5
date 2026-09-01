@@ -1,10 +1,10 @@
 # T5 NX — Integral Outcome, Mastery, Performance & Comparative Quality
 
-상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE`
+상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE · NX_2_MASTERY_GENERALIZATION_CURRENT`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
-현재 Gate: `NX-1 FIRST FLAGSHIP MASTERY · COMPLETE`
-현재 작업: `NX-1 제품·Console·CI 봉인 완료 · 다음 Gate 미개통`
+현재 Gate: `NX-2 MASTERY GENERALIZATION · REALITY SCOUT FIRST GAP`
+현재 작업: `NX-2A exact-head 일반 표현 baseline 완료 · 첫 upstream Reality 연결 결함 개통`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -571,7 +571,7 @@ visualHierarchyGoals`와 같은 사실로 결속한다.
 > 1~6차의 안전·진실·회복 Core를 역사로 봉인하고, 현재 T5를 실제로 이기는 Mastery 후보를 만드는 NX 개발선이
 > 하나의 정본과 Gate로 열렸다.
 
-## NX-1 — First Flagship Mastery — CURRENT
+## NX-1 — First Flagship Mastery — COMPLETE
 
 사용자 문장:
 
@@ -983,7 +983,7 @@ AND current correction·Stop·restart·Artifact·Undo 무회귀
 
 근거: `refoundation/evidence/nx1-product-close-2026-09-01.json`.
 
-## NX-2 — Mastery Generalization
+## NX-2 — Mastery Generalization — CURRENT
 
 NX-1이 이긴 경우에만 공통 Method를 다음으로 확장한다.
 
@@ -1012,6 +1012,81 @@ NX-1이 이긴 경우에만 공통 Method를 다음으로 확장한다.
   coverage를 관측한다.
 - Program/Project는 기능 테스트와 Browser actual use를 함께 보며 보기 좋은 stub을 성공으로 처리하지 않는다.
 - 공급자별 Prompt·Router·method fork를 만들지 않는다. model adapter는 같은 계약을 받는다.
+
+### NX-2 사용자 완료 문장
+
+> 사용자는 매출·미수금·재고·계약처럼 업무 이름이나 필요한 파일을 정확히 지정하지 않고 현재 문제를 평소 말로
+> 맡길 수 있다. T5는 허용된 현실에서 관련 가능성이 높은 source를 작게 제시하고, 모델이 필요한 exact source와 방법을
+> 선택하며, 같은 Integral Outcome Method로 요청 범위의 결과를 빠르고 정확하게 닫는다. Direct·단일 Reality·기존
+> Artifact·Program/Project 경로는 더 무거워지지 않는다.
+
+### NX-2A — Evidence Reuse & Exact-Head Baseline — COMPLETE
+
+제품 변경 없이 6차 `NG-3A`의 동일한 비식별 workspace·hidden oracle·일반 사용자 문장을 현재 NX-1 완료 head
+`ad3e685c`에서 다시 실행했다. NX-1 이후 File Reality·Integral Method 배선이 달라졌으므로 과거 결과를 현재 사실로
+그대로 이전하지 않았다.
+
+| 목적 | 6차 일반 표현 | NX-2 exact-head | 현재 판정 |
+|---|---:|---:|---|
+| 매출 변동 | 10.056초·model 1·Tool 0·FAIL | 8.666초·1·0·FAIL | 실제 `매출기록.csv`를 보지 않고 자료를 다시 요구 |
+| 미수금 | 42.943초·6·5·FAIL | 6.998초·1·0·FAIL | 엉뚱한 source 확대는 사라졌지만 실제 `미수금현황.csv`도 보지 않음 |
+| 재고 | 45.255초·7·6·PASS | 6.960초·1·0·FAIL | 비용은 줄었지만 기존 목적 성공을 잃은 회귀 |
+| 계약 | 28.629초·4·3·PARTIAL | 30.838초·5·4·FAIL | source는 찾았으나 identity 마스킹과 30일 밖 항목 노출 |
+
+첫 결함은 `Integral Method` 내부가 아니다. 세 목적은 source search·inspect·bind 전에 끝났으므로 Method가 열릴 현실 자체가
+없었다. 계약은 source에 도달했지만 strict Human Closure가 불안정했다. 따라서 NX-2의 첫 개발 가족은
+`ordinary request → bounded relevant source affordance → model-selected exact observation`의 upstream Reality Scout다.
+
+근거: `refoundation/evidence/nx2-generalization-baseline-2026-09-01.json`.
+
+### NX-2B — Bounded Reality Scout Qualification — OPEN
+
+제품 배선 전에 qualification-only로 다음 한 후보만 시험한다.
+
+```text
+현재 사용자 원문·current Work revision
+→ 기존 File Reality의 local-only 후보 관측
+→ 최대 5개 source affordance
+→ 모델이 inspect·ignore·ask 중 선택
+→ 선택된 source만 기존 exact handle·manifest로 결속
+```
+
+후보 사실은 `display identity·kind·freshness·relation evidence·observation cost·coverage`뿐이다. 파일 원문·절대경로·
+비밀·전체 workspace 목록은 보내지 않는다. 후보 score는 truth나 자동 선택이 아니며 current correction으로 폐기한다.
+
+첫 반대시험:
+
+- 일반 매출 표현에서 실제 `매출기록.csv`를 관측하고 450→350만원, 100만원·22.2% 감소, 한빛상사 위젯 기여를 정확히 설명
+- 같은 fixture의 “매출이 뭔지 한 문장으로 설명해줘”는 Tool 0·Scout projection 0
+- 무관하거나 약한 후보는 source truth로 승격하지 않고 질문 또는 기존 경로 유지
+- 후보가 없거나 scout가 실패해도 자료 부재로 확대하지 않음
+- model call 추가 0, global instruction·기본 Tool schema bytes 증가 0
+
+매출 한 목적이 회복된 뒤에만 미수금·재고·계약을 같은 후보로 확인한다. 동의어 목록·업무 enum·회사명·column rule을
+추가해야 한다면 일반화 실패다. 같은 Reality Scout 구조의 두 후보가 실패하면 세 번째 조건 patch를 붙이지 않는다.
+
+### NX-2C — Common Method Generalization — PENDING
+
+NX-2B가 ordinary source 현실을 회복한 경우에만 매출 변동·미수금 대사·재고 차이·계약 revision에서 동일한
+`source selection·relation·reconciliation·ClaimEvidence·Reality/Human Closure`를 자격한다. 기존 NX-1 contract에
+업무별 필드를 추가하지 않는다.
+
+### NX-2D — Five-Lane Proportionality — PENDING
+
+네 관계 목적을 통과한 뒤 Direct·Single Reality·Multi-source Work·Crafted Artifact·Program/Project 다섯 lane을 각각
+한 대표 목적에서 확인한다. 이미 통과한 6차 전체 HQ를 반복하지 않고 NX-2 변경 edge와 직접 연결된 실제 Console만 본다.
+
+### NX-2 완료식
+
+```text
+일반 표현 네 목적의 정확성·strict scope·source truth PASS
+AND 같은 Integral Outcome Method 계약 재사용
+AND Direct·Single Reality 무개입·속도 무회귀
+AND Artifact는 source truth·render·Preview·Undo 성립
+AND Program/Project는 기능 test와 Browser actual use 성립
+AND 질문·교정·model/Tool rounds·tokens·wall이 baseline보다 비례적으로 개선
+AND 새 Store·업무 Router·provider Prompt fork·Runtime 의미 판정 0
+```
 
 ## NX-3 — Experience Promotion
 

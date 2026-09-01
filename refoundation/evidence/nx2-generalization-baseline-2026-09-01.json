@@ -1,0 +1,78 @@
+{
+  "schema": "t5.nx2.generalization-baseline.v1",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "ad3e685c1138913b764bd43c6f2611500c49f432",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "environment": {
+    "isolatedHomeDataWorkspace": true,
+    "actualUserData": false,
+    "externalWrites": 0,
+    "fixture": "existing S6 NG-3A synthetic workspace",
+    "variant": "ordinary only"
+  },
+  "priorEvidence": "refoundation/evidence/s6-ng3a-expression-gap-2026-08-31.json",
+  "exactHeadResults": {
+    "sales": {
+      "purposePass": false,
+      "wallMs": 8666,
+      "modelCalls": 1,
+      "toolCalls": 0,
+      "requestBytes": 41566,
+      "inputTokens": 7829,
+      "failure": "asked for sales data without observing the existing sales file"
+    },
+    "receivables": {
+      "purposePass": false,
+      "wallMs": 6998,
+      "modelCalls": 1,
+      "toolCalls": 0,
+      "requestBytes": 41571,
+      "inputTokens": 7829,
+      "failure": "asked the user for receivables and deposit data without observing the existing receivables file"
+    },
+    "inventory": {
+      "purposePass": false,
+      "wallMs": 6960,
+      "modelCalls": 1,
+      "toolCalls": 0,
+      "requestBytes": 41560,
+      "inputTokens": 7828,
+      "failure": "asked for inventory data without observing the existing inventory file",
+      "regressionFromPriorPurposePass": true
+    },
+    "contracts": {
+      "purposePass": false,
+      "wallMs": 30838,
+      "modelCalls": 5,
+      "toolCalls": 4,
+      "requestBytes": 249076,
+      "inputTokens": 45503,
+      "toolSequence": ["attachment", "tool_search", "file_reality", "file_reality"],
+      "failure": "found the source but masked exact employee identity and surfaced an item outside the requested 30-day scope"
+    }
+  },
+  "firstFailureFamily": {
+    "id": "ordinary_request_not_connected_to_available_managed_reality",
+    "layer": "upstream_of_integral_method",
+    "facts": [
+      "sales, receivables, and inventory ended before any local reality observation",
+      "the exact current workspace contained a directly relevant file for every request",
+      "Integral Method cannot activate before search, inspect, and exact source binding",
+      "faster unsupported answers are not a performance improvement"
+    ]
+  },
+  "nextCandidate": {
+    "id": "bounded_reality_scout_qualification",
+    "productConnected": false,
+    "maxCandidates": 5,
+    "modelChoosesMeaning": true,
+    "newModelCall": 0,
+    "newGlobalInstruction": 0,
+    "newDefaultToolSchema": 0,
+    "newStore": 0,
+    "businessRouter": 0
+  },
+  "productChanges": 0,
+  "status": "NX2A_BASELINE_COMPLETE_NX2B_REALITY_SCOUT_OPEN"
+}

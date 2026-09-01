@@ -38,7 +38,8 @@ test('정본은 제품·NX 현재 계획·완료 역사·작업 규율로 분리
   assert.match(agents, /`T5-NX\.md` — 지금 어느 Gate/u);
   assert.match(agents, /`T5-SIXTH-COMPLETION\.md`[\s\S]*완료 역사/u);
   assert.match(nx, /OWNER_CURRENT_DEVELOPMENT_SOURCE/u);
-  assert.match(nx, /NX-1 FIRST FLAGSHIP MASTERY/u);
+  assert.match(nx, /NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE/u);
+  assert.match(nx, /NX_2_MASTERY_GENERALIZATION_CURRENT/u);
   assert.match(fourth, /현재 Gate: `FOURTH COMPLETION SEALED · MACOS PRODUCT SCOPE · WINDOWS DEFERRED_NOT_WAIVED`/u);
   assert.match(fifth, /상태: `FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE · WINDOWS_DEFERRED_NOT_WAIVED`/u);
   assert.match(sixth, /현재 Gate: `HISTORICAL COMPLETE · NO LONGER CURRENT DEVELOPMENT SOURCE`/u);

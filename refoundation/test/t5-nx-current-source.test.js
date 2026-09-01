@@ -12,7 +12,8 @@ test('T5 NX가 제품 정의 다음의 유일한 현재 개발 정본이다', as
   assert.match(agents, /1\. `T5-PRODUCT\.md`[\s\S]*2\. `T5-NX\.md`/u);
   assert.match(nx, /OWNER_CURRENT_DEVELOPMENT_SOURCE/u);
   assert.match(nx, /NX_0_GENERATION_TRANSITION_COMPLETE/u);
-  assert.match(nx, /NX_1_FLAGSHIP_MASTERY_CURRENT/u);
+  assert.match(nx, /NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE/u);
+  assert.match(nx, /NX_2_MASTERY_GENERALIZATION_CURRENT/u);
   assert.match(sixth, /SIXTH_COMPLETE_HISTORICAL_SOURCE/u);
   assert.match(sixth, /SUPERSEDED_CURRENT_DEVELOPMENT_SOURCE_BY_T5_NX/u);
   assert.match(sixth, /CURRENT DEVELOPMENT SOURCE IS T5-NX\.md/u);
