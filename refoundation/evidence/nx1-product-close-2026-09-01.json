@@ -2,6 +2,7 @@
   "schema": "t5.nx1.product-close.v1",
   "recordedOn": "2026-09-01",
   "sourceCommit": "45282a29b282df4bb1929cfbf5448367bf98dfcf",
+  "closeCommit": "0615bfbb437eaa74145171c3cc9aeb315ab3c424",
   "modelPolicy": {
     "primary": "gpt-5.5",
     "terra": "comparison_observation",
