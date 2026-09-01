@@ -44,6 +44,7 @@ import { ConversationLedger } from './conversation-ledger.js';
 import { buildSelectionAnchor, projectSelectableMessage } from './selectable-message-projection.js';
 import { projectSelectionExplorationPublic } from './selection-exploration-projection.js';
 import { makeSelectionExplorationRuntime } from './selection-exploration-runtime.js';
+import { makeAuditoryTool } from './auditory-tool.js';
 import { makeExplicitWorkCorrection } from './explicit-work-correction.js';
 import { WorkStore } from './work-store.js';
 import { WorkCancellationCoordinator } from './work-cancellation-coordinator.js';
@@ -434,6 +435,8 @@ export function makeConsoleServer({
   fileOcrProbe = null,
   audioRealityProbe = null,
   auditoryCapabilityService = null,
+  auditoryTranscriptionSpine = null,
+  auditoryScratchRoot = null,
   restrictFileRealityToComputerRoots = false,
   documentCli = bundledDocumentCli,
   attachmentStore,
@@ -1914,6 +1917,10 @@ export function makeConsoleServer({
           return { text: String(response?.text ?? ''), model: response?.responseModel ?? null };
         },
         ...(audioRealityProbe ? { observeAudioReality: audioRealityProbe } : {}),
+      }));
+      if (auditoryTranscriptionSpine && auditoryScratchRoot) offeredTools.unshift(makeAuditoryTool({
+        spine: auditoryTranscriptionSpine, attachmentStore: attachments,
+        sessionId, runId: run.runId, scratchRoot: auditoryScratchRoot,
       }));
       let browserReady = false;
       let browserRuntimeContext = '';
@@ -5846,6 +5853,7 @@ export function makeConsoleServer({
   server.runLedger = runLedger;
   server.resourceLedger = resourceLedger;
   server.auditoryCapabilityService = auditoryCapabilityService;
+  server.auditoryTranscriptionSpine = auditoryTranscriptionSpine;
   server.authorityStore = authority;
   server.managedCliStore = managedCliStorePromise;
   server.managedSkillStore = managedSkillStorePromise;

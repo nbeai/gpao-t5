@@ -54,7 +54,7 @@ export function makeAuditoryTranscriptionSpine({
   }
   return {
     async start({ ownerId, filePath, expectedSha256 = null, scratchRoot, language = 'auto',
-      waitMs = 1000, signal = null, onProgress = null } = {}) {
+      waitMs = 1000, signal = null, onProgress = null, requestMetadata = null } = {}) {
       if (!ownerId || !scratchRoot || !/^(?:auto|[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*)$/u.test(language)) {
         throw new TypeError('auditory transcription request is invalid');
       }
@@ -70,7 +70,8 @@ export function makeAuditoryTranscriptionSpine({
           sha256: ready.model.sha256 },
         decoded: { sha256: decoded.pcm.sha256, durationMs: decoded.pcm.durationMs,
           sampleRate: decoded.pcm.sampleRate, channels: decoded.pcm.channels },
-        pcmPath: decoded.pcm.path, cleanupDirectory: decoded.cleanup.directory, terminal: false };
+        pcmPath: decoded.pcm.path, cleanupDirectory: decoded.cleanup.directory, terminal: false,
+        requestMetadata: requestMetadata == null ? null : structuredClone(requestMetadata) };
       const snapshot = await processRegistry.start({ program: helper,
         args: ['-m', ready.model.path, '-f', decoded.pcm.path, '-l', language,
           '-ojf', '-otxt', '-osrt', '-of', outputPrefix, '--print-progress'],
@@ -98,5 +99,8 @@ export function makeAuditoryTranscriptionSpine({
     async cleanup({ ownerId, operationId } = {}) { const operation = operations.get(operationId);
       if (!operation || operation.ownerId !== ownerId || !operation.terminal) return false;
       await rm(operation.cleanupDirectory, { recursive: true, force: true }); operations.delete(operationId); return true; },
+    request({ ownerId, operationId } = {}) { const operation = operations.get(operationId);
+      if (!operation || operation.ownerId !== ownerId) return null;
+      return operation.requestMetadata == null ? null : structuredClone(operation.requestMetadata); },
   };
 }

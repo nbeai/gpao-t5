@@ -57,10 +57,12 @@ import { RuntimeContinuityLedger, makeRuntimeContinuityMonitor } from '../src/ru
 import { makeLocalNotificationService, makeMacOSNotificationAdapter } from '../src/local-notification.js';
 import { deleteT5OwnedLocalData } from '../src/local-data-deletion.js';
 import { makeLocalImageOcr } from '../src/local-image-ocr.js';
-import { makeAudioRealityProbe } from '../src/audio-reality.js';
+import { makeAudioDecode, makeAudioRealityProbe } from '../src/audio-reality.js';
 import { AuditoryModelStore, loadAuditoryModelCatalog } from '../src/auditory-model-store.js';
 import { makeAuditoryCapabilityService } from '../src/auditory-capability-service.js';
 import { makeWhisperHostQualifier } from '../src/whisper-host-qualification.js';
+import { makeAuditoryTranscriptionSpine } from '../src/auditory-transcription-spine.js';
+import { verifyTranscriptCoverage } from '../src/transcript-coverage.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -259,14 +261,15 @@ if (computerEnvironment.platform === 'darwin') {
   });
 }
 let auditoryCapabilityService = null;
+let auditoryScratchRoot = null;
 const whisperHost = computerEnvironment.platform === 'darwin'
   ? resolve(process.env.T5_WHISPER_HOST ?? join(dirname(process.execPath), 't5-whisper-host'))
   : windowsProduct?.whisperHost ?? null;
 if (whisperHost) {
   try {
     await accessFile(whisperHost, constants.X_OK);
-    const auditoryRoot = join(stateDir, 'auditory'); const scratchRoot = join(auditoryRoot, 'scratch');
-    await mkdir(scratchRoot, { recursive: true, mode: 0o700 }); await chmod(scratchRoot, 0o700);
+    const auditoryRoot = join(stateDir, 'auditory'); auditoryScratchRoot = join(auditoryRoot, 'scratch');
+    await mkdir(auditoryScratchRoot, { recursive: true, mode: 0o700 }); await chmod(auditoryScratchRoot, 0o700);
     const auditoryCatalog = loadAuditoryModelCatalog(JSON.parse(await readFile(
       join(scriptDirectory, '..', 'config', 'auditory-model-assets.json'), 'utf8',
     )));
@@ -274,11 +277,16 @@ if (whisperHost) {
       root: join(auditoryRoot, 'models'), catalog: auditoryCatalog,
     });
     auditoryCapabilityService = makeAuditoryCapabilityService({
-      store: auditoryModelStore, scratchRoot,
+      store: auditoryModelStore, scratchRoot: auditoryScratchRoot,
       qualifier: makeWhisperHostQualifier({ helper: whisperHost }),
     });
   } catch { /* auditory capability remains not prepared until packaged helper is exact */ }
 }
+const auditoryTranscriptionSpine = auditoryCapabilityService && audioRealityProbe && auditoryScratchRoot
+  ? makeAuditoryTranscriptionSpine({ capabilityService: auditoryCapabilityService,
+    decodeAudio: makeAudioDecode({ observe: audioRealityProbe, platform: computerEnvironment.platform,
+      ...(computerEnvironment.platform === 'win32' ? { converter: windowsProduct.audioRealityHelper } : {}) }),
+    processRegistry, helper: whisperHost, verifyCoverage: verifyTranscriptCoverage }) : null;
 let resolveRuntimeStopRequest;
 const runtimeStopReady = new Promise((resolveStop) => { resolveRuntimeStopRequest = resolveStop; });
 const server = makeConsoleServer({
@@ -313,6 +321,7 @@ const server = makeConsoleServer({
   ...(fileOcrProbe ? { fileOcrProbe } : {}),
   ...(audioRealityProbe ? { audioRealityProbe } : {}),
   ...(auditoryCapabilityService ? { auditoryCapabilityService } : {}),
+  ...(auditoryTranscriptionSpine ? { auditoryTranscriptionSpine, auditoryScratchRoot } : {}),
   messengerCredentialStore,
   fileActivityService,
   fileActivityRootSelector,
