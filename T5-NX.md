@@ -987,7 +987,7 @@ AND current correction·Stop·restart·Artifact·Undo 무회귀
 
 상세 개발 정본: `티파이브개발 연구/T5-NX2-GENERALIZED-MASTERY-DEVELOPMENT-PLAN.md`
 
-상태: `CURRENT · NX_1_COMPLETE · CURRENT_SLICE_NX2_1C_EXISTING_PATH`
+상태: `CURRENT · NX_1_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · CURRENT_SLICE_NX2_2_CX6_PRODUCT_INTEGRATION`
 
 NX-2는 아래 네 업무만 늘리는 단계가 아니다. GUI와 NX-1에 이미 흡수된 Reality·Method·Evidence 구조를 다시 만들지
 않고, 남은 연구를 다음 한 실행선으로 일반화한다.
@@ -996,6 +996,7 @@ NX-2는 아래 네 업무만 늘리는 단계가 아니다. GUI와 NX-1에 이�
 업무·lane 일반화
 → Context Diet & Interface Intelligence
 → Cognitive Flow·Practical Judgment 자격
+→ Selection-Scoped Side Exploration
 → Auditory Intelligence
 → Web Intelligence Collector
 → Naver Identity·Mail·Blog
@@ -1359,6 +1360,25 @@ AND Program/Project는 기능 test와 Browser actual use 성립
 AND 질문·교정·model/Tool rounds·tokens·wall이 baseline보다 비례적으로 개선
 AND 새 Store·업무 Router·provider Prompt fork·Runtime 의미 판정 0
 ```
+
+## NX-SE — Selection-Scoped Side Exploration — PLANNED_AFTER_NX2_3
+
+상세 계획: `티파이브개발 연구/T5-SELECTION-SIDE-EXPLORATION-RESEARCH.md`
+
+이 기능은 범용 Desktop GUI나 장식 패널이 아니다. 사용자가 canonical assistant message의 일부를 선택해 같은 T5와
+read-only로 좁게 탐색하고, 명시적으로 적용할 때만 current Work R+1 correction 또는 provenance가 있는 derived Work로
+승격하는 Cognitive Flow·Conversation·Work Continuity 기능이다.
+
+고정 순서:
+
+```text
+NX2-3 Cognitive Flow·Practical Judgment closeout
+→ NX2-SE exact anchor·side isolation·explicit apply·Work provenance·human HQ
+→ NX2-4 Auditory Intelligence
+```
+
+현재는 `PRODUCT_IMPLEMENTATION_NOT_OPEN`이다. NX2-SE 전에는 Console panel·CSS·endpoint·side event를 만들지 않는다.
+첫 RED는 Markdown·Unicode exact selection anchor와 completed source Work→derived Work provenance다.
 
 ## NX-3 — Experience Promotion
 

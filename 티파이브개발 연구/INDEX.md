@@ -24,6 +24,18 @@
 - 완료 기준: 기능 수가 아니라 Direct 무회귀와 실제 사용자 목적의 속도·정확성·결과 품질·교정·복구·인간 UX의
   clean second whole-flow PASS.
 
+## Selection-Scoped Side Exploration
+
+- 문서: `T5-SELECTION-SIDE-EXPLORATION-RESEARCH.md`
+- 상태: `RESEARCH_COMPLETE · MIGRATED_TO_NX_RESEARCH · NX2_SE_PLANNED · PRODUCT_IMPLEMENTATION_NOT_OPEN`
+- 위치: `NX2-3 Cognitive Flow·Practical Judgment` 종료 뒤, `NX2-4 Auditory Intelligence` 이전.
+- 사용자 가치: 긴 답의 일부를 선택해 원 대화와 현재 Work를 오염시키지 않고 같은 T5와 옆에서 깊게 탐색한 뒤,
+  명시적으로 선택한 내용만 exact target Work revision 또는 provenance가 있는 derived Work로 반영한다.
+- 첫 RED: Markdown·Unicode exact selection anchor와 completed Work→derived Work provenance.
+- 금지: 새 Agent·Memory·Method·Artifact Store, side branch의 자동 main Context 혼입, apply 전 Work/Effect/Artifact 변경,
+  화면만 먼저 만드는 CSS 구현.
+- 분류 교정: 이 기능은 범용 GUI가 아니라 Cognitive Flow·Conversation·Work Continuity 제품 기능이다.
+
 ## Context Diet & Interface Intelligence
 
 - 문서: `T5-CONTEXT-DIET-INTERFACE-INTELLIGENCE-RESEARCH.md`

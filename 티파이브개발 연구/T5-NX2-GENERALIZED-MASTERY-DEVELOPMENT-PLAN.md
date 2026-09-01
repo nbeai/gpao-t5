@@ -32,7 +32,6 @@ NX-1 완료 능력은 NX-2의 귀환선이다. NX-2 후보가 실패해도 NX-1 
 | 연구·기능 | 제외 이유 | 처리 |
 |---|---|---|
 | 범용 Computer Use·좌표 클릭·데스크톱 앱 조작 | 사용자가 명시적으로 GUI를 제외했고 별도 위험·물리 자격이 필요 | 독립 미래 Gate 유지 |
-| Selection Side Exploration 패널·선택 UI | GUI 제품선이며 NX-2의 성능·숙련 일반화와 별도 | 연구 보존, 구현 0 |
 | Console 시각 재설계·말풍선·대화 목록 디자인 | 6차 UX 제품선에서 이미 다룸 | 회귀만 확인 |
 | Document Reality·혼합 문서 Scout | NX-1의 Reality Closure와 Evidence Atom에 흡수 | 재개발 금지 |
 | Method Runtime·Integral Method 기본 계약 | NX-1의 Method·orchestration에 흡수 | 같은 계약 재사용 |
@@ -53,6 +52,7 @@ Computer Hand나 두 번째 브라우저 현실은 만들지 않는다.
 | `T5-COGNITIVE-FLOW-RESEARCH.md` | 표현 격차·비례 깊이·Tool/질문 편향·교정·자연스러운 중단 자격 |
 | `T5-PRACTICAL-JUDGMENT-RESEARCH.md` | 실천지능이 사용자 역량을 보완하되 획일화하지 않는 holdout |
 | `T5-COGNITIVE-FLOW-HQ-RESEARCH.md` | 상태 의존·정보 부족·교정·복구·다양성·장기 관계의 인간 HQ |
+| `T5-SELECTION-SIDE-EXPLORATION-RESEARCH.md` | exact 선택 문맥을 read-only로 탐색하고 명시적 apply만 Work revision으로 승격 |
 | `T5-AUDITORY-INTELLIGENCE-WHISPER-RESEARCH.md` | exact source·coverage를 가진 교차 플랫폼 청각기관 |
 | Web Intelligence Collector 실제 자격선 | 공개 웹 수집·구조화·coverage·재사용을 기존 Web/Browser 위에 결속 |
 | `T5-NAVER-IDENTITY-MAIL-BLOG-CAPABILITY-RESEARCH.md` | 한국 자영업자 핵심 계정·메일·블로그 실무 능력 |
@@ -184,11 +184,13 @@ NX-2는 새 거대 Engine을 만들지 않는다. 현재 T5 기관의 결속을 
 ```text
 NX2-0  NX-1 귀환선·연구 inventory 봉인 — COMPLETE
   ↓
-NX2-1  Integral Mastery 업무·lane 일반화 — CURRENT
+NX2-1  Integral Mastery 업무·lane 일반화 — CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT
   ↓
-NX2-2  Context Diet & Interface Intelligence
+NX2-2  Context Diet & Interface Intelligence — CURRENT
   ↓
 NX2-3  Cognitive Flow·Practical Judgment 자격
+  ↓
+NX2-SE Selection-Scoped Side Exploration
   ↓
 NX2-4  Auditory Intelligence
   ↓
@@ -213,10 +215,11 @@ NX2-HQ Competitive Whole Human Qualification
 | NX-2A Evidence Reuse & Exact-Head Baseline | NX2-0 종료 증거·NX2-1 baseline | COMPLETE |
 | NX-2B metadata-only Reality Scout 두 후보 | NX2-1 source selection 부정 증거 | CLOSED_REJECTED |
 | NX-2B2 model-selected bounded batch | NX2-1 qualification 관측·부정 증거 | PRODUCT_CANDIDATE_REJECTED |
-| NX-2C Existing Path Common Observer Delta | NX2-1 기존 경로의 실제 공통 미달 | CURRENT |
-| NX-2D Five-Lane Proportionality | NX2-1 일반화·무회귀 자격 | PENDING |
+| NX-2C Existing Path Common Observer Delta | NX2-1 기존 경로의 실제 공통 미달 | CLOSED_NO_COMMON_DELTA |
+| NX-2C0 First-Turn Reality Affordance Audit | NX2-1 model/provider 선택 한계 | CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT |
+| NX-2D Five-Lane Proportionality | NX2-1 일반화·무회귀 자격 | NOT_OPEN |
 
-현재 고정 순서:
+NX2-1 역사·종료 순서:
 
 ```text
 NX2-1C 기존 file_reality → bind_sources → integral_method actual trace
@@ -224,8 +227,14 @@ NX2-1C 기존 file_reality → bind_sources → integral_method actual trace
 → 매출·미수금·재고·계약 공통 자격
 → NX2-1D Direct·Single·Multi-source·Artifact·Program five-lane
 → NX2-1 closeout
-→ NX2-2 Context Diet & Interface Intelligence
+```
+
+현재 이후 고정 순서:
+
+```text
+NX2-2 Context Diet & Interface Intelligence — CX-6 CURRENT
 → NX2-3 Cognitive Flow & Practical Judgment
+→ NX2-SE Selection-Scoped Side Exploration
 → NX2-4 Auditory Intelligence
 → NX2-5 Web Intelligence Collector
 → NX2-6 Naver Identity·Mail·Blog
@@ -233,8 +242,8 @@ NX2-1C 기존 file_reality → bind_sources → integral_method actual trace
 → NX2-HQ Competitive Whole Human Qualification
 ```
 
-NX2-1C가 실패하면 같은 문구·업무별 규칙을 더하지 않고 NX-1 귀환선을 유지한다. 실패한 NX2-1을 건너뛰어 NX2-2
-이후 기능으로 목적 실패를 덮지 않는다. 반대로 NX2-1이 닫힌 뒤에는 현재 계획에 없는 새 Gate를 임의로 끼워 넣지 않는다.
+NX2-1은 모델/provider 선택 한계로 정직하게 봉인했고 미달을 NX2-3·NX2-HQ·향후 model qualification에 이월했다.
+NX2-2 이후 기능으로 그 실패를 성공처럼 덮지 않는다. 현재 계획에 없는 새 Gate를 임의로 끼워 넣지 않는다.
 
 별도 selection Tool·selection model call·selection→Reality→Human 3-model pipeline은 NX2-1의 제품 구조가 아니다.
 `129b1db4`의 model-selected batch는 qualification 관측으로만 보존하며, 현재 자연 경로의 실제 공통 observer gap이
@@ -550,6 +559,104 @@ AND 사용자 결정권 보존
 - 모든 업무에 상시 컨설팅 태도 발생
 - 단순 요청이 느려지거나 답이 딱딱해짐
 - 여러 유효 답이 하나의 오너식 결론으로 수렴
+
+---
+
+## 9.5 NX2-SE — Selection-Scoped Side Exploration
+
+상세 정본: `T5-SELECTION-SIDE-EXPLORATION-RESEARCH.md`
+
+### 사용자 완료 문장
+
+> 사용자는 T5의 긴 답에서 궁금한 부분만 선택해 원 대화와 현재 작업을 바꾸지 않고 같은 T5와 옆에서 더 깊게
+> 탐색한다. 탐색 결과 중 실제로 적용할 내용만 명시적으로 선택해 현재 Work 교정 또는 출처가 보존된 새 Work로
+> 연결하고, 적용하지 않은 가지는 이후의 기억·판단·실행에 섞이지 않는다.
+
+### 왜 NX2-3 뒤인가
+
+이 기능은 텍스트 선택 UI보다 Context isolation·현재 교정·Work revision·사용자 주체성이 핵심이다. NX2-3에서
+Cognitive Flow와 Practical Judgment 경계를 먼저 자격한 뒤 그 흐름을 사용자 주도 side branch로 연다. 반대로 Auditory·
+Web·Naver보다 먼저 Conversation·Work의 분기·반영 계약을 닫아 이후 감각·외부 작업도 같은 explicit apply 의미를
+재사용할 수 있게 한다.
+
+### 공통 구조
+
+```text
+canonical Conversation message
+→ immutable exact SelectionAnchor
+→ same-T5 read-only side projection
+→ side turn·progress·Stop·reconnect
+→ explicit Apply
+→ active R+1 / paused resume / completed derived Work
+→ 기존 execution·Artifact·Effect·Undo·Delivery
+```
+
+### 개발 Gate
+
+#### SE-0 — Current-head Product Delta 0 Baseline
+
+- current NX Conversation·Work·Context·Progress·Artifact·Undo 재감사
+- side 사용 0의 Direct·긴 답·busy Work bytes·wall 기준선
+- 참조 스크린샷은 interaction oracle로만 사용하고 CSS를 복제하지 않음
+
+#### SE-1 — Canonical Anchor & Read Model
+
+- exact messageId·sessionId·content digest·revision·start/end offset
+- Unicode grapheme·Markdown·code·table·streaming finalization
+- stale·cross-session·두 message selection 거부
+- ConversationLedger typed side events와 main-history 비혼입
+
+#### SE-2 — Same-T5 Read-only Exploration
+
+- same modelFactory·Interaction Core·runAgent
+- 선택 원문과 side 질문만 bounded high-signal Context
+- 첫 범위 Tool 0 explanation, 다음 범위 qualified read-only Hand만
+- Work·Effect·Artifact·Delivery·Memory write 0
+- side Stop과 main Work Stop 분리
+
+#### SE-3 — Explicit Apply & Work Provenance
+
+- apply 대상 Work/revision의 current identity 재검사
+- active/busy·active/idle은 exact R+1 correction
+- paused는 기존 resume
+- completed는 기본 derived Work와 source Work/revision/anchor provenance
+- same Work reopen은 별도 A/B 없이는 금지
+- apply two-phase exact-once·중복 클릭·ACK unknown·restart
+
+#### SE-4 — Read-only Source/Evidence Extension
+
+- 첫 제품 범위는 main Conversation text selection
+- 이후 exact document/page/cell/source anchor가 이미 존재하는 형식만 확장
+- selection 자체를 source 수정 권한으로 해석하지 않음
+
+#### SE-5 — Human HQ & Clean Second Pass
+
+- 긴 답의 한 문장 선택→side 질문 3회→main 무변경 확인
+- busy Work 중 side 탐색→main Stop 독립 확인
+- apply→R+1 또는 derived Work→실제 결과·Undo
+- reload·reconnect·backup/restore 후 dangling anchor 0
+- 좁은 창·keyboard·screen reader·한글·Markdown·dark theme
+- 첫 pass 수리 뒤 clean second whole-flow
+
+### 비목표·중단선
+
+- 새 Agent·persona·Memory·Method engine·Work/Artifact Store
+- side branch 자동 main Context·checkpoint·Experience 혼입
+- apply 전 실행·외부 effect·파일 변경
+- completed Work settlement를 덮어쓰는 same Work reopen
+- exact anchor와 provenance RED 전에 UI/CSS부터 구현
+- side 미사용 Direct에 bytes·model call·Tool call 추가
+
+### 합격식
+
+```text
+exact selection identity·stale rejection PASS
+AND side branch main Conversation/Work/Memory/Effect delta 0 before apply
+AND explicit apply exact target·revision·provenance·exact-once PASS
+AND existing execution·Artifact·Undo 경계 재사용
+AND side 미사용 Direct·Work 속도·Context 무회귀
+AND actual Console human flow·accessibility·clean second pass PASS
+```
 
 ---
 
