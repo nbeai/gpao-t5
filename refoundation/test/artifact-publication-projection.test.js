@@ -12,7 +12,7 @@ import { WorkStore } from '../src/work-store.js';
 
 const SESSION = '11111111-1111-4111-8111-111111111111';
 async function fixture({ existing = true, sourceProvenance = null, selectedVisual = false, selectedFile = false,
-  producedBatch = false } = {}) {
+  producedBatch = false, auditory = false } = {}) {
   const room = await mkdtemp(join(tmpdir(), 't5-artifact-publication-')); const workspace = join(room, 'workspace');
   await mkdir(workspace); const file = join(workspace, '결과.xlsx'); await writeFile(file, 'exact-bytes');
   const attachments = new AttachmentStore(join(room, 'attachments'));
@@ -29,8 +29,10 @@ async function fixture({ existing = true, sourceProvenance = null, selectedVisua
   if (sourceProvenance) result = { ...result, sourceProvenance };
   if (producedBatch) result = { state: 'published_verified_cleaned',
     outputHandoff: { state: 'artifacts_registered', outputCount: 1 }, artifacts: [result.artifact] };
+  if (auditory) result = { state: 'verified_transcript', coverage: { verified: true },
+    cleanup: 'verified', artifact: result.artifact };
   await writer.append({ type: 'tool_completed', payload: { receipt: { outcome: 'succeeded',
-    requestedCall: { name: producedBatch ? 'exec' : selectedVisual || selectedFile ? 'file_reality' : 'attachment', args: { action: selectedVisual
+    requestedCall: { name: auditory ? 'auditory' : producedBatch ? 'exec' : selectedVisual || selectedFile ? 'file_reality' : 'attachment', args: { action: auditory ? 'poll' : selectedVisual
       ? 'inspect' : selectedFile ? 'deliver' : existing ? 'register_existing_file' : 'register_output',
       filePath: file } }, result } } });
   await work.recordResultReady({ runId: writer.runId, sessionId: SESSION,
@@ -57,6 +59,16 @@ test('G protected exec batch가 직접 등록한 Artifact는 generated output �
   const publication = await adapter.materialize({ sessionId: SESSION, runId: f.writer.runId,
     attachmentId: f.result.artifacts[0].attachmentId });
   assert.equal(publication.classification, 'generated_output');
+});
+
+test('Auditory verified transcript Artifact는 generated output과 verified cleanup 영수증을 만든다', async () => {
+  const f = await fixture({ auditory: true }); const adapter = makeArtifactPublicationProductAdapter({
+    attachmentStore: f.attachments, runLedger: f.runs, workStore: f.work });
+  const publication = await adapter.materialize({ sessionId: SESSION, runId: f.writer.runId,
+    attachmentId: f.result.artifact.attachmentId });
+  assert.equal(publication.classification, 'generated_output');
+  assert.equal(publication.temporary.cleanup, 'verified');
+  assert.doesNotMatch(projectHumanArtifactReceipt(publication).unknowns.join(' '), /임시 파일/u);
 });
 
 test('file_reality가 exact visual inspect에서 등록한 선택 이미지는 기존 파일 영수증으로 materialize한다', async () => {

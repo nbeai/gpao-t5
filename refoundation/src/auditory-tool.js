@@ -27,8 +27,9 @@ export function makeAuditoryTool({ spine, attachmentStore, sessionId, runId, scr
     const published = await artifacts.publish({ sessionId, runId,
       messageId: `${runId}:auditory:${result.operationId}`, result,
       form: request.form, outputName: request.outputName });
-    await spine.cleanup({ ownerId: sessionId, operationId: result.operationId }); requests.delete(result.operationId);
-    return { ...projection(result), artifact: published.artifact, artifactForm: request.form };
+    const cleaned = await spine.cleanup({ ownerId: sessionId, operationId: result.operationId }); requests.delete(result.operationId);
+    return { ...projection(result), artifact: published.artifact, artifactForm: request.form,
+      cleanup: cleaned ? 'verified' : 'unknown' };
   }
   return { name: 'auditory',
     searchTerms: ['audio voice recording meeting transcription subtitle speech video 음성 녹음 회의 전사 자막'],

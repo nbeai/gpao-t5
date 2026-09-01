@@ -33,6 +33,11 @@ function classify({ receipt, artifact, produced, previous, run }) {
     && receipt.result?.outputHandoff?.state === 'artifacts_registered'
     && receipt.result?.artifacts?.some((item) => item.attachmentId === artifact.attachmentId
       && sameBytes(item, artifact))) return 'generated_output';
+  if (receipt.requestedCall?.name === 'auditory'
+    && receipt.result?.state === 'verified_transcript'
+    && receipt.result?.coverage?.verified === true
+    && receipt.result?.artifact?.attachmentId === artifact.attachmentId
+    && sameBytes(receipt.result.artifact, artifact)) return 'generated_output';
   if (receipt.requestedCall?.name === 'file_reality' && action === 'inspect'
     && receipt.result?.delivery?.state === 'registered_selected_visual'
     && receipt.result?.artifact?.attachmentId === artifact.attachmentId
@@ -82,7 +87,7 @@ function human(publication) {
   const unknowns = [];
   if (!publication.storage.exactReadback) unknowns.push('저장된 파일을 다시 여는 확인은 아직 하지 않았어요.');
   unknowns.push('화면에서 실제로 열리는지는 아직 확인하지 않았어요.');
-  unknowns.push('임시 파일 정리 상태는 아직 확인하지 않았어요.');
+  if (publication.temporary.cleanup !== 'verified') unknowns.push('임시 파일 정리 상태는 아직 확인하지 않았어요.');
   if (publication.publication.delivery === 'failed') unknowns.push(publication.storage.exactReadback
     ? '전달에 실패했어요. 확인한 파일은 T5에 보존되어 있어요.' : '전달에 실패했고 파일 보존도 확인이 필요해요.');
   if (publication.publication.delivery === 'unknown') unknowns.push('전달 여부를 확인하지 못했어요. 다시 보내기 전에 상태 확인이 필요해요.');
@@ -139,7 +144,11 @@ export function makeArtifactPublicationProductAdapter({ attachmentStore, runLedg
       const producedBatch = receipt.requestedCall?.name === 'exec'
         && receipt.result?.outputHandoff?.state === 'artifacts_registered'
         && ['published_verified_cleaned', 'published_verified_cleanup_unknown'].includes(receipt.result?.state);
-      if (receipt.outcome !== 'succeeded' || (!selectedVisual && !selectedFile && !producedBatch && (receipt.requestedCall?.name !== 'attachment'
+      const auditoryOutput = receipt.requestedCall?.name === 'auditory'
+        && receipt.result?.state === 'verified_transcript'
+        && receipt.result?.coverage?.verified === true
+        && receipt.result?.artifact?.attachmentId === attachmentId;
+      if (receipt.outcome !== 'succeeded' || (!selectedVisual && !selectedFile && !producedBatch && !auditoryOutput && (receipt.requestedCall?.name !== 'attachment'
         || !['register_existing_file', 'register_output'].includes(receipt.requestedCall?.args?.action)))) {
         throw new Error('qualified artifact registration receipt is required');
       }
@@ -184,7 +193,8 @@ export function makeArtifactPublicationProductAdapter({ attachmentStore, runLedg
         } : { verified: false, sourceCount: 0, purpose: null, unknowns: [] },
         temporary: { userWorkspaceCopiesCreated: classification === 'existing_file'
           && receipt.result?.publication?.managedCopy === true
-          ? receipt.result.publication.userWorkspaceCopiesCreated : null, cleanup: 'unknown' },
+          ? receipt.result.publication.userWorkspaceCopiesCreated : null,
+        cleanup: auditoryOutput && receipt.result?.cleanup === 'verified' ? 'verified' : 'unknown' },
         rollback: { available: null, kind: 'unknown' } };
       const publication = deepFreeze({ ...core, state: exactReadback && linked && included
         && core.publication.surfacePersisted ? core.publication.delivery === 'succeeded' ? 'delivered'

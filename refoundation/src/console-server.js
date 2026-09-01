@@ -2602,6 +2602,16 @@ export function makeConsoleServer({
             });
             publishProgress('tool_progress', toolProgressText(event.name, event.args), 'tool');
           } else if (event.type === 'tool_end') {
+            const auditoryArtifact = event.receipt.requestedCall?.name === 'auditory'
+              && event.receipt.outcome === 'succeeded' ? event.receipt.result?.artifact : null;
+            if (auditoryArtifact?.attachmentId && auditoryArtifact.direction === 'output'
+              && Number.isSafeInteger(auditoryArtifact.bytes)
+              && /^[a-f0-9]{64}$/u.test(String(auditoryArtifact.sha256 ?? ''))) {
+              await run.append({ type: 'output_produced', stepId: `output-${auditoryArtifact.attachmentId}`,
+                payload: { name: auditoryArtifact.originalName, bytes: auditoryArtifact.bytes,
+                  sha256: auditoryArtifact.sha256, producerRunId: run.runId,
+                  verified: true, reopened: true, attachmentId: auditoryArtifact.attachmentId } });
+            }
             if (event.receipt.result?.outputHandoff?.state === 'artifacts_registered') {
               for (const [index, output] of (event.receipt.result.outputs ?? []).entries()) {
                 const artifact = event.receipt.result.artifacts?.[index];
