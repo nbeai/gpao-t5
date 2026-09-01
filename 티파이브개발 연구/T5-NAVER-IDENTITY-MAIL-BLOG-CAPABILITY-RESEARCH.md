@@ -534,6 +534,11 @@ model 5·Tool 4로 반환했으며 본문 open/click·읽음 변경 action은 0�
 분리한다. 다음 Mail search/open/attachment에서는 새 Hand를 만들기 전에 현재 Browser observation의 bounded projection을
 사용한다.
 
+제목 조건 검색도 실제 Console에서 약 26.1초·model 5·Tool 4로 PASS했고 본문 open·읽음 변경 action은 0이었다.
+두 실행 모두 Browser wire가 shown text 밖 ref와 반복 ancestor chain까지 보내는 공통 결함을 보였다. 제품 후보는 모델에
+보이는 text에 실제 등장한 ref만 compact 투영하고, 전체 exact ref/context는 local action registry에 그대로 보존한다.
+Browser action·modal·download·upload·login 집중 회귀 36/36을 통과했다.
+
 ### NV-4 — Mail Draft & Send
 
 - draft preview

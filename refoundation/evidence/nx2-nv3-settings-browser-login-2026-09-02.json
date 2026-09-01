@@ -64,7 +64,18 @@
       "largestProviderRequestBytes": 368657,
       "performanceObservation": "full Browser snapshot projected roughly 300 KB of tool result; correctness passed but economy is not qualified"
     },
-    "consoleDelivery": "PASS — exact answer text was present in the canonical Console Session"
+    "consoleDelivery": "PASS — exact answer text was present in the canonical Console Session",
+    "mailSearchActual": {
+      "runId": "6b19ebcf-88a9-4d1c-9bac-5a062a1e985a",
+      "result": "PASS",
+      "modelTurns": 5,
+      "toolCalls": 4,
+      "wallMsApprox": 26100,
+      "mailBodyOpened": false,
+      "readStateMutationAction": false
+    },
+    "browserWireCandidate": "project only refs named in the shown text and omit repeated ancestor chains from provider wire while retaining the full exact facts in the local action registry",
+    "browserWireFocusedTests": "36/36 pass"
   },
   "nonClaims": [
     "Mail folder/search/open/attachment is not yet qualified on the actual owner account.",

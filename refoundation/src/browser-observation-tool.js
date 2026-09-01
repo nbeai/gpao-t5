@@ -38,6 +38,12 @@ function observationResult(driver, value, maxChars, registry) {
   for (const fact of Object.values(refs)) {
     if (fact?.context?.modal === true) fact.context.documentRevision = observationId;
   }
+  const shownRefIds = new Set([...shown.matchAll(/\[ref=([^\]\s]+)\]/gu)].map((match) => match[1]));
+  const publicRefs = Object.fromEntries(Object.entries(refs).filter(([id]) => shownRefIds.has(id)).map(([id, fact]) => {
+    const context = fact?.context ? Object.fromEntries(['modal', 'modalId', 'controlId', 'frameId']
+      .flatMap((key) => fact.context[key] == null ? [] : [[key, fact.context[key]]])) : undefined;
+    return [id, { ...fact, ...(context ? { context } : {}), ...(fact?.context && !context ? { context: undefined } : {}) }];
+  }));
   const result = {
     state: 'observed', effect: 'observe', profile: profileOf(driver),
     tab: structuredClone(value.tab),
@@ -49,7 +55,7 @@ function observationResult(driver, value, maxChars, registry) {
       observationId, text: shown, totalChars, shownChars: shown.length,
       truncated: value?.snapshot?.truncated === true || totalChars > shown.length,
       omittedChars: Math.max(0, totalChars - shown.length),
-      refs,
+      refs: publicRefs, refsOmitted: Math.max(0, Object.keys(refs).length - Object.keys(publicRefs).length),
       editables: structuredClone(value?.snapshot?.editables ?? []),
       refScope: {
         observationId, tabId: value?.tab?.tabId ?? null,
@@ -58,7 +64,7 @@ function observationResult(driver, value, maxChars, registry) {
       trust: 'untrusted_external', instructionAuthority: 'none',
     },
   };
-  registry.remember(result.observation);
+  registry.remember({ ...result.observation, refs });
   return result;
 }
 
