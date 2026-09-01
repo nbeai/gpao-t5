@@ -1,0 +1,25 @@
+{
+  "schema": "t5.nx2.au5a-transcript-artifact.v1",
+  "recordedOn": "2026-09-01",
+  "baseCommit": "3d5d9ed6",
+  "status": "AU5A_COMPLETE_AU5_DERIVED_RESULT_CURRENT",
+  "actual": {
+    "transcriptState": "verified_transcript",
+    "artifactState": "published",
+    "name": "회의-자막.srt",
+    "bytes": 127,
+    "reopenedBytes": 127,
+    "artifactVersion": 1,
+    "sourceChanged": false
+  },
+  "contracts": {
+    "requestedSingleFormOnly": true,
+    "unverifiedArtifactCount": 0,
+    "coverageRejectedArtifactCount": 0,
+    "correctionPreservesRawV1": true,
+    "correctionCreatesV2": true,
+    "runtimeTimestampRewrite": 0
+  },
+  "verification": { "focusedPassed": 17, "focusedFailed": 0 },
+  "next": { "gate": "AU-5 derived meeting result and AU-6 natural activation" }
+}

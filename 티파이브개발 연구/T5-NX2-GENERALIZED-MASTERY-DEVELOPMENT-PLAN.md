@@ -779,6 +779,13 @@ source 범위·monotonicity·overlap을 검증한다. actual 한국어 음성은
 - exact quote와 요약 분리
 - 사용자가 요구한 형식만 발행
 
+현재 slice: `AU5A_TRANSCRIPT_ARTIFACT_COMPLETE`. verified transcript만 요청된 단일 TXT·SRT·VTT 형식으로
+기존 Attachment family에 등록한다. coverage rejected/unverified는 Artifact 0이며 사용자 교정본은 raw v1을 덮지
+않고 같은 family v2다. actual 한국어 전사는 `회의-자막.srt` v1 127 bytes로 등록·exact reopen됐다. 후속 회의록·
+결정·할 일의 모델 결과와 Console 자연 활성은 아직 AU-5/6 CURRENT다.
+
+근거: `refoundation/evidence/nx2-au5a-transcript-artifact-2026-09-01.json`.
+
 #### AU-6 — Natural Activation & Channels
 
 - local attachment·Telegram media·기존 파일의 같은 계약
