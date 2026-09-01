@@ -1,7 +1,7 @@
 # T5 실천지능 연구 — 사용자 역량 격차를 줄이되 T5를 획일화하지 않기
 
 기록일: 2026-08-30
-상태: `RESEARCHED · RIGIDITY_RISK_EXPLICIT · NOT_APPROVED_FOR_PRODUCT_ADOPTION`
+상태: `RESEARCHED · RIGIDITY_RISK_EXPLICIT · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NOT_ADOPTED`
 
 ## NX-2 공통 승격 계약
 
@@ -367,3 +367,8 @@ AND current correction 우선
 오너의 말투·답변 형식은 복제하지 않는다.
 비개입·다양성·current user 우선을 증명하지 못하면 폐기한다.
 ```
+
+NX2-3 실제 CF-0에서는 과거 qualification-only Lens가 sales·receivables를 회복하지 못하고 inventory에서도 불필요한
+Evidence를 열었던 부정 증거를 재사용했다. 새 Lens를 만들지 않고 `PRODUCT_CHANGE_0`으로 닫았다.
+
+근거: `refoundation/evidence/nx2-cf0-cognitive-flow-baseline-2026-09-01.json`.

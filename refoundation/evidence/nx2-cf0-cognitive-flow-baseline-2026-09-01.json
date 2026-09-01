@@ -1,0 +1,70 @@
+{
+  "schema": "t5.nx2.cf0-cognitive-flow-baseline.v1",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "801de191",
+  "status": "NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT",
+  "productChanges": 0,
+  "actualUserData": false,
+  "externalWrites": 0,
+  "evidenceReuse": {
+    "files": [
+      "refoundation/evidence/s6-ng3a-expression-gap-2026-08-31.json",
+      "refoundation/evidence/nx2-existing-path-common-observer-trace-2026-09-01.json",
+      "refoundation/evidence/nx2-first-turn-reality-affordance-audit-2026-09-01.json",
+      "refoundation/evidence/nx2-reality-affordance-contract-candidate-2026-09-01.json"
+    ],
+    "liveRerun": false,
+    "reason": "CX-6 changed only attachment instruction ownership; File Reality, tool_search, Work admission, and the ordinary/expert mission axes did not change"
+  },
+  "cf0": {
+    "model": "gpt-5.5",
+    "provider": "chatgpt_oauth",
+    "repeatedFailureFamily": "ordinary_expression_proportional_source_and_depth_selection",
+    "ordinary": {
+      "sales": { "sourceEntered": false, "modelCalls": 1, "toolCalls": 0 },
+      "receivables": { "sourceEntered": false, "modelCalls": 1, "toolCalls": 0 },
+      "inventory": { "sourceEntered": false, "modelCalls": 1, "toolCalls": 0 }
+    },
+    "expert": {
+      "sales": { "sourceEntered": true, "coreNumbersCorrect": true },
+      "receivables": { "sourceEntered": true, "strictPass": true },
+      "inventory": { "sourceEntered": true, "strictPass": true }
+    },
+    "directPositiveControl": { "passed": true, "modelCalls": 1, "toolCalls": 0, "wallMs": 2122 },
+    "runtimeInformationGapProven": false,
+    "modelJudgmentQualityObserved": true
+  },
+  "candidateHistory": [
+    {
+      "candidate": "qualification-only Practical Judgment Lens",
+      "source": "s6-ng3a-expression-gap-2026-08-31.json",
+      "result": "REJECTED",
+      "reason": "sales and receivables still failed; inventory still opened unrelated evidence"
+    },
+    {
+      "candidate": "purpose-centered existing tool_search affordance contract",
+      "source": "nx2-reality-affordance-contract-candidate-2026-09-01.json",
+      "result": "REJECTED",
+      "reason": "sales and inventory source entry stayed at zero; receivables scope failed"
+    }
+  ],
+  "boundaries": {
+    "thirdCandidateOpened": false,
+    "newPrompt": 0,
+    "newRouter": 0,
+    "newStore": 0,
+    "newSelectionModel": 0,
+    "cfHqExecuted": false,
+    "cfHqReason": "no adopted Cognitive Flow product candidate"
+  },
+  "gateDecision": {
+    "cf0Complete": true,
+    "nx2_3Status": "CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT",
+    "carryTo": ["NX2-HQ", "future model qualification"],
+    "currentT5Preserved": true
+  },
+  "next": {
+    "gate": "NX2-SE Selection-Scoped Side Exploration",
+    "productImplementationOpen": true
+  }
+}

@@ -2,7 +2,7 @@
 
 기록일: 2026-08-30
 최초 종합 기준 head: `c96cc1b1`
-상태: `SYNTHESIS_COMPLETE · EXTERNAL_RESEARCH_MAPPED · PRODUCT_IMPLEMENTATION_NOT_OPEN`
+상태: `SYNTHESIS_COMPLETE · EXTERNAL_RESEARCH_MAPPED · NX2_CF0_COMPLETE · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · PRODUCT_CHANGE_0`
 
 ## NX-2 공통 승격 계약
 
@@ -1033,3 +1033,17 @@ release 이후 CF-0부터 시작한다.
 현재 T5가 충분하면 변경 0으로 닫는다.
 유연성·사용자 주체성·다양성을 증명하지 못하면 폐기한다.
 ```
+
+## 24. NX2-3 실제 종료 — 2026-09-01
+
+기존 exact-head 증거를 재계산한 CF-0에서 매출·미수금·재고 일반 표현은 모두 source 진입 전 종료했고, 전문가 표현은
+같은 File Reality에 진입했다. 첫 provider wire·Tool·Runtime·Work admission은 사용자 원문 외 동일해 Runtime 정보 누락은
+증명되지 않았다.
+
+qualification-only Practical Lens와 기존 tool_search 목적 중심 affordance 두 후보도 sales·receivables·inventory의
+목적 결과를 함께 회복하지 못해 이미 폐기됐다. 같은 가족의 세 번째 Prompt·Lens·metadata patch는 열지 않는다.
+
+따라서 NX2-3는 `CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · PRODUCT_CHANGE_0`으로 봉인한다. 후보가 없으므로 CF-HQ는
+실행하지 않고 미달을 NX2-HQ·향후 model qualification에 이월한다.
+
+근거: `refoundation/evidence/nx2-cf0-cognitive-flow-baseline-2026-09-01.json`.

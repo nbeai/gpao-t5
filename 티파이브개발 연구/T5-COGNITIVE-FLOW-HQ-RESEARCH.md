@@ -1,7 +1,7 @@
 # T5 Cognitive Flow HQ 연구 — 자연스러운 인간–AI 동반 지능을 어떻게 증명할 것인가
 
 기록일: 2026-08-30
-상태: `RESEARCHED · EXTERNAL_EVAL_PRINCIPLES_MAPPED · EXECUTION_NOT_OPEN`
+상태: `RESEARCHED · EXTERNAL_EVAL_PRINCIPLES_MAPPED · NX2_CF0_COMPLETE · NOT_EXECUTED_NO_PRODUCT_CANDIDATE`
 
 ## NX-2 공통 승격 계약
 
@@ -884,3 +884,6 @@ CF-0 실패와 제품 후보가 없으면 열지 않는다.
 > 문제와 목표를 설명해도 T5가 필요한 현실을 보고, 적절한 판단과 행동을 선택하며, 사용자와 세계의 변화에 맞춰
 > 방향을 바꾸고, 실제 결과를 만들어 충분할 때 멈추는 것이다. 동시에 사용자의 판단·표현·창의성을 한 가지
 > 정답과 템플릿으로 수렴시키지 않아야 한다.
+
+NX2-3에서는 두 기존 후보가 모두 폐기돼 제품 candidate가 남지 않았다. 이 문서의 실행 조건에 따라 CF-HQ를 열지
+않았으며, 표현 격차는 NX2-HQ·향후 model qualification의 정직한 관측으로 남긴다.
