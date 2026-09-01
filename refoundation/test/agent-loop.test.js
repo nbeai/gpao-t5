@@ -521,3 +521,22 @@ test('검증된 무진전 차단 영수증 뒤에도 같은 호출을 고집하�
   );
   assert.equal(executed, 2);
 });
+
+test('신뢰된 Tool 결과가 밝힌 exact 후속 Hand는 추가 tool_search 없이 다음 turn에 열린다', async () => {
+  let turn = 0;
+  const attachment = { name: 'attachment', description: 'inspect attachment', parameters: { type: 'object' },
+    activateToolsFromResult: (result) => result?.observation?.availableThrough === 'auditory' ? ['auditory'] : [],
+    async execute() { return { state: 'capability_boundary', observation: {
+      kind: 'audio', availableThrough: 'auditory', reason: 'auditory_transcription_available',
+    } }; } };
+  const auditory = { name: 'auditory', description: 'transcribe audio', deferred: true,
+    parameters: { type: 'object' }, async execute() { return { state: 'verified_transcript' }; } };
+  const model = { async respond(input) { turn += 1;
+    if (turn === 1) { assert.deepEqual(input.tools.map((tool) => tool.name), ['attachment']);
+      return { text: '', toolCalls: [{ id: 'inspect', name: 'attachment', args: {} }] }; }
+    assert.equal(input.tools.some((tool) => tool.name === 'auditory'), true);
+    return { text: '후속 Hand를 찾았습니다.', toolCalls: [] };
+  } };
+  const result = await runAgent({ request: '음성을 전사해줘', model, tools: [attachment, auditory] });
+  assert.equal(result.answer, '후속 Hand를 찾았습니다.'); assert.equal(turn, 2);
+});

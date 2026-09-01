@@ -316,6 +316,8 @@ export function makeAttachmentTool({
   const documentPageSelections = new Map();
   const tool = {
     name: 'attachment',
+    activateToolsFromResult: (result) => result?.observation?.availableThrough === 'auditory'
+      ? ['auditory'] : [],
     completionProposalOptional: (args = {}) => [
       'list', 'inspect', 'search_document', 'reopen_document_pages',
     ].includes(args.action),

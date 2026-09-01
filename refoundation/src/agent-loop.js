@@ -792,8 +792,15 @@ export async function runAgent({
       transcript.push(currentToolMessage);
       compactSupersededBrowserMessages(transcript, receipt);
       if (visualAttachments.length) transcript.push(visualObservationMessage(receipt, visualAttachments));
+      const resultActivations = registry.get(requested.name)?.activateToolsFromResult?.(
+        receipt.result, requested.args, receipt,
+      ) ?? [];
+      if (!Array.isArray(resultActivations)) throw new Error('tool result activations must be an array');
+      const requestedActivations = [...new Set([
+        ...(receipt.result?.activatedTools ?? []), ...resultActivations.map(String),
+      ])];
       const acceptedActivations = [];
-      for (const name of receipt.result?.activatedTools ?? []) {
+      for (const name of requestedActivations) {
         const candidate = registry.get(name);
         if (candidate && !completedTools.has(name)
           && !completedCapabilityGroups.has(candidate.capabilityGroup)) {
@@ -807,7 +814,7 @@ export async function runAgent({
         }
         requiredNextTool = required;
       }
-      if (Array.isArray(receipt.result?.activatedTools)) {
+      if (requestedActivations.length || Array.isArray(receipt.result?.activatedTools)) {
         receipt.result.activatedTools = acceptedActivations;
         if (Array.isArray(receipt.result.tools)) {
           receipt.result.tools = receipt.result.tools.filter((tool) => acceptedActivations.includes(tool.name));
