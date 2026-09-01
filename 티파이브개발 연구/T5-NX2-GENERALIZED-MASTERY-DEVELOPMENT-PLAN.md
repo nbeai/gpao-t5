@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_NOT_QUALIFIED · NX2_1C0_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CURRENT`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-1 — Integral Mastery Generalization · CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT`
+현재 제품 Gate: `NX2-2 — Context Diet & Interface Intelligence · CX-0 PROMPT SURFACE INVENTORY`
 
 ---
 
@@ -319,9 +319,15 @@ strict scope가 실패했다. 첫 세 목적 Gate가 실패했으므로 추가 �
 
 근거: `refoundation/evidence/nx2-reality-affordance-contract-candidate-2026-09-01.json`.
 
+오너는 gpt-5.5 일반 표현 source admission 한계를 현재 제품 현실로 수용했다. 추가 selection model·Router·업무 규칙·
+Prompt patch 없이 NX2-1을 봉인하고, 미달은 NX2-3·NX2-HQ·향후 model qualification에 이월한다. 다음 현재 Gate는
+NX2-2이며 `CX-0 Prompt Surface Inventory`부터 제품 변경 0으로 시작한다.
+
+근거: `refoundation/evidence/nx2-1-owner-acceptance-and-context-diet-open-2026-09-01.json`.
+
 ---
 
-## 7. NX2-1 — Integral Mastery Generalization — CURRENT
+## 7. NX2-1 — Integral Mastery Generalization — CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT
 
 ### 사용자 완료 문장
 
@@ -389,7 +395,7 @@ AND 업무별 schema·Router·Prompt fork 0
 
 ---
 
-## 8. NX2-2 — Context Diet & Interface Intelligence
+## 8. NX2-2 — Context Diet & Interface Intelligence — CURRENT
 
 상세 정본: `T5-CONTEXT-DIET-INTERFACE-INTELLIGENCE-RESEARCH.md`
 

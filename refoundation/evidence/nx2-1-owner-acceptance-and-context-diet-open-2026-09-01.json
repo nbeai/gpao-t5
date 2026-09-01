@@ -1,0 +1,26 @@
+{
+  "schema": "t5.nx2.owner-transition.v1",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "b5b5542c92d7af902d984cbee44966bdd9978cbb",
+  "ownerDecision": {
+    "nx2_1Status": "CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT",
+    "acceptedReality": "gpt-5.5 ordinary-expression source admission limit",
+    "notAuthorized": [
+      "selection model",
+      "intent or business router",
+      "business rules",
+      "additional prompt patch"
+    ],
+    "carryForward": ["NX2-3", "NX2-HQ", "future model qualification"],
+    "returnLine": "ad3e685c"
+  },
+  "nextGate": {
+    "id": "NX2-2",
+    "name": "Context Diet & Interface Intelligence",
+    "currentSlice": "CX-0 Prompt Surface Inventory",
+    "productChangesAuthorized": 0,
+    "firstDeliverable": "context surface audit report, not a deletion diff"
+  },
+  "productSourceDelta": 0,
+  "status": "NX2_1_SEALED_NX2_2_CX0_OPEN"
+}

@@ -2,7 +2,7 @@
 
 기록일: 2026-09-01
 조사 기준: T5 NX `9e2daf0c`
-상태: `RESEARCH_COMPLETE · PRODUCT_IMPLEMENTATION_NOT_OPEN · OWNER_GATE_REQUIRED`
+상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · CX_0_CURRENT · PRODUCT_CHANGE_0`
 
 사용자 완료 문장:
 
@@ -10,8 +10,8 @@
 > 공급하고, 실행·권한·효과·복구는 Runtime이 맡는다. 그 결과 직접 대화는 더 빨리 시작되고 자연스러우며, 복합 작업은
 > 정확성과 회복력을 잃지 않고 더 적은 Context·왕복·비용으로 완료된다.
 
-이 문서는 현재 `T5-NX.md` Gate를 자동 변경하지 않는다. NX-1 Integral Outcome Method를 닫기 전 제품 instruction과
-provider wire를 수정하지 않는다.
+오너 결정으로 NX2-1이 `CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT`으로 봉인돼 NX2-2가 개통됐다. 현재 slice는
+제품 변경 0의 `CX-0 Prompt Surface Inventory`이며 제품 instruction과 provider wire는 아직 수정하지 않는다.
 
 ## NX-2 공통 승격 계약
 

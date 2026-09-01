@@ -26,3 +26,19 @@ test('Context Diet 연구는 NX-1과 분리된 비정본 연구로 색인된다'
   assert.match(index, /제품 변경 0의 전체 Context surface inventory/u);
   assert.match(index, /현재 NX-1을 중단하거나.*전역 Prompt를 수정하지 않는다/u);
 });
+
+test('오너 결정은 NX2-1 선택 한계를 수용하고 제품 변경 0의 CX-0만 연다', async () => {
+  const [nx, plan, research, evidence] = await Promise.all([
+    read('T5-NX.md'), read('티파이브개발 연구/T5-NX2-GENERALIZED-MASTERY-DEVELOPMENT-PLAN.md'),
+    read('티파이브개발 연구/T5-CONTEXT-DIET-INTERFACE-INTELLIGENCE-RESEARCH.md'),
+    read('refoundation/evidence/nx2-1-owner-acceptance-and-context-diet-open-2026-09-01.json').then(JSON.parse),
+  ]);
+  assert.equal(evidence.ownerDecision.nx2_1Status, 'CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT');
+  assert.equal(evidence.nextGate.currentSlice, 'CX-0 Prompt Surface Inventory');
+  assert.equal(evidence.nextGate.productChangesAuthorized, 0);
+  assert.equal(evidence.productSourceDelta, 0);
+  assert.match(nx, /NX_2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT/u);
+  assert.match(nx, /NX_2_2_CONTEXT_DIET_CURRENT/u);
+  assert.match(plan, /NX2_2_CONTEXT_DIET_CURRENT/u);
+  assert.match(research, /OWNER_GATE_OPEN · CX_0_CURRENT/u);
+});

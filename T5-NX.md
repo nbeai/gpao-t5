@@ -1,10 +1,10 @@
 # T5 NX — Integral Outcome, Mastery, Performance & Comparative Quality
 
-상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE · NX_2_MASTERY_GENERALIZATION_CURRENT`
+상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE · NX_2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX_2_2_CONTEXT_DIET_CURRENT`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
-현재 Gate: `NX2-1 INTEGRAL MASTERY GENERALIZATION · CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT`
-현재 작업: `NX2-1C0 단일 Tool-contract 후보 폐기 · 제품 delta 0 · NX-1 귀환선 유지 · 후속 Gate 미개통`
+현재 Gate: `NX2-2 CONTEXT DIET & INTERFACE INTELLIGENCE · CX-0 PROMPT SURFACE INVENTORY`
+현재 작업: `제품 변경 0 · Context surface bytes·owner·incident·countertest audit report`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -1243,6 +1243,23 @@ File Reality를 발견할 수 있는지 A/B한다. global Prompt·Router·metada
 `ad3e685c`를 유지한다. `NX2-1D`와 후속 Gate는 개통하지 않는다.
 
 근거: `refoundation/evidence/nx2-reality-affordance-contract-candidate-2026-09-01.json`.
+
+2026-09-01 오너 수용:
+
+- gpt-5.5 일반 표현 source admission 한계를 현재 제품 현실로 수용한다.
+- 추가 selection model·Router·업무 규칙·Prompt patch는 만들지 않는다.
+- 미달은 NX2-3·NX2-HQ·향후 model qualification에 이월한다.
+- NX2-1은 `CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT`으로 봉인하고 NX2-2를 개통한다.
+
+근거: `refoundation/evidence/nx2-1-owner-acceptance-and-context-diet-open-2026-09-01.json`.
+
+### NX2-2 — Context Diet & Interface Intelligence — CURRENT
+
+상세 정본: `티파이브개발 연구/T5-CONTEXT-DIET-INTERFACE-INTELLIGENCE-RESEARCH.md`
+
+현재 slice는 제품 변경 0의 `CX-0 Prompt Surface Inventory`다. 첫 산출물은 삭제 diff가 아니라 system instruction·
+Interaction Core·Tool·Skill·Memory/Conversation·runtimeContext·provider wire·Human Closure surface의 bytes·owner·incident·
+countertest를 재계산한 audit report다.
 
 ### NX-2D — Five-Lane Proportionality — PENDING
 
