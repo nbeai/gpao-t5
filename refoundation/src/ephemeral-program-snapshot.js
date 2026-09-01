@@ -18,7 +18,11 @@ function inside(candidate, root) { const value = relative(root, candidate); retu
 async function makeWritable(directory) {
   try {
     const entries = await readdir(directory, { withFileTypes: true }); await chmod(directory, 0o700);
-    for (const entry of entries) if (entry.isDirectory()) await makeWritable(join(directory, entry.name));
+    for (const entry of entries) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) await makeWritable(path);
+      else if (entry.isFile()) await chmod(path, 0o600);
+    }
   } catch { /* cleanup remains best effort and is verified by absence */ }
 }
 

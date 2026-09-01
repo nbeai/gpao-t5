@@ -52,7 +52,7 @@ test('same-language Python은 frozen input을 scratch에서 처리하고 source 
     const result = await executePythonProgramQualification({ contract: contract(source), interpreter,
       sourceReader: reader(), processRegistry: new ManagedProcessRegistry({ platform: 'darwin' }),
       scratchRoot: join(root, 'scratch'), protectedReadRoots: [join(root, 'protected')] });
-    assert.equal(result.receipt.state, 'actual_output_unverified');
+    assert.equal(result.receipt.state, 'actual_output_unverified', JSON.stringify(result.receipt));
     assert.equal(result.receipt.translated, false);
     assert.equal(result.receipt.userTargetWrites, 0);
     assert.equal(result.receipt.networkDenied, true);

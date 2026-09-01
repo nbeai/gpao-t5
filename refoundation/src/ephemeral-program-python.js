@@ -33,6 +33,17 @@ function profile(scratch, protectedReadRoots) {
   ].join('\n');
 }
 
+function classifyProgramFailure(stderr) {
+  const value = String(stderr);
+  if (value.includes('T5_PYTHON_CAPSULE_BOUNDARY_DENIED')) return 'boundary_denied';
+  if (value.includes('T5_PYTHON_CAPSULE_PROGRAM_ERROR:')) return 'guest_program_error';
+  if (value.includes('sandbox_apply') && value.includes('Operation not permitted')) {
+    return 'sandbox_apply_not_permitted';
+  }
+  if (value.includes('sandbox-exec:')) return 'sandbox_initialization_failed';
+  return 'interpreter_failed';
+}
+
 async function filesBelow(root, maximum = 256) {
   const result = [];
   const visit = async (directory) => {
@@ -179,6 +190,7 @@ export async function executePythonProgramQualification({ contract: rawContract,
     if (current.state !== 'completed' || current.exitCode !== 0) return { execution: null, receipt: {
       state: 'actual_failed_no_effect', reason: 'program_failed', processExitCode: current.exitCode,
       boundaryDenied: stderr.includes('T5_PYTHON_CAPSULE_BOUNDARY_DENIED'),
+      failureClass: classifyProgramFailure(stderr),
       processBoundary: current.processBoundary ?? null, userTargetWrites: 0 } };
     if (sha256(await readFile(sourcePath)) !== contract.sourceSha256) {
       return { execution: null, receipt: { state: 'actual_failed_no_effect', reason: 'source_changed',
