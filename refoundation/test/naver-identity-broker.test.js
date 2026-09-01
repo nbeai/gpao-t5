@@ -20,6 +20,16 @@ test('동일 managed profile의 Mail·Blog actual observation만 하나의 authe
   assert.doesNotMatch(JSON.stringify(ready), /cookie|localStorage|\/Users\/|password|otp/iu);
 });
 
+test('Naver 공식 Blog Home redirect host도 같은 Blog identity의 readback이다', async () => {
+  const broker = makeNaverIdentityBroker({ profileHandle: 'default' });
+  broker.observeBrowserResult({ args: { action: 'navigate', url: 'https://mail.naver.com/' },
+    result: observed('https://mail.naver.com/v2/folders/0/all', '메일함') });
+  broker.observeBrowserResult({ args: { action: 'navigate', url: 'https://blog.naver.com/' },
+    result: observed('https://section.blog.naver.com/BlogHome.naver', '로그아웃 내 블로그 글쓰기') });
+  const result = await broker.inspect();
+  assert.equal(result.state, 'ready'); assert.equal(result.capabilities.blog_web, true);
+});
+
 test('authenticated 뒤 login_required는 expired이고 profile reset은 generation을 올린다', async () => {
   const broker = makeNaverIdentityBroker();
   broker.observeBrowserResult({ args: { action: 'navigate', url: 'https://mail.naver.com/' },

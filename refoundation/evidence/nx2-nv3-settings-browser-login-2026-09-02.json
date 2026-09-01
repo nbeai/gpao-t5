@@ -1,7 +1,7 @@
 {
   "schema": "t5.nx2-nv3-settings-browser-login-evidence.v1",
   "recordedAt": "2026-09-02T03:10:00+09:00",
-  "status": "PROFILE_READBACK_BEFORE_LOGIN_P1_REPAIRED_OWNER_RECHECK_PENDING",
+  "status": "ACTUAL_PROFILE_AUTHENTICATED_BLOG_HOST_P1_REPAIRED_OWNER_RECHECK_PENDING",
   "userPurpose": "Connect Naver once from Settings and use the same managed identity for Mail and Blog without separate credentials.",
   "adoptedPath": {
     "entry": "Settings > Tools and Connections > Naver Login",
@@ -43,7 +43,13 @@
       "improvement": "first-turn connection and direct Browser activation worked",
       "remainingCause": "the process-local broker restarted as unknown and performed login without first reading the existing persistent profile"
     },
-    "currentRepair": "unknown now probes Mail and Blog in the same managed profile first; only an actual Naver redirect opens user login"
+    "currentRepair": "unknown now probes Mail and Blog in the same managed profile first; only an actual Naver redirect opens user login",
+    "currentExactProfileProbe": {
+      "mail": { "host": "mail.naver.com", "path": "/v2/folders/0/all", "loginRequired": false },
+      "blog": { "host": "section.blog.naver.com", "path": "/BlogHome.naver", "loginRequired": false },
+      "secretOrCookieObserved": false
+    },
+    "blogIdentityRepair": "accept the actual Naver-controlled *.blog.naver.com Blog Home redirect as the same Blog service identity"
   },
   "nonClaims": [
     "Mail folder/search/open/attachment is not yet qualified on the actual owner account.",

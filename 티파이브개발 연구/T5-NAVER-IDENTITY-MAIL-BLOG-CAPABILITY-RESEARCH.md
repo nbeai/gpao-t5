@@ -518,6 +518,11 @@ process-local broker의 `unknown`을 실제 login absence로 확대해 로그인
 `unknown → same managed profile Mail·Blog read-only probe → actual Naver redirect일 때만 login`으로 교정했다. 이 후보가
 actual에서도 실패하면 같은 로그인 activation 방향에 조건을 더 붙이지 않고 NV-3 구조를 재판정한다.
 
+현재 공통 profile을 같은 제품 Host로 직접 read-only 재검사한 결과 Mail은 `mail.naver.com/v2/folders/0/all`, Blog는
+`section.blog.naver.com/BlogHome.naver`로 열렸고 login redirect는 둘 다 0이었다. 설정의 `로그인 필요`는 실제 logout이
+아니라 Broker가 Naver 공식 Blog Home redirect host를 Blog identity로 포함하지 않은 관측 결함이었다. Blog service
+경계를 Naver-controlled `*.blog.naver.com`으로 교정하고 해당 실제 반례를 고정했다.
+
 ### NV-4 — Mail Draft & Send
 
 - draft preview

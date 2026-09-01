@@ -14,6 +14,7 @@ function urlOf(value) {
     return ['http:', 'https:'].includes(url.protocol) ? url : null;
   } catch { return null; }
 }
+function isBlogHost(host) { return host === 'blog.naver.com' || host.endsWith('.blog.naver.com'); }
 function publicSnapshot(state) {
   return Object.freeze({ schema: 't5.naver-identity.v1', profileHandle: state.profileHandle,
     state: state.state, services: Object.freeze({ ...state.services }),
@@ -125,8 +126,7 @@ export function makeNaverIdentityBroker({ profileHandle = 'default', now = () =>
         services.mailWeb = loginRequired ? 'login_required'
           : result?.state === 'observed' ? 'ready' : state.services.mailWeb;
       }
-      if (requestedHost === 'blog.naver.com' || requestedHost === 'm.blog.naver.com'
-        || host === 'blog.naver.com' || host === 'm.blog.naver.com') {
+      if (isBlogHost(requestedHost) || isBlogHost(host)) {
         services.blogWeb = loginRequired || (/NAVER\s*로그인/u.test(text) && !/로그아웃/u.test(text))
           ? 'login_required' : result?.state === 'observed' && /로그아웃/u.test(text) && /글쓰기/u.test(text)
             ? 'ready' : state.services.blogWeb;
