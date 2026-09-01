@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED · NX2_5_WC0_TO_WC4_COMPLETE · NX2_5_WC_HQ_CLOSED_WITH_CROSS_HAND_ECONOMY_OBSERVATION · NX2_6_NV0_COMPLETE · NX2_6_NV1_CURRENT`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED · NX2_5_WC0_TO_WC4_COMPLETE · NX2_5_WC_HQ_CLOSED_WITH_CROSS_HAND_ECONOMY_OBSERVATION · NX2_6_NV0_COMPLETE · NX2_6_NV1_COMPLETE · NX2_6_NV1R_COMPLETE · NX2_6_NV2_CURRENT`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-6 NV-1 — Login Persistence Opposing Test`
+현재 제품 Gate: `NX2-6 NV-2 — Naver Identity Broker`
 
 ---
 
@@ -1053,6 +1053,16 @@ contract로 고정했다. profile이 다르거나 cookie·secret을 관측하거
 실제 Naver 계정은 자동 시험하지 않았고 제품 변경은 0이다.
 
 근거: `refoundation/evidence/nx2-nv1-login-persistence-contract-2026-09-02.json`.
+
+실제 결과: `PASS`. 로그인 상태 유지 미선택 A는 clean restart 뒤 Mail·Blog 모두
+`login_required`, 선택 B는 같은 profile·restart 뒤 둘 다 `ready`였다. cookie·secret 관측과 외부 write는 0이다.
+다만 B restart 직후 첫 read-only 요청이 stale queued Work identity와 orphan provider function-call output으로 한 번
+중단됐다. 실행·효과 0 확인 뒤 같은 read-only probe를 재개해 성공했다. NV-1R에서 canonical ledger 순서는 보존하되
+Responses provider wire가 function output을 exact call 바로 뒤에 배치하도록 수리했다. ChatGPT OAuth·OpenAI Responses
+반대시험 30/30과 같은 실제 state의 재시작 첫 요청을 통과했다.
+
+근거: `refoundation/evidence/nx2-nv1-login-persistence-actual-2026-09-02.json`.
+수리 근거: `refoundation/evidence/nx2-nv1r-restart-provider-continuity-2026-09-02.json`.
 
 #### NV-2 — Naver Identity Broker
 

@@ -3,7 +3,7 @@
   "recordedOn": "2026-09-02",
   "gate": "NX2-6 NV-1 LOGIN PERSISTENCE OPPOSING TEST",
   "contract": "QUALIFIED",
-  "actualNaverAccountRun": "PENDING_OWNER_CONTROLLED_CONSOLE",
+  "actualNaverAccountRun": "COMPLETED_OWNER_CONTROLLED_CONSOLE",
   "requiredRounds": ["keep_signed_in_not_selected", "keep_signed_in_selected"],
   "sameManagedProfileRequired": true,
   "requiredReadback": ["mailWeb", "blogWeb"],
@@ -14,7 +14,6 @@
   },
   "productChanges": 0,
   "nonClaims": [
-    "Naver login persistence actual PASS",
     "Naver Identity Broker",
     "Mail protocol connection",
     "Windows physical qualification"

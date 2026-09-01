@@ -390,6 +390,49 @@ test('ChatGPT OAuth adapter는 SSE function call과 결과를 같은 call_id로 
   assert.ok(requests.every((request) => !JSON.stringify(request.body).includes(ACCESS)));
 });
 
+test('재시작 canonical rebuild는 실행 중 도착한 user보다 function output을 exact call 뒤에 배치한다', async () => {
+  const requests = [];
+  const model = makeChatGptResponsesModel({
+    credentials: { async get() { return {
+      access: ACCESS, accountId: 'acct-7', modelId: 'gpt-account-model', expiresAt: Date.now() + 600_000,
+    }; } },
+    fetchImpl: async (_url, init) => {
+      requests.push(JSON.parse(init.body));
+      return sseResponse([{ type: 'response.completed', response: {
+        id: 'restart-ok', model: 'gpt-account-model', output: [{ type: 'message', role: 'assistant',
+          content: [{ type: 'output_text', text: '재시작 뒤 이어졌습니다.' }] }],
+      } }]);
+    },
+  });
+  await model.respond({ messages: [
+    { role: 'user', content: '처음 요청' },
+    { role: 'assistant', content: '', toolCalls: [{ id: 'running-call', name: 'exec',
+      args: { command: 'observe', cwd: null } }] },
+    { role: 'user', content: '실행 중 교정' },
+    { role: 'tool', toolCallId: 'running-call', name: 'exec', content: '{"state":"observed"}' },
+  ], tools: [execDefinition] });
+  assert.deepEqual(requests[0].input, [
+    { type: 'message', role: 'user', content: [{ type: 'input_text', text: '처음 요청' }] },
+    { type: 'function_call', call_id: 'running-call', name: 'exec',
+      arguments: '{"command":"observe","cwd":null}' },
+    { type: 'function_call_output', call_id: 'running-call', output: '{"state":"observed"}' },
+    { type: 'message', role: 'user', content: [{ type: 'input_text', text: '실행 중 교정' }] },
+  ]);
+});
+
+test('재시작 canonical history의 orphan function output은 provider 전송 전에 닫힌다', async () => {
+  let fetched = 0;
+  const model = makeChatGptResponsesModel({
+    credentials: { async get() { return { access: ACCESS, modelId: 'gpt-account-model' }; } },
+    fetchImpl: async () => { fetched += 1; throw new Error('must not fetch'); },
+  });
+  await assert.rejects(() => model.respond({ messages: [
+    { role: 'user', content: '이어가' },
+    { role: 'tool', toolCallId: 'orphan-call', name: 'exec', content: '{"state":"observed"}' },
+  ], tools: [execDefinition] }), /function output is orphaned/u);
+  assert.equal(fetched, 0);
+});
+
 test('ChatGPT OAuth adapter는 response.failed를 빈 정상 답으로 바꾸지 않는다', async () => {
   const credentials = { async get() { return {
     access: ACCESS, accountId: 'acct-7', modelId: 'gpt-account-model', expiresAt: Date.now() + 600_000,

@@ -7,7 +7,7 @@ const read = (path) => readFile(new URL(path, root), 'utf8');
 
 test('Naver 연구는 하나의 identity에서 Mail protocol과 Blog Browser를 분리한다', async () => {
   const plan = await read('티파이브개발 연구/T5-NAVER-IDENTITY-MAIL-BLOG-CAPABILITY-RESEARCH.md');
-  assert.match(plan, /RESEARCH_COMPLETE · OWNER_GATE_OPEN · NV0_COMPLETE · NV1_CURRENT · PRODUCT_IMPLEMENTATION_NOT_OPEN/u);
+  assert.match(plan, /RESEARCH_COMPLETE · OWNER_GATE_OPEN · NV0_COMPLETE · NV1_COMPLETE · NV1R_COMPLETE · NV2_CURRENT · PRODUCT_IMPLEMENTATION_GATE_OPEN/u);
   assert.match(plan, /Naver Identity Broker[\s\S]*Naver Mail Protocol Hand[\s\S]*Naver Blog Browser Hand/u);
   assert.match(plan, /imap\.naver\.com:993/u);
   assert.match(plan, /smtp\.naver\.com:587/u);

@@ -238,6 +238,29 @@ test('새 Responses adapter는 이전 Run의 function call과 output을 첫 요�
   assert.deepEqual(observedContexts, [response.contextReceipt]);
 });
 
+test('OpenAI 재시작 rebuild도 실행 중 user보다 exact function output을 call 뒤에 배치한다', async () => {
+  const requests = [];
+  const model = makeOpenAIResponsesModel({ apiKey: SECRET, model: 'gpt-test',
+    fetchImpl: async (_url, init) => { requests.push(JSON.parse(init.body)); return jsonResponse({
+      id: 'ordered', model: 'gpt-test', output: [{ type: 'message', role: 'assistant',
+        content: [{ type: 'output_text', text: '이어졌습니다.' }] }],
+    }); } });
+  await model.respond({ messages: [
+    { role: 'user', content: '처음 요청' },
+    { role: 'assistant', content: '', toolCalls: [{ id: 'running-call', name: 'exec',
+      args: { command: 'observe', cwd: null } }] },
+    { role: 'user', content: '실행 중 교정' },
+    { role: 'tool', toolCallId: 'running-call', name: 'exec', content: '{"state":"observed"}' },
+  ], tools: [execDefinition] });
+  assert.deepEqual(requests[0].input, [
+    { role: 'user', content: '처음 요청' },
+    { type: 'function_call', call_id: 'running-call', name: 'exec',
+      arguments: '{"command":"observe","cwd":null}' },
+    { type: 'function_call_output', call_id: 'running-call', output: '{"state":"observed"}' },
+    { role: 'user', content: '실행 중 교정' },
+  ]);
+});
+
 test('OpenAI canonical rebuild는 opaque reasoning을 버리고 현재 canonical messages만 재구성한다', async () => {
   const requests = []; let call = 0;
   const model = makeOpenAIResponsesModel({ apiKey: SECRET, model: 'gpt-test',

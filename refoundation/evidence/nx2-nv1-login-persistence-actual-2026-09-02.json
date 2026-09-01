@@ -1,0 +1,57 @@
+{
+  "schema": "t5.nx2-nv1-actual-evidence.v1",
+  "recordedOn": "2026-09-02",
+  "sourceCommit": "7de607e4",
+  "status": "PASS",
+  "surface": "actual isolated T5 Console and owner-controlled Naver login",
+  "profile": {
+    "handle": "managed-profile-default",
+    "sameAcrossRounds": true,
+    "userChromeProfileControlled": false
+  },
+  "rounds": {
+    "withoutPersistence": {
+      "ownerChoice": "keep_signed_in_not_selected",
+      "beforeRestart": {"mailWeb":"ready","blogWeb":"ready"},
+      "cleanShutdown": true,
+      "runtimeRestarted": true,
+      "afterRestart": {"mailWeb":"login_required","blogWeb":"login_required"}
+    },
+    "withPersistence": {
+      "ownerChoice": "keep_signed_in_selected",
+      "beforeRestart": {"mailWeb":"ready","blogWeb":"ready"},
+      "cleanShutdown": true,
+      "runtimeRestarted": true,
+      "afterRestart": {"mailWeb":"ready","blogWeb":"ready"}
+    }
+  },
+  "privacyAndEffects": {
+    "cookieExported": false,
+    "secretObserved": false,
+    "mailBodyOpened": false,
+    "mailWrite": false,
+    "blogWrite": false,
+    "saved": false,
+    "published": false,
+    "externalEffects": 0
+  },
+  "observation": {
+    "firstPostCandidateRestartProbe": "interrupted_before_observation",
+    "firstProbeEffects": 0,
+    "safeReadOnlyResume": "passed",
+    "runtimeErrors": [
+      "queued input work identity is stale",
+      "provider function_call_output had no matching function call after restart"
+    ],
+    "repair": "nx2-nv1r-restart-provider-continuity-2026-09-02.json",
+    "postRepairSameStateRestartFirstRequest": "PASS",
+    "carryTo": ["NX2-HQ"]
+  },
+  "productChanges": 0,
+  "nonClaims": [
+    "Naver Identity Broker complete",
+    "Naver Mail protocol ready",
+    "mail send or blog publish qualified",
+    "Windows physical qualification"
+  ]
+}

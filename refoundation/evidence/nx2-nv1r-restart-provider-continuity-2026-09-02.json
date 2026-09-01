@@ -1,0 +1,33 @@
+{
+  "schema": "t5.nx2-nv1r-evidence.v1",
+  "recordedOn": "2026-09-02",
+  "gate": "NX2-6 NV-1R RESTART PROVIDER CONTINUITY",
+  "status": "COMPLETE",
+  "failure": {
+    "surface": "actual isolated T5 Console after clean Runtime restart",
+    "provider": "chatgpt_oauth",
+    "error": "function_call_output had no matching function call",
+    "canonicalOrder": ["assistant_function_call", "mid_run_user_message", "function_call_output"],
+    "externalEffects": 0
+  },
+  "repair": {
+    "canonicalLedgerOrderChanged": false,
+    "providerWireOrder": ["assistant_function_call", "function_call_output", "mid_run_user_message"],
+    "orphanOutput": "fail_closed_before_provider_dispatch",
+    "adapters": ["chatgpt_oauth", "openai_responses"]
+  },
+  "verification": {
+    "focusedTestsPassed": 30,
+    "focusedTestsFailed": 0,
+    "actualSameStateRestartFirstRequest": "PASS",
+    "actualMailWeb": "ready",
+    "actualBlogWeb": "ready",
+    "newLoginWindowOpened": false,
+    "externalWrites": 0
+  },
+  "nonClaims": [
+    "Anthropic, Gemini or Upstage use Responses function-call protocol",
+    "Naver Identity Broker complete",
+    "Windows physical qualification"
+  ]
+}

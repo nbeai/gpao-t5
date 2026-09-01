@@ -36,7 +36,22 @@ function imageInputs(message) {
 }
 
 function initialInput(messages) {
-  const items = [];
+  const items = []; const outputs = new Map(); const callIds = new Set();
+  for (const message of messages) {
+    if (message?.role === 'assistant') for (const call of message.toolCalls ?? []) {
+      const id = String(call.id ?? '');
+      if (!id || callIds.has(id)) throw new Error('canonical function call identity is invalid');
+      callIds.add(id);
+    }
+    if (message?.role === 'tool' && message.toolCallId) {
+      const id = String(message.toolCallId);
+      if (outputs.has(id)) throw new Error('canonical function output identity is duplicated');
+      outputs.set(id, message);
+    }
+  }
+  for (const id of outputs.keys()) {
+    if (!callIds.has(id)) throw new Error('canonical function output is orphaned');
+  }
   for (const message of messages) {
     if (message?.role === 'user' || message?.role === 'assistant') {
       const content = String(message.content ?? '');
@@ -50,19 +65,22 @@ function initialInput(messages) {
         });
       }
       for (const call of message.toolCalls ?? []) {
+        const callId = String(call.id ?? '');
         items.push({
-          type: 'function_call', call_id: String(call.id ?? ''), name: String(call.name ?? ''),
+          type: 'function_call', call_id: callId, name: String(call.name ?? ''),
           arguments: JSON.stringify(call.args ?? {}),
+        });
+        const output = outputs.get(callId);
+        if (output) items.push({
+          type: 'function_call_output', call_id: callId,
+          output: String(output.content ?? ''),
         });
       }
       continue;
     }
-    if (message?.role === 'tool' && message.toolCallId) {
-      items.push({
-        type: 'function_call_output', call_id: String(message.toolCallId),
-        output: String(message.content ?? ''),
-      });
-    }
+    // Provider protocol requires a function output immediately after its call.
+    // Canonical user messages can arrive while a Tool is running, so outputs are
+    // paired above without changing the append-only Conversation ordering.
   }
   return items;
 }

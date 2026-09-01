@@ -2,9 +2,10 @@
 
 기록일: 2026-09-01
 조사 기준: T5 NX `9e2daf0c` 및 과거 Naver 실제 설치본 증거
-상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · NV0_COMPLETE · NV1_CURRENT · PRODUCT_IMPLEMENTATION_NOT_OPEN`
+상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · NV0_COMPLETE · NV1_COMPLETE · NV1R_COMPLETE · NV2_CURRENT · PRODUCT_IMPLEMENTATION_GATE_OPEN`
 
-NV-1 현재 상태: `CONTRACT_COMPLETE · ACTUAL_OWNER_CONTROLLED_CONSOLE_PENDING`.
+NV-1 현재 상태: `COMPLETE`. A 미선택은 restart 뒤 Mail·Blog login_required, B 선택은 같은 profile·restart 뒤
+둘 다 ready였다. 실제 여정에서 발견된 restart provider continuity P1도 NV-1R에서 수리·실제 재자격했다.
 사용자 완료 문장:
 
 > 사용자는 T5가 연 네이버 창에서 한 번 직접 로그인하고, T5는 같은 네이버 신분을 정확히 보존해 메일을 찾고 읽고
@@ -12,8 +13,8 @@ NV-1 현재 상태: `CONTRACT_COMPLETE · ACTUAL_OWNER_CONTROLLED_CONSOLE_PENDIN
 > 메일 발송과 블로그 공개·예약 발행은 현재 대상과 내용을 다시 보여주고 사용자가 맡긴 범위에서 정확히 한 번만
 > 실행하며, 재시작·탭 종료·화면 변경 뒤에도 다른 브라우저 현실을 만들거나 성공을 꾸미지 않는다.
 
-이 문서는 현재 `T5-NX.md` Gate를 자동 변경하지 않는 연구 계획이다. 오너가 Naver Gate를 열기 전 제품 구현을
-시작하지 않는다.
+이 문서는 현재 `T5-NX.md` Gate를 자동 변경하지 않는 연구 계획이다. 오너는 Naver Gate를 열었으며, 현재 정본의
+NV-2 한 단계만 제품 구현할 수 있다.
 
 ## NX-2 공통 승격 계약
 
