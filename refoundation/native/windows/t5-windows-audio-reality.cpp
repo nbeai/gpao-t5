@@ -8,6 +8,9 @@
 #include <wrl/client.h>
 
 #include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <cwchar>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -88,13 +91,107 @@ static int fail(const char* message, int code) {
     return code;
 }
 
+static void put16(unsigned char* destination, uint16_t value) {
+    destination[0] = static_cast<unsigned char>(value & 0xff);
+    destination[1] = static_cast<unsigned char>((value >> 8) & 0xff);
+}
+
+static void put32(unsigned char* destination, uint32_t value) {
+    destination[0] = static_cast<unsigned char>(value & 0xff);
+    destination[1] = static_cast<unsigned char>((value >> 8) & 0xff);
+    destination[2] = static_cast<unsigned char>((value >> 16) & 0xff);
+    destination[3] = static_cast<unsigned char>((value >> 24) & 0xff);
+}
+
+static bool writeWaveHeader(FILE* output, uint32_t dataBytes) {
+    unsigned char header[44] = {};
+    memcpy(header, "RIFF", 4); put32(header + 4, 36u + dataBytes); memcpy(header + 8, "WAVEfmt ", 8);
+    put32(header + 16, 16); put16(header + 20, 1); put16(header + 22, 1);
+    put32(header + 24, 16000); put32(header + 28, 32000); put16(header + 32, 2); put16(header + 34, 16);
+    memcpy(header + 36, "data", 4); put32(header + 40, dataBytes);
+    return fseek(output, 0, SEEK_SET) == 0 && fwrite(header, 1, sizeof(header), output) == sizeof(header);
+}
+
+static int decodeToPcm(const wchar_t* input, const wchar_t* outputPath, DWORD streamIndex) {
+    ComPtr<IMFAttributes> attributes;
+    HRESULT status = MFCreateAttributes(&attributes, 1);
+    if (FAILED(status) || FAILED(attributes->SetUINT32(MF_SOURCE_READER_ENABLE_AUDIO_PROCESSING, TRUE))) {
+        return fail("decode attributes unavailable", 72);
+    }
+    ComPtr<IMFSourceReader> reader;
+    status = MFCreateSourceReaderFromURL(input, attributes.Get(), &reader);
+    if (FAILED(status)) return fail("decode source unavailable", 73);
+    ComPtr<IMFMediaType> nativeType;
+    status = reader->GetNativeMediaType(streamIndex, 0, &nativeType);
+    GUID major = GUID_NULL;
+    if (FAILED(status) || FAILED(nativeType->GetGUID(MF_MT_MAJOR_TYPE, &major)) || major != MFMediaType_Audio) {
+        return fail("audio track unavailable", 74);
+    }
+    if (FAILED(reader->SetStreamSelection(MF_SOURCE_READER_ALL_STREAMS, FALSE))
+        || FAILED(reader->SetStreamSelection(streamIndex, TRUE))) return fail("track selection unavailable", 75);
+    ComPtr<IMFMediaType> outputType;
+    if (FAILED(MFCreateMediaType(&outputType))
+        || FAILED(outputType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio))
+        || FAILED(outputType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM))
+        || FAILED(outputType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16))
+        || FAILED(outputType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 16000))
+        || FAILED(outputType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, 1))
+        || FAILED(outputType->SetUINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 2))
+        || FAILED(outputType->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 32000))
+        || FAILED(outputType->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE))
+        || FAILED(reader->SetCurrentMediaType(streamIndex, nullptr, outputType.Get()))) {
+        return fail("PCM conversion unavailable", 76);
+    }
+    FILE* output = nullptr;
+    if (_wfopen_s(&output, outputPath, L"wb+") != 0 || output == nullptr) return fail("decode output unavailable", 77);
+    bool succeeded = writeWaveHeader(output, 0);
+    uint64_t total = 0;
+    while (succeeded) {
+        DWORD flags = 0;
+        ComPtr<IMFSample> sample;
+        status = reader->ReadSample(streamIndex, 0, nullptr, &flags, nullptr, &sample);
+        if (FAILED(status) || (flags & MF_SOURCE_READERF_ERROR) != 0) { succeeded = false; break; }
+        if (sample) {
+            ComPtr<IMFMediaBuffer> buffer;
+            if (FAILED(sample->ConvertToContiguousBuffer(&buffer))) { succeeded = false; break; }
+            BYTE* data = nullptr;
+            DWORD current = 0;
+            if (FAILED(buffer->Lock(&data, nullptr, &current))) { succeeded = false; break; }
+            if (current > 0 && (total + current > UINT32_MAX || fwrite(data, 1, current, output) != current)) {
+                succeeded = false;
+            }
+            buffer->Unlock();
+            if (!succeeded) break;
+            total += current;
+        }
+        if ((flags & MF_SOURCE_READERF_ENDOFSTREAM) != 0) break;
+    }
+    if (succeeded) succeeded = writeWaveHeader(output, static_cast<uint32_t>(total)) && fflush(output) == 0;
+    fclose(output);
+    if (!succeeded) { DeleteFileW(outputPath); return fail("decode failed", 78); }
+    const double durationMs = static_cast<double>(total) / 32000.0 * 1000.0;
+    std::cout << "{\"schema\":\"t5.audio-decode.v1\",\"bytes\":" << total
+              << ",\"durationMs\":" << std::fixed << std::setprecision(3) << durationMs
+              << ",\"sampleRate\":16000,\"channels\":1,\"coverage\":\"complete\"}\n";
+    return 0;
+}
+
 int wmain(int argc, wchar_t** argv) {
-    if (argc != 3 || wcscmp(argv[1], L"--inspect") != 0) return fail("usage", 64);
+    const bool inspect = argc == 3 && wcscmp(argv[1], L"--inspect") == 0;
+    const bool decode = argc == 5 && wcscmp(argv[1], L"--decode") == 0;
+    if (!inspect && !decode) return fail("usage", 64);
     HRESULT status = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     if (FAILED(status)) return fail("COM unavailable", 65);
-    status = MFStartup(MF_VERSION, MFSTARTUP_LITE);
+    status = MFStartup(MF_VERSION, decode ? MFSTARTUP_FULL : MFSTARTUP_LITE);
     if (FAILED(status)) { CoUninitialize(); return fail("Media Foundation unavailable", 66); }
     int exitCode = 0;
+    if (decode) {
+        wchar_t* end = nullptr;
+        const unsigned long parsed = wcstoul(argv[4], &end, 10);
+        if (end == argv[4] || *end != L'\0' || parsed >= 32) exitCode = fail("track index invalid", 79);
+        else exitCode = decodeToPcm(argv[2], argv[3], static_cast<DWORD>(parsed));
+        MFShutdown(); CoUninitialize(); return exitCode;
+    }
     do {
         ComPtr<IMFSourceReader> reader;
         status = MFCreateSourceReaderFromURL(argv[2], nullptr, &reader);

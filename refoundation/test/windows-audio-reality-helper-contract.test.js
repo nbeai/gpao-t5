@@ -11,6 +11,9 @@ test('Windows Audio Reality helper는 Media Foundation의 read-only stream facts
   assert.match(source, /MFCreateSourceReaderFromURL/u);
   assert.match(source, /MF_PD_DURATION/u); assert.match(source, /GetNativeMediaType/u);
   assert.match(source, /MF_MT_AUDIO_SAMPLES_PER_SECOND/u);
+  assert.match(source, /MF_SOURCE_READER_ENABLE_AUDIO_PROCESSING/u);
+  assert.match(source, /MFAudioFormat_PCM/u); assert.match(source, /ReadSample/u);
+  assert.match(source, /t5\.audio-decode\.v1/u);
   assert.match(source, /t5\.audio-reality\.v1/u);
   assert.doesNotMatch(source, /WinHttp|URLDownload|transcript|Whisper/u);
   assert.match(build, /t5-windows-audio-reality\.cpp/u);

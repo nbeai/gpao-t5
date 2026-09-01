@@ -7,7 +7,7 @@ const evidence = JSON.parse(readFileSync(new URL(
 ), 'utf8'));
 
 test('AU-1A는 macOS native reality·decode를 닫되 transcript를 열지 않는다', () => {
-  assert.equal(evidence.status, 'AU1A_COMPLETE_AU1_WINDOWS_DECODE_CURRENT');
+  assert.equal(evidence.status, 'AU1_SOURCE_COMPLETE_AU2_OPEN');
   assert.equal(evidence.productBehavior.audioAttachmentNativeReality, true);
   assert.equal(evidence.productBehavior.transcriptionActivated, false);
   assert.equal(evidence.productBehavior.newTool, 0);
@@ -22,9 +22,10 @@ test('AU-1A는 macOS native reality·decode를 닫되 transcript를 열지 않�
 test('Windows와 다중 track·stale 경계는 미실행을 PASS로 꾸미지 않는다', () => {
   assert.equal(evidence.windows.state, 'DEFERRED_NOT_WAIVED');
   assert.equal(evidence.windows.physicalCompile, 'NOT_RUN');
-  assert.equal(evidence.windows.pcmDecode, 'NOT_YET_IMPLEMENTED');
+  assert.equal(evidence.windows.pcmDecode, 'SOURCE_IMPLEMENTED_NOT_PHYSICALLY_RUN');
   assert.equal(evidence.truthBoundaries.audioTrackZeroStopsBeforeDecode, true);
   assert.equal(evidence.truthBoundaries.multipleAudioTracksRequireSelection, true);
   assert.equal(evidence.truthBoundaries.staleSourceRejected, true);
-  assert.equal(evidence.next.au1Complete, false);
+  assert.equal(evidence.next.au1Complete, true);
+  assert.equal(evidence.next.windowsPhysicalStillRequired, true);
 });

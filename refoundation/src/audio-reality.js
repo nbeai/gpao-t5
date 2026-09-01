@@ -90,14 +90,17 @@ export function makeAudioRealityProbe({
 }
 
 export function makeAudioDecode({
-  observe, platform = process.platform, converter = '/usr/bin/afconvert',
+  observe, platform = process.platform,
+  converter = platform === 'darwin' ? '/usr/bin/afconvert' : null,
   runCommand = execFileAsync,
 } = {}) {
   if (typeof observe !== 'function') throw new TypeError('audio reality observer is required');
   return async function decode({
     filePath, expectedSha256 = null, scratchRoot, trackIndex = null, timeoutMs = 10 * 60_000,
   } = {}) {
-    if (platform !== 'darwin') return { state: 'unavailable', reason: 'audio_decode_not_qualified' };
+    if (!['darwin', 'win32'].includes(platform) || !converter) {
+      return { state: 'unavailable', reason: 'audio_decode_not_qualified' };
+    }
     const input = await observe({ filePath, expectedSha256, timeoutMs: Math.min(timeoutMs, 20_000) });
     if (input.state !== 'observed') return input;
     const audioTracks = input.tracks.filter((track) => track.kind === 'audio');
@@ -117,8 +120,11 @@ export function makeAudioDecode({
       }
       directory = await mkdtemp(join(root, 't5-audio-decode-'));
       const output = join(directory, 'decoded.wav');
-      await runCommand(converter, [filePath, '-o', output, '--read-track', String(selected.index),
-        '-f', 'WAVE', '-d', 'LEI16@16000', '-c', '1', '--no-filler'], {
+      const argumentsList = platform === 'win32'
+        ? ['--decode', filePath, output, String(selected.index)]
+        : [filePath, '-o', output, '--read-track', String(selected.index),
+          '-f', 'WAVE', '-d', 'LEI16@16000', '-c', '1', '--no-filler'];
+      await runCommand(converter, argumentsList, {
         timeout: timeoutMs, maxBuffer: MAX_RECEIPT_BYTES,
         env: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8' },
       });
@@ -131,8 +137,10 @@ export function makeAudioDecode({
       const decoded = await observe({ filePath: output, timeoutMs: Math.min(timeoutMs, 20_000) });
       const decodedTrack = decoded.state === 'observed'
         ? decoded.tracks.find((track) => track.kind === 'audio') : null;
+      const decodedWave = decoded.state === 'observed' && (decoded.container.identifier === 'WAVE'
+        || (platform === 'win32' && ['audio/wav', 'audio/x-wav'].includes(decoded.container.identifier)));
       if (decoded.state !== 'observed' || decoded.audioTrackCount !== 1 || decoded.videoTrackCount !== 0
-        || decoded.container.identifier !== 'WAVE' || decodedTrack?.sampleRate !== 16000
+        || !decodedWave || decodedTrack?.sampleRate !== 16000
         || decodedTrack?.channels !== 1
         || Math.abs(decoded.durationMs - input.durationMs) > 100) {
         await rm(directory, { recursive: true, force: true });

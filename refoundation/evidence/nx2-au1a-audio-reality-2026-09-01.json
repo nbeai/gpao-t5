@@ -2,7 +2,7 @@
   "schema": "t5.nx2.au1a-audio-reality.v1",
   "recordedOn": "2026-09-01",
   "baseCommit": "61adad4b",
-  "status": "AU1A_COMPLETE_AU1_WINDOWS_DECODE_CURRENT",
+  "status": "AU1_SOURCE_COMPLETE_AU2_OPEN",
   "productBehavior": {
     "audioAttachmentNativeReality": true,
     "transcriptionActivated": false,
@@ -39,7 +39,7 @@
     "manifestDigestRequired": true,
     "physicalCompile": "NOT_RUN",
     "physicalObservation": "NOT_RUN",
-    "pcmDecode": "NOT_YET_IMPLEMENTED",
+    "pcmDecode": "SOURCE_IMPLEMENTED_NOT_PHYSICALLY_RUN",
     "state": "DEFERRED_NOT_WAIVED"
   },
   "truthBoundaries": {
@@ -56,7 +56,8 @@
     "windowsPhysicalSkipped": true
   },
   "next": {
-    "gate": "AU-1 Windows Media Foundation decode source contract",
-    "au1Complete": false
+    "gate": "AU-2 Helper & Model Acquisition",
+    "au1Complete": true,
+    "windowsPhysicalStillRequired": true
   }
 }

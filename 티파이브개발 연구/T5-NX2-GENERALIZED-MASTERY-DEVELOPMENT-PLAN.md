@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1A_COMPLETE · NX2_4_AU1_CURRENT`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_CURRENT`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-4 AU-1 — Audio Reality & Native Decode`
+현재 제품 Gate: `NX2-4 AU-2 — Helper & Model Acquisition`
 
 ---
 
@@ -712,14 +712,14 @@ AND actual Console human flow·accessibility·clean second pass PASS
 - decode range와 실패 지점
 - audio 없는 영상과 손상 media 분리
 
-현재 slice: `AU1A_COMPLETE_AU1_REMAINS_OPEN`. macOS native helper는 WAV·MP3·M4A의 container·duration·codec·
+종료 상태: `SOURCE_COMPLETE_WINDOWS_PHYSICAL_DEFERRED`. macOS native helper는 WAV·MP3·M4A의 container·duration·codec·
 sample rate·channel과 MP4·MOV의 video/audio track을 실제 관측했다. Node adapter는 exact source digest를 실행 전후
 재검사하고 MP3·M4A를 16kHz mono WAV scratch로 streaming 변환한 뒤 duration·format을 다시 확인하고 정리한다.
 Attachment inspect는 이 Reality를 모델에 주되 transcript나 content understanding으로 승격하지 않는다.
 
-Windows는 같은 closed JSON 계약의 Media Foundation read-only helper source와 package manifest digest 결속까지
-준비했다. Windows physical compile·track 관측과 Media Foundation PCM decode는 아직 PASS가 아니므로 AU-1은 닫지 않고
-`DEFERRED_NOT_WAIVED`로 유지한다.
+Windows는 같은 closed JSON 계약의 Media Foundation read-only inspect와 16kHz mono PCM decode source, package manifest
+digest, Node adapter까지 준비했다. Windows physical compile·track 관측·codec 성능은 아직 PASS가 아니며 AU-7의
+`DEFERRED_NOT_WAIVED`로 유지한다. 이 비주장 아래 AU-1 source 개발은 닫고 AU-2로 이동한다.
 
 근거: `refoundation/evidence/nx2-au1a-audio-reality-2026-09-01.json`.
 

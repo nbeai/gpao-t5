@@ -125,3 +125,34 @@ test('audio track 0개와 multiple track 미선택은 converter 실행 전에 �
     assert.equal(calls, 0);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
+
+test('Windows decode adapter는 Media Foundation helper에 exact source·output·track만 전달한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-audio-windows-decode-')); const source = join(room, 'memo.mp3');
+  await writeFile(source, 'source'); let sourceReads = 0;
+  try {
+    const observe = async ({ filePath }) => {
+      if (filePath === source) { sourceReads += 1; return { state: 'observed',
+        engine: 'windows-media-foundation', source: { sha256: 'a'.repeat(64), bytes: 6 },
+        container: { identifier: 'audio/mpeg', evidence: 'media_foundation_presentation' },
+        durationMs: 1000, tracks: [{ index: 2, trackId: 3, kind: 'audio', codec: '0x00000055',
+          sampleRate: 44100, channels: 2, languageTag: null }], audioTrackCount: 1,
+        videoTrackCount: 0, coverage: 'complete' }; }
+      return { state: 'observed', engine: 'windows-media-foundation',
+        source: { sha256: 'b'.repeat(64), bytes: 32044 },
+        container: { identifier: 'audio/wav', evidence: 'media_foundation_presentation' },
+        durationMs: 1000, tracks: [{ index: 0, trackId: 1, kind: 'audio', codec: 'PCM ',
+          sampleRate: 16000, channels: 1, languageTag: null }], audioTrackCount: 1,
+        videoTrackCount: 0, coverage: 'complete' };
+    };
+    const calls = []; const decode = makeAudioDecode({ observe, platform: 'win32',
+      converter: 'C:\\T5\\t5-windows-audio-reality.exe', runCommand: async (command, args) => {
+        calls.push({ command, args }); await writeFile(args[2], Buffer.alloc(32044)); return { stdout: '{}', stderr: '' };
+      } });
+    const result = await decode({ filePath: source, scratchRoot: room, trackIndex: 2 });
+    assert.equal(result.state, 'decoded'); assert.equal(sourceReads, 2);
+    assert.equal(calls[0].command, 'C:\\T5\\t5-windows-audio-reality.exe');
+    assert.equal(calls[0].args[0], '--decode'); assert.equal(calls[0].args[1], source);
+    assert.equal(calls[0].args[3], '2');
+    await rm(result.cleanup.directory, { recursive: true, force: true });
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
