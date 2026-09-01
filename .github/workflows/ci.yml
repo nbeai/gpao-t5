@@ -11,6 +11,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -36,6 +38,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -70,7 +74,7 @@ jobs:
             $nativeSource = Join-Path $env:GITHUB_WORKSPACE ("refoundation\native\windows\" + $name + ".c")
             $nativeOutput = Join-Path $outDir ($name + ".exe")
             $nativeArm64 = Join-Path $outDir ($name + "-arm64.exe")
-            $linker = if ($name -eq "t5-windows-launcher") { " /link /SUBSYSTEM:WINDOWS" } else { "" }
+            $linker = if ($name -eq "t5-windows-launcher") { " /link /SUBSYSTEM:WINDOWS" } elseif ($name -eq "t5-windows-coarse-app-activity") { " /link user32.lib" } else { "" }
             $compileNative = "`"$vcvars`" && cl.exe /nologo /W4 /WX /O2 /utf-8 /Fe:`"$nativeOutput`" `"$nativeSource`"$linker"
             & "$env:SystemRoot\System32\cmd.exe" /d /s /c $compileNative
             if ($LASTEXITCODE -ne 0 -or -not (Test-Path $nativeOutput)) { throw "$name x64 build failed" }

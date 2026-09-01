@@ -22,7 +22,9 @@ test('bounded collection은 exact same-origin page와 model-authored field 계�
   }) });
   assert.equal(result.state, 'verified_collection'); assert.equal(result.verified, true);
   assert.equal(result.records.length, 4); assert.deepEqual(result.records[0], {
-    title: 'Book 1-1', price: '£11.00', source: { page: 1, url: 'https://catalog.example/page-1', item: 1 },
+    title: 'Book 1-1', price: '£11.00', source: {
+      page: 1, url: 'https://catalog.example/page-1', item: 1, observedAt: null,
+    },
   });
   assert.deepEqual(result.coverage, { requestedPages: 2, observedPages: 2, complete: true,
     expectedRecords: { minimum: 4, maximum: 4 }, observedRecords: 4, rangeSatisfied: true });
