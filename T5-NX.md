@@ -3,8 +3,8 @@
 상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE · NX_2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX_2_2_CONTEXT_DIET_CURRENT`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
-현재 Gate: `NX2-2 CONTEXT DIET & INTERFACE INTELLIGENCE · CX-3 INSTRUCTION OWNERSHIP MIGRATION`
-현재 작업: `CX-2 current drift 없음으로 종료 · CX-1 MOVE/REVISE family 한 개의 qualification-only 이동 후보`
+현재 Gate: `NX2-2 CONTEXT DIET & INTERFACE INTELLIGENCE · CX-4 PROGRESSIVE DISCLOSURE REFINEMENT`
+현재 작업: `CX-3 artifact ownership candidate 자격 완료·제품 미적용 · leakage/late discovery 한 축 선정`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -1302,6 +1302,19 @@ Pilot`이다.
 다음 current slice는 CX-1의 MOVE/REVISE family 하나만 qualification-only로 옮기는 `CX-3 Instruction Ownership Migration`다.
 
 근거: `refoundation/evidence/nx2-cx2-tool-contract-ssot-admission-2026-09-01.json`.
+
+2026-09-01 CX-3 첫 family 자격:
+
+- `artifact.document_delivery`의 global↔attachment Tool 중복 두 문장을 qualification-only로 제거해 AB/BA했다.
+- Direct Tool 0과 악성 첨부 inspect·사실 정확성·지시 실행 0은 양 순서에서 모두 통과했다.
+- instruction은 496 bytes, Direct request는 498 bytes, input token은 약 82 줄었다. 첨부 누적 token도 약 159 줄었다.
+- 첨부 wall 중앙값은 약 178ms 좋아졌지만 Direct wall 중앙값은 약 682ms 나빠져 성능 우위를 확정하지 않았다.
+- 악성 첨부 경계 한 문장만 `MOVE_CANDIDATE`, current-Run PDF 문장은 candidate-only actual 부재로 `UNKNOWN`이다.
+- product instruction·manifest에는 적용하지 않았다.
+
+CX-3는 한 family qualification으로 완료됐고 다음 current slice는 `CX-4 Progressive Disclosure Refinement`다.
+
+근거: `refoundation/evidence/nx2-cx3-artifact-guidance-ownership-qualification-2026-09-01.json`.
 
 ### NX-2D — Five-Lane Proportionality — PENDING
 

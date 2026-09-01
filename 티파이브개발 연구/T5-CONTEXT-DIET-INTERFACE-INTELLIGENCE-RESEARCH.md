@@ -2,7 +2,7 @@
 
 기록일: 2026-09-01
 조사 기준: T5 NX `9e2daf0c`
-상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · CX_0_COMPLETE · CX_1_COMPLETE · CX_2_CLOSED_NO_CURRENT_DRIFT · CX_3_CURRENT · PRODUCT_CHANGE_0`
+상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · CX_0_COMPLETE · CX_1_COMPLETE · CX_2_CLOSED_NO_CURRENT_DRIFT · CX_3_QUALIFICATION_COMPLETE · CX_4_CURRENT · PRODUCT_CHANGE_0`
 
 사용자 완료 문장:
 
@@ -511,6 +511,12 @@ dated workaround → qualification removal
 ```
 
 각 이동마다 Direct holdout과 실제 incident countertest를 함께 실행한다.
+
+2026-09-01 첫 `artifact.document_delivery` qualification은 global 중복 496 bytes를 제거한 상태에서 Direct·악성 첨부
+AB/BA를 통과했다. 다만 Direct wall이 악화됐고 current-Run PDF actual이 없어 제품 적용은 보류했다. 한 문장만
+MOVE_CANDIDATE, 다른 한 문장은 UNKNOWN으로 남긴다.
+
+근거: `refoundation/evidence/nx2-cx3-artifact-guidance-ownership-qualification-2026-09-01.json`.
 
 ### CX-4 — Progressive Disclosure Refinement
 

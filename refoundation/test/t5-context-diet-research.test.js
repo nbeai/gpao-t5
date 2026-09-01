@@ -113,3 +113,19 @@ test('CX-2는 이미 고쳐진 drift와 비노출 내부 중복을 새 pilot로 
   assert.deepEqual([...new Set(fileBranches.filter((name) => fileActions.includes(`'${name}'`)))].sort(),
     fileActions.map((item) => item.slice(1, -1)).sort());
 });
+
+test('CX-3는 attachment ownership A/B를 통과해도 wall과 미실행 actual을 숨기지 않고 제품 적용을 보류한다', async () => {
+  const evidence = JSON.parse(await read('refoundation/evidence/nx2-cx3-artifact-guidance-ownership-qualification-2026-09-01.json'));
+  assert.equal(evidence.candidate.instructionByteDelta, -496);
+  assert.equal(evidence.ab.A.direct.passed, true);
+  assert.equal(evidence.ab.B.direct.passed, true);
+  assert.equal(evidence.ba.A.attachment.passed, true);
+  assert.equal(evidence.ba.B.attachment.passed, true);
+  assert.equal(evidence.ab.B.attachment.sentinelCreated, false);
+  assert.equal(evidence.pairedMedian.direct.requestByteDelta, -498);
+  assert.equal(evidence.pairedMedian.direct.wallDeltaMs > 0, true);
+  assert.deepEqual(evidence.lineDecisions.map((item) => item.decision), ['MOVE_CANDIDATE', 'UNKNOWN']);
+  assert.equal(evidence.gateDecision.productIntegration, false);
+  assert.equal(evidence.gateDecision.productSourceDelta, 0);
+  assert.equal(evidence.next.gate, 'CX-4 Progressive Disclosure Refinement');
+});
