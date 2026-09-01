@@ -203,9 +203,11 @@
   #selectionInput { flex:1; resize:none; min-height:42px; max-height:120px; border:1px solid #d8d0c4;
     border-radius:12px; background:#fff; color:#24211d; font:inherit; padding:9px 11px; }
   #selectionInput:focus { outline:2px solid #8e806a; outline-offset:1px; }
-  #selectionSend, #selectionStop { border:1px solid #cfc5b6; border-radius:10px; background:#f8f5ef;
+  #selectionSend, #selectionStop, #selectionApply { border:1px solid #cfc5b6; border-radius:10px; background:#f8f5ef;
     color:#24211d; font:inherit; padding:9px 11px; cursor:pointer; }
   #selectionStop { color:#9b3e2d; }
+  #selectionApply { width:100%; margin:7px 0 10px; background:#2f2b25; color:#fff; border-color:#2f2b25; }
+  #selectionApply[hidden], #selectionDraft[hidden] { display:none; }
   #selectionActionBar { position:fixed; z-index:80; display:flex; gap:4px; padding:5px; border:1px solid #d8d0c4;
     border-radius:10px; background:#fff; color:#24211d; box-shadow:0 8px 24px rgba(45,35,24,.18); }
   #selectionActionBar[hidden] { display:none; }
@@ -785,6 +787,8 @@
     </div>
     <div class="selection-messages" id="selectionMessages" aria-live="polite"></div>
     <div class="selection-composer">
+      <div id="selectionDraft" class="selection-progress" hidden></div>
+      <button id="selectionApply" type="button" hidden>현재 작업에 반영</button>
       <div class="selection-composer-row">
         <textarea id="selectionInput" rows="2" placeholder="선택한 부분에 대해 질문하세요"></textarea>
         <button id="selectionStop" type="button" hidden>멈추기</button>
@@ -859,6 +863,8 @@ const selectionInput = document.getElementById('selectionInput');
 const selectionSend = document.getElementById('selectionSend');
 const selectionStop = document.getElementById('selectionStop');
 const selectionClose = document.getElementById('selectionClose');
+const selectionDraft = document.getElementById('selectionDraft');
+const selectionApply = document.getElementById('selectionApply');
 const selectionActionBar = document.getElementById('selectionActionBar');
 const selectionAsk = document.getElementById('selectionAsk');
 let currentSessionId = null;
@@ -871,6 +877,7 @@ let sessionListRefreshTimer = null;
 let selectedMessageRange = null;
 let activeSelectionExploration = null;
 let activeSelectionStream = null;
+let activeSelectionInstruction = null;
 const RUNTIME_RELOAD_STATE_KEY = 't5-runtime-reload-state-v1';
 
 function rememberPageStateForReload() {
@@ -3825,6 +3832,7 @@ async function openSideExploration(selected) {
     headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
   const result = await response.json(); if (!response.ok) throw new Error(result.error ?? '옆 탐색을 열지 못했어요.');
   activeSelectionExploration = result; selectionQuote.textContent = result.anchor.quote;
+  activeSelectionInstruction = null; selectionDraft.hidden = true; selectionApply.hidden = true;
   selectionMessages.replaceChildren(); selectionPanel.hidden = false;
   selectionPanel.setAttribute('aria-hidden', 'false'); selectionActionBar.hidden = true;
   selectionInput.focus();
@@ -3852,6 +3860,15 @@ async function sendSideQuestion() {
   stream.addEventListener('answer_reset', () => { assistant.textContent = ''; });
   stream.addEventListener('answer_delta', (event) => { assistant.textContent += JSON.parse(event.data).text ?? ''; });
   stream.addEventListener('trace_status', (event) => { progress.textContent = JSON.parse(event.data).text ?? ''; });
+  stream.addEventListener('side_state', (event) => {
+    activeSelectionExploration = JSON.parse(event.data);
+    activeSelectionInstruction = [...(activeSelectionExploration.messages ?? [])]
+      .reverse().find((message) => message.role === 'user') ?? null;
+    if (activeSelectionInstruction) {
+      selectionDraft.textContent = `반영할 지시: ${activeSelectionInstruction.content}`;
+      selectionDraft.hidden = false; selectionApply.hidden = false;
+    }
+  });
   stream.addEventListener('recoverable_error', (event) => { progress.textContent = JSON.parse(event.data).text ?? ''; });
   stream.addEventListener('complete', () => {
     stream.close(); activeSelectionStream = null; progress.remove(); selectionStop.hidden = true;
@@ -3870,12 +3887,25 @@ selectionStop.onclick = async () => {
   await fetch('/selection-explorations/stop', { method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ sessionId: currentSessionId, handle: activeSelectionExploration.handle }) }).catch(() => null);
 };
+selectionApply.onclick = async () => {
+  if (!activeSelectionExploration || !activeSelectionInstruction) return;
+  selectionApply.disabled = true;
+  const response = await fetch('/selection-explorations/apply', { method: 'POST',
+    headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: currentSessionId,
+      handle: activeSelectionExploration.handle,
+      instructionMessageHandle: activeSelectionInstruction.handle, requestId: crypto.randomUUID() }) });
+  const result = await response.json().catch(() => ({})); selectionApply.disabled = false;
+  if (!response.ok) { toast(result.error ?? '현재 작업에 반영하지 못했어요.'); return; }
+  selectionApply.hidden = true; selectionDraft.textContent = '현재 작업에 반영했어요.';
+  toast('현재 작업에 반영했어요.'); await 대화다시그리기(); await loadSessions();
+};
 selectionClose.onclick = async () => {
   activeSelectionStream?.close(); activeSelectionStream = null;
   if (activeSelectionExploration) await fetch('/selection-explorations/close', { method: 'POST',
     headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: currentSessionId,
       handle: activeSelectionExploration.handle, requestId: crypto.randomUUID() }) }).catch(() => null);
-  activeSelectionExploration = null; selectionPanel.hidden = true;
+  activeSelectionExploration = null; activeSelectionInstruction = null;
+  selectionDraft.hidden = true; selectionApply.hidden = true; selectionPanel.hidden = true;
   selectionPanel.setAttribute('aria-hidden', 'true'); selectionActionBar.hidden = true;
 };
 function paintActivityTrace(trace) {

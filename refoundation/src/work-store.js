@@ -70,6 +70,12 @@ export class WorkStore {
           derivedFromRevision: event.derivedFromRevision, selectionAnchorId: event.selectionAnchorId,
           sourceInputId: event.sourceInputId, sourceMessageId: event.sourceMessageId,
           reason: 'explicit_selection_apply' } });
+      if (event.type === 'work_derived_from_selection') {
+        const input = inputs.get(event.sourceInputId); if (input) Object.assign(input, {
+          state: 'classified', disposition: 'independent_work', schedule: 'independent_work',
+          workId: event.workId, revision: 1,
+        });
+      }
       if (event.type === 'input_admission_prepared') inputs.set(event.inputId, { inputId: event.inputId,
         sessionId: event.sessionId, messageId: event.messageId, origin: event.origin,
         attachmentIds: event.attachmentIds ?? [], source: event.source ?? {}, state: 'prepared' });
@@ -551,7 +557,8 @@ export class WorkStore {
   async queuedInputs(sessionId) {
     const state = await this.read(); return state.inputs.filter((input) => (
       input.sessionId === sessionId && ((input.state === 'scheduled' && input.schedule === 'after_current_delivery')
-        || (input.state === 'classified' && ['independent_work', 'settlement_retry'].includes(input.schedule)))
+        || (input.state === 'classified'
+          && ['independent_work', 'settlement_retry', 'current_work'].includes(input.schedule)))
     ));
   }
   async activateExactInputWork(inputId) {

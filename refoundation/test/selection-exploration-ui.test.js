@@ -21,11 +21,13 @@ test('persisted message selection만 side open handle과 canonical projection을
   assert.match(ui, /startUtf16: selected\.startUtf16, endUtf16: selected\.endUtf16/u);
 });
 
-test('side composer는 자체 stream·Stop을 쓰고 main composer와 Work apply를 건드리지 않는다', () => {
+test('side composer는 자체 stream·Stop을 쓰고 사용자 명시 버튼으로만 Work apply를 연다', () => {
   assert.match(ui, /\/selection-explorations\/stream-start/u);
   assert.match(ui, /\/selection-explorations\/stop/u);
   assert.match(ui, /activeSelectionStream/u);
   assert.equal((ui.match(/id="composerStop"/gu) ?? []).length, 1);
-  assert.doesNotMatch(ui, /selection-explorations\/apply/u);
+  assert.match(ui, /id="selectionApply"[^>]*hidden>현재 작업에 반영/u);
+  assert.match(ui, /\/selection-explorations\/apply/u);
+  assert.match(ui, /instructionMessageHandle: activeSelectionInstruction\.handle/u);
   assert.doesNotMatch(ui, /raw reasoning|chain-of-thought/iu);
 });

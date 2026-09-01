@@ -75,6 +75,15 @@ function parseEvents(text, sessionId) {
     if (event.type === 'selection_exploration_closed' && !event.explorationId) {
       throw new Error('invalid selection exploration close');
     }
+    if (event.type === 'selection_apply_prepared' && (!event.explorationId || !event.requestId
+      || !event.inputId || !event.instructionSideMessageId
+      || !['current_revision', 'derived_work'].includes(event.relation))) {
+      throw new Error('invalid selection apply preparation');
+    }
+    if (event.type === 'selection_apply_committed' && (!event.explorationId || !event.requestId
+      || !event.resultingWorkId || !Number.isInteger(event.resultingRevision))) {
+      throw new Error('invalid selection apply commit');
+    }
   }
   return events;
 }
@@ -235,6 +244,21 @@ export class ConversationLedger {
     if (branch.state === 'closed') return null;
     return this.appendSelectionEvent(sessionId, { type: 'selection_exploration_closed',
       explorationId: String(explorationId), requestId: String(requestId) });
+  }
+
+  async prepareSelectionApply({ sessionId, explorationId, requestId, inputId,
+    instructionSideMessageId, relation, targetWorkId, expectedRevision } = {}) {
+    return this.appendSelectionEvent(sessionId, { type: 'selection_apply_prepared',
+      explorationId: String(explorationId), requestId: String(requestId), inputId: String(inputId),
+      instructionSideMessageId: String(instructionSideMessageId), relation,
+      targetWorkId: String(targetWorkId), expectedRevision });
+  }
+
+  async commitSelectionApply({ sessionId, explorationId, requestId, relation,
+    resultingWorkId, resultingRevision } = {}) {
+    return this.appendSelectionEvent(sessionId, { type: 'selection_apply_committed',
+      explorationId: String(explorationId), requestId: String(requestId), relation,
+      resultingWorkId: String(resultingWorkId), resultingRevision });
   }
 
   async appendMessage({ sessionId, messageId, runId = null, turn = null, message } = {}) {

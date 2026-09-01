@@ -44,6 +44,7 @@ import { ConversationLedger } from './conversation-ledger.js';
 import { buildSelectionAnchor, projectSelectableMessage } from './selectable-message-projection.js';
 import { projectSelectionExplorationPublic } from './selection-exploration-projection.js';
 import { makeSelectionExplorationRuntime } from './selection-exploration-runtime.js';
+import { makeExplicitWorkCorrection } from './explicit-work-correction.js';
 import { WorkStore } from './work-store.js';
 import { WorkCancellationCoordinator } from './work-cancellation-coordinator.js';
 import { projectPublicWorkReality, projectWorkReality } from './work-reality-projection.js';
@@ -994,6 +995,7 @@ export function makeConsoleServer({
 
   const selectionRuntime = makeSelectionExplorationRuntime({ ledger: conversations,
     modelFactory: (facts) => modelFactory({ ...facts, workspace, computer: computerFacts }) });
+  const explicitWorkCorrection = makeExplicitWorkCorrection({ conversationLedger: conversations, workStore });
   const selectionMessageHandle = (sessionId, messageId) => `message_${createHash('sha256')
     .update(`${sessionId}\0${messageId}`).digest('hex').slice(0, 24)}`;
   async function resolveSelectionMessage(sessionId, handle) {
@@ -5118,6 +5120,9 @@ export function makeConsoleServer({
           const result = await selectionRuntime.answer({ ...pending, signal: controller.signal,
             onAnswerDelta: ({ text }) => emit('answer_delta', { text }),
             onAnswerReset: () => emit('answer_reset', {}) });
+          const current = await conversations.read(pending.sessionId);
+          const branch = current.explorations.find((item) => item.explorationId === pending.explorationId);
+          if (branch) emit('side_state', projectSelectionExplorationPublic(branch));
           emit('complete', { state: result.state });
         } catch (error) {
           onError?.(error); emit('recoverable_error', { text: '옆 답변을 마치지 못했어요.' });
@@ -5137,6 +5142,25 @@ export function makeConsoleServer({
         await conversations.closeSelectionExploration({ sessionId: input.sessionId,
           explorationId: branch.explorationId, requestId: input.requestId });
         privateJson(res, 200, { ok: true, state: 'closed' }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/selection-explorations/apply') {
+        const input = await body(req); const branch = await resolveSelectionExploration(input.sessionId, input.handle);
+        if (!branch) { json(res, 404, { error: '옆 탐색을 찾지 못했어요.' }); return; }
+        const result = await explicitWorkCorrection.apply({ sessionId: input.sessionId,
+          explorationId: branch.explorationId, instructionMessageHandle: input.instructionMessageHandle,
+          requestId: input.requestId });
+        const conversation = await conversations.read(input.sessionId);
+        const message = conversation.entries.find((entry) => entry.messageId === result.messageId)?.message;
+        const session = await sessions.load(input.sessionId);
+        if (message && !session?.transcript?.some((entry) => entry.selectionApplyRequestId === input.requestId)) {
+          await sessions.append(input.sessionId, { role: 'user', text: message.content, admitted: true,
+            selectionApplyRequestId: input.requestId,
+            source: { channel: 'selection_exploration', admissionTime: {
+              activeRun: false, currentResultProduced: true } } });
+        }
+        queueMicrotask(() => scheduleNextWorkInput(input.sessionId).catch((error) => onError?.(error)));
+        privateJson(res, 200, { state: result.state, relation: result.relation,
+          revision: result.revision }); return;
       }
       if (req.method === 'POST' && url.pathname === '/turn/stream-start') {
         const input = await body(req);

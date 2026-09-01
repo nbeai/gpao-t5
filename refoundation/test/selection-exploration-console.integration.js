@@ -50,5 +50,25 @@ test('Console selection open→Tool 0 stream은 main transcript·Work를 바꾸�
     assert.equal(after.entries.length, 2); assert.equal(after.explorations.length, 1);
     assert.deepEqual(after.explorations[0].messages.map((item) => item.role), ['user', 'assistant']);
     assert.equal(calls.at(-1).purpose, 'selection_exploration'); assert.deepEqual(calls.at(-1).tools, []);
+    const sideState = JSON.parse([...stream.matchAll(/event: side_state\ndata: ([^\n]+)/gu)].at(-1)[1]);
+    const instruction = sideState.messages.find((message) => message.role === 'user');
+    const applied = await fetch(`${base}/selection-explorations/apply`, { method: 'POST',
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: session.id,
+        handle: opened.handle, instructionMessageHandle: instruction.handle, requestId: 'apply-1' })
+    }).then((response) => response.json());
+    assert.equal(applied.state, 'committed'); assert.equal(applied.relation, 'current_revision');
+    assert.equal(applied.revision, 2);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const state = await server.workStore.read();
+      if (state.inputs.some((input) => input.origin === 'selection_exploration'
+        && input.state === 'executed')) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    const finalWork = await server.workStore.read();
+    assert.equal(finalWork.works[0].revision, 2);
+    assert.equal(finalWork.inputs.filter((input) => input.origin === 'selection_exploration').length, 1);
+    const finalConversation = await ledger.read(session.id);
+    assert.equal(finalConversation.entries.some((entry) => entry.message.role === 'user'
+      && entry.message.content === '이 금액은 무슨 뜻이야?'), true);
   } finally { await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true }); }
 });

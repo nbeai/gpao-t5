@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 
 const clone = (value) => structuredClone(value);
-const publicHandle = (kind, value) => `${kind}_${createHash('sha256')
+export const selectionPublicHandle = (kind, value) => `${kind}_${createHash('sha256')
   .update(`${kind}\0${String(value)}`).digest('hex').slice(0, 24)}`;
+export const selectionSideMessageHandle = (value) => selectionPublicHandle('side_message', value);
 
 export function projectSelectionExplorations(events = []) {
   const branches = new Map();
@@ -30,6 +31,20 @@ export function projectSelectionExplorations(events = []) {
     if (event.type === 'selection_exploration_closed') {
       branch.state = 'closed'; branch.closedAt = event.recordedAt;
     }
+    if (event.type === 'selection_apply_prepared') branch.apply = {
+      state: 'prepared', requestId: event.requestId, inputId: event.inputId,
+      instructionSideMessageId: event.instructionSideMessageId,
+      relation: event.relation, targetWorkId: event.targetWorkId,
+      expectedRevision: event.expectedRevision,
+    };
+    if (event.type === 'selection_apply_committed') branch.apply = {
+      ...branch.apply, state: 'committed', relation: event.relation,
+      resultingWorkId: event.resultingWorkId, resultingRevision: event.resultingRevision,
+      committedAt: event.recordedAt,
+    };
+    if (event.type === 'selection_apply_aborted') branch.apply = {
+      ...branch.apply, state: 'aborted', reason: event.reason,
+    };
   }
   return [...branches.values()].map(clone);
 }
@@ -37,12 +52,13 @@ export function projectSelectionExplorations(events = []) {
 export function projectSelectionExplorationPublic(branch) {
   if (!branch) return null;
   return { schema: 't5.selection-exploration-public.v1',
-    handle: publicHandle('side', branch.explorationId), state: branch.state,
-    anchor: { handle: publicHandle('selection', branch.anchor.anchorId),
+    handle: selectionPublicHandle('side', branch.explorationId), state: branch.state,
+    anchor: { handle: selectionPublicHandle('selection', branch.anchor.anchorId),
       quote: branch.anchor.quote, sourceRole: branch.anchor.sourceRole },
     messages: branch.messages.map((message) => ({
-      handle: publicHandle('side_message', message.sideMessageId),
+      handle: selectionSideMessageHandle(message.sideMessageId),
       role: message.role, content: message.content, recordedAt: message.recordedAt,
     })),
-    apply: { state: branch.apply?.state ?? 'not_requested' } };
+    apply: { state: branch.apply?.state ?? 'not_requested',
+      relation: branch.apply?.relation ?? null } };
 }
