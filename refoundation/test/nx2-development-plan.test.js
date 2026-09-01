@@ -107,6 +107,7 @@ test('Selection Side Exploration is a cognitive Work-continuity gate, not generi
   assert.match(plan, /Selection → Side Exploration → Explicit Apply → Work Revision/);
   assert.match(plan, /same-T5 read-only side projection/);
   assert.match(plan, /completed derived Work/);
+  assert.match(plan, /light\/dark theme 모두 흰색 배경/u);
   assert.match(plan, /실제 Console/);
   assert.match(nx2, /NX2-3 Cognitive Flow & Practical Judgment\n→ NX2-SE Selection-Scoped Side Exploration\n→ NX2-4 Auditory Intelligence/);
   assert.match(index, /Selection-Scoped Side Exploration/);

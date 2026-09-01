@@ -1,6 +1,9 @@
 import { appendFile, chmod, mkdir, open, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { projectSelectableMessage } from './selectable-message-projection.js';
+import { projectSelectionExplorations } from './selection-exploration-projection.js';
+
 const SCHEMA = 't5.conversation-event.v1';
 
 function clone(value) { return value == null ? value : structuredClone(value); }
@@ -54,6 +57,23 @@ function parseEvents(text, sessionId) {
     if (event.type === 'checkpoint' && (!event.checkpointId || !event.coversThroughMessageId
       || typeof event.summary !== 'string' || !event.summary.trim())) {
       throw new Error('invalid conversation checkpoint');
+    }
+    if (event.type === 'selection_exploration_opened' && (!event.explorationId
+      || event.anchor?.schema !== 't5.selection-anchor.v1' || event.anchor.sessionId !== sessionId)) {
+      throw new Error('invalid selection exploration');
+    }
+    if (event.type === 'selection_side_message_appended' && (!event.explorationId
+      || !event.sideMessageId || !['user', 'assistant'].includes(event.role)
+      || typeof event.content !== 'string')) throw new Error('invalid selection side message');
+    if (event.type === 'selection_side_run_started' && (!event.explorationId || !event.runId)) {
+      throw new Error('invalid selection side run');
+    }
+    if (event.type === 'selection_side_run_settled' && (!event.explorationId || !event.runId
+      || !['completed', 'stopped', 'failed', 'interrupted'].includes(event.state))) {
+      throw new Error('invalid selection side settlement');
+    }
+    if (event.type === 'selection_exploration_closed' && !event.explorationId) {
+      throw new Error('invalid selection exploration close');
     }
   }
   return events;
@@ -141,7 +161,66 @@ export class ConversationLedger {
         tailMessageCount: event.tailMessageCount,
         recordedAt: event.recordedAt,
       })),
+      explorations: projectSelectionExplorations(events),
     };
+  }
+
+  async appendSelectionEvent(sessionId, event) {
+    const id = safeSessionId(sessionId);
+    return this.serialize(async () => {
+      const current = await this.read(id);
+      if (event.requestId) {
+        const existing = current.events.find((item) => item.type === event.type
+          && item.requestId === event.requestId);
+        if (existing) {
+          const comparable = { ...existing }; delete comparable.sequence; delete comparable.recordedAt;
+          if (JSON.stringify(comparable) !== JSON.stringify({ schema: SCHEMA, sessionId: id,
+            ...clone(event) })) throw new Error('selection request identity conflict');
+          return clone(existing);
+        }
+      }
+      const appended = { schema: SCHEMA, sessionId: id, sequence: current.events.length + 1,
+        recordedAt: new Date().toISOString(), ...clone(event) };
+      await appendFile(this.file(id), `${JSON.stringify(appended)}\n`, { encoding: 'utf8', mode: 0o600 });
+      return clone(appended);
+    });
+  }
+
+  async openSelectionExploration({ sessionId, explorationId, anchor, requestId } = {}) {
+    const current = await this.read(sessionId);
+    const source = current.events.find((event) => event.type === 'message'
+      && event.messageId === anchor?.sourceMessageId);
+    if (!source || source.sequence !== anchor.sourceMessageSequence
+      || source.message.role !== anchor.sourceRole || (source.runId ?? null) !== anchor.sourceRunId) {
+      throw new Error('selection source identity mismatch');
+    }
+    const projection = projectSelectableMessage(source.message.content);
+    if (anchor.projectionVersion !== projection.version || anchor.projectionDigest !== projection.digest
+      || projection.text.slice(anchor.startUtf16, anchor.endUtf16) !== anchor.quote) {
+      throw new Error('stale selection projection');
+    }
+    return this.appendSelectionEvent(sessionId, { type: 'selection_exploration_opened',
+      explorationId: String(explorationId), requestId: String(requestId), anchor: clone(anchor) });
+  }
+
+  async appendSelectionSideMessage({ sessionId, explorationId, sideMessageId,
+    role, content, runId = null, requestId = null } = {}) {
+    const current = await this.read(sessionId);
+    const branch = current.explorations.find((item) => item.explorationId === explorationId);
+    if (!branch || branch.state === 'closed') throw new Error('selection exploration is unavailable');
+    return this.appendSelectionEvent(sessionId, { type: 'selection_side_message_appended',
+      explorationId: String(explorationId), sideMessageId: String(sideMessageId),
+      role, content: String(content), ...(runId ? { runId: String(runId) } : {}),
+      ...(requestId ? { requestId: String(requestId) } : {}) });
+  }
+
+  async closeSelectionExploration({ sessionId, explorationId, requestId } = {}) {
+    const current = await this.read(sessionId);
+    const branch = current.explorations.find((item) => item.explorationId === explorationId);
+    if (!branch) throw new Error('selection exploration is unavailable');
+    if (branch.state === 'closed') return null;
+    return this.appendSelectionEvent(sessionId, { type: 'selection_exploration_closed',
+      explorationId: String(explorationId), requestId: String(requestId) });
   }
 
   async appendMessage({ sessionId, messageId, runId = null, turn = null, message } = {}) {
