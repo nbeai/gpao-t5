@@ -2,7 +2,7 @@
 
 기록일: 2026-09-01
 조사 기준: T5 NX `9e2daf0c` 및 과거 Naver 실제 설치본 증거
-상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · NV0_COMPLETE · NV1_COMPLETE · NV1R_COMPLETE · NV2_CURRENT · PRODUCT_IMPLEMENTATION_GATE_OPEN`
+상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · NV0_COMPLETE · NV1_COMPLETE · NV1R_COMPLETE · NV2_COMPLETE · NV3_CURRENT · PRODUCT_IMPLEMENTATION_GATE_OPEN`
 
 NV-1 현재 상태: `COMPLETE`. A 미선택은 restart 뒤 Mail·Blog login_required, B 선택은 같은 profile·restart 뒤
 둘 다 ready였다. 실제 여정에서 발견된 restart provider continuity P1도 NV-1R에서 수리·실제 재자격했다.

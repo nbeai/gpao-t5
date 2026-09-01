@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED · NX2_5_WC0_TO_WC4_COMPLETE · NX2_5_WC_HQ_CLOSED_WITH_CROSS_HAND_ECONOMY_OBSERVATION · NX2_6_NV0_COMPLETE · NX2_6_NV1_COMPLETE · NX2_6_NV1R_COMPLETE · NX2_6_NV2_CURRENT`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED · NX2_5_WC0_TO_WC4_COMPLETE · NX2_5_WC_HQ_CLOSED_WITH_CROSS_HAND_ECONOMY_OBSERVATION · NX2_6_NV0_COMPLETE · NX2_6_NV1_COMPLETE · NX2_6_NV1R_COMPLETE · NX2_6_NV2_COMPLETE · NX2_6_NV3_CURRENT`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-6 NV-2 — Naver Identity Broker`
+현재 제품 Gate: `NX2-6 NV-3 — Mail Read`
 
 ---
 
@@ -1069,6 +1069,14 @@ Responses provider wire가 function output을 exact call 바로 뒤에 배치하
 - signed-in/expired/2FA-required/locked/unknown
 - profile identity와 app-password secret ref 분리
 - 재로그인·forget·backup/restore 경계
+
+종료 상태: `COMPLETE — 2026-09-02`. 기존 Browser observation이 실제 Mail·Blog ready를 확인하면 기존
+`connection` 표면에 하나의 Naver identity로 결속한다. broker는 새 Store·Tool 없이 process-local projection만 가지며,
+재시작 직후에는 unknown이고 다시 실제 관측된 뒤 ready가 된다. 첫 실제 반례에서 고정 `default` handle이 Browser의
+공개 profile ID와 달라 foreign으로 거부됐고, first-observed exact public profile ID를 결속한 뒤 다른 ID만 거부하도록
+수리했다. 실제 Console에서 Mail·Blog·connection ready, 로그인 창·메일 열람·쓰기·저장·발행 0을 확인했다.
+
+근거: `refoundation/evidence/nx2-nv2-naver-identity-broker-2026-09-02.json`.
 
 #### NV-3 — Mail Read
 

@@ -16,6 +16,7 @@ import { makeStoredOpenAIWebSearchProvider } from '../src/openai-web-search-prov
 import { makeDuckDuckGoSearchProvider } from '../src/duckduckgo-search-provider.js';
 import { makeBingSearchProvider } from '../src/bing-search-provider.js';
 import { makeNaverSearchProvider } from '../src/naver-search-provider.js';
+import { makeNaverIdentityBroker } from '../src/naver-identity-broker.js';
 import { naverReadableUrlResolver } from '../src/naver-readable-url.js';
 import { makeConsoleServer } from '../src/console-server.js';
 import { makeAgentBrowserDriver, sessionNameForOwner } from '../src/agent-browser-driver.js';
@@ -219,6 +220,7 @@ const linearConnection = makeRemoteMcpConnection({
   stateStore: connectionStateStore, credentialCoordinator: connectionCredentialCoordinator,
 });
 const channelTalkConnection = makeChannelTalkConnection({ secretStore: platformSecretStore });
+const naverIdentityConnection = makeNaverIdentityBroker({ profileHandle: null });
 const slackClientId = String(process.env.T5_SLACK_OAUTH_CLIENT_ID ?? '').trim();
 const slackClientSecret = String(process.env.T5_SLACK_OAUTH_CLIENT_SECRET ?? '').trim();
 const slackCallbackPort = Number(process.env.T5_SLACK_OAUTH_CALLBACK_PORT ?? 4185);
@@ -238,7 +240,7 @@ const slackConnection = slackClientId && slackPublicSearchPolicy ? makeSlackMcpC
   stateStore: connectionStateStore, credentialCoordinator: connectionCredentialCoordinator,
   clientId: slackClientId, clientSecret: slackClientSecret, callbackPort: slackCallbackPort,
   publicSearchPolicy: slackPublicSearchPolicy }) : null;
-const workspaceConnectionServices = [notionConnection, linearConnection, channelTalkConnection];
+const workspaceConnectionServices = [naverIdentityConnection, notionConnection, linearConnection, channelTalkConnection];
 if (slackConnection) workspaceConnectionServices.push(slackConnection);
 const localConsoleToken = randomBytes(32).toString('base64url');
 const processRegistry = new ManagedProcessRegistry({ platform: computerEnvironment.platform,

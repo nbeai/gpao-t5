@@ -1998,6 +1998,9 @@ export function makeConsoleServer({
           const executeBrowser = browserTool.execute.bind(browserTool);
           browserTool.execute = async (args, context) => {
             const observed = await executeBrowser(args, context);
+            for (const service of workspaceConnectionServices) {
+              await service.observeBrowserResult?.({ args, result: observed, sessionId, runId: run.runId });
+            }
             if (args.action === 'screenshot' && observed?.state === 'captured' && observed.file?.path) {
               outputCandidates.add(outputKey(observed.file.path));
               return { ...observed, currentRunVisualEvidence: { state: 'available', exactFile: true } };

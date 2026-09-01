@@ -1,0 +1,43 @@
+{
+  "schema": "t5.nx2-nv2-evidence.v1",
+  "recordedOn": "2026-09-02",
+  "gate": "NX2-6 NV-2 NAVER IDENTITY BROKER",
+  "status": "COMPLETE",
+  "product": {
+    "newCanonicalStore": 0,
+    "newModelVisibleTool": 0,
+    "surface": "existing connection tool",
+    "source": "existing managed Browser observations",
+    "profileBinding": "first observed exact public managed profile id",
+    "profilePathStoredOrProjected": false,
+    "cookieOrSecretStoredOrProjected": false
+  },
+  "states": ["unknown", "user_control", "authenticated", "login_required", "expired"],
+  "services": ["mailWeb", "blogWeb", "mailProtocol"],
+  "actualConsole": {
+    "sameManagedProfile": true,
+    "mailWeb": "ready",
+    "blogWeb": "ready",
+    "connectionState": "ready",
+    "newLoginWindow": false,
+    "mailBodyOpened": false,
+    "writes": 0,
+    "saved": false,
+    "published": false
+  },
+  "firstCounterexample": {
+    "failure": "broker fixed profile handle did not match actual Browser public profile id",
+    "repair": "bind the first exact observed public managed profile id and reject later foreign ids",
+    "sameProfilePathOrCookieInspection": 0
+  },
+  "verification": {"focusedPassed": 21, "focusedFailed": 0, "actualConsole": "PASS"},
+  "observations": [
+    "A stale queued input identity log can still appear during qualification Runtime shutdown and remains an NX2-HQ observation."
+  ],
+  "nonClaims": [
+    "Mail protocol ready",
+    "mail send or Blog publish qualified",
+    "durable Naver account identity beyond the managed Browser profile",
+    "Windows physical qualification"
+  ]
+}

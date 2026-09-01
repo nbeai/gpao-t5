@@ -1,0 +1,67 @@
+import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import test from 'node:test';
+
+import { makeConsoleServer } from '../src/console-server.js';
+import { makeNaverIdentityBroker } from '../src/naver-identity-broker.js';
+
+const nulls = { tabId: null, full: null, maxChars: 5_000, fullPage: null,
+  observationId: null, ref: null, editableId: null, modalIntent: null, text: null,
+  textFilePath: null, textFileStartLine: null, filePath: null, attachmentId: null, effect: null };
+
+test('기존 Browser observations가 기존 connection 표면의 하나의 Naver identity로 결속된다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-naver-identity-console-'));
+  const broker = makeNaverIdentityBroker(); let turn = 0;
+  const driver = {
+    profile: { id: 'default', kind: 'managed_persistent', selected: true },
+    userControlActive: () => false, available: async () => ({ available: true }),
+    status: async () => ({ state: 'ready' }), profiles: async () => ({ profiles: [driver.profile] }),
+    tabs: async () => ({ tabs: [] }), editables: async () => ({ editables: [] }),
+    pageSecretFacts: async () => ({ secretFieldCount: 0, secretValuesObserved: false }),
+    async navigate(url) {
+      const mail = new URL(url).hostname === 'mail.naver.com';
+      return { tab: { tabId: mail ? 'mail' : 'blog', targetId: mail ? 'm' : 'b',
+        url: mail ? 'https://mail.naver.com/v2/folders/0/all' : 'https://blog.naver.com/' },
+      snapshot: { text: mail ? '받은메일함 메일 검색' : '로그아웃 내 블로그 글쓰기', refs: {} } };
+    }, close: async () => {},
+  };
+  const server = makeConsoleServer({ stateDir: join(room, 'state'), workspace: room,
+    browserHost: { profile: driver.profile }, browserDriverFactory: () => driver,
+    workspaceConnectionServices: [broker],
+    webReadOptions: { resolveHost: async () => ['223.130.200.107'],
+      fetchImpl: async () => new Response('<html><body><div id="root"></div><script>app()</script></body></html>',
+        { status: 200, headers: { 'content-type': 'text/html' } }) },
+    modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
+    modelFactory: () => ({ async respond(input) {
+      turn += 1;
+      if (turn === 1) return { text: '', toolCalls: [{ id: 'read-mail', name: 'web_read', args: {
+        url: 'https://mail.naver.com/', maxChars: 5_000, visibleBrowser: 'user_interaction' } }] };
+      if (turn === 2) return { text: '', toolCalls: [{ id: 'browser-mail', name: 'browser', args: {
+        action: 'navigate', ...nulls, url: 'https://mail.naver.com/' } }] };
+      if (turn === 3) return { text: '', toolCalls: [{ id: 'read-blog', name: 'web_read', args: {
+        url: 'https://blog.naver.com/', maxChars: 5_000, visibleBrowser: 'user_interaction' } }] };
+      if (turn === 4) return { text: '', toolCalls: [{ id: 'browser-blog', name: 'browser', args: {
+        action: 'navigate', ...nulls, url: 'https://blog.naver.com/' } }] };
+      if (turn === 5) return { text: '', toolCalls: [{ id: 'identity', name: 'connection', args: {
+        action: 'inspect', id: 'naver', actionId: null } }] };
+      const receipt = JSON.parse(input.messages.findLast((message) => message.name === 'connection').content);
+      assert.equal(receipt.result.connection.state, 'ready');
+      assert.deepEqual(receipt.result.connection.capabilities,
+        { mail_web: true, blog_web: true, mail_protocol: false });
+      return { text: '같은 T5 네이버 로그인으로 메일과 블로그가 준비됐습니다.', toolCalls: [] };
+    } }),
+  });
+  await new Promise((done, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', done); });
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const result = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: '네이버 메일과 블로그 상태를 확인해줘' }) }).then((response) => response.json());
+    assert.match(String(result.reply ?? ''), /메일과 블로그가 준비/u, JSON.stringify(result));
+  } finally {
+    await server.closeBrowsers(); server.closeWakeStreams(); await server.closeMessengers();
+    await new Promise((done) => server.close(done)); await rm(room, { recursive: true, force: true });
+  }
+});
