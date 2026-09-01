@@ -1,0 +1,45 @@
+{
+  "schema": "t5.nx2.se2-human-side-answer.v1",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "1ca01446",
+  "status": "SE2_COMPLETE",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "actualConsole": {
+    "humanRunner": "owner",
+    "selectionCreated": true,
+    "selectedQuote": "정산 결과",
+    "panelOpened": true,
+    "layout": "fixed floating overlay",
+    "background": "white",
+    "mainConversationWidthChanged": false,
+    "sideQuestionAnswered": true,
+    "sideAnswerGroundedInSelection": true,
+    "internalTermsExposed": false
+  },
+  "canonicalReality": {
+    "mainConversationMessageEventsBefore": 2,
+    "mainConversationMessageEventsAfter": 2,
+    "sideEvents": 5,
+    "workEventsAfterSideOpen": 0,
+    "artifactPublications": 0,
+    "memoryWrites": 0,
+    "toolDefinitions": 0,
+    "sideRunState": "completed"
+  },
+  "verification": {
+    "focusedPassed": 26,
+    "fullCheckPassed": 2130,
+    "fullCheckFailed": 0,
+    "fullCheckSkipped": 1
+  },
+  "boundaries": {
+    "newAgent": 0,
+    "mainPromptDelta": 0,
+    "applyBeforeExplicitUserAction": 0,
+    "se3OpenedBeforeHumanPass": false
+  },
+  "next": { "gate": "SE-3 Explicit Apply & Work Provenance", "se3Open": true }
+}
