@@ -3,8 +3,8 @@
 상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE · NX_2_MASTERY_GENERALIZATION_CURRENT`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
-현재 Gate: `NX2-1C0 FIRST-TURN REALITY AFFORDANCE AUDIT · READ_ONLY`
-현재 작업: `일반·전문 표현의 첫 provider wire·Tool contract·Work admission 비교 · 제품 후보 0`
+현재 Gate: `NX2-1C0 FIRST-TURN REALITY AFFORDANCE · SINGLE TOOL-CONTRACT CANDIDATE`
+현재 작업: `first-wire 동일성 증명 완료 · 기존 tool_search 목적 중심 계약 A/B 1회만 허용 · 제품 미적용`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -1214,6 +1214,21 @@ NX2-1C는 existing observer 공통 결함을 찾지 못했지만, exact 일반 �
 결과가 배선 차이면 최초 한 경계만 수리한다. 사용자 원문 외 wire가 같다면 Runtime Router나 selection model을 만들지 않고,
 현재 `file_reality` Tool contract가 목적 중심 affordance를 충분히 설명하는지만 candidate A/B 한 번으로 제한한다. 업무 단어·
 metadata score·global Prompt 증가는 금지하고, 후보 실패 뒤 두 번째 문구 patch는 열지 않는다.
+
+2026-09-01 paired first-wire 결과:
+
+- 매출·미수금·재고의 일반/전문 표현 첫 provider call은 Tool 순서·schema·10,826 bytes·SHA, instructions 30,275 bytes·
+  normalized SHA, workspace·attachment·process facts, Work admission에서 모두 같았다.
+- 사용자 원문을 치환한 normalized wire SHA도 세 pair 모두 같았다.
+- `file_reality`는 첫 호출에서 deferred이고 `tool_search`가 동일하게 보였다. 전문가 표현은 이를 선택했고 일반 표현은
+  선택하지 않았다.
+- 따라서 배선 결함은 증명되지 않았고 `B_MODEL_PROVIDER_SELECTION_QUALITY`다.
+
+허용 후보는 하나뿐이다. 새 Tool이나 model call이 아니라 첫 호출에 이미 보이는 `tool_search`의 기존 description을 업무
+키워드 없이 목적 중심 affordance로 교체해, 파일명·위치를 모르는 사용자도 현재 컴퓨터 현실이 답을 바꿀 수 있는 목적에서
+File Reality를 발견할 수 있는지 A/B한다. global Prompt·Router·metadata score는 0이다.
+
+근거: `refoundation/evidence/nx2-first-turn-reality-affordance-audit-2026-09-01.json`.
 
 ### NX-2D — Five-Lane Proportionality — PENDING
 

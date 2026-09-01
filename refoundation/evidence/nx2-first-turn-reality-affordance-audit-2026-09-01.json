@@ -1,0 +1,53 @@
+{
+  "schema": "t5.nx2.first-turn-reality-affordance-audit.v1",
+  "recordedOn": "2026-09-01",
+  "productSourceCommit": "33ccba27af948860a0b0b4fce88cfcf4f2fa2903",
+  "auditOpenCommit": "babbab99",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "pairs": [
+    { "purpose": "sales", "ordinarySourceEntered": false, "expertSourceEntered": true },
+    { "purpose": "receivables", "ordinarySourceEntered": false, "expertSourceEntered": true },
+    { "purpose": "inventory", "ordinarySourceEntered": false, "expertSourceEntered": true }
+  ],
+  "firstProviderCall": {
+    "toolNames": ["tool_search", "memory_claim", "memory_control", "skill", "web_read", "attachment", "exec"],
+    "fileRealityDirectlyVisible": false,
+    "toolSearchVisible": true,
+    "toolContractBytes": 10826,
+    "toolContractSha256": "80ff7869b4f66558bffa3ae3b10cf8d19d923f81f6d91c7d8c48ac8917f6987f",
+    "instructionsBytes": 30275,
+    "normalizedInstructionsSha256": "9644059a2e4d7b4ee660ed00d93582baf4917e493cd5e9be06e01538d75aebd7",
+    "normalizedWireSha256": "ea18d0cf816c294de4e52af6c27cce5b38738c6de52d15ccfaec7ff77ccc0e6d",
+    "workspaceBlock": true,
+    "activeOutputOperationsEmpty": true,
+    "pendingOutputsEmpty": true,
+    "activeManagedProcessesEmpty": true,
+    "imageInputCount": 0,
+    "workBoundBeforeFirstModel": false
+  },
+  "pairwiseEquality": {
+    "toolNames": true,
+    "toolContractBytes": true,
+    "toolContractSha256": true,
+    "normalizedInstructions": true,
+    "runtimeFacts": true,
+    "workAdmission": true,
+    "normalizedWireAfterUserRequestReplacement": true
+  },
+  "decision": {
+    "branch": "B_MODEL_PROVIDER_SELECTION_QUALITY",
+    "wiringDefectProven": false,
+    "userRequestOnlyMaterialDifference": true,
+    "productChangeApplied": false,
+    "allowedCandidateCount": 1,
+    "allowedCandidate": "replace the existing visible tool_search affordance contract with one purpose-centered contract that covers unobserved current computer reality without business keywords",
+    "newSelectionTool": 0,
+    "newSelectionModelCall": 0,
+    "newRouter": 0,
+    "globalPromptDelta": 0
+  },
+  "status": "NX2_1C0_AUDIT_COMPLETE_SINGLE_TOOL_CONTRACT_CANDIDATE_AUTHORIZED"
+}

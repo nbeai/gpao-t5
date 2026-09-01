@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CURRENT_NOT_ACHIEVED · CURRENT_SLICE_NX2_1C0_FIRST_TURN_AFFORDANCE_AUDIT`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CURRENT_NOT_ACHIEVED · NX2_1C0_AUDIT_COMPLETE_SINGLE_CONTRACT_CANDIDATE`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-1C0 — First-Turn Reality Affordance Audit · READ_ONLY`
+현재 제품 Gate: `NX2-1C0 — First-Turn Reality Affordance · SINGLE TOOL-CONTRACT CANDIDATE`
 
 ---
 
@@ -305,6 +305,13 @@ NX2-1C가 실패하면 같은 문구·업무별 규칙을 더하지 않고 NX-1 
 배선 차이가 있으면 Work Admission·Context ownership·Tool visibility·capability projection 중 최초 한 경계만 후보화한다.
 사용자 원문 외 wire가 같으면 별도 selection Tool·model·Router를 만들지 않고 기존 `file_reality` Tool contract의 목적 중심
 affordance만 candidate A/B 한 번 허용한다. 업무 키워드·metadata score·global Prompt 증가는 0이어야 한다.
+
+2026-09-01 paired audit에서 매출·미수금·재고의 일반/전문 첫 provider call은 Tool contract·instructions·runtime facts·
+Work admission·사용자 원문 치환 normalized wire가 모두 같았다. 배선 결함은 없고 모델의 첫 선택 차이다. 첫 호출에는
+`file_reality`가 deferred라 `tool_search`만 보이므로, 기존 `tool_search` description을 현재 컴퓨터 현실의 목적 중심
+affordance로 교체하는 candidate A/B 한 번만 허용한다.
+
+근거: `refoundation/evidence/nx2-first-turn-reality-affordance-audit-2026-09-01.json`.
 
 ---
 

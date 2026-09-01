@@ -74,3 +74,18 @@ test('NX2-1C actual trace는 source 전·후 실패를 분리하고 공통 obser
   assert.equal(evidence.commonQualification.strictPassCount, 0);
   assert.equal(evidence.commonQualification.nx2_1dOpened, false);
 });
+
+test('NX2-1C0은 일반·전문 첫 wire가 사용자 원문 외 동일함을 증명하고 후보 하나만 연다', async () => {
+  const evidence = JSON.parse(await read('refoundation/evidence/nx2-first-turn-reality-affordance-audit-2026-09-01.json'));
+  assert.equal(evidence.pairs.length, 3);
+  assert.equal(evidence.pairs.every((pair) => !pair.ordinarySourceEntered && pair.expertSourceEntered), true);
+  assert.equal(Object.values(evidence.pairwiseEquality).every(Boolean), true);
+  assert.equal(evidence.decision.branch, 'B_MODEL_PROVIDER_SELECTION_QUALITY');
+  assert.equal(evidence.decision.wiringDefectProven, false);
+  assert.equal(evidence.decision.allowedCandidateCount, 1);
+  assert.equal(evidence.decision.productChangeApplied, false);
+  assert.equal(evidence.decision.newSelectionTool, 0);
+  assert.equal(evidence.decision.newSelectionModelCall, 0);
+  assert.equal(evidence.decision.newRouter, 0);
+  assert.equal(evidence.decision.globalPromptDelta, 0);
+});
