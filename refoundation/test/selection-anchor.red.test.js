@@ -40,3 +40,9 @@ test('RED: stale projection과 surrogate 내부 offset은 anchor 발급 전에 �
     startUtf16: emoji + 1, endUtf16: emoji + 2,
   } }), /UTF-16 boundary/u);
 });
+
+test('사용자 말풍선은 Markdown 기호도 보이는 원문이므로 assistant projection과 합치지 않는다', () => {
+  const source = '**이 표기를 그대로** 질문할게';
+  assert.equal(projectSelectableMessage(source, { role: 'user' }).text, source);
+  assert.equal(projectSelectableMessage(source, { role: 'assistant' }).text, '이 표기를 그대로 질문할게');
+});

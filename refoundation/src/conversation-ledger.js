@@ -194,7 +194,7 @@ export class ConversationLedger {
       || source.message.role !== anchor.sourceRole || (source.runId ?? null) !== anchor.sourceRunId) {
       throw new Error('selection source identity mismatch');
     }
-    const projection = projectSelectableMessage(source.message.content);
+    const projection = projectSelectableMessage(source.message.content, { role: source.message.role });
     if (anchor.projectionVersion !== projection.version || anchor.projectionDigest !== projection.digest
       || projection.text.slice(anchor.startUtf16, anchor.endUtf16) !== anchor.quote) {
       throw new Error('stale selection projection');

@@ -19,8 +19,10 @@ function validUtf16Boundary(text, offset) {
   return !(previous >= 0xD800 && previous <= 0xDBFF && current >= 0xDC00 && current <= 0xDFFF);
 }
 
-export function projectSelectableMessage(source) {
-  const text = visibleMarkdown(source);
+export function projectSelectableMessage(source, { role = 'assistant' } = {}) {
+  if (!['user', 'assistant'].includes(role)) throw new TypeError('selectable message role is invalid');
+  const normalized = String(source ?? '').replace(/\r\n?/gu, '\n');
+  const text = role === 'user' ? normalized : visibleMarkdown(normalized);
   return { version: VERSION, text, digest: sha256(JSON.stringify({ version: VERSION, text })) };
 }
 
@@ -30,7 +32,7 @@ export function buildSelectionAnchor({ canonical, request } = {}) {
     || !Number.isInteger(canonical.sequence) || canonical.sequence < 1) {
     throw new TypeError('canonical selection source is required');
   }
-  const projection = projectSelectableMessage(canonical.content);
+  const projection = projectSelectableMessage(canonical.content, { role: canonical.role });
   if (request?.projectionVersion !== projection.version
     || request?.projectionDigest !== projection.digest) throw new Error('stale selection projection');
   const startUtf16 = request?.startUtf16; const endUtf16 = request?.endUtf16;

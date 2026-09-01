@@ -873,7 +873,7 @@ export function makeConsoleServer({
       const canonical = canonicalEntries.find((item) => !usedCanonicalMessageIds.has(item.messageId)
         && item.message.role === role && item.message.content === content);
       if (!canonical) return null; usedCanonicalMessageIds.add(canonical.messageId);
-      const projection = projectSelectableMessage(canonical.message.content);
+      const projection = projectSelectableMessage(canonical.message.content, { role });
       return { messageHandle: `message_${createHash('sha256').update(`${session.id}\0${canonical.messageId}`)
         .digest('hex').slice(0, 24)}`, projectionVersion: projection.version,
         projectionDigest: projection.digest };
