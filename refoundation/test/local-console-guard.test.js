@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { consoleCookieHeader, makeLocalConsoleGuard } from '../src/local-console-guard.js';
 import { makeConsoleServer } from '../src/console-server.js';
 
-function request(headers = {}) { return { headers }; }
+function request(headers = {}, method = 'GET') { return { headers, method }; }
 
 test('local console guard rejects missing identity, foreign origins, and rebinding hosts', () => {
   const guard = makeLocalConsoleGuard({ token: 'test-secret', port: () => 4174 });
@@ -27,6 +27,9 @@ test('local console guard allows bootstrap and exact same-site identity only', (
   const guard = makeLocalConsoleGuard({ token: 'test-secret', port: () => 4174 });
   assert.equal(guard.inspect(request({ host: '127.0.0.1:4174' }), '/'), null);
   assert.equal(guard.inspect(request({ host: 'localhost:4174' }), '/health'), null);
+  assert.equal(guard.inspect(request({ host: '127.0.0.1:4174' }), '/settings/tools'), null);
+  assert.equal(guard.inspect(request({ host: '127.0.0.1:4174' }, 'POST'), '/settings/tools')?.reason, 'token');
+  assert.equal(guard.inspect(request({ host: '127.0.0.1:4174' }), '/settings/tools/extra')?.reason, 'token');
   assert.equal(guard.inspect(request({
     host: '127.0.0.1:4174', origin: 'http://127.0.0.1:4174', cookie: 't5_console=test-secret',
   }), '/sessions'), null);
@@ -67,6 +70,10 @@ test('protected console routes are unreachable before route dispatch', async () 
     const cookie = bootstrap.headers.get('set-cookie').split(';', 1)[0];
     const created = await fetch(`${base}/sessions`, { method: 'POST', headers: { cookie } });
     assert.equal(created.status, 200);
+
+    const directSettings = await fetch(`${base}/settings/tools`);
+    assert.equal(directSettings.status, 200);
+    assert.match(directSettings.headers.get('set-cookie'), /t5_console=route-secret/u);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await rm(room, { recursive: true, force: true });

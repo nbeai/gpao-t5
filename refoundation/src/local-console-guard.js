@@ -64,7 +64,9 @@ export function makeLocalConsoleGuard({ token, port } = {}) {
           || originPort !== currentPort) return { reason: 'origin' };
       }
 
-      if (PUBLIC_PATHS.has(pathname)) return null;
+      const bootstrapShell = req.method === 'GET'
+        && (PUBLIC_PATHS.has(pathname) || pathname === '/settings' || /^\/settings\/[a-z0-9-]+$/u.test(pathname));
+      if (bootstrapShell) return null;
       if (!sameSecret(cookieValue(req.headers?.cookie, CONSOLE_COOKIE_NAME), token)) {
         return { reason: 'token' };
       }
