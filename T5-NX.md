@@ -1680,3 +1680,18 @@ Auditory는 오너가 별도 Gate를 열 때 NX-AU로 독립 진행한다. Compu
 > 독립 검증한다. 숫자·문서·디자인·프로그램·자동화 결과는 비교군과 현재 T5보다 빠르고 정확하며 실제로 더 잘
 > 만들어지고, 검증된 숙련은 다음 유사 업무에서 사용자의 설명과 교정을 줄이되 current user와 새로운 현실에 맞지
 > 않으면 즉시 철회된다.
+
+---
+
+## 후속 세대 계획
+
+NX‑2 전체와 마지막 Presentation Studio `PS-HQ` 종료 뒤의 후속 계획은 `T5-NX3.md`다.
+
+- 이름: `T5 NX-3 — Developer & Connection Intelligence`
+- 상태: `PLANNED_SUCCESSOR · NOT_CURRENT`
+- 목표: 공식 MCP·API·CLI를 일반 사용자가 쉽게 연결하고, 필요한 adapter·program·project를 T5 내부 개발자 함수가
+  작성·실행·검증해 현재 없는 손을 획득한다.
+- GUI: 후순위·범위 밖
+- Cloud execution: 로컬 Core 뒤 선택적 후속
+
+현재 `T5-NX.md`가 계속 유일한 개발 정본이며, NX-3 문서의 존재만으로 어떤 제품 Gate도 열리지 않는다.

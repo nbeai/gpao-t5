@@ -1,5 +1,16 @@
 # 연구 색인
 
+## NX-3 후속 세대 계획
+
+- 문서: `../T5-NX3.md`
+- 상태: `OWNER_PLANNED_SUCCESSOR · NX2_AND_PRESENTATION_STUDIO_CLOSEOUT_REQUIRED · PRODUCT_IMPLEMENTATION_NOT_OPEN`
+- 목표: 일반 사용자가 API·MCP·CLI·코드를 몰라도 “연결해줘·자동화해줘·고쳐줘·만들어줘”라고 맡기면 T5 내부
+  개발자 함수가 공식 경로를 연결하거나 필요한 adapter·program·project를 작성·검증해 목적을 완료한다.
+- 순서: Baseline → Connection Onboarding → MCP → API Adapter → CLI Broker → Capability Forge → Project Developer
+  → Natural Activation → Platform → Human HQ.
+- GUI는 후순위로 제외하며 Cloud execution은 로컬 개발자 Core 이후 선택적 `NX3-R`이다.
+- 이 문서는 현재 NX-2를 중단하거나 자동 개통하지 않는다.
+
 ## 현재 세대와의 관계
 
 - 현재 개발 정본: `../T5-NX.md`
