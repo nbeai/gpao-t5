@@ -17,6 +17,7 @@ import { makeDuckDuckGoSearchProvider } from '../src/duckduckgo-search-provider.
 import { makeBingSearchProvider } from '../src/bing-search-provider.js';
 import { makeNaverSearchProvider } from '../src/naver-search-provider.js';
 import { makeNaverIdentityBroker } from '../src/naver-identity-broker.js';
+import { makeNaverMailConnection } from '../src/naver-mail-connection.js';
 import { naverReadableUrlResolver } from '../src/naver-readable-url.js';
 import { makeConsoleServer } from '../src/console-server.js';
 import { makeAgentBrowserDriver, sessionNameForOwner } from '../src/agent-browser-driver.js';
@@ -220,7 +221,10 @@ const linearConnection = makeRemoteMcpConnection({
   stateStore: connectionStateStore, credentialCoordinator: connectionCredentialCoordinator,
 });
 const channelTalkConnection = makeChannelTalkConnection({ secretStore: platformSecretStore });
-const naverIdentityConnection = makeNaverIdentityBroker({ profileHandle: null });
+let naverIdentityConnection;
+const naverMailConnection = makeNaverMailConnection({ secretStore: platformSecretStore,
+  observeProtocol: (state) => naverIdentityConnection?.observeMailProtocol(state) });
+naverIdentityConnection = makeNaverIdentityBroker({ profileHandle: null, mailConnection: naverMailConnection });
 const slackClientId = String(process.env.T5_SLACK_OAUTH_CLIENT_ID ?? '').trim();
 const slackClientSecret = String(process.env.T5_SLACK_OAUTH_CLIENT_SECRET ?? '').trim();
 const slackCallbackPort = Number(process.env.T5_SLACK_OAUTH_CALLBACK_PORT ?? 4185);

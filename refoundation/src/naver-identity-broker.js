@@ -23,12 +23,13 @@ function publicSnapshot(state) {
 function overall(state, previouslyAuthenticated = false) {
   const web = [state.services.mailWeb, state.services.blogWeb];
   if (state.currentHandoff === 'active') return 'user_control';
-  if (web.every((item) => item === 'ready')) return 'authenticated';
+  if (state.services.mailProtocol === 'ready' || web.every((item) => item === 'ready')) return 'authenticated';
   if (web.some((item) => item === 'login_required')) return previouslyAuthenticated ? 'expired' : 'login_required';
   return 'unknown';
 }
 
-export function makeNaverIdentityBroker({ profileHandle = 'default', now = () => new Date() } = {}) {
+export function makeNaverIdentityBroker({ profileHandle = 'default', mailConnection = null,
+  now = () => new Date() } = {}) {
   let handle = profileHandle == null ? null : safeHandle(profileHandle);
   let state = { profileHandle: handle, state: 'unknown', services: {
     mailWeb: 'unknown', blogWeb: 'unknown', mailProtocol: 'unknown',
@@ -43,6 +44,12 @@ export function makeNaverIdentityBroker({ profileHandle = 'default', now = () =>
   const connection = {
     id: 'naver', label: '네이버', category: 'workspace',
     async inspect() {
+      const mail = await mailConnection?.inspect?.().catch(() => null);
+      if (mail?.state === 'ready' && state.services.mailProtocol !== 'ready') {
+        update({ services: { mailProtocol: 'ready' }, lastObservedAt: now().toISOString() });
+      } else if (mail?.state === 'needs_connection' && state.services.mailProtocol === 'ready') {
+        update({ services: { mailProtocol: 'needs_reauth' }, lastObservedAt: now().toISOString() });
+      }
       const snapshot = publicSnapshot(state); const ready = snapshot.state === 'authenticated';
       return { state: ready ? 'ready' : snapshot.state === 'user_control' ? 'needs_attention' : 'needs_connection',
         reason: ready ? 'same_managed_naver_identity_ready'
@@ -56,10 +63,25 @@ export function makeNaverIdentityBroker({ profileHandle = 'default', now = () =>
         capabilities: { mail_web: snapshot.services.mailWeb === 'ready',
           blog_web: snapshot.services.blogWeb === 'ready',
           mail_protocol: snapshot.services.mailProtocol === 'ready' },
-        routes: [{ kind: 'browser', label: 'T5 네이버 브라우저',
+        ...(mail?.identity ? { identity: mail.identity } : {}),
+        ...(mail?.credentialRequest ? { credentialRequest: mail.credentialRequest } : {}),
+        routes: [...(mail?.routes ?? []), { kind: 'browser', label: 'T5 네이버 브라우저',
           state: ready ? 'ready' : 'needs_connection', canStart: !ready,
-          startUrl: 'https://mail.naver.com/' }],
-        actions: [], naverIdentity: snapshot };
+        startUrl: 'https://mail.naver.com/' }],
+        actions: mail?.actions ?? [], naverIdentity: snapshot };
+    },
+    async connectCredentials(input) {
+      if (!mailConnection?.connectCredentials) throw new Error('Naver Mail protocol connection is unavailable');
+      const connected = await mailConnection.connectCredentials(input);
+      update({ services: { mailProtocol: 'ready' }, lastObservedAt: now().toISOString() });
+      return connected;
+    },
+    async makeTool(context) { return mailConnection?.makeTool?.(context) ?? null; },
+    async disconnect() {
+      if (!mailConnection?.disconnect) throw new Error('Naver Mail protocol connection is unavailable');
+      const disconnected = await mailConnection.disconnect();
+      update({ services: { mailProtocol: 'setup_required' }, lastObservedAt: now().toISOString() });
+      return disconnected;
     },
     observeBrowserResult({ args = {}, result = {} } = {}) {
       if (result?.profile?.id) {

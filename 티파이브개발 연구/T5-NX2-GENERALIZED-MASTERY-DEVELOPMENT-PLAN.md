@@ -1084,6 +1084,13 @@ Responses provider wire가 function output을 exact call 바로 뒤에 배치하
 - sender·recipient·date·message identity
 - pagination·coverage·unread state의 실제 효과 분리
 
+현재 상태: `CONTRACT_COMPLETE · ACTUAL_OWNER_SECRET_PENDING`. 공식 IMAP·platform secret·read-only mailbox·exact
+message/attachment identity까지 제품 배선과 반대시험을 닫았다. 실제 Console에 네이버 아이디와 애플리케이션 비밀번호
+전용 입력면이 보이며, 실제 계정 read는 오너가 그 입력면에서 secret을 제공한 뒤 자격한다. 그 전에는 NV-3 COMPLETE와
+NV-4 external send 개통을 주장하지 않는다.
+
+근거: `refoundation/evidence/nx2-nv3-mail-read-contract-2026-09-02.json`.
+
 #### NV-4 — Mail Draft & Send
 
 - draft와 send 분리
