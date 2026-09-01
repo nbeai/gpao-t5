@@ -4921,6 +4921,7 @@ export function makeConsoleServer({
       if (req.method === 'GET' && url.pathname.startsWith('/sessions/')) {
         const session = await sessions.load(decodeURIComponent(url.pathname.slice('/sessions/'.length)));
         if (!session) { json(res, 404, { error: '세션을 찾지 못했어요.' }); return; }
+        const canonicalConversation = await conversations.read(session.id).catch(() => null);
         json(res, 200, {
           id: session.id, title: session.title, origin: session.origin ?? null,
           continuationOf: session.continuationOf ?? null,
@@ -4930,6 +4931,8 @@ export function makeConsoleServer({
           activePendingIds: (await authority.listActive(session.id)).map((item) => item.pendingId),
           activeRecoveryIds: activeSessionRecoveryIds(session),
           activeConnectionHandoffIds: activeSessionConnectionHandoffIds(session),
+          selectionExplorations: (canonicalConversation?.explorations ?? [])
+            .filter((branch) => branch.state !== 'closed').map(projectSelectionExplorationPublic),
         }); return;
       }
       if (req.method === 'POST' && url.pathname === '/sessions/meta') {

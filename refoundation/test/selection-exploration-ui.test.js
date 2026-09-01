@@ -29,5 +29,7 @@ test('side composer는 자체 stream·Stop을 쓰고 사용자 명시 버튼으�
   assert.match(ui, /id="selectionApply"[^>]*hidden>현재 작업에 반영/u);
   assert.match(ui, /\/selection-explorations\/apply/u);
   assert.match(ui, /instructionMessageHandle: activeSelectionInstruction\.handle/u);
+  assert.match(ui, /restoreSelectionExploration\(s\.selectionExplorations \?\? \[\]\)/u);
+  assert.match(ui, /branch\.apply\?\.state === 'committed'/u);
   assert.doesNotMatch(ui, /raw reasoning|chain-of-thought/iu);
 });

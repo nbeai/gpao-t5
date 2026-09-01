@@ -1,7 +1,7 @@
 import { appendFile, chmod, mkdir, open, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { projectSelectableMessage } from './selectable-message-projection.js';
+import { buildSelectionAnchor, projectSelectableMessage } from './selectable-message-projection.js';
 import { projectSelectionExplorations } from './selection-exploration-projection.js';
 
 const SCHEMA = 't5.conversation-event.v1';
@@ -83,6 +83,23 @@ function parseEvents(text, sessionId) {
     if (event.type === 'selection_apply_committed' && (!event.explorationId || !event.requestId
       || !event.resultingWorkId || !Number.isInteger(event.resultingRevision))) {
       throw new Error('invalid selection apply commit');
+    }
+  }
+  for (const event of events.filter((item) => item.type === 'selection_exploration_opened')) {
+    const source = events.find((item) => item.type === 'message'
+      && item.messageId === event.anchor.sourceMessageId);
+    if (!source) throw new Error('selection source message is unavailable');
+    let rebuilt;
+    try { rebuilt = buildSelectionAnchor({ canonical: { sessionId,
+      messageId: source.messageId, sequence: source.sequence, role: source.message.role,
+      runId: source.runId ?? null, content: source.message.content }, request: {
+      projectionVersion: event.anchor.projectionVersion,
+      projectionDigest: event.anchor.projectionDigest,
+      startUtf16: event.anchor.startUtf16, endUtf16: event.anchor.endUtf16 } }); }
+    catch { throw new Error('selection source relationship is invalid'); }
+    if (rebuilt.anchorId !== event.anchor.anchorId || rebuilt.quote !== event.anchor.quote
+      || rebuilt.sourceContentDigest !== event.anchor.sourceContentDigest) {
+      throw new Error('selection source relationship is invalid');
     }
   }
   return events;

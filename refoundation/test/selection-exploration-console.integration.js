@@ -45,6 +45,9 @@ test('Console selection open→Tool 0 stream은 main transcript·Work를 바꾸�
       .then((response) => response.text());
     assert.match(stream, /event: complete/u); assert.match(stream, /"state":"completed"/u);
     assert.deepEqual(await server.workStore.read(), beforeWork);
+    const restoredSurface = await fetch(`${base}/sessions/${session.id}`).then((response) => response.json());
+    assert.equal(restoredSurface.selectionExplorations.length, 1);
+    assert.equal(restoredSurface.selectionExplorations[0].messages.length, 2);
     const ledger = new ConversationLedger(join(stateDir, 'conversations'));
     const after = await ledger.read(session.id);
     assert.equal(after.entries.length, 2); assert.equal(after.explorations.length, 1);
@@ -70,5 +73,7 @@ test('Console selection open→Tool 0 stream은 main transcript·Work를 바꾸�
     const finalConversation = await ledger.read(session.id);
     assert.equal(finalConversation.entries.some((entry) => entry.message.role === 'user'
       && entry.message.content === '이 금액은 무슨 뜻이야?'), true);
+    const appliedSurface = await fetch(`${base}/sessions/${session.id}`).then((response) => response.json());
+    assert.equal(appliedSurface.selectionExplorations[0].apply.state, 'committed');
   } finally { await new Promise((resolve) => server.close(resolve)); await rm(room, { recursive: true, force: true }); }
 });

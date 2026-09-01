@@ -3689,7 +3689,30 @@ async function 대화투영(s) {
   });
   renderSessionActivity(s.activity ?? sessionActivityById.get(s.id));
   renderWorkReality(s.workReality, { reconnect: true, sessionId: s.id });
+  restoreSelectionExploration(s.selectionExplorations ?? []);
   return s;
+}
+
+function restoreSelectionExploration(branches) {
+  activeSelectionStream?.close(); activeSelectionStream = null;
+  const branch = branches.at(-1) ?? null;
+  if (!branch) {
+    activeSelectionExploration = null; activeSelectionInstruction = null;
+    selectionPanel.hidden = true; selectionPanel.setAttribute('aria-hidden', 'true'); return;
+  }
+  activeSelectionExploration = branch; selectionQuote.textContent = branch.anchor.quote;
+  selectionMessages.replaceChildren();
+  for (const message of branch.messages ?? []) appendSideMessage(message.role, message.content);
+  activeSelectionInstruction = [...(branch.messages ?? [])].reverse()
+    .find((message) => message.role === 'user') ?? null;
+  if (branch.apply?.state === 'committed') {
+    selectionDraft.textContent = '현재 작업에 반영했어요.';
+    selectionDraft.hidden = false; selectionApply.hidden = true;
+  } else if (activeSelectionInstruction) {
+    selectionDraft.textContent = `반영할 지시: ${activeSelectionInstruction.content}`;
+    selectionDraft.hidden = false; selectionApply.hidden = false;
+  } else { selectionDraft.hidden = true; selectionApply.hidden = true; }
+  selectionPanel.hidden = false; selectionPanel.setAttribute('aria-hidden', 'false');
 }
 
 function setComposerInteraction(mode = 'idle', detail = '') {

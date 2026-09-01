@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -64,5 +64,25 @@ test('stale source sequence·digest와 다른 request payload는 side event 전�
       role: 'user', content: '첫 질문' }).then(() => ledger.appendSelectionSideMessage({ sessionId,
       explorationId: 'good', sideMessageId: 'two', requestId: 'same-request',
       role: 'user', content: '다른 질문' })), /selection request identity conflict/u);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('restart read는 dangling·tampered selection anchor를 main source 관계로 거부한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-selection-restore-'));
+  const sessionId = '55555555-5555-4555-8555-555555555555';
+  try {
+    const ledger = new ConversationLedger(room); await ledger.ensure({ sessionId });
+    const content = '복원할 선택 원문'; await ledger.appendMessage({ sessionId, messageId: 'message-c',
+      message: { role: 'assistant', content } });
+    const projection = projectSelectableMessage(content);
+    const anchor = buildSelectionAnchor({ canonical: { sessionId, messageId: 'message-c', sequence: 2,
+      role: 'assistant', runId: null, content }, request: { projectionVersion: projection.version,
+      projectionDigest: projection.digest, startUtf16: 0, endUtf16: 3 } });
+    await ledger.openSelectionExploration({ sessionId, explorationId: 'restore', requestId: 'restore-open', anchor });
+    const file = join(room, `${sessionId}.jsonl`); const lines = (await readFile(file, 'utf8')).trimEnd().split('\n');
+    const opened = JSON.parse(lines[2]); opened.anchor.quote = '변조'; lines[2] = JSON.stringify(opened);
+    await writeFile(file, `${lines.join('\n')}\n`);
+    await assert.rejects(() => new ConversationLedger(room).read(sessionId),
+      /selection source relationship is invalid/u);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
