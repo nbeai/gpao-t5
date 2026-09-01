@@ -13,6 +13,7 @@ import { deriveRunPerformanceTimeline } from '../src/run-speed-receipt.js';
 import { resolveTerminalShellEnvironment } from '../src/terminal-shell-environment.js';
 import { makeTerminalPlatformAdapter } from '../src/terminal-platform-adapter.js';
 import { summarizeExistingPathTrace } from '../test/helpers/nx-existing-path-trace.js';
+import { wrapNxRealityAffordanceModel } from '../test/helpers/nx-reality-affordance-contract-candidate.js';
 
 const repository = resolve(dirname(new URL(import.meta.url).pathname), '..', '..');
 const fixtureRoot = join(repository, 'refoundation', 'fixtures', 's6-ng5-dr0');
@@ -92,7 +93,11 @@ async function runScenario(definition) {
     computerEnvironment: computer, terminalEnvironment, terminalPlatformAdapter,
     capabilitySurfaceMode: 'directory-first-v1', workAdmissionMode: 'action-v1',
     learningReviewMode: 'off', memoryFlushMode: 'off', fileOcrProbe,
-    modelFactory: (input) => access.model(input), modelStatus: () => access.status(),
+    modelFactory: async (input) => {
+      const model = await access.model(input);
+      return process.env.T5_NX2_REALITY_AFFORDANCE === '1'
+        ? wrapNxRealityAffordanceModel(model) : model;
+    }, modelStatus: () => access.status(),
     workspaceConnectionInspectors: [], workspaceConnectionServices: [],
   });
   await new Promise((done, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', done); });

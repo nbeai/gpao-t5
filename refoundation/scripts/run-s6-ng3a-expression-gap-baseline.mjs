@@ -11,6 +11,7 @@ import { deriveRunPerformanceTimeline } from '../src/run-speed-receipt.js';
 import { resolveTerminalShellEnvironment } from '../src/terminal-shell-environment.js';
 import { makeTerminalPlatformAdapter } from '../src/terminal-platform-adapter.js';
 import { summarizeExistingPathTrace } from '../test/helpers/nx-existing-path-trace.js';
+import { wrapNxRealityAffordanceModel } from '../test/helpers/nx-reality-affordance-contract-candidate.js';
 
 const sourceFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
@@ -73,14 +74,15 @@ const practicalLens = [
   'Do not activate this lens for definitions, general explanations, opinions, brainstorming, creative work, or requests already answerable without current workspace evidence.',
 ].join(' ');
 const lensActive = process.env.T5_NG3A_PRACTICAL_LENS === '1';
+const realityAffordanceActive = process.env.T5_NX2_REALITY_AFFORDANCE === '1';
 const modelFactory = async (input) => {
   const baseModel = await access.model(input);
-  if (!lensActive) return baseModel;
-  return { ...baseModel,
+  const model = !lensActive ? baseModel : { ...baseModel,
     respond: (request) => baseModel.respond({ ...request,
       runtimeContext: [request.runtimeContext, practicalLens].filter(Boolean).join('\n\n') }),
     supersedeLastResponse: (...args) => baseModel.supersedeLastResponse?.(...args),
   };
+  return realityAffordanceActive ? wrapNxRealityAffordanceModel(model) : model;
 };
 const server = makeConsoleServer({
   stateDir, workspace, computerFileRoots: [workspace], restrictFileRealityToComputerRoots: true,
@@ -196,7 +198,8 @@ try {
     schema: 't5.s6-ng3a-expression-gap-baseline.v1', model: selected.modelId,
     provider: 'chatgpt_oauth', actualUserData: false, externalWrites: 0,
     scenarioOrder: selectedScenarioIds, variantOrder: [...selectedVariantIds],
-    practicalLensActive: lensActive, scenarios: scenarioResults, invariantParity, productChanges: 0,
+    practicalLensActive: lensActive, realityAffordanceActive,
+    scenarios: scenarioResults, invariantParity, productChanges: 0,
   };
   if (process.env.T5_NG3A_OUTPUT) await writeFile(resolve(process.env.T5_NG3A_OUTPUT),
     JSON.stringify(payload, null, 2));
