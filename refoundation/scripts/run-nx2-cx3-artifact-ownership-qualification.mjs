@@ -15,9 +15,9 @@ if (!['AB', 'BA'].includes(order)) throw new Error('T5_CX3_ORDER must be AB or B
 const sourceFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
 const source = JSON.parse(await readFile(sourceFile, 'utf8'));
-const selected = source.connections?.find((item) => item.id === 'chatgpt_oauth:gpt-5.5')
-  ?? source.connections?.find((item) => item.id === source.activeId && item.kind === 'chatgpt_oauth');
-if (!selected?.secretRef || selected.modelId !== 'gpt-5.5') throw new Error('exact gpt-5.5 connection is required');
+const requestedModel = String(process.env.T5_CX3_MODEL_ID ?? 'gpt-5.5');
+const selected = source.connections?.find((item) => item.modelId === requestedModel);
+if (!selected?.secretRef || selected.modelId !== requestedModel) throw new Error('exact requested model connection is required');
 
 async function arm(id) {
   const room = await mkdtemp(join(tmpdir(), `t5-cx3-artifact-${id}-`));
@@ -98,7 +98,7 @@ async function arm(id) {
 const arms = [];
 for (const id of order) arms.push(await arm(id));
 const result = { schema: 't5.nx2.cx3-artifact-ownership-qualification.v1', recordedOn: '2026-09-01',
-  order, model: selected.modelId, provider: 'chatgpt_oauth', actualUserData: false, externalWrites: 0,
+  order, model: selected.modelId, provider: selected.provider, actualUserData: false, externalWrites: 0,
   arms, passed: arms.every((item) => item.passed), productChanges: 0 };
 process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 if (!result.passed) process.exitCode = 1;

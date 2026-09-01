@@ -27,3 +27,10 @@ test('제거된 두 경계는 current attachment Tool description이 소유한�
   assert.match(source, /current-Run image, PDF, DOCX, HTML, or SVG.*inspect with attachmentId=null.*filePath/su);
   assert.match(source, /source creation alone is not visual verification/u);
 });
+
+test('CX-5 runner는 같은 계약으로 모델 identity만 선택하고 provider별 Prompt를 만들지 않는다', async () => {
+  const source = await readFile(new URL('../scripts/run-nx2-cx3-artifact-ownership-qualification.mjs', import.meta.url), 'utf8');
+  assert.match(source, /T5_CX3_MODEL_ID/u);
+  assert.match(source, /connections\?\.find\(\(item\) => item\.modelId === requestedModel\)/u);
+  assert.doesNotMatch(source, /if.*gpt-5\.6-terra.*instructionsOverride|if.*solar-pro4.*instructionsOverride/u);
+});
