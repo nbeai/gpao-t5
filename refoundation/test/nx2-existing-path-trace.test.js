@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { summarizeExistingPathTrace } from './helpers/nx-existing-path-trace.js';
+import { compareFirstTurnAffordanceTraces,
+  summarizeExistingPathTrace } from './helpers/nx-existing-path-trace.js';
 
 test('existing-path trace는 source entry·bind·Integral 경계를 원문 없이 분리한다', async () => {
   const root = await mkdtemp(join(tmpdir(), 't5-nx2-trace-')); const sessionId = 'session-test';
@@ -28,6 +29,9 @@ test('existing-path trace는 source entry·bind·Integral 경계를 원문 없�
       ] } });
     assert.deepEqual(trace.promptCalls[0].toolNames, ['tool_search', 'exec']);
     assert.equal(trace.promptCalls[0].requestPresent, true);
+    assert.match(trace.promptCalls[0].toolContractSha256, /^[a-f0-9]{64}$/u);
+    assert.match(trace.promptCalls[0].normalizedWireSha256, /^[a-f0-9]{64}$/u);
+    assert.equal(trace.boundary.workBoundBeforeFirstModel, false);
     assert.equal(trace.boundary.sourceEntered, true);
     assert.equal(trace.boundary.sourceBound, true);
     assert.equal(trace.boundary.integralEntered, false);
@@ -40,4 +44,16 @@ test('File Reality 호출 전 종료는 before_source_entry로 분리한다', as
   const trace = await summarizeExistingPathTrace({ stateDir: '/unavailable', sessionId: 'none',
     userRequest: '매출을 봐줘', purposePassed: false, run: { events: [] } });
   assert.equal(trace.boundary.failureStage, 'before_source_entry');
+});
+
+test('첫 provider call 비교는 Tool·instructions·runtime·Work admission과 정규화 wire를 분리한다', () => {
+  const trace = { promptCalls: [{ toolNames: ['tool_search'], toolContractBytes: 10,
+    toolContractSha256: 'a'.repeat(64), normalizedInstructionsSha256: 'b'.repeat(64),
+    normalizedWireSha256: 'c'.repeat(64), runtimeFacts: { workspaceBlock: true } }],
+  boundary: { workBoundBeforeFirstModel: false } };
+  assert.deepEqual(compareFirstTurnAffordanceTraces(trace, structuredClone(trace)), {
+    toolNamesEqual: true, toolContractBytesEqual: true, toolContractSha256Equal: true,
+    normalizedInstructionsEqual: true, runtimeFactsEqual: true, workAdmissionEqual: true,
+    normalizedWireEqual: true,
+  });
 });

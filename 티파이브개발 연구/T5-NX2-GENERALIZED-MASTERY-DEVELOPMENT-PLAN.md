@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CURRENT_NOT_ACHIEVED · NX2_1C_CLOSED_NO_COMMON_OBSERVER_DELTA`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CURRENT_NOT_ACHIEVED · CURRENT_SLICE_NX2_1C0_FIRST_TURN_AFFORDANCE_AUDIT`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-1 — Integral Mastery Generalization · CURRENT PATH QUALIFICATION NOT ACHIEVED`
+현재 제품 Gate: `NX2-1C0 — First-Turn Reality Affordance Audit · READ_ONLY`
 
 ---
 
@@ -290,6 +290,21 @@ NX2-1C가 실패하면 같은 문구·업무별 규칙을 더하지 않고 NX-1 
 - 네 목적 strict 공통 자격은 0/4이며 NX2-1은 현재 head에서 완료되지 않았다. NX2-1D와 NX2-2 이후 Gate는 열지 않는다.
 
 근거: `refoundation/evidence/nx2-existing-path-common-observer-trace-2026-09-01.json`.
+
+### NX2-1C0 — First-Turn Reality Affordance Audit — CURRENT
+
+제품 변경 0으로 일반·전문 표현의 첫 provider call을 비교한다.
+
+1. `file_reality` schema 제공 여부·Tool contract bytes·순서·digest
+2. Work admission 상태
+3. runtimeContext의 workspace·attachment·현재 목적 사실
+4. capability discovery visibility
+5. 사용자 원문을 제외한 normalized wire 차이
+6. 같은 affordance를 보았지만 모델 선택만 달라졌는지
+
+배선 차이가 있으면 Work Admission·Context ownership·Tool visibility·capability projection 중 최초 한 경계만 후보화한다.
+사용자 원문 외 wire가 같으면 별도 selection Tool·model·Router를 만들지 않고 기존 `file_reality` Tool contract의 목적 중심
+affordance만 candidate A/B 한 번 허용한다. 업무 키워드·metadata score·global Prompt 증가는 0이어야 한다.
 
 ---
 

@@ -3,8 +3,8 @@
 상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE · NX_2_MASTERY_GENERALIZATION_CURRENT`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
-현재 Gate: `NX2-1 INTEGRAL MASTERY GENERALIZATION · CURRENT PATH QUALIFICATION NOT ACHIEVED`
-현재 작업: `NX2-1C actual trace 완료 · 공통 observer delta 미증명 · 제품 후보 0 · NX-1 귀환선 유지`
+현재 Gate: `NX2-1C0 FIRST-TURN REALITY AFFORDANCE AUDIT · READ_ONLY`
+현재 작업: `일반·전문 표현의 첫 provider wire·Tool contract·Work admission 비교 · 제품 후보 0`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -1196,6 +1196,24 @@ NX-2C가 공통 observer gap을 닫은 경우에만 매출 변동·미수금 대
 `ad3e685c`를 귀환선으로 유지한다.
 
 근거: `refoundation/evidence/nx2-existing-path-common-observer-trace-2026-09-01.json`.
+
+### NX-2C0 — First-Turn Reality Affordance Audit — CURRENT
+
+NX2-1C는 existing observer 공통 결함을 찾지 못했지만, exact 일반 표현 세 건이 모두 첫 model call에서 자료를 다시
+요구하고 끝난 반면 전문가 표현은 같은 File Reality로 진입했다. 따라서 NX2-1D를 열지 않고 첫 provider call의 배선과
+모델 선택을 read-only로 분리한다.
+
+확인 범위:
+
+- `file_reality` schema visibility·Tool contract bytes·순서·digest
+- Work admission과 current runtimeContext·workspace·attachment 사실
+- capability discovery가 표현별로 다르게 열렸는지
+- provider wire에서 사용자 원문 외 차이
+- 같은 affordance를 모델이 보았지만 선택만 달리했는지
+
+결과가 배선 차이면 최초 한 경계만 수리한다. 사용자 원문 외 wire가 같다면 Runtime Router나 selection model을 만들지 않고,
+현재 `file_reality` Tool contract가 목적 중심 affordance를 충분히 설명하는지만 candidate A/B 한 번으로 제한한다. 업무 단어·
+metadata score·global Prompt 증가는 금지하고, 후보 실패 뒤 두 번째 문구 patch는 열지 않는다.
 
 ### NX-2D — Five-Lane Proportionality — PENDING
 
