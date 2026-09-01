@@ -1,10 +1,10 @@
 # T5 NX — Integral Outcome, Mastery, Performance & Comparative Quality
 
-상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE · NX_2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX_2_2_CONTEXT_DIET_CURRENT`
+상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE · NX_2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX_2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX_2_3_COGNITIVE_FLOW_CURRENT`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
-현재 Gate: `NX2-2 CONTEXT DIET & INTERFACE INTELLIGENCE · CX-HQ HUMAN CONTEXT QUALIFICATION`
-현재 작업: `CX-6 한 qualified line 제품 통합·전체 회귀 완료 · 실제 Console Context edge 자격`
+현재 Gate: `NX2-3 COGNITIVE FLOW & PRACTICAL JUDGMENT QUALIFICATION`
+현재 작업: `기존 연구·actual evidence 재사용 · 최초 판단 결함 한 가족만 read-only baseline`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -987,7 +987,7 @@ AND current correction·Stop·restart·Artifact·Undo 무회귀
 
 상세 개발 정본: `티파이브개발 연구/T5-NX2-GENERALIZED-MASTERY-DEVELOPMENT-PLAN.md`
 
-상태: `CURRENT · NX_1_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · CURRENT_SLICE_NX2_2_CX_HQ_HUMAN_CONTEXT_QUALIFICATION`
+상태: `CURRENT · NX_1_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · CURRENT_SLICE_NX2_3_COGNITIVE_FLOW`
 
 NX-2는 아래 네 업무만 늘리는 단계가 아니다. GUI와 NX-1에 이미 흡수된 Reality·Method·Evidence 구조를 다시 만들지
 않고, 남은 연구를 다음 한 실행선으로 일반화한다.
@@ -1354,6 +1354,18 @@ MOVE_CANDIDATE와 공통 Context를 모델별 fork 없이 비교하는 `CX-5 Mul
 다음 current slice는 이 변경 edge를 실제 Console에서 확인하는 `CX-HQ Human Context Qualification`이다.
 
 근거: `refoundation/evidence/nx2-cx6-context-product-integration-2026-09-01.json`.
+
+2026-09-01 CX-HQ 종료:
+
+- 실제 Console Direct는 1 model·Tool 0·2.22초, 악성 첨부는 정확한 inspect·요청 세 사실·sentinel effect 0으로 PASS했다.
+- CX-6 한 줄 ownership 이동의 사용자 회귀는 0이다.
+- 첨부 Work는 `admitted_input_identity_mismatch`로 unresolved였고 work_completion·세 번째 model call이 추가됐다.
+- Working Memory identity 축의 두 후보는 실제 여정에서 같은 실패를 제거하지 못해 제품 delta 0으로 폐기했다.
+- Context 성능 우위를 주장하지 않고 이 미달을 NX2-3·NX2-HQ·향후 Work settlement 재설계로 이월한다.
+
+CX-HQ는 `CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION`이며 다음 current Gate는 NX2-3이다.
+
+근거: `refoundation/evidence/nx2-cx-hq-human-context-qualification-2026-09-01.json`.
 
 ### NX-2D — Five-Lane Proportionality — PENDING
 

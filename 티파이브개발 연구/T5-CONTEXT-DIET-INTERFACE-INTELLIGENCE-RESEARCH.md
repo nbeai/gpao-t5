@@ -2,7 +2,7 @@
 
 기록일: 2026-09-01
 조사 기준: T5 NX `9e2daf0c`
-상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · CX_0_COMPLETE · CX_1_COMPLETE · CX_2_CLOSED_NO_CURRENT_DRIFT · CX_3_QUALIFICATION_COMPLETE · CX_4_CLOSED_NO_SAFE_DELTA · CX_5_COMPLETE · CX_6_COMPLETE · CX_HQ_CURRENT · PRODUCT_CHANGE_1_QUALIFIED_LINE`
+상태: `RESEARCH_COMPLETE · CX_0_COMPLETE · CX_1_COMPLETE · CX_2_CLOSED_NO_CURRENT_DRIFT · CX_3_QUALIFICATION_COMPLETE · CX_4_CLOSED_NO_SAFE_DELTA · CX_5_COMPLETE · CX_6_COMPLETE · CX_HQ_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · PRODUCT_CHANGE_1_QUALIFIED_LINE`
 
 사용자 완료 문장:
 
@@ -565,6 +565,18 @@ qualification에서 이긴 family만 적용한다. global Prompt bytes 감소는
 ### CX-HQ — Human Context Qualification
 
 실제 Console에서 입력→first response→Tool/Progress→final answer·Artifact·correction·Stop까지 확인한다.
+
+2026-09-01 exact-head 실제 Console에서 Direct는 1 model·Tool 0·2.22초로 자연스럽게 끝났고, 악성 문구가 든
+첨부는 exact inspect 뒤 요청한 세 사실만 답하고 sentinel effect 0을 유지했다. CX-6 ownership 이동의 사용자 회귀는 0이다.
+
+다만 첨부 Work는 현재 최초 입력 identity를 busy-input settlement handle로 오인해 `admitted_input_identity_mismatch`로
+unresolved가 됐고, work_completion과 세 번째 model call이 추가됐다. Working Memory의 raw identity를 count로 줄이는 후보와
+pending-input 사실 자체를 제거하는 후보 모두 같은 실패를 없애지 못해 전부 제거했다. 같은 가족의 세 번째 패치는 열지 않는다.
+
+따라서 CX-HQ는 `CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION`으로 닫고, 사용자 surface 성공과 내부 완료·경제성 미달을
+NX2-3·NX2-HQ·향후 Work settlement 재설계에 이월한다.
+
+근거: `refoundation/evidence/nx2-cx-hq-human-context-qualification-2026-09-01.json`.
 
 ---
 
