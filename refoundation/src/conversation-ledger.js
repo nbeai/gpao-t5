@@ -214,6 +214,20 @@ export class ConversationLedger {
       ...(requestId ? { requestId: String(requestId) } : {}) });
   }
 
+  async startSelectionSideRun({ sessionId, explorationId, runId, requestId } = {}) {
+    const current = await this.read(sessionId);
+    const branch = current.explorations.find((item) => item.explorationId === explorationId);
+    if (!branch || branch.state === 'closed') throw new Error('selection exploration is unavailable');
+    return this.appendSelectionEvent(sessionId, { type: 'selection_side_run_started',
+      explorationId: String(explorationId), runId: String(runId), requestId: String(requestId) });
+  }
+
+  async settleSelectionSideRun({ sessionId, explorationId, runId, state, requestId } = {}) {
+    return this.appendSelectionEvent(sessionId, { type: 'selection_side_run_settled',
+      explorationId: String(explorationId), runId: String(runId), state,
+      requestId: String(requestId) });
+  }
+
   async closeSelectionExploration({ sessionId, explorationId, requestId } = {}) {
     const current = await this.read(sessionId);
     const branch = current.explorations.find((item) => item.explorationId === explorationId);
