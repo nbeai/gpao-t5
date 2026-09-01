@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { selectionSideMessageHandle } from './selection-exploration-projection.js';
 
 export function makeExplicitWorkCorrection({ conversationLedger, workStore,
-  makeId = randomUUID } = {}) {
+  makeId = randomUUID, hooks = {} } = {}) {
   if (!conversationLedger || !workStore) throw new TypeError('explicit correction dependencies are required');
   return { async apply({ sessionId, explorationId, instructionMessageHandle, requestId } = {}) {
     const conversation = await conversationLedger.read(sessionId);
@@ -25,39 +25,74 @@ export function makeExplicitWorkCorrection({ conversationLedger, workStore,
       messageId: (await workStore.read()).inputs.find((input) => input.inputId === preparedApply.inputId)?.messageId };
     const sourceWork = branch.anchor.sourceRunId
       ? await workStore.workForRun(branch.anchor.sourceRunId) : null;
-    if (!sourceWork) throw new Error('selection source Work is unavailable');
     const state = await workStore.read();
-    const currentSource = state.works.find((work) => work.workId === sourceWork.workId);
-    if (!currentSource || currentSource.revision !== sourceWork.claimedRevision) {
+    const preparedInputState = preparedApply
+      ? state.inputs.find((input) => input.inputId === preparedApply.inputId) : null;
+    const alreadyApplied = ['classified', 'executing', 'executed'].includes(preparedInputState?.state);
+    const currentSource = sourceWork
+      ? state.works.find((work) => work.workId === sourceWork.workId) : null;
+    if (sourceWork && (!currentSource
+      || (currentSource.revision !== sourceWork.claimedRevision && !alreadyApplied))) {
       throw new Error('stale selection source Work');
     }
     const active = state.works.filter((work) => work.sessionId === sessionId && work.status === 'active').at(-1);
-    const relation = currentSource.status === 'active' ? 'current_revision'
-      : currentSource.status === 'completed' ? 'derived_work' : null;
+    const relation = preparedApply?.relation ?? (!currentSource ? 'derived_work'
+      : currentSource.status === 'active' ? 'current_revision'
+        : currentSource.status === 'paused' ? 'resumed'
+          : currentSource.status === 'completed' ? 'derived_work' : null);
     if (!relation) throw new Error('selection source Work cannot be applied now');
-    if (active && active.workId !== currentSource.workId) {
+    if (!alreadyApplied && active && active.workId !== currentSource?.workId) {
       throw new Error('another active Work requires an explicit target choice');
     }
-    const messageId = makeId();
-    const preparedInput = await workStore.prepareInputAdmission({ sessionId, messageId,
-      origin: 'selection_exploration', source: { channel: 'selection_exploration',
-        sourceMessageId: instruction.sideMessageId, selectionAnchorId: branch.anchor.anchorId,
-        admissionTime: { activeRun: false, currentResultProduced: true } } });
-    await conversationLedger.prepareSelectionApply({ sessionId, explorationId, requestId,
-      inputId: preparedInput.inputId, instructionSideMessageId: instruction.sideMessageId,
-      relation, targetWorkId: currentSource.workId, expectedRevision: currentSource.revision });
+    const targetWorkId = sourceWork?.workId ?? 'direct_no_work';
+    const expectedRevision = sourceWork?.claimedRevision ?? 0;
+    if (preparedApply && (preparedApply.relation !== relation
+      || preparedApply.targetWorkId !== targetWorkId
+      || preparedApply.expectedRevision !== expectedRevision)) {
+      throw new Error('selection apply request conflict');
+    }
+    let preparedInput; let messageId;
+    if (preparedApply) {
+      preparedInput = { inputId: preparedApply.inputId };
+      messageId = (await workStore.read()).inputs.find((input) => input.inputId === preparedInput.inputId)?.messageId;
+      if (!messageId) throw new Error('prepared selection input is unavailable');
+    } else {
+      messageId = makeId();
+      preparedInput = await workStore.prepareInputAdmission({ sessionId, messageId,
+        origin: 'selection_exploration', source: { channel: 'selection_exploration',
+          sourceMessageId: instruction.sideMessageId, selectionAnchorId: branch.anchor.anchorId,
+          admissionTime: { activeRun: false, currentResultProduced: true } } });
+      await conversationLedger.prepareSelectionApply({ sessionId, explorationId, requestId,
+        inputId: preparedInput.inputId, instructionSideMessageId: instruction.sideMessageId,
+        relation, targetWorkId, expectedRevision });
+      await hooks.afterPrepare?.();
+    }
     await conversationLedger.appendMessage({ sessionId, messageId,
       message: { role: 'user', content: instruction.content } });
-    await workStore.commitInputAdmission(preparedInput.inputId);
+    await hooks.afterConversationAppend?.();
+    let input = (await workStore.read()).inputs.find((item) => item.inputId === preparedInput.inputId);
+    if (input?.state === 'prepared') await workStore.commitInputAdmission(preparedInput.inputId);
+    await hooks.afterInputCommit?.();
+    input = (await workStore.read()).inputs.find((item) => item.inputId === preparedInput.inputId);
     let result;
-    if (relation === 'current_revision') {
-      result = await workStore.attachAdmittedInputToCurrentWork(preparedInput.inputId);
-    } else {
+    if (['classified', 'executing', 'executed'].includes(input?.state)) {
+      result = { workId: input.workId, revision: input.revision };
+    } else if (relation === 'current_revision') {
+      result = await workStore.attachAdmittedInputToExactWork({ inputId: preparedInput.inputId,
+        workId: currentSource.workId, expectedRevision });
+    } else if (relation === 'resumed') {
+      result = await workStore.resumeAdmittedInputFromSelection({ inputId: preparedInput.inputId,
+        workId: currentSource.workId, expectedRevision });
+    } else if (currentSource) {
       result = await workStore.createDerivedFromSelection({ sessionId, sourceMessageId: messageId,
         sourceInputId: preparedInput.inputId, derivedFromWorkId: currentSource.workId,
-        derivedFromRevision: currentSource.revision, selectionAnchorId: branch.anchor.anchorId,
+        derivedFromRevision: expectedRevision, selectionAnchorId: branch.anchor.anchorId,
         requestId });
+    } else {
+      result = await workStore.createFromSelection({ sessionId, sourceMessageId: messageId,
+        sourceInputId: preparedInput.inputId, selectionAnchorId: branch.anchor.anchorId, requestId });
     }
+    await hooks.afterWorkCommit?.();
     await conversationLedger.commitSelectionApply({ sessionId, explorationId, requestId,
       relation, resultingWorkId: result.workId, resultingRevision: result.revision });
     return { state: 'committed', relation, workId: result.workId,

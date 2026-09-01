@@ -76,6 +76,17 @@ export class WorkStore {
           workId: event.workId, revision: 1,
         });
       }
+      if (event.type === 'work_created_from_selection') {
+        works.set(event.workId, { workId: event.workId, sessionId: event.sessionId,
+          revision: 1, status: 'active', sourceMessageId: event.sourceMessageId,
+          provenance: { derivedFromWorkId: null, derivedFromRevision: null,
+            selectionAnchorId: event.selectionAnchorId, sourceInputId: event.sourceInputId,
+            sourceMessageId: event.sourceMessageId, reason: 'explicit_selection_apply' } });
+        const input = inputs.get(event.sourceInputId); if (input) Object.assign(input, {
+          state: 'classified', disposition: 'independent_work', schedule: 'independent_work',
+          workId: event.workId, revision: 1,
+        });
+      }
       if (event.type === 'input_admission_prepared') inputs.set(event.inputId, { inputId: event.inputId,
         sessionId: event.sessionId, messageId: event.messageId, origin: event.origin,
         attachmentIds: event.attachmentIds ?? [], source: event.source ?? {}, state: 'prepared' });
@@ -193,6 +204,15 @@ export class WorkStore {
         });
         const work = works.get(event.workId); if (work) {
           work.revision = event.revision; work.status = 'active';
+        }
+      }
+      if (event.type === 'input_resumed_from_selection') {
+        const input = inputs.get(event.inputId); if (input) Object.assign(input, {
+          state: 'classified', disposition: 'resumed_work', schedule: 'independent_work',
+          workId: event.workId, revision: event.revision,
+        });
+        const work = works.get(event.workId); if (work) {
+          work.status = 'active'; work.revision = event.revision;
         }
       }
       if (event.type === 'input_scheduled_after_delivery') {
@@ -416,6 +436,61 @@ export class WorkStore {
       return { workId, revision: 1, status: 'active', provenance: {
         derivedFromWorkId: values[3], derivedFromRevision, selectionAnchorId: values[4],
         sourceInputId: values[2], sourceMessageId: values[1], reason: 'explicit_selection_apply' } };
+    });
+  }
+  async createFromSelection({ sessionId, sourceMessageId, sourceInputId,
+    selectionAnchorId, requestId }) {
+    return this.serialize(async () => {
+      const state = await this.read(); const existing = state.events.find((event) => (
+        event.type === 'work_created_from_selection' && event.requestId === requestId));
+      const fingerprint = hash({ sessionId, sourceMessageId, sourceInputId, selectionAnchorId });
+      if (existing) {
+        if (existing.fingerprint !== fingerprint) throw new Error('selection apply request conflict');
+        return clone(state.works.find((work) => work.workId === existing.workId));
+      }
+      const input = state.inputs.find((item) => item.inputId === sourceInputId);
+      if (!input || input.sessionId !== sessionId || input.state !== 'admitted') {
+        throw new Error('selection input is unavailable');
+      }
+      if (state.works.some((work) => work.sessionId === sessionId && work.status === 'active')) {
+        throw new Error('another active Work requires an explicit target choice');
+      }
+      const workId = this.makeId(); await this.appendUnlocked('work_created_from_selection', {
+        workId, sessionId, sourceMessageId, sourceInputId, selectionAnchorId, requestId, fingerprint });
+      return { workId, revision: 1, status: 'active', provenance: {
+        derivedFromWorkId: null, derivedFromRevision: null, selectionAnchorId,
+        sourceInputId, sourceMessageId, reason: 'explicit_selection_apply' } };
+    });
+  }
+  async attachAdmittedInputToExactWork({ inputId, workId, expectedRevision }) {
+    return this.serialize(async () => {
+      const state = await this.read(); const input = state.inputs.find((item) => item.inputId === inputId);
+      const work = state.works.find((item) => item.workId === workId);
+      if (!input || input.state !== 'admitted' || input.sessionId !== work?.sessionId
+        || !work || work.status !== 'active' || work.revision !== expectedRevision) {
+        throw new Error('stale selection source Work');
+      }
+      const revision = expectedRevision + 1;
+      await this.appendUnlocked('input_attached_to_current_work', { inputId, workId,
+        baseRevision: expectedRevision, revision, reason: 'explicit_selection_apply' });
+      return { ...input, state: 'classified', disposition: 'current_work', schedule: 'current_work',
+        workId, revision };
+    });
+  }
+  async resumeAdmittedInputFromSelection({ inputId, workId, expectedRevision }) {
+    return this.serialize(async () => {
+      const state = await this.read(); const input = state.inputs.find((item) => item.inputId === inputId);
+      const work = state.works.find((item) => item.workId === workId);
+      if (!input || input.state !== 'admitted' || input.sessionId !== work?.sessionId
+        || !work || work.status !== 'paused' || work.revision !== expectedRevision
+        || state.works.some((item) => item.sessionId === input.sessionId && item.status === 'active')) {
+        throw new Error('selection paused Work is unavailable');
+      }
+      const revision = expectedRevision + 1;
+      await this.appendUnlocked('input_resumed_from_selection', { inputId, workId,
+        baseRevision: expectedRevision, revision });
+      return { ...input, state: 'classified', disposition: 'resumed_work',
+        schedule: 'independent_work', workId, revision };
     });
   }
   async activeForSession(sessionId) {
