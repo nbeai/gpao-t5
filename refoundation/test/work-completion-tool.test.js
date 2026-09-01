@@ -38,10 +38,24 @@ test('OpenAI strict function schema는 모든 property를 required로 선언하�
   assert.deepEqual(tool.parameters.required, ['outcome', 'inputSettlements']);
   assert.deepEqual(Object.keys(tool.parameters.properties).toSorted(),
     [...tool.parameters.required].toSorted());
+  assert.equal(tool.parameters.properties.inputSettlements.minItems, 0);
+  assert.equal(tool.parameters.properties.inputSettlements.maxItems, 0);
+  assert.match(tool.description, /must be an empty array/u);
   const result = await tool.execute({ outcome: 'unresolved', inputSettlements: [] },
     { priorReceipts: [] });
   assert.equal(result.verifiedOutcome, 'unresolved');
   assert.deepEqual(result.inputSettlements, []);
+});
+
+test('work_completion schema는 현재 Run의 opaque busy handle 전량만 허용한다', async () => {
+  const { store } = await fixture();
+  const scope = { handles: () => ['busy_exact_0001', 'busy_exact_0002'],
+    evaluate: async () => ({ settlements: [], blockers: [] }) };
+  const tool = makeWorkCompletionTool({ store, runId: 'run', inputSettlementScope: scope });
+  const array = tool.parameters.properties.inputSettlements;
+  assert.equal(array.minItems, 2); assert.equal(array.maxItems, 2);
+  assert.deepEqual(array.items.properties.handle.enum, ['busy_exact_0001', 'busy_exact_0002']);
+  assert.doesNotMatch(tool.description, /inputId|attachmentId/u);
 });
 
 test('실패한 읽기 route 뒤 다른 Hand의 성공 Evidence도 과거 실패만으로 완료를 막지 않는다', () => {
