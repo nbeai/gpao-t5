@@ -1,0 +1,85 @@
+{
+  "schema": "t5.nx2.reality-scout-qualification.v1",
+  "recordedOn": "2026-09-01",
+  "baselineCommit": "ad3e685c1138913b764bd43c6f2611500c49f432",
+  "gateCommit": "cd68039f",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "candidate1": {
+    "structure": "all top-level names when the managed workspace contains at most five regular files",
+    "projectionBytes": 1017,
+    "sales": {
+      "coreRealityObserved": true,
+      "strictOraclePass": false,
+      "wallMs": 35461,
+      "modelCalls": 5,
+      "toolCalls": 4,
+      "failure": "expanded from sales into receivables and inventory and omitted the requested paired three-month comparison"
+    },
+    "direct": { "pass": true, "wallMs": 2398, "modelCalls": 1, "toolCalls": 0 },
+    "decision": "REJECTED"
+  },
+  "candidate2": {
+    "structure": "filename relation only, ranked by generic character overlap without business aliases",
+    "sales": {
+      "candidateNames": ["매출기록.csv"],
+      "coreRealityObserved": true,
+      "strictOraclePass": false,
+      "wallMs": 42526,
+      "modelCalls": 6,
+      "toolCalls": 5,
+      "failure": "correct trend and contributor were found, but observation expanded to unrelated files and did not preserve the paired-period oracle"
+    },
+    "receivables": {
+      "candidateNames": [],
+      "purposePass": false,
+      "wallMs": 5388,
+      "modelCalls": 1,
+      "toolCalls": 0,
+      "failure": "generic lexical relation cannot connect 받을 돈 to 미수금현황"
+    },
+    "inventory": {
+      "candidateNames": ["재고현황.csv"],
+      "coreRealityPass": true,
+      "strictScopePass": false,
+      "wallMs": 29160,
+      "modelCalls": 5,
+      "toolCalls": 4,
+      "failure": "normal rows and unrelated sales speculation were added"
+    },
+    "contracts": {
+      "candidateNames": ["직원계약현황.csv"],
+      "coreRealityPass": true,
+      "strictScopePass": false,
+      "wallMs": 21744,
+      "modelCalls": 4,
+      "toolCalls": 3,
+      "failure": "exact employee identity was masked and a 34-day item was promoted beyond the requested immediate issue"
+    },
+    "direct": { "pass": true, "wallMs": 2072, "modelCalls": 1, "toolCalls": 0 },
+    "decision": "REJECTED"
+  },
+  "sharedFinding": {
+    "candidateMetadataHelpsSourceEntry": true,
+    "candidateMetadataSolvesSemanticRelation": false,
+    "candidateMetadataSolvesScopeDiscipline": false,
+    "candidateMetadataSolvesRoundEconomy": false,
+    "sameFamilyThirdPatchAllowed": false
+  },
+  "removed": {
+    "productSourceDelta": 0,
+    "qualificationHelperRetained": false,
+    "globalPromptDelta": 0,
+    "defaultToolSchemaDelta": 0,
+    "storeDelta": 0,
+    "businessRouterDelta": 0
+  },
+  "nextStructuralCandidate": {
+    "id": "model_selected_bounded_batch_observation",
+    "difference": "the model selects candidate identities once and Runtime reopens only that selected set in one existing-observer batch",
+    "notAllowed": ["business synonym list", "intent enum", "third wording patch", "automatic source truth"]
+  },
+  "status": "NX2B_CLOSED_TWO_CANDIDATES_REJECTED_STRUCTURAL_REASSESSMENT_REQUIRED"
+}

@@ -1039,7 +1039,7 @@ NX-1이 이긴 경우에만 공통 Method를 다음으로 확장한다.
 
 근거: `refoundation/evidence/nx2-generalization-baseline-2026-09-01.json`.
 
-### NX-2B — Bounded Reality Scout Qualification — OPEN
+### NX-2B — Bounded Reality Scout Qualification — CLOSED_TWO_CANDIDATES_REJECTED
 
 제품 배선 전에 qualification-only로 다음 한 후보만 시험한다.
 
@@ -1064,6 +1064,23 @@ NX-1이 이긴 경우에만 공통 Method를 다음으로 확장한다.
 
 매출 한 목적이 회복된 뒤에만 미수금·재고·계약을 같은 후보로 확인한다. 동의어 목록·업무 enum·회사명·column rule을
 추가해야 한다면 일반화 실패다. 같은 Reality Scout 구조의 두 후보가 실패하면 세 번째 조건 patch를 붙이지 않는다.
+
+2026-09-01 NX-2B 결과:
+
+- 작은 workspace의 최상위 이름 네 개를 모두 보여준 후보는 매출 source 진입과 Direct Tool 0은 회복했지만 미수금·재고까지
+  확대했고 paired-period 핵심 비교를 놓쳐 폐기했다.
+- 사용자 원문과 filename의 일반 문자 관계만 보여준 후보는 매출·재고·계약 source 진입을 회복하고 Direct 2.072초·Tool 0을
+  유지했다. 그러나 `받을 돈 → 미수금현황` 의미 관계는 찾지 못했고, 관측 뒤 다른 source로 확대하며 strict scope와
+  round economy를 함께 닫지 못했다.
+- 두 후보 모두 제품 source·global Prompt·기본 Tool schema·Store·Router delta 0으로 제거했다. business alias·동의어·세 번째
+  문구 patch는 금지한다.
+- metadata 힌트만으로는 source 의미 선택과 관측 범위 discipline을 함께 해결할 수 없다는 가정 실패가 확정됐다.
+
+`NX-2B`는 `CLOSED_TWO_CANDIDATES_REJECTED`다. 다음 구조 후보는 모델이 bounded candidate identity를 한 번 선택하고 Runtime이
+그 selected set만 기존 observer로 batch reopen하는 `model-selected bounded batch observation`이다. 이는 Runtime이 업무
+의미를 선택하는 Router가 아니며, 후보 전체를 source truth로 주입하지 않는다.
+
+근거: `refoundation/evidence/nx2-reality-scout-qualification-2026-09-01.json`.
 
 ### NX-2C — Common Method Generalization — PENDING
 
