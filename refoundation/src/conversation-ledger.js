@@ -77,7 +77,7 @@ function parseEvents(text, sessionId) {
     }
     if (event.type === 'selection_apply_prepared' && (!event.explorationId || !event.requestId
       || !event.inputId || !event.instructionSideMessageId
-      || !['current_revision', 'derived_work'].includes(event.relation))) {
+      || !['current_revision', 'resumed', 'derived_work'].includes(event.relation))) {
       throw new Error('invalid selection apply preparation');
     }
     if (event.type === 'selection_apply_committed' && (!event.explorationId || !event.requestId
