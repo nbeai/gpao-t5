@@ -3,8 +3,8 @@
 상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE · NX_2_MASTERY_GENERALIZATION_CURRENT`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
-현재 Gate: `NX2-1C0 FIRST-TURN REALITY AFFORDANCE · SINGLE TOOL-CONTRACT CANDIDATE`
-현재 작업: `first-wire 동일성 증명 완료 · 기존 tool_search 목적 중심 계약 A/B 1회만 허용 · 제품 미적용`
+현재 Gate: `NX2-1 INTEGRAL MASTERY GENERALIZATION · CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT`
+현재 작업: `NX2-1C0 단일 Tool-contract 후보 폐기 · 제품 delta 0 · NX-1 귀환선 유지 · 후속 Gate 미개통`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -1197,7 +1197,7 @@ NX-2C가 공통 observer gap을 닫은 경우에만 매출 변동·미수금 대
 
 근거: `refoundation/evidence/nx2-existing-path-common-observer-trace-2026-09-01.json`.
 
-### NX-2C0 — First-Turn Reality Affordance Audit — CURRENT
+### NX-2C0 — First-Turn Reality Affordance Audit — CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT
 
 NX2-1C는 existing observer 공통 결함을 찾지 못했지만, exact 일반 표현 세 건이 모두 첫 model call에서 자료를 다시
 요구하고 끝난 반면 전문가 표현은 같은 File Reality로 진입했다. 따라서 NX2-1D를 열지 않고 첫 provider call의 배선과
@@ -1229,6 +1229,20 @@ metadata score·global Prompt 증가는 금지하고, 후보 실패 뒤 두 번�
 File Reality를 발견할 수 있는지 A/B한다. global Prompt·Router·metadata score는 0이다.
 
 근거: `refoundation/evidence/nx2-first-turn-reality-affordance-audit-2026-09-01.json`.
+
+2026-09-01 단일 candidate A/B:
+
+- 첫 호출에 이미 보이는 `tool_search` description 하나만 목적 중심 계약으로 교체했다. 새 Tool·model call·global Prompt·
+  업무 단어·Router·metadata score는 0이고 Tool contract는 94 bytes 증가했다.
+- 미수금은 source 진입을 회복했지만 paid control과 future unpaid를 함께 전면화해 strict scope가 실패했다.
+- 매출과 재고는 계속 첫 model call·Tool 0에서 source 진입 전에 끝났다.
+- 세 일반 표현 source 진입 회복이라는 첫 합격식이 실패했으므로 전문가·Direct·계약·두 번째 모델 matrix로 확대하지 않았다.
+- 후보는 제품에 적용하지 않고 같은 문구의 두 번째 patch도 열지 않는다.
+
+따라서 `NX2-1C0`은 `CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT`이다. `NX2-1` 일반화는 미완료이며 NX-1 완료선
+`ad3e685c`를 유지한다. `NX2-1D`와 후속 Gate는 개통하지 않는다.
+
+근거: `refoundation/evidence/nx2-reality-affordance-contract-candidate-2026-09-01.json`.
 
 ### NX-2D — Five-Lane Proportionality — PENDING
 

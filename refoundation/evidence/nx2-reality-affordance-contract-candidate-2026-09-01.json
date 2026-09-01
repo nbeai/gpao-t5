@@ -1,0 +1,63 @@
+{
+  "schema": "t5.nx2.reality-affordance-contract-candidate.v1",
+  "recordedOn": "2026-09-01",
+  "qualificationSourceCommit": "bcfe7436",
+  "productSourceCommit": "33ccba27af948860a0b0b4fce88cfcf4f2fa2903",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "candidate": {
+    "surface": "existing visible tool_search description only",
+    "newTool": 0,
+    "newModelCall": 0,
+    "globalPromptDelta": 0,
+    "businessKeywords": 0,
+    "router": 0,
+    "metadataScore": 0,
+    "baselineToolContractBytes": 10826,
+    "candidateToolContractBytes": 10920,
+    "toolContractByteDelta": 94,
+    "candidateToolContractSha256": "cc1a27f162ed7217d261ae2042f72b6f6e18479c63ac65d4b696c14548221894"
+  },
+  "samePurpose": {
+    "sales": {
+      "baseline": { "sourceEntered": false, "wallMs": 12852, "modelCalls": 1, "toolCalls": 0 },
+      "candidate": { "sourceEntered": false, "wallMs": 9145, "modelCalls": 1, "toolCalls": 0 },
+      "result": "FAIL"
+    },
+    "receivables": {
+      "baseline": { "sourceEntered": false, "wallMs": 10003, "modelCalls": 1, "toolCalls": 0 },
+      "candidate": { "sourceEntered": true, "wallMs": 19150, "modelCalls": 4, "toolCalls": 3 },
+      "markerOraclePass": true,
+      "strictScopePass": false,
+      "strictFailure": "paid control was surfaced and future unpaid was merged into a broader result",
+      "result": "PARTIAL"
+    },
+    "inventory": {
+      "baseline": { "sourceEntered": false, "wallMs": 9182, "modelCalls": 1, "toolCalls": 0 },
+      "candidate": { "sourceEntered": false, "wallMs": 7424, "modelCalls": 1, "toolCalls": 0 },
+      "result": "FAIL"
+    }
+  },
+  "gateDecision": {
+    "threeOrdinarySourceEntryRecovered": false,
+    "candidateAccepted": false,
+    "secondWordingPatchAllowed": false,
+    "expertRegressionExpanded": false,
+    "directHoldoutExpanded": false,
+    "secondModelRun": false,
+    "reasonNotExpanded": "the primary three-purpose source-entry gate already failed",
+    "productIntegration": false,
+    "productSourceDelta": 0
+  },
+  "nx2State": {
+    "nx2_1PurposeGeneralization": "NOT_QUALIFIED",
+    "fileRealityCapability": "AVAILABLE",
+    "ordinaryExpression": "FIRST_TURN_SELECTION_FAIL",
+    "returnLine": "ad3e685c",
+    "nx2_1dOpened": false,
+    "laterGatesOpened": false
+  },
+  "status": "CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT"
+}

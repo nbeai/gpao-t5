@@ -89,3 +89,19 @@ test('NX2-1C0은 일반·전문 첫 wire가 사용자 원문 외 동일함을 �
   assert.equal(evidence.decision.newRouter, 0);
   assert.equal(evidence.decision.globalPromptDelta, 0);
 });
+
+test('단일 목적 중심 Tool 계약 후보가 세 일반 표현을 회복하지 못하면 추가 문구 없이 닫는다', async () => {
+  const evidence = JSON.parse(await read('refoundation/evidence/nx2-reality-affordance-contract-candidate-2026-09-01.json'));
+  assert.equal(evidence.candidate.newTool, 0);
+  assert.equal(evidence.candidate.newModelCall, 0);
+  assert.equal(evidence.candidate.globalPromptDelta, 0);
+  assert.equal(evidence.samePurpose.sales.candidate.sourceEntered, false);
+  assert.equal(evidence.samePurpose.receivables.candidate.sourceEntered, true);
+  assert.equal(evidence.samePurpose.receivables.strictScopePass, false);
+  assert.equal(evidence.samePurpose.inventory.candidate.sourceEntered, false);
+  assert.equal(evidence.gateDecision.candidateAccepted, false);
+  assert.equal(evidence.gateDecision.secondWordingPatchAllowed, false);
+  assert.equal(evidence.gateDecision.productSourceDelta, 0);
+  assert.equal(evidence.nx2State.nx2_1dOpened, false);
+  assert.equal(evidence.status, 'CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT');
+});

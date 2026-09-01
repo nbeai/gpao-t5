@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CURRENT_NOT_ACHIEVED · NX2_1C0_AUDIT_COMPLETE_SINGLE_CONTRACT_CANDIDATE`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_NOT_QUALIFIED · NX2_1C0_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-1C0 — First-Turn Reality Affordance · SINGLE TOOL-CONTRACT CANDIDATE`
+현재 제품 Gate: `NX2-1 — Integral Mastery Generalization · CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT`
 
 ---
 
@@ -312,6 +312,12 @@ Work admission·사용자 원문 치환 normalized wire가 모두 같았다. 배
 affordance로 교체하는 candidate A/B 한 번만 허용한다.
 
 근거: `refoundation/evidence/nx2-first-turn-reality-affordance-audit-2026-09-01.json`.
+
+단일 purpose-centered `tool_search` contract 후보는 미수금 source 진입만 회복했고 매출·재고는 실패했다. 미수금도
+strict scope가 실패했다. 첫 세 목적 Gate가 실패했으므로 추가 문구·전문가/Direct 확대·두 번째 모델 실행 없이 폐기했다.
+제품 source·Prompt·Tool surface delta는 0이며 NX2-1D와 후속 Gate를 열지 않는다.
+
+근거: `refoundation/evidence/nx2-reality-affordance-contract-candidate-2026-09-01.json`.
 
 ---
 
