@@ -38,6 +38,7 @@ test('NX-2 plan covers every remaining non-GUI research family in one ordered li
     'NX2-6 — Naver Identity·Mail·Blog Native Work',
     'NX2-7 — Experience Promotion',
     'NX2-HQ — Competitive Whole Human Qualification',
+    'NX2-PS — T5 Presentation Studio',
   ]) assert.match(plan, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
 
@@ -117,4 +118,16 @@ test('Selection Side Exploration is a cognitive Work-continuity gate, not generi
   assert.match(plan, /실제 Console/);
   assert.match(nx2, /NX2-3 Cognitive Flow & Practical Judgment\n→ NX2-SE Selection-Scoped Side Exploration\n→ NX2-4 Auditory Intelligence/);
   assert.match(index, /Selection-Scoped Side Exploration/);
+});
+
+test('Presentation Studio is the last planned gate and keeps document-data as the fast return line', async () => {
+  const [plan, index] = await Promise.all([readFile(planPath, 'utf8'), readFile(indexPath, 'utf8')]);
+  assert.match(plan, /NX2-HQ Competitive Whole Human Qualification[\s\S]*NX2-PS T5 Presentation Studio — LAST PLANNED PRODUCT GATE/);
+  assert.match(plan, /감사 commit: `166472bd2a22de9aa9fb6c8cdf8b0cdfc6b698ef`/);
+  assert.match(plan, /사용자-facing 별도 Agent·persona·대화방을 만들지 않는다/);
+  assert.match(plan, /기존 `document-data`/);
+  assert.match(plan, /PS-HQ — Actual Console·PowerPoint Human Qualification/);
+  assert.match(plan, /runtime pip\/npm install/);
+  assert.match(plan, /전체 계획 최종 완료 문장/);
+  assert.match(index, /T5 Presentation Studio · Slide Master 흡수/);
 });

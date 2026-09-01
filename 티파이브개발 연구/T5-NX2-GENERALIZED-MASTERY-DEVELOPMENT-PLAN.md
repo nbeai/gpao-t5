@@ -201,6 +201,8 @@ NX2-6  Naver Identity·Mail·Blog
 NX2-7  Experience Promotion
   ↓
 NX2-HQ Competitive Whole Human Qualification
+  ↓
+NX2-PS T5 Presentation Studio — LAST PLANNED PRODUCT GATE
 ```
 
 각 Gate는 이전 Gate가 닫힌 exact HEAD에서만 시작한다. 독립 연구라는 이유로 병렬 제품 개발하지 않는다. read-only
@@ -240,6 +242,7 @@ NX2-2 Context Diet & Interface Intelligence — CLOSED_WITH_WORK_SETTLEMENT_OBSE
 → NX2-6 Naver Identity·Mail·Blog
 → NX2-7 Experience Promotion
 → NX2-HQ Competitive Whole Human Qualification
+→ NX2-PS T5 Presentation Studio
 ```
 
 NX2-1은 모델/provider 선택 한계로 정직하게 봉인했고 미달을 NX2-3·NX2-HQ·향후 model qualification에 이월했다.
@@ -1259,11 +1262,246 @@ AND package·platform 미자격을 제품 기능 PASS로 꾸미지 않음
 
 ---
 
-## 18. NX-2 완료 문장
+## 18. NX-2 Core 완료 문장
 
 > T5는 특정 업무용 기능 묶음이 아니라, 사용자의 표현 수준과 자료 형식과 실행 수단이 달라져도 현재 현실을 정확히
 > 파악하고 적절한 깊이와 방법을 선택해 더 빠르고 정확하며 더 좋은 결과를 만든다. 필요한 경우 파일·문서·프로그램뿐
 > 아니라 음성·공개 웹·네이버 실무까지 같은 권한·증거·취소·복구 구조에서 다루고, 실제로 우월했던 방법만 현재 상황에
 > 맞게 재사용한다. 단순한 대화는 여전히 가볍고 자연스럽다.
 
-이 문장은 NX2-HQ의 clean second pass 전에는 사용할 수 없다.
+이 문장은 NX2-HQ의 clean second pass 전에는 사용할 수 없다. 연구실 전체의 마지막 계획까지 완료했다는 문장은 아래
+NX2-PS의 `PS-HQ`까지 통과한 뒤에만 사용할 수 있다.
+
+---
+
+## 19. NX2-PS — T5 Presentation Studio — LAST PLANNED PRODUCT GATE
+
+상태: `RESEARCH_AUDITED · SOURCE_PINNED · PRODUCT_IMPLEMENTATION_NOT_OPEN · PLANNED_AFTER_NX2_HQ`
+
+외부 source:
+
+- 저장소: [byungjunjang/slide-master](https://github.com/byungjunjang/slide-master)
+- 감사 commit: `166472bd2a22de9aa9fb6c8cdf8b0cdfc6b698ef`
+- license: MIT, upstream `hugohe3/ppt-master` 고지 유지
+
+### 19.1 사용자 완료 문장
+
+> 사용자는 보고서·표·문서·웹 자료나 주제만 평소 말로 맡기고, T5와 발표 목적·청중·디자인 방향을 확인한 뒤,
+> 실제 PowerPoint에서 요소별로 편집 가능한 고품질 PPTX와 전체 Preview를 받는다. 회사 template과 검증된 디자인
+> profile을 재사용할 수 있고, 부분 교정·Version·Undo·Telegram·정기 보고까지 같은 T5 Work에서 이어진다.
+
+### 19.2 왜 맨 마지막인가
+
+Presentation Studio는 단순 PPTX writer가 아니다. 다음 선행 능력을 한꺼번에 사용한다.
+
+- NX-1 Reality/Human Closure
+- NX2-2 Context·Tool ownership
+- NX2-3 목적·청중·판단·자연스러운 중단
+- NX2-SE 부분 탐색·명시적 적용·Work revision
+- NX2-5 Web source와 coverage
+- NX2-7 검증된 template·Design Profile 승격
+- File·Document·Terminal·Browser·Artifact·Version·Undo·Receipt
+
+이 기관을 먼저 열면 독립 Agent workflow가 T5 Core를 덮을 위험이 있다. NX2-HQ로 공통 신체와 판단 흐름을 먼저 닫은
+뒤 마지막 Crafted Artifact 전문 능력으로 개통한다.
+
+### 19.3 실제 source 감사
+
+2026-09-01 pinned source 실물:
+
+| 항목 | actual |
+|---|---:|
+| 전체 checkout | 약 84MB |
+| `ppt-master` 본체 | 약 65MB |
+| template asset | 약 49MB |
+| 본체 파일 | 약 12,234개 |
+| 핵심 `SKILL.md` | 약 112KB |
+
+주요 기능:
+
+- PDF·DOCX·URL·Markdown·XLSX/CSV·주제→deck
+- 전략·디자인 확인
+- page별 SVG source
+- SVG→native DrawingML editable PPTX
+- template fill·beautify·template creation
+- live preview·click annotation
+- geometry·overflow·wrap·package·render 검증
+- notes·transition·선택 narration·native chart/table
+
+주요 의존성:
+
+- Python 3.10+
+- python-pptx·XlsxWriter·PyMuPDF·mammoth·markdownify·ebooklib·nbconvert·openpyxl
+- Pillow·numpy·requests·beautifulsoup4·curl_cffi·google-genai·flask·edge-tts
+- 선택 Playwright/Chromium·OfficeCLI·Pandoc·Codex CLI·외부 이미지/TTS API
+
+따라서 repository 전체 clone·사용자 `pip install`·nested `codex exec`을 T5 기본 제품 경계로 채택하지 않는다.
+
+### 19.4 제품 구조 — 하나의 T5, 격리된 전문 작업실
+
+```text
+사용자 Conversation
+→ T5가 목적·청중·자료·사용처 결속
+→ deferred `presentation_craft` capability
+→ 격리된 Presentation Studio Worker
+→ deck strategy·design system·SVG·PPTX candidate·validation
+→ T5 independent Observer
+→ F publication·Artifact Preview·Version·Undo·Delivery
+→ T5가 최종 답
+```
+
+사용자-facing 별도 Agent·persona·대화방을 만들지 않는다. Worker는 Work-scoped managed capability이며 T5의 Memory·
+authority·최종 답을 소유하지 않는다.
+
+### 19.5 두 제작 경로 보존
+
+| 경로 | 적합한 목적 | 성능 원칙 |
+|---|---|---|
+| 기존 `document-data` | 짧고 정확한 기본 PPTX·표·출처 중심 | 빠르고 저렴 |
+| Presentation Studio | 임원 보고·제안서·IR·강의·브랜드·template deck | 더 무겁지만 비교 우위 품질 |
+
+현재 `document-data`를 제거하거나 모든 PPT 요청을 Presentation Studio로 보내지 않는다. 모델은 audience·usePurpose·
+deliveryMedium·visual goals·template reality로 두 capability 중 적절한 것을 선택하고, Runtime 업무 Router는 만들지 않는다.
+
+### 19.6 T5가 대신 소유할 외부 경계
+
+| 원본 방식 | T5 적용 |
+|---|---|
+| Codex CLI image backend | T5 Image capability와 exact Artifact handle |
+| API key·`.env` 직접 읽기 | T5 Secret Store·Connection |
+| 자체 web fetch·image search | T5 Web·Browser·source provenance |
+| 자체 confirmation server | T5 Conversation card·NX2-SE |
+| 자체 project/output | managed workspace·F publication |
+| 자기 validation PASS | T5 independent Observer·Receipt |
+| 고정 Pretendard | user-approved font·brand profile |
+| runtime pip/npm install | pinned managed runtime·asset acquisition |
+| 모든 template 기본 포함 | minimum pack + managed on-demand asset |
+
+### 19.7 Design Profile
+
+사용자의 회사 template·logo·design guide·`design.md`를 Core Prompt에 넣지 않는다. source-bound versioned profile 후보로
+관리한다.
+
+```yaml
+profile:
+  sourceHandles: exact current references
+  audienceDefaults: optional
+  typography: user approved
+  colorTokens: source derived and confirmed
+  layoutFamilies: bounded
+  chartPreferences: bounded
+  prohibitedPatterns: explicit
+  evidence: sample deck and human review
+  status: candidate | active | archived
+```
+
+sample deck와 fresh purpose A/B에서 이긴 profile만 활성화하고 template·현재 사용자 교정과 충돌하면 archive한다.
+
+### 19.8 개발 Gate
+
+#### PS-0 — Source·License·Dependency Qualification
+
+- exact commit·file inventory·license·asset 고지
+- subprocess·network·secret·runtime install 감사
+- macOS·Windows runtime reality
+- 제품 변경 0
+
+#### PS-1 — Deterministic Core Isolation
+
+- source conversion·SVG→DrawingML·template fill·geometry·PPTX verification 최소 core
+- network·API·Codex·TTS 0
+- declared scratch/output·resource bound·Stop·cleanup
+- 원본 저장소와 exact fixture parity
+
+#### PS-2 — Presentation Studio Worker
+
+- exact Work/revision·source manifest·purpose contract
+- persistent but bounded worker context
+- progress·checkpoint·Stop·parent-death·restart settlement
+- candidate output만 scratch에 생성, 사용자 target write 0
+
+#### PS-3 — T5 Capability Bridge
+
+- T5 Web·Image·Browser·Secret·Artifact·Receipt 연결
+- 외부 material은 exact source·license·citation
+- strategy/design 선택은 canonical chat card
+- NX2-SE의 부분 질문·교정은 explicit Apply 뒤 R+1
+
+#### PS-4 — Template·Design Profile
+
+- raw PPTX template fill
+- brand/design source 관측
+- profile candidate·sample deck·activation·archive
+- 같은 브랜드 한 스타일 강제와 layout 다양성 holdout
+
+#### PS-5 — Actual Design AB/BA
+
+동일 source·목적·모델·시간/비용 기록으로 비교한다.
+
+- 현재 T5 `document-data`
+- T5 Presentation Studio
+- pinned Slide Master 원본
+- 가능한 경우 인간 제작 기준
+
+평가:
+
+- source·숫자·범위 정확성
+- 첫 Preview·final wall·model/Tool rounds·tokens
+- hierarchy·typography·spacing·color·contrast·slide rhythm
+- chart/table·editable object·notes·overflow·render
+- 사용자가 핵심을 찾는 시간·수정 횟수·실제 발표 사용 의향
+
+#### PS-6 — Minimal Product Integration
+
+- deferred on-demand capability
+- 일반 Direct·파일·기본 PPT 요청의 bytes·Tool·wall 증가 0
+- minimum core만 기본 package, 대형 asset은 managed acquisition
+- 실패 시 기존 `document-data` 귀환선
+
+#### PS-HQ — Actual Console·PowerPoint Human Qualification
+
+```text
+자료 첨부
+→ 전략·디자인 확인
+→ slide별 실제 progress와 first Preview
+→ 전체 live Preview
+→ NX2-SE 부분 탐색·교정
+→ editable PPTX Download·Reveal
+→ 실제 PowerPoint 요소별 편집
+→ Version·Undo
+→ Telegram 요청·정기 Automation 한 목적
+→ clean second whole-flow
+```
+
+### 19.9 절대 비목표
+
+- 별도 사용자-facing Agent·Memory·Work·Artifact Store
+- 모든 PPT 요청의 강제 진입
+- 원본 저장소 전체의 무검증 copy
+- Runtime의 audience·story·디자인 의미 선택
+- API key·cookie·Codex OAuth를 Worker에 전달
+- 자기 validation·exit 0을 제품 성공으로 사용
+- template·AI image·narration의 자동 외부 effect
+- package·Windows PASS를 source 자격으로 주장
+
+### 19.10 최종 합격식
+
+```text
+현재 source truth·Artifact·Undo 무회귀
+AND simple PPT는 document-data 속도·품질 유지
+AND Crafted deck blind 인간 품질 우위
+AND native editable PPTX·전체 render·overflow 0
+AND T5 독립 Observer와 Receipt PASS
+AND side correction·Version·Undo·Telegram·Automation 실제 여정 PASS
+AND 일반 요청의 Context/model/Tool cost 증가 0
+AND macOS·Windows 물리 자격은 각각 실제 실행으로만 주장
+AND PS-HQ clean second whole-flow PASS
+```
+
+### 19.11 전체 계획 최종 완료 문장
+
+> T5는 사람과 목적을 이해하고 현실을 정확히 다루는 것에 더해, 임원 보고·제안·교육·브랜드 발표처럼 전략과 미학이
+> 중요한 결과를 전문 작업실 수준으로 제작한다. 사용자는 계속 하나의 T5와 대화하며, 결과는 실제 PowerPoint에서
+> 편집되고 근거·Preview·부분 교정·Version·Undo·전달까지 같은 영수증 구조에서 완성된다.
+
+이 문장은 PS-HQ의 clean second whole-flow 전에는 사용할 수 없다.

@@ -1457,6 +1457,22 @@ source·coverage 계약은 유지하되 NX-2와 별도 CURRENT Gate로 병렬 �
 
 기능 수·코드 줄·테스트 수는 상품 경쟁력 점수가 아니다.
 
+## NX-PS — T5 Presentation Studio — PLANNED_LAST_AFTER_NX2_HQ
+
+상세 계획: `티파이브개발 연구/T5-NX2-GENERALIZED-MASTERY-DEVELOPMENT-PLAN.md`의 `NX2-PS`.
+
+Pinned 연구 source `byungjunjang/slide-master@166472bd2a22de9aa9fb6c8cdf8b0cdfc6b698ef`의 native editable PPTX·
+SVG→DrawingML·template·live Preview·geometry/render 검증 원리를 하나의 T5 안의 격리된 Presentation Studio Worker로
+흡수한다.
+
+- 빠른 기본 PPTX는 기존 `document-data` 귀환선을 유지한다.
+- 임원 보고·제안서·IR·강의·브랜드 deck만 on-demand 후보로 연다.
+- raw repository copy·runtime pip/npm install·nested Codex/API key·별도 Artifact/Memory/Work를 금지한다.
+- T5 Web·Image·Secret·Artifact·Receipt·Version·Undo·NX2-SE를 재사용한다.
+- PS-HQ에서 실제 PowerPoint 요소별 편집과 clean second whole-flow를 통과해야 완료다.
+
+현재 상태는 `RESEARCH_AUDITED · PRODUCT_IMPLEMENTATION_NOT_OPEN`이며 NX2-HQ 전에는 개통하지 않는다.
+
 ---
 
 ## 9. NX 성능 지표

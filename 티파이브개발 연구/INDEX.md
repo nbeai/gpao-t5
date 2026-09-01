@@ -36,6 +36,17 @@
   화면만 먼저 만드는 CSS 구현.
 - 분류 교정: 이 기능은 범용 GUI가 아니라 Cognitive Flow·Conversation·Work Continuity 제품 기능이다.
 
+## T5 Presentation Studio · Slide Master 흡수
+
+- source: [byungjunjang/slide-master](https://github.com/byungjunjang/slide-master)
+- 감사 commit: `166472bd2a22de9aa9fb6c8cdf8b0cdfc6b698ef`
+- 상태: `RESEARCH_AUDITED · SOURCE_PINNED · NX2_PS_LAST_GATE_PLANNED · PRODUCT_IMPLEMENTATION_NOT_OPEN`
+- 위치: NX2-HQ 뒤 전체 계획의 마지막 `NX2-PS` Gate. 자체 `PS-HQ`와 clean second whole-flow로 닫는다.
+- 구조: 별도 사용자-facing Agent가 아니라 하나의 T5 안의 격리된 Presentation Studio Worker.
+- 귀환선: 빠르고 정확한 기존 `document-data`를 보존하고, 디자인·스토리·template 품질이 필요한 deck에만 on-demand.
+- 흡수: native editable PPTX·SVG→DrawingML·template fill·live Preview·geometry/render 검증·Design Profile.
+- 금지: raw repository copy, runtime pip/npm install, nested Codex/API key, 자체 Artifact/Memory/Work, 모든 PPT 강제 진입.
+
 ## Context Diet & Interface Intelligence
 
 - 문서: `T5-CONTEXT-DIET-INTERFACE-INTELLIGENCE-RESEARCH.md`
