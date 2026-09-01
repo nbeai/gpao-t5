@@ -4092,7 +4092,7 @@ export function makeConsoleServer({
     ));
     if (!action) throw Object.assign(new Error('connection action is no longer available'), { status: 409 });
     const alreadyWaiting = await capabilityCoordinator.hasActiveConnection(id);
-    const performed = alreadyWaiting ? {
+    const performed = alreadyWaiting && service.recheckWhileWaiting !== true ? {
       performed: false, joinedExisting: true,
       userSafeSummary: sessionId
         ? '이미 같은 연결을 준비하고 있어요. 준비되면 이 대화의 부탁도 이어갈게요.'
@@ -4139,6 +4139,14 @@ export function makeConsoleServer({
         },
       },
     });
+    if (performed.connectionReady === true) {
+      const active = (await capabilityCoordinator.ledger.read()).handoffs.filter((handoff) => (
+        handoff.connectionId === id && handoff.state === 'waiting'
+      ));
+      for (const handoff of active) await capabilityCoordinator.verifyAndComplete({
+        handoffId: handoff.handoffId, connectionId: id,
+      });
+    }
     return {
       ...performed,
       connection: { id: service.id, label: service.label },

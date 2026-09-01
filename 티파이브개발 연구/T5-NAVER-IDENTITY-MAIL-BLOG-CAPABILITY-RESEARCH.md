@@ -523,6 +523,10 @@ actual에서도 실패하면 같은 로그인 activation 방향에 조건을 더
 아니라 Broker가 Naver 공식 Blog Home redirect host를 Blog identity로 포함하지 않은 관측 결함이었다. Blog service
 경계를 Naver-controlled `*.blog.naver.com`으로 교정하고 해당 실제 반례를 고정했다.
 
+이후 설정 endpoint actual에서 과거 실패 Run의 `waiting` handoff가 남아 실제 profile probe 대신 `이미 같은 연결을 준비
+중`으로 합류하는 settlement P1도 확인했다. 일반 연결의 중복 준비 합치기는 유지하되 Naver의 bounded read-only profile
+recheck는 waiting 중에도 허용하고, ready이면 그 exact waiting handoff를 기존 coordinator로 완료·재개한다.
+
 ### NV-4 — Mail Draft & Send
 
 - draft preview

@@ -1,7 +1,7 @@
 {
   "schema": "t5.nx2-nv3-settings-browser-login-evidence.v1",
   "recordedAt": "2026-09-02T03:10:00+09:00",
-  "status": "ACTUAL_PROFILE_AUTHENTICATED_BLOG_HOST_P1_REPAIRED_OWNER_RECHECK_PENDING",
+  "status": "ACTUAL_PROFILE_READY_STALE_HANDOFF_P1_REPAIRED_OWNER_RECHECK_PENDING",
   "userPurpose": "Connect Naver once from Settings and use the same managed identity for Mail and Blog without separate credentials.",
   "adoptedPath": {
     "entry": "Settings > Tools and Connections > Naver Login",
@@ -49,7 +49,8 @@
       "blog": { "host": "section.blog.naver.com", "path": "/BlogHome.naver", "loginRequired": false },
       "secretOrCookieObserved": false
     },
-    "blogIdentityRepair": "accept the actual Naver-controlled *.blog.naver.com Blog Home redirect as the same Blog service identity"
+    "blogIdentityRepair": "accept the actual Naver-controlled *.blog.naver.com Blog Home redirect as the same Blog service identity",
+    "staleHandoffRepair": "Naver may perform its bounded read-only profile recheck while an older waiting handoff exists; a ready result settles that exact waiting handoff instead of joining it forever"
   },
   "nonClaims": [
     "Mail folder/search/open/attachment is not yet qualified on the actual owner account.",

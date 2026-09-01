@@ -87,5 +87,6 @@ test('process-local identity가 unknown이어도 기존 profile readback이 read
     ] }; }, async begin() { begins += 1; }, async check() {},
   } });
   assert.equal(result.performed, true); assert.match(result.userSafeSummary, /기존 네이버 로그인/u);
+  assert.equal(result.connectionReady, true);
   assert.equal(begins, 0); assert.equal((await broker.inspect()).state, 'ready');
 });

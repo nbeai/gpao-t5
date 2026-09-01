@@ -43,7 +43,7 @@ export function makeNaverIdentityBroker({ profileHandle = 'default', now = () =>
     next.state = overall(next, authenticated); state = next; return publicSnapshot(state);
   }
   const connection = {
-    id: 'naver', label: '네이버', category: 'workspace',
+    id: 'naver', label: '네이버', category: 'workspace', recheckWhileWaiting: true,
     async inspect() {
       const snapshot = publicSnapshot(state); const ready = snapshot.state === 'authenticated';
       const mailWebReady = snapshot.services.mailWeb === 'ready';
@@ -80,7 +80,7 @@ export function makeNaverIdentityBroker({ profileHandle = 'default', now = () =>
         const observed = publicSnapshot(state);
         if (observed.services.mailWeb === 'ready' && observed.services.blogWeb === 'ready') {
           browserLogin = null;
-          return { performed: true, refreshConnections: true,
+          return { performed: true, connectionReady: true, refreshConnections: true,
             userSafeSummary: '기존 네이버 로그인으로 메일과 블로그 연결을 확인했어요.' };
         }
         const started = await browserLogin.begin('https://nid.naver.com/nidlogin.login');
@@ -98,7 +98,7 @@ export function makeNaverIdentityBroker({ profileHandle = 'default', now = () =>
       browserLogin = null;
       const snapshot = publicSnapshot(state); const complete = snapshot.services.mailWeb === 'ready'
         && snapshot.services.blogWeb === 'ready';
-      return { performed: complete, refreshConnections: true,
+      return { performed: complete, connectionReady: complete, refreshConnections: true,
         userSafeSummary: complete ? '네이버 메일과 블로그 연결을 확인했어요.'
           : '로그인은 확인했지만 메일과 블로그 중 일부를 다시 확인해야 해요.' };
     },
