@@ -2,7 +2,7 @@
 
 기록일: 2026-09-01
 조사 기준: T5 NX `9e2daf0c`
-상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · CX_0_CURRENT · PRODUCT_CHANGE_0`
+상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · CX_0_COMPLETE · CX_1_CURRENT · PRODUCT_CHANGE_0`
 
 사용자 완료 문장:
 
@@ -463,6 +463,12 @@ adapter가 capability fact를 제공하되 provider 이름별 장문 Prompt를 �
 - final epoch
 
 각 surface의 bytes·중복 n-gram·owner·incident·probe·model을 기계 보고서로 만든다.
+
+2026-09-01 actual inventory에서 global 98줄·29,742 bytes, family 12개 exact coverage, Direct Tool 7개·provider
+10,826 bytes, Skill metadata 1,839 bytes·on-demand body 15,579 bytes, empty runtimeContext 485 bytes를 확인했다.
+삭제는 0이며 다음은 family별 provenance field와 enforcement 위치를 분류하는 CX-1이다.
+
+근거: `refoundation/evidence/nx2-cx0-context-surface-inventory-2026-09-01.json`.
 
 ### CX-1 — Family Provenance Audit
 

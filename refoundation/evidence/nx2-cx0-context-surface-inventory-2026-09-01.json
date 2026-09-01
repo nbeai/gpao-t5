@@ -1,0 +1,101 @@
+{
+  "schema": "t5.nx2.cx0-context-surface-inventory.v1",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "80ea724e01f717a67191a17f0f57ad98297df702",
+  "status": "CX0_PROMPT_SURFACE_INVENTORY_COMPLETE",
+  "productChanges": 0,
+  "instructions": {
+    "lines": 98,
+    "bytes": 29742,
+    "sha256": "01ccdc0391dce8b98b5df129924de7792f1ea300c951d3ce4791ae53fe6c7de4",
+    "priorResearchBytes": 29362,
+    "driftBytes": 380
+  },
+  "interactionCore": {
+    "lines": 8,
+    "bytes": 1939,
+    "sha256": "5cc3a191746d03aaa00e9b327f2b6be566df3d94700503baff783e5abb19cda9"
+  },
+  "instructionFamilies": {
+    "count": 12,
+    "admittedGlobalLines": 98,
+    "allGlobalLinesAdmitted": true,
+    "allCurrentDigestsMatch": true,
+    "ownerCoverage": "12/12",
+    "countertestCoverage": "12/12",
+    "futureAuditFieldsMissingAcrossAllFamilies": [
+      "incidentRefs",
+      "modelsQualified",
+      "measuredBenefit",
+      "replacementOwner",
+      "lastReviewedAt"
+    ],
+    "largestGlobalFamilies": [
+      { "id": "browser.hand_safety", "bytes": 5926 },
+      { "id": "reality.file_and_work", "bytes": 4911 },
+      { "id": "web.research_and_provenance", "bytes": 4858 },
+      { "id": "artifact.document_delivery", "bytes": 3217 }
+    ]
+  },
+  "directActiveTools": {
+    "count": 7,
+    "localDefinitionBytes": 10594,
+    "providerWireBytes": 10826,
+    "tools": [
+      { "name": "tool_search", "bytes": 766 },
+      { "name": "memory_claim", "bytes": 1968 },
+      { "name": "memory_control", "bytes": 501 },
+      { "name": "skill", "bytes": 439 },
+      { "name": "web_read", "bytes": 1014 },
+      { "name": "attachment", "bytes": 4525 },
+      { "name": "exec", "bytes": 1381 }
+    ]
+  },
+  "skills": {
+    "count": 5,
+    "metadataBytes": 1839,
+    "onDemandBodyBytes": 15579,
+    "bodiesPreloadedInDirect": false,
+    "items": [
+      { "name": "diagrams", "bodyBytes": 1409 },
+      { "name": "document-data", "bodyBytes": 5826 },
+      { "name": "file-discovery", "bodyBytes": 3256 },
+      { "name": "nano-pdf", "bodyBytes": 1356 },
+      { "name": "visual-deliverables", "bodyBytes": 3732 }
+    ]
+  },
+  "runtimeContext": {
+    "emptyDirectWorkspaceBytes": 485,
+    "workspacePresent": true,
+    "activeOutputOperations": 0,
+    "pendingOutputs": 0,
+    "activeManagedProcesses": 0
+  },
+  "providerBaseline": {
+    "provider": "chatgpt_oauth",
+    "model": "gpt-5.5",
+    "firstRequestBytes": 41566,
+    "instructionsBytes": 30275,
+    "activeToolBytes": 10826,
+    "activeToolCount": 7
+  },
+  "confirmedCrossLayerOverlaps": [
+    { "phrase": "inspect with attachmentid null and", "owners": ["global_instructions", "skill:document-data", "tool:attachment"] },
+    { "phrase": "the requested result is a", "owners": ["global_instructions", "skill:nano-pdf"] },
+    { "phrase": "appearance or brand consistency is", "owners": ["global_instructions", "skill:visual-deliverables"] },
+    { "phrase": "attachment inspect with attachmentid null", "owners": ["global_instructions", "skill:document-data"] }
+  ],
+  "boundaries": {
+    "sourceModuleBytesAreModelContextBytes": false,
+    "skillBodyBytesArePreloaded": false,
+    "overlapMeansRemove": false,
+    "promptDeletionAuthorized": false,
+    "newTelemetryStore": 0,
+    "newContextEngine": 0
+  },
+  "next": {
+    "gate": "CX-1 Family Provenance Audit",
+    "productChanges": 0,
+    "deliverable": "KEEP MOVE REVISE REMOVE_CANDIDATE audit report, not an applied diff"
+  }
+}

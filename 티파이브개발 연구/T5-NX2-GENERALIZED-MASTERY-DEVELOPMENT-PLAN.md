@@ -6,7 +6,7 @@
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-2 — Context Diet & Interface Intelligence · CX-0 PROMPT SURFACE INVENTORY`
+현재 제품 Gate: `NX2-2 — Context Diet & Interface Intelligence · CX-1 FAMILY PROVENANCE AUDIT`
 
 ---
 

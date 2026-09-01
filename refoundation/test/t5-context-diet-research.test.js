@@ -40,5 +40,20 @@ test('오너 결정은 NX2-1 선택 한계를 수용하고 제품 변경 0의 CX
   assert.match(nx, /NX_2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT/u);
   assert.match(nx, /NX_2_2_CONTEXT_DIET_CURRENT/u);
   assert.match(plan, /NX2_2_CONTEXT_DIET_CURRENT/u);
-  assert.match(research, /OWNER_GATE_OPEN · CX_0_CURRENT/u);
+  assert.match(research, /OWNER_GATE_OPEN · CX_0_(?:CURRENT|COMPLETE)/u);
+});
+
+test('CX-0은 모든 Context surface를 계측하고 삭제 없이 CX-1 provenance audit만 연다', async () => {
+  const evidence = JSON.parse(await read('refoundation/evidence/nx2-cx0-context-surface-inventory-2026-09-01.json'));
+  assert.equal(evidence.instructions.lines, 98);
+  assert.equal(evidence.instructions.bytes, 29742);
+  assert.equal(evidence.instructionFamilies.allGlobalLinesAdmitted, true);
+  assert.equal(evidence.instructionFamilies.allCurrentDigestsMatch, true);
+  assert.equal(evidence.directActiveTools.count, 7);
+  assert.equal(evidence.skills.bodiesPreloadedInDirect, false);
+  assert.equal(evidence.runtimeContext.emptyDirectWorkspaceBytes, 485);
+  assert.equal(evidence.providerBaseline.firstRequestBytes, 41566);
+  assert.equal(evidence.boundaries.promptDeletionAuthorized, false);
+  assert.equal(evidence.productChanges, 0);
+  assert.equal(evidence.next.gate, 'CX-1 Family Provenance Audit');
 });

@@ -3,8 +3,8 @@
 상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE · NX_2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX_2_2_CONTEXT_DIET_CURRENT`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
-현재 Gate: `NX2-2 CONTEXT DIET & INTERFACE INTELLIGENCE · CX-0 PROMPT SURFACE INVENTORY`
-현재 작업: `제품 변경 0 · Context surface bytes·owner·incident·countertest audit report`
+현재 Gate: `NX2-2 CONTEXT DIET & INTERFACE INTELLIGENCE · CX-1 FAMILY PROVENANCE AUDIT`
+현재 작업: `CX-0 surface inventory 완료 · 제품 변경 0 · KEEP/MOVE/REVISE/REMOVE_CANDIDATE 분류`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -1260,6 +1260,22 @@ File Reality를 발견할 수 있는지 A/B한다. global Prompt·Router·metada
 현재 slice는 제품 변경 0의 `CX-0 Prompt Surface Inventory`다. 첫 산출물은 삭제 diff가 아니라 system instruction·
 Interaction Core·Tool·Skill·Memory/Conversation·runtimeContext·provider wire·Human Closure surface의 bytes·owner·incident·
 countertest를 재계산한 audit report다.
+
+2026-09-01 CX-0 완료:
+
+- global instruction 98줄·29,742 bytes, Interaction Core 8줄·1,939 bytes를 exact digest로 고정했다.
+- family 12개가 98줄 전부를 소유하고 current digest·owner·countertest 12/12가 일치했다.
+- Direct 첫 Turn의 활성 Tool 7개는 local definition 10,594 bytes, provider wire 10,826 bytes였고 attachment가
+  4,525 bytes로 가장 컸다.
+- Skill 5개의 metadata는 1,839 bytes, body는 15,579 bytes이며 Direct에는 body가 preload되지 않았다.
+- empty Direct workspace runtimeContext는 485 bytes, 실제 gpt-5.5 첫 request는 41,566 bytes였다.
+- global instruction·Tool·Skill 사이 실제 반복 5-gram을 확인했지만 중복만으로 삭제 후보를 확정하지 않았다.
+- family 전부에 owner·countertest는 있으나 `incidentRefs·modelsQualified·measuredBenefit·replacementOwner·lastReviewedAt`의
+  명시 provenance field는 아직 없다.
+
+CX-0은 제품 변경 0으로 완료됐고 다음 current slice는 `CX-1 Family Provenance Audit`다.
+
+근거: `refoundation/evidence/nx2-cx0-context-surface-inventory-2026-09-01.json`.
 
 ### NX-2D — Five-Lane Proportionality — PENDING
 
