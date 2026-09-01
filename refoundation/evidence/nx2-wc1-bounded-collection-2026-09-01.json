@@ -1,0 +1,40 @@
+{
+  "schema": "t5.nx2.wc1-bounded-collection.v1",
+  "recordedOn": "2026-09-01",
+  "baseCommit": "6d666a28",
+  "status": "WC1_COMPLETE_WC2_OPEN",
+  "contract": {
+    "modelAuthored": ["exact URLs", "item selector", "field selectors", "required fields", "unique keys", "expected record range"],
+    "runtimeOwned": ["same-origin admission", "page and record bounds", "request count", "field extraction", "coverage", "missing and duplicate validation", "cancel"],
+    "maximumPages": 12,
+    "maximumFields": 20,
+    "maximumRecords": 2000,
+    "maximumPageBytes": 4000000,
+    "crossOrigin": "rejected",
+    "credentialUrl": "rejected",
+    "contentInstructionAuthority": "none"
+  },
+  "actual": {
+    "fixture": "books.toscrape.com public practice site",
+    "pages": 3,
+    "requests": 3,
+    "records": 60,
+    "missingRequired": 0,
+    "duplicates": 0,
+    "coverageComplete": true,
+    "wallMs": 1281,
+    "recordDigest": "5eb1da225896dc97716cdf3a5cc5b3eb88d00fbf166e7f197d6949cd3b30ff3c",
+    "sourceContentsPersisted": false
+  },
+  "comparisonBoundary": {
+    "currentProductWallMs": 133134,
+    "currentProductModelCalls": 10,
+    "currentProductToolCalls": 11,
+    "candidateIsQualificationOnly": true,
+    "wholeUserJourneySpeedClaimed": false
+  },
+  "verification": { "deterministicPassed": 4, "deterministicFailed": 0, "actualExitCode": 0 },
+  "platform": { "implementation": "portable Node fetch and linkedom", "windowsMeaning": "same source contract", "windowsPhysical": "DEFERRED_BY_OWNER" },
+  "productSourceChanges": 0,
+  "next": "WC-2 Structure Reconnaissance"
+}

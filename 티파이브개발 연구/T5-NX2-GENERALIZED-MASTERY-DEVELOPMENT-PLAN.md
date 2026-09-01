@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED · NX2_5_WC0_COMPLETE · NX2_5_WC1_CURRENT`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED · NX2_5_WC0_COMPLETE · NX2_5_WC1_COMPLETE · NX2_5_WC2_CURRENT`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-5 WC-1 — Collection Specification`
+현재 제품 Gate: `NX2-5 WC-2 — Structure Reconnaissance`
 
 ---
 
@@ -889,6 +889,14 @@ pinned upstream `web-crawler@c64cfbf`는 MIT source와 structure·pagination·so
 - output form
 
 Runtime은 이 의미를 만들지 않고 exact contract·권한·실행만 보존한다.
+
+종료 상태: `COMPLETE_QUALIFICATION_ONLY`. 모델이 exact URL·반복 item·field·필수값·unique key·예상 건수 범위를
+작성하고 Runtime이 same-origin·12 page·20 field·2,000 record·4MB/page 안에서 coverage·누락·중복·cancel을 검증하는
+작은 계약을 세웠다. 공개 연습 사이트 3페이지는 1.28초·정확히 3 request로 60건·누락 0·중복 0을 통과했다.
+제품 entry·Tool schema·Prompt 변화는 0이며, WC-2에서 selector와 pagination을 현재 page reality에서 얻기 전에는
+제품에 연결하지 않는다.
+
+근거: `refoundation/evidence/nx2-wc1-bounded-collection-2026-09-01.json`.
 
 #### WC-2 — Structure Reconnaissance
 
