@@ -15,6 +15,13 @@ GUI 정책: `DEFERRED · GENERIC_DESKTOP_COMPUTER_USE_NOT_IN_NX3`
 
 Cloud execution 정책: `OPTIONAL_AFTER_LOCAL_CORE · NOT_A_PREREQUISITE`
 
+T5 Operations 정책:
+`PARALLEL_COMPANION · LOCAL_DOCTOR_REQUIRED_FOR_NX3_HQ · CONTROL_PLANE_NOT_A_LOCAL_CORE_PREREQUISITE`
+
+동반 서버 정본: 별도 `t5-control-plane/T5-OPERATIONS-CONTROL-PLANE-DEVELOPMENT-PLAN.md`가 Control Plane을
+소유한다. 이 문서는 T5 Product 쪽 Doctor·Operations Adapter·Protocol 수용 경계만 소유한다. 양쪽 문서가 다르면
+서버 구현이나 client 추정으로 밀어붙이지 않고 Protocol change request와 양쪽 owner review로 닫는다.
+
 ---
 
 ## 0. OpenClaw·Hermes·현재 T5 전수 대조
@@ -110,6 +117,48 @@ Telegram, jq·yt-dlp managed CLI, GitHub CLI read broker와 한국 사업 연결
 | project depth | bounded project·Browser QA는 선 상태 | HQ에서 재현된 repo-scale/debug gap만 |
 
 NX-3는 위 gap 밖의 새 Core를 만들지 않는다.
+
+### 0.5 T5 Doctor·Operations 현재 경계 대조
+
+동반 비교 source:
+
+- [OpenClaw telemetry와 update check](https://docs.openclaw.ai/gateway/telemetry)
+- [OpenClaw update·recovery](https://docs.openclaw.ai/install/updating)
+- [Hermes update·snapshot·receipt·rollback](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/getting-started/updating.md)
+- [Hermes single-tenant security boundary](https://github.com/NousResearch/hermes-agent/security)
+- [Hermes Cloud](https://portal.nousresearch.com/cloud)
+
+흡수:
+
+- update 확인 실패가 제품 시작과 사용자 작업을 막지 않는다.
+- telemetry는 opt-in·inspectable·allowlist이며 message·prompt·secret·path·account identity를 보내지 않는다.
+- update 전 exact target·backup·running service를 확인하고, 적용 뒤 실제 version·health·restart를 receipt로 닫는다.
+- local Doctor는 사용자가 현재 전송 payload와 상태를 볼 수 있게 한다.
+- local agent 운영과 cloud execution은 같은 기능으로 합치지 않는다.
+
+현재 T5 actual:
+
+| 현재 source/surface | 이미 선 사실 | Operations에서 그대로 쓰지 않을 것 |
+|---|---|---|
+| `refoundation/scripts/doctor.mjs` | 개발 저장소·Node·필수 경로·npm script 확인 | 설치 제품 Doctor로 이름만 바꿔 재사용하지 않음 |
+| `connection-truth.js`·`/connections/doctor` | model·Telegram·Browser·workspace 연결의 bounded actual과 user-safe action | 새 Connection Doctor·Store 생성 0 |
+| `/health`·`local-runtime-lifecycle.js` | exact local Runtime identity·port fact·시작/정지·health | workspace·computer·model 원 응답을 telemetry payload로 전송하지 않음 |
+| `durable-process-ownership.js`·`managed-process.js` | T5-owned process identity·Stop·orphan 경계 | OS 전체 process scanner나 arbitrary kill로 확대하지 않음 |
+| `t5-whole-state.js`·`whole-state-bundle*` | encrypted backup·relationship validation·restore·rollback | Support Bundle과 whole-state backup을 합치지 않음 |
+| macOS/Windows package manifest·`runtime-update-drain.test.js` | version·platform·SHA-256·drain·package receipt | source/package/platform PASS를 하나로 합치지 않음 |
+| `platform-secret-store.js`·`transmission-receipt.js` | secret confinement·외부 전송 사실 | secret을 진단 편의로 export하지 않음 |
+
+실제 gap:
+
+1. 연결 하나가 아니라 Runtime·제품 identity·state integrity·process·backup·update를 한 사용자 언어로 보는 Product Doctor가 없다.
+2. Doctor 결과에서 exact precondition에 결속된 typed local repair와 stale-action 방지가 없다.
+3. Protocol v0.1 allowlist event projector·bounded outbox·opt-in·현재 전송 payload preview가 없다.
+4. signed `UpdateManifest`·`RemoteCapabilityPolicy` 검증과 replay/expiry/key rotation 경계가 없다.
+5. 사용자 local preview·redaction·secret scan·명시적 동의를 거치는 Support Bundle이 없다.
+6. Control Plane 장애 0·지연·malformed response에서 T5 핵심 사용자 여정 무개입을 증명한 검사가 없다.
+
+NX-3는 이 gap을 기존 실제 경계 위에서만 닫는다. telemetry dashboard·release cohort·server database·operator RBAC는
+T5 Product 저장소에 만들지 않는다.
 
 ---
 
@@ -688,7 +737,572 @@ T0 입력→진행→first useful→final→actual use→correction→recovery �
 
 ---
 
-## 11. Optional NX3-R — Remote·Cloud Execution
+## 11. T5 Doctor & Operations Adapter — Product-side Companion Lane
+
+상태:
+`PLANNED_WITH_NX3 · SERVER_TEAM_PARALLEL · PRODUCT_IMPLEMENTATION_NOT_OPEN · CLOUD_EXECUTION_EXCLUDED`
+
+### 11.1 한 문장과 사용자 완료 문장
+
+> T5가 이상할 때 사용자는 기술 로그를 모으거나 개발자에게 컴퓨터를 맡기지 않고 “상태 확인해줘”라고 말한다. T5는
+> 이 컴퓨터의 제품 identity·Runtime·연결·state integrity·소유 process·backup·update 상태를 안전하게 검사하고,
+> 실제 문제와 영향·다음 행동을 사용자 언어로 보여주며, 검증된 local repair만 Preview·Receipt·Undo와 함께 수행한다.
+
+Operations 연결이 켜진 경우에도 T5는 대화·파일·비밀을 보내지 않고 allowlist health 사실만 전송한다. Control Plane이
+꺼지거나 느리거나 잘못된 응답을 보내도 대화·Work·File·Browser·Process·Artifact·Undo 핵심 여정은 계속된다.
+
+비목표:
+
+- 개발용 `refoundation:doctor` 출력을 일반 사용자에게 그대로 노출
+- raw log·stack·command·stdout/stderr·환경변수를 수집하는 진단 화면
+- server가 실행하는 원격 Doctor·원격 shell·임의 repair
+- model이 자유 텍스트로 repair command를 만들어 실행
+- whole-state backup을 Support Bundle로 업로드
+- telemetry로 사용자의 대화·업무·파일·앱 사용을 분석
+- T5 Cloud worker·원격 Browser/File/Process 실행
+- Control Plane availability를 T5 Product availability와 결속
+
+### 11.2 네 경계
+
+| 경계 | owner | 하는 일 | 하지 않는 일 |
+|---|---|---|---|
+| **T5 Product Doctor** | `t5-windows` | 이 설치의 local read-only 검사·사용자 설명·typed repair | fleet 집계·원격 운영 |
+| **Operations Adapter** | `t5-windows` | opt-in·allowlist event·bounded outbox·signature 검증·Support Bundle local consent | 서버 dashboard·cohort 계산·임의 명령 |
+| **T5 Operations Control Plane** | `t5-control-plane` | registration·telemetry/health 집계·release/canary·crash/support backend·audit | 사용자 Work 실행·T5 Core 수정 |
+| **T5 Cloud** | 향후 별도 저장소 | isolated remote execution이 실제로 필요할 때만 | 이 Gate의 어떤 deliverable도 아님 |
+
+서버팀은 synthetic client로 OP-0~OP-5를 진행한다. T5 Product 팀은 설치본을 SDK처럼 제공하거나 내부 endpoint를
+역추정하게 하지 않는다. 실제 T5 source integration은 양쪽 Protocol v0.1이 고정되고 server staging이 synthetic client로
+자격된 뒤 NX3-O3/O4와 server OP-6에서만 연다.
+
+### 11.3 사용자 표면
+
+기본 surface는 Settings의 `T5 상태`와 자연어 요청이다. 별도 개발자 Console이 아니다.
+
+```text
+사용자: T5 상태 확인해줘.
+
+T5 상태
+정상  Runtime · 제품 데이터 · 파일 기능 · Browser
+주의  저장 공간이 부족해요. 새 결과 저장이 실패할 수 있어요.
+복구  Telegram 연결이 만료됐어요.
+
+[저장 공간 안내] [Telegram 다시 연결] [지원자료 만들기]
+```
+
+표시 원칙:
+
+- `정상 / 주의 / 복구 필요 / 확인하지 못함`을 구분한다.
+- `확인하지 못함`을 `정상`으로 표현하지 않는다.
+- 내부 파일 경로·PID·port·stack·error 원문은 기본 surface에 표시하지 않는다.
+- 왜 검사했는지, 사용자 영향, 안전한 다음 행동만 보여준다.
+- Doctor가 model Context에 상주하지 않는다. 사용자가 요청하거나 현재 실제 blocker와 관련될 때 bounded projection만 연다.
+- 연결 상태는 기존 `/connections/doctor` 결과를 재사용하고 별도 연결 진실을 만들지 않는다.
+- Operations opt-in 상태와 **다음에 보낼 exact payload preview**를 사용자가 확인·중단할 수 있다.
+
+### 11.4 Product Doctor contract
+
+Product Doctor는 여러 inspector의 결과를 모으는 read-only projection이다. inspector는 자기 source를 소유하고 Doctor가
+새 canonical health database를 만들지 않는다.
+
+```yaml
+schema: t5.product-doctor.v1
+inspectionId: random local identity
+product:
+  version: exact
+  build: exact source/package identity when available
+  platform: macos | windows-x64 | windows-arm64
+checkedAt: RFC3339
+checks:
+  - id: bounded enum
+    state: healthy | attention | action_required | unavailable | unknown
+    severity: info | warning | blocking
+    reasonCode: bounded enum
+    sourceRevision: exact safe digest or version
+    observedAt: RFC3339
+    userImpact: bounded user-safe enum/projection
+    actionIds: []
+summary:
+  counts: bounded integers
+  userSafeSummary: bounded product language
+networkSent: false
+```
+
+첫 inspector family:
+
+1. `product_identity`: installed version·platform·package manifest identity
+2. `local_runtime`: exact local Runtime·owner·accepting/stopping·restart continuity
+3. `state_integrity`: canonical Store read·SQLite quick check·required relationship
+4. `connections`: 기존 Connection Doctor의 current actual
+5. `owned_processes`: T5-owned active/background/orphan candidate
+6. `storage_capacity`: T5 state·scratch·artifact를 계속 쓸 수 있는 bounded capacity
+7. `backup_recovery`: backup 가능성·최근 검증 사실·restore rollback availability
+8. `update_integrity`: installed version·manifest/digest/signature·mixed runtime 여부
+9. `operations_connectivity`: opt-in·outbox·last safe exchange·server unavailable/unknown
+
+검사는 다음을 읽지 않는다.
+
+- conversation text·prompt·model answer
+- attachment/file content·filename·user path
+- email·message·contact content
+- secret value·token·cookie·credential file content
+- arbitrary environment variables
+- raw command line·stdout/stderr·stack trace
+- Browser page text·URL query/fragment·screen capture
+
+local inspection에 필요한 exact path/PID/port는 기존 owner 내부에서만 사용하고 Doctor public result·model projection·Operations
+event에는 내보내지 않는다.
+
+### 11.5 Typed local repair
+
+Doctor repair는 inspector가 반환한 현재 `inspectionId + check sourceRevision + actionId`에 결속한다. UI 또는 model이 action
+이름만 말해 실행할 수 없고, 실행 직전에 같은 source를 다시 읽어 stale이면 거부한다.
+
+첫 허용 후보:
+
+| action | 기존 owner | 기본 권한 |
+|---|---|---|
+| `restart_t5_runtime` | `local-runtime-lifecycle.js` | current Work drain·restart receipt 필요 |
+| `reconcile_owned_processes` | managed process owner | T5-owned identity만, foreign PID 0 |
+| `rebuild_recreatable_cache` | 해당 cache owner | canonical state 불변·전후 digest |
+| `resume_known_migration` | exact migration owner | version-compatible typed migration만 |
+| `verify_backup` | whole-state registry/bundle | read-only·restore 없음 |
+| `restore_verified_backup` | whole-state activation | Preview·사용자 확인·rollback generation 필요 |
+| `reconnect_connection` | 기존 Connection action | secret/user browser handoff 경계 유지 |
+| `rollback_verified_update` | package/update owner | exact known-good artifact·platform·health check |
+
+다음은 repair action이 될 수 없다.
+
+- arbitrary command/script/path/delete
+- OS 전체 process kill
+- 사용자의 파일·앱 설정 수정
+- 외부 서비스 재전송·새 상대 전송
+- server가 body에 담아 보낸 action
+- signature가 valid라는 이유만으로 client에 정의되지 않은 action
+
+백업 없는 파괴·비밀 입력·새 상대 외부 전송·비용 경계는 기존 제품 계약을 그대로 유지한다. repair가 끝나면 같은 inspector를
+다시 읽어 `requested → allowed → executed → local effect → recovered/unknown`을 분리한 Receipt를 남긴다.
+
+### 11.6 Protocol v0.1 client contract
+
+공통 wire envelope:
+
+```yaml
+protocolVersion: "0.1"
+schemaVersion: 1
+requestId: UUID idempotency key
+installationId: rotate 가능한 pseudonymous identity
+appVersion: exact product version
+platform: macos | windows-x64 | windows-arm64
+sentAt: RFC3339 UTC
+payload: strict allowlist object
+```
+
+T5 Product가 만드는 모델:
+
+- `DeviceIdentity`: 가명 installation identity·device public key·platform·version·channel receipt
+- `HealthEvent`: component/status/reasonCode/duration bucket
+- `TelemetryEvent`: capability/event/resultCode/wall·call count bucket
+- `CrashEnvelope`: normalized fingerprint·error class·version/platform; raw stack/memory dump 기본 0
+- `SupportBundle`: local manifest·redaction/scan version·consent·expiry·upload receipt
+- `UpdateManifest` verifier: platform·version·bytes·SHA-256·signature·keyId·issued/expiry
+- `RemoteCapabilityPolicy` verifier: predefined capability·restrictive action·reason·sequence·expiry·signature
+
+Control Plane이 소유하고 T5가 read-only로 수용하는 모델:
+
+- `ReleaseChannel`: channel identity·current release·rollout decision·state
+- upload authorization: exact object·size·content type·short expiry
+- server-supported protocol/version metadata
+
+호환:
+
+- minor는 optional field/additive endpoint만 허용하고 기존 의미를 바꾸지 않는다.
+- major는 required field·authorization semantics·기존 의미 변경이다.
+- client와 server는 current와 직전 minor의 old-client/new-server·new-client/old-server contract test를 갖는다.
+- unknown policy/manifest major·action·capability는 적용하지 않고 local safe state를 유지한다.
+- field 제거는 deprecate·관찰·종료 공지·다음 major 순서다.
+- DB migration 통과를 wire compatibility 증거로 사용하지 않는다.
+
+### 11.7 Privacy·authority·availability contract
+
+#### Outbound allowlist
+
+Operations event에는 enum·bucket·exact product/platform version과 pseudonymous installation identity만 허용한다. 다음 key/value
+family는 schema와 runtime counter-test에서 거부한다.
+
+- conversation/prompt/response/content/free text
+- file content/name/path/directory
+- secret/token/password/cookie/session credential
+- email subject/body/address/contact/phone
+- command/argv/environment/stdout/stderr/stack
+- full URL/query/fragment/hostname·account/user identity
+- screen/clipboard/keystroke
+- unbounded `metadata`, labels, attributes, arbitrary object
+
+rejected payload 원문도 log·trace·error response에 복제하지 않는다. `installationId`는 hardware serial·MAC·OS username·hostname과
+결속하지 않고 rotate/revoke 가능해야 한다.
+
+#### Outbox
+
+- opt-in 전 write/network 0
+- bounded bytes·records·age; 가득 차면 사용자 Work가 아니라 telemetry를 drop/coalesce
+- event ID/request ID exact-once retry와 payload collision 거부
+- exponential backoff·jitter·deadline·rate budget
+- server 4xx malformed/rejected payload blind retry 0
+- server outage가 startup·Turn·Tool·Artifact·Stop을 기다리게 하지 않음
+- user opt-out/delete에서 pending event를 제거하고 이후 생성 0
+- canonical Work/Conversation truth가 아니며 삭제·rebuild 가능한 derived outbox
+
+#### Signed update/policy
+
+- HTTPS는 signature를 대신하지 않는다.
+- trust root·artifact signing key·policy signing key·data encryption key를 분리한다.
+- signature·keyId·target platform·digest·bytes·issuedAt·expiresAt·monotonic sequence를 모두 검증한다.
+- downgrade·replay·expired/revoked key·wrong environment·wrong platform은 fail-closed다.
+- `RemoteCapabilityPolicy` action은 `disable | restrict | require-update | restore-default`만 허용한다.
+- policy는 미리 client에 정의된 capability를 제한할 뿐 새 Tool·command·upload·prompt를 활성화할 수 없다.
+- expiry 뒤 local safe default와 exact 이전 policy state를 읽고 복귀 receipt를 남긴다.
+- update는 current Work drain·installed artifact readback·Runtime version/health 확인 전 완료가 아니다.
+
+#### Support Bundle
+
+Support Bundle은 backup도 telemetry도 아니다.
+
+```text
+Doctor 검사
+→ allowlist diagnostic artifact 생성
+→ local redaction + secret/path/email counter-scan
+→ 포함 항목·크기·보존기간 local Preview
+→ 사용자 explicit consent
+→ exact manifest digest와 short-lived upload authorization
+→ encrypted upload
+→ receipt·case ID·expiry/delete 상태
+```
+
+기본 포함 가능:
+
+- product/platform/protocol version
+- Doctor check ID/state/reasonCode
+- typed update/policy/repair receipt
+- normalized crash fingerprint
+- redaction/scan version과 bundle manifest digest
+
+기본 제외:
+
+- whole-state backup·Conversation/Work ledger·Memory·Attachment object
+- raw log/stack/stdout/stderr/config/env
+- file name/path/content·Browser content·email/message
+- secret store·credential·token
+
+사용자는 upload 전에 항목을 보고 취소할 수 있다. download/access/delete는 server audit와 retention을 따르며, local T5는
+upload receipt를 실제 server ACK 없이 성공으로 만들지 않는다.
+
+### 11.8 양 팀 Gate 결속
+
+```text
+t5-control-plane                          t5-windows / NX-3
+
+OP-0 Architecture & Privacy  <-------->  NX3-O0 Product Boundary & Protocol
+OP-1 Foundation              ---- synthetic client ----┐
+OP-2 Telemetry               ---- synthetic client ----┤
+OP-3 Release/Canary          ---- synthetic client ----┤  T5 source dependency 0
+OP-4 Crash/Health            ---- synthetic client ----┤
+OP-5 Support                 ---- synthetic client ----┘
+OP-6 Runtime Integration     <-------->  NX3-O3 + NX3-O4
+OP-HQ Production             <-------->  NX3-OHQ exact installed candidate
+```
+
+운영 규칙:
+
+- server OP-1~OP-5는 T5 설치본을 reverse engineer하지 않고 synthetic client로 진행한다.
+- Protocol PR은 양쪽 schema digest·compatibility matrix·privacy counter-test를 함께 갱신한다.
+- T5 Product 팀은 server 내부 DB/dashboard 요구를 client schema로 그대로 수용하지 않는다.
+- server 팀은 T5 내부 Work/Run/Receipt ID를 telemetry identity로 요구하지 않는다.
+- server staging이 synthetic PASS여도 OP-6 actual integration PASS가 아니다.
+- NX3 local Core와 NX3-HQ는 live Control Plane 배포를 기다리지 않는다.
+- 실제 체험단 Operations enrollment는 양쪽 OP-HQ/NX3-OHQ 전 금지한다.
+
+### 11.9 NX3-O Gate
+
+#### NX3-O0 — Product Doctor & Protocol Boundary Audit
+
+상태: `PLANNED · PRODUCT_DELTA_0`
+
+Deliverables:
+
+- current source를 `REUSE / EXTEND / GAP / SERVER-OWNED / DEFER`로 고정한 file-level audit
+- Product Doctor check/action enum과 public projection schema
+- Protocol v0.1 Product-owned JSON Schema fixture와 server companion schema digest
+- field별 purpose·retention·destination·user visibility data inventory
+- privacy/authority threat model과 Cloud Execution 제외 ADR
+- old/current/next minor synthetic client fixture
+- T5 Product/Operations RACI와 protocol change request template
+
+RED/counter-tests:
+
+- `scripts/doctor.mjs` 결과를 Product Doctor로 간주하면 RED
+- `/health` 원 응답을 outbound payload로 사용하면 RED
+- conversation/file/path/secret/email/command/free-text fixture가 schema reject
+- unknown policy/repair action·major version·wrong platform fail-closed
+- existing Connection Doctor·backup·runtime lifecycle의 source owner가 복제되면 RED
+
+Exit:
+
+- 양쪽 owner가 schema·privacy·authority·versioning을 승인
+- 미결정 `TODO`가 executable schema에 없음
+- server OP-1~OP-5가 실제 T5 없이 진행 가능
+- T5 제품 source 변화 0
+
+#### NX3-O1 — Read-only Local Product Doctor
+
+선행: `NX3-O0 PASS`, 기존 Connection onboarding source current 재감사.
+
+Deliverables:
+
+- bounded parallel inspector aggregator와 per-inspector timeout
+- Settings `T5 상태`와 자연어 요청용 bounded projection
+- product/runtime/state/connection/process/storage/backup/update/operations check
+- `unknown/no data`와 `healthy`의 분리
+- exact inspection receipt와 user-safe next action
+- network·model Context default delta 0
+
+Tests:
+
+- inspector timeout/failure가 전체 Doctor를 hang시키지 않음
+- forged/symlink/stale port·package·state identity가 healthy가 아님
+- foreign process를 T5-owned로 표시하지 않음
+- broken SQLite/relationship·insufficient storage·mixed runtime version 반대시험
+- Doctor public/model/console JSON에 path/PID/port/secret/content 0
+- 기존 `/connections/doctor`와 같은 연결 목록·state를 사용
+- Operations server 0에서도 동일 local 결과
+
+Exit:
+
+- clean installed candidate에서 한 번의 요청으로 전체 상태와 실제 영향·다음 행동을 이해 가능
+- 정상 fixture·각 단일 failure fixture·복합 failure에서 known oracle와 일치
+- read-only Doctor 실행 뒤 local state/network/model call 변화 0
+- Direct·Single Hand baseline Context·wall 무회귀
+
+#### NX3-O2 — Typed Repair & Recovery
+
+선행: `NX3-O1 PASS`.
+
+Deliverables:
+
+- exact inspection-bound action proposal·Preview·admission·execution·readback·Receipt
+- stale action/version/digest rejection
+- Runtime restart·owned process reconcile·recreatable cache·backup verify·connection reconnect의 최소 positive control
+- verified backup restore와 update rollback은 기존 owner를 호출하는 별도 destructive flow
+- Stop/restart 중 late action·orphan·duplicate repair 방지
+
+Tests:
+
+- action label/free text/server body만으로 실행 0
+- stale inspection·foreign PID/path·changed package/state 거부
+- repair 중 crash/restart/retry exact-once
+- restore/rollback wrong password/digest/platform에서 state change 0
+- repair success는 같은 inspector readback 없이는 완료 아님
+- 사용자 dirty files·Conversation/Work·external effects 무변경
+
+Exit:
+
+- 최소 다섯 failure fixture가 `발견 → 설명 → Preview → repair → readback → recovery`를 통과
+- 실패 repair가 현재 상태를 더 악화시키지 않고 정확한 next action을 남김
+- NX3-HQ에 local Doctor/repair mission을 추가할 수 있음
+
+`NX3-O0~O2`는 local product 품질이므로 NX3-HQ 전에 필요하다.
+
+#### NX3-O3 — Operations Adapter & Cryptographic Admission
+
+선행: `NX3-O0 PASS`, server OP-0 schema freeze. live server는 필요 없음.
+
+Deliverables:
+
+- opt-in/opt-out/delete와 exact next-payload preview
+- rotate 가능한 `DeviceIdentity`
+- strict event projector와 bounded outbox
+- `HealthEvent`·`TelemetryEvent`·`CrashEnvelope` safe fixture
+- `UpdateManifest`·`RemoteCapabilityPolicy` signature/replay/expiry verifier
+- protocol capability negotiation과 current/previous minor compatibility
+- Operations network가 T5 work resources를 고갈시키지 않는 budget
+
+Tests:
+
+- privacy forbidden field/value family counter-test
+- rejected payload가 log/trace/error에 복제되지 않음
+- offline/slow/500/429/malformed/TLS failure에서 user journey noninterference
+- duplicate/reorder/clock skew/outbox full/opt-out/delete
+- forged/expired/replayed/revoked-key/wrong-environment/platform manifest/policy
+- policy가 arbitrary command·Tool·upload·prompt를 표현할 수 없음
+- unknown protocol minor는 안전한 additive field만 무시하고 unknown major는 apply 0
+
+Exit:
+
+- synthetic server와 packet capture에서 forbidden data 0
+- opt-in 전 request 0, opt-out 뒤 신규 event/outbox 0
+- server 완전 차단에서 T5 whole-flow가 baseline과 같은 목적을 달성
+- signature/key rotation fixture와 rollback target identity가 exact
+
+NX3-O3 qualification-only adapter는 local NX3 Core를 막지 않는다. live production endpoint를 기본값으로 넣지 않는다.
+
+#### NX3-O4 — Staging Integration & Support Bundle
+
+선행: server `OP-1~OP-5 PASS`, `NX3-O3 PASS`, 양쪽 exact Protocol digest 일치.
+
+Deliverables:
+
+- staging registration·event ingest·manifest/policy fetch·receipt
+- Support Bundle local creation·Preview·consent·upload·expiry/delete status
+- canary decision과 exact update candidate download/verify/apply/health/rollback
+- capability restrict·expiry·restore-default
+- environment-pinned endpoint/key; production credential 0
+- 양쪽 request/event/bundle/manifest/policy correlation receipt
+
+Tests:
+
+- clean registration→rotation→revocation
+- telemetry/health/crash fixture의 server aggregate 독립 대조
+- consent 없는 bundle upload authorization/request 0
+- bundle scan에 secret/path/email/content 주입 시 upload 0
+- expired/reused/wrong-object authorization 거부
+- update apply 중 Stop/restart/disconnect와 previous package recovery
+- policy expiry/sequence race와 local safe restore
+- staging identity/key가 production에서 유효하지 않음
+
+Exit:
+
+- exact staging server/client artifact로 end-to-end PASS
+- user-visible final과 local receipt·server audit·actual state가 일치
+- server 장애 중 local T5 degradation이 truthful하고 핵심 작업은 계속됨
+- macOS/Windows source result를 섞지 않고 해당 current platform actual 기록
+
+#### NX3-OHQ — Installed Product & Operations Human Qualification
+
+선행: `NX3-O0~O4 PASS`, server `OP-6 PASS`. 이는 NX3 local Core 완료 조건이 아니라 **체험단 Operations enrollment 전
+필수 Gate**다.
+
+한 actual installed candidate에서 한 runner가 순차 수행:
+
+1. “T5 상태 확인해줘” → 정상/주의/unknown actual 대조
+2. connection expiry 발견 → reconnect → read actual
+3. T5-owned orphan candidate → typed reconcile → foreign process 보존
+4. storage/state/package 단일 fault를 각각 발견하고 안전한 next action
+5. opt-in 전 network 0 → payload preview → opt-in → safe event ingest
+6. server offline/slow/malformed에서 일반 대화·파일·Browser·Work 완료
+7. forged/expired/replayed signed policy/update 거부
+8. canary update → installed version/health actual → failure injection → rollback
+9. capability restrict → receipt → expiry/restore-default
+10. Support Bundle preview → consent → upload → access receipt → early delete → old URL access 실패
+11. Runtime restart·T5 재접속·outbox retry에서 duplicate/late effect 0
+12. opt-out/delete 뒤 pending/new telemetry 0
+
+Exit:
+
+- exact source/server artifact/installed package/platform을 분리 기록
+- P0/P1 0, privacy/authority violation 0
+- 자동 test/build/sign/install 성공만으로 PASS 주장 0
+- actual state·Doctor UI·local receipt·server audit 사이 모순 0
+- first pass repair 뒤 clean second whole-flow PASS
+- macOS·Windows x64·Windows ARM64 target은 각 설치 후보에서 독립 자격
+
+### 11.10 File-level implementation plan
+
+기존 owner 재사용:
+
+| source | 책임 |
+|---|---|
+| `connection-truth.js`·Connection services | connection check/action exact truth |
+| `local-runtime-lifecycle.js`·`durable-process-ownership.js`·`managed-process.js` | Runtime/process inspect·drain·restart·owner fence |
+| `t5-whole-state.js`·`whole-state-bundle*.js` | state integrity·backup verify·restore/rollback |
+| `platform-secret-store.js` | Operations credential/key material confinement |
+| `transmission-receipt.js`·Run/Effect receipt | external request/ACK와 local action truth |
+| macOS/Windows package builders/manifests | installed product/version/platform/digest source |
+| `console-server.js`·Settings UI | bounded route wiring와 user surface만; domain logic owner 아님 |
+
+새 responsibility가 actual로 없을 때만 허용할 후보:
+
+| 후보 | 단일 책임 |
+|---|---|
+| `product-doctor.js` | read-only inspector aggregation·safe projection |
+| `doctor-action-contract.js` | inspection-bound typed action admission·receipt |
+| `operations-protocol-v01.js` | wire schema·version compatibility·strict decode |
+| `operations-event-projector.js` | internal facts→allowlist enum/bucket event 단방향 축소 |
+| `operations-outbox.js` | bounded derived queue·retry/idempotency·opt-out purge |
+| `operations-signature-verifier.js` | manifest/policy trust root·signature·sequence·expiry |
+| `support-bundle.js` | allowlist local manifest·redaction/scan·consent-bound upload capsule |
+| `run-nx3-operations-qualification.mjs` | synthetic/staging/installed sequential evidence runner |
+
+금지:
+
+- `doctor-store.js`, `health-state-store.js`, `remote-command.js`, `operations-agent.js`
+- Connection·Work·Run·Artifact·Backup의 두 번째 canonical Store
+- `console-server.js` 안에 inspector·crypto·outbox·bundle domain logic 직접 누적
+
+첫 RED test 계획:
+
+```text
+product-doctor-contract.test.js
+doctor-action-contract.test.js
+operations-privacy-boundary.test.js
+operations-protocol-compatibility.test.js
+operations-outbox.test.js
+operations-signed-policy.test.js
+operations-offline-noninterference.integration.js
+support-bundle.integration.js
+doctor-console.integration.js
+installed-operations-qualification.test.js
+```
+
+각 behavior를 제거하면 RED가 되어야 한다. JSON snapshot 문자열 일치만으로 user-safe truth·privacy·repair actual을 자격하지
+않는다.
+
+### 11.11 Product-side commit order
+
+1. `docs(nx3-ops): freeze Doctor and Protocol boundary` — NX3-O0, 제품 delta 0
+2. `test(doctor): add read-only product Doctor counter-tests` — 첫 RED
+3. `feat(doctor): aggregate existing local inspectors` — NX3-O1
+4. `test(doctor): add stale and foreign repair counter-tests`
+5. `feat(doctor): add typed local repair admission` — NX3-O2
+6. `test(operations): add privacy compatibility and signature counter-tests`
+7. `feat(operations): add inactive protocol projector outbox and verifier` — NX3-O3
+8. `test(support): add consent redaction expiry and delete integration`
+9. `feat(operations): connect exact staging Protocol and support bundle` — NX3-O4
+10. `test(hq): qualify installed Doctor and Operations whole flow` — NX3-OHQ
+
+각 커밋은 관련 focused test와 `npm run refoundation:check`를 통과한다. exact integration candidate에서만
+`npm run refoundation:ci`와 installed human qualification을 실행한다. server endpoint·credential·signing private key·실제
+user payload를 Git에 넣지 않는다.
+
+### 11.12 Done과 중단선
+
+Product-side Done:
+
+```text
+한 요청으로 local 상태와 영향·다음 행동을 이해
+AND typed repair만 stale-safe하게 실행·readback
+AND server 0에서도 T5 핵심 여정 정상
+AND opt-in·payload preview·opt-out/delete 성립
+AND forbidden outbound data 0
+AND signed update/policy만 restrictive action 적용
+AND Support Bundle local preview·consent·expiry/delete 성립
+AND exact installed candidate whole-flow PASS
+```
+
+즉시 중단·재설계:
+
+- raw `/health`·log·stack·path·content를 telemetry로 재사용
+- Doctor UI가 내부 enum·PID·port·경로를 기본 노출
+- server response를 command/action으로 실행
+- telemetry 실패가 Turn·Tool·Artifact·Stop을 block
+- Support Bundle이 whole-state backup·Conversation·Memory를 포함
+- signed policy가 새 능력 활성화·data upload·Tool call을 지시
+- server dashboard 요구로 T5 canonical schema를 복제
+- synthetic PASS를 installed Product 또는 production PASS로 주장
+- Control Plane/Cloud를 NX3 local Core의 선행 조건으로 만듦
+
+---
+
+## 12. Optional NX3-R — Remote·Cloud Execution
 
 상태: `OPTIONAL_AFTER_NX3_LOCAL_CORE · NOT_REQUIRED_FOR_NX3_CORE_COMPLETE`
 
@@ -722,7 +1336,7 @@ Cloud execution은 개발자 함수의 선행 조건이 아니다.
 
 ---
 
-## 12. 성능·제품 승격식
+## 13. 성능·제품 승격식
 
 ```text
 정확성·source·authority·Effect truth 무회귀
@@ -732,6 +1346,8 @@ AND program/project 결과가 실제 실행·사용 가능
 AND Direct·Single Hand 속도·Context 무회귀
 AND model/Tool rounds·tokens·wall이 목적에 비례
 AND connector·Capability stale/rollback 성립
+AND local Doctor가 실제 failure·unknown·recovery를 user-safe하게 구분
+AND Operations opt-in 전 전송 0·forbidden outbound data 0·server outage noninterference
 AND 모델별 Prompt·업무 Router·별도 사용자-facing 개발 Agent 0
 AND 실제 Console clean second pass PASS
 ```
@@ -740,7 +1356,7 @@ AND 실제 Console clean second pass PASS
 
 ---
 
-## 13. 절대 중단선
+## 14. 절대 중단선
 
 - 같은 연결 결함에 세 번째 Prompt·Tool description patch
 - API key·OAuth token이 model Context나 log에 나타남
@@ -756,10 +1372,15 @@ AND 실제 Console clean second pass PASS
 - 현재 T5의 Terminal·G·F·Browser·Undo를 복제
 - GUI나 cloud를 개발자 함수의 필수조건으로 확대
 - source qualification을 package·platform PASS로 주장
+- `/health`·log·stack·path·Conversation·파일 내용을 telemetry 또는 Support Bundle 기본값으로 사용
+- server가 보낸 임의 command·script·Tool call·prompt·upload instruction 실행
+- Control Plane 장애가 T5 startup·Turn·Tool·Artifact·Stop을 block
+- valid signature만으로 client에 정의되지 않은 capability/action 허용
+- Product Doctor·Operations Adapter·Control Plane·Cloud Execution을 한 Runtime/Store로 합침
 
 ---
 
-## 14. 파일 책임 계획
+## 15. 파일 책임 계획
 
 실제 Gate 시작 시 current head에서 재감사한다.
 
@@ -774,6 +1395,8 @@ AND 실제 Console clean second pass PASS
 | `capability-lifecycle.js` | package kinds의 evidence-backed promotion 일반화 |
 | `managed-cli-store.js`·CLI broker | actual CLI 수요에 한해 broker 확대 |
 | G·Project·Browser·Artifact source | Developer HQ에서 재현된 실제 gap만 |
+| `connection-truth.js`·`local-runtime-lifecycle.js`·whole-state source | Product Doctor inspector의 current truth owner로 재사용 |
+| package manifest·Secret Store·Transmission Receipt | Operations identity·key confinement·external ACK owner로 재사용 |
 
 새 파일 허용 후보:
 
@@ -783,13 +1406,16 @@ AND 실제 Console clean second pass PASS
 | `mcp-tool-policy-projection.js` | include/exclude·consent·effective inventory owner가 current source에 없음 |
 | `api-spec-adapter-qualification.js` | OpenAPI/SDK adapter fixture·actual 자격 runner |
 | `developer-human-qualification.mjs` | NX3-HQ actual Console runner |
+| `product-doctor.js`·`doctor-action-contract.js` | 11.10의 read-only aggregation·typed repair 책임이 current source에 없을 때만 |
+| `operations-protocol-v01.js`·event projector·outbox·signature verifier | OP-0 joint schema 뒤 inactive client seam으로만 |
+| `support-bundle.js` | backup과 분리된 allowlist·consent-bound diagnostic capsule |
 
 새 파일은 책임이 current source에 없고 두 실제 목적에서 공통 gap이 재현될 때만 만든다. `connection-reality.js`,
 `connector-package-contract.js`, `capability-forge.js`, `developer-capability-tool.js`를 새로 만드는 것은 현재 source 중복이다.
 
 ---
 
-## 15. 커밋 순서
+## 16. 커밋 순서
 
 각 Gate:
 
@@ -803,13 +1429,21 @@ AND 실제 Console clean second pass PASS
 
 현재 NX-2 branch에 미리 구현하지 않는다.
 
+Doctor·Operations는 11.11의 별도 Product-side commit 순서를 따른다. NX3-O0~O2는 local NX3-HQ 전에 닫고,
+NX3-O3 qualification-only는 server availability와 무관하게 검증할 수 있다. live server 결속인 NX3-O4·NX3-OHQ는
+`t5-control-plane` OP-1~OP-6가 exact staging artifact로 닫히기 전 열지 않는다.
+
 ---
 
-## 16. NX-3 완료 문장
+## 17. NX-3 완료 문장
 
 > T5는 일반 사용자가 기술을 몰라도 공식 서비스와 도구를 안전하고 간단하게 연결하고, 이미 있는 CLI를 활용하며,
 > 현재 능력으로 부족한 문제에는 필요한 코드·adapter·프로그램·웹앱을 만들어 실제로 실행하고 검증한다. 사용자는
 > 계속 하나의 T5와 대화하고, 연결·비밀·Effect·파일·테스트·복구는 T5 영수증에 남으며, 반복해서 우월한 방법만 새로운
-> Capability로 성장한다.
+> Capability로 성장한다. 문제가 생기면 같은 T5가 local Doctor로 실제 상태·영향·안전한 다음 행동을 설명하고 검증된
+> repair만 수행한다. Operations 연결은 사용자 동의와 최소 정보·서명된 제한 정책 안에서만 작동하며, 서버가 없어도
+> T5의 핵심 사용자 작업은 계속된다.
 
-이 문장은 NX3-HQ의 clean second whole-flow와 해당 physical platform 자격 전에는 사용할 수 없다.
+이 문장은 NX3-HQ의 clean second whole-flow, NX3-O0~O2 local Doctor 자격과 해당 physical platform 자격 전에는 사용할 수
+없다. 실제 체험단 Operations enrollment·원격 release/canary/support 가능 주장은 별도로 NX3-O3~O4·NX3-OHQ와 server
+OP-6·OP-HQ까지 통과해야 한다.
