@@ -91,11 +91,20 @@
       "currentEnforcement": "global_instructions",
       "targetEnforcement": "candidate_for_tool_or_skill_projection",
       "appliesTo": ["documents", "attachments", "artifacts"],
-      "countertests": ["console-capability-boundary.test.js", "attachment-console.test.js"],
+      "countertests": ["console-capability-boundary.test.js", "attachment-console.integration.js"],
       "lifecycle": "evidence_bound",
       "removalCondition": "tool-local guidance preserves actual authoring and delivery outcomes",
-      "globalLineCount": 10,
-      "globalSha256": "dfad9d0b6944578155f2fd5d89f285a419120e93551c2456e32e0460f59a6575"
+      "globalLineCount": 9,
+      "globalSha256": "05c02908b9bf9edd2f03cc4988d95ab5746086f86f799d770e0e1dcef0beb961",
+      "incidentRefs": [
+        "S4-F/P/HQ artifact and document incidents",
+        "refoundation/evidence/nx2-cx3-artifact-guidance-ownership-qualification-2026-09-01.json",
+        "refoundation/evidence/nx2-cx5-multi-model-context-qualification-2026-09-01.json"
+      ],
+      "modelsQualified": ["gpt-5.5", "gpt-5.6-terra"],
+      "measuredBenefit": "one global line and about 197 provider request bytes per model call removed without Direct or malicious-attachment regression",
+      "replacementOwner": "attachment Tool description",
+      "lastReviewedAt": "2026-09-01"
     },
     {
       "id": "web.research_and_provenance",

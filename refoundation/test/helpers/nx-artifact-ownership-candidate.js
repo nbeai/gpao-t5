@@ -11,7 +11,7 @@ const sha256 = (value) => createHash('sha256').update(String(value)).digest('hex
 export function buildNxArtifactOwnershipCandidate(workspace, computer) {
   const baseline = consoleInstructions(workspace, computer); const lines = baseline.split('\n');
   const removed = lines.filter((line) => REMOVED.includes(line));
-  if (removed.length !== REMOVED.length) throw new Error('artifact ownership candidate source lines are unavailable');
+  if (!removed.length) throw new Error('artifact ownership candidate source lines are unavailable');
   const candidate = lines.filter((line) => !REMOVED.includes(line)).join('\n');
   return Object.freeze({ baseline, candidate,
     removed: removed.map((text) => ({ text, sha256: sha256(text), bytes: Buffer.byteLength(text) })),

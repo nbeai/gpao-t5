@@ -9,13 +9,13 @@ const computer = { platform: 'darwin', architecture: 'arm64', commandFamily: 'po
 
 test('CX-3 후보는 global 중복 두 문장만 제거하고 다른 family 순서를 보존한다', () => {
   const value = buildNxArtifactOwnershipCandidate('/T5/WORKSPACE', computer);
-  assert.equal(value.baseline.split('\n').length, 98);
+  assert.equal(value.baseline.split('\n').length, 97);
   assert.equal(value.candidate.split('\n').length, 96);
-  assert.equal(value.removed.length, 2);
+  assert.equal(value.removed.length, 1);
   assert.ok(value.byteDelta < 0);
-  for (const line of NX_ARTIFACT_OWNERSHIP_REMOVED_LINES) {
-    assert.equal(value.baseline.includes(line), true); assert.equal(value.candidate.includes(line), false);
-  }
+  assert.equal(value.baseline.includes(NX_ARTIFACT_OWNERSHIP_REMOVED_LINES[0]), false);
+  assert.equal(value.baseline.includes(NX_ARTIFACT_OWNERSHIP_REMOVED_LINES[1]), true);
+  assert.equal(value.candidate.includes(NX_ARTIFACT_OWNERSHIP_REMOVED_LINES[1]), false);
   assert.match(value.candidate, /text-bearing PDF.*requested text or values/iu);
   assert.match(value.candidate, /visual readability or layout.*rendered pixels/iu);
   assert.match(value.candidate, /visual website mockup.*register it as an output/iu);
