@@ -88,3 +88,24 @@ test('revoked credential과 stale mailbox identity는 fail closed하며 secret�
     (error) => error.reason === 'credential_verification_failed' && !String(error).includes('APP-SECRET'));
   assert.equal(secretStore.values.size, 0);
 });
+
+test('긴 메일 본문은 complete로 꾸미지 않고 같은 message identity의 bounded cursor로 이어 읽는다', async () => {
+  const secretStore = secrets(); const protocol = fakeProtocol(); const originalRead = protocol.read;
+  protocol.read = async (...args) => { const result = await originalRead(...args);
+    return { ...result, parsed: { ...result.parsed, text: '가'.repeat(50_010) } }; };
+  const connection = makeNaverMailConnection({ secretStore, protocol });
+  await connection.connectCredentials({ accountId: 'owner', appPassword: 'APP-SECRET' });
+  const tool = await connection.makeTool({}); const effect = { kind: 'observe' };
+  const found = await tool.execute({ action: 'search', folder: 'INBOX', query: null,
+    from: null, to: null, subject: null, since: null, before: null, unreadOnly: null,
+    messageHandle: null, attachmentHandle: null, cursor: null, limit: 20, effect });
+  const first = await tool.execute({ action: 'read', folder: null, query: null,
+    from: null, to: null, subject: null, since: null, before: null, unreadOnly: null,
+    messageHandle: found.messages[0].messageHandle, attachmentHandle: null, cursor: null, limit: 20, effect });
+  assert.equal(first.coverage.state, 'partial'); assert.equal(first.body.text.length, 50_000);
+  const second = await tool.execute({ action: 'read', folder: null, query: null,
+    from: null, to: null, subject: null, since: null, before: null, unreadOnly: null,
+    messageHandle: found.messages[0].messageHandle, attachmentHandle: null, cursor: first.nextCursor, limit: 20, effect });
+  assert.equal(second.coverage.state, 'complete'); assert.equal(second.body.text.length, 10);
+  assert.equal(second.coverage.bodyStart, 50_000);
+});

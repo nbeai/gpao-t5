@@ -94,7 +94,7 @@ async function defaultProtocol() {
         const parsed = await simpleParser(before.source, { skipHtmlToText: false, skipTextToHtml: true });
         const after = await client.fetchOne(request.uid, { flags: true }, { uid: true });
         return { folder: request.folder, uidValidity, message: before, parsed: {
-          text: String(parsed.text ?? '').slice(0, 200_000), html: Boolean(parsed.html),
+          text: String(parsed.text ?? ''), html: Boolean(parsed.html),
           attachments: (parsed.attachments ?? []).slice(0, 100).map((item) => ({ filename: item.filename,
             contentType: item.contentType, size: item.size, content: item.content })),
         }, seenBefore: before.flags?.has('\\Seen') === true, seenAfter: after?.flags?.has('\\Seen') === true };
@@ -193,12 +193,27 @@ function makeNaverMailTool({ protocol, credential, attachments, sessionId, runId
       const encodedHandle = args.action === 'read' ? args.messageHandle : decode(args.attachmentHandle, 'attachment').messageHandle;
       const handle = decode(encodedHandle, 'message');
       const result = await protocol.read(credentials, handle); const publicMessage = messagePublic(result.message, result.folder, result.uidValidity);
-      if (args.action === 'read') return { state: 'observed', message: publicMessage,
-        body: { text: result.parsed.text, htmlAvailable: result.parsed.html }, unreadStateEffect: result.seenBefore === result.seenAfter ? 'unchanged' : 'changed',
-        attachments: result.parsed.attachments.map((item, index) => ({ filename: String(item.filename ?? `attachment-${index + 1}`),
-          contentType: String(item.contentType ?? 'application/octet-stream'), bytes: item.content.length,
-          attachmentHandle: encode({ v: 1, kind: 'attachment', messageHandle: publicMessage.messageHandle,
-            index, sha256: digest(item.content) }) })), coverage: { state: 'complete', sourceBytes: result.message.source?.length ?? null }, effect: 'none' };
+      if (args.action === 'read') {
+        let offset = 0;
+        if (args.cursor) {
+          const cursor = decode(args.cursor, 'body_cursor');
+          if (cursor.messageHandle !== publicMessage.messageHandle) throw new Error('다른 메일의 본문 cursor를 재사용할 수 없어요.');
+          offset = Number(cursor.offset);
+        }
+        const totalChars = result.parsed.text.length; const maxChars = 50_000;
+        const text = result.parsed.text.slice(offset, offset + maxChars); const nextOffset = offset + text.length;
+        return { state: 'observed', message: publicMessage,
+          body: { text, htmlAvailable: result.parsed.html },
+          unreadStateEffect: result.seenBefore === result.seenAfter ? 'unchanged' : 'changed',
+          attachments: result.parsed.attachments.map((item, index) => ({ filename: String(item.filename ?? `attachment-${index + 1}`),
+            contentType: String(item.contentType ?? 'application/octet-stream'), bytes: item.content.length,
+            attachmentHandle: encode({ v: 1, kind: 'attachment', messageHandle: publicMessage.messageHandle,
+              index, sha256: digest(item.content) }) })),
+          coverage: { state: nextOffset >= totalChars ? 'complete' : 'partial', sourceBytes: result.message.source?.length ?? null,
+            bodyCharsReturned: text.length, bodyCharsTotal: totalChars, bodyStart: offset },
+          nextCursor: nextOffset >= totalChars ? null
+            : encode({ v: 1, kind: 'body_cursor', messageHandle: publicMessage.messageHandle, offset: nextOffset }), effect: 'none' };
+      }
       const attachment = decode(args.attachmentHandle, 'attachment'); const item = result.parsed.attachments[attachment.index];
       if (!item || digest(item.content) !== attachment.sha256) throw new Error('첨부파일 identity가 바뀌어 다시 읽어야 해요.');
       if (!attachments?.receive) throw new Error('첨부파일 결과 저장소를 사용할 수 없어요.');
