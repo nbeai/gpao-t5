@@ -16,6 +16,7 @@ const TEXT_EXTENSIONS = new Set([
   '.log', '.sql', '.sh', '.zsh', '.ps1', '.bat', '.cmd',
 ]);
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.heic', '.tif', '.tiff', '.webp']);
+const AUDITORY_EXTENSIONS = new Set(['.wav', '.mp3', '.m4a', '.aac', '.ogg', '.mp4', '.mov']);
 const DOCUMENT_EXTENSIONS = new Set([
   '.pdf', '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt', '.hwp', '.hwpx', '.odt', '.ods', '.odp',
   '.md', '.txt', '.csv', '.tsv',
@@ -383,6 +384,17 @@ export function makeFileRealityTool({
   };
   return {
     name: 'file_reality',
+    activateToolsFromResult: (result, args = {}) => {
+      if (args.action !== 'inspect' || result?.state !== 'observed') return [];
+      const files = result.file ? [result.file] : Array.isArray(result.files) ? result.files : [];
+      return files.some((file) => AUDITORY_EXTENSIONS.has(String(file?.extension ?? '').toLowerCase()))
+        ? ['auditory'] : [];
+    },
+    async resolveExactFile({ handle } = {}) {
+      const { record } = await reopen(handle); const sha256 = await streamSha256(record.path);
+      return { filePath: record.path, expectedSha256: sha256, displayName: record.displayName,
+        extension: record.extension, bytes: record.bytes, modifiedAt: record.modifiedAt };
+    },
     completionProposalOptional: (args = {}) => [
       'search', 'image_candidates', 'inspect', 'compare', 'bind_sources', 'visual_candidates',
     ].includes(args.action),

@@ -45,3 +45,21 @@ test('audio가 아닌 attachment와 coverage rejected result는 발행되지 않
     assert.equal((await store.list({ sessionId: SESSION })).filter((item) => item.direction === 'output').length, 0);
   } finally { await rm(room, { recursive: true, force: true }); }
 });
+
+test('File Reality exact handle은 경로 문자열 재등록 없이 같은 Auditory 계약으로 실행된다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-auditory-file-handle-'));
+  const scratch = join(room, 'scratch'); await mkdir(scratch);
+  const store = new AttachmentStore(join(room, 'attachments')); let received = null;
+  try {
+    const tool = makeAuditoryTool({ attachmentStore: store, sessionId: SESSION, runId: RUN, scratchRoot: scratch,
+      resolveFileHandle: async ({ handle }) => {
+        assert.equal(handle, 'file-audio');
+        return { filePath: '/isolated/voice.wav', expectedSha256: 'b'.repeat(64) };
+      },
+      spine: { start: async (input) => { received = input; return verified; }, cleanup: async () => true } });
+    const result = await tool.execute({ action: 'start', attachmentId: null, fileHandle: 'file-audio',
+      operationId: null, language: 'ko', form: 'txt', outputName: 'voice.txt', cursor: null });
+    assert.equal(received.filePath, '/isolated/voice.wav'); assert.equal(received.expectedSha256, 'b'.repeat(64));
+    assert.equal(result.artifact.originalName, 'voice.txt');
+  } finally { await rm(room, { recursive: true, force: true }); }
+});

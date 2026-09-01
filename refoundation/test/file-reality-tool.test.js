@@ -57,6 +57,26 @@ test('컴퓨터 scope는 위치·파일명을 몰라도 내용 단서로 workspa
   } finally { await rm(room.root, { recursive: true, force: true }); }
 });
 
+test('inspect한 exact local audio handle은 Auditory Hand와 stale-safe source resolver를 연다', async () => {
+  const room = await fixture();
+  try {
+    const wav = Buffer.alloc(64); wav.write('RIFF'); wav.write('WAVE', 8);
+    const voice = join(room.elsewhere, '오늘_음성메모.wav'); await writeFile(voice, wav);
+    const tool = makeFileRealityTool({ workspace: room.workspace, home: room.root,
+      platform: 'test', computerRoots: [room.root], indexSearch: async () => [voice] });
+    const searched = await tool.execute({ action: 'search', query: '오늘 음성메모',
+      scope: 'computer', path: null, handles: null, maxCandidates: 10 });
+    const candidate = searched.candidates.find((item) => item.displayName === '오늘_음성메모.wav');
+    assert.ok(candidate);
+    const inspected = await tool.execute({ action: 'inspect', query: null, scope: null,
+      path: null, handles: [candidate.handle], maxCandidates: null });
+    assert.deepEqual(tool.activateToolsFromResult(inspected, { action: 'inspect' }), ['auditory']);
+    const resolved = await tool.resolveExactFile({ handle: candidate.handle });
+    assert.equal(resolved.filePath, await realpath(voice)); assert.equal(resolved.bytes, wav.length);
+    assert.match(resolved.expectedSha256, /^[a-f0-9]{64}$/u);
+  } finally { await rm(room.root, { recursive: true, force: true }); }
+});
+
 test('사용자 가시 동기화 root의 Unicode 파일명 일치는 content mention보다 먼저 보인다', async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), 't5-file-sync-title-')));
   const workspace = join(root, 'workspace'); const sync = join(root, 'iCloud Drive');

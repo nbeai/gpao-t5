@@ -1837,7 +1837,7 @@ export function makeConsoleServer({
       const offeredTools = [...terminal.tools];
       offeredTools.unshift(integralMethod.tool);
       offeredTools.unshift(workspacePatchTool);
-      offeredTools.unshift(makeFileRealityTool({ workspace, home: computer.userHome, platform: computer.platform,
+      const fileRealityTool = makeFileRealityTool({ workspace, home: computer.userHome, platform: computer.platform,
         computerRoots: computerFileRoots ?? [homedir()], protectedRoots: [...protectedFileRoots, stateDir],
         organizationRoot: join(stateDir, 'file-organization'), sourceManifestStore: fileSourceManifests, sessionId,
         ocrProbe: localImageOcr,
@@ -1860,7 +1860,8 @@ export function makeConsoleServer({
         onVisualCandidatesObserved: (items) => {
           for (const item of items) visualCandidatePaths.add(resolve(item.path).normalize('NFC'));
         },
-        ...(fileIndexSearch ? { indexSearch: fileIndexSearch } : {}) }));
+        ...(fileIndexSearch ? { indexSearch: fileIndexSearch } : {}) });
+      offeredTools.unshift(fileRealityTool);
       const nativeComputer = makeNativeComputerTool({ revealPath: reveal, platform: computer.platform });
       if (nativeComputer) offeredTools.unshift(nativeComputer);
       if (!options.observationOnly && options.trigger !== 'automation') {
@@ -1922,6 +1923,7 @@ export function makeConsoleServer({
       if (auditoryTranscriptionSpine && auditoryScratchRoot) offeredTools.unshift(makeAuditoryTool({
         spine: auditoryTranscriptionSpine, attachmentStore: attachments,
         sessionId, runId: run.runId, scratchRoot: auditoryScratchRoot,
+        resolveFileHandle: (request) => fileRealityTool.resolveExactFile(request),
       }));
       let browserReady = false;
       let browserRuntimeContext = '';
