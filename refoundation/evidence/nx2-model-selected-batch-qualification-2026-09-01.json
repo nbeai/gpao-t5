@@ -1,0 +1,78 @@
+{
+  "schema": "t5.nx2.model-selected-batch-qualification.v1",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "ea7a7ca4",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "environment": {
+    "isolatedHomeDataWorkspace": true,
+    "actualUserData": false,
+    "externalWrites": 0
+  },
+  "deterministicContract": {
+    "modelSelectedCandidateSet": "PASS",
+    "exactSelectedOnlyReopen": "PASS",
+    "singleBatchObservation": "PASS",
+    "staleSymlinkHardlink": "PASS",
+    "rawPathToModel": 0,
+    "directToolCalls": 0
+  },
+  "providerSchemaDiagnostic": {
+    "state": "FIXTURE_CONTRACT_REPAIRED_BEFORE_MODEL_CALL",
+    "error": "ChatGPT OAuth strict function schema does not admit uniqueItems",
+    "modelCalls": 0,
+    "semanticCandidateEvaluated": false,
+    "repair": "remove unsupported schema keyword while retaining Runtime duplicate rejection"
+  },
+  "ambiguousOrdinary": {
+    "request": "이번 달 받을 돈 뭐가 안 맞는지 봐줘.",
+    "result": "FAIL_ORACLE_AMBIGUOUS_AND_WRONG_SOURCE_RELATION",
+    "wallMs": 13483.281,
+    "modelCalls": 2,
+    "toolCalls": 1,
+    "inputTokens": 12533,
+    "selectedNames": ["매출기록.csv", "미수금현황.csv"],
+    "failure": "the model interpreted this-month scheduled receivables and created an unrequested sales-versus-invoice mismatch while the old oracle assumed overdue-only scope"
+  },
+  "clearOrdinary": {
+    "request": "받기로 한 날짜가 지났는데 아직 못 받은 돈만 찾아줘.",
+    "result": "PARTIAL_HUMAN_CLOSURE",
+    "wallMs": 9809.393,
+    "modelCalls": 2,
+    "toolCalls": 1,
+    "inputTokens": 12372,
+    "selectedNames": ["미수금현황.csv"],
+    "reality": {
+      "overdueUnpaidCount": 1,
+      "customer": "한빛상사",
+      "invoice": "A-1",
+      "amountManwon": 120,
+      "dueDate": "2026-08-15",
+      "sourceSelection": "PASS",
+      "coreResult": "PASS"
+    },
+    "humanClosureFailures": [
+      "due date was available but omitted from the answer",
+      "paid and future rows were reintroduced under an excluded-items heading despite the only scope"
+    ]
+  },
+  "direct": {
+    "request": "매출이 뭔지 한 문장으로 설명해줘.",
+    "result": "PASS",
+    "wallMs": 2100.209,
+    "modelCalls": 1,
+    "toolCalls": 0
+  },
+  "decision": {
+    "batchSelectionMechanics": "QUALIFIED",
+    "productActivation": "NOT_AUTHORIZED",
+    "productSourceChanges": 0,
+    "reason": "selected Reality is exact and economical, but final scope and evidence presentation must reuse NX-1 Reality and Human Closure before product promotion"
+  },
+  "next": {
+    "gate": "NX2C_SELECTED_REALITY_TO_INTEGRAL_CLOSURE",
+    "reuse": ["Integral Outcome Method", "Runtime Evidence Atoms", "ClaimEvidence", "isolated Human Closure"],
+    "forbidden": ["receivables parser", "business synonym list", "answer regex deletion", "intent router", "new Store"]
+  },
+  "status": "NX2_MODEL_SELECTED_BATCH_MECHANICS_QUALIFIED_HUMAN_CLOSURE_PARTIAL"
+}

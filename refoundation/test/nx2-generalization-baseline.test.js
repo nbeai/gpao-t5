@@ -45,3 +45,17 @@ test('NX-2B는 두 metadata 후보 실패 뒤 제품 잔재 없이 구조를 재
   assert.equal(evidence.removed.qualificationHelperRetained, false);
   assert.equal(evidence.nextStructuralCandidate.id, 'model_selected_bounded_batch_observation');
 });
+
+test('model-selected batch는 Reality 선택·경제성을 자격하고 Human Closure 미달을 숨기지 않는다', async () => {
+  const evidence = JSON.parse(await read('refoundation/evidence/nx2-model-selected-batch-qualification-2026-09-01.json'));
+  assert.equal(evidence.deterministicContract.exactSelectedOnlyReopen, 'PASS');
+  assert.equal(evidence.providerSchemaDiagnostic.modelCalls, 0);
+  assert.equal(evidence.clearOrdinary.selectedNames.length, 1);
+  assert.equal(evidence.clearOrdinary.reality.sourceSelection, 'PASS');
+  assert.equal(evidence.clearOrdinary.reality.coreResult, 'PASS');
+  assert.equal(evidence.clearOrdinary.result, 'PARTIAL_HUMAN_CLOSURE');
+  assert.equal(evidence.direct.toolCalls, 0);
+  assert.equal(evidence.decision.productActivation, 'NOT_AUTHORIZED');
+  assert.equal(evidence.decision.productSourceChanges, 0);
+  assert.equal(evidence.next.gate, 'NX2C_SELECTED_REALITY_TO_INTEGRAL_CLOSURE');
+});

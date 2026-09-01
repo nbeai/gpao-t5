@@ -1082,7 +1082,24 @@ NX-1이 이긴 경우에만 공통 Method를 다음으로 확장한다.
 
 근거: `refoundation/evidence/nx2-reality-scout-qualification-2026-09-01.json`.
 
-### NX-2C — Common Method Generalization — PENDING
+### NX-2B2 — Model-Selected Bounded Batch Observation — MECHANICS_QUALIFIED
+
+metadata 후보 전체를 답의 source로 풀어 주는 대신, 첫 모델이 bounded candidate identity 중 필요한 set만 선택하고 Runtime이
+그 selected set만 stale·symlink·hardlink fence 뒤 한 번에 reopen하는 구조를 자격했다.
+
+- deterministic: selected-only exact reopen·batch 1회·path 0·Direct Tool 0 PASS
+- 실제 명확한 미수금 표현: `미수금현황.csv` 하나만 선택, 9.809초·model 2·Tool 1, 연체 미입금 A-1·120만원 정확
+- Direct: 2.100초·model 1·Tool 0
+- 기존 모호 문장: 매출과 미수금을 함께 골라 잘못된 비교 frame을 만들었으므로 old oracle을 제품 규칙으로 강제하지 않음
+- 남은 미달: exact source에 있던 기한을 최종 답에서 생략했고, `만` 범위 밖 paid·future row를 제외 목록으로 다시 노출
+
+따라서 source selection·batch observation mechanics는 자격됐지만 제품 activation은 아직 열지 않는다. 다음은 새
+receivables parser나 답 후처리가 아니라 selected Reality를 기존 `Runtime Evidence Atom → ClaimEvidence → isolated Human
+Closure`에 결속하는 NX-2C다.
+
+근거: `refoundation/evidence/nx2-model-selected-batch-qualification-2026-09-01.json`.
+
+### NX-2C — Selected Reality to Common Integral Closure — OPEN
 
 NX-2B가 ordinary source 현실을 회복한 경우에만 매출 변동·미수금 대사·재고 차이·계약 revision에서 동일한
 `source selection·relation·reconciliation·ClaimEvidence·Reality/Human Closure`를 자격한다. 기존 NX-1 contract에
