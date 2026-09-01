@@ -502,6 +502,11 @@ Browser의 공식 로그인 화면을 열고, 완료 뒤 같은 profile에서 Ma
 직접 로그인한 뒤 `로그인 완료 확인`이 Mail·Blog 연결 성공을 보고했다. credential field·cookie/secret 관측·두 번째
 Browser reality는 0이다. 이제 같은 실제 Console에서 Mail list/search/open/attachment를 자격한다.
 
+첫 Mail actual에서 설정 owner와 대화 Session이 서로 다른 isolated profile을 사용해 로그인 화면이 다시 열리는 P1이
+재현됐다. 제품 entry를 기존 자격된 `PersistentBrowserHost`에 결속해 하나의 profile identity를 공유하고, 대화별 client
+session·pinned tab은 계속 분리한다. 실제 Browser 반대시험에서 다른 대화와 host restart 뒤 로그인 유지·서로 다른 tab
+identity를 통과했다. 오너의 기존 설정 로그인 profile을 공통 profile로 승계한 뒤 Mail actual을 다시 실행한다.
+
 ### NV-4 — Mail Draft & Send
 
 - draft preview

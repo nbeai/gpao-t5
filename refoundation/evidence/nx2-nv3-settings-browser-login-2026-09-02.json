@@ -1,7 +1,7 @@
 {
   "schema": "t5.nx2-nv3-settings-browser-login-evidence.v1",
   "recordedAt": "2026-09-02T03:10:00+09:00",
-  "status": "PRODUCT_WIRING_AND_OWNER_LOGIN_PASS_MAIL_READ_PENDING",
+  "status": "CROSS_SESSION_PROFILE_P1_REPAIRED_OWNER_RECHECK_PENDING",
   "userPurpose": "Connect Naver once from Settings and use the same managed identity for Mail and Blog without separate credentials.",
   "adoptedPath": {
     "entry": "Settings > Tools and Connections > Naver Login",
@@ -19,7 +19,10 @@
   },
   "verification": {
     "focusedAndConnectionRegression": "29/29 pass in loopback-capable qualification environment",
-    "actualOwnerLogin": "PASS — owner clicked Naver Login, completed the visible official login, then Login Complete Check reported Mail and Blog connection success"
+    "actualOwnerLogin": "PASS — owner clicked Naver Login, completed the visible official login, then Login Complete Check reported Mail and Blog connection success",
+    "firstMailJourney": "FAIL — a conversation-scoped Browser used a different profile and reopened the Naver login page",
+    "repair": "product entry now binds one existing PersistentBrowserHost profile to independent per-conversation client sessions and tabs",
+    "repairTests": "22/22 focused pass; actual persistent Browser countertest 1/1 pass across another conversation and host restart"
   },
   "nonClaims": [
     "Mail folder/search/open/attachment is not yet qualified on the actual owner account.",

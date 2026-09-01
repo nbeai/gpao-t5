@@ -19,7 +19,8 @@ import { makeNaverSearchProvider } from '../src/naver-search-provider.js';
 import { makeNaverIdentityBroker } from '../src/naver-identity-broker.js';
 import { naverReadableUrlResolver } from '../src/naver-readable-url.js';
 import { makeConsoleServer } from '../src/console-server.js';
-import { makeAgentBrowserDriver, sessionNameForOwner } from '../src/agent-browser-driver.js';
+import { DEFAULT_AGENT_BROWSER_BINARY, makeAgentBrowserDriver, sessionNameForOwner } from '../src/agent-browser-driver.js';
+import { makePersistentBrowserHost } from '../src/persistent-browser-host.js';
 import { resolveConsoleWorkspace } from '../src/console-config.js';
 import { defaultWindowsComputerFileRoots, discoverComputerEnvironment,
   discoverMacOSComputerFileRoots } from '../src/computer-environment.js';
@@ -221,6 +222,9 @@ const linearConnection = makeRemoteMcpConnection({
 });
 const channelTalkConnection = makeChannelTalkConnection({ secretStore: platformSecretStore });
 const naverIdentityConnection = makeNaverIdentityBroker({ profileHandle: null });
+const browserHost = makePersistentBrowserHost({
+  root: join(stateDir, 'managed-browser'), binary: DEFAULT_AGENT_BROWSER_BINARY,
+});
 const slackClientId = String(process.env.T5_SLACK_OAUTH_CLIENT_ID ?? '').trim();
 const slackClientSecret = String(process.env.T5_SLACK_OAUTH_CLIENT_SECRET ?? '').trim();
 const slackCallbackPort = Number(process.env.T5_SLACK_OAUTH_CALLBACK_PORT ?? 4185);
@@ -314,7 +318,9 @@ const server = makeConsoleServer({
     ownerId: sessionId,
     clientInstanceId: runtimeGenerationId,
     outputDirectory: join(stateDir, 'browser', sessionNameForOwner(sessionId), 'artifacts'),
+    browserHost,
   }),
+  browserHost,
   webSearchProviders,
   webReadOptions: { urlResolvers: [naverReadableUrlResolver] },
   quickPreviewProgram: cloudflaredCli,
@@ -400,6 +406,7 @@ const stop = async (reason = 'runtime_signal') => {
   server.closeModelConnections();
   await Promise.all([
     boundedShutdown(() => server.closeBrowsers()),
+    boundedShutdown(() => browserHost.close()),
     boundedShutdown(() => server.closeCommandExplainer()),
     boundedShutdown(() => server.closeWorkspaceConnections()),
     boundedShutdown(() => server.closeFileActivity()),
