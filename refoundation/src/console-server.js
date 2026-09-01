@@ -41,6 +41,9 @@ import { compareCapabilityRuns } from './capability-comparison.js';
 import { CapabilityLifecycleLedger, makeCapabilityLifecycleTool } from './capability-lifecycle.js';
 import { loadSkillPolicyCatalog } from './skill-policy-catalog.js';
 import { ConversationLedger } from './conversation-ledger.js';
+import { buildSelectionAnchor, projectSelectableMessage } from './selectable-message-projection.js';
+import { projectSelectionExplorationPublic } from './selection-exploration-projection.js';
+import { makeSelectionExplorationRuntime } from './selection-exploration-runtime.js';
 import { WorkStore } from './work-store.js';
 import { WorkCancellationCoordinator } from './work-cancellation-coordinator.js';
 import { projectPublicWorkReality, projectWorkReality } from './work-reality-projection.js';
@@ -822,6 +825,8 @@ export function makeConsoleServer({
   const workspacePatchForSession = (sessionId) => makeWorkspacePatchTool({ workspace,
     stateRoot: join(stateDir, 'authoring', sessionId), sessionId, platform: computer.platform });
   const pendingStreams = new Map();
+  const pendingSelectionStreams = new Map();
+  const runningSelectionStreams = new Map();
   const running = new Map();
   let runtimeAcceptingWork = true;
   let runtimeMaintenance = false;
@@ -860,9 +865,24 @@ export function makeConsoleServer({
       const exact = matches.findLast((item) => item.message.content === entry.result?.reply);
       return (exact ?? matches.at(-1))?.recordedAt ?? null;
     };
+    const usedCanonicalMessageIds = new Set();
+    const selectionFor = (entry) => {
+      const role = entry?.role; const content = role === 'user' ? entry.text
+        : role === 'assistant' ? entry.result?.reply : null;
+      if (!['user', 'assistant'].includes(role) || typeof content !== 'string') return null;
+      const canonical = canonicalEntries.find((item) => !usedCanonicalMessageIds.has(item.messageId)
+        && item.message.role === role && item.message.content === content);
+      if (!canonical) return null; usedCanonicalMessageIds.add(canonical.messageId);
+      const projection = projectSelectableMessage(canonical.message.content);
+      return { messageHandle: `message_${createHash('sha256').update(`${session.id}\0${canonical.messageId}`)
+        .digest('hex').slice(0, 24)}`, projectionVersion: projection.version,
+        projectionDigest: projection.digest };
+    };
     return Promise.all((session.transcript ?? []).map(async (entry) => {
       const recordedAt = recordedAtFor(entry);
-      const timedEntry = recordedAt ? { ...entry, recordedAt } : entry;
+      const selection = selectionFor(entry);
+      const timedEntry = { ...entry, ...(recordedAt ? { recordedAt } : {}),
+        ...(selection ? { selection } : {}) };
       if (entry?.role !== 'assistant' || !entry.result) return timedEntry;
       const runId = entry.runId ?? entry.result?.runId ?? null;
       const objectiveOutcome = runId
@@ -970,6 +990,21 @@ export function makeConsoleServer({
         reply: userSafeConsoleReply(entry.result.reply), ...(artifacts.length ? { artifacts } : {}),
         ...(humanEffects.length ? { humanEffects } : {}) } };
     }));
+  }
+
+  const selectionRuntime = makeSelectionExplorationRuntime({ ledger: conversations,
+    modelFactory: (facts) => modelFactory({ ...facts, workspace, computer: computerFacts }) });
+  const selectionMessageHandle = (sessionId, messageId) => `message_${createHash('sha256')
+    .update(`${sessionId}\0${messageId}`).digest('hex').slice(0, 24)}`;
+  async function resolveSelectionMessage(sessionId, handle) {
+    const conversation = await conversations.read(sessionId);
+    return conversation.entries.find((entry) => selectionMessageHandle(sessionId, entry.messageId) === handle) ?? null;
+  }
+  async function resolveSelectionExploration(sessionId, handle) {
+    const conversation = await conversations.read(sessionId);
+    return conversation.explorations.find((branch) => (
+      projectSelectionExplorationPublic(branch).handle === handle
+    )) ?? null;
   }
   function serializeWorkReality(sessionId, operation) {
     const prior = workRealityQueues.get(sessionId) ?? Promise.resolve();
@@ -5030,6 +5065,78 @@ export function makeConsoleServer({
           userSafeSummary: 'T5가 진행 중인 상태를 정리한 뒤 완전히 꺼져요.' });
         setTimeout(() => Promise.resolve(requestRuntimeStop(stopReason)).catch((error) => onError?.(error)), 0);
         return;
+      }
+      if (req.method === 'POST' && url.pathname === '/selection-explorations') {
+        const input = await body(req);
+        if (!input || typeof input !== 'object' || Array.isArray(input)
+          || Object.keys(input).some((key) => !['sessionId', 'messageHandle', 'projectionVersion',
+            'projectionDigest', 'startUtf16', 'endUtf16', 'requestId'].includes(key))) {
+          throw Object.assign(new Error('선택 탐색 요청이 올바르지 않아요.'), { status: 400 });
+        }
+        const session = await sessions.load(input.sessionId);
+        if (!session) { json(res, 404, { error: '대화를 찾지 못했어요.' }); return; }
+        const entry = await resolveSelectionMessage(input.sessionId, input.messageHandle);
+        if (!entry) { json(res, 404, { error: '선택한 메시지를 찾지 못했어요.' }); return; }
+        const canonical = await conversations.read(input.sessionId);
+        const sourceEvent = canonical.events.find((event) => event.type === 'message'
+          && event.messageId === entry.messageId);
+        const anchor = buildSelectionAnchor({ canonical: { sessionId: input.sessionId,
+          messageId: entry.messageId, sequence: sourceEvent.sequence, role: entry.message.role,
+          runId: entry.runId, content: entry.message.content }, request: input });
+        const explorationId = randomUUID();
+        await conversations.openSelectionExploration({ sessionId: input.sessionId, explorationId,
+          requestId: input.requestId, anchor });
+        const branch = await resolveSelectionExploration(input.sessionId,
+          projectSelectionExplorationPublic({ explorationId, state: 'open', anchor,
+            messages: [], apply: { state: 'not_requested' } }).handle);
+        privateJson(res, 200, projectSelectionExplorationPublic(branch)); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/selection-explorations/stream-start') {
+        const input = await body(req);
+        const branch = await resolveSelectionExploration(input.sessionId, input.handle);
+        if (!branch || branch.state === 'closed') {
+          json(res, 404, { error: '옆 탐색을 찾지 못했어요.' }); return;
+        }
+        const streamId = randomUUID(); pendingSelectionStreams.set(streamId, {
+          sessionId: input.sessionId, explorationId: branch.explorationId,
+          question: input.question, requestId: input.requestId, expiresAt: Date.now() + 30_000,
+        });
+        privateJson(res, 200, { streamId }); return;
+      }
+      if (req.method === 'GET' && url.pathname === '/selection-explorations/stream') {
+        const streamId = url.searchParams.get('streamId');
+        const pending = pendingSelectionStreams.get(streamId); pendingSelectionStreams.delete(streamId);
+        res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8',
+          'cache-control': 'no-cache', connection: 'keep-alive' });
+        const emit = (type, payload) => res.write(`event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`);
+        if (!pending || pending.expiresAt < Date.now()) {
+          emit('recoverable_error', { text: '옆 질문이 만료됐어요.' }); emit('complete', { state: 'failed' }); res.end(); return;
+        }
+        const controller = new AbortController(); runningSelectionStreams.set(pending.explorationId, controller);
+        try {
+          emit('trace_status', { text: '질문을 살펴보고 있어요' });
+          const result = await selectionRuntime.answer({ ...pending, signal: controller.signal,
+            onAnswerDelta: ({ text }) => emit('answer_delta', { text }),
+            onAnswerReset: () => emit('answer_reset', {}) });
+          emit('complete', { state: result.state });
+        } catch (error) {
+          onError?.(error); emit('recoverable_error', { text: '옆 답변을 마치지 못했어요.' });
+          emit('complete', { state: 'failed' });
+        } finally { runningSelectionStreams.delete(pending.explorationId); res.end(); }
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/selection-explorations/stop') {
+        const input = await body(req); const branch = await resolveSelectionExploration(input.sessionId, input.handle);
+        if (!branch) { json(res, 404, { error: '옆 탐색을 찾지 못했어요.' }); return; }
+        runningSelectionStreams.get(branch.explorationId)?.abort();
+        privateJson(res, 200, { ok: true, stopped: runningSelectionStreams.has(branch.explorationId) }); return;
+      }
+      if (req.method === 'POST' && url.pathname === '/selection-explorations/close') {
+        const input = await body(req); const branch = await resolveSelectionExploration(input.sessionId, input.handle);
+        if (!branch) { json(res, 404, { error: '옆 탐색을 찾지 못했어요.' }); return; }
+        await conversations.closeSelectionExploration({ sessionId: input.sessionId,
+          explorationId: branch.explorationId, requestId: input.requestId });
+        privateJson(res, 200, { ok: true, state: 'closed' }); return;
       }
       if (req.method === 'POST' && url.pathname === '/turn/stream-start') {
         const input = await body(req);
