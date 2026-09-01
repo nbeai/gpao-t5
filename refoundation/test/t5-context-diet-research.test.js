@@ -129,3 +129,21 @@ test('CX-3는 attachment ownership A/B를 통과해도 wall과 미실행 actual�
   assert.equal(evidence.gateDecision.productSourceDelta, 0);
   assert.equal(evidence.next.gate, 'CX-4 Progressive Disclosure Refinement');
 });
+
+test('CX-4는 memory discovery 계약 없이 Tool을 숨기거나 새 disclosure 구조를 만들지 않는다', async () => {
+  const [evidence, memorySource] = await Promise.all([
+    read('refoundation/evidence/nx2-cx4-progressive-disclosure-audit-2026-09-01.json').then(JSON.parse),
+    read('refoundation/src/memory-tool.js'),
+  ]);
+  assert.equal(evidence.current.directTools.length, 7);
+  assert.equal(evidence.current.skillBodiesOnDemand, true);
+  assert.equal(evidence.candidateConsidered.admitted, false);
+  assert.equal(evidence.boundaries.newContextEngine, 0);
+  assert.equal(evidence.boundaries.newDiscoveryRouter, 0);
+  assert.equal(evidence.boundaries.toolHiddenWithoutRecovery, 0);
+  assert.equal(evidence.productChanges, 0);
+  assert.equal(evidence.next.gate, 'CX-5 Multi-model Qualification');
+  const claim = memorySource.slice(memorySource.indexOf("name: 'memory_claim'"),
+    memorySource.indexOf("name: 'memory_claim'") + 500);
+  assert.doesNotMatch(claim, /searchTerms/u);
+});

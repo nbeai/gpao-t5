@@ -2,7 +2,7 @@
 
 기록일: 2026-09-01
 조사 기준: T5 NX `9e2daf0c`
-상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · CX_0_COMPLETE · CX_1_COMPLETE · CX_2_CLOSED_NO_CURRENT_DRIFT · CX_3_QUALIFICATION_COMPLETE · CX_4_CURRENT · PRODUCT_CHANGE_0`
+상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · CX_0_COMPLETE · CX_1_COMPLETE · CX_2_CLOSED_NO_CURRENT_DRIFT · CX_3_QUALIFICATION_COMPLETE · CX_4_CLOSED_NO_SAFE_DELTA · CX_5_CURRENT · PRODUCT_CHANGE_0`
 
 사용자 완료 문장:
 
@@ -527,6 +527,12 @@ MOVE_CANDIDATE, 다른 한 문장은 UNKNOWN으로 남긴다.
 - final Human Closure epoch
 
 현재 기능을 다시 만들지 않고 leakage·late discovery만 수리한다.
+
+2026-09-01 audit에서 current seven-tool Direct surface의 각 core incident를 재확인했다. memory 두 Tool deferral은
+memory_claim의 natural-language deferred discovery 계약이 없어 late-discovery 위험이 컸고, 새 discovery 구조 없이 안전하게
+줄일 수 없었다. 제품 변경 0으로 종료했다.
+
+근거: `refoundation/evidence/nx2-cx4-progressive-disclosure-audit-2026-09-01.json`.
 
 ### CX-5 — Multi-model Qualification
 

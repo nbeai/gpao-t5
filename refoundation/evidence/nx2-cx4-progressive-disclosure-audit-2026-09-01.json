@@ -1,0 +1,55 @@
+{
+  "schema": "t5.nx2.cx4-progressive-disclosure-audit.v1",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "b4b4f23e",
+  "status": "CX4_CLOSED_CURRENT_DISCLOSURE_MINIMAL_NO_SAFE_DELTA",
+  "productChanges": 0,
+  "current": {
+    "directTools": [
+      { "name": "tool_search", "bytes": 766, "reasonCore": "capability directory root" },
+      { "name": "memory_claim", "bytes": 1968, "reasonCore": "natural remember, correct and retract incident" },
+      { "name": "memory_control", "bytes": 501, "reasonCore": "exact restore and portable export" },
+      { "name": "skill", "bytes": 439, "reasonCore": "on-demand procedure directory" },
+      { "name": "web_read", "bytes": 1014, "reasonCore": "single current URL and public fact without extra discovery" },
+      { "name": "attachment", "bytes": 4525, "reasonCore": "input inspection and output Artifact handoff" },
+      { "name": "exec", "bytes": 1381, "reasonCore": "universal foreground computer Hand" }
+    ],
+    "deferredTools": true,
+    "skillBodiesOnDemand": true,
+    "memoryExactReopen": true,
+    "historicalConversationProjection": true,
+    "browserLatestObservationProjection": true,
+    "integralHumanClosureConditional": true,
+    "emptyRuntimeContextBytes": 485
+  },
+  "candidateConsidered": {
+    "id": "defer_memory_claim_and_control",
+    "potentialDirectBytes": -2469,
+    "admitted": false,
+    "reasons": [
+      "memory_claim has no deferred searchTerms for a natural Korean remember request",
+      "memory_control alone would create an asymmetric restore and export surface",
+      "qualification would require a new discovery contract and core-surface override together",
+      "the change would risk late discovery while solving only static bytes"
+    ]
+  },
+  "nonCandidates": [
+    { "name": "web_read", "reason": "deferral adds a discovery round to current single-Hand lookup" },
+    { "name": "attachment", "reason": "existing input and generated-result incidents require first-path availability" },
+    { "name": "exec", "reason": "universal fallback and named-path observation" },
+    { "name": "skill", "reason": "already a compact on-demand body directory" },
+    { "name": "tool_search", "reason": "discovery root cannot itself be deferred" }
+  ],
+  "boundaries": {
+    "newContextEngine": 0,
+    "newDiscoveryRouter": 0,
+    "toolHiddenWithoutRecovery": 0,
+    "nx2_1Patched": false,
+    "cx3CandidateApplied": false
+  },
+  "next": {
+    "gate": "CX-5 Multi-model Qualification",
+    "scope": "same common Context contract plus the one CX-3 MOVE_CANDIDATE; no model-specific fork",
+    "productChanges": 0
+  }
+}

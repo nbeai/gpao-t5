@@ -6,7 +6,7 @@
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-2 — Context Diet & Interface Intelligence · CX-4 PROGRESSIVE DISCLOSURE REFINEMENT`
+현재 제품 Gate: `NX2-2 — Context Diet & Interface Intelligence · CX-5 MULTI-MODEL QUALIFICATION`
 
 ---
 

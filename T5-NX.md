@@ -3,8 +3,8 @@
 상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE · NX_2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX_2_2_CONTEXT_DIET_CURRENT`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
-현재 Gate: `NX2-2 CONTEXT DIET & INTERFACE INTELLIGENCE · CX-4 PROGRESSIVE DISCLOSURE REFINEMENT`
-현재 작업: `CX-3 artifact ownership candidate 자격 완료·제품 미적용 · leakage/late discovery 한 축 선정`
+현재 Gate: `NX2-2 CONTEXT DIET & INTERFACE INTELLIGENCE · CX-5 MULTI-MODEL QUALIFICATION`
+현재 작업: `CX-4 safe disclosure delta 없음으로 종료 · 공통 Context와 CX-3 MOVE_CANDIDATE 모델 비교`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -1315,6 +1315,20 @@ Pilot`이다.
 CX-3는 한 family qualification으로 완료됐고 다음 current slice는 `CX-4 Progressive Disclosure Refinement`다.
 
 근거: `refoundation/evidence/nx2-cx3-artifact-guidance-ownership-qualification-2026-09-01.json`.
+
+2026-09-01 CX-4 종료:
+
+- Direct 활성 Tool 7개의 현재 core admission과 deferred Tool·on-demand Skill·Memory exact reopen·historical projection·
+  conditional Human Closure를 재감사했다.
+- `memory_claim + memory_control` 2,469 bytes deferral을 검토했지만 memory_claim에는 자연스러운 한국어 기억 요청의 deferred
+  searchTerms가 없고, control만 숨기면 restore/export 표면이 비대칭이 된다.
+- 이를 자격하려면 새 discovery contract와 core override를 동시에 만들어야 하므로 작은 leakage 수리가 아니다.
+- 다른 core Tool도 현재 single-Hand·Artifact·fallback incident가 있어 숨기지 않았다.
+
+CX-4는 `CLOSED_CURRENT_DISCLOSURE_MINIMAL_NO_SAFE_DELTA`로 제품 변경 0 종료했다. 다음 current slice는 CX-3의 한
+MOVE_CANDIDATE와 공통 Context를 모델별 fork 없이 비교하는 `CX-5 Multi-model Qualification`이다.
+
+근거: `refoundation/evidence/nx2-cx4-progressive-disclosure-audit-2026-09-01.json`.
 
 ### NX-2D — Five-Lane Proportionality — PENDING
 
