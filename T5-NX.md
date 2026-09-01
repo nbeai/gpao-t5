@@ -3,8 +3,8 @@
 상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE · NX_2_MASTERY_GENERALIZATION_CURRENT`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
-현재 Gate: `NX-2 MASTERY GENERALIZATION · EXISTING PATH COMMON OBSERVER GAP`
-현재 작업: `metadata·selection Tool 후보 제품 채택 0 · 기존 file_reality → bind_sources → integral_method 경로의 공통 미달 재판정`
+현재 Gate: `NX2-1 INTEGRAL MASTERY GENERALIZATION · CURRENT PATH QUALIFICATION NOT ACHIEVED`
+현재 작업: `NX2-1C actual trace 완료 · 공통 observer delta 미증명 · 제품 후보 0 · NX-1 귀환선 유지`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -1132,7 +1132,7 @@ Closure`에 결속하는 NX-2C다.
 
 따라서 상태는 `QUALIFICATION_OBSERVATION_ONLY · PRODUCT_CANDIDATE_REJECTED`다. 이 구조를 NX-2C의 전제로 사용하지 않는다.
 
-### NX-2C — Existing Path Common Observer Delta — OPEN
+### NX-2C — Existing Path Common Observer Delta — CLOSED_NO_COMMON_DELTA
 
 원래 NX-2 계획으로 돌아가 현재 제품 경로를 유지한다.
 
@@ -1177,6 +1177,25 @@ source manifest에서 분리한다. 기존 observer가 이미 공급하는 사�
 
 NX-2C가 공통 observer gap을 닫은 경우에만 매출 변동·미수금 대사·재고 차이·계약 revision에서 동일한
 `source selection·relation·reconciliation·ClaimEvidence·Reality/Human Closure`를 자격한다.
+
+2026-09-01 actual trace 판정:
+
+- 정본의 exact 일반 표현에서 매출 12.852초·미수금 10.003초·재고 9.182초는 모두 첫 model call·Tool 0으로 끝났고,
+  `tool_search`가 보였음에도 현재 workspace source를 관측하지 않았다. 세 실패는 `before_source_entry`다.
+- 같은 fixture의 전문가 표현에서는 동일 File Reality observer가 세 목적 모두 정확한 source를 search·inspect했다. 미수금과
+  재고는 strict PASS했고, 매출은 450→350만원·100만원·22.2%와 기여를 맞혔지만 private identity masking으로 strict FAIL했다.
+- 계약 일반 표현은 두 PDF revision을 관측해 종료일·요금·백업·서명 변화는 맞혔지만 책임표·서명 이미지를 관측·bind하지
+  않았고 60만원 차이와 required source trace가 빠졌다. 이는 `after_source_entry_before_bind`다.
+- 서로 다른 두 목적에서 같은 post-entry observer 사실 누락은 재현되지 않았다. existing observer는 전문가 표현에서
+  실제로 작동했고, ordinary 세 실패에는 observer output 자체가 없었다.
+- 따라서 Runtime 정보 부족이나 공통 observer delta를 발명하지 않는다. 제품 source·Prompt·Tool surface·Store·Router·
+  parser 변경은 0이며 별도 preselection model call도 0이다.
+
+`NX2-1C`는 `CLOSED_NO_COMMON_OBSERVER_DELTA_PROVEN`이다. 네 목적 strict 공통 자격은 현재 `0/4`이므로
+`NX2-1 Integral Mastery Generalization`은 완료되지 않았고 `NX2-1D`와 후속 Gate를 열지 않는다. NX-1 완료선
+`ad3e685c`를 귀환선으로 유지한다.
+
+근거: `refoundation/evidence/nx2-existing-path-common-observer-trace-2026-09-01.json`.
 
 ### NX-2D — Five-Lane Proportionality — PENDING
 

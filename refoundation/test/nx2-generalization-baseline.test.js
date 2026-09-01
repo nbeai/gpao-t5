@@ -59,3 +59,18 @@ test('model-selected batch는 Reality 선택·경제성을 자격하고 Human Cl
   assert.equal(evidence.decision.productSourceChanges, 0);
   assert.equal(evidence.next.gate, 'NX2C_SELECTED_REALITY_TO_INTEGRAL_CLOSURE');
 });
+
+test('NX2-1C actual trace는 source 전·후 실패를 분리하고 공통 observer delta가 없으면 제품을 열지 않는다', async () => {
+  const evidence = JSON.parse(await read('refoundation/evidence/nx2-existing-path-common-observer-trace-2026-09-01.json'));
+  assert.equal(evidence.exactOrdinary.sales.failureStage, 'before_source_entry');
+  assert.equal(evidence.exactOrdinary.receivables.failureStage, 'before_source_entry');
+  assert.equal(evidence.exactOrdinary.inventory.failureStage, 'before_source_entry');
+  assert.equal(evidence.exactOrdinary.contractRevision.failureStage, 'after_source_entry_before_bind');
+  assert.equal(evidence.expertPositiveControls.receivables.strictPass, true);
+  assert.equal(evidence.expertPositiveControls.inventory.strictPass, true);
+  assert.equal(evidence.traceFindings.sameMissingObserverFactAcrossTwoPurposes, false);
+  assert.equal(evidence.decision.productCandidateOpened, false);
+  assert.equal(evidence.decision.productSourceDelta, 0);
+  assert.equal(evidence.commonQualification.strictPassCount, 0);
+  assert.equal(evidence.commonQualification.nx2_1dOpened, false);
+});

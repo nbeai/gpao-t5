@@ -1,0 +1,118 @@
+{
+  "schema": "t5.nx2.existing-path-common-observer-trace.v1",
+  "recordedOn": "2026-09-01",
+  "productSourceCommit": "33ccba27af948860a0b0b4fce88cfcf4f2fa2903",
+  "traceCollectorCommit": "7c0ce09a",
+  "exactExpressionRunnerCommit": "d1f2fdbd",
+  "model": "gpt-5.5",
+  "provider": "chatgpt_oauth",
+  "environment": {
+    "isolatedHomeDataWorkspace": true,
+    "actualUserData": false,
+    "externalWrites": 0,
+    "promptDumpReadForTrace": true,
+    "rawPromptPersistedInEvidence": false
+  },
+  "existingPath": [
+    "model natural choice",
+    "tool_search",
+    "file_reality search and inspect",
+    "file_reality bind_sources",
+    "integral_method only for unresolved bound reality",
+    "existing Human Closure"
+  ],
+  "exactOrdinary": {
+    "sales": {
+      "request": "이번 달 매출이 왜 줄었는지 봐줘.",
+      "strictPass": false,
+      "wallMs": 12852,
+      "modelCalls": 1,
+      "toolCalls": 0,
+      "failureStage": "before_source_entry",
+      "firstPrompt": { "requestPresent": true, "toolSearchVisible": true, "fileRealityVisible": false }
+    },
+    "receivables": {
+      "request": "아직 돈 안 들어온 곳 정리해줘.",
+      "strictPass": false,
+      "wallMs": 10003,
+      "modelCalls": 1,
+      "toolCalls": 0,
+      "failureStage": "before_source_entry",
+      "firstPrompt": { "requestPresent": true, "toolSearchVisible": true, "fileRealityVisible": false }
+    },
+    "inventory": {
+      "request": "재고가 안 맞는데 원인 찾아줘.",
+      "strictPass": false,
+      "wallMs": 9182,
+      "modelCalls": 1,
+      "toolCalls": 0,
+      "failureStage": "before_source_entry",
+      "firstPrompt": { "requestPresent": true, "toolSearchVisible": true, "fileRealityVisible": false }
+    },
+    "contractRevision": {
+      "request": "바뀐 계약 내용만 알려줘.",
+      "strictPass": false,
+      "coreChangesObserved": true,
+      "wallMs": 21972.214,
+      "modelCalls": 5,
+      "toolCalls": 4,
+      "failureStage": "after_source_entry_before_bind",
+      "observedSources": ["contract-v1.pdf", "contract-v2.pdf"],
+      "unobservedRequiredSources": ["responsibility-matrix.xlsx", "signature-page-v2.png"],
+      "missingFinalFacts": ["explicit 600000 KRW difference", "required source trace"]
+    }
+  },
+  "expertPositiveControls": {
+    "sales": {
+      "sourceEntered": true,
+      "coreNumbersCorrect": true,
+      "exactIdentityPass": false,
+      "wallMs": 38468,
+      "modelCalls": 4,
+      "toolCalls": 3
+    },
+    "receivables": {
+      "sourceEntered": true,
+      "strictPass": true,
+      "wallMs": 20816,
+      "modelCalls": 4,
+      "toolCalls": 3
+    },
+    "inventory": {
+      "sourceEntered": true,
+      "strictPass": true,
+      "wallMs": 16499,
+      "modelCalls": 4,
+      "toolCalls": 3
+    }
+  },
+  "traceFindings": {
+    "sameFileRealityObserverSucceedsWithExpertExpression": true,
+    "ordinaryFailuresBeforeAnyObserverOutput": ["sales", "receivables", "inventory"],
+    "postEntryFailures": ["contractRevision"],
+    "sameMissingObserverFactAcrossTwoPurposes": false,
+    "existingObserverFactRecreated": false,
+    "modelSelectionQualityObserved": true,
+    "runtimeInformationGapProven": false
+  },
+  "decision": {
+    "nx2_1c": "CLOSED_NO_COMMON_OBSERVER_DELTA_PROVEN",
+    "productCandidateOpened": false,
+    "productSourceDelta": 0,
+    "newSelectionTool": 0,
+    "newPreselectionModelCall": 0,
+    "newStore": 0,
+    "businessRouter": 0,
+    "promptPatch": 0,
+    "parserOrColumnRule": 0
+  },
+  "commonQualification": {
+    "strictPassCount": 0,
+    "purposeCount": 4,
+    "status": "NX2_1_GENERALIZATION_NOT_ACHIEVED_AT_CURRENT_HEAD",
+    "nx2_1dOpened": false,
+    "laterGatesOpened": false,
+    "returnLine": "ad3e685c"
+  },
+  "status": "NX2_1C_TRACE_COMPLETE_NO_PRODUCT_DELTA_NX2_1_NOT_COMPLETE"
+}

@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CURRENT · CURRENT_SLICE_NX2_1C_EXISTING_PATH`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CURRENT_NOT_ACHIEVED · NX2_1C_CLOSED_NO_COMMON_OBSERVER_DELTA`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-1C — Existing Path Common Observer Delta`
+현재 제품 Gate: `NX2-1 — Integral Mastery Generalization · CURRENT PATH QUALIFICATION NOT ACHIEVED`
 
 ---
 
@@ -280,6 +280,16 @@ NX2-1C가 실패하면 같은 문구·업무별 규칙을 더하지 않고 NX-1 
 - NX-2B2는 model-selected exact handles의 batch reopen mechanics를 관측했지만 제품 후보에서는 폐기했다.
 - 현재 제품 변경 후보는 기존 `file_reality → bind_sources → integral_method`의 동일 observer gap이 두 목적에서
   재현될 때 NX2-1C 안에서만 열 수 있다.
+
+### NX2-1C actual trace 종료 — 2026-09-01
+
+- exact 일반 표현의 매출·미수금·재고는 모두 source 진입 전에 Tool 0으로 종료됐다.
+- 전문가 표현에서는 같은 File Reality가 세 CSV source를 정확히 관측했고 미수금·재고는 strict PASS했다.
+- 계약 일반 표현은 source 진입 뒤 두 revision의 핵심 변경을 찾았지만 전체 required source bind와 strict Closure가 없었다.
+- 서로 다른 두 목적의 동일 post-entry observer fact 누락은 없었다. 따라서 기존 observer/Tool contract 제품 후보는 열지 않는다.
+- 네 목적 strict 공통 자격은 0/4이며 NX2-1은 현재 head에서 완료되지 않았다. NX2-1D와 NX2-2 이후 Gate는 열지 않는다.
+
+근거: `refoundation/evidence/nx2-existing-path-common-observer-trace-2026-09-01.json`.
 
 ---
 
