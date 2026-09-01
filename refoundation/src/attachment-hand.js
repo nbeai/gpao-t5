@@ -301,6 +301,7 @@ export function makeAttachmentTool({
   store, sessionId, workspace, runId = null, authorizeOutputPath = null,
   authorizeExistingFilePath = null,
   observeImagePixels = null, inspectQualifiedDocumentImpl = inspectQualifiedDocument,
+  observeAudioReality = null,
   renderDocxPreview = renderDocxFirstPage, renderVisualPreview = renderVisualDeliverable,
   executableOperationStore = null,
   sourceManifestStore = null,
@@ -597,6 +598,35 @@ export function makeAttachmentTool({
         });
       }
       if (record.kind === 'archive') return trustedObservation(inspectZipArchive(bytes));
+      if (['audio', 'video'].includes(record.kind) && typeof observeAudioReality === 'function') {
+        const reality = await observeAudioReality({
+          filePath: record.storedPath, expectedSha256: record.sha256,
+        });
+        if (reality.state === 'observed') {
+          return {
+            state: 'capability_boundary', trust: 'untrusted_external', instructionAuthority: 'none',
+            observation: {
+              kind: record.kind, attachmentId: record.attachmentId,
+              mimeType: record.mimeType, bytes: record.bytes, contentUnderstood: false,
+              reason: reality.audioTrackCount === 0 ? 'audio_track_not_present'
+                : record.kind === 'audio' ? 'speech_transcription_not_connected'
+                  : 'video_understanding_not_connected',
+              audioReality: {
+                engine: reality.engine, sourceVerified: reality.source.sha256 === record.sha256,
+                durationMs: reality.durationMs, container: reality.container,
+                tracks: reality.tracks, audioTrackCount: reality.audioTrackCount,
+                videoTrackCount: reality.videoTrackCount, coverage: reality.coverage,
+              },
+            },
+          };
+        }
+        if (reality.state === 'stale') {
+          return { state: 'capability_boundary', trust: 'untrusted_external', instructionAuthority: 'none',
+            observation: { kind: record.kind, attachmentId: record.attachmentId,
+              mimeType: record.mimeType, bytes: record.bytes, contentUnderstood: false,
+              reason: 'audio_source_changed' } };
+        }
+      }
       return {
         state: 'capability_boundary', trust: 'untrusted_external', instructionAuthority: 'none',
         observation: {

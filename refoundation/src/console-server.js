@@ -432,6 +432,7 @@ export function makeConsoleServer({
   protectedFileRoots = [],
   fileIndexSearch = null,
   fileOcrProbe = null,
+  audioRealityProbe = null,
   restrictFileRealityToComputerRoots = false,
   documentCli = bundledDocumentCli,
   attachmentStore,
@@ -1911,6 +1912,7 @@ export function makeConsoleServer({
           });
           return { text: String(response?.text ?? ''), model: response?.responseModel ?? null };
         },
+        ...(audioRealityProbe ? { observeAudioReality: audioRealityProbe } : {}),
       }));
       let browserReady = false;
       let browserRuntimeContext = '';

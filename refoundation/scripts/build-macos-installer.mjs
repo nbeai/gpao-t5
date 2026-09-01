@@ -141,6 +141,22 @@ async function buildDocxPageRenderer(work, runtimeBin) {
   if (architectures.join(',') !== 'arm64,x86_64') throw new Error('DOCX page renderer is not universal');
 }
 
+async function buildAudioRealityHelper(work, runtimeBin) {
+  const source = join(repo, 'refoundation', 'native', 'macos-audio-reality.swift');
+  const arm = join(work, 'audio-reality-arm64');
+  const x64 = join(work, 'audio-reality-x64');
+  const frameworks = ['-framework', 'AVFoundation', '-framework', 'AudioToolbox', '-framework', 'CoreMedia'];
+  run('xcrun', ['swiftc', '-parse-as-library', '-O', '-target', 'arm64-apple-macos13.0',
+    ...frameworks, source, '-o', arm]);
+  run('xcrun', ['swiftc', '-parse-as-library', '-O', '-target', 'x86_64-apple-macos13.0',
+    ...frameworks, source, '-o', x64]);
+  const destination = join(runtimeBin, 't5-macos-audio-reality');
+  run('lipo', ['-create', arm, x64, '-output', destination]);
+  await chmod(destination, 0o755);
+  const architectures = run('lipo', ['-archs', destination]).trim().split(/\s+/u).sort();
+  if (architectures.join(',') !== 'arm64,x86_64') throw new Error('Audio Reality helper is not universal');
+}
+
 async function buildMemorySpotlightHelper(work, runtimeBin) {
   const source = join(repo, 'refoundation', 'native', 'macos-memory-spotlight.swift');
   const arm = join(work, 'memory-spotlight-arm64');
@@ -245,6 +261,7 @@ async function main() {
     await mkdir(runtimeBin, { recursive: true });
     await copyRuntimeApp(join(resources, 'app'));
     await buildDocxPageRenderer(work, runtimeBin);
+    await buildAudioRealityHelper(work, runtimeBin);
     await buildMemorySpotlightHelper(work, runtimeBin);
     await buildFileActivityHelper(work, runtimeBin);
     await buildCoarseAppActivityHelper(work, runtimeBin);

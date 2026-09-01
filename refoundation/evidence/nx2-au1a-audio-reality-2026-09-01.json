@@ -1,0 +1,62 @@
+{
+  "schema": "t5.nx2.au1a-audio-reality.v1",
+  "recordedOn": "2026-09-01",
+  "baseCommit": "61adad4b",
+  "status": "AU1A_COMPLETE_AU1_WINDOWS_DECODE_CURRENT",
+  "productBehavior": {
+    "audioAttachmentNativeReality": true,
+    "transcriptionActivated": false,
+    "newTool": 0,
+    "newModelCall": 0,
+    "globalPromptDelta": 0,
+    "sourceMutation": 0
+  },
+  "macOS": {
+    "helper": "t5-macos-audio-reality",
+    "engine": "AVFoundation+AudioToolbox",
+    "actualCompile": "arm64 current-toolchain qualification",
+    "packageBuild": "universal arm64+x86_64 source contract",
+    "observations": {
+      "wavSpeech": { "durationMs": 6243.625, "audioTracks": 1, "codec": "lpcm", "sampleRate": 16000, "channels": 1 },
+      "wavSilence": { "durationMs": 5000, "audioTracks": 1, "codec": "lpcm" },
+      "mp3": { "durationMs": 32731.428571428572, "audioTracks": 1, "codec": ".mp3", "sampleRate": 22050, "channels": 2 },
+      "m4a": { "durationMs": 190279.86394557822, "audioTracks": 1, "container": "m4af", "codec": "aach", "sampleRate": 44100, "channels": 2 },
+      "mp4NoAudio": { "durationMs": 35066.66666666667, "audioTracks": 0, "videoTracks": 1, "codec": "avc1" },
+      "movNoAudio": { "durationMs": 10000, "audioTracks": 0, "videoTracks": 1, "codec": "hvc1" }
+    },
+    "decode": {
+      "mp3ToPcm": { "inputDurationMs": 32731.428571428572, "outputDurationMs": 32731.4375, "sampleRate": 16000, "channels": 1 },
+      "m4aToPcm": { "inputDurationMs": 190279.86394557822, "outputDurationMs": 190279.875, "bytes": 6089000, "sampleRate": 16000, "channels": 1 },
+      "sourceDigestReopenedAfterDecode": true,
+      "scratchCleaned": true,
+      "wholeInputLoadedIntoNodeMemory": false
+    }
+  },
+  "windows": {
+    "helperSource": "t5-windows-audio-reality.cpp",
+    "engine": "Media Foundation Source Reader",
+    "packageRole": "audio_reality_helper",
+    "manifestDigestRequired": true,
+    "physicalCompile": "NOT_RUN",
+    "physicalObservation": "NOT_RUN",
+    "pcmDecode": "NOT_YET_IMPLEMENTED",
+    "state": "DEFERRED_NOT_WAIVED"
+  },
+  "truthBoundaries": {
+    "audioTrackZeroStopsBeforeDecode": true,
+    "multipleAudioTracksRequireSelection": true,
+    "staleSourceRejected": true,
+    "malformedNativeReceiptRejected": true,
+    "nativeFactsAreTranscript": false,
+    "audioContentIsInstructionAuthority": false
+  },
+  "verification": {
+    "focusedPassed": 43,
+    "focusedFailed": 0,
+    "windowsPhysicalSkipped": true
+  },
+  "next": {
+    "gate": "AU-1 Windows Media Foundation decode source contract",
+    "au1Complete": false
+  }
+}

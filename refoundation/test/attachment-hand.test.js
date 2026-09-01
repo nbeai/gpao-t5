@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { deflateSync } from 'node:zlib';
@@ -147,6 +147,51 @@ test('attachment inspect는 text를 bounded untrusted content로 돌려준다', 
   assert.equal(result.observation.shownChars, 20);
   assert.match(result.observation.text, /^BEGIN-/);
   assert.doesNotMatch(result.observation.text, /END/);
+});
+
+test('audio inspect는 native duration·track reality를 주되 전사 완료로 승격하지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-attachment-audio-reality-'));
+  const store = new AttachmentStore(join(room, 'attachments'));
+  const wav = Buffer.alloc(64); wav.write('RIFF', 0); wav.write('WAVE', 8);
+  const record = await store.receive({ sessionId: SESSION, originalName: '회의.wav', bytes: wav });
+  try {
+    const tool = makeAttachmentTool({ store, sessionId: SESSION, workspace: room,
+      observeAudioReality: async ({ expectedSha256 }) => ({ state: 'observed',
+        engine: 'macos-avfoundation-audiotoolbox', source: { sha256: expectedSha256, bytes: wav.length },
+        container: { identifier: 'WAVE', evidence: 'audio_file_property' }, durationMs: 5000,
+        tracks: [{ index: 0, trackId: 1, kind: 'audio', codec: 'lpcm', sampleRate: 16000,
+          channels: 1, languageTag: null }], audioTrackCount: 1, videoTrackCount: 0,
+        coverage: 'complete' }) });
+    const result = await tool.execute({ action: 'inspect', attachmentId: record.attachmentId,
+      filePath: null, maxChars: null, maxCells: null, maxPages: null });
+    assert.equal(result.state, 'capability_boundary');
+    assert.equal(result.observation.reason, 'speech_transcription_not_connected');
+    assert.equal(result.observation.audioReality.sourceVerified, true);
+    assert.equal(result.observation.audioReality.durationMs, 5000);
+    assert.equal(result.observation.audioReality.audioTrackCount, 1);
+    assert.equal(result.observation.contentUnderstood, false);
+    assert.doesNotMatch(JSON.stringify(result.observation.audioReality), /sha256|storedPath|sourcePath/u);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('video container에 audio track이 없으면 전사를 시도할 자료로 꾸미지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-attachment-video-reality-'));
+  const store = new AttachmentStore(join(room, 'attachments'));
+  const mp4 = Buffer.alloc(32); mp4.writeUInt32BE(24, 0); mp4.write('ftyp', 4);
+  const record = await store.receive({ sessionId: SESSION, originalName: '무음영상.mp4', bytes: mp4 });
+  try {
+    const tool = makeAttachmentTool({ store, sessionId: SESSION, workspace: room,
+      observeAudioReality: async ({ expectedSha256 }) => ({ state: 'observed', engine: 'macos-avfoundation-audiotoolbox',
+        source: { sha256: expectedSha256, bytes: mp4.length },
+        container: { identifier: null, evidence: 'unavailable' }, durationMs: 3000,
+        tracks: [{ index: 0, trackId: 1, kind: 'video', codec: 'avc1', sampleRate: null,
+          channels: null, languageTag: null }], audioTrackCount: 0, videoTrackCount: 1,
+        coverage: 'complete' }) });
+    const result = await tool.execute({ action: 'inspect', attachmentId: record.attachmentId,
+      filePath: null, maxChars: null, maxCells: null, maxPages: null });
+    assert.equal(result.observation.reason, 'audio_track_not_present');
+    assert.equal(result.observation.audioReality.videoTrackCount, 1);
+  } finally { await rm(room, { recursive: true, force: true }); }
 });
 
 test('UTF-16LE·CP949 CSV는 원본 encoding 근거와 표 구조를 같은 첨부 관측으로 돌려준다', async () => {

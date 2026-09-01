@@ -72,6 +72,7 @@ export async function resolveWindowsProductEnvironment({
   for (const role of [
     'node_runtime', 'job_credential_host', 'launcher', 'console_entry',
     'file_activity_helper', 'app_activity_helper', 'folder_picker_helper', 'image_ocr_helper',
+    'audio_reality_helper',
   ]) {
     const relative = relativePayloadPath(manifest.roles[role]);
     const record = fileByPath.get(relative.toLowerCase());
@@ -93,6 +94,7 @@ export async function resolveWindowsProductEnvironment({
     appActivityHelper: fileByRole.get('app_activity_helper') ?? null,
     folderPickerHelper: fileByRole.get('folder_picker_helper') ?? null,
     imageOcrHelper: fileByRole.get('image_ocr_helper') ?? null,
+    audioRealityHelper: fileByRole.get('audio_reality_helper') ?? null,
     manifest: structuredClone(manifest),
   });
 }

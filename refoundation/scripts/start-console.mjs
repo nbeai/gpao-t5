@@ -57,6 +57,7 @@ import { RuntimeContinuityLedger, makeRuntimeContinuityMonitor } from '../src/ru
 import { makeLocalNotificationService, makeMacOSNotificationAdapter } from '../src/local-notification.js';
 import { deleteT5OwnedLocalData } from '../src/local-data-deletion.js';
 import { makeLocalImageOcr } from '../src/local-image-ocr.js';
+import { makeAudioRealityProbe } from '../src/audio-reality.js';
 
 function option(name) {
   const index = process.argv.indexOf(name);
@@ -241,6 +242,19 @@ const localNotifications = makeLocalNotificationService({ deliver: process.platf
   ? makeMacOSNotificationAdapter({ spawnProcess: spawn }) : null });
 const fileOcrProbe = computerEnvironment.platform === 'win32'
   ? makeLocalImageOcr({ platform: 'win32', helper: windowsProduct?.imageOcrHelper }) : null;
+let audioRealityProbe = null;
+if (computerEnvironment.platform === 'darwin') {
+  const audioRealityHelper = resolve(process.env.T5_AUDIO_REALITY_HELPER
+    ?? join(dirname(process.execPath), 't5-macos-audio-reality'));
+  try {
+    await accessFile(audioRealityHelper, constants.X_OK);
+    audioRealityProbe = makeAudioRealityProbe({ platform: 'darwin', helper: audioRealityHelper });
+  } catch { /* audio identity remains available while native track reality is unqualified */ }
+} else if (computerEnvironment.platform === 'win32' && windowsProduct?.audioRealityHelper) {
+  audioRealityProbe = makeAudioRealityProbe({
+    platform: 'win32', helper: windowsProduct.audioRealityHelper,
+  });
+}
 let resolveRuntimeStopRequest;
 const runtimeStopReady = new Promise((resolveStop) => { resolveRuntimeStopRequest = resolveStop; });
 const server = makeConsoleServer({
@@ -273,6 +287,7 @@ const server = makeConsoleServer({
   videoTextFetchImpl: globalThis.fetch,
   workspaceConnectionServices,
   ...(fileOcrProbe ? { fileOcrProbe } : {}),
+  ...(audioRealityProbe ? { audioRealityProbe } : {}),
   messengerCredentialStore,
   fileActivityService,
   fileActivityRootSelector,

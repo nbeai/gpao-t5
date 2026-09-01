@@ -69,8 +69,9 @@ async function main(){
     compile(join(repo,'refoundation','native','windows','t5-windows-file-activity.c'),join(bin,'t5-windows-file-activity.exe'));
     compile(join(repo,'refoundation','native','windows','t5-windows-coarse-app-activity.c'),join(bin,'t5-windows-coarse-app-activity.exe'));
     compileCpp(join(repo,'refoundation','native','windows','t5-windows-image-ocr.cpp'),join(bin,'t5-windows-image-ocr.exe'),['windowsapp.lib']);
+    compileCpp(join(repo,'refoundation','native','windows','t5-windows-audio-reality.cpp'),join(bin,'t5-windows-audio-reality.exe'),['mfplat.lib','mfreadwrite.lib','mfuuid.lib','propsys.lib','ole32.lib']);
     compile(join(repo,'refoundation','native','windows','t5-windows-launcher.c'),join(bin,'GPAO-T5.exe'),['/link','/SUBSYSTEM:WINDOWS']);
-    for(const name of ['t5-windows-job-host.exe','t5-windows-folder-picker.exe','t5-windows-file-activity.exe','t5-windows-coarse-app-activity.exe','t5-windows-image-ocr.exe','GPAO-T5.exe'])if(windowsPeArchitecture(await readFile(join(bin,name)))!==architecture)throw new Error(`${name} architecture does not match package architecture`);
+    for(const name of ['t5-windows-job-host.exe','t5-windows-folder-picker.exe','t5-windows-file-activity.exe','t5-windows-coarse-app-activity.exe','t5-windows-image-ocr.exe','t5-windows-audio-reality.exe','GPAO-T5.exe'])if(windowsPeArchitecture(await readFile(join(bin,name)))!==architecture)throw new Error(`${name} architecture does not match package architecture`);
     const svg=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><rect width="256" height="256" rx="54" fill="#171717"/><path d="M62 78h132M62 128h132M62 178h132M88 54v148M168 54v148" stroke="#fff" stroke-width="18" stroke-linecap="round"/></svg>');
     const png=await sharp(svg).resize(256,256).png().toBuffer();await writeFile(join(payload,'GPAO-T5.ico'),makeWindowsIconIco(png));
     await writeFile(join(payload,'uninstall.ps1'),WINDOWS_UNINSTALL_SCRIPT,'utf8');
@@ -79,6 +80,7 @@ async function main(){
       ['console_entry','app/refoundation/scripts/start-console.mjs'],['runtime_attach_entry','app/refoundation/scripts/ensure-local-runtime.mjs'],['runtime_stop_entry','app/refoundation/scripts/stop-local-runtime.mjs'],['file_activity_helper','bin/t5-windows-file-activity.exe'],
       ['app_activity_helper','bin/t5-windows-coarse-app-activity.exe'],['folder_picker_helper','bin/t5-windows-folder-picker.exe'],
       ['image_ocr_helper','bin/t5-windows-image-ocr.exe'],
+      ['audio_reality_helper','bin/t5-windows-audio-reality.exe'],
       ['application_icon','GPAO-T5.ico'],['uninstaller','uninstall.ps1'],
     ];
     const roles=Object.fromEntries(required.map(([role,path])=>[role,path.replaceAll('\\','/')]));
