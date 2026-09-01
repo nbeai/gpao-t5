@@ -1,7 +1,7 @@
 {
   "schema": "t5.nx2-nv3-settings-browser-login-evidence.v1",
   "recordedAt": "2026-09-02T03:10:00+09:00",
-  "status": "ACTUAL_PROFILE_READY_STALE_HANDOFF_P1_REPAIRED_OWNER_RECHECK_PENDING",
+  "status": "NV3_MAIL_LIST_ACTUAL_PASS_PERFORMANCE_OBSERVATION",
   "userPurpose": "Connect Naver once from Settings and use the same managed identity for Mail and Blog without separate credentials.",
   "adoptedPath": {
     "entry": "Settings > Tools and Connections > Naver Login",
@@ -50,7 +50,21 @@
       "secretOrCookieObserved": false
     },
     "blogIdentityRepair": "accept the actual Naver-controlled *.blog.naver.com Blog Home redirect as the same Blog service identity",
-    "staleHandoffRepair": "Naver may perform its bounded read-only profile recheck while an older waiting handoff exists; a ready result settles that exact waiting handoff instead of joining it forever"
+    "staleHandoffRepair": "Naver may perform its bounded read-only profile recheck while an older waiting handoff exists; a ready result settles that exact waiting handoff instead of joining it forever",
+    "mailListActual": {
+      "runId": "45c7a4b7-3dab-4d5e-ad16-30ee81b185ee",
+      "result": "PASS",
+      "userResult": "three latest mail subjects, senders, and received times",
+      "mailBodyOpened": false,
+      "readStateMutationAction": false,
+      "loginWindowOpened": false,
+      "modelTurns": 5,
+      "toolCalls": 4,
+      "wallMsApprox": 23700,
+      "largestProviderRequestBytes": 368657,
+      "performanceObservation": "full Browser snapshot projected roughly 300 KB of tool result; correctness passed but economy is not qualified"
+    },
+    "consoleDelivery": "PASS — exact answer text was present in the canonical Console Session"
   },
   "nonClaims": [
     "Mail folder/search/open/attachment is not yet qualified on the actual owner account.",

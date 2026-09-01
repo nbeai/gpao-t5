@@ -527,6 +527,13 @@ actual에서도 실패하면 같은 로그인 activation 방향에 조건을 더
 중`으로 합류하는 settlement P1도 확인했다. 일반 연결의 중복 준비 합치기는 유지하되 Naver의 bounded read-only profile
 recheck는 waiting 중에도 허용하고, ready이면 그 exact waiting handoff를 기존 coordinator로 완료·재개한다.
 
+세 번째 실행에서는 실제 설정 endpoint가 로그인 창 없이 `기존 네이버 로그인으로 메일과 블로그 연결을 확인했어요`를
+반환했고 waiting Work가 exact once 재개됐다. 실제 Mail 목록에서 최근 3개의 제목·발신자·수신 시각을 약 23.7초,
+model 5·Tool 4로 반환했으며 본문 open/click·읽음 변경 action은 0이고 결과는 canonical Console Session에 저장됐다.
+다만 full Browser snapshot 때문에 최대 provider request가 368,657 bytes까지 증가해 NV-3 정확성 PASS와 성능 관측을
+분리한다. 다음 Mail search/open/attachment에서는 새 Hand를 만들기 전에 현재 Browser observation의 bounded projection을
+사용한다.
+
 ### NV-4 — Mail Draft & Send
 
 - draft preview
