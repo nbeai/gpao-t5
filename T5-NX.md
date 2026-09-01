@@ -1,10 +1,10 @@
 # T5 NX — Integral Outcome, Mastery, Performance & Comparative Quality
 
-상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1A_BASELINE_FROZEN · NX_1B_QUALIFICATION_CONTRACT_COMPLETE · NX_1C_ORCHESTRATION_CONTRACT_COMPLETE · NX_1_FLAGSHIP_MASTERY_CURRENT`
+상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
-현재 Gate: `NX-1 FIRST FLAGSHIP MASTERY · INTEGRAL OUTCOME METHOD`
-현재 작업: `NX-1 Reality·Human 정확성 및 성능 Gate 통과 · blind 인간 품질 자격 준비`
+현재 Gate: `NX-1 FIRST FLAGSHIP MASTERY · COMPLETE`
+현재 작업: `NX-1 제품·Console·CI 봉인 완료 · 다음 Gate 미개통`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -959,6 +959,29 @@ AND current correction·Stop·restart·Artifact·Undo 무회귀
   모델 2·Tool 1을 유지하고 기존 answer streaming과 모델의 자연스러운 언어 저작권을 되살린다.
 
 근거: `refoundation/evidence/nx1-blind-human-selection-oracle-2026-09-01.json`.
+
+2026-09-01 NX-1 제품 완료:
+
+- qualification-only Integral Method를 제품 `integral-method-contract·evidence·runtime`으로 승격했다. 새 Store·업무 Router·
+  planner/critic Agent·세 번째 model call은 만들지 않았다. File Reality의 exact manifest, document observer, local OCR,
+  Work revision을 재사용한다.
+- 모델은 human·strategy·method·form만 작성하고 Work ID·revision·manifest·source handles는 Runtime이 결속한다. unresolved
+  bind에서만 Reality Closure가 필요하며, verified outcomes는 raw source와 분리된 격리 Human model 한 번으로 최종 답이 된다.
+  AgentLoop는 그 모델 문장을 고정 문구나 후처리 없이 그대로 정산한다.
+- qualification 세 목적은 정확성·strict scope PASS, 중앙 wall `78.233초 → 56.971초`(27.18%), model `12 → 2`,
+  Tool `20 → 2`, input `215,966 → 6,974`, request `1,070,476 → 26,210`으로 Gate를 통과했다.
+- blind 인간 평가는 계약·비용에서 Method, 구매에서 current 표현을 선택했다. 구매를 Method로 강제하는 universal replacement는
+  폐기했고 `2개 미입고 → 50,000원 영향`을 하나의 실제 문제로 결속하는 selection oracle을 제품 자격에 사용했다.
+- 실제 Console Browser UI에서 구매·계약·비용이 모두 PASS했고 Enter 전송·진행·최종 결과를 확인했다. Direct `3+5`는
+  Tool 0으로 `8`, 단일 `card-ledger.xlsx`의 C-102는 Method 0·12.279초로 42,000원을 답했다.
+- 제품 actual matrix는 정확성 3/3, outer model 중앙 5·Tool 5·input 약 58K·request 약 299K로 current보다 크게 경제적이었다.
+  final wall 개선은 표본별 중앙 12.73~22.6%로 변동해 모든 live matrix에서 20% 이상이라고 주장하지 않는다. qualification
+  20% Gate는 통과했지만 product wall에는 provider 분산 관측을 남긴다.
+- NX-1은 answer-only observe 경로이므로 새 Artifact·Undo는 만들지 않았다. 기존 Artifact·Undo·Stop·restart 회귀와 전체 CI,
+  제품 통합 209 PASS·0 FAIL·2 SKIP, mutation 2/2가 통과했다.
+- Solar Pro 4는 오너 판단대로 실행하지 않은 비게이팅 후보다. Windows 물리 자격과 설치 패키지는 NX-1 완료 주장에 포함하지 않는다.
+
+근거: `refoundation/evidence/nx1-product-close-2026-09-01.json`.
 
 ## NX-2 — Mastery Generalization
 

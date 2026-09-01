@@ -1,0 +1,123 @@
+{
+  "schema": "t5.nx1.product-close.v1",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "45282a29b282df4bb1929cfbf5448367bf98dfcf",
+  "modelPolicy": {
+    "primary": "gpt-5.5",
+    "terra": "comparison_observation",
+    "solarPro4": "NON_GATING_NOT_EXECUTED"
+  },
+  "productArchitecture": {
+    "newStore": 0,
+    "businessRouter": 0,
+    "thirdModelCall": 0,
+    "defaultDirectMethodSchema": 0,
+    "sourceIdentity": "existing FileSourceManifestStore",
+    "reality": "existing document inspector, local OCR, and Runtime Evidence Atoms",
+    "humanClosure": "one isolated model call over verified outcomes",
+    "finalAnswerAuthor": "model",
+    "runtimeMeaningRewrite": 0,
+    "effect": "observe_only"
+  },
+  "qualification": {
+    "threePurposes": "PASS",
+    "candidateMedian": {
+      "wallMs": 56970.88,
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "inputTokens": 6974,
+      "requestBytes": 26210
+    },
+    "freshCurrentMedian": {
+      "wallMs": 78233.335,
+      "modelCalls": 12,
+      "toolCalls": 20,
+      "inputTokens": 215966,
+      "requestBytes": 1070476
+    },
+    "improvement": {
+      "wallPercent": 27.18,
+      "modelCallPercent": 83.33,
+      "toolCallPercent": 90,
+      "inputTokenPercent": 96.77,
+      "requestBytePercent": 97.55
+    }
+  },
+  "blindHuman": {
+    "round1": {
+      "purchase": "current",
+      "contract": "candidate",
+      "expense": "candidate"
+    },
+    "purchaseCountertests": 2,
+    "purchaseRule": "preserve one practical missing-delivery cause with its monetary impact",
+    "universalReplacement": "REJECTED",
+    "selectiveOutcomeQuality": "QUALIFIED"
+  },
+  "productActual": {
+    "matrix": {
+      "purchase": "PASS",
+      "contract": "PASS",
+      "expense": "PASS",
+      "sourceMutation": 0,
+      "externalWrites": 0
+    },
+    "stableMedians": {
+      "outerModelCalls": 5,
+      "toolCalls": 5,
+      "inputTokens": 58147,
+      "requestBytes": 299136
+    },
+    "wallObservation": {
+      "qualifiedCandidateImprovementPercent": 27.18,
+      "productMatrixImprovementRangePercent": [12.73, 22.6],
+      "state": "IMPROVED_WITH_PROVIDER_VARIANCE_NOT_STABLY_ABOVE_20",
+      "notClaimed": "every live product matrix improves final wall by at least 20 percent"
+    }
+  },
+  "consoleHuman": {
+    "actualBrowserUI": true,
+    "enterSend": "PASS",
+    "progress": "PASS",
+    "purchase": "PASS",
+    "contract": "PASS",
+    "expense": "PASS",
+    "direct": {
+      "result": "PASS",
+      "toolCalls": 0,
+      "answer": "8"
+    },
+    "singleFile": {
+      "result": "PASS",
+      "answerFact": "C-102 card amount 42000 KRW",
+      "wallMs": 12279,
+      "integralMethodCalls": 0
+    }
+  },
+  "artifactUndo": {
+    "applicableToNx1AnswerOnlyPath": false,
+    "existingArtifactAndUndoRegression": "PASS_IN_FULL_CI",
+    "newArtifactStore": 0,
+    "newUndoSystem": 0
+  },
+  "fullCI": {
+    "command": "npm run refoundation:ci",
+    "exitCode": 0,
+    "productIntegration": {
+      "passed": 209,
+      "failed": 0,
+      "skipped": 2
+    },
+    "mutation": [
+      "completion blockers ignored killed",
+      "input terminal without exact surface receipt killed"
+    ]
+  },
+  "nonClaims": {
+    "windowsPhysicalQualification": "NOT_RUN",
+    "installerOrReleasePackage": "NOT_BUILT",
+    "allModelsEqualQuality": false,
+    "stableProductWallTwentyPercentEveryRun": false
+  },
+  "status": "NX1_FIRST_FLAGSHIP_MASTERY_COMPLETE"
+}
