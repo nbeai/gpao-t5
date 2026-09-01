@@ -14,7 +14,8 @@ test('NX-2 plan records NX-1 closeout, the current Context Diet slice, and exclu
   assert.match(plan, /NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION/);
   assert.match(plan, /NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT/);
   assert.match(plan, /NX2_SE_COMPLETE/);
-  assert.match(plan, /NX2_4_CURRENT/);
+  assert.match(plan, /NX2_4_AU0_COMPLETE/);
+  assert.match(plan, /NX2_4_AU1_CURRENT/);
   assert.match(plan, /NX2-SE — Selection-Scoped Side Exploration/);
   assert.match(plan, /범용 Computer Use·좌표 클릭·데스크톱 앱 조작/);
   assert.match(plan, /독립 미래 Gate 유지/);

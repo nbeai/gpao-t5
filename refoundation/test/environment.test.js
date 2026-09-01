@@ -43,7 +43,8 @@ test('정본은 제품·NX 현재 계획·완료 역사·작업 규율로 분리
   assert.match(nx, /NX_2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION/u);
   assert.match(nx, /NX_2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT/u);
   assert.match(nx, /NX_2_SE_COMPLETE/u);
-  assert.match(nx, /NX_2_4_CURRENT/u);
+  assert.match(nx, /NX_2_4_AU0_COMPLETE/u);
+  assert.match(nx, /NX_2_4_AU1_CURRENT/u);
   assert.match(fourth, /현재 Gate: `FOURTH COMPLETION SEALED · MACOS PRODUCT SCOPE · WINDOWS DEFERRED_NOT_WAIVED`/u);
   assert.match(fifth, /상태: `FIFTH_COMPLETION_COMPLETE · MACOS_PRODUCT_SCOPE · WINDOWS_DEFERRED_NOT_WAIVED`/u);
   assert.match(sixth, /현재 Gate: `HISTORICAL COMPLETE · NO LONGER CURRENT DEVELOPMENT SOURCE`/u);

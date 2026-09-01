@@ -1,0 +1,100 @@
+{
+  "schema": "t5.nx2.au0-auditory-baseline.v1",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "f6b8b036",
+  "status": "AU0_COMPLETE_AU1_OPEN",
+  "productSourceChanges": 0,
+  "actualUserData": false,
+  "externalWrites": 0,
+  "currentProduct": {
+    "wavAndMp3Identity": true,
+    "ftypClassifiedAsVideoMp4": true,
+    "speechTranscriptionReason": "speech_transcription_not_connected",
+    "videoUnderstandingReason": "video_understanding_not_connected",
+    "usableWhisperExecutable": false,
+    "usableModelGeneration": false
+  },
+  "host": {
+    "platform": "macOS 26.6.1",
+    "architecture": "arm64",
+    "chip": "Apple M4",
+    "memoryBytes": 17179869184,
+    "availableDiskGiB": 24
+  },
+  "candidate": {
+    "engine": "whisper.cpp",
+    "release": "b4938",
+    "sourceCommit": "371b5a7561823ab2bb32142d2751e35e7534727b",
+    "build": "qualification-only Metal Release",
+    "productIntegrated": false
+  },
+  "models": {
+    "repositoryCommit": "5359861c739e955e79d9a303bcbc70fb988958b1",
+    "full": {
+      "bytes": 1624555275,
+      "sha256": "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69"
+    },
+    "q5_0": {
+      "bytes": 574041195,
+      "sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+      "state": "qualification_candidate_not_default"
+    }
+  },
+  "syntheticKoreanMemo": {
+    "sourceSha256": "e38393c6397a2b4def620eb48ed2ccb6a92a74dfb7c6ca9501409ca09185d4ba",
+    "durationMs": 13441.812,
+    "oracleCharsNormalized": 71,
+    "q5WithoutHint": {
+      "edits": 1,
+      "cer": 0.014084507042253521,
+      "warmWallMs": 2280,
+      "peakResidentBytes": 843792384,
+      "peakFootprintBytes": 857310528,
+      "materialError": "T5 NX 24 was transcribed as TONX24"
+    },
+    "fullWithoutHint": {
+      "edits": 1,
+      "cer": 0.014084507042253521,
+      "wallMs": 3240,
+      "peakResidentBytes": 1936293888,
+      "peakFootprintBytes": 1989167216,
+      "materialError": "T5 NX 24 was transcribed as TONX24"
+    },
+    "q5WithSourceHint": {
+      "edits": 0,
+      "cer": 0,
+      "wallMs": 2270,
+      "peakFootprintBytes": 861783312,
+      "runtimeGlobalGlossary": false
+    }
+  },
+  "silenceOpposingTest": {
+    "sourceSha256": "262d1f34f300560a4c82ba8127ddea9e1d72946f187fdbd3e8f70ee096077aec",
+    "durationMs": 5000,
+    "q5": {
+      "falseTranscript": "자막 제공 및 자막 제공 및 광고를 포함하고 있습니다.",
+      "claimedEndMs": 29980,
+      "wallMs": 2060
+    },
+    "full": {
+      "falseTranscript": "한글자막 by 한효정",
+      "claimedEndMs": 29980,
+      "wallMs": 2370
+    },
+    "quantizationCause": false,
+    "productMeaning": "engine exit and transcript text cannot prove source coverage"
+  },
+  "comparisonBoundaries": {
+    "mlxWhisper": "historical 2h02m to 8m40s evidence only; not current qualification",
+    "fasterWhisper": "Windows NVIDIA positive control deferred to physical Windows",
+    "q5DefaultQualified": false,
+    "humanSpeechQualityQualified": false,
+    "windowsPhysical": "NOT_RUN"
+  },
+  "decision": {
+    "engineCandidate": "whisper.cpp",
+    "firstProductSlice": "AU-1 Audio Reality & Native Decode",
+    "firstP1": "silence_false_transcript_and_timestamp_beyond_source_duration",
+    "modelAssetLifecycleOpened": false
+  }
+}

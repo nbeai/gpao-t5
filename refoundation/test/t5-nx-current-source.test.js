@@ -17,7 +17,8 @@ test('T5 NX가 제품 정의 다음의 유일한 현재 개발 정본이다', as
   assert.match(nx, /NX_2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION/u);
   assert.match(nx, /NX_2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT/u);
   assert.match(nx, /NX_2_SE_COMPLETE/u);
-  assert.match(nx, /NX_2_4_CURRENT/u);
+  assert.match(nx, /NX_2_4_AU0_COMPLETE/u);
+  assert.match(nx, /NX_2_4_AU1_CURRENT/u);
   assert.match(sixth, /SIXTH_COMPLETE_HISTORICAL_SOURCE/u);
   assert.match(sixth, /SUPERSEDED_CURRENT_DEVELOPMENT_SOURCE_BY_T5_NX/u);
   assert.match(sixth, /CURRENT DEVELOPMENT SOURCE IS T5-NX\.md/u);

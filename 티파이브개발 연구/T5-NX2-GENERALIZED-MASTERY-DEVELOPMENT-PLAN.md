@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_CURRENT`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_CURRENT`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-4 — Auditory Intelligence Baseline`
+현재 제품 Gate: `NX2-4 AU-1 — Audio Reality & Native Decode`
 
 ---
 
@@ -692,6 +692,18 @@ AND actual Console human flow·accessibility·clean second pass PASS
 - macOS·Windows 후보 엔진의 실제 accuracy·RTF·RSS·model size 비교
 - 짧은 음성·긴 회의·영상·저품질·한국어 고유명사 corpus
 - 제품 변경 0
+
+종료 상태: `COMPLETE`. current T5는 audio/video identity만 알고 STT executable·model generation은 없었다.
+공식 `whisper.cpp` b4938을 M4 Metal에서 제품 밖 자격했고 `large-v3-turbo` full과 Q5를 같은 13.44초
+한국어 source에 실행했다. Q5 warm은 2.28초·peak footprint 약 857MB, full은 3.24초·약 1.99GB였고,
+무힌트 CER은 둘 다 1/71, 현재 source에서 얻은 고유명사 hint를 사용한 Q5는 0/71이었다. Q5를 기본으로
+확정한 것은 아니며 실제 인간 corpus 전까지 qualification candidate다.
+
+첫 P1은 양 모델 공통으로 5초 완전 무음에 거짓 transcript를 만들고 29.98초 timestamp를 주장한 것이다.
+이는 quantization 문제가 아니라 engine output과 audio coverage를 독립 검증해야 하는 제품 계약 결함이다.
+따라서 첫 제품 구현은 Whisper 실행 배선이 아니라 AU-1 Audio Reality와 duration/track/decode truth다.
+
+근거: `refoundation/evidence/nx2-au0-auditory-baseline-2026-09-01.json`.
 
 #### AU-1 — Audio Reality & Native Decode
 
