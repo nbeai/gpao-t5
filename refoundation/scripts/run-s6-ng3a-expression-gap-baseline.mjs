@@ -10,6 +10,7 @@ import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 import { deriveRunPerformanceTimeline } from '../src/run-speed-receipt.js';
 import { resolveTerminalShellEnvironment } from '../src/terminal-shell-environment.js';
 import { makeTerminalPlatformAdapter } from '../src/terminal-platform-adapter.js';
+import { summarizeExistingPathTrace } from '../test/helpers/nx-existing-path-trace.js';
 
 const sourceFile = resolve(process.env.T5_REFOUNDATION_MODEL_CONNECTION_FILE
   ?? join(homedir(), '.local', 'state', 'gpao-t5', 'sessions', 'model-connection.json'));
@@ -169,6 +170,9 @@ try {
         .includes(event.type))?.recordedAt;
       const ledgerWall = Date.parse(runEnded ?? '') - Date.parse(runStarted ?? '');
       const passed = purposeMarkersPassed && (!scenario.requireToolZero || timeline.totals.toolCalls === 0);
+      const trace = process.env.T5_NX2_EXISTING_PATH_TRACE === '1'
+        ? await summarizeExistingPathTrace({ run, stateDir, sessionId: session.id,
+          userRequest: variant.text, purposePassed: passed }) : null;
       results.push({
         id: variant.id, passed, wallMs: Number.isFinite(ledgerWall) ? ledgerWall
           : Number((performance.now() - started).toFixed(3)),
@@ -178,19 +182,22 @@ try {
         tools, askedUserQuestionInsteadOfResult: !passed && /어느|어떤|기간|자료.*주/u.test(answer),
         observedCorrelationNotCausation: scenarioId !== 'sales'
           ? null : /인과|단정|자료(?:만|로)|확인.*필요/u.test(answer),
-        answerExcerpt: answer.slice(0, 1200),
+        answerExcerpt: answer.slice(0, 1200), ...(trace ? { trace } : {}),
       });
     }
     scenarioResults.push({ scenarioId, hiddenOracle: scenario.oracle, results,
       invariantParity: results.every((item) => item.passed) });
   }
   const invariantParity = scenarioResults.every((item) => item.invariantParity);
-  process.stdout.write(`${JSON.stringify({
+  const payload = {
     schema: 't5.s6-ng3a-expression-gap-baseline.v1', model: selected.modelId,
     provider: 'chatgpt_oauth', actualUserData: false, externalWrites: 0,
     scenarioOrder: selectedScenarioIds, variantOrder: [...selectedVariantIds],
     practicalLensActive: lensActive, scenarios: scenarioResults, invariantParity, productChanges: 0,
-  }, null, 2)}\n`);
+  };
+  if (process.env.T5_NG3A_OUTPUT) await writeFile(resolve(process.env.T5_NG3A_OUTPUT),
+    JSON.stringify(payload, null, 2));
+  process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
   if (!invariantParity) process.exitCode = 1;
 } finally {
   server.closeWakeStreams(); server.closeModelConnections();

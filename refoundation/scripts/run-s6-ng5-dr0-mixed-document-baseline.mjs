@@ -12,6 +12,7 @@ import { makePlatformSecretStore } from '../src/platform-secret-store.js';
 import { deriveRunPerformanceTimeline } from '../src/run-speed-receipt.js';
 import { resolveTerminalShellEnvironment } from '../src/terminal-shell-environment.js';
 import { makeTerminalPlatformAdapter } from '../src/terminal-platform-adapter.js';
+import { summarizeExistingPathTrace } from '../test/helpers/nx-existing-path-trace.js';
 
 const repository = resolve(dirname(new URL(import.meta.url).pathname), '..', '..');
 const fixtureRoot = join(repository, 'refoundation', 'fixtures', 's6-ng5-dr0');
@@ -61,6 +62,9 @@ const scenarioChecks = {
 };
 
 async function runScenario(definition) {
+  if (process.env.T5_NX2_CONTRACT_ORDINARY === '1' && definition.id === 'contract_revision') {
+    definition = { ...definition, userPrompt: '바뀐 계약 내용만 알려줘.' };
+  }
   const room = await mkdtemp(join(tmpdir(), `t5-ng5-${definition.id}-`));
   const stateDir = join(room, 'state'); const workspace = join(room, 'workspace'); const home = join(room, 'home');
   await Promise.all([stateDir, workspace, home].map((path) => mkdir(path, { recursive: true })));
@@ -112,9 +116,13 @@ async function runScenario(definition) {
     const purposePassed = hasAll(answer, checks.purpose);
     const sourceTracePassed = hasAll(answer, checks.source);
     const forbiddenConclusion = checks.forbidden.some((pattern) => pattern.test(compact(answer)));
+    const passed = purposePassed && sourceTracePassed && !forbiddenConclusion && !sourceMutation;
+    const trace = process.env.T5_NX2_EXISTING_PATH_TRACE === '1'
+      ? await summarizeExistingPathTrace({ run, stateDir, sessionId: session.id,
+        userRequest: definition.userPrompt, purposePassed: passed }) : null;
     return {
       id: definition.id,
-      passed: purposePassed && sourceTracePassed && !forbiddenConclusion && !sourceMutation,
+      passed,
       checks: { purposePassed, sourceTracePassed, forbiddenConclusionAbsent: !forbiddenConclusion,
         sourceUnchanged: !sourceMutation },
       performance: { wallMs, modelCalls: timeline.totals.modelCalls, toolCalls: timeline.totals.toolCalls,
@@ -123,7 +131,7 @@ async function runScenario(definition) {
       tools: timeline.tools.map((item) => ({ name: item.name, outcome: item.outcome })),
       answer,
       sourceBefore: before,
-      sourceAfter: after,
+      sourceAfter: after, ...(trace ? { trace } : {}),
     };
   } finally {
     server.closeWakeStreams(); server.closeModelConnections();
