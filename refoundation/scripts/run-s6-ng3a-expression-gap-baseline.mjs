@@ -108,6 +108,7 @@ const scenarios = {
     checks: [/450/u, /350/u, /100/u, /22\.2/u, /한빛/u, /위젯/u],
     variants: [
       { id: 'ordinary', text: '요즘 매출이 왜 별로인지 좀 봐줘.' },
+      { id: 'nx2_ordinary', text: '이번 달 매출이 왜 줄었는지 봐줘.' },
       { id: 'expert', text: [
         '작업공간 매출기록에서 최근 3개월과 직전 3개월 총매출을 비교하고,',
         '거래처·품목별 감소 기여와 근거 숫자를 알려줘. 관측된 변화와 실제 인과 원인은 구분해.',
@@ -127,6 +128,7 @@ const scenarios = {
     checks: [/한빛/u, /A-1/u, /120/u, /2026-08-15|8월\s*15/u],
     variants: [
       { id: 'ordinary', text: '이번 달 받을 돈 뭐가 안 맞는지 봐줘.' },
+      { id: 'nx2_ordinary', text: '아직 돈 안 들어온 곳 정리해줘.' },
       { id: 'expert', text: '작업공간 미수금현황에서 오늘 기준 기한이 지났고 아직 안 받은 금액만 찾아 거래처·청구번호·금액·기한을 알려줘.' },
     ],
   },
@@ -135,6 +137,7 @@ const scenarios = {
     checks: [/위젯/u, /100/u, /90/u, /10/u, /부족|차이/u],
     variants: [
       { id: 'ordinary', text: '재고가 왜 안 맞는지 좀 봐줘.' },
+      { id: 'nx2_ordinary', text: '재고가 안 맞는데 원인 찾아줘.' },
       { id: 'expert', text: '작업공간 재고현황에서 전산수량과 실사수량이 다른 품목만 찾아 품목·두 수량·차이를 알려줘.' },
     ],
   },
@@ -151,7 +154,7 @@ const selectedScenarioIds = String(process.env.T5_NG3A_SCENARIOS ?? 'sales').spl
   .map((item) => item.trim()).filter((item) => Object.hasOwn(scenarios, item));
 if (!selectedScenarioIds.length) throw new Error('at least one known NG3A scenario is required');
 const selectedVariantIds = new Set(String(process.env.T5_NG3A_VARIANTS ?? 'ordinary,expert').split(',')
-  .map((item) => item.trim()).filter((item) => ['ordinary', 'expert'].includes(item)));
+  .map((item) => item.trim()).filter(Boolean));
 if (!selectedVariantIds.size) throw new Error('at least one known NG3A variant is required');
 
 try {
