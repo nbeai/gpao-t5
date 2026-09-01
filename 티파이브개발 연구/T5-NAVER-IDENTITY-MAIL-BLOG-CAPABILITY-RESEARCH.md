@@ -2,7 +2,7 @@
 
 기록일: 2026-09-01
 조사 기준: T5 NX `9e2daf0c` 및 과거 Naver 실제 설치본 증거
-상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · NV0_COMPLETE · NV1_COMPLETE · NV1R_COMPLETE · NV2_COMPLETE · NV3_BROWSER_LOGIN_CURRENT · IMAP_CANDIDATE_REJECTED_BY_OWNER_UX · PRODUCT_IMPLEMENTATION_GATE_OPEN`
+상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · NV0_COMPLETE · NV1_COMPLETE · NV1R_COMPLETE · NV2_COMPLETE · NV3_BROWSER_LOGIN_ACTUAL_PASS_MAIL_READ_CURRENT · IMAP_CANDIDATE_REJECTED_BY_OWNER_UX · PRODUCT_IMPLEMENTATION_GATE_OPEN`
 
 NV-1 현재 상태: `COMPLETE`. A 미선택은 restart 뒤 Mail·Blog login_required, B 선택은 같은 profile·restart 뒤
 둘 다 ready였다. 실제 여정에서 발견된 restart provider continuity P1도 NV-1R에서 수리·실제 재자격했다.
@@ -497,6 +497,10 @@ Browser core를 Naver selector로 오염시키지 않는다. Naver UI knowledge�
 설정·앱 비밀번호 발급과 입력을 사용자에게 요구해 T5의 기본 경험을 악화했고 실제 연결도 인증 단계에서 실패했다. 제품
 입력면·dependency·Tool은 제거하며 Git 역사에만 실패 증거로 보존한다. 설정의 `네이버 로그인`은 기존 managed persistent
 Browser의 공식 로그인 화면을 열고, 완료 뒤 같은 profile에서 Mail·Blog를 각각 read-only 재관측한다.
+
+오너 actual 결과: `LOGIN_AND_DUAL_SERVICE_READBACK_PASS`. 설정의 `네이버 로그인`으로 공식 로그인 화면을 열고 사용자가
+직접 로그인한 뒤 `로그인 완료 확인`이 Mail·Blog 연결 성공을 보고했다. credential field·cookie/secret 관측·두 번째
+Browser reality는 0이다. 이제 같은 실제 Console에서 Mail list/search/open/attachment를 자격한다.
 
 ### NV-4 — Mail Draft & Send
 

@@ -1,7 +1,7 @@
 {
   "schema": "t5.nx2-nv3-settings-browser-login-evidence.v1",
   "recordedAt": "2026-09-02T03:10:00+09:00",
-  "status": "PRODUCT_WIRING_QUALIFIED_OWNER_ACTUAL_PENDING",
+  "status": "PRODUCT_WIRING_AND_OWNER_LOGIN_PASS_MAIL_READ_PENDING",
   "userPurpose": "Connect Naver once from Settings and use the same managed identity for Mail and Blog without separate credentials.",
   "adoptedPath": {
     "entry": "Settings > Tools and Connections > Naver Login",
@@ -19,7 +19,7 @@
   },
   "verification": {
     "focusedAndConnectionRegression": "29/29 pass in loopback-capable qualification environment",
-    "actualOwnerLogin": "PENDING"
+    "actualOwnerLogin": "PASS — owner clicked Naver Login, completed the visible official login, then Login Complete Check reported Mail and Blog connection success"
   },
   "nonClaims": [
     "Mail folder/search/open/attachment is not yet qualified on the actual owner account.",
