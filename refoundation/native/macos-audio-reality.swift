@@ -115,7 +115,8 @@ private struct AudioRealityMain {
             exit(64)
         }
         let url = URL(fileURLWithPath: arguments[2]).standardizedFileURL
-        if let native = nativeAudioFileFacts(url) {
+        let native = nativeAudioFileFacts(url)
+        if let native, !["mp4f", "MooV"].contains(native.container.identifier ?? "") {
             let receipt = AudioRealityReceipt(
                 schema: "t5.audio-reality.v1", container: native.container,
                 durationMs: native.durationMs, tracks: [native.track],
@@ -146,7 +147,7 @@ private struct AudioRealityMain {
             }
             let receipt = AudioRealityReceipt(
                 schema: "t5.audio-reality.v1",
-                container: ContainerReceipt(identifier: nil, evidence: "unavailable"),
+                container: native?.container ?? ContainerReceipt(identifier: nil, evidence: "unavailable"),
                 durationMs: seconds * 1000, tracks: receipts,
                 audioTrackCount: receipts.filter { $0.kind == "audio" }.count,
                 videoTrackCount: receipts.filter { $0.kind == "video" }.count,

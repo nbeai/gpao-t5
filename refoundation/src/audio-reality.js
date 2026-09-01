@@ -92,6 +92,7 @@ export function makeAudioRealityProbe({
 export function makeAudioDecode({
   observe, platform = process.platform,
   converter = platform === 'darwin' ? '/usr/bin/afconvert' : null,
+  videoConverter = platform === 'darwin' ? '/usr/bin/avconvert' : null,
   runCommand = execFileAsync,
 } = {}) {
   if (typeof observe !== 'function') throw new TypeError('audio reality observer is required');
@@ -112,6 +113,9 @@ export function makeAudioDecode({
     const selected = trackIndex == null ? audioTracks[0]
       : audioTracks.find((track) => track.index === trackIndex);
     if (!selected) return { state: 'unavailable', reason: 'audio_track_not_found', input };
+    if (platform === 'darwin' && input.videoTrackCount > 0
+      && (audioTracks.length !== 1 || !videoConverter)) return {
+      state: 'unavailable', reason: 'audio_video_multitrack_decode_not_qualified', input };
     let root; let directory = null;
     try {
       root = await realpath(scratchRoot); const rootStat = await lstat(root);
@@ -120,9 +124,17 @@ export function makeAudioDecode({
       }
       directory = await mkdtemp(join(root, 't5-audio-decode-'));
       const output = join(directory, 'decoded.wav');
+      let conversionInput = filePath;
+      if (platform === 'darwin' && input.videoTrackCount > 0) {
+        conversionInput = join(directory, 'audio.m4a');
+        await runCommand(videoConverter, ['--source', filePath, '--preset', 'PresetAppleM4A',
+          '--output', conversionInput, '--replace'], { timeout: timeoutMs, maxBuffer: MAX_RECEIPT_BYTES,
+          env: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8' } });
+      }
       const argumentsList = platform === 'win32'
         ? ['--decode', filePath, output, String(selected.index)]
-        : [filePath, '-o', output, '--read-track', String(selected.index),
+        : [conversionInput, '-o', output, ...(input.videoTrackCount > 0 ? []
+          : ['--read-track', String(selected.index)]),
           '-f', 'WAVE', '-d', 'LEI16@16000', '-c', '1', '--no-filler'];
       await runCommand(converter, argumentsList, {
         timeout: timeoutMs, maxBuffer: MAX_RECEIPT_BYTES,

@@ -156,3 +156,25 @@ test('Windows decode adapter는 Media Foundation helper에 exact source·output�
     await rm(result.cleanup.directory, { recursive: true, force: true });
   } finally { await rm(room, { recursive: true, force: true }); }
 });
+
+test('macOS audio+video는 avconvert로 audio-only를 만든 뒤 afconvert하고 다중 audio는 차단한다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-audio-video-decode-')); const source = join(room, 'video.mp4');
+  await writeFile(source, 'video'); const calls = [];
+  const base = { state: 'observed', engine: 'macos-avfoundation-audiotoolbox',
+    source: { sha256: 'a'.repeat(64), bytes: 5 }, container: { identifier: 'mp4f', evidence: 'audio_file_property' },
+    durationMs: 1000, tracks: [{ index: 0, trackId: 1, kind: 'video', codec: 'avc1' },
+      { index: 1, trackId: 2, kind: 'audio', codec: 'aac ', sampleRate: 48000, channels: 2 }],
+    audioTrackCount: 1, videoTrackCount: 1, coverage: 'complete' };
+  try { const observe = async ({ filePath }) => filePath === source ? base : { ...base,
+    source: { sha256: 'b'.repeat(64), bytes: 32044 }, container: { identifier: 'WAVE', evidence: 'audio_file_property' },
+    durationMs: 1000, tracks: [{ index: 0, trackId: 1, kind: 'audio', codec: 'lpcm', sampleRate: 16000, channels: 1 }],
+    audioTrackCount: 1, videoTrackCount: 0 };
+    const decode = makeAudioDecode({ observe, platform: 'darwin', runCommand: async (command, args) => {
+      calls.push({ command, args }); const output = args.includes('--output') ? args[args.indexOf('--output') + 1]
+        : args[args.indexOf('-o') + 1]; await writeFile(output, Buffer.alloc(32044)); return { stdout: '', stderr: '' }; } });
+    const result = await decode({ filePath: source, scratchRoot: room, trackIndex: 1 });
+    assert.equal(result.state, 'decoded'); assert.equal(calls[0].command, '/usr/bin/avconvert');
+    assert.equal(calls[1].command, '/usr/bin/afconvert'); assert.equal(calls[1].args.includes('--read-track'), false);
+    await rm(result.cleanup.directory, { recursive: true, force: true });
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
