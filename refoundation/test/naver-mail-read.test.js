@@ -85,8 +85,24 @@ test('revoked credential과 stale mailbox identity는 fail closed하며 secret�
     async verify() { throw new Error('bad APP-SECRET'); },
   } });
   await assert.rejects(connection.connectCredentials({ accountId: 'owner', appPassword: 'APP-SECRET' }),
-    (error) => error.reason === 'credential_verification_failed' && !String(error).includes('APP-SECRET'));
+    (error) => error.reason === 'naver_mail_probe_failed' && error.retrySafe === false
+      && !String(error).includes('APP-SECRET'));
   assert.equal(secretStore.values.size, 0);
+});
+
+test('Naver IMAP 인증 거부와 network 실패를 secret 없이 서로 다른 사용자 행동으로 설명한다', async () => {
+  for (const [failure, reason, phrase] of [
+    [Object.assign(new Error('bad APP-SECRET'), { authenticationFailed: true,
+      serverResponseCode: 'AUTHENTICATIONFAILED' }), 'naver_mail_authentication_rejected', /애플리케이션 비밀번호/u],
+    [Object.assign(new Error('socket'), { code: 'ETIMEDOUT' }), 'naver_mail_transport_failed', /인터넷 연결/u],
+  ]) {
+    const secretStore = secrets(); const connection = makeNaverMailConnection({ secretStore, protocol: {
+      async verify() { throw failure; },
+    } });
+    await assert.rejects(connection.connectCredentials({ accountId: 'owner', appPassword: 'APP-SECRET' }),
+      (error) => error.reason === reason && phrase.test(error.message) && !String(error).includes('APP-SECRET'));
+    assert.equal(secretStore.values.size, 0);
+  }
 });
 
 test('긴 메일 본문은 complete로 꾸미지 않고 같은 message identity의 bounded cursor로 이어 읽는다', async () => {

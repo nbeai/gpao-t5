@@ -15,6 +15,23 @@ function account(value) {
   return text.endsWith('@naver.com') ? text : `${text}@naver.com`;
 }
 function digest(value) { return createHash('sha256').update(value).digest('hex'); }
+function connectionFailure(error) {
+  if (error?.authenticationFailed === true || ['AUTHENTICATIONFAILED', 'AUTHORIZATIONFAILED']
+    .includes(String(error?.serverResponseCode ?? '').toUpperCase())) {
+    return Object.assign(new Error('네이버가 메일 인증을 거부했어요. 네이버 메일에서 IMAP/SMTP를 사용함으로 켜고, 일반 로그인 비밀번호가 아닌 2단계 인증용 애플리케이션 비밀번호를 입력해 주세요.'), {
+      reason: 'naver_mail_authentication_rejected', retrySafe: true,
+    });
+  }
+  if (['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'ETIMEDOUT', 'ECONNRESET']
+    .includes(String(error?.code ?? '').toUpperCase())) {
+    return Object.assign(new Error('네이버 메일 서버에 연결하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.'), {
+      reason: 'naver_mail_transport_failed', retrySafe: true,
+    });
+  }
+  return Object.assign(new Error('네이버 메일 서버의 현재 상태를 확인하지 못했어요. 비밀번호를 반복 입력하지 말고 잠시 뒤 다시 시도해 주세요.'), {
+    reason: 'naver_mail_probe_failed', retrySafe: false,
+  });
+}
 function encode(value) { return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url'); }
 function decode(value, kind) {
   try {
@@ -133,7 +150,7 @@ export function makeNaverMailConnection({ secretStore, protocol = null, observeP
       const credentials = { accountId: account(input?.accountId), appPassword: required(input?.appPassword, 'Naver app password', 512) };
       let observed;
       try { observed = await (await adapter()).verify(structuredClone(credentials)); }
-      catch { observeProtocol('needs_reauth'); throw Object.assign(new Error('네이버 메일 연결 정보를 확인하지 못했어요.'), { reason: 'credential_verification_failed' }); }
+      catch (error) { observeProtocol('needs_reauth'); throw connectionFailure(error); }
       const identity = { ownerApplication: 'GPAO-T5', transport: 'official_imap_smtp',
         accountId: account(observed?.accountId ?? credentials.accountId), accountLabel: credentials.accountId,
         permissions: ['mail_read'], resources: [], observed: true };

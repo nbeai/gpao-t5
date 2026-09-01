@@ -61,7 +61,7 @@ export function makeNaverIdentityBroker({ profileHandle = 'default', mailConnect
           : browserReady ? '같은 T5 네이버 로그인으로 메일 웹과 블로그를 사용할 준비가 되어 있어요. 메일 공식 연결은 아직 필요해요.'
             : snapshot.state === 'expired' ? '네이버 로그인이 만료되어 다시 로그인이 필요해요.'
               : snapshot.state === 'user_control' ? 'T5 브라우저에서 네이버 로그인을 진행하고 있어요.'
-                : 'T5 브라우저 로그인과 네이버 메일 공식 연결 상태를 확인해 주세요.';
+                : '메일은 네이버에서 IMAP/SMTP를 켠 뒤 일반 비밀번호가 아닌 애플리케이션 비밀번호로 연결해요. 블로그 로그인은 T5 브라우저에서 별도로 확인해요.';
       return { state: ready ? 'ready' : snapshot.state === 'user_control' ? 'needs_attention' : 'needs_connection',
         reason: ready ? 'same_managed_naver_identity_ready'
           : snapshot.state === 'expired' ? 'naver_login_expired'

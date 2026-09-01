@@ -56,3 +56,13 @@ test('mail protocol만 ready일 때 Browser·Blog까지 준비됐다고 확대�
   assert.equal(result.routes.find((route) => route.kind === 'browser').state, 'needs_connection');
   assert.doesNotMatch(result.userSafeSummary, /메일·블로그를 사용할 준비/u);
 });
+
+test('미연결 Naver는 일반 비밀번호가 아닌 app password와 Browser 경계를 분명히 안내한다', async () => {
+  const broker = makeNaverIdentityBroker({ profileHandle: null, mailConnection: {
+    async inspect() { return { state: 'needs_connection', routes: [], actions: [],
+      credentialRequest: { fields: [] } }; },
+  } });
+  const result = await broker.inspect();
+  assert.match(result.userSafeSummary, /일반 비밀번호가 아닌 애플리케이션 비밀번호/u);
+  assert.match(result.userSafeSummary, /블로그 로그인은 T5 브라우저/u);
+});
