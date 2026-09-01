@@ -2274,6 +2274,16 @@ export function makeConsoleServer({
         ...(options.trigger !== 'automation' ? ['automation'] : []),
         ...(options.trigger === 'automation' ? ['automation_outcome'] : []),
       ];
+      // Audio/video is a physical property of the exact attachment, not an intent
+      // classification.  When the managed Auditory Hand is actually available, expose
+      // it on the first model turn so the model does not have to rediscover the local
+      // transcription capability through Terminal or Tool Search.  Other requests keep
+      // the existing deferred surface and pay no additional schema cost.
+      const currentAttachmentNeedsAuditorySurface = Boolean(
+        auditoryTranscriptionSpine && auditoryScratchRoot
+        && currentAttachments.some((record) => ['audio', 'video'].includes(record.kind)),
+      );
+      if (currentAttachmentNeedsAuditorySurface) currentCoreToolNames.push('auditory');
       const activeManagedProcesses = processes.active(sessionId);
       const coreToolNames = capabilitySurfaceMode === 'directory-first-v1'
         && options.trigger !== 'automation'
@@ -2287,6 +2297,7 @@ export function makeConsoleServer({
             ? [purposeHistory ? 'purpose_history' : 'session_search'] : []),
           ...(projectUndoHandles.length ? ['workspace_patch'] : []),
           ...(activeManagedProcesses.length ? ['terminal_session'] : []),
+          ...(currentAttachmentNeedsAuditorySurface ? ['auditory'] : []),
         ]
         : currentCoreToolNames;
       const deferredTools = deferTools(offeredTools, {

@@ -58,7 +58,11 @@ export function makeAuditoryTool({ spine, attachmentStore, sessionId, runId, scr
         if (!['audio', 'video'].includes(record.kind)) throw new Error('attachment is not audio or video');
         const result = await spine.start({ ownerId: sessionId, filePath: record.storedPath,
           expectedSha256: record.sha256, scratchRoot,
-          language: args.language ?? 'auto', waitMs: 1000, signal: context.signal,
+          // The managed process already emits grounded progress and participates in the
+          // existing cancellation/recovery boundary.  Keep the Tool call open until the
+          // terminal result instead of spending one model round every few seconds asking
+          // whether Whisper has finished.  Stop still terminates the owned process tree.
+          language: args.language ?? 'auto', waitMs: null, signal: context.signal,
           requestMetadata: { form: args.form, outputName: args.outputName },
           onProgress: (event) => context.onActivity?.({ phase: event.phase ?? 'auditory',
             receivedBytes: event.receivedBytes ?? null, expectedBytes: event.expectedBytes ?? null }) });

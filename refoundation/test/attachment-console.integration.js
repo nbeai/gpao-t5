@@ -112,6 +112,46 @@ test('콘솔 첨부는 raw upload→managed identity→현재 Run inspect→Conv
   } finally { await app.close(); }
 });
 
+test('exact audio/video 첨부에서는 Auditory Hand가 첫 모델 응답에만 자연스럽게 열린다', async () => {
+  const seen = [];
+  const auditoryTranscriptionSpine = {
+    start: async () => ({ state: 'running', operationId: 'unused' }),
+    poll: async () => ({ state: 'running', operationId: 'unused' }),
+    stop: async () => ({ state: 'cancelled', operationId: 'unused' }),
+  };
+  const app = await fixtureServer(() => ({ async respond(input) {
+    seen.push(input.tools.map((tool) => tool.name));
+    return { text: '현재 첨부 종류를 확인했습니다.', toolCalls: [] };
+  } }), {
+    capabilitySurfaceMode: 'directory-first-v1', auditoryTranscriptionSpine,
+    auditoryScratchRoot: join(tmpdir(), 't5-auditory-surface-unused'),
+  });
+  try {
+    const session = await newSession(app.base);
+    const wav = Buffer.alloc(64); wav.write('RIFF', 0); wav.write('WAVE', 8);
+    const audio = await upload(app.base, session.id, 'meeting.wav', 'audio/wav', wav);
+    assert.equal(audio.status, 201);
+    const audioTurn = await fetch(`${app.base}/turn`, { method: 'POST',
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+        sessionId: session.id, text: '이 음성을 확인해줘.',
+        attachmentIds: [audio.body.attachmentId],
+      }) });
+    assert.equal(audioTurn.status, 200);
+    assert.equal(seen[0].includes('auditory'), true);
+
+    const second = await newSession(app.base);
+    const textFile = await upload(app.base, second.id, 'notes.txt', 'text/plain', Buffer.from('hello'));
+    assert.equal(textFile.status, 201);
+    const textTurn = await fetch(`${app.base}/turn`, { method: 'POST',
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+        sessionId: second.id, text: '이 문서를 확인해줘.',
+        attachmentIds: [textFile.body.attachmentId],
+      }) });
+    assert.equal(textTurn.status, 200);
+    assert.equal(seen[1].includes('auditory'), false);
+  } finally { await app.close(); }
+});
+
 test('현재 이미지 첨부만 모델 input_image로 전달되고 과거 transcript에는 base64가 남지 않는다', async () => {
   const app = await fixtureServer(() => ({ async respond(input) {
     const current = input.messages.at(-1);

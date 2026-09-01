@@ -18,7 +18,8 @@ test('자연어 audio Hand는 exact attachment를 verified requested Artifact로
   const store = new AttachmentStore(join(room, 'attachments')); const wav = Buffer.alloc(64); wav.write('RIFF'); wav.write('WAVE', 8);
   const input = await store.receive({ sessionId: SESSION, originalName: '회의.wav', bytes: wav }); let cleaned = 0;
   try { const tool = makeAuditoryTool({ attachmentStore: store, sessionId: SESSION, runId: RUN, scratchRoot: scratch,
-    spine: { start: async ({ expectedSha256, requestMetadata }) => { assert.equal(expectedSha256, input.sha256);
+    spine: { start: async ({ expectedSha256, requestMetadata, waitMs }) => { assert.equal(expectedSha256, input.sha256);
+      assert.equal(waitMs, null);
       assert.deepEqual(requestMetadata, { form: 'srt', outputName: '회의.srt' }); return verified; },
     cleanup: async () => { cleaned += 1; return true; } } });
     const result = await tool.execute({ action: 'start', attachmentId: input.attachmentId, operationId: null,
