@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_CURRENT`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AU5_CURRENT`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-4 AU-4 — Transcript Coverage & Truth`
+현재 제품 Gate: `NX2-4 AU-5 — Transcript Artifact & Work Result`
 
 ---
 
@@ -765,6 +765,12 @@ process crash나 Runtime 사고 뒤 자동 재전사는 아직 하지 않으며 
 - chunk별 source time range·coverage
 - 누락·겹침·decode 실패·low confidence
 - 모델이 듣지 않은 구간을 추론해 채우지 않음
+
+종료 상태: `COMPLETE`. decoded PCM을 streaming 관측해 duration·digital silence를 계산하고 segment timestamp의
+source 범위·monotonicity·overlap을 검증한다. actual 한국어 음성은 `verified_transcript`로 승격됐고 5초 무음의
+거짓 문장·29.98초 timestamp는 `coverage_rejected`로 차단됐다. Runtime text 후처리·문장 삭제는 0이다.
+
+근거: `refoundation/evidence/nx2-au4-transcript-coverage-2026-09-01.json`.
 
 #### AU-5 — Transcript Artifact & Work Result
 

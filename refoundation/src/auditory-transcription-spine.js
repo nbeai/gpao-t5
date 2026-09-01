@@ -15,6 +15,7 @@ function validTranscript(value) { return value && typeof value === 'object' && !
 
 export function makeAuditoryTranscriptionSpine({
   capabilityService, decodeAudio, processRegistry, helper, makeId = randomUUID,
+  verifyCoverage = null,
 } = {}) {
   if (!capabilityService?.prepare || typeof decodeAudio !== 'function' || !processRegistry?.start || !helper) {
     throw new TypeError('auditory transcription spine inputs are required');
@@ -35,10 +36,17 @@ export function makeAuditoryTranscriptionSpine({
       }
       const output = JSON.parse(await readFile(path, 'utf8'));
       if (!validTranscript(output)) throw new Error('transcript output is malformed');
+      const coverage = typeof verifyCoverage === 'function' ? await verifyCoverage({
+        pcmPath: operation.pcmPath, sourceDurationMs: operation.source.durationMs,
+        decodedDurationMs: operation.decoded.durationMs, transcript: output,
+      }) : null;
+      if (coverage && coverage.verified !== true) return { state: 'coverage_rejected',
+        operationId: operation.operationId, process: publicProcess(snapshot), coverage, publishable: false };
       operation.terminal = true;
-      return { state: 'transcribed_unverified', operationId: operation.operationId,
+      return { state: coverage ? 'verified_transcript' : 'transcribed_unverified', operationId: operation.operationId,
         process: publicProcess(snapshot), source: operation.source, model: operation.model,
-        decoded: operation.decoded, transcriptPath: path, transcript: output, publishable: false };
+        decoded: operation.decoded, transcriptPath: path, transcript: output,
+        ...(coverage ? { coverage } : {}), publishable: Boolean(coverage) };
     } catch {
       return { state: 'verification_failed', operationId: operation.operationId,
         process: publicProcess(snapshot), publishable: false };
@@ -62,7 +70,7 @@ export function makeAuditoryTranscriptionSpine({
           sha256: ready.model.sha256 },
         decoded: { sha256: decoded.pcm.sha256, durationMs: decoded.pcm.durationMs,
           sampleRate: decoded.pcm.sampleRate, channels: decoded.pcm.channels },
-        cleanupDirectory: decoded.cleanup.directory, terminal: false };
+        pcmPath: decoded.pcm.path, cleanupDirectory: decoded.cleanup.directory, terminal: false };
       const snapshot = await processRegistry.start({ program: helper,
         args: ['-m', ready.model.path, '-f', decoded.pcm.path, '-l', language,
           '-ojf', '-otxt', '-osrt', '-of', outputPrefix, '--print-progress'],

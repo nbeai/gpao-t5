@@ -1,0 +1,31 @@
+{
+  "schema": "t5.nx2.au4-transcript-coverage.v1",
+  "recordedOn": "2026-09-01",
+  "baseCommit": "f0bd7e68",
+  "status": "AU4_COMPLETE_AU5_OPEN",
+  "actualSpeech": {
+    "sourceDurationMs": 6243.625,
+    "decodedDurationMs": 6243.625,
+    "state": "verified_transcript",
+    "publishable": true,
+    "segments": 1,
+    "defects": { "durationMismatch": false, "invalidTimestampCount": 0, "overlapCount": 0, "silenceHallucination": false, "missingSpeechTranscript": false }
+  },
+  "actualSilence": {
+    "sourceDurationMs": 5000,
+    "state": "coverage_rejected",
+    "publishable": false,
+    "digitalSilence": true,
+    "invalidTimestampCount": 1,
+    "silenceHallucination": true
+  },
+  "runtime": {
+    "pcmStreamingObservation": true,
+    "processedInterval": "exact full decoded duration",
+    "textPostprocessing": 0,
+    "runtimeSentenceDeletion": 0,
+    "exitZeroIsSuccess": false
+  },
+  "verification": { "focusedPassed": 5, "focusedFailed": 0 },
+  "next": { "gate": "AU-5 Transcript Artifact & Work Result" }
+}
