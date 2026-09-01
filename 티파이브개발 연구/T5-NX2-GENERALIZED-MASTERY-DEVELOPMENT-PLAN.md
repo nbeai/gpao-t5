@@ -1,10 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `PLAN_COMPLETE · NX_1_CLOSEOUT_REQUIRED · PRODUCT_IMPLEMENTATION_NOT_OPEN`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CURRENT · CURRENT_SLICE_NX2_1C`
 
-기준 HEAD: `770df5aa` + 연구 정본 `99e4f4d2`·`57174d2e`
+제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
-현재 제품 Gate: `NX-1 — First Flagship Mastery`
+NX-1 완료 HEAD: `ad3e685c`
+
+현재 제품 Gate: `NX2-1C — Selected Reality to Common Integral Closure`
 
 ---
 
@@ -13,13 +15,13 @@
 이 문서는 연구실에 남아 있는 비GUI 연구를 NX-2의 단일 실행선으로 통합한 개발 정본이다.
 
 - `T5-NX.md`가 제품 세대와 현재 Gate의 최상위 정본이다.
-- 이 문서는 NX-1이 종료되기 전에는 제품 구현을 열지 않는다.
-- NX-2가 CURRENT가 되면 이 문서의 Gate를 한 번에 하나만 연다.
+- NX-1은 완료됐으며 NX-2가 CURRENT다.
+- 이 문서의 Gate를 한 번에 하나만 연다.
 - 각 전문 연구 문서는 상세 기술·외부 근거·반대시험의 source library다.
 - 전문 연구와 이 문서가 충돌하면 이 문서의 순서·범위가 우선하고, `T5-NX.md`와 충돌하면 `T5-NX.md`가 우선한다.
 - 한 Gate의 완료는 코드·검사 수가 아니라 실제 사용자 목적의 속도·정확성·결과 품질·인간 체감으로 판정한다.
 
-NX-1이 아직 통과하지 않았거나 제품 후보가 폐기되면 NX-2는 시작하지 않는다. NX-1의 실패를 NX-2 기능으로 덮지 않는다.
+NX-1 완료 능력은 NX-2의 귀환선이다. NX-2 후보가 실패해도 NX-1 제품 경계를 바꾸거나 약화해 성공으로 꾸미지 않는다.
 
 ---
 
@@ -180,9 +182,9 @@ NX-2는 새 거대 Engine을 만들지 않는다. 현재 T5 기관의 결속을 
 ## 5. Gate 지도
 
 ```text
-NX2-0  NX-1 귀환선·연구 inventory 봉인
+NX2-0  NX-1 귀환선·연구 inventory 봉인 — COMPLETE
   ↓
-NX2-1  Integral Mastery 업무·lane 일반화
+NX2-1  Integral Mastery 업무·lane 일반화 — CURRENT
   ↓
 NX2-2  Context Diet & Interface Intelligence
   ↓
@@ -202,9 +204,40 @@ NX2-HQ Competitive Whole Human Qualification
 각 Gate는 이전 Gate가 닫힌 exact HEAD에서만 시작한다. 독립 연구라는 이유로 병렬 제품 개발하지 않는다. read-only
 조사와 fixture 준비만 병렬화할 수 있다.
 
+### 5.1 현재 `T5-NX.md` 세부 Gate와의 결속
+
+현재 최상위 정본의 NX-2A~D는 이 문서의 `NX2-1 Integral Mastery Generalization` 내부 단계다. 별도 개발선이 아니다.
+
+| 현재 `T5-NX.md` 단계 | 이 문서의 위치 | 상태 |
+|---|---|---|
+| NX-2A Evidence Reuse & Exact-Head Baseline | NX2-0 종료 증거·NX2-1 baseline | COMPLETE |
+| NX-2B metadata-only Reality Scout 두 후보 | NX2-1 source selection 부정 증거 | CLOSED_REJECTED |
+| NX-2B2 model-selected bounded batch | NX2-1 Reality selection mechanics | MECHANICS_QUALIFIED |
+| NX-2C Selected Reality to Common Integral Closure | NX2-1 Reality/Human Closure | CURRENT |
+| NX-2D Five-Lane Proportionality | NX2-1 일반화·무회귀 자격 | PENDING |
+
+현재 고정 순서:
+
+```text
+NX2-1C selected Reality → Evidence Atom → ClaimEvidence → Human Closure
+→ 매출·미수금·재고·계약 공통 자격
+→ NX2-1D Direct·Single·Multi-source·Artifact·Program five-lane
+→ NX2-1 closeout
+→ NX2-2 Context Diet & Interface Intelligence
+→ NX2-3 Cognitive Flow & Practical Judgment
+→ NX2-4 Auditory Intelligence
+→ NX2-5 Web Intelligence Collector
+→ NX2-6 Naver Identity·Mail·Blog
+→ NX2-7 Experience Promotion
+→ NX2-HQ Competitive Whole Human Qualification
+```
+
+NX2-1C가 실패하면 같은 문구·업무별 규칙을 더하지 않고 NX-1 귀환선을 유지한다. 실패한 NX2-1을 건너뛰어 NX2-2
+이후 기능으로 목적 실패를 덮지 않는다. 반대로 NX2-1이 닫힌 뒤에는 현재 계획에 없는 새 Gate를 임의로 끼워 넣지 않는다.
+
 ---
 
-## 6. NX2-0 — NX-1 Closeout & Generalization Inventory
+## 6. NX2-0 — NX-1 Closeout & Generalization Inventory — COMPLETE
 
 ### 사용자 완료 문장
 
@@ -234,9 +267,17 @@ NX2-HQ Competitive Whole Human Qualification
 - 제품·연구·자격 코드 경계 명시
 - NX-2 product delta 0
 
+### 실제 종료
+
+- NX-1은 `ad3e685c`에서 제품·Console·CI까지 완료됐다.
+- NX-2A는 같은 fixture를 current head에서 다시 실행해 과거 증거의 무비판적 이전을 막았다.
+- NX-2B의 metadata-only 후보 두 개는 목적·경제성 실패로 제품 delta 0 폐기됐다.
+- NX-2B2는 model-selected exact handles만 Runtime이 batch reopen하는 mechanics를 자격했다.
+- 현재 제품 변경 후보는 NX2-1C 안에서만 열 수 있다.
+
 ---
 
-## 7. NX2-1 — Integral Mastery Generalization
+## 7. NX2-1 — Integral Mastery Generalization — CURRENT
 
 ### 사용자 완료 문장
 

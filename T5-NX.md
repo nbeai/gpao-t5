@@ -987,7 +987,7 @@ AND current correction·Stop·restart·Artifact·Undo 무회귀
 
 상세 개발 정본: `티파이브개발 연구/T5-NX2-GENERALIZED-MASTERY-DEVELOPMENT-PLAN.md`
 
-상태: `PLANNED_NOT_OPEN · NX_1_CLOSEOUT_REQUIRED`
+상태: `CURRENT · NX_1_COMPLETE · CURRENT_SLICE_NX2_1C`
 
 NX-2는 아래 네 업무만 늘리는 단계가 아니다. GUI와 NX-1에 이미 흡수된 Reality·Method·Evidence 구조를 다시 만들지
 않고, 남은 연구를 다음 한 실행선으로 일반화한다.
@@ -1003,7 +1003,9 @@ NX-2는 아래 네 업무만 늘리는 단계가 아니다. GUI와 NX-1에 이�
 → Competitive Whole Human HQ
 ```
 
-이 순서는 NX-1이 종료된 뒤에만 열리며, 전문 연구 문서의 존재만으로 여러 제품 Gate를 동시에 시작하지 않는다.
+NX-1은 `ad3e685c`에서 종료됐고 NX-2가 현재 개통됐다. 전문 연구 문서의 존재만으로 여러 제품 Gate를 동시에
+시작하지 않으며, 현재 `NX2-1 Integral Mastery Generalization`을 닫은 뒤에만 Context·Cognitive·Auditory·Web·Naver·
+Experience·HQ 순서로 이동한다.
 
 NX-1이 이긴 경우에만 공통 Method를 다음으로 확장한다.
 
