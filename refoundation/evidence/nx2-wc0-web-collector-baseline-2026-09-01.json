@@ -1,0 +1,92 @@
+{
+  "schema": "t5.nx2.wc0-web-collector-baseline.v1",
+  "recordedOn": "2026-09-01",
+  "baseCommit": "825cc467c7983c92a0528c4d30a06233678267d3",
+  "status": "WC0_COMPLETE_WC1_OPEN",
+  "currentHands": {
+    "publicCandidates": "web_search",
+    "exactUrlRead": "web_read",
+    "boundedMultiSource": "web_research",
+    "renderedInteraction": "browser",
+    "visualReferences": "visual_reference",
+    "publicVideoCaptions": "video_text",
+    "authenticatedServices": "connection",
+    "methodDiscovery": "skill",
+    "repeatScheduleAndDelivery": "automation",
+    "verifiedPublication": "Artifact/F"
+  },
+  "actualConsoleBaseline": {
+    "purpose": "collect title price and stock from the first three pages of a public practice site and publish XLSX",
+    "fixture": "books.toscrape.com public practice site",
+    "runId": "4e69a95b-fba8-4ace-9997-1577b0012580",
+    "result": "PASS_WITH_UNOWNED_NETWORK_EXECUTION",
+    "rows": 60,
+    "pageCounts": [20, 20, 20],
+    "missingCells": 0,
+    "duplicateRecords": 0,
+    "artifact": {
+      "name": "books_toscrape_first_3_pages.xlsx",
+      "bytes": 6492,
+      "sha256": "685fc090e052b545ca6815dad472e42a26c46854c2d6df99a249fa911d173f9b",
+      "reopened": true
+    },
+    "wallMs": 133134,
+    "modelCalls": 10,
+    "inputTokens": 363326,
+    "outputTokens": 5622,
+    "toolCalls": 11,
+    "webReadCalls": 3,
+    "terminalCalls": 4,
+    "attachmentCalls": 3,
+    "duplicateNetworkCollection": true,
+    "unownedNetworkReceipt": true,
+    "intermediateOutputs": 3
+  },
+  "firstFailure": {
+    "family": "collection_execution_ownership",
+    "facts": [
+      "the model had already observed all three pages through web_read",
+      "a later Python program fetched the same public pages again inside a local_change Terminal execution",
+      "the second network execution had no exact Web host request coverage receipt",
+      "the first handwritten XLSX was replaced after a failed inspection",
+      "correct user output did not make the execution path economical or fully attributable"
+    ]
+  },
+  "upstreamCandidate": {
+    "repository": "https://github.com/byungjunjang/web-crawler.git",
+    "commit": "c64cfbf98c3d72054e2960affd663726f4e9d7f6",
+    "license": "MIT",
+    "fileCount": 166,
+    "checkoutBytesApprox": 1200000,
+    "reusablePrinciples": [
+      "official API and feed before HTML",
+      "structure and pagination reconnaissance",
+      "bounded request and failure stop conditions",
+      "soft-block coverage missing duplicate and field validation",
+      "reusable domain method only after successful verified collection"
+    ],
+    "notAdopted": [
+      "separate Python virtual environment and dependency platform",
+      "separate Chromium Playwright Scrapling Patchright and agent-browser runtime",
+      "raw browser profile or cookie handoff",
+      "anti-bot impersonation or stealth ladder",
+      "repository-owned output profile and credential files",
+      "mandatory crawler-specific user approval loop"
+    ],
+    "productImport": 0
+  },
+  "nextCandidate": {
+    "gate": "WC-1 Collection Specification",
+    "productDeltaBeforeQualification": 0,
+    "direction": "model-authored bounded collection spec executed through one runtime-owned public Web boundary",
+    "reuse": ["web_read public target policy", "linkedom", "Artifact/F", "Document CLI", "Automation"],
+    "forbidden": ["new crawler Agent", "second Browser reality", "site-specific Core parser", "runtime pip or npm install", "intent router"]
+  },
+  "platform": {
+    "portableNodeContractRequired": true,
+    "macOSPhysicalBaseline": true,
+    "windowsMeaningIncluded": true,
+    "windowsPhysical": "DEFERRED_BY_OWNER"
+  },
+  "productSourceChanges": 0
+}

@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED · NX2_5_WC0_COMPLETE · NX2_5_WC1_CURRENT`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-4 AUDITORY INTELLIGENCE — COMPLETE · NEXT GATE NOT OPEN`
+현재 제품 Gate: `NX2-5 WC-1 — Collection Specification`
 
 ---
 
@@ -864,6 +864,18 @@ Identity와 scoped broker가 서기 전에는 열지 않는다.
 - 기존 `web-crawler` source·license·dependency·payload 경계
 - Core test·environment preflight·public site fixture
 - 현재 T5 Skill search/view와 자연 활성
+
+종료 상태: `COMPLETE`. 현재 T5는 이미 Search·exact URL read·bounded multi-source research·managed Browser·visual/video
+Hand·G/F·Artifact·Automation을 가진다. 실제 Console에서 공개 연습 사이트 3페이지 60건을 정확한 XLSX로 만들었지만,
+모델 10회·Tool 11회·약 36만 input token을 사용했고 이미 Web Hand로 읽은 세 페이지를 Python이 다시 네트워크에서
+수집했다. 사용자 결과는 정확했으나 두 번째 네트워크는 Web host·request·coverage Receipt 밖이었다.
+
+pinned upstream `web-crawler@c64cfbf`는 MIT source와 structure·pagination·soft-block·coverage 검증 원리는 유용하지만,
+별도 Python venv·Scrapling·Patchright·Playwright Chromium·agent-browser·cookie/profile 상태와 anti-bot ladder를 요구한다.
+따라서 전체 repository나 기본 Skill을 제품에 넣지 않고 교재로만 보존한다. 다음 WC-1은 모델이 작성한 작은 수집 계약을
+기존 Web Reality가 실행하는 qualification-only 후보로 연다.
+
+근거: `refoundation/evidence/nx2-wc0-web-collector-baseline-2026-09-01.json`.
 
 #### WC-1 — Collection Specification
 
