@@ -2,7 +2,7 @@
 
 기록일: 2026-09-01
 조사 기준: T5 NX `9e2daf0c`
-상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · CX_0_COMPLETE · CX_1_COMPLETE · CX_2_CURRENT · PRODUCT_CHANGE_0`
+상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · CX_0_COMPLETE · CX_1_COMPLETE · CX_2_CLOSED_NO_CURRENT_DRIFT · CX_3_CURRENT · PRODUCT_CHANGE_0`
 
 사용자 완료 문장:
 
@@ -491,6 +491,12 @@ NX actual에서 drift가 재현된 Tool 한 가족만 선택한다.
 - constants→schema/validator/description/test
 - Prompt workaround 삭제
 - model call-shape·error rate A/B
+
+2026-09-01 current audit에서는 historical drift가 모두 이미 SSOT·strict countertest로 닫혀 있었고, Attachment·File Reality
+action contract도 현재 Runtime branch와 일치했다. provider-visible current drift를 발명하지 않아 pilot 없이 제품 변경 0으로
+종료했다.
+
+근거: `refoundation/evidence/nx2-cx2-tool-contract-ssot-admission-2026-09-01.json`.
 
 ### CX-3 — Instruction Ownership Migration
 

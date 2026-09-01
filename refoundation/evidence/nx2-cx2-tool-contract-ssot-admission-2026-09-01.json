@@ -1,0 +1,69 @@
+{
+  "schema": "t5.nx2.cx2-tool-contract-ssot-admission.v1",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "944dcb27",
+  "status": "CX2_CLOSED_NO_CURRENT_PROVIDER_FACING_DRIFT",
+  "productChanges": 0,
+  "reviewedFamilies": [
+    {
+      "family": "integral_method",
+      "historicalIncident": "operator, effect and deliverable enum duplication",
+      "currentState": "schema generated from NX_INTEGRAL_METHOD_LIMITS and guarded by drift countertest",
+      "eligiblePilot": false
+    },
+    {
+      "family": "effect_contract",
+      "historicalIncident": "public effect schema omitted a preflight-required fact",
+      "currentState": "shared EFFECT_SCHEMA is imported by Terminal, Browser, Automation, Remote MCP, managed CLI, Skill and Preview surfaces",
+      "eligiblePilot": false
+    },
+    {
+      "family": "reflection_meaning",
+      "historicalIncident": "provider-incompatible uniqueItems",
+      "currentState": "keyword removed and strict closed-schema countertest present",
+      "eligiblePilot": false
+    },
+    {
+      "family": "notion_dynamic_args",
+      "historicalIncident": "dynamic nested arguments incompatible with strict provider schema",
+      "currentState": "bounded argumentsJson contract and provider-compatible countertest present",
+      "eligiblePilot": false
+    },
+    {
+      "family": "attachment",
+      "currentState": "nine public action enum values match nine Runtime action branches",
+      "eligiblePilot": false
+    },
+    {
+      "family": "file_reality",
+      "currentState": "nine public action enum values match the current Runtime action branches",
+      "eligiblePilot": false
+    },
+    {
+      "family": "pty_internal_effect",
+      "currentState": "legacy internal schema copy exists but pty_start is not provider-visible; terminal_session exposes shared EFFECT_SCHEMA and normalizes before delegation",
+      "currentProviderError": false,
+      "eligiblePilot": false,
+      "classification": "INTERNAL_TECHNICAL_DEBT_NOT_CONTEXT_SSOT_PILOT"
+    }
+  ],
+  "verification": {
+    "providerToolSchemaCountertest": "provider-tool-schema.test.js",
+    "fullToolSmokeEvidence": "s3-ux-requalification-pass-2026-08-27.json",
+    "integralDriftCountertest": "nx1-integral-method-contract.test.js",
+    "reflectionStrictCountertest": "reflection-meaning-tool.test.js",
+    "notionStrictCountertest": "notion-tool.test.js"
+  },
+  "boundaries": {
+    "toolContractRewritten": false,
+    "contextBytesChanged": false,
+    "internalPtyDebtFixedWithoutUserEvidence": false,
+    "allToolsRefactored": false,
+    "pilotInvented": false
+  },
+  "next": {
+    "gate": "CX-3 Instruction Ownership Migration",
+    "firstCandidateRule": "one CX-1 MOVE or REVISE family at a time with Direct holdout and original incident countertest",
+    "productChanges": 0
+  }
+}

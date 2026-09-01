@@ -3,8 +3,8 @@
 상태: `OWNER_CURRENT_DEVELOPMENT_SOURCE · NX_0_GENERATION_TRANSITION_COMPLETE · NX_1_FIRST_FLAGSHIP_MASTERY_COMPLETE · NX_2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX_2_2_CONTEXT_DIET_CURRENT`
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
-현재 Gate: `NX2-2 CONTEXT DIET & INTERFACE INTELLIGENCE · CX-2 TOOL CONTRACT SSOT PILOT`
-현재 작업: `CX-1 family provenance audit 완료 · 실제 schema-validator-description drift 한 family 선정`
+현재 Gate: `NX2-2 CONTEXT DIET & INTERFACE INTELLIGENCE · CX-3 INSTRUCTION OWNERSHIP MIGRATION`
+현재 작업: `CX-2 current drift 없음으로 종료 · CX-1 MOVE/REVISE family 한 개의 qualification-only 이동 후보`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.
@@ -1289,6 +1289,19 @@ CX-1은 audit report로 완료됐고 다음 current slice는 실제 interface dr
 Pilot`이다.
 
 근거: `refoundation/evidence/nx2-cx1-instruction-family-provenance-audit-2026-09-01.json`.
+
+2026-09-01 CX-2 종료:
+
+- Integral Method enum drift, Effect preflight mismatch, Reflection `uniqueItems`, Notion dynamic args는 현재 이미 SSOT 또는
+  strict-compatible 계약과 countertest로 닫혀 있었다.
+- Attachment·File Reality public action enum과 Runtime branch는 일치했다.
+- PTY 내부에는 legacy effect schema copy가 있지만 provider에는 `terminal_session`의 공용 `EFFECT_SCHEMA`만 보이고 delegate
+  전에 normalize된다. 현재 사용자 call-shape 실패가 없어 Context SSOT pilot로 승격하지 않았다.
+- 실제 current drift가 없는 상태에서 Tool refactor를 발명하지 않고 제품 변경 0으로 닫았다.
+
+다음 current slice는 CX-1의 MOVE/REVISE family 하나만 qualification-only로 옮기는 `CX-3 Instruction Ownership Migration`다.
+
+근거: `refoundation/evidence/nx2-cx2-tool-contract-ssot-admission-2026-09-01.json`.
 
 ### NX-2D — Five-Lane Proportionality — PENDING
 

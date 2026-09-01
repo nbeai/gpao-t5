@@ -88,3 +88,28 @@ test('CX-1은 12개 family를 증거별로 분류하고 stale countertest 이름
   assert.match(exec, /effect_declaration_required|managed_process_required/u);
   assert.match(sandbox, /effect_declaration_required/u);
 });
+
+test('CX-2는 이미 고쳐진 drift와 비노출 내부 중복을 새 pilot로 꾸미지 않는다', async () => {
+  const [evidence, terminalSource, attachmentSource, fileRealitySource] = await Promise.all([
+    read('refoundation/evidence/nx2-cx2-tool-contract-ssot-admission-2026-09-01.json').then(JSON.parse),
+    read('refoundation/src/terminal-session-tool.js'), read('refoundation/src/attachment-hand.js'),
+    read('refoundation/src/file-reality-tool.js'),
+  ]);
+  assert.equal(evidence.reviewedFamilies.some((item) => item.eligiblePilot), false);
+  assert.equal(evidence.boundaries.toolContractRewritten, false);
+  assert.equal(evidence.boundaries.pilotInvented, false);
+  assert.equal(evidence.productChanges, 0);
+  assert.equal(evidence.next.gate, 'CX-3 Instruction Ownership Migration');
+  assert.match(terminalSource, /effect: \{ \.\.\.effectSchema, type: \['object', 'null'\] \}/u);
+  assert.match(terminalSource, /ptyStart\.execute\(argsForPty\(args, normalizeEffect\)/u);
+  const attachmentActions = attachmentSource.match(/action: \{ type: 'string', enum: \[([^\]]+)\]/u)?.[1]
+    .match(/'[^']+'/gu) ?? [];
+  const attachmentBranches = [...attachmentSource.matchAll(/args\.action === '([^']+)'/gu)]
+    .map((match) => match[1]);
+  assert.deepEqual([...new Set(attachmentBranches)].sort(), attachmentActions.map((item) => item.slice(1, -1)).sort());
+  const fileActions = fileRealitySource.match(/action: \{ type: 'string', enum: \[([^\]]+)\]/u)?.[1]
+    .match(/'[^']+'/gu) ?? [];
+  const fileBranches = [...fileRealitySource.matchAll(/action === '([^']+)'/gu)].map((match) => match[1]);
+  assert.deepEqual([...new Set(fileBranches.filter((name) => fileActions.includes(`'${name}'`)))].sort(),
+    fileActions.map((item) => item.slice(1, -1)).sort());
+});
