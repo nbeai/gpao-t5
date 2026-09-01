@@ -13,7 +13,8 @@ test('NX-2 plan records NX-1 closeout, the current Context Diet slice, and exclu
   assert.match(plan, /NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT/);
   assert.match(plan, /NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION/);
   assert.match(plan, /NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT/);
-  assert.match(plan, /NX2_SE_CURRENT/);
+  assert.match(plan, /NX2_SE_COMPLETE/);
+  assert.match(plan, /NX2_4_CURRENT/);
   assert.match(plan, /NX2-SE — Selection-Scoped Side Exploration/);
   assert.match(plan, /범용 Computer Use·좌표 클릭·데스크톱 앱 조작/);
   assert.match(plan, /독립 미래 Gate 유지/);
@@ -51,7 +52,7 @@ test('research index and NX canonical source link the active NX-2 plan and curre
   const filename = 'T5-NX2-GENERALIZED-MASTERY-DEVELOPMENT-PLAN.md';
   assert.match(index, new RegExp(filename));
   assert.match(nx, new RegExp(filename));
-  assert.match(nx, /CURRENT · NX_1_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · CURRENT_SLICE_NX2_SE_SELECTION_SCOPED_EXPLORATION/);
+  assert.match(nx, /CURRENT · NX_1_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · CURRENT_SLICE_NX2_4_AUDITORY_INTELLIGENCE/);
   assert.match(nx, /현재 개발 순서/);
   assert.match(nx, /NX-1 합격일 때만 NX-2 CURRENT로 이동/);
   assert.match(nx, /ABSORBED_AS_NX2_7 · NOT_SEPARATELY_OPEN/);

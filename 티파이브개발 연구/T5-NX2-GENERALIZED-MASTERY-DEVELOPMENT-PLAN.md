@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_CURRENT`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_CURRENT`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-SE — SE-5 Human HQ Clean Second Pass`
+현재 제품 Gate: `NX2-4 — Auditory Intelligence Baseline`
 
 ---
 
@@ -190,7 +190,7 @@ NX2-2  Context Diet & Interface Intelligence — CURRENT
   ↓
 NX2-3  Cognitive Flow·Practical Judgment 자격
   ↓
-NX2-SE Selection-Scoped Side Exploration
+NX2-SE Selection-Scoped Side Exploration — COMPLETE
   ↓
 NX2-4  Auditory Intelligence
   ↓
@@ -637,6 +637,13 @@ canonical Conversation message
 - reload·reconnect·backup/restore 후 dangling anchor 0
 - 좁은 창·keyboard·screen reader·한글·Markdown·dark theme
 - 첫 pass 수리 뒤 clean second whole-flow
+
+종료 상태: `COMPLETE`. 오너 actual Console의 selection→흰색 floating side surface→side answer,
+실제 gpt-5.5의 explicit apply→current Work R+1→achieved delivery, reload 복원·exact-once 반대시험과
+현재 head 전체 회귀를 결속했다. 자동 브라우저의 native text drag가 선택을 만들지 못한 것은 제품 실패로
+승격하거나 조건 패치하지 않았고, 오너의 실제 화면 시험을 인간 표면 정본으로 사용했다.
+
+근거: `refoundation/evidence/nx2-se5-selection-side-exploration-close-2026-09-01.json`.
 
 ### 비목표·중단선
 

@@ -1,0 +1,64 @@
+{
+  "schema": "t5.nx2.se5-selection-side-exploration-close.v1",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "7d8851f0",
+  "status": "NX2_SE_COMPLETE_NX2_4_OPEN",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "humanSurface": {
+    "runner": "owner",
+    "actualConsole": true,
+    "nativeTextSelection": true,
+    "floatingWhitePanel": true,
+    "mainConversationResized": false,
+    "sideQuestionAnswered": true,
+    "internalTermsExposed": false
+  },
+  "explicitApply": {
+    "model": "gpt-5.5",
+    "relation": "current_revision",
+    "baseRevision": 1,
+    "resultingRevision": 2,
+    "completionVerified": "achieved",
+    "inputExecuted": true,
+    "deliveryTerminal": true,
+    "duplicateExecution": 0
+  },
+  "canonicalBoundaries": {
+    "mainWorkDeltaBeforeExplicitApply": 0,
+    "mainConversationDeltaBeforeExplicitApply": 0,
+    "toolsVisibleInSide": 0,
+    "artifactsBeforeApply": 0,
+    "memoryWrites": 0,
+    "newAgent": 0,
+    "newStore": 0,
+    "newRouter": 0,
+    "mainPromptDelta": 0,
+    "sideModelRunAndResourceAccounted": true,
+    "sideContentCopiedIntoResourceLedger": false
+  },
+  "recovery": {
+    "openBranchRestoredAfterReload": true,
+    "staleAndDanglingAnchorRejected": true,
+    "applyCrashPointsRecoveredExactOnce": 4,
+    "sideStopIndependent": true
+  },
+  "verification": {
+    "selectionFocusedPassed": 16,
+    "fullCheckPassed": 2143,
+    "fullCheckFailed": 0,
+    "fullCheckSkipped": 1,
+    "skippedReason": "Windows physical qualification is not run on macOS"
+  },
+  "qualificationBoundary": {
+    "cleanSecondPass": "PASS_OWNER_ACTUAL_UI_PLUS_TARGETED_CANONICAL_EDGE",
+    "browserAutomationNativeDrag": "NOT_USED_FOR_PRODUCT_JUDGMENT",
+    "browserAutomationReason": "automation produced a collapsed selection while owner actual UI already proved native selection",
+    "productPatchForAutomationDifference": 0,
+    "windowsPhysical": "NOT_RUN"
+  },
+  "next": {
+    "gate": "NX2-4 Auditory Intelligence",
+    "selectionSideExplorationComplete": true
+  }
+}
