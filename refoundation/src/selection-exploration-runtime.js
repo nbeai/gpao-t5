@@ -38,7 +38,8 @@ export function makeSelectionExplorationRuntime({ ledger, modelFactory,
       const result = await runAgent({ request: text, model, tools: [], signal,
         history: [selectionContext(branch), ...branch.messages.map((message) => ({
           role: message.role, content: message.content,
-        }))], resourceSituationMode: 'off', activeOptimizationMode: 'off',
+        }))], maxModelTurns: 4, maxToolCalls: 1,
+        resourceSituationMode: 'off', activeOptimizationMode: 'off',
         onAnswerDelta, onAnswerReset });
       const state = result.status === 'cancelled' ? 'stopped' : 'completed';
       if (state === 'completed') await ledger.appendSelectionSideMessage({ sessionId, explorationId,
@@ -49,8 +50,11 @@ export function makeSelectionExplorationRuntime({ ledger, modelFactory,
       return { state, answer: result.answer, runId, modelCalls: result.modelTurns,
         toolCalls: result.receipts.length };
     } catch (error) {
+      const state = signal?.aborted ? 'stopped' : 'failed';
       await ledger.settleSelectionSideRun({ sessionId, explorationId, runId,
-        state: signal?.aborted ? 'stopped' : 'failed', requestId: `${requestId}:settled` });
+        state, requestId: `${requestId}:settled` });
+      if (state === 'stopped') return { state, answer: null, runId,
+        modelCalls: null, toolCalls: 0 };
       throw error;
     }
   } };

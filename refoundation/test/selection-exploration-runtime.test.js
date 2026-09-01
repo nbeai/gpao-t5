@@ -58,3 +58,50 @@ test('Tool 0 side answer는 같은 model path를 쓰고 main Conversation·Work�
     assert.equal(afterConversation.explorations[0].state, 'open');
   } finally { await rm(target.room, { recursive: true, force: true }); }
 });
+
+test('side model의 mutation Tool 요청은 actual call 0이고 main Work를 바꾸지 않는다', async () => {
+  const target = await fixture(); let turn = 0;
+  try {
+    const beforeWork = await target.workStore.read(); let id = 0;
+    const runtime = makeSelectionExplorationRuntime({ ledger: target.ledger,
+      makeId: () => `side-tool-${++id}`, modelFactory: () => ({ async respond(input) {
+        turn += 1; assert.deepEqual(input.tools, []);
+        if (turn === 1) return { text: '', toolCalls: [{ id: 'forbidden', name: 'exec',
+          args: { command: 'touch forbidden' } }] };
+        const receipt = JSON.parse(input.messages.findLast((item) => item.role === 'tool').content);
+        assert.equal(receipt.outcome, 'unavailable');
+        assert.equal(receipt.actualCall, null);
+        return { text: '이 탐색에서는 컴퓨터를 바꾸지 않았습니다.', toolCalls: [] };
+      } }) });
+    const result = await runtime.answer({ sessionId: target.sessionId,
+      explorationId: 'exploration-runtime', requestId: 'side-tool-request',
+      question: '이 명령을 실행해도 돼?' });
+    assert.equal(result.state, 'completed'); assert.equal(result.toolCalls, 1);
+    assert.deepEqual(await target.workStore.read(), beforeWork);
+  } finally { await rm(target.room, { recursive: true, force: true }); }
+});
+
+test('side Stop은 side run만 stopped로 정산하고 main Work를 유지한다', async () => {
+  const target = await fixture(); const controller = new AbortController();
+  try {
+    const beforeWork = await target.workStore.read(); let id = 0;
+    const runtime = makeSelectionExplorationRuntime({ ledger: target.ledger,
+      makeId: () => `side-stop-${++id}`, modelFactory: () => ({ async respond({ signal }) {
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(resolve, 1000);
+          signal.addEventListener('abort', () => { clearTimeout(timer);
+            reject(Object.assign(new Error('stopped'), { name: 'AbortError' })); }, { once: true });
+        });
+        return { text: 'late', toolCalls: [] };
+      } }) });
+    const pending = runtime.answer({ sessionId: target.sessionId,
+      explorationId: 'exploration-runtime', requestId: 'side-stop-request',
+      question: '조금 더 설명해줘.', signal: controller.signal });
+    setTimeout(() => controller.abort(), 10);
+    const result = await pending;
+    assert.equal(result.state, 'stopped'); assert.equal(result.answer, null);
+    assert.deepEqual(await target.workStore.read(), beforeWork);
+    const after = await target.ledger.read(target.sessionId);
+    assert.equal(after.explorations[0].state, 'stopped');
+  } finally { await rm(target.room, { recursive: true, force: true }); }
+});
