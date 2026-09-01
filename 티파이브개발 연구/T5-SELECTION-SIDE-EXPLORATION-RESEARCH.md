@@ -473,8 +473,8 @@ backup component가 필요 없다. restore validator에는 다음 관계만 추�
 └────────────────────────────────────────
 ```
 
-- desktop wide: 360–420px 범위의 right panel. 중앙 reading width를 무리하게 압축하면 overlay로 전환한다.
-- medium: 오른쪽 overlay, main 내용은 유지하고 focus trap은 사용하지 않는다.
+- desktop wide: 360–420px 범위의 floating right overlay. 본 대화면의 폭을 줄이는 flex split은 사용하지 않는다.
+- medium: 같은 오른쪽 overlay를 유지하고 main 내용은 그대로 두며 focus trap은 사용하지 않는다.
 - narrow/mobile: bottom sheet, selected quote와 input이 먼저 보인다.
 - side panel의 작업면은 본 대화창과 즉시 구분되도록 light/dark theme 모두 흰색 배경을 사용한다. 본문 글자·border·
   shadow·focus ring은 흰 배경에서 WCAG 대비를 만족하고, main theme의 색을 그대로 덮어써 가독성을 잃지 않는다.

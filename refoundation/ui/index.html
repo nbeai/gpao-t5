@@ -182,6 +182,37 @@
 
   /* ── 본문 ── */
   #main { flex:1; display:flex; flex-direction:column; height:100dvh; min-width:0; background:var(--bg); }
+  #selectionPanel { width:min(410px,calc(100vw - 32px)); display:flex; flex-direction:column;
+    background:#fff; color:#24211d; border:1px solid #ddd6ca; border-radius:16px;
+    box-shadow:0 18px 48px rgba(45,35,24,.2); position:fixed; inset:12px 12px 12px auto; z-index:72;
+    overflow:hidden; }
+  #selectionPanel[hidden] { display:none; }
+  .selection-head { padding:16px; border-bottom:1px solid #e7e1d8; display:flex; gap:10px; align-items:flex-start; }
+  .selection-head-copy { flex:1; min-width:0; }
+  .selection-head b { display:block; color:#171512; font-size:14px; }
+  .selection-quote { margin-top:6px; color:#5f584d; font-size:13px; line-height:1.5; max-height:4.5em; overflow:hidden; }
+  .selection-note { margin-top:5px; color:#7a7266; font-size:12px; }
+  .selection-close { border:0; background:transparent; color:#5f584d; font:inherit; cursor:pointer; padding:4px 7px; }
+  .selection-messages { flex:1; overflow:auto; padding:16px; display:flex; flex-direction:column; gap:12px; }
+  .selection-message { white-space:pre-wrap; line-height:1.6; font-size:14px; }
+  .selection-message.user { align-self:flex-end; max-width:88%; background:#f1eee8; border-radius:12px; padding:8px 11px; }
+  .selection-message.assistant { color:#24211d; }
+  .selection-progress { color:#7a7266; font-size:12px; }
+  .selection-composer { border-top:1px solid #e7e1d8; padding:12px; background:#fff; }
+  .selection-composer-row { display:flex; gap:8px; align-items:flex-end; }
+  #selectionInput { flex:1; resize:none; min-height:42px; max-height:120px; border:1px solid #d8d0c4;
+    border-radius:12px; background:#fff; color:#24211d; font:inherit; padding:9px 11px; }
+  #selectionInput:focus { outline:2px solid #8e806a; outline-offset:1px; }
+  #selectionSend, #selectionStop { border:1px solid #cfc5b6; border-radius:10px; background:#f8f5ef;
+    color:#24211d; font:inherit; padding:9px 11px; cursor:pointer; }
+  #selectionStop { color:#9b3e2d; }
+  #selectionActionBar { position:fixed; z-index:80; display:flex; gap:4px; padding:5px; border:1px solid #d8d0c4;
+    border-radius:10px; background:#fff; color:#24211d; box-shadow:0 8px 24px rgba(45,35,24,.18); }
+  #selectionActionBar[hidden] { display:none; }
+  #selectionActionBar button { border:0; border-radius:7px; background:transparent; color:inherit;
+    font:inherit; font-size:12px; padding:5px 8px; cursor:pointer; }
+  #selectionActionBar button:hover { background:#f1eee8; }
+  .selection-source { user-select:text; }
   .crumb { display:flex; align-items:center; gap:var(--sp-2); padding:var(--sp-3) var(--sp-5);
     border-bottom:1px solid var(--line); background:var(--surface); box-shadow:var(--sh-sm);
     position:relative; z-index:1; font-size:var(--fs-sm); color:var(--muted); }
@@ -607,6 +638,8 @@
     .msg.bot h1 { font-size:24px; }
     .msg.bot h2 { font-size:20px; }
     .msg.bot h3 { font-size:17px; }
+    #selectionPanel { inset:auto 8px 8px 8px; width:auto; height:min(68dvh,620px);
+      border:1px solid #ddd6ca; border-radius:16px; box-shadow:0 -12px 32px rgba(45,35,24,.18); }
     #state, #search { padding-left:var(--sp-3); padding-right:var(--sp-3); }
     .statusrow .hint { display:none; }
     #tbpanel { width:100%; border-left:none; }
@@ -741,6 +774,29 @@
     </div>
   </main>
 
+  <aside id="selectionPanel" aria-label="선택한 부분 옆에서 질문" aria-hidden="true" hidden>
+    <div class="selection-head">
+      <div class="selection-head-copy">
+        <b>선택한 부분</b>
+        <div class="selection-quote" id="selectionQuote"></div>
+        <div class="selection-note">여기서는 아직 원래 작업이 바뀌지 않아요.</div>
+      </div>
+      <button class="selection-close" id="selectionClose" type="button" aria-label="옆 탐색 닫기">✕</button>
+    </div>
+    <div class="selection-messages" id="selectionMessages" aria-live="polite"></div>
+    <div class="selection-composer">
+      <div class="selection-composer-row">
+        <textarea id="selectionInput" rows="2" placeholder="선택한 부분에 대해 질문하세요"></textarea>
+        <button id="selectionStop" type="button" hidden>멈추기</button>
+        <button id="selectionSend" type="button">보내기</button>
+      </div>
+    </div>
+  </aside>
+
+  <div id="selectionActionBar" role="toolbar" aria-label="선택한 부분 작업" hidden>
+    <button id="selectionAsk" type="button">옆에서 질문</button>
+  </div>
+
   <div id="tbov">
     <div id="tbpanel">
       <div class="tb-head">
@@ -796,6 +852,15 @@ const sessionsEl = document.getElementById('sessions');
 const groupDialog = document.getElementById('groupDialog');
 const groupNameInput = document.getElementById('groupName');
 const groupOptions = document.getElementById('groupOptions');
+const selectionPanel = document.getElementById('selectionPanel');
+const selectionQuote = document.getElementById('selectionQuote');
+const selectionMessages = document.getElementById('selectionMessages');
+const selectionInput = document.getElementById('selectionInput');
+const selectionSend = document.getElementById('selectionSend');
+const selectionStop = document.getElementById('selectionStop');
+const selectionClose = document.getElementById('selectionClose');
+const selectionActionBar = document.getElementById('selectionActionBar');
+const selectionAsk = document.getElementById('selectionAsk');
 let currentSessionId = null;
 let stagedAttachments = [];
 let activeLocalTurns = 0;
@@ -803,6 +868,9 @@ const sessionActivityById = new Map();
 const workRealityBySession = new Map();
 let workRealityPanelTimer = 0;
 let sessionListRefreshTimer = null;
+let selectedMessageRange = null;
+let activeSelectionExploration = null;
+let activeSelectionStream = null;
 const RUNTIME_RELOAD_STATE_KEY = 't5-runtime-reload-state-v1';
 
 function rememberPageStateForReload() {
@@ -3602,13 +3670,14 @@ async function 대화투영(s) {
   (s.transcript || []).forEach((e, i) => {
     if (e.role === 'user') {
       const box = turnBox(); const who = el('who right', '사용자'); appendMessageTime(who, e.recordedAt);
-      box.appendChild(who); box.appendChild(el('msg me', e.text));
+      box.appendChild(who); const message = el('msg me', e.text); box.appendChild(message);
+      bindSelectionSource(message, e.selection);
       renderMessageAttachments(box, e.attachments);
       appendMessageActions(box, e.text, { editable: true, align: 'right' });
     }
     else if (e.role === 'assistant') renderResult(e.result, {
       ...projectionOptions(i, 마지막, active), activeRecoveryIds, activeConnectionHandoffIds,
-      recordedAt: e.recordedAt,
+      recordedAt: e.recordedAt, selection: e.selection,
     });
   });
   renderSessionActivity(s.activity ?? sessionActivityById.get(s.id));
@@ -3700,6 +3769,115 @@ function appendMessageActions(box, raw, { editable = false, align = 'left' } = {
   }
   box.appendChild(actions);
 }
+
+function bindSelectionSource(node, metadata) {
+  if (!node || !metadata?.messageHandle || !metadata?.projectionDigest) return;
+  node.classList.add('selection-source');
+  node.dataset.selectionMessageHandle = metadata.messageHandle;
+  node.dataset.selectionProjectionVersion = metadata.projectionVersion;
+  node.dataset.selectionProjectionDigest = metadata.projectionDigest;
+}
+
+function currentSelectionRange() {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount !== 1 || selection.isCollapsed) return null;
+  const range = selection.getRangeAt(0); const source = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+    ? range.commonAncestorContainer.closest?.('.selection-source')
+    : range.commonAncestorContainer.parentElement?.closest('.selection-source');
+  if (!source || !source.contains(range.startContainer) || !source.contains(range.endContainer)) return null;
+  const quote = selection.toString(); if (!quote.trim() || quote.length > 8192) return null;
+  const prefix = document.createRange(); prefix.selectNodeContents(source);
+  prefix.setEnd(range.startContainer, range.startOffset);
+  const startUtf16 = prefix.toString().length;
+  return { source, quote, startUtf16, endUtf16: startUtf16 + quote.length,
+    rect: range.getBoundingClientRect() };
+}
+
+function refreshSelectionActionBar() {
+  const selected = currentSelectionRange(); selectedMessageRange = selected;
+  if (!selected) { selectionActionBar.hidden = true; return; }
+  selectionActionBar.hidden = false;
+  selectionActionBar.style.left = `${Math.max(8, Math.min(innerWidth - selectionActionBar.offsetWidth - 8,
+    selected.rect.left))}px`;
+  selectionActionBar.style.top = `${Math.max(8, selected.rect.top - selectionActionBar.offsetHeight - 8)}px`;
+}
+
+wrap.addEventListener('mouseup', () => requestAnimationFrame(refreshSelectionActionBar));
+wrap.addEventListener('keyup', (event) => {
+  if (event.shiftKey || event.key.startsWith('Arrow')) requestAnimationFrame(refreshSelectionActionBar);
+});
+document.addEventListener('selectionchange', () => {
+  if (window.getSelection()?.isCollapsed) { selectionActionBar.hidden = true; selectedMessageRange = null; }
+});
+
+function appendSideMessage(role, content) {
+  const message = el(`selection-message ${role}`, content); selectionMessages.appendChild(message);
+  selectionMessages.scrollTop = selectionMessages.scrollHeight; return message;
+}
+
+async function openSideExploration(selected) {
+  const payload = { sessionId: currentSessionId,
+    messageHandle: selected.source.dataset.selectionMessageHandle,
+    projectionVersion: selected.source.dataset.selectionProjectionVersion,
+    projectionDigest: selected.source.dataset.selectionProjectionDigest,
+    startUtf16: selected.startUtf16, endUtf16: selected.endUtf16, requestId: crypto.randomUUID() };
+  const response = await fetch('/selection-explorations', { method: 'POST',
+    headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+  const result = await response.json(); if (!response.ok) throw new Error(result.error ?? '옆 탐색을 열지 못했어요.');
+  activeSelectionExploration = result; selectionQuote.textContent = result.anchor.quote;
+  selectionMessages.replaceChildren(); selectionPanel.hidden = false;
+  selectionPanel.setAttribute('aria-hidden', 'false'); selectionActionBar.hidden = true;
+  selectionInput.focus();
+}
+
+selectionAsk.onclick = async () => {
+  const selected = selectedMessageRange; if (!selected) return;
+  try { await openSideExploration(selected); }
+  catch (error) { toast(error?.message ?? '옆 탐색을 열지 못했어요.'); }
+};
+
+async function sendSideQuestion() {
+  const question = selectionInput.value.trim();
+  if (!question || !activeSelectionExploration || activeSelectionStream) return;
+  appendSideMessage('user', question); selectionInput.value = '';
+  const assistant = appendSideMessage('assistant', '');
+  const progress = el('selection-progress', '질문을 살펴보고 있어요…'); selectionMessages.appendChild(progress);
+  const started = await fetch('/selection-explorations/stream-start', { method: 'POST',
+    headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: currentSessionId,
+      handle: activeSelectionExploration.handle, question, requestId: crypto.randomUUID() }) }).then(async (response) => {
+        const result = await response.json(); if (!response.ok) throw new Error(result.error); return result;
+      });
+  const stream = new EventSource(`/selection-explorations/stream?streamId=${encodeURIComponent(started.streamId)}`);
+  activeSelectionStream = stream; selectionStop.hidden = false; selectionSend.disabled = true;
+  stream.addEventListener('answer_reset', () => { assistant.textContent = ''; });
+  stream.addEventListener('answer_delta', (event) => { assistant.textContent += JSON.parse(event.data).text ?? ''; });
+  stream.addEventListener('trace_status', (event) => { progress.textContent = JSON.parse(event.data).text ?? ''; });
+  stream.addEventListener('recoverable_error', (event) => { progress.textContent = JSON.parse(event.data).text ?? ''; });
+  stream.addEventListener('complete', () => {
+    stream.close(); activeSelectionStream = null; progress.remove(); selectionStop.hidden = true;
+    selectionSend.disabled = false; selectionInput.focus();
+  });
+}
+
+selectionSend.onclick = () => sendSideQuestion().catch((error) => toast(error?.message ?? '옆 질문을 보내지 못했어요.'));
+selectionInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+    event.preventDefault(); sendSideQuestion().catch((error) => toast(error?.message ?? '옆 질문을 보내지 못했어요.'));
+  }
+});
+selectionStop.onclick = async () => {
+  if (!activeSelectionExploration) return;
+  await fetch('/selection-explorations/stop', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sessionId: currentSessionId, handle: activeSelectionExploration.handle }) }).catch(() => null);
+};
+selectionClose.onclick = async () => {
+  activeSelectionStream?.close(); activeSelectionStream = null;
+  if (activeSelectionExploration) await fetch('/selection-explorations/close', { method: 'POST',
+    headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: currentSessionId,
+      handle: activeSelectionExploration.handle, requestId: crypto.randomUUID() }) }).catch(() => null);
+  activeSelectionExploration = null; selectionPanel.hidden = true;
+  selectionPanel.setAttribute('aria-hidden', 'true'); selectionActionBar.hidden = true;
+};
 function paintActivityTrace(trace) {
   const text = trace.dataset.activityText ?? '';
   const startedAt = Number(trace.dataset.activityStartedAt);
@@ -4169,6 +4347,7 @@ function renderResult(r, opts = {}) {
       bot.dataset.t5FileReferences = JSON.stringify(r.fileReferences);
     }
     renderMarkdownInto(bot, 답문);
+    bindSelectionSource(bot, opts.selection);
     box.appendChild(bot);
     appendMessageActions(box, 답문);
   }
