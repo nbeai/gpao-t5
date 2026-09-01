@@ -6,7 +6,7 @@
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-SE — Selection-Scoped Side Exploration`
+현재 제품 Gate: `NX2-SE — SE-2 Human Side Answer Qualification`
 
 ---
 

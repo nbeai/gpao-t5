@@ -1,0 +1,54 @@
+{
+  "schema": "t5.nx2.se1-se2-selection-readonly-integration.v1",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "1ca01446",
+  "status": "SE1_COMPLETE_SE2_PRODUCT_INTEGRATED_HUMAN_SIDE_ANSWER_PENDING",
+  "actualUserData": false,
+  "externalWrites": 0,
+  "se1": {
+    "canonicalAnchor": true,
+    "markdownUnicodeUtf16": true,
+    "staleProjectionBlocked": true,
+    "crossMainProjectionDelta": 0,
+    "derivedWorkProvenancePrimitive": true
+  },
+  "se2": {
+    "sameModelFactory": true,
+    "sameRunAgent": true,
+    "toolDefinitions": 0,
+    "mutationToolActualCalls": 0,
+    "workDeltaBeforeApply": 0,
+    "memoryDeltaBeforeApply": 0,
+    "artifactDeltaBeforeApply": 0,
+    "sideStopIndependent": true,
+    "mainTranscriptDelta": 0,
+    "consoleRoutesIntegrated": true
+  },
+  "ui": {
+    "ownerFirstReview": "REJECTED_SPLIT_LAYOUT",
+    "repair": "fixed floating overlay; main conversation width unchanged",
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(36, 33, 29)",
+    "position": "fixed",
+    "desktopInset": "12px 12px 12px auto",
+    "desktopWidth": "410px",
+    "narrowMode": "white bottom sheet",
+    "actualComputedStyleVerified": true,
+    "actualDragAutomation": "UNAVAILABLE_IN_CURRENT_BROWSER_CONTROL",
+    "humanSideQuestionAnswer": "PENDING"
+  },
+  "verification": {
+    "focused": { "passed": 26, "failed": 0 },
+    "fullCheck": { "passed": 2130, "failed": 0, "skipped": 1,
+      "skipReason": "Windows DPAPI physical qualification", "durationMs": 89162.144459 }
+  },
+  "boundaries": {
+    "newAgent": 0,
+    "newMemoryStore": 0,
+    "newWorkStore": 0,
+    "newArtifactStore": 0,
+    "mainPromptDelta": 0,
+    "applyOpened": false
+  },
+  "next": { "gate": "SE-2 Human side answer qualification", "se3Open": false }
+}

@@ -4,7 +4,7 @@
 기준 source: `93adf628527a511106b0a15da19d528ce8541ddb`
 이전 세대: `T5-SIXTH-COMPLETION.md · SIXTH_COMPLETE_HISTORICAL_SOURCE`
 현재 Gate: `NX2-SE SELECTION-SCOPED SIDE EXPLORATION`
-현재 작업: `exact selection anchor·read-only side isolation·explicit apply·Work R+1 provenance RED`
+현재 작업: `SE-1 COMPLETE · SE-2 Tool 0 제품 연결 · floating white overlay · 인간 side 질문 자격 pending`
 
 이 문서는 T5 NX의 유일한 현재 개발 정본이다. `T5-PRODUCT.md`는 변하지 않는 제품 정의이고, 1~6차 완료 문서는
 역사·실패·증거다. `티파이브개발 연구/`는 NX 후보의 연구 원천이며 자동 개발 지시가 아니다.

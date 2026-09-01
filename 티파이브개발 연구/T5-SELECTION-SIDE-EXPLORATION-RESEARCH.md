@@ -5,7 +5,7 @@
 조사 branch: `codex/t5-sixth-android-experience`
 조사 HEAD: `7a47f69afb1480c887d7bf641dad062c584e28f9` (`Close sixth source human HQ`)
 5차 불변 귀환선: `f42e4db7bcf6ecb0cb0cc13ffb7499f2b6961be0`
-상태: `OWNER_REQUESTED_PLAN · RESEARCH_COMPLETE · MIGRATED_TO_NX_RESEARCH · NX2_SE_PLANNED · PRODUCT_IMPLEMENTATION_NOT_OPEN`
+상태: `NX2_SE_CURRENT · SE_1_COMPLETE · SE_2_PRODUCT_INTEGRATED · HUMAN_SIDE_ANSWER_PENDING · SE_3_NOT_OPEN`
 후보 흐름: `Selection → Side Exploration → Explicit Apply → Work Revision`
 
 현재 NX 이관:
