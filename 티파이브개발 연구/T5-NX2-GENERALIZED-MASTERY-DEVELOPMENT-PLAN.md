@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_CURRENT`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_CURRENT`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-4 AU-3 — Managed Transcription Spine`
+현재 제품 Gate: `NX2-4 AU-4 — Transcript Coverage & Truth`
 
 ---
 
@@ -751,6 +751,14 @@ model의 silence fixture load·JSON schema qualification이 통과했다. 준비
 - D의 managed process·output handle·Stop·parent-death 재사용
 - chunk·VAD·deadline·resource bound
 - restart 뒤 completed chunk 재사용, 중복 전사 0
+
+종료 상태: `COMPLETE_FIRST_WHOLE_PCM_JOB`. 기존 D ManagedProcessRegistry 아래에서 prepare→decode→host 실행을
+한 operation으로 묶고 running handle·delta poll·exact owner·Stop·process-tree·terminal JSON·cleanup을 재사용한다.
+actual M4에서 6.24초 한국어 source가 2.39초 process wall로 종료됐고, 결과는 AU-4 전까지
+`transcribed_unverified`·`publishable=false`다. 190초 M4A 즉시 Stop은 late transcript 0·scratch 0이었다.
+process crash나 Runtime 사고 뒤 자동 재전사는 아직 하지 않으며 interrupted truth를 기존 D/Work에 남긴다.
+
+근거: `refoundation/evidence/nx2-au3-managed-transcription-2026-09-01.json`.
 
 #### AU-4 — Transcript Coverage & Truth
 

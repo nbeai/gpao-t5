@@ -1,0 +1,37 @@
+{
+  "schema": "t5.nx2.au3-managed-transcription.v1",
+  "recordedOn": "2026-09-01",
+  "baseCommit": "ee91a7e9",
+  "status": "AU3_COMPLETE_AU4_OPEN",
+  "actualShort": {
+    "sourceDurationMs": 6243.625,
+    "decodedDurationMs": 6243.625,
+    "model": "large-v3-turbo-q5-0 qualification generation",
+    "initialState": "running",
+    "polls": 7,
+    "processDurationMs": 2391,
+    "exitCode": 0,
+    "segments": 1,
+    "state": "transcribed_unverified",
+    "publishable": false
+  },
+  "actualStop": {
+    "sourceDurationMs": 190279.86394557822,
+    "started": "running",
+    "terminal": "stopped",
+    "lateTranscript": 0,
+    "remainingScratchEntries": 0,
+    "publishable": false
+  },
+  "contracts": {
+    "existingManagedProcessRegistry": true,
+    "exactOwner": true,
+    "foreignSessionAccess": 0,
+    "processTreeStop": true,
+    "modelPollingCalls": 0,
+    "automaticCrashRetry": 0,
+    "newProcessStore": 0
+  },
+  "verification": { "focusedPassed": 2, "focusedFailed": 0 },
+  "next": { "gate": "AU-4 Transcript Coverage & Truth" }
+}
