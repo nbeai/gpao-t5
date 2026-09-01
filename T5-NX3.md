@@ -17,6 +17,102 @@ Cloud execution 정책: `OPTIONAL_AFTER_LOCAL_CORE · NOT_A_PREREQUISITE`
 
 ---
 
+## 0. OpenClaw·Hermes·현재 T5 전수 대조
+
+조사 기준: 2026-09-01 공개 공식 문서·source와 현재 `/Users/jyp/Developer/t5-windows` actual.
+
+### 0.1 OpenClaw에서 배울 것
+
+공식 source:
+
+- [Plugin manifest](https://docs.openclaw.ai/plugins/manifest)
+- [Plugin capability consent](https://docs.openclaw.ai/plugins/manage-plugins)
+- [Secrets management](https://github.com/openclaw/openclaw/blob/main/docs/gateway/secrets.md)
+- [Gateway protocol](https://github.com/openclaw/openclaw/blob/main/docs/gateway/protocol.md)
+
+흡수:
+
+- plugin code 실행 전에 정적 manifest로 identity·config·auth·Tool·MCP·CLI·dangerous flag를 읽는다.
+- 외부 plugin install·enable·update 전에 declared capability surface와 source/version/artifact integrity를 보여준다.
+- capability가 넓어진 update는 재동의를 요구하고, 같거나 좁은 surface만 기존 수용을 재사용한다.
+- plugin이 MCP server를 선언해도 기존 MCP policy·Tool permission·dashboard action을 우회하지 못한다.
+- Gateway가 session-scoped effective Tool inventory와 invoke policy를 소유한다.
+- SecretRef는 plaintext config와 분리하고 unresolved secret은 실제 활성 surface만 막는다.
+
+복제하지 않음:
+
+- provider·channel·Tool·hook·MCP·CLI·dashboard를 한 manifest가 소유하는 거대 확장면
+- arbitrary npm/git/plugin source의 일반 설치
+- capability 선언 자체를 실행 안전 증거로 사용
+- connector 수와 marketplace 크기를 제품 성공으로 사용
+
+### 0.2 Hermes에서 배울 것
+
+공식 source:
+
+- [Hermes MCP](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp)
+- [MCP config·OAuth·trust](https://hermes-agent.nousresearch.com/docs/reference/mcp-config-reference)
+- [Tool Search](https://hermes-agent.nousresearch.com/docs/user-guide/features/tool-search)
+- [Skills](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills/)
+- [Plugins](https://hermes-agent.nousresearch.com/docs/user-guide/features/plugins)
+
+흡수:
+
+- URL 또는 command 하나로 HTTP·stdio MCP를 추가하고 Tool을 실제 연결에서 발견한다.
+- OAuth 2.1 PKCE metadata discovery·client identification·refresh를 공통 MCP client에서 처리한다.
+- 설치 시 실제 Tool 목록을 probe해 include/exclude를 선택하고 resources/prompts wrapper는 server capability가 있을 때만 연다.
+- 대형 MCP/plugin Tool schema는 Tool Search bridge 뒤 on-demand로 연다.
+- plugin 내부 MCP 호출도 같은 native client·trust gate·circuit breaker를 사용해 두 번째 연결 현실을 만들지 않는다.
+- Skill은 짧은 Memory와 분리된 procedural memory이며 on-demand로 로드한다.
+
+복제하지 않음:
+
+- catalog manifest의 `git clone`·`pip install`·`npm install` bootstrap 직접 실행
+- server-supplied `readOnlyHint`만으로 실제 observe Effect 확정
+- `.env` plaintext를 기본 secret 경계로 사용
+- 수천 Tool의 blacklist 기본 노출
+- 한 번 성공한 workflow의 자동 Skill 승격
+
+### 0.3 현재 T5에 이미 있는 기반
+
+| 실제 source | 현재 능력 | 다시 만들지 않을 것 |
+|---|---|---|
+| `connection-tool.js`·`connection-truth.js` | service·route·상태·사용자 action | 새 Connection Tool/Store |
+| `api-credential-connection.js` | 1~16 field·Secret Store·actual identity/capability verify·disconnect | 새 API key vault·상태기계 |
+| `remote-mcp-connection.js`·`remote-mcp-runtime.js` | HTTPS MCP·OAuth policy·PKCE/DCR·refresh·step-up·identity·Tool call | 새 Remote MCP client |
+| `remote-mcp-tool.js` | bounded discovery/result·allowed names·read-only mode·Effect·timeout·ACK unknown | MCP call wrapper 재개발 |
+| `capability-package-contract.js` | Skill/MCP/CLI/extension/HTTP package·source·auth·effect·platform·dependency·isolation | 새 package schema |
+| `capability-acquisition-coordinator.js` | local/exact Git source·inspect·inactive install·enable·rollback·uninstall | 새 installer coordinator |
+| `local-capability-package-store.js` | unsafe entry 차단·64MB/400 file bound·digest·generation·readback | 새 package Store |
+| `capability-reality.js` | acquisition·connection·lifecycle·requirements의 분리된 현실 | 새 capability state DB |
+| `capability-lifecycle.js` | actual Run 비교·later user Run apply·archive·restore·rollback | 새 promotion engine |
+| `managed-cli-store.js` | official pin·platform asset·bytes·SHA-256·version verify·rollback | 새 CLI downloader |
+| `github-cli-broker.js` | CLI-owned credential·account/scope actual·read-only fence | 새 GitHub connector |
+| `managed-skill-store.js`·`skill-runtime.js` | text-only Skill·on-demand search/view·archive/restore | 새 Skill Store |
+| `tool-search.js` | deferred capability discovery | 새 전역 Tool catalog injection |
+| E·F·G·Project·Browser·Artifact·Undo | 코드·프로그램·프로젝트 제작·검증·복구 | 새 developer runtime |
+
+현재 catalog에는 Linear·Airtable·Asana·Figma Remote MCP 후보, Notion·Slack MCP, Channel Talk API credential,
+Telegram, jq·yt-dlp managed CLI, GitHub CLI read broker와 한국 사업 연결 reality가 이미 있다.
+
+### 0.4 실제 남은 공통 gap
+
+| gap | 현재 사실 | NX-3 범위 |
+|---|---|---|
+| generic MCP onboarding | Remote MCP 엔진은 있으나 일반 URL/stdio의 공통 product registration이 미완료 | 기존 엔진 admission·registry·UI 일반화 |
+| capability consent | 엄격한 manifest와 inactive install은 있으나 human review·update widening 재동의 미완료 | manifest 기반 consent |
+| Tool filtering | `allowedToolNames`·readOnlyOnly는 있으나 일반 install-time include/exclude UX 미완료 | 기존 wrapper 위 policy projection |
+| local stdio MCP | package에는 local_mcp·stdio가 있으나 공통 managed runtime 자격 미완료 | exact command·env·process lifecycle |
+| MCP resources/prompts | 현재 제품 경로는 Tool 중심 | 실제 목적에서만 capability-aware wrapper 후보 |
+| generic API adapter | credential·identity 기반은 있으나 OpenAPI/SDK→bounded adapter 자격 미완료 | 기존 API connection에 결속 |
+| executable package runtime | install/lifecycle은 있으나 모든 package kind의 실행 adapter는 미완료 | qualified kind만 runtime bridge |
+| CLI breadth | jq·yt-dlp·GitHub read 기반 | 실제 수요 CLI만 broker 확대 |
+| project depth | bounded project·Browser QA는 선 상태 | HQ에서 재현된 repo-scale/debug gap만 |
+
+NX-3는 위 gap 밖의 새 Core를 만들지 않는다.
+
+---
+
 ## 1. NX-3의 한 문장
 
 > 사용자는 API·MCP·CLI·코드·프로젝트 구조를 몰라도 평소 말로 “연결해줘, 자동화해줘, 고쳐줘, 만들어줘,
@@ -169,7 +265,10 @@ Runtime이 업무 의미로 이 경로를 강제하지 않는다. 모델이 공�
 
 ---
 
-## 6. 공통 Connection Reality
+## 6. 공통 Connection Reality — EXISTING FOUNDATION
+
+현재 `connection-tool`·`api-credential-connection`·`remote-mcp-connection`이 이미 아래 원리를 구현한다. NX-3는 새
+Store나 state machine을 만들지 않고, 일반 MCP/API package가 같은 사실을 공급하도록 등록·정책·UX 경계만 일반화한다.
 
 연결은 “key가 저장됐다”로 완료하지 않는다.
 
@@ -307,9 +406,9 @@ purpose·source·authority
 
 ## 10. NX-3 Gate
 
-### NX3-0 — Current Developer Capability Baseline
+### NX3-0 — Current Developer & Connection Boundary Audit
 
-제품 변경 0.
+제품 변경 0. 0.3의 current source·test·actual을 `REUSE / GENERALIZE / GAP / DEFER`로 고정한다.
 
 실제 Console에서 다음 기준선을 고정한다.
 
@@ -322,6 +421,15 @@ purpose·source·authority
 7. CLI profile 사용
 8. dependency 없는 현재 한계
 
+현재 positive control:
+
+- Notion OAuth Remote MCP
+- Slack MCP contract
+- Channel Talk API credential
+- GitHub CLI read broker
+- exact Git capability package inspect→inactive install→enable→rollback
+- deferred `tool_search`와 `capability_reality`
+
 기록:
 
 - purpose success
@@ -331,14 +439,14 @@ purpose·source·authority
 - actual Effect·Artifact·Undo
 - 사용자 기술 입력·질문·승인 수
 
-### NX3-1 — Connection Onboarding Reality
+### NX3-1 — Connection Onboarding Generalization
 
 사용자 완료 문장:
 
 > 사용자는 서비스 이름이나 공식 URL을 말하고 필요한 비밀값만 안전한 입력창에 넣으면, T5가 현재 연결 가능성·권한·
 > 실제 읽기·쓰기 범위를 확인하고 연결·재연결·제거까지 관리한다.
 
-개발:
+기존 `connection-tool`·Settings card·Secret Store를 재사용한다. 개발:
 
 - official source·endpoint·publisher identity
 - auth/scope plan
@@ -347,6 +455,10 @@ purpose·source·authority
 - read-only positive control
 - connection state·health·expiry
 - remove·revoke·reconnect
+- publisher·source·artifact·auth·hosts·filesystem·actions·effects의 capability consent
+- update가 host·secret·Tool·effect를 넓히면 exact 재동의
+
+새 Connection Store·설정 framework를 만들면 실패다.
 
 금지:
 
@@ -364,14 +476,18 @@ purpose·source·authority
 
 개발:
 
-- HTTP·stdio transport identity
-- OAuth 2.1·API key·local command
+- 기존 Remote MCP의 HTTP transport·OAuth·refresh·step-up 재사용
+- local stdio는 exact capability package·managed process·declared env에서만
+- OAuth 2.1 PKCE·metadata·CIMD/DCR 현실과 provider refusal
 - `tools/list`·`resources/list`·schema validation
-- name collision·duplicate·tool poisoning
-- Tool definition Context cost
+- install-time actual Tool probe와 include/exclude·read-only initial recommendation
+- name collision·duplicate·tool poisoning·description instruction authority 0
+- Tool definition Context cost와 on-demand Tool Search
 - read/write effect classification
-- provider/server revision·cache·TTL
-- disconnected/expired/revoked recovery
+- server-supplied annotation은 hint이며 T5 Effect·authority를 우회하지 못함
+- provider/server revision·cache·TTL·circuit breaker
+- disconnected/expired/revoked/step-up recovery
+- plugin/package 내부 호출도 같은 MCP runtime 사용, parallel client 0
 
 합격:
 
@@ -379,6 +495,7 @@ purpose·source·authority
 - key 한 칸 positive control
 - malicious descriptor·foreign redirect·scope expansion 차단
 - Direct Tool surface 무회귀
+- giant Tool server는 default-all 노출 없이 bounded include 또는 code-mode 자격
 
 ### NX3-3 — API Adapter Forge
 
@@ -387,7 +504,7 @@ purpose·source·authority
 > 공식 MCP가 없어도 OpenAPI·SDK·문서·Postman·GraphQL schema가 있으면 T5가 필요한 최소 API adapter를 만들고 실제
 > read 결과로 자격한다.
 
-순서:
+기존 `makeApiCredentialConnection`의 credential fields·Secret Store·identity·capability actual을 재사용한다. 순서:
 
 ```text
 official spec
@@ -399,6 +516,9 @@ official spec
 → optional write opposing test
 → managed package candidate
 ```
+
+새 API credential Store·Connection 상태기계를 만들지 않는다. generated adapter는 기존 `declarative_http` 또는
+`executable_extension` package kind와 exact action Effect에 결속한다.
 
 금지:
 
@@ -433,12 +553,15 @@ official spec
 
 실제 사용자 목적 없는 CLI 수집은 금지한다.
 
-### NX3-5 — Capability Forge
+### NX3-5 — Capability Package Runtime & Promotion Completion
 
 사용자 완료 문장:
 
-> 현재 T5에 없는 작은 능력이 필요하면 T5가 그 목적에 맞는 프로그램을 만들어 한 번 안전하게 사용하고, 반복해서
-> 더 낫다는 사실이 증명될 때만 관리 가능한 Capability로 승격한다.
+> 현재 T5에 없는 작은 능력이 필요하면 기존 G program과 capability package/lifecycle을 연결해 한 번 안전하게 사용하고,
+> 반복해서 더 낫다는 사실이 증명될 때만 관리 가능한 Capability generation으로 승격한다.
+
+이미 선 `capability-package-contract`·`acquisition coordinator`·`local package store`·`capability lifecycle`을
+재사용한다. 새 Forge·Store·promotion engine을 만들지 않는다.
 
 상태:
 
@@ -461,6 +584,14 @@ ephemeral candidate
 - wall·calls·tokens·user burden improvement
 - platform actual
 - rollback generation
+
+추가로 닫을 것:
+
+- manifest static inspection과 executable source 독립 감사
+- capability consent digest와 artifact integrity의 분리 보존
+- inactive install 뒤 qualification 전 enable 0
+- `remote_mcp`·`local_mcp`·`declarative_http`·`executable_extension` 실제 runtime bridge
+- update widening 재동의·narrowing continuity
 
 ### NX3-6 — Project Developer
 
@@ -512,7 +643,8 @@ CLI가 가장 단순 → CLI
 사용자 결과가 software 자체 → project development
 ```
 
-모델이 의미·방법을 선택하고 Runtime은 현재 capability·cost·authority·effect를 공급한다.
+기존 `capability_reality`·`tool_search`·Skill search를 재사용한다. 모델이 의미·방법을 선택하고 Runtime은 현재
+acquisition·connection·lifecycle·requirements·cost·authority·effect를 공급한다.
 
 자격:
 
@@ -548,6 +680,9 @@ source 준비는 physical PASS가 아니다.
 8. connector expiry·rate limit·ACK unknown
 9. malicious Tool description·prompt injection·secret exfiltration 반대시험
 10. fresh purpose에서 Capability 재사용·archive
+11. OpenClaw식 capability widening update 재동의
+12. Hermes식 MCP URL/OAuth/include 선택·reconnect
+13. giant Tool server의 Context·선택·effect 무회귀
 
 T0 입력→진행→first useful→final→actual use→correction→recovery 전체를 기록하고 첫 pass 수리 뒤 clean second pass를 수행한다.
 
@@ -610,6 +745,9 @@ AND 실제 Console clean second pass PASS
 - 같은 연결 결함에 세 번째 Prompt·Tool description patch
 - API key·OAuth token이 model Context나 log에 나타남
 - external package 선언을 검증 없이 신뢰
+- MCP `readOnlyHint`를 T5 observe Effect 영수증으로 사용
+- package bootstrap의 arbitrary `pip install`·`npm install`·`git clone` 실행
+- 기존 `remote-mcp-*`·`api-credential-connection`·`capability-package-*`·`managed-cli-store`와 같은 책임의 새 Store/Runtime
 - official route가 있는데 custom adapter 재개발
 - 단순 사용자 요청을 무조건 coding Work로 전환
 - 별도 Agent·Memory·Work·Artifact Store 생성
@@ -621,21 +759,33 @@ AND 실제 Console clean second pass PASS
 
 ---
 
-## 14. 파일 책임 후보
+## 14. 파일 책임 계획
 
 실제 Gate 시작 시 current head에서 재감사한다.
 
-| 후보 | 책임 |
+| 기존 source | NX-3 허용 변경 |
 |---|---|
-| `connection-reality.js` | 현재 서비스·route·auth·scope·actual 상태 |
-| `connector-package-contract.js` | package identity·capability·security·runtime |
-| `mcp-admission.js` | official MCP transport·auth·schema·poisoning 검사 |
-| `api-adapter-qualification.js` | spec→fixture→actual adapter 자격 |
-| `capability-forge.js` | ephemeral→managed promotion coordinator |
-| `developer-work-projection.js` | project·test·Browser·Artifact factual Context |
-| `developer-capability-tool.js` | on-demand deferred product surface 후보 |
+| `connection-tool.js`·Settings | generic connection plan·consent·reconnect surface |
+| `remote-mcp-connection.js`·`remote-mcp-runtime.js` | registered server·OAuth/stdio provider boundary 일반화 |
+| `remote-mcp-tool.js` | include/exclude·effective Tool·trust/effect·resources/prompts actual 후보 |
+| `api-credential-connection.js` | generated adapter가 기존 credential/identity 계약 재사용 |
+| `capability-package-contract.js` | actual gap이 있을 때만 consent/revision field 확장 |
+| `capability-acquisition-coordinator.js`·`local-capability-package-store.js` | qualified runtime kind bridge, Store 재개발 0 |
+| `capability-lifecycle.js` | package kinds의 evidence-backed promotion 일반화 |
+| `managed-cli-store.js`·CLI broker | actual CLI 수요에 한해 broker 확대 |
+| G·Project·Browser·Artifact source | Developer HQ에서 재현된 실제 gap만 |
 
-새 파일은 책임이 current source에 없고 두 실제 목적에서 공통 gap이 재현될 때만 만든다.
+새 파일 허용 후보:
+
+| 후보 | 필요 조건 |
+|---|---|
+| `generic-mcp-admission.js` | current Remote MCP constructor로 공식 server를 등록할 공통 seam이 실제로 없음 |
+| `mcp-tool-policy-projection.js` | include/exclude·consent·effective inventory owner가 current source에 없음 |
+| `api-spec-adapter-qualification.js` | OpenAPI/SDK adapter fixture·actual 자격 runner |
+| `developer-human-qualification.mjs` | NX3-HQ actual Console runner |
+
+새 파일은 책임이 current source에 없고 두 실제 목적에서 공통 gap이 재현될 때만 만든다. `connection-reality.js`,
+`connector-package-contract.js`, `capability-forge.js`, `developer-capability-tool.js`를 새로 만드는 것은 현재 source 중복이다.
 
 ---
 

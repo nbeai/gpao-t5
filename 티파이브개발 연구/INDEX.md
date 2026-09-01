@@ -9,6 +9,12 @@
 - 순서: Baseline → Connection Onboarding → MCP → API Adapter → CLI Broker → Capability Forge → Project Developer
   → Natural Activation → Platform → Human HQ.
 - GUI는 후순위로 제외하며 Cloud execution은 로컬 개발자 Core 이후 선택적 `NX3-R`이다.
+- 비교 연구: OpenClaw manifest·capability consent·SecretRef·Gateway policy와 Hermes generic MCP·OAuth PKCE·Tool
+  include/exclude·Tool Search·Skill lifecycle을 공식 source에서 대조했다.
+- 현재 T5 기반: API credential connection·Remote MCP OAuth/runtime·capability package/acquisition/store/reality/lifecycle·
+  managed CLI·GitHub broker·Skill·E/F/G/Project가 이미 있어 새 Connection Core나 Forge를 만들지 않는다.
+- 실제 개발 범위: generic MCP onboarding·human capability consent·Tool filtering·stdio runtime·OpenAPI adapter·package
+  runtime bridge·실제 수요 CLI·Project HQ gap.
 - 이 문서는 현재 NX-2를 중단하거나 자동 개통하지 않는다.
 
 ## 현재 세대와의 관계

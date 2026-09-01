@@ -27,12 +27,12 @@ test('NX-3 binds easy official connections to T5 authority instead of another us
 test('NX-3 covers developer work from CLI through capability promotion and actual project use', async () => {
   const nx3 = await read('T5-NX3.md');
   for (const gate of [
-    'NX3-0 — Current Developer Capability Baseline',
-    'NX3-1 — Connection Onboarding Reality',
+    'NX3-0 — Current Developer & Connection Boundary Audit',
+    'NX3-1 — Connection Onboarding Generalization',
     'NX3-2 — MCP Plug-and-Play',
     'NX3-3 — API Adapter Forge',
     'NX3-4 — CLI Broker Expansion',
-    'NX3-5 — Capability Forge',
+    'NX3-5 — Capability Package Runtime & Promotion Completion',
     'NX3-6 — Project Developer',
     'NX3-7 — Developer Judgment & Natural Activation',
     'NX3-8 — Platform·Package Qualification',
@@ -50,4 +50,21 @@ test('generic GUI is deferred and cloud execution stays optional after the local
   assert.match(nx3, /OPTIONAL_AFTER_LOCAL_CORE/);
   assert.match(nx3, /Cloud execution은 개발자 함수의 선행 조건이 아니다/);
   assert.match(nx3, /NOT_REQUIRED_FOR_NX3_CORE_COMPLETE/);
+});
+
+test('NX-3 learns from OpenClaw and Hermes without rebuilding T5 connection and capability foundations', async () => {
+  const nx3 = await read('T5-NX3.md');
+  assert.match(nx3, /OpenClaw·Hermes·현재 T5 전수 대조/);
+  assert.match(nx3, /capability consent/);
+  assert.match(nx3, /install-time actual Tool probe/);
+  assert.match(nx3, /Tool Search/);
+  assert.match(nx3, /parallel client 0/);
+  for (const source of [
+    'api-credential-connection.js', 'remote-mcp-connection.js', 'remote-mcp-runtime.js',
+    'capability-package-contract.js', 'capability-acquisition-coordinator.js',
+    'local-capability-package-store.js', 'capability-reality.js', 'capability-lifecycle.js',
+    'managed-cli-store.js', 'github-cli-broker.js',
+  ]) assert.match(nx3, new RegExp(source.replaceAll('.', '\\.')));
+  assert.match(nx3, /새 Forge·Store·promotion engine을 만들지 않는다/);
+  assert.match(nx3, /`connection-reality\.js`,[\s\S]*현재 source 중복/);
 });
