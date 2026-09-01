@@ -433,6 +433,7 @@ export function makeConsoleServer({
   fileIndexSearch = null,
   fileOcrProbe = null,
   audioRealityProbe = null,
+  auditoryCapabilityService = null,
   restrictFileRealityToComputerRoots = false,
   documentCli = bundledDocumentCli,
   attachmentStore,
@@ -5844,6 +5845,7 @@ export function makeConsoleServer({
   server.messengerCredentialStore = messengerCredentials;
   server.runLedger = runLedger;
   server.resourceLedger = resourceLedger;
+  server.auditoryCapabilityService = auditoryCapabilityService;
   server.authorityStore = authority;
   server.managedCliStore = managedCliStorePromise;
   server.managedSkillStore = managedSkillStorePromise;

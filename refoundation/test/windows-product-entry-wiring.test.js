@@ -13,6 +13,8 @@ test('제품 entry는 Windows payload를 한 번 해석해 state secret process 
   assert.match(source,/makeLocalImageOcr\(\{ platform: 'win32', helper: windowsProduct\?\.imageOcrHelper \}\)/u);
   assert.match(source, /makeAudioRealityProbe/u);
   assert.match(source, /platform: 'win32', helper: windowsProduct\.audioRealityHelper/u);
+  assert.match(source, /windowsProduct\?\.whisperHost/u);
+  assert.match(source, /makeAuditoryCapabilityService/u);
 });
 
 test('Windows secret와 process primitive는 ambient host env를 제품 기본값으로 사용하지 않는다', async () => {

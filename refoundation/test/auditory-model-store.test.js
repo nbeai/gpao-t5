@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 import { AuditoryModelStore, loadAuditoryModelCatalog } from '../src/auditory-model-store.js';
+import { makeAuditoryCapabilityService } from '../src/auditory-capability-service.js';
 
 const bytes = Buffer.alloc(1024 * 1024, 7);
 const sha256 = createHash('sha256').update(bytes).digest('hex');
@@ -74,5 +75,23 @@ test('digest mismatch와 qualification 실패는 active model을 만들지 않�
       async () => ({ qualified: false }));
     assert.equal(result.qualified, false);
     await assert.rejects(store.activate(installed.assetId, installed.generationId), /not fixture-qualified/u);
+  } finally { await rm(room, { recursive: true, force: true }); }
+});
+
+test('준비 서비스는 inactive crash를 이어서 qualify·activate하고 동시 호출을 한 generation으로 합친다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-auditory-service-')); let fetches = 0; let qualifications = 0;
+  try {
+    const store = new AuditoryModelStore({ root: room, catalog: catalog(), minimumFreeBytes: 0,
+      makeId: () => 'generation-service', fetchImpl: async () => { fetches += 1; return response(bytes); } });
+    const installed = await store.installInactive('large-v3-turbo-full');
+    assert.equal(installed.state, 'installed_inactive');
+    const service = makeAuditoryCapabilityService({ store, scratchRoot: room,
+      qualifier: async () => { qualifications += 1; return { qualified: true, receiptDigest: 'c'.repeat(64) }; } });
+    const [first, second] = await Promise.all([service.prepare(), service.prepare()]);
+    assert.equal(first.state, 'ready'); assert.equal(second.model.generationId, first.model.generationId);
+    assert.equal(fetches, 1); assert.equal(qualifications, 1);
+    const restarted = makeAuditoryCapabilityService({ store, scratchRoot: room,
+      qualifier: async () => { qualifications += 1; throw new Error('must not requalify active model'); } });
+    const reused = await restarted.prepare(); assert.equal(reused.reused, true); assert.equal(qualifications, 1);
   } finally { await rm(room, { recursive: true, force: true }); }
 });

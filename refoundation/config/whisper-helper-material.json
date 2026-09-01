@@ -1,0 +1,13 @@
+{
+  "schema": "t5.whisper-helper-material.v1",
+  "upstream": "ggml-org/whisper.cpp",
+  "release": "b4938",
+  "sourceCommit": "371b5a7561823ab2bb32142d2751e35e7534727b",
+  "sourceArchive": {
+    "url": "https://github.com/ggml-org/whisper.cpp/archive/371b5a7561823ab2bb32142d2751e35e7534727b.tar.gz",
+    "bytes": 9136244,
+    "sha256": "89051d8fca516a3ad1f5c2f8f9d2fccb089afbaec338fca3f8731999babc6f81"
+  },
+  "license": "MIT",
+  "installedName": "t5-whisper-host"
+}

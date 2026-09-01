@@ -1,0 +1,49 @@
+{
+  "schema": "t5.nx2.au2b-whisper-host-acquisition.v1",
+  "recordedOn": "2026-09-01",
+  "baseCommit": "f1af64b1",
+  "status": "AU2_COMPLETE_AU3_OPEN",
+  "sourceMaterial": {
+    "release": "b4938",
+    "commit": "371b5a7561823ab2bb32142d2751e35e7534727b",
+    "archiveBytes": 9136244,
+    "archiveSha256": "89051d8fca516a3ad1f5c2f8f9d2fccb089afbaec338fca3f8731999babc6f81"
+  },
+  "macOSHostActual": {
+    "architectures": ["arm64", "x86_64"],
+    "bytes": 6810408,
+    "sha256": "dc61a8c9ea5a919ab0477e1179e476c77377d18db60da27b2b31cb1b283fa92d",
+    "staticWhisperAndGgml": true,
+    "nonSystemDylibs": 0
+  },
+  "actualFixtureQualification": {
+    "assetId": "large-v3-turbo-q5-0",
+    "modelSha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+    "qualified": true,
+    "receiptDigest": "8620920207b0fe99c98c1f9c1cdaf76d9b2155f4f438b4d0f07845450a94bc8b",
+    "scratchCleaned": true,
+    "transcriptAccuracyClaimed": false
+  },
+  "resume": {
+    "modelPollingCalls": 0,
+    "partialDownloadReusable": true,
+    "inactiveGenerationReusable": true,
+    "qualifiedGenerationActivatesWithoutRedownload": true,
+    "concurrentPreparationOneGeneration": true,
+    "blindTranscriptionRetry": 0
+  },
+  "platform": {
+    "macOSHelperActual": true,
+    "windowsStaticBuildSource": true,
+    "windowsPhysical": "NOT_RUN",
+    "windowsState": "DEFERRED_NOT_WAIVED"
+  },
+  "defaults": {
+    "fullModelDefault": true,
+    "q5Default": false,
+    "weightBundledInInstaller": false,
+    "helperBundledInInstaller": true
+  },
+  "verification": { "focusedPassed": 25, "focusedFailed": 0 },
+  "next": { "gate": "AU-3 Managed Transcription Spine" }
+}

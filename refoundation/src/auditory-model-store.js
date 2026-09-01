@@ -150,6 +150,15 @@ export class AuditoryModelStore {
       : item.state === 'active' ? 'fixture_qualified' : item.state;
     await atomic(this.stateFile, state); return { state: 'active', assetId, generationId };
   }); }
+  async latestPrepared(assetId) { await this.ensure(); const state = await readState(this.stateFile);
+    const row = state.models[assetId]; const generation = [...(row?.generations ?? [])].reverse()
+      .find((item) => ['installed_inactive', 'fixture_qualified'].includes(item.state));
+    if (!generation) return null; const path = this.generationPath(assetId, generation.generationId);
+    const exact = await realpath(path); const info = await lstat(exact);
+    if (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1 || info.size !== generation.bytes
+      || await digestFile(exact) !== generation.sha256) throw new Error('prepared auditory model identity changed');
+    return { ...clone(generation), path: exact };
+  }
   async openActive(assetId) { await this.ensure(); const state = await readState(this.stateFile); const row = state.models[assetId];
     const generation = row?.generations.find((item) => item.generationId === row.activeGenerationId);
     if (!generation || generation.state !== 'active') return { state: 'not_present', assetId };

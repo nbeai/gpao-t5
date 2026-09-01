@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2A_COMPLETE · NX2_4_AU2_CURRENT`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_CURRENT`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-4 AU-2 — Helper & Model Acquisition`
+현재 제품 Gate: `NX2-4 AU-3 — Managed Transcription Spine`
 
 ---
 
@@ -737,6 +737,14 @@ fixture qualification, active generation reopen을 제공한다. full이 유일�
 qualification candidate다. 범용 Model Marketplace·Prompt·Tool·사용자 UI는 추가하지 않았다.
 
 근거: `refoundation/evidence/nx2-au2a-model-generation-2026-09-01.json`.
+
+종료 상태: `COMPLETE`. 공식 b4938 exact source archive에서 macOS arm64+x86_64 static host가 실제 빌드됐고,
+Windows x64·ARM64 package도 같은 archive를 static build하도록 source 계약을 공유한다. 실제 universal host와 Q5 exact
+model의 silence fixture load·JSON schema qualification이 통과했다. 준비 service는 concurrent caller를 한 generation으로
+합치고 crash 뒤 inactive/qualified generation을 이어서 active readback한다. full은 유일한 제품 기본이지만 AU-2 자격을
+위해 같은 1.62GB를 다시 받지는 않았으며 Q5의 기본 승격도 하지 않았다.
+
+근거: `refoundation/evidence/nx2-au2b-whisper-host-acquisition-2026-09-01.json`.
 
 #### AU-3 — Managed Transcription Spine
 

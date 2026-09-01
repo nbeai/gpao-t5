@@ -30,6 +30,7 @@ test('Windows packaged host는 manifest arch와 exact digest를 확인한 뒤 �
     [`${root}\\bin\\t5-windows-folder-picker.exe`, Buffer.from('picker')],
     [`${root}\\bin\\t5-windows-image-ocr.exe`, Buffer.from('ocr')],
     [`${root}\\bin\\t5-windows-audio-reality.exe`, Buffer.from('audio')],
+    [`${root}\\bin\\t5-whisper-host.exe`, Buffer.from('whisper')],
   ]);
   const roleEntries = [
     ['node_runtime', 'bin/node.exe', 'node'],
@@ -41,6 +42,7 @@ test('Windows packaged host는 manifest arch와 exact digest를 확인한 뒤 �
     ['folder_picker_helper', 'bin/t5-windows-folder-picker.exe', 'picker'],
     ['image_ocr_helper', 'bin/t5-windows-image-ocr.exe', 'ocr'],
     ['audio_reality_helper', 'bin/t5-windows-audio-reality.exe', 'audio'],
+    ['whisper_host', 'bin/t5-whisper-host.exe', 'whisper'],
   ];
   const files = roleEntries.map(([,path,body])=>({path,sha256:sha(body)}));
   const roles=Object.fromEntries(roleEntries.map(([role,path])=>[role,path]));
@@ -54,6 +56,7 @@ test('Windows packaged host는 manifest arch와 exact digest를 확인한 뒤 �
   assert.equal(found.jobCredentialHost, `${root}\\bin\\t5-windows-job-host.exe`);
   assert.equal(found.imageOcrHelper, `${root}\\bin\\t5-windows-image-ocr.exe`);
   assert.equal(found.audioRealityHelper, `${root}\\bin\\t5-windows-audio-reality.exe`);
+  assert.equal(found.whisperHost, `${root}\\bin\\t5-whisper-host.exe`);
   assert.equal(found.stateDir, 'C:\\Users\\p\\AppData\\Local\\GPAO-T5\\state\\refoundation-console');
   assert.equal(process.env.T5_WINDOWS_JOB_HOST === found.jobCredentialHost, false);
 });

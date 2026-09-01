@@ -44,6 +44,23 @@ async function copyRuntimeApp(target, targetArchitecture) {
   }
 }
 
+async function buildWhisperHost(work, bin, targetArchitecture) {
+  const material = JSON.parse(await readFile(join(repo,'refoundation','config','whisper-helper-material.json'),'utf8'));
+  const archive = resolve(process.env.T5_WHISPER_SOURCE_ARCHIVE ?? '');
+  if(!archive||material.schema!=='t5.whisper-helper-material.v1')throw new Error('Whisper source material is unavailable');
+  const archiveBytes=await readFile(archive);
+  if(archiveBytes.length!==material.sourceArchive.bytes||createHash('sha256').update(archiveBytes).digest('hex')!==material.sourceArchive.sha256)throw new Error('Whisper source archive identity changed');
+  const sourceParent=join(work,'whisper-source');await mkdir(sourceParent,{recursive:true});
+  run('tar.exe',['-xzf',archive,'-C',sourceParent],{stdio:'inherit'});
+  const roots=(await readdir(sourceParent,{withFileTypes:true})).filter((entry)=>entry.isDirectory());
+  if(roots.length!==1)throw new Error('Whisper source archive root is invalid');
+  const source=join(sourceParent,roots[0].name);const build=join(work,'whisper-build');
+  const cmake=process.env.T5_CMAKE?resolve(process.env.T5_CMAKE):'cmake.exe';const generatorArchitecture=targetArchitecture==='arm64'?'ARM64':'x64';
+  run(cmake,['-S',source,'-B',build,'-A',generatorArchitecture,'-DBUILD_SHARED_LIBS=OFF','-DWHISPER_BUILD_TESTS=OFF','-DWHISPER_BUILD_SERVER=OFF','-DWHISPER_BUILD_EXAMPLES=ON','-DGGML_NATIVE=OFF'],{stdio:'inherit'});
+  run(cmake,['--build',build,'--config','Release','--target','whisper-cli'],{stdio:'inherit'});
+  await copyFile(join(build,'bin','Release','whisper-cli.exe'),join(bin,'t5-whisper-host.exe'));
+}
+
 function compile(source, output, flags=[]) {
   run('cl.exe',['/nologo','/W4','/WX','/O2','/utf-8',`/Fe:${output}`,source,...flags],{stdio:'inherit'});
 }
@@ -70,8 +87,9 @@ async function main(){
     compile(join(repo,'refoundation','native','windows','t5-windows-coarse-app-activity.c'),join(bin,'t5-windows-coarse-app-activity.exe'));
     compileCpp(join(repo,'refoundation','native','windows','t5-windows-image-ocr.cpp'),join(bin,'t5-windows-image-ocr.exe'),['windowsapp.lib']);
     compileCpp(join(repo,'refoundation','native','windows','t5-windows-audio-reality.cpp'),join(bin,'t5-windows-audio-reality.exe'),['mfplat.lib','mfreadwrite.lib','mfuuid.lib','propsys.lib','ole32.lib']);
+    await buildWhisperHost(work,bin,architecture);
     compile(join(repo,'refoundation','native','windows','t5-windows-launcher.c'),join(bin,'GPAO-T5.exe'),['/link','/SUBSYSTEM:WINDOWS']);
-    for(const name of ['t5-windows-job-host.exe','t5-windows-folder-picker.exe','t5-windows-file-activity.exe','t5-windows-coarse-app-activity.exe','t5-windows-image-ocr.exe','t5-windows-audio-reality.exe','GPAO-T5.exe'])if(windowsPeArchitecture(await readFile(join(bin,name)))!==architecture)throw new Error(`${name} architecture does not match package architecture`);
+    for(const name of ['t5-windows-job-host.exe','t5-windows-folder-picker.exe','t5-windows-file-activity.exe','t5-windows-coarse-app-activity.exe','t5-windows-image-ocr.exe','t5-windows-audio-reality.exe','t5-whisper-host.exe','GPAO-T5.exe'])if(windowsPeArchitecture(await readFile(join(bin,name)))!==architecture)throw new Error(`${name} architecture does not match package architecture`);
     const svg=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><rect width="256" height="256" rx="54" fill="#171717"/><path d="M62 78h132M62 128h132M62 178h132M88 54v148M168 54v148" stroke="#fff" stroke-width="18" stroke-linecap="round"/></svg>');
     const png=await sharp(svg).resize(256,256).png().toBuffer();await writeFile(join(payload,'GPAO-T5.ico'),makeWindowsIconIco(png));
     await writeFile(join(payload,'uninstall.ps1'),WINDOWS_UNINSTALL_SCRIPT,'utf8');
@@ -81,6 +99,7 @@ async function main(){
       ['app_activity_helper','bin/t5-windows-coarse-app-activity.exe'],['folder_picker_helper','bin/t5-windows-folder-picker.exe'],
       ['image_ocr_helper','bin/t5-windows-image-ocr.exe'],
       ['audio_reality_helper','bin/t5-windows-audio-reality.exe'],
+      ['whisper_host','bin/t5-whisper-host.exe'],
       ['application_icon','GPAO-T5.ico'],['uninstaller','uninstall.ps1'],
     ];
     const roles=Object.fromEntries(required.map(([role,path])=>[role,path.replaceAll('\\','/')]));

@@ -157,6 +157,31 @@ async function buildAudioRealityHelper(work, runtimeBin) {
   if (architectures.join(',') !== 'arm64,x86_64') throw new Error('Audio Reality helper is not universal');
 }
 
+async function buildWhisperHost(work, runtimeBin) {
+  const material = JSON.parse(await readFile(join(repo, 'refoundation', 'config', 'whisper-helper-material.json'), 'utf8'));
+  const archive = resolve(process.env.T5_WHISPER_SOURCE_ARCHIVE ?? '');
+  if (!archive || material.schema !== 't5.whisper-helper-material.v1') throw new Error('Whisper source material is unavailable');
+  const archiveBytes = await readFile(archive);
+  if (archiveBytes.length !== material.sourceArchive.bytes
+    || createHash('sha256').update(archiveBytes).digest('hex') !== material.sourceArchive.sha256) {
+    throw new Error('Whisper source archive identity changed');
+  }
+  const sourceParent = join(work, 'whisper-source'); await mkdir(sourceParent, { recursive: true });
+  run('tar', ['-xzf', archive, '-C', sourceParent]);
+  const roots = (await readdir(sourceParent, { withFileTypes: true })).filter((entry) => entry.isDirectory());
+  if (roots.length !== 1) throw new Error('Whisper source archive root is invalid');
+  const source = join(sourceParent, roots[0].name); const build = join(work, 'whisper-build');
+  const cmake = process.env.T5_CMAKE ? resolve(process.env.T5_CMAKE) : 'cmake';
+  run(cmake, ['-S', source, '-B', build, '-DCMAKE_BUILD_TYPE=Release', '-DBUILD_SHARED_LIBS=OFF',
+    '-DWHISPER_BUILD_TESTS=OFF', '-DWHISPER_BUILD_SERVER=OFF', '-DWHISPER_BUILD_EXAMPLES=ON',
+    '-DGGML_NATIVE=OFF', '-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'], { stdio: 'inherit' });
+  run(cmake, ['--build', build, '--config', 'Release', '--target', 'whisper-cli', '-j', '8'], { stdio: 'inherit' });
+  const built = join(build, 'bin', 'whisper-cli'); const destination = join(runtimeBin, material.installedName);
+  await copyFile(built, destination); await chmod(destination, 0o755);
+  const architectures = run('lipo', ['-archs', destination]).trim().split(/\s+/u).sort();
+  if (architectures.join(',') !== 'arm64,x86_64') throw new Error('Whisper host is not universal');
+}
+
 async function buildMemorySpotlightHelper(work, runtimeBin) {
   const source = join(repo, 'refoundation', 'native', 'macos-memory-spotlight.swift');
   const arm = join(work, 'memory-spotlight-arm64');
@@ -262,6 +287,7 @@ async function main() {
     await copyRuntimeApp(join(resources, 'app'));
     await buildDocxPageRenderer(work, runtimeBin);
     await buildAudioRealityHelper(work, runtimeBin);
+    await buildWhisperHost(work, runtimeBin);
     await buildMemorySpotlightHelper(work, runtimeBin);
     await buildFileActivityHelper(work, runtimeBin);
     await buildCoarseAppActivityHelper(work, runtimeBin);
