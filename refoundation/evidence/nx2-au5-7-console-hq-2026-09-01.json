@@ -1,0 +1,104 @@
+{
+  "schema": "t5.nx2.au5-7-console-hq.v1",
+  "recordedOn": "2026-09-01",
+  "productHead": "31931fa0ada16e2d63c376752c23052f700bc053",
+  "status": "NX2_4_AUDITORY_COMPLETE_MACOS_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED",
+  "actualConsole": {
+    "quickAudio": {
+      "sourceDurationMs": 62436.25,
+      "runId": "6e0635ea-e455-4d09-b209-34b66355f16a",
+      "wallMs": 22373,
+      "modelCalls": 3,
+      "toolCalls": ["auditory", "work_completion"],
+      "modelPollingCalls": 0,
+      "processOutputObserved": true,
+      "artifact": { "form": "txt", "bytes": 582, "sha256": "e6bc9467614d3c204fe534e2ad51119b543c8db9e12a599a046c884908719af1", "reopened": true },
+      "duplicateCompletion": 0
+    },
+    "longMeeting": {
+      "fixture": "isolated_repeated_korean_speech",
+      "sourceDurationMs": 1198776,
+      "runId": "42987726-9dd6-4760-9387-62f8f8cd6906",
+      "transcriptionProcessMs": 260139,
+      "wallMs": 291445,
+      "artifact": { "form": "txt", "bytes": 12804, "sha256": "29bfe9e188d713acb6fda6666856fb74ae43434d83716eaf1ba97cec761b62f6", "reopened": true },
+      "decisionOwnerDeadlineResult": true,
+      "redundantTerminalPollObserved": 1,
+      "duplicateWakeObserved": 1,
+      "changedEdgeAfterFix": { "runId": "6e0635ea-e455-4d09-b209-34b66355f16a", "redundantTerminalPoll": 0, "duplicateWake": 0 }
+    },
+    "videoSubtitle": {
+      "sourceDurationMs": 6243.633,
+      "runId": "a0c284ec-c362-4a87-8abe-6d8e032988f2",
+      "wallMs": 17810,
+      "sourceAudioTracks": 1,
+      "sourceVideoTracks": 1,
+      "artifact": { "form": "srt", "bytes": 127, "sha256": "cd7f5dd2f5b06dc224661053a833a908d2a58e8f6806b5a83af00b147b9563d8", "reopened": true },
+      "sourceUnchanged": true
+    },
+    "localFile": {
+      "fixtureHomeIsolated": true,
+      "runId": "45e5d9e5-ff7e-41f7-a1bf-e49dc7dd6471",
+      "wallMs": 26942,
+      "modelCalls": 6,
+      "toolCalls": ["tool_search", "file_reality", "file_reality", "auditory", "work_completion"],
+      "terminalFallbackCalls": 0,
+      "exactFileHandle": true,
+      "artifactSha256": "72b6b28ebaab403489d661340cd9834b208ee39f14711c7458f1980bf62a4de7",
+      "originalRevealOnExplicitFollowup": true
+    },
+    "correction": {
+      "runId": "463bb2c7-b582-4963-ab35-348f9aae63cb",
+      "rawVersion": 1,
+      "correctedVersion": 2,
+      "sameArtifactFamily": true,
+      "correctedSha256": "04bfbbf3135f4b6a2c272fc8412ec0d4a4ece27b092df7028d81c3844e7be3e5"
+    },
+    "stop": {
+      "sourceDurationMs": 312181.25,
+      "runId": "0f4368eb-1ec8-484b-8d3f-d4c8de92f6f9",
+      "progressObservedBeforeStop": true,
+      "stopSurfaceWallMs": 1898,
+      "lateArtifactCount": 0,
+      "orphanProcessCount": 0,
+      "terminalState": "cancelled"
+    },
+    "restart": { "completedArtifactsReopenedAfterRuntimeRestart": true, "automaticRetranscription": 0 }
+  },
+  "channels": {
+    "consoleActual": true,
+    "telegramVoiceCanonicalAttachmentQualified": true,
+    "telegramExternalAccountActual": false,
+    "newChannelWorkflow": 0
+  },
+  "accuracyBoundary": {
+    "lossyVideoProperNounOneCharacterErrorObserved": true,
+    "runtimeTextCorrection": 0,
+    "userCorrectionPreservedAsVersion2": true,
+    "perfectWordAccuracyClaimed": false
+  },
+  "platform": {
+    "macOSPhysical": true,
+    "windowsAudioRealitySource": true,
+    "windowsWhisperStaticBuildContract": true,
+    "windowsPackageEntryContract": true,
+    "windowsPhysical": "NOT_RUN",
+    "windowsState": "DEFERRED_NOT_WAIVED"
+  },
+  "verification": {
+    "auditoryFocusedPassed": 134,
+    "auditoryFocusedFailed": 0,
+    "unitPassed": 2201,
+    "unitSkipped": 1,
+    "integrationPassed": 212,
+    "integrationSkipped": 2,
+    "mutationKilled": 2,
+    "failed": 0
+  },
+  "nonClaims": [
+    "current 2-hour whisper.cpp run was not repeated; the current physical long-form run is 20 minutes",
+    "Windows helper and package were not physically executed on Windows",
+    "Telegram external account delivery was not repeated",
+    "perfect recognition of unknown proper nouns is not claimed"
+  ]
+}

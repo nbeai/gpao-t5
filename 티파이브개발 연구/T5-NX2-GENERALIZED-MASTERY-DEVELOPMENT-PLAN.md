@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AU5_CURRENT`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED`
 
 제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-4 AU-5 — Transcript Artifact & Work Result`
+현재 제품 Gate: `NX2-4 AUDITORY INTELLIGENCE — COMPLETE · NEXT GATE NOT OPEN`
 
 ---
 
@@ -782,10 +782,10 @@ source 범위·monotonicity·overlap을 검증한다. actual 한국어 음성은
 - exact quote와 요약 분리
 - 사용자가 요구한 형식만 발행
 
-현재 slice: `AU5A_TRANSCRIPT_ARTIFACT_COMPLETE`. verified transcript만 요청된 단일 TXT·SRT·VTT 형식으로
+종료 상태: `COMPLETE`. verified transcript만 요청된 단일 TXT·SRT·VTT 형식으로
 기존 Attachment family에 등록한다. coverage rejected/unverified는 Artifact 0이며 사용자 교정본은 raw v1을 덮지
-않고 같은 family v2다. actual 한국어 전사는 `회의-자막.srt` v1 127 bytes로 등록·exact reopen됐다. 후속 회의록·
-결정·할 일의 모델 결과와 Console 자연 활성은 아직 AU-5/6 CURRENT다.
+않고 같은 family v2다. actual 한국어 전사·SRT와 20분 격리 회의의 전체 TXT·결정·담당자·기한 결과가 등록·exact
+reopen됐고, 고유명사 교정은 같은 family v2로 보존됐다. 원본 transcript보다 교정본을 과거 진실로 덮어쓰지 않는다.
 
 근거: `refoundation/evidence/nx2-au5a-transcript-artifact-2026-09-01.json`.
 
@@ -795,11 +795,26 @@ source 범위·monotonicity·overlap을 검증한다. actual 한국어 음성은
 - audio/video일 때만 on-demand 발견
 - 모든 파일·대화에 Whisper schema 상시 노출 0
 
+종료 상태: `COMPLETE`. exact audio/video 첨부에서는 첫 모델 응답에 기존 Auditory Hand가 열리고, File Reality가
+찾아 inspect한 local media는 opaque exact handle로 같은 Hand에 전달된다. 일반 Terminal path 재등록·새 Router·새
+Store는 0이다. Telegram voice/audio/video는 기존 canonical Attachment ingress를 재사용하며 외부 실제 계정 시험은
+반복하지 않았다.
+
 #### AU-7 / AU-HQ
 
 - platform·성능·경제성
 - 빠른 음성 메모, 긴 회의, 영상 자막의 실제 Console 전 여정
 - Enter/첨부→progress→첫 transcript→최종 Artifact→교정→Download/Reveal/Undo
+
+종료 상태: `COMPLETE_MACOS · WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED`. 실제 Console에서 1분 음성은 Auditory 1회와
+model polling 0으로 22.4초에 verified TXT를 냈고, 20분 격리 음성은 약 4분 51초에 전체 transcript와 회의 결과를
+냈다. 실제 video audio track은 SRT로 발행됐고, local Downloads 음성은 File Reality→Auditory로 Terminal fallback 0에
+끝났다. 전사 중 실제 진행 문구, Stop 뒤 late Artifact·고아 process 0, 완료 wake exact-once, Runtime restart 뒤
+기존 Artifact reopen을 확인했다. lossy video 고유명사 한 글자 오인식은 숨기지 않고 사용자 교정 v2로 보존했으며
+완벽한 고유명사 인식은 주장하지 않는다. Windows Media Foundation·static helper·package entry source 계약은 닫혔고
+물리 실행은 `DEFERRED_NOT_WAIVED`다.
+
+근거: `refoundation/evidence/nx2-au5-7-console-hq-2026-09-01.json`.
 
 ### 명확한 비목표
 
