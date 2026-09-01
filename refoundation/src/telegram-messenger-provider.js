@@ -72,6 +72,34 @@ function normalizedMessage(update, botUsername) {
     declaredMime: source.document.mime_type ? String(source.document.mime_type) : null,
     declaredBytes: Number.isFinite(source.document.file_size) ? Number(source.document.file_size) : null,
     nativeKind: 'document',
+  } : source?.voice ? {
+    providerFileId: String(source.voice.file_id ?? ''),
+    providerUniqueId: String(source.voice.file_unique_id ?? ''),
+    originalName: `telegram-voice-${source.message_id}.ogg`,
+    declaredMime: source.voice.mime_type ? String(source.voice.mime_type) : 'audio/ogg',
+    declaredBytes: Number.isFinite(source.voice.file_size) ? Number(source.voice.file_size) : null,
+    nativeKind: 'voice',
+  } : source?.audio ? {
+    providerFileId: String(source.audio.file_id ?? ''),
+    providerUniqueId: String(source.audio.file_unique_id ?? ''),
+    originalName: String(source.audio.file_name ?? `telegram-audio-${source.message_id}.mp3`),
+    declaredMime: source.audio.mime_type ? String(source.audio.mime_type) : null,
+    declaredBytes: Number.isFinite(source.audio.file_size) ? Number(source.audio.file_size) : null,
+    nativeKind: 'audio',
+  } : source?.video ? {
+    providerFileId: String(source.video.file_id ?? ''),
+    providerUniqueId: String(source.video.file_unique_id ?? ''),
+    originalName: String(source.video.file_name ?? `telegram-video-${source.message_id}.mp4`),
+    declaredMime: source.video.mime_type ? String(source.video.mime_type) : 'video/mp4',
+    declaredBytes: Number.isFinite(source.video.file_size) ? Number(source.video.file_size) : null,
+    nativeKind: 'video',
+  } : source?.video_note ? {
+    providerFileId: String(source.video_note.file_id ?? ''),
+    providerUniqueId: String(source.video_note.file_unique_id ?? ''),
+    originalName: `telegram-video-note-${source.message_id}.mp4`,
+    declaredMime: 'video/mp4',
+    declaredBytes: Number.isFinite(source.video_note.file_size) ? Number(source.video_note.file_size) : null,
+    nativeKind: 'video_note',
   } : Array.isArray(source?.photo) && source.photo.length ? (() => {
     const photo = source.photo.at(-1);
     return {

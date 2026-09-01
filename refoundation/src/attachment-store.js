@@ -67,6 +67,9 @@ export function detectAttachmentType(bytesInput, originalName = '') {
   if (bytes.subarray(0, 3).toString('ascii') === 'ID3' || starts('fff3') || starts('fffb')) {
     return { mimeType: 'audio/mpeg', kind: 'audio', extension: '.mp3' };
   }
+  if (bytes.subarray(0, 4).toString('ascii') === 'OggS') {
+    return { mimeType: 'audio/ogg', kind: 'audio', extension: '.ogg' };
+  }
   if (bytes.length >= 12 && bytes.subarray(4, 8).toString('ascii') === 'ftyp') {
     return { mimeType: 'video/mp4', kind: 'video', extension: '.mp4' };
   }

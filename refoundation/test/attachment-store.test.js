@@ -214,6 +214,11 @@ test('HTML·SVG·정적 웹 꾸러미는 다운로드 파일이 아니라 관리
   assert.equal(detectAttachmentType(bundle, 'site.zip').kind, 'web_app');
 });
 
+test('Telegram voice의 OggS bytes는 binary가 아니라 audio identity다', () => {
+  assert.deepEqual(detectAttachmentType(Buffer.concat([Buffer.from('OggS'), Buffer.alloc(32)]),
+    'telegram-voice.ogg'), { mimeType: 'audio/ogg', kind: 'audio', extension: '.ogg' });
+});
+
 test('결과 수정은 이전 attachmentId를 명시한 경우에만 같은 family의 다음 버전이 된다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-artifact-version-'));
   const workspace = join(room, 'workspace'); await mkdir(workspace);

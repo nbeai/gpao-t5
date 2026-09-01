@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
-import { mkdtemp, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -133,6 +133,13 @@ function mediaUpdate(id, {
       chat: { id: chatId, type: 'private' }, from: { id: userId, username: 'owner' },
     },
   };
+}
+
+function voiceUpdate(id, { chatId = 555, userId = 42, fileId = `voice-${id}`,
+  uniqueId = `voice-unique-${id}`, fileSize = 36 } = {}) {
+  return { update_id: id, message: { message_id: id, voice: {
+    file_id: fileId, file_unique_id: uniqueId, mime_type: 'audio/ogg', file_size: fileSize,
+  }, chat: { id: chatId, type: 'private' }, from: { id: userId, username: 'owner' } } };
 }
 
 function update(id, { chatId = 555, userId = 42, text = '안녕', threadId = null } = {}) {
@@ -812,6 +819,26 @@ test('Telegram document와 caption·reply identity를 한 envelope로 Attachment
     });
     assert.equal(stored.bytes.toString(), 'contract body');
   } finally { await fixture.close(); }
+});
+
+test('Telegram voice note는 같은 AttachmentStore의 audio identity로 canonical Turn에 들어간다', async () => {
+  const fixture = await telegramFixture(); const room = await mkdtemp(join(tmpdir(), 't5-messenger-voice-'));
+  const sessionId = randomUUID(); const attachmentStore = new AttachmentStore(join(room, 'attachments')); const received = [];
+  const gateway = makeMessengerGateway({ credentialStore: new MessengerCredentialStore(room),
+    stateStore: new MessengerStateStore(room), attachmentStore,
+    providerFactory: ({ token }) => makeTelegramMessengerProvider({ token, apiBase: fixture.base, pollTimeoutSeconds: 0 }),
+    createSession: async () => sessionId, authorizeInbound: async () => true,
+    onInbound: async (message) => { received.push(message); return '확인했어요.'; } });
+  try { await gateway.connect({ provider: 'telegram', token: TOKEN });
+    fixture.files.set('files/voice.bin', Buffer.concat([Buffer.from('OggS'), Buffer.alloc(32)]));
+    fixture.updates.push(voiceUpdate(72, { fileId: 'voice', uniqueId: 'voice-stable' }));
+    assert.deepEqual(await gateway.pollOnce(), { received: 1, accepted: 1, replied: 1, offset: 73 });
+    assert.equal(received[0].attachmentIds.length, 1);
+    const stored = await attachmentStore.readContent({ sessionId, attachmentId: received[0].attachmentIds[0] });
+    assert.equal(stored.record.kind, 'audio'); assert.equal(stored.record.mimeType, 'audio/ogg');
+    assert.deepEqual(stored.record.providerIdentity, { provider: 'telegram', fileId: 'voice',
+      fileUniqueId: 'voice-stable', mediaGroupId: null });
+  } finally { await fixture.close(); await rm(room, { recursive: true, force: true }); }
 });
 
 test('Telegram media group은 caption과 여러 file을 순서대로 한 사용자 Turn에 공급한다', async () => {
