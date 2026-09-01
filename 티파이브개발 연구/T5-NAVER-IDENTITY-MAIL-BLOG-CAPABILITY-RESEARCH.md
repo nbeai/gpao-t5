@@ -539,6 +539,11 @@ model 5·Tool 4로 반환했으며 본문 open/click·읽음 변경 action은 0�
 보이는 text에 실제 등장한 ref만 compact 투영하고, 전체 exact ref/context는 local action registry에 그대로 보존한다.
 Browser action·modal·download·upload·login 집중 회귀 36/36을 통과했다.
 
+compact 후보 actual은 같은 검색의 최대 provider request를 368,657B에서 189,579B로 약 49% 줄였고 정답을 유지했다.
+그러나 기존 로그인 readback이 이미 ready였는데도 `connection perform` 결과가 `user_action_started`로 포장돼 거짓 pending
+handoff가 생겼고, 정답 전달 뒤 한 번 중복 resume됐다. 해당 handoff는 terminal이며 추가 replay는 없다. Runtime은 이제
+`connectionReady=true`를 `ready`로 반환하고 실제 사용자 행동이 남은 경우에만 handoff를 연다.
+
 ### NV-4 — Mail Draft & Send
 
 - draft preview

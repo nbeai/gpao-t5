@@ -75,7 +75,18 @@
       "readStateMutationAction": false
     },
     "browserWireCandidate": "project only refs named in the shown text and omit repeated ancestor chains from provider wire while retaining the full exact facts in the local action registry",
-    "browserWireFocusedTests": "36/36 pass"
+    "browserWireFocusedTests": "36/36 pass",
+    "browserWireActual": {
+      "runId": "ee7011f8-9b23-45e1-b641-91c22218b2f6",
+      "result": "CONTENT_PASS_SETTLEMENT_FAIL",
+      "maxProviderRequestBytes": 189579,
+      "previousMaxProviderRequestBytes": 368657,
+      "reductionPercentApprox": 49,
+      "modelTurns": 7,
+      "toolCalls": 6
+    },
+    "readyHandoffRepair": "connection perform results with connectionReady=true now return ready rather than user_action_started, preventing a false pending handoff and duplicate resume",
+    "observedDuplicateBeforeRepair": "the false handoff resumed once as run e807cadc-335e-4f89-8bc5-ee70c57fd30a after the correct answer was already delivered; it is terminal and will not replay again"
   },
   "nonClaims": [
     "Mail folder/search/open/attachment is not yet qualified on the actual owner account.",

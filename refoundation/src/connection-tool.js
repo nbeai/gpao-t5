@@ -53,7 +53,7 @@ export function makeConnectionTool({ doctor, startConnection, performConnection,
       if (action === 'perform') {
         if (typeof performConnection !== 'function') throw new Error('connection action is unavailable');
         const performed = await performConnection(String(id ?? ''), String(actionId ?? ''));
-        return { state: 'user_action_started', ...performed };
+        return { state: performed.connectionReady === true ? 'ready' : 'user_action_started', ...performed };
       }
       if (action !== 'inspect') throw new Error(`Unknown connection action: ${action}`);
       const connection = connections.find((item) => item.id === String(id ?? ''));

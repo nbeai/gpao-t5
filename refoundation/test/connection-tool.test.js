@@ -112,6 +112,14 @@ test('목록에 있는 사용자 행동은 모델 대신 설치·로그인 화�
   assert.deepEqual(calls, [{ id: 'google-workspace', actionId: 'open_drive_desktop' }]);
 });
 
+test('사용자 행동 없이 기존 connection readback이 ready면 새 handoff를 열지 않는다', async () => {
+  const tool = makeConnectionTool({ doctor: { inspect: async () => report },
+    performConnection: async () => ({ performed: true, connectionReady: true,
+      userSafeSummary: '기존 로그인을 확인했어요.' }) });
+  const performed = await tool.execute({ action: 'perform', id: 'naver', actionId: 'login' });
+  assert.equal(performed.state, 'ready'); assert.equal(performed.connectionReady, true);
+});
+
 test('이미 다른 대화가 같은 OAuth를 준비 중이면 새 인증창 없이 독립 handoff만 합류한다', async () => {
   const tool = makeConnectionTool({
     doctor: { inspect: async () => report },
