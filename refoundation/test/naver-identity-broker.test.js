@@ -40,3 +40,19 @@ test('foreign profile과 비정상 protocol state는 Naver identity를 바꾸지
     result: { ...observed('https://mail.naver.com/', '메일'), profile: { id: 'foreign' } } }), /foreign/u);
   assert.throws(() => broker.observeMailProtocol('connected'), /protocol state/u);
 });
+
+test('mail protocol만 ready일 때 Browser·Blog까지 준비됐다고 확대하지 않는다', async () => {
+  const mailConnection = {
+    async inspect() { return { state: 'ready', identity: { accountId: 'owner@naver.com' },
+      capabilities: { read: true }, routes: [{ kind: 'official_protocol', label: '네이버 IMAP', state: 'ready', canStart: false }],
+      actions: [] }; }, async makeTool() { return { name: 'naver_mail', execute() {} }; },
+  };
+  const broker = makeNaverIdentityBroker({ profileHandle: null, mailConnection });
+  const result = await broker.inspect();
+  assert.equal(result.state, 'ready');
+  assert.equal(result.capabilities.mail_protocol, true);
+  assert.equal(result.capabilities.blog_web, false);
+  assert.match(result.userSafeSummary, /블로그 로그인은 아직 확인하지 않았/u);
+  assert.equal(result.routes.find((route) => route.kind === 'browser').state, 'needs_connection');
+  assert.doesNotMatch(result.userSafeSummary, /메일·블로그를 사용할 준비/u);
+});

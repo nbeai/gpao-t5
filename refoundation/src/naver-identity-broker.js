@@ -51,22 +51,29 @@ export function makeNaverIdentityBroker({ profileHandle = 'default', mailConnect
         update({ services: { mailProtocol: 'needs_reauth' }, lastObservedAt: now().toISOString() });
       }
       const snapshot = publicSnapshot(state); const ready = snapshot.state === 'authenticated';
+      const mailProtocolReady = snapshot.services.mailProtocol === 'ready';
+      const mailWebReady = snapshot.services.mailWeb === 'ready';
+      const blogWebReady = snapshot.services.blogWeb === 'ready';
+      const browserReady = mailWebReady && blogWebReady;
+      const summary = mailProtocolReady && browserReady
+        ? '네이버 메일 공식 연결과 같은 T5 네이버 로그인으로 메일·블로그를 사용할 준비가 되어 있어요.'
+        : mailProtocolReady ? '네이버 메일 공식 연결을 사용할 준비가 되어 있어요. 블로그 로그인은 아직 확인하지 않았어요.'
+          : browserReady ? '같은 T5 네이버 로그인으로 메일 웹과 블로그를 사용할 준비가 되어 있어요. 메일 공식 연결은 아직 필요해요.'
+            : snapshot.state === 'expired' ? '네이버 로그인이 만료되어 다시 로그인이 필요해요.'
+              : snapshot.state === 'user_control' ? 'T5 브라우저에서 네이버 로그인을 진행하고 있어요.'
+                : 'T5 브라우저 로그인과 네이버 메일 공식 연결 상태를 확인해 주세요.';
       return { state: ready ? 'ready' : snapshot.state === 'user_control' ? 'needs_attention' : 'needs_connection',
         reason: ready ? 'same_managed_naver_identity_ready'
           : snapshot.state === 'expired' ? 'naver_login_expired'
             : snapshot.state === 'user_control' ? 'naver_user_login_in_progress' : 'naver_login_observation_required',
-        userSafeSummary: ready
-          ? '같은 T5 네이버 로그인으로 메일과 블로그를 사용할 준비가 되어 있어요.'
-          : snapshot.state === 'expired' ? '네이버 로그인이 만료되어 다시 로그인이 필요해요.'
-            : snapshot.state === 'user_control' ? 'T5 브라우저에서 네이버 로그인을 진행하고 있어요.'
-              : 'T5 브라우저에서 네이버 로그인 상태를 확인해 주세요.',
+        userSafeSummary: summary,
         capabilities: { mail_web: snapshot.services.mailWeb === 'ready',
           blog_web: snapshot.services.blogWeb === 'ready',
           mail_protocol: snapshot.services.mailProtocol === 'ready' },
         ...(mail?.identity ? { identity: mail.identity } : {}),
         ...(mail?.credentialRequest ? { credentialRequest: mail.credentialRequest } : {}),
         routes: [...(mail?.routes ?? []), { kind: 'browser', label: 'T5 네이버 브라우저',
-          state: ready ? 'ready' : 'needs_connection', canStart: !ready,
+          state: browserReady ? 'ready' : 'needs_connection', canStart: !browserReady,
         startUrl: 'https://mail.naver.com/' }],
         actions: mail?.actions ?? [], naverIdentity: snapshot };
     },
