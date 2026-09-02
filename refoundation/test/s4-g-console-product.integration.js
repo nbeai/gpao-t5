@@ -6,6 +6,7 @@ import test from 'node:test';
 
 import { discoverComputerEnvironment } from '../src/computer-environment.js';
 import { makeConsoleServer } from '../src/console-server.js';
+import { physicalMacOSSandboxTest } from './helpers/macos-python-sandbox-test.js';
 
 const effect = (targets) => ({ kind: 'local_change', targets,
   confirmation: 'not_applicable', rollbackOfToolCallId: null });
@@ -16,7 +17,7 @@ async function listen(server) {
   return `http://127.0.0.1:${server.address().port}`;
 }
 
-for (const modelId of ['provider-a-model', 'provider-b-model', 'provider-c-compound-model']) test(
+for (const modelId of ['provider-a-model', 'provider-b-model', 'provider-c-compound-model']) physicalMacOSSandboxTest(
   `기존 exec의 exact Python은 모델 identity와 무관하게 G→Artifact로 끝난다: ${modelId}`, async () => {
     const root = await mkdtemp(join(tmpdir(), 't5-s4g-console-product-'));
     const workspace = join(root, 'workspace'); const stateDir = join(root, 'state');

@@ -9,6 +9,11 @@ import { DEFAULT_AGENT_BROWSER_BINARY, makeAgentBrowserDriver } from '../src/age
 import { makeNaverBlogCraftAdapter } from '../src/naver-blog-craft-adapter.js';
 import { makePersistentBrowserHost } from '../src/persistent-browser-host.js';
 
+const hostedMacOS = process.env.GITHUB_ACTIONS === 'true' && process.env.RUNNER_OS === 'macOS';
+const managedChromeTest = hostedMacOS
+  ? (name, fn) => test(name, { skip: 'GitHub hosted macOS has no user GUI session; managed Chrome qualification not claimed' }, fn)
+  : test;
+
 async function fixture() {
   const server = createServer((req, res) => {
     res.setHeader('content-type', 'text/html; charset=utf-8');
@@ -26,7 +31,7 @@ async function fixture() {
     close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
-test('Naver Blog craft adapter는 exact DOM text·file input·Preview를 좌표 없이 관측한다', async () => {
+managedChromeTest('Naver Blog craft adapter는 exact DOM text·file input·Preview를 좌표 없이 관측한다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-naver-blog-craft-')); const site = await fixture();
   const image = join(room, 'fixture.png'); await writeFile(image, Buffer.from('fixture-image'));
   const host = makePersistentBrowserHost({ root: room, namespace: `t5-naver-craft-${Date.now()}`,
