@@ -10,6 +10,7 @@ import { explainShellCommand } from '../src/command-explainer.js';
 import { ManagedProcessRegistry } from '../src/managed-process.js';
 import { makeSnapshotProgramAdapter } from '../src/snapshot-program-adapter.js';
 import { makeWorkspacePatchTool } from '../src/workspace-patch-tool.js';
+import { physicalMacOSSandboxTest } from './helpers/macos-python-sandbox-test.js';
 
 const SESSION = '11111111-1111-4111-8111-111111111111';
 const WORK = '22222222-2222-4222-8222-222222222222';
@@ -45,7 +46,7 @@ async function fixture() {
     first: join(workspace, '결과', '합계.csv'), second: join(workspace, '결과', '행수.csv') };
 }
 
-test('G verified publication은 현재 produced-output identity를 자동 만들지 않는다', async () => {
+physicalMacOSSandboxTest('G verified publication은 현재 produced-output identity를 자동 만들지 않는다', async () => {
   const app = await fixture();
   try {
     assert.equal(app.outcome.result.state, 'published_verified_cleaned');
@@ -55,7 +56,7 @@ test('G verified publication은 현재 produced-output identity를 자동 만들
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
 
-test('outputHandle 부재만으로 attachment 실패가 확정되지는 않는다', async () => {
+physicalMacOSSandboxTest('outputHandle 부재만으로 attachment 실패가 확정되지는 않는다', async () => {
   const app = await fixture();
   try {
     const denied = makeAttachmentTool({ store: app.store, sessionId: SESSION,

@@ -10,6 +10,7 @@ import { executePythonProgramQualification, observePythonInterpreter } from '../
 import { createWorkspaceSnapshot, removeWorkspaceSnapshot,
   snapshotProgramBindings } from '../src/ephemeral-program-snapshot.js';
 import { ManagedProcessRegistry } from '../src/managed-process.js';
+import { physicalMacOSSandboxTest } from './helpers/macos-python-sandbox-test.js';
 
 const SESSION = '11111111-1111-4111-8111-111111111111';
 const WORK = '22222222-2222-4222-8222-222222222222';
@@ -79,7 +80,7 @@ test('프로젝트 snapshot은 요청된 repository metadata를 읽지 않고 �
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
 
-test('동일 Python source는 snapshot universe를 RecordRef로 받아 원본 write 없이 실행된다', async () => {
+physicalMacOSSandboxTest('동일 Python source는 snapshot universe를 RecordRef로 받아 원본 write 없이 실행된다', async () => {
   const app = await room();
   try {
     const before = hash(await readFile(join(app.workspace, '입력', 'a.csv')));

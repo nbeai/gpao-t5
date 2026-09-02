@@ -9,6 +9,7 @@ import { admitExecProgramContract } from '../src/exec-program-contract.js';
 import { executePythonProgramQualification, observePythonInterpreter } from '../src/ephemeral-program-python.js';
 import { ManagedProcessRegistry } from '../src/managed-process.js';
 import { makeRecordReference } from '../src/record-reference.js';
+import { physicalMacOSSandboxTest } from './helpers/macos-python-sandbox-test.js';
 
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const sourceBytes = Buffer.from('name,amount\nA,10\nB,20\n');
@@ -38,7 +39,7 @@ async function room() {
   return mkdtemp(join(tmpdir(), 't5-python-capsule-'));
 }
 
-test('same-language Python은 frozen input을 scratch에서 처리하고 source 번역·user target write 없이 끝난다', async () => {
+physicalMacOSSandboxTest('same-language Python은 frozen input을 scratch에서 처리하고 source 번역·user target write 없이 끝난다', async () => {
   const root = await room();
   try {
     const interpreter = await observePythonInterpreter({ path: '/usr/bin/python3' });
@@ -67,7 +68,7 @@ for (const [name, source] of [
   ['child fork', "import os\nos.fork()\n"],
   ['network', "import _socket\ns=_socket.socket(); s.connect(('127.0.0.1', 9))\n"],
 ]) {
-  test(`Python ${name} effect는 output publication 전에 물리 경계에서 닫힌다`, async () => {
+  physicalMacOSSandboxTest(`Python ${name} effect는 output publication 전에 물리 경계에서 닫힌다`, async () => {
     const root = await room();
     try {
       const interpreter = await observePythonInterpreter({ path: '/usr/bin/python3' });
@@ -82,7 +83,7 @@ for (const [name, source] of [
   });
 }
 
-test('Python은 bound scratch 밖 source를 읽을 수 없다', async () => {
+physicalMacOSSandboxTest('Python은 bound scratch 밖 source를 읽을 수 없다', async () => {
   const root = await room(); const protectedFile = join(root, 'protected', 'secret.txt');
   try {
     await mkdir(join(root, 'protected')); await writeFile(protectedFile, 'secret');
@@ -97,7 +98,7 @@ test('Python은 bound scratch 밖 source를 읽을 수 없다', async () => {
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test('Python은 scratch 밖 target을 쓸 수 없고 user target은 생기지 않는다', async () => {
+physicalMacOSSandboxTest('Python은 scratch 밖 target을 쓸 수 없고 user target은 생기지 않는다', async () => {
   const root = await room(); const outsideTarget = join(root, 'outside.txt');
   try {
     const interpreter = await observePythonInterpreter({ path: '/usr/bin/python3' });
@@ -112,7 +113,7 @@ test('Python은 scratch 밖 target을 쓸 수 없고 user target은 생기지 �
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test('Python의 undeclared scratch output과 staged input 변경은 publishable 결과가 아니다', async () => {
+physicalMacOSSandboxTest('Python의 undeclared scratch output과 staged input 변경은 publishable 결과가 아니다', async () => {
   const root = await room();
   try {
     const interpreter = await observePythonInterpreter({ path: '/usr/bin/python3' });

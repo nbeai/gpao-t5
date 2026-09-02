@@ -9,6 +9,7 @@ import { explainShellCommand } from '../src/command-explainer.js';
 import { ManagedProcessRegistry } from '../src/managed-process.js';
 import { makeSnapshotProgramAdapter } from '../src/snapshot-program-adapter.js';
 import { makeWorkspacePatchTool } from '../src/workspace-patch-tool.js';
+import { physicalMacOSSandboxTest } from './helpers/macos-python-sandbox-test.js';
 
 const SESSION = '11111111-1111-4111-8111-111111111111';
 const WORK = '22222222-2222-4222-8222-222222222222';
@@ -35,7 +36,7 @@ async function execute(app, source, targets, overrides = {}) {
     commandExplanation: await explainShellCommand(shell), cwd: app.workspace, toolCallId }) };
 }
 
-test('사업·개발·개인 파일 세 목적은 same Python exact 1회→host observer→F→Undo→cleanup으로 닫힌다', async () => {
+physicalMacOSSandboxTest('사업·개발·개인 파일 세 목적은 same Python exact 1회→host observer→F→Undo→cleanup으로 닫힌다', async () => {
   const cases = [
     { name: 'business', inputs: [['입력/a.csv', 'name,amount\nA,10\n'], ['입력/b.csv', 'name,amount\nB,20\n']],
       outputs: ['결과/합계.csv', '결과/행수.csv'], source: [
@@ -87,7 +88,7 @@ test('사업·개발·개인 파일 세 목적은 same Python exact 1회→host 
   }
 });
 
-test('same Python protected path는 아직 없는 declared output 부모를 F로 발행하고 Undo에서 제거한다', async () => {
+physicalMacOSSandboxTest('same Python protected path는 아직 없는 declared output 부모를 F로 발행하고 Undo에서 제거한다', async () => {
   const app = await room();
   try {
     await writeFile(join(app.workspace, 'input.json'), '{"count":2}');
@@ -120,7 +121,7 @@ test('기존 regular target을 읽어 고치는 Python은 G가 가로채지 않�
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
 
-test('guest exit 0은 missing·unexpected·invalid output을 성공으로 만들지 않는다', async () => {
+physicalMacOSSandboxTest('guest exit 0은 missing·unexpected·invalid output을 성공으로 만들지 않는다', async () => {
   for (const [name, source, reason] of [
     ['missing', 'pass', 'declared_output_missing_or_unsafe'],
     ['unexpected', "from pathlib import Path\nPath('결과/out.csv').write_text('x\\n1\\n')\nPath('debug.log').write_text('x')", 'unexpected_scratch_output'],
@@ -144,7 +145,7 @@ test('guest exit 0은 missing·unexpected·invalid output을 성공으로 만들
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
 
-test('source universe 밖 read·write, network, child process는 publication 전에 닫힌다', async () => {
+physicalMacOSSandboxTest('source universe 밖 read·write, network, child process는 publication 전에 닫힌다', async () => {
   const app = await room(); const outside = join(app.root, 'outside.txt'); await writeFile(outside, 'secret');
   try { await mkdir(join(app.workspace, '결과')); await writeFile(join(app.workspace, 'input.txt'), 'input');
     const attempts = [
@@ -163,7 +164,7 @@ test('source universe 밖 read·write, network, child process는 publication 전
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
 
-test('publication 성공 뒤 cleanup 실패는 재발행하지 않고 cleanup unknown으로 분리한다', async () => {
+physicalMacOSSandboxTest('publication 성공 뒤 cleanup 실패는 재발행하지 않고 cleanup unknown으로 분리한다', async () => {
   const app = await room(); await mkdir(join(app.workspace, '결과')); await writeFile(join(app.workspace, 'input.txt'), 'input'); let removals = 0;
   try {
     const removeSnapshot = async () => { removals += 1; return { state: 'snapshot_cleanup_unknown', removed: false }; };
@@ -175,7 +176,7 @@ test('publication 성공 뒤 cleanup 실패는 재발행하지 않고 cleanup un
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
 
-test('Snapshot adapter는 F verified output 전체를 durable handle에 결속하고 모델에는 Artifact만 반환한다', async () => {
+physicalMacOSSandboxTest('Snapshot adapter는 F verified output 전체를 durable handle에 결속하고 모델에는 Artifact만 반환한다', async () => {
   const app = await room(); await mkdir(join(app.workspace, '결과')); await writeFile(join(app.workspace, 'input.txt'), 'input');
   const attachmentStore = new AttachmentStore(join(app.state, 'attachments'));
   try {
@@ -195,7 +196,7 @@ test('Snapshot adapter는 F verified output 전체를 durable handle에 결속�
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
 
-test('settlement 뒤 crash는 successor가 snapshot cleanup만 하고 Python·F transaction을 반복하지 않는다', async () => {
+physicalMacOSSandboxTest('settlement 뒤 crash는 successor가 snapshot cleanup만 하고 Python·F transaction을 반복하지 않는다', async () => {
   const app = await room(); await mkdir(join(app.workspace, '결과')); await writeFile(join(app.workspace, 'input.txt'), 'input'); let executions = 0;
   try {
     const crash = Object.assign(new Error('simulated crash'), { simulateCrash: true });
@@ -217,7 +218,7 @@ test('settlement 뒤 crash는 successor가 snapshot cleanup만 하고 Python·F 
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
 
-test('F verified 뒤 handoff 전 crash는 successor가 Python·F 없이 batch handoff만 재개한다', async () => {
+physicalMacOSSandboxTest('F verified 뒤 handoff 전 crash는 successor가 Python·F 없이 batch handoff만 재개한다', async () => {
   const app = await room(); await mkdir(join(app.workspace, '결과')); await writeFile(join(app.workspace, 'input.txt'), 'input');
   const attachmentStore = new AttachmentStore(join(app.state, 'attachments')); let executions = 0;
   try {
@@ -245,7 +246,7 @@ test('F verified 뒤 handoff 전 crash는 successor가 Python·F 없이 batch ha
   } finally { await rm(app.root, { recursive: true, force: true }); }
 });
 
-test('batch commit 뒤 Artifact 전 crash는 successor가 프로그램 없이 Artifact만 등록한다', async () => {
+physicalMacOSSandboxTest('batch commit 뒤 Artifact 전 crash는 successor가 프로그램 없이 Artifact만 등록한다', async () => {
   const app = await room(); await mkdir(join(app.workspace, '결과')); await writeFile(join(app.workspace, 'input.txt'), 'input');
   const attachmentStore = new AttachmentStore(join(app.state, 'attachments')); let executions = 0;
   try {
