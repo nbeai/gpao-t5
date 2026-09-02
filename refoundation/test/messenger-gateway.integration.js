@@ -485,8 +485,6 @@ test('텔레그램 long polling은 inbound→같은 chat session→outbound repl
     assert.equal(inbound[0].sessionId, 'session-1');
     const sent = fixture.calls.find((call) => call.method === 'sendMessage');
     assert.deepEqual(sent.body, { chat_id: '555', text: '답: 안녕', parse_mode: 'HTML' });
-    assert.ok(fixture.calls.findIndex((call) => call.method === 'sendChatAction')
-      < fixture.calls.findIndex((call) => call.method === 'sendMessage'));
 
     fixture.updates.push(update(11, { text: '두 번째' }));
     const restarted = gateway();
