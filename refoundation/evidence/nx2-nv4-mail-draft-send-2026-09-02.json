@@ -1,0 +1,25 @@
+{
+  "schema": "t5.nx2-nv4-mail-draft-send-evidence.v1",
+  "status": "TECHNICAL_COMPLETE_FINAL_HQ_SEND_PENDING",
+  "qualified": {
+    "newDraft": true,
+    "replyThreadDraft": true,
+    "recipientSubjectBodyBinding": true,
+    "attachmentUploadBinding": true,
+    "draftSaveReadback": true,
+    "newRecipientAuthorityDelegated": true,
+    "providerAcceptanceSeparatedFromRecipientDelivery": true,
+    "unknownAckBlindRetry": false,
+    "sameDraftSendExactOnce": true
+  },
+  "implementation": "existing managed Browser Hand plus Naver physical adapter",
+  "newStore": 0,
+  "newBrowserReality": 0,
+  "businessRouter": 0,
+  "focusedTests": "16/16 pass plus reply-thread countertest pass",
+  "finalHqOnly": [
+    "one owner-visible draft preview and correction",
+    "one owner-authorized self/fixture recipient send",
+    "sent UI readback and no duplicate delivery"
+  ]
+}

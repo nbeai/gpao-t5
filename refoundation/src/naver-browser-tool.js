@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { EFFECT_SCHEMA } from './exec-tool.js';
 
-const ACTIONS = ['mail_list', 'mail_search', 'mail_open', 'mail_download_attachment'];
+const ACTIONS = ['mail_list', 'mail_search', 'mail_open', 'mail_download_attachment',
+  'mail_create_draft', 'mail_reply_draft', 'mail_send'];
 const nullArgs = { url: null, tabId: null, full: null, maxChars: null, fullPage: null,
   observationId: null, ref: null, editableId: null, modalIntent: null, text: null,
   textFilePath: null, textFileStartLine: null, filePath: null, attachmentId: null, effect: null };
@@ -52,14 +53,28 @@ function attachmentsFrom(observation, messageHandle) {
   }).slice(0, 50);
 }
 function effectKind(args) { return args?.effect?.kind ?? null; }
+function exactRecipients(value) {
+  if (!Array.isArray(value) || !value.length || value.length > 20) throw new TypeError('mail recipients are required');
+  return [...new Set(value.map((item) => String(item ?? '').trim().toLowerCase()))].map((item) => {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(item) || item.length > 320) throw new TypeError('mail recipient is invalid');
+    return item;
+  });
+}
+function exactText(value, label, max) { const text = String(value ?? '').trim();
+  if (!text || text.length > max) throw new TypeError(`${label} is invalid`); return text; }
+function refBy(observation, role, names) {
+  return Object.entries(observation?.refs ?? {}).find(([, fact]) => fact.role === role
+    && names.some((name) => typeof name === 'string' ? fact.name === name : name.test(fact.name ?? '')));
+}
 
-export function makeNaverBrowserTool({ browser } = {}) {
+export function makeNaverBrowserTool({ browser, authorizeEffect = null } = {}) {
   if (!browser?.execute) throw new TypeError('Naver Browser adapter requires the existing Browser Hand');
   const call = async (args) => {
     if (browser.preflight) { const gate = await browser.preflight(args, {});
       if (gate?.allowed === false) return gate.result; }
     return browser.execute(args, {});
   };
+  const drafts = new Map(); const terminalSends = new Set();
   const observeList = async (limit) => {
     const opened = await call({ ...nullArgs, action: 'navigate', url: 'https://mail.naver.com/', maxChars: 12_000 });
     let observation = opened.observation; let messages = parseNaverMailObservation(observation, limit);
@@ -77,8 +92,13 @@ export function makeNaverBrowserTool({ browser } = {}) {
       action: { type: 'string', enum: ACTIONS }, query: { type: ['string', 'null'], maxLength: 500 },
       messageHandle: { type: ['string', 'null'], maxLength: 4096 },
       attachmentHandle: { type: ['string', 'null'], maxLength: 4096 },
+      draftHandle: { type: ['string', 'null'], maxLength: 4096 },
+      recipients: { type: ['array', 'null'], items: { type: 'string', maxLength: 320 }, maxItems: 20 },
+      subject: { type: ['string', 'null'], maxLength: 2000 }, body: { type: ['string', 'null'], maxLength: 20_000 },
+      attachmentIds: { type: ['array', 'null'], items: { type: 'string', maxLength: 200 }, maxItems: 20 },
       limit: { type: 'integer', minimum: 1, maximum: 50 }, effect: { anyOf: [EFFECT_SCHEMA, { type: 'null' }] },
-    }, required: ['action', 'query', 'messageHandle', 'attachmentHandle', 'limit', 'effect'] },
+    }, required: ['action', 'query', 'messageHandle', 'attachmentHandle', 'draftHandle', 'recipients',
+      'subject', 'body', 'attachmentIds', 'limit', 'effect'] },
     async preflight(args = {}) {
       if (!ACTIONS.includes(args.action)) throw new TypeError('unsupported Naver action');
       if (['mail_list'].includes(args.action) && effectKind(args) !== 'observe') return { allowed: false,
@@ -89,6 +109,15 @@ export function makeNaverBrowserTool({ browser } = {}) {
         outcome: 'not_executed', result: { state: 'mail_read_state_effect_required' } };
       if (args.action === 'mail_download_attachment' && effectKind(args) !== 'local_change') return { allowed: false,
         outcome: 'not_executed', result: { state: 'attachment_local_change_required' } };
+      if (['mail_create_draft', 'mail_reply_draft'].includes(args.action)
+        && effectKind(args) !== 'external_change') return { allowed: false,
+        outcome: 'not_executed', result: { state: 'mail_draft_external_change_required' } };
+      if (args.action === 'mail_send' && effectKind(args) !== 'external_send') return { allowed: false,
+        outcome: 'not_executed', result: { state: 'mail_send_external_effect_required' } };
+      if (['mail_search', 'mail_open', 'mail_download_attachment', 'mail_create_draft',
+        'mail_reply_draft', 'mail_send'].includes(args.action) && typeof authorizeEffect === 'function') {
+        return authorizeEffect(args, {});
+      }
       return { allowed: true };
     },
     async execute(args = {}) {
@@ -121,11 +150,80 @@ export function makeNaverBrowserTool({ browser } = {}) {
           bodyCoverage: observation?.truncated ? 'partial' : 'observed_page',
           attachments: attachmentsFrom(observation, args.messageHandle), effect: 'external_change' };
       }
-      const handle = decode(args.attachmentHandle, 'naver_attachment');
-      const downloaded = await call({ ...nullArgs, action: 'download', tabId: handle.tabId,
-        observationId: handle.observationId, ref: handle.ref, effect: args.effect });
-      return { state: downloaded.state, messageHandle: handle.messageHandle,
-        file: downloaded.file ?? null, artifact: downloaded.artifact ?? null, effect: 'local_change' };
+      if (args.action === 'mail_download_attachment') {
+        const handle = decode(args.attachmentHandle, 'naver_attachment');
+        const downloaded = await call({ ...nullArgs, action: 'download', tabId: handle.tabId,
+          observationId: handle.observationId, ref: handle.ref, effect: args.effect });
+        return { state: downloaded.state, messageHandle: handle.messageHandle,
+          file: downloaded.file ?? null, artifact: downloaded.artifact ?? null, effect: 'local_change' };
+      }
+      if (args.action === 'mail_send') {
+        const decodedDraft = decode(args.draftHandle, 'naver_draft'); const draft = drafts.get(decodedDraft.digest);
+        if (!draft || draft.handle !== args.draftHandle) throw new Error('Naver draft is unavailable or stale');
+        if (terminalSends.has(decodedDraft.digest)) return { state: 'already_sent', retrySafe: false,
+          draftHandle: args.draftHandle, effect: 'not_executed' };
+        const submit = refBy(draft.observation, 'button', ['보내기', /메일 보내기/u]);
+        if (!submit) throw new Error('Naver Mail send control is unavailable');
+        terminalSends.add(decodedDraft.digest);
+        const sent = await call({ ...nullArgs, action: 'submit', tabId: draft.observation.refScope.tabId,
+          observationId: draft.observation.observationId, ref: submit[0], effect: args.effect });
+        const text = String(sent.after?.text ?? ''); const confirmed = /메일을 보냈|발송.*완료|보낸메일함/u.test(text);
+        return { state: confirmed ? 'sent' : 'delivery_unknown', draftHandle: args.draftHandle,
+          recipientCount: draft.recipients.length, contentDigest: decodedDraft.digest,
+          providerAcceptance: confirmed ? 'observed' : 'unknown', recipientDelivery: 'unknown',
+          effectUnknown: !confirmed, retrySafe: false, effect: 'external_send' };
+      }
+      const recipients = args.action === 'mail_create_draft' ? exactRecipients(args.recipients) : null;
+      const subject = args.action === 'mail_create_draft' ? exactText(args.subject, 'mail subject', 2000) : null;
+      const body = exactText(args.body, 'mail body', 20_000);
+      let observation;
+      if (args.action === 'mail_reply_draft') {
+        const message = decode(args.messageHandle, 'naver_message');
+        const opened = await call({ ...nullArgs, action: 'click', tabId: message.tabId,
+          observationId: message.observationId, ref: message.titleRef, effect: args.effect });
+        const reply = refBy(opened.after, 'button', ['답장']);
+        if (!reply) throw new Error('Naver Mail reply control is unavailable');
+        observation = (await call({ ...nullArgs, action: 'click', tabId: opened.after.refScope.tabId,
+          observationId: opened.after.observationId, ref: reply[0], effect: args.effect })).after;
+      } else {
+        const list = await observeList(1); const write = refBy(list.observation, 'link', ['메일 쓰기']);
+        if (!write) throw new Error('Naver Mail compose control is unavailable');
+        observation = (await call({ ...nullArgs, action: 'click', tabId: list.observation.refScope.tabId,
+          observationId: list.observation.observationId, ref: write[0], effect: args.effect })).after;
+      }
+      const fillOne = async (current, role, names, text) => {
+        const target = refBy(current, role, names); if (!target) throw new Error('Naver Mail draft field is unavailable');
+        const filled = await call({ ...nullArgs, action: 'fill', tabId: current.refScope.tabId,
+          observationId: current.observationId, ref: target[0], text, effect: args.effect });
+        return filled.after;
+      };
+      if (recipients) observation = await fillOne(observation, 'textbox', [/받는 사람|수신자/u], recipients.join(', '));
+      if (subject) observation = await fillOne(observation, 'textbox', ['제목', /메일 제목/u], subject);
+      const editable = (observation.editables ?? []).find((item) => item.kind === 'body')
+        ?? (observation.editables ?? [])[0];
+      if (editable) observation = (await call({ ...nullArgs, action: 'fill_editable',
+        tabId: observation.refScope.tabId, observationId: observation.observationId,
+        editableId: editable.editableId, text: body, effect: args.effect })).after;
+      else observation = await fillOne(observation, 'textbox', [/본문|내용/u], body);
+      for (const attachmentId of args.attachmentIds ?? []) {
+        const upload = refBy(observation, 'button', [/파일 첨부|첨부/u])
+          ?? refBy(observation, 'textbox', [/파일 첨부|첨부/u]);
+        if (!upload) throw new Error('Naver Mail attachment control is unavailable');
+        observation = (await call({ ...nullArgs, action: 'upload', tabId: observation.refScope.tabId,
+          observationId: observation.observationId, ref: upload[0], attachmentId, effect: args.effect })).after;
+      }
+      const save = refBy(observation, 'button', [/임시저장|저장/u]);
+      if (!save) throw new Error('Naver Mail draft save control is unavailable');
+      const saved = await call({ ...nullArgs, action: 'click', tabId: observation.refScope.tabId,
+        observationId: observation.observationId, ref: save[0], effect: args.effect });
+      observation = saved.after; const digest = hash(JSON.stringify({ recipients, subject, body,
+        attachmentIds: args.attachmentIds ?? [], replyTo: args.messageHandle ?? null }));
+      const handle = encode({ v: 1, kind: 'naver_draft', digest });
+      drafts.set(digest, { handle, recipients: recipients ?? [], subject, bodyChars: body.length,
+        attachmentIds: [...(args.attachmentIds ?? [])], observation });
+      return { state: 'draft_saved', draftHandle: handle, recipients: recipients ?? 'reply_thread',
+        subject, bodyChars: body.length, attachmentCount: (args.attachmentIds ?? []).length,
+        readback: { saveObserved: /임시저장|저장/u.test(String(observation?.text ?? '')) }, effect: 'external_change' };
     },
   };
 }

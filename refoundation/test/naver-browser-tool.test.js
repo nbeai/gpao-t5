@@ -89,3 +89,87 @@ test('Naver message open·attachment download은 exact prior handles와 effect �
   assert.equal(downloaded.artifact.attachmentId, 'artifact-1');
   assert.deepEqual(calls.map((call) => call.action), ['navigate', 'snapshot', 'click', 'download']);
 });
+
+test('Naver Mail draft는 exact fields를 저장하고 send는 terminal 결과 뒤 같은 draft를 재전송하지 않는다', async () => {
+  const calls = [];
+  const compose = (id, text = '메일 쓰기 임시저장') => observation(id, text, {
+    recipient: { role: 'textbox', name: '받는 사람' }, subject: { role: 'textbox', name: '제목' },
+    attach: { role: 'button', name: '파일 첨부' }, save: { role: 'button', name: '임시저장' },
+    send: { role: 'button', name: '보내기' },
+  });
+  const browser = { async preflight() { return { allowed: true }; }, async execute(args) {
+    calls.push(args);
+    if (args.action === 'navigate') return { tab: { tabId: 'tab-mail' },
+      observation: observation('list', '- link "메일 쓰기" [ref=write]', { write: { role: 'link', name: '메일 쓰기' } }) };
+    if (args.action === 'snapshot') return { observation: observation('list-full',
+      '- link "메일 쓰기" [ref=write]', { write: { role: 'link', name: '메일 쓰기' } }) };
+    if (args.action === 'click' && args.ref === 'write') return { after: { ...compose('compose'),
+      editables: [{ editableId: 'body', kind: 'body', textChars: 0 }] } };
+    if (args.action === 'fill') return { after: { ...compose(`fill-${args.ref}`),
+      editables: [{ editableId: 'body', kind: 'body', textChars: 0 }] } };
+    if (args.action === 'fill_editable') return { after: { ...compose('body-filled'),
+      editables: [{ editableId: 'body', kind: 'body', textChars: args.text.length }] } };
+    if (args.action === 'upload') return { after: compose('uploaded', '파일 첨부 완료 임시저장') };
+    if (args.action === 'click' && args.ref === 'save') return { after: compose('saved', '임시저장 완료') };
+    if (args.action === 'submit' && args.ref === 'send') return { after: compose('sent', '메일을 보냈습니다') };
+    throw new Error(`unexpected ${args.action}:${args.ref ?? ''}`);
+  } };
+  const tool = makeNaverBrowserTool({ browser });
+  const draft = await tool.execute({ action: 'mail_create_draft', query: null, messageHandle: null,
+    attachmentHandle: null, draftHandle: null, recipients: ['new@example.com'], subject: '자료 전달',
+    body: '요청하신 자료를 전달합니다.', attachmentIds: ['attachment-1'], limit: 1, effect: { kind: 'external_change' } });
+  assert.equal(draft.state, 'draft_saved'); assert.equal(draft.bodyChars, '요청하신 자료를 전달합니다.'.length);
+  assert.equal(draft.attachmentCount, 1);
+  const sent = await tool.execute({ action: 'mail_send', query: null, messageHandle: null,
+    attachmentHandle: null, draftHandle: draft.draftHandle, recipients: null, subject: null,
+    body: null, attachmentIds: null, limit: 1, effect: { kind: 'external_send' } });
+  assert.equal(sent.state, 'sent'); assert.equal(sent.retrySafe, false);
+  const repeated = await tool.execute({ action: 'mail_send', query: null, messageHandle: null,
+    attachmentHandle: null, draftHandle: draft.draftHandle, recipients: null, subject: null,
+    body: null, attachmentIds: null, limit: 1, effect: { kind: 'external_send' } });
+  assert.equal(repeated.state, 'already_sent');
+  assert.equal(calls.filter((call) => call.action === 'submit').length, 1);
+  assert.equal(calls.filter((call) => call.action === 'upload').length, 1);
+});
+
+test('Naver Mail send는 새 수신자 authority를 기존 Effect 경계에 위임하고 ACK unknown을 재시도하지 않는다', async () => {
+  const decisions = [];
+  const tool = makeNaverBrowserTool({ browser: { async execute() { throw new Error('not reached'); } },
+    authorizeEffect: async (args) => { decisions.push(args.effect);
+      return args.effect?.recipientNew ? { allowed: false, outcome: 'not_executed',
+        result: { state: 'approval_required' } } : { allowed: true }; } });
+  const blocked = await tool.preflight({ action: 'mail_send', effect: {
+    kind: 'external_send', recipientNew: true, targets: ['new@example.com'],
+  } });
+  assert.equal(blocked.allowed, false); assert.equal(blocked.result.state, 'approval_required');
+  assert.equal(decisions.length, 1);
+});
+
+test('Naver reply draft는 prior message handle의 exact thread에서만 답장과 저장을 연다', async () => {
+  const calls = [];
+  const replyCompose = (id, text = '답장 임시저장') => ({ ...observation(id, text, {
+    save: { role: 'button', name: '임시저장' }, send: { role: 'button', name: '보내기' },
+  }), editables: [{ editableId: 'reply-body', kind: 'body', textChars: 0 }] });
+  const browser = { async preflight() { return { allowed: true }; }, async execute(args) {
+    calls.push(args);
+    if (args.action === 'navigate') return { tab: { tabId: 'tab-mail' }, observation: observation('list', mailText) };
+    if (args.action === 'click' && args.ref === 'e33') return { after: observation('opened',
+      '- button "답장" [ref=reply]', { reply: { role: 'button', name: '답장' } }) };
+    if (args.action === 'click' && args.ref === 'reply') return { after: replyCompose('reply-compose') };
+    if (args.action === 'fill_editable') return { after: replyCompose('reply-filled') };
+    if (args.action === 'click' && args.ref === 'save') return { after: replyCompose('reply-saved', '임시저장 완료') };
+    throw new Error(`unexpected ${args.action}:${args.ref ?? ''}`);
+  } };
+  const tool = makeNaverBrowserTool({ browser });
+  const listed = await tool.execute({ action: 'mail_list', query: null, messageHandle: null,
+    attachmentHandle: null, draftHandle: null, recipients: null, subject: null, body: null,
+    attachmentIds: null, limit: 2, effect: { kind: 'observe' } });
+  const draft = await tool.execute({ action: 'mail_reply_draft', query: null,
+    messageHandle: listed.messages[1].messageHandle, attachmentHandle: null, draftHandle: null,
+    recipients: null, subject: null, body: '확인했습니다.', attachmentIds: [], limit: 1,
+    effect: { kind: 'external_change' } });
+  assert.equal(draft.state, 'draft_saved'); assert.equal(draft.recipients, 'reply_thread');
+  assert.deepEqual(calls.map((call) => `${call.action}:${call.ref ?? ''}`), [
+    'navigate:', 'click:e33', 'click:reply', 'fill_editable:', 'click:save',
+  ]);
+});

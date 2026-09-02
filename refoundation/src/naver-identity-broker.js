@@ -107,7 +107,7 @@ export function makeNaverIdentityBroker({ profileHandle = 'default', now = () =>
     },
     async makeTool(context = {}) {
       return (await this.inspect()).state === 'ready' && context.browserTool
-        ? makeNaverBrowserTool({ browser: context.browserTool }) : null;
+        ? makeNaverBrowserTool({ browser: context.browserTool, authorizeEffect: context.authorizeEffect }) : null;
     },
     observeBrowserResult({ args = {}, result = {} } = {}) {
       if (result?.profile?.id) {

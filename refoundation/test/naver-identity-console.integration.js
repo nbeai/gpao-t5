@@ -147,6 +147,7 @@ test('ready Naver connection은 compact Naver adapter를 개통해 Mail 목록�
       if (turn === 2) { assert.ok(input.tools.some((tool) => tool.name === 'naver'));
         return { text: '', toolCalls: [{ id: 'mail-list', name: 'naver', args: {
           action: 'mail_list', query: null, messageHandle: null, attachmentHandle: null,
+          draftHandle: null, recipients: null, subject: null, body: null, attachmentIds: null,
           limit: 3, effect: { kind: 'observe', targets: ['https://mail.naver.com/'],
             confirmation: 'not_applicable', rollbackOfToolCallId: null },
         } }] }; }

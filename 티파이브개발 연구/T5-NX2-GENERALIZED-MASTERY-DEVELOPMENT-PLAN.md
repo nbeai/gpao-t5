@@ -1105,6 +1105,13 @@ Browser Hand 위 Naver physical adapter로 닫았다. 새 Browser reality·Store
 - reply thread identity·attachment·recipient 재검사
 - SMTP accepted와 recipient delivery를 합치지 않음
 
+종료 상태: `TECHNICAL_COMPLETE · FINAL_HQ_SEND_PENDING`. 새 작성·exact reply thread에서 수신자·제목·본문·첨부를
+입력하고 임시저장 readback 뒤 draftHandle을 만든다. 새 수신자 전송은 기존 external_send authority를 사용하며,
+provider acceptance와 recipient delivery를 분리하고 ACK unknown·동일 draft 재전송을 막는다. 실제 owner send는 중간
+Gate에서 반복하지 않고 마지막 NV-HQ 한 번에서 자격한다.
+
+근거: `refoundation/evidence/nx2-nv4-mail-draft-send-2026-09-02.json`.
+
 #### NV-5 — Blog Draft Core
 
 - 사용자 자료·목적·독자에 맞는 title/body/category/tag draft
