@@ -173,3 +173,42 @@ test('Naver reply draft는 prior message handle의 exact thread에서만 답장�
     'navigate:', 'click:e33', 'click:reply', 'fill_editable:', 'click:save',
   ]);
 });
+
+test('Naver Blog draft는 exact source attachment와 title/body/category/tags를 editor readback에 결속한다', async () => {
+  const calls = []; const sourceBytes = Buffer.from('# 원고\n\n사용자의 목적을 실제 결과로 이어줍니다.');
+  const editor = (id, text = '블로그 편집기') => ({ ...observation(id, text, {
+    category: { role: 'textbox', name: '카테고리' }, tags: { role: 'textbox', name: '태그' },
+  }), refScope: { observationId: id, tabId: 'tab-blog', targetId: 'blog-target',
+    url: 'https://blog.naver.com/PostWriteForm.naver' },
+  editables: [{ editableId: 'blog-title', kind: 'title', textChars: 0 },
+    { editableId: 'blog-body', kind: 'body', textChars: 0 }] });
+  const browser = { async preflight() { return { allowed: true }; }, async execute(args) {
+    calls.push(args);
+    if (args.action === 'navigate') return { tab: { tabId: 'tab-blog' },
+      observation: { ...observation('blog-home', '- link "글쓰기" [ref=write]',
+        { write: { role: 'link', name: '글쓰기' } }), refScope: { observationId: 'blog-home',
+        tabId: 'tab-blog', targetId: 'blog-home', url: 'https://section.blog.naver.com/BlogHome.naver' } } };
+    if (args.action === 'click' && args.ref === 'write') return { after: editor('editor-open') };
+    if (args.action === 'fill_editable') return { after: editor(`editable-${args.editableId}`) };
+    if (args.action === 'fill') return { after: editor(`field-${args.ref}`) };
+    throw new Error(`unexpected ${args.action}:${args.ref ?? ''}`);
+  } };
+  const tool = makeNaverBrowserTool({ browser, sessionId: 'session-1', attachments: {
+    async readContent({ sessionId, attachmentId }) { assert.equal(sessionId, 'session-1');
+      assert.equal(attachmentId, 'source-md'); return { record: { mimeType: 'text/markdown',
+        sha256: 'b'.repeat(64) }, bytes: sourceBytes }; },
+  } });
+  const draft = await tool.execute({ action: 'blog_create_draft', query: null, messageHandle: null,
+    attachmentHandle: null, draftHandle: null, blogDraftHandle: null, recipients: null,
+    subject: null, title: 'T5가 일을 끝내는 방식', body: null, attachmentIds: null,
+    sourceAttachmentId: 'source-md', category: 'AI', tags: ['T5', '업무'], limit: 1,
+    effect: { kind: 'external_change' } });
+  assert.equal(draft.state, 'draft_prepared'); assert.equal(draft.source.attachmentId, 'source-md');
+  assert.equal(draft.bodyChars, sourceBytes.toString('utf8').length); assert.deepEqual(draft.tags, ['T5', '업무']);
+  const observedDraft = await tool.execute({ action: 'blog_inspect_draft', query: null,
+    messageHandle: null, attachmentHandle: null, draftHandle: null, blogDraftHandle: draft.blogDraftHandle,
+    recipients: null, subject: null, title: null, body: null, attachmentIds: null,
+    sourceAttachmentId: null, category: null, tags: null, limit: 1, effect: { kind: 'observe' } });
+  assert.equal(observedDraft.title, 'T5가 일을 끝내는 방식'); assert.equal(observedDraft.source.sha256, 'b'.repeat(64));
+  assert.deepEqual(calls.map((call) => call.action), ['navigate', 'click', 'fill_editable', 'fill_editable', 'fill', 'fill']);
+});

@@ -1,0 +1,21 @@
+{
+  "schema": "t5.nx2-nv5-blog-draft-core-evidence.v1",
+  "status": "TECHNICAL_COMPLETE_FINAL_HQ_PENDING",
+  "qualified": {
+    "exactTextAttachmentSource": true,
+    "sourceDigestAndBytes": true,
+    "titleEditorReadback": true,
+    "bodyEditorReadback": true,
+    "categoryControl": true,
+    "tagControl": true,
+    "saveOrPublishEffect": false
+  },
+  "responsibility": {
+    "model": ["purpose", "audience", "source truth versus promotional expression", "title and prose"],
+    "runtime": ["source identity", "editor identity", "field execution", "post-action readback"]
+  },
+  "newStore": 0,
+  "newBrowserReality": 0,
+  "focusedTests": "10/10 pass",
+  "finalHqOnly": ["one owner source to actual Blog draft editor"]
+}

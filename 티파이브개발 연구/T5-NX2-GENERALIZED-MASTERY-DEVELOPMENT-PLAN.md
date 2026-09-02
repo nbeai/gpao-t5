@@ -1118,6 +1118,12 @@ Gate에서 반복하지 않고 마지막 NV-HQ 한 번에서 자격한다.
 - source truth와 홍보 표현 분리
 - 아직 외부 effect 0
 
+종료 상태: `TECHNICAL_COMPLETE · FINAL_HQ_PENDING`. 기존 AttachmentStore의 bounded text source를 digest·bytes로 결속하고
+기존 managed Browser editor의 exact title/body/category/tag control에 입력해 draftHandle과 readback을 만든다. 목적·독자·
+source truth와 홍보 표현은 모델이 판단하며 Runtime은 의미 점수화하지 않는다. 저장·예약·발행 effect는 아직 0이다.
+
+근거: `refoundation/evidence/nx2-nv5-blog-draft-core-2026-09-02.json`.
+
 #### NV-6 — Blog Craft
 
 - existing Browser Hand로 editor 실제 상태 관측

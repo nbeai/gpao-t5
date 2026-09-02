@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { EFFECT_SCHEMA } from './exec-tool.js';
 
 const ACTIONS = ['mail_list', 'mail_search', 'mail_open', 'mail_download_attachment',
-  'mail_create_draft', 'mail_reply_draft', 'mail_send'];
+  'mail_create_draft', 'mail_reply_draft', 'mail_send', 'blog_create_draft', 'blog_inspect_draft'];
 const nullArgs = { url: null, tabId: null, full: null, maxChars: null, fullPage: null,
   observationId: null, ref: null, editableId: null, modalIntent: null, text: null,
   textFilePath: null, textFileStartLine: null, filePath: null, attachmentId: null, effect: null };
@@ -67,14 +67,14 @@ function refBy(observation, role, names) {
     && names.some((name) => typeof name === 'string' ? fact.name === name : name.test(fact.name ?? '')));
 }
 
-export function makeNaverBrowserTool({ browser, authorizeEffect = null } = {}) {
+export function makeNaverBrowserTool({ browser, authorizeEffect = null, attachments = null, sessionId = null } = {}) {
   if (!browser?.execute) throw new TypeError('Naver Browser adapter requires the existing Browser Hand');
   const call = async (args) => {
     if (browser.preflight) { const gate = await browser.preflight(args, {});
       if (gate?.allowed === false) return gate.result; }
     return browser.execute(args, {});
   };
-  const drafts = new Map(); const terminalSends = new Set();
+  const drafts = new Map(); const blogDrafts = new Map(); const terminalSends = new Set();
   const observeList = async (limit) => {
     const opened = await call({ ...nullArgs, action: 'navigate', url: 'https://mail.naver.com/', maxChars: 12_000 });
     let observation = opened.observation; let messages = parseNaverMailObservation(observation, limit);
@@ -93,12 +93,17 @@ export function makeNaverBrowserTool({ browser, authorizeEffect = null } = {}) {
       messageHandle: { type: ['string', 'null'], maxLength: 4096 },
       attachmentHandle: { type: ['string', 'null'], maxLength: 4096 },
       draftHandle: { type: ['string', 'null'], maxLength: 4096 },
+      blogDraftHandle: { type: ['string', 'null'], maxLength: 4096 },
       recipients: { type: ['array', 'null'], items: { type: 'string', maxLength: 320 }, maxItems: 20 },
-      subject: { type: ['string', 'null'], maxLength: 2000 }, body: { type: ['string', 'null'], maxLength: 20_000 },
+      subject: { type: ['string', 'null'], maxLength: 2000 }, title: { type: ['string', 'null'], maxLength: 2000 },
+      body: { type: ['string', 'null'], maxLength: 20_000 },
       attachmentIds: { type: ['array', 'null'], items: { type: 'string', maxLength: 200 }, maxItems: 20 },
+      sourceAttachmentId: { type: ['string', 'null'], maxLength: 200 },
+      category: { type: ['string', 'null'], maxLength: 200 },
+      tags: { type: ['array', 'null'], items: { type: 'string', maxLength: 100 }, maxItems: 30 },
       limit: { type: 'integer', minimum: 1, maximum: 50 }, effect: { anyOf: [EFFECT_SCHEMA, { type: 'null' }] },
-    }, required: ['action', 'query', 'messageHandle', 'attachmentHandle', 'draftHandle', 'recipients',
-      'subject', 'body', 'attachmentIds', 'limit', 'effect'] },
+    }, required: ['action', 'query', 'messageHandle', 'attachmentHandle', 'draftHandle', 'blogDraftHandle',
+      'recipients', 'subject', 'title', 'body', 'attachmentIds', 'sourceAttachmentId', 'category', 'tags', 'limit', 'effect'] },
     async preflight(args = {}) {
       if (!ACTIONS.includes(args.action)) throw new TypeError('unsupported Naver action');
       if (['mail_list'].includes(args.action) && effectKind(args) !== 'observe') return { allowed: false,
@@ -114,13 +119,74 @@ export function makeNaverBrowserTool({ browser, authorizeEffect = null } = {}) {
         outcome: 'not_executed', result: { state: 'mail_draft_external_change_required' } };
       if (args.action === 'mail_send' && effectKind(args) !== 'external_send') return { allowed: false,
         outcome: 'not_executed', result: { state: 'mail_send_external_effect_required' } };
+      if (args.action === 'blog_create_draft' && effectKind(args) !== 'external_change') return { allowed: false,
+        outcome: 'not_executed', result: { state: 'blog_draft_external_change_required' } };
+      if (args.action === 'blog_inspect_draft' && effectKind(args) !== 'observe') return { allowed: false,
+        outcome: 'not_executed', result: { state: 'observe_effect_required' } };
       if (['mail_search', 'mail_open', 'mail_download_attachment', 'mail_create_draft',
-        'mail_reply_draft', 'mail_send'].includes(args.action) && typeof authorizeEffect === 'function') {
+        'mail_reply_draft', 'mail_send', 'blog_create_draft'].includes(args.action)
+        && typeof authorizeEffect === 'function') {
         return authorizeEffect(args, {});
       }
       return { allowed: true };
     },
     async execute(args = {}) {
+      if (args.action === 'blog_inspect_draft') {
+        const decodedDraft = decode(args.blogDraftHandle, 'naver_blog_draft');
+        const draft = blogDrafts.get(decodedDraft.digest);
+        if (!draft || draft.handle !== args.blogDraftHandle) throw new Error('Naver Blog draft is unavailable or stale');
+        return { state: 'draft_observed', blogDraftHandle: draft.handle, title: draft.title,
+          bodyChars: draft.bodyChars, category: draft.category, tags: draft.tags,
+          source: draft.source, editorUrl: draft.observation.refScope?.url, effect: 'none' };
+      }
+      if (args.action === 'blog_create_draft') {
+        const title = exactText(args.title, 'blog title', 2000); let body = String(args.body ?? '');
+        let source = { kind: 'model_text', sha256: hash(body), bytes: Buffer.byteLength(body) };
+        if (args.sourceAttachmentId) {
+          if (!attachments?.readContent || !sessionId) throw new Error('Naver Blog source attachment is unavailable');
+          const read = await attachments.readContent({ sessionId, attachmentId: args.sourceAttachmentId });
+          if (read.bytes.length > 200_000 || !/^(?:text\/|application\/(?:json|xml))/u.test(read.record.mimeType ?? '')) {
+            throw new Error('Naver Blog source attachment must be bounded text');
+          }
+          body = read.bytes.toString('utf8'); source = { kind: 'attachment', attachmentId: args.sourceAttachmentId,
+            sha256: read.record.sha256, bytes: read.bytes.length };
+        }
+        body = exactText(body, 'blog body', 200_000); const tags = [...new Set((args.tags ?? [])
+          .map((item) => String(item).trim()).filter(Boolean))].slice(0, 30);
+        const category = args.category == null ? null : exactText(args.category, 'blog category', 200);
+        const home = await call({ ...nullArgs, action: 'navigate', url: 'https://blog.naver.com/', maxChars: 12_000 });
+        let observation = home.observation; let write = refBy(observation, 'link', ['글쓰기'])
+          ?? refBy(observation, 'button', ['글쓰기']);
+        if (!write && home.tab?.tabId) { const full = await call({ ...nullArgs, action: 'snapshot',
+          tabId: home.tab.tabId, full: true, maxChars: 64_000 }); observation = full.observation;
+          write = refBy(observation, 'link', ['글쓰기']) ?? refBy(observation, 'button', ['글쓰기']); }
+        if (!write) throw new Error('Naver Blog editor entry is unavailable');
+        observation = (await call({ ...nullArgs, action: 'click', tabId: observation.refScope.tabId,
+          observationId: observation.observationId, ref: write[0], effect: args.effect })).after;
+        const titleEditable = (observation.editables ?? []).find((item) => item.kind === 'title');
+        const bodyEditable = (observation.editables ?? []).find((item) => item.kind === 'body');
+        if (!titleEditable || !bodyEditable) throw new Error('Naver Blog exact title/body editors are unavailable');
+        observation = (await call({ ...nullArgs, action: 'fill_editable', tabId: observation.refScope.tabId,
+          observationId: observation.observationId, editableId: titleEditable.editableId,
+          text: title, effect: args.effect })).after;
+        const currentBody = (observation.editables ?? []).find((item) => item.kind === 'body') ?? bodyEditable;
+        observation = (await call({ ...nullArgs, action: 'fill_editable', tabId: observation.refScope.tabId,
+          observationId: observation.observationId, editableId: currentBody.editableId,
+          text: body, effect: args.effect })).after;
+        if (category) { const field = refBy(observation, 'textbox', [/카테고리/u]);
+          if (!field) throw new Error('Naver Blog category control is unavailable');
+          observation = (await call({ ...nullArgs, action: 'fill', tabId: observation.refScope.tabId,
+            observationId: observation.observationId, ref: field[0], text: category, effect: args.effect })).after; }
+        if (tags.length) { const field = refBy(observation, 'textbox', [/태그/u]);
+          if (!field) throw new Error('Naver Blog tag control is unavailable');
+          observation = (await call({ ...nullArgs, action: 'fill', tabId: observation.refScope.tabId,
+            observationId: observation.observationId, ref: field[0], text: tags.join(', '), effect: args.effect })).after; }
+        const digest = hash(JSON.stringify({ source, title, body: hash(body), category, tags }));
+        const handle = encode({ v: 1, kind: 'naver_blog_draft', digest });
+        blogDrafts.set(digest, { handle, source, title, bodyChars: body.length, category, tags, observation });
+        return { state: 'draft_prepared', blogDraftHandle: handle, source, title, bodyChars: body.length,
+          category, tags, readback: { titleChars: title.length, bodyChars: body.length }, effect: 'external_change' };
+      }
       if (args.action === 'mail_list') { const result = await observeList(args.limit);
         return { state: 'listed', messages: result.messages, coverage: {
           state: result.observation?.truncated ? 'partial' : 'observed_page', returned: result.messages.length,
