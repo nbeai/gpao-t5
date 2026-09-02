@@ -262,6 +262,85 @@ test('콘솔 upload는 현재 사용자 문장에 적힌 exact path만 file inpu
   }
 });
 
+test('Browser에 보낸 기존 input attachment는 새 output Artifact로 다시 노출되지 않는다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-browser-upload-input-surface-'));
+  const stateDir = join(room, 'state');
+  const workspace = join(room, 'workspace');
+  await mkdir(workspace, { recursive: true });
+  let phase = 0;
+  let attachmentId = null;
+  const sha256 = createHash('sha256').update(Buffer.from('%PDF-1.7\nmanaged-upload')).digest('hex');
+  const driver = {
+    profile: { id: 'isolated', kind: 'managed_isolated', selected: true }, userControlActive: () => false,
+    async available() { return { available: true, version: '0.34.0' }; },
+    async navigate() { return {
+      tab: { tabId: 't1', targetId: 'target-1', title: '자료 제출', url: 'https://example.com/upload' },
+      snapshot: { text: '- button "자료 첨부" [ref=e8]', refs: { e8: { role: 'button', name: '자료 첨부' } }, totalChars: 28, truncated: false },
+    }; },
+    async elementFacts() { return { type: 'file', autocomplete: null, href: null, download: null }; },
+    async upload({ ref, filePath, expectedSha256 }) {
+      assert.equal(ref, 'e8'); assert.equal(expectedSha256, sha256);
+      return {
+        action: { kind: 'upload', ref },
+        tab: { tabId: 't1', targetId: 'target-1', title: '자료 제출', url: 'https://example.com/upload' },
+        snapshot: { text: '- button "자료 첨부" [ref=e8]: managed-upload.pdf', refs: { e8: { role: 'button', name: '자료 첨부' } }, totalChars: 49, truncated: false },
+        network: { totalRequests: 1, truncated: false, requests: [{ method: 'POST', address: 'https://example.com/api/upload', resourceType: 'Fetch', status: 200, mimeType: 'application/json' }] },
+        file: { path: filePath, bytes: 23, sha256, mimeType: 'application/pdf', trust: 'untrusted_external' },
+      };
+    },
+    async status() { return { state: 'ready' }; }, async profiles() { return { profiles: [this.profile] }; },
+    async tabs() { return { tabs: [] }; }, async snapshot() { throw new Error('not used'); },
+    async editables({ tabId }) { return { tab: { tabId }, editables: [] }; },
+    async screenshot() { throw new Error('not used'); }, async close() {},
+  };
+  const nulls = { url: null, tabId: null, full: null, maxChars: 20_000, fullPage: null, observationId: null, ref: null, editableId: null, modalIntent: null, text: null, textFilePath: null, textFileStartLine: null, filePath: null, effect: null };
+  const server = makeConsoleServer({
+    stateDir, workspace, browserDriverFactory: () => driver, webReadOptions: browserBoundaryWebReadOptions,
+    modelFactory: () => ({ async respond(input) {
+      phase += 1;
+      if (phase === 1) return requestBrowserBoundary(input, 'https://example.com/upload', 'read-managed-upload-boundary');
+      if (phase === 2) {
+        requireBrowserAfterBoundary(input);
+        return { text: '', toolCalls: [{ id: 'open-managed-upload', name: 'browser', args: { action: 'navigate', ...nulls, url: 'https://example.com/upload' } }] };
+      }
+      if (phase === 3) {
+        const observation = JSON.parse(input.messages.at(-1).content).result.observation;
+        return { text: '', toolCalls: [{ id: 'upload-managed-input', name: 'browser', args: {
+          action: 'upload', ...nulls, tabId: 't1', observationId: observation.observationId,
+          ref: 'e8', attachmentId,
+          effect: { kind: 'external_send', summary: '기존 입력 자료 업로드', targets: ['https://example.com/upload'], reversible: true, backupAvailable: false, recipientNew: false, approvalToken: null },
+        } }] };
+      }
+      const receipt = JSON.parse(input.messages.at(-1).content);
+      assert.equal(receipt.result.artifact.attachmentId, attachmentId);
+      return { text: '기존 자료를 업로드했습니다.', toolCalls: [] };
+    } }),
+  });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const uploaded = await fetch(`${base}/attachments?sessionId=${session.id}&filename=managed-upload.pdf`, {
+      method: 'POST', headers: { 'content-type': 'application/pdf' }, body: Buffer.from('%PDF-1.7\nmanaged-upload'),
+    }).then((response) => response.json());
+    attachmentId = uploaded.attachmentId;
+    const reply = await fetch(`${base}/turn`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+        sessionId: session.id, text: '첨부한 자료를 이 페이지에 업로드해줘.', attachmentIds: [attachmentId],
+      }),
+    }).then((response) => response.json());
+    assert.match(reply.reply, /업로드했습니다/u);
+    assert.equal(reply.artifacts, undefined);
+    const restored = await fetch(`${base}/sessions/${session.id}`).then((response) => response.json());
+    assert.equal(restored.transcript.at(-1).result?.artifacts, undefined);
+    assert.equal((await server.attachmentStore.get({ sessionId: session.id, attachmentId })).direction, 'input');
+  } finally {
+    await server.closeBrowsers();
+    await new Promise((resolve) => server.close(resolve));
+    await rm(room, { recursive: true, force: true });
+  }
+});
+
 test('사용자가 visible browser에서 직접 로그인한 뒤 다음 턴 login_status만 page observation을 모델에 연다', async () => {
   const room = await mkdtemp(join(tmpdir(), 't5-browser-login-handoff-'));
   const stateDir = join(room, 'state');

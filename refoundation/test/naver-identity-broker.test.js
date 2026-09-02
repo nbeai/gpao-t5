@@ -90,3 +90,19 @@ test('process-local identity가 unknown이어도 기존 profile readback이 read
   assert.equal(result.connectionReady, true);
   assert.equal(begins, 0); assert.equal((await broker.inspect()).state, 'ready');
 });
+
+test('restart 뒤 identity projection이 unknown이어도 Naver adapter는 deferred discovery에서 사라지지 않는다', async () => {
+  const broker = makeNaverIdentityBroker({ profileHandle: 'managed-profile' });
+  const browserTool = { async execute() { return { state: 'login_required' }; } };
+  const unknownTool = await broker.makeTool({ browserTool });
+  assert.equal(unknownTool.name, 'naver'); assert.equal(unknownTool.deferred, true);
+
+  const readyObservation = (url, text) => ({ state: 'observed', profile: { id: 'managed-profile' },
+    tab: { url }, observation: { text } });
+  broker.observeBrowserResult({ args: { action: 'navigate', url: 'https://mail.naver.com/' },
+    result: readyObservation('https://mail.naver.com/v2/folders/0/all', '받은메일함') });
+  broker.observeBrowserResult({ args: { action: 'navigate', url: 'https://blog.naver.com/' },
+    result: readyObservation('https://section.blog.naver.com/BlogHome.naver', '로그아웃 내 블로그 글쓰기') });
+  const readyTool = await broker.makeTool({ browserTool });
+  assert.equal(readyTool.name, 'naver'); assert.equal(readyTool.deferred, undefined);
+});

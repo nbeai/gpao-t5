@@ -111,9 +111,17 @@ export function makeNaverIdentityBroker({ profileHandle = 'default', now = () =>
       if (!blogCraft && typeof context.browserHost?.connection === 'function') {
         blogCraft = makeNaverBlogCraftAdapter({ browserHost: context.browserHost });
       }
-      return (await this.inspect()).state === 'ready' && context.browserTool
-        ? makeNaverBrowserTool({ browser: context.browserTool, authorizeEffect: context.authorizeEffect,
-          attachments: context.attachments, sessionId: context.sessionId, blogCraft }) : null;
+      if (!context.browserTool) return null;
+      const tool = makeNaverBrowserTool({ browser: context.browserTool,
+        authorizeEffect: context.authorizeEffect, attachments: context.attachments,
+        sessionId: context.sessionId, blogCraft });
+      // The identity projection is intentionally process-local. After a clean
+      // Runtime restart the persistent Browser can still be signed in while
+      // this broker is unknown. Keep the physical adapter discoverable in that
+      // state so one exact Naver request can re-observe the profile instead of
+      // falling back to a long generic Browser loop. A currently verified
+      // connection remains directly visible as before.
+      return (await this.inspect()).state === 'ready' ? tool : { ...tool, deferred: true };
     },
     observeBrowserResult({ args = {}, result = {} } = {}) {
       if (result?.profile?.id) {

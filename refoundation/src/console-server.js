@@ -2765,6 +2765,8 @@ export function makeConsoleServer({
         && activeApprovalIds.has(receipt.result?.pendingId)
       ));
       const artifactCandidates = result.receipts.flatMap((receipt) => receipt.outcome === 'succeeded'
+        && !(receipt.requestedCall?.name === 'browser'
+          && receipt.requestedCall?.args?.action === 'upload')
         ? [receipt.result?.artifact, ...(receipt.result?.artifacts ?? [])].filter(Boolean) : [])
         .map((artifact) => attachmentSurface(artifact));
       const outputArtifacts = [...new Map(artifactCandidates.map((artifact) => (
