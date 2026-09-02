@@ -1,0 +1,18 @@
+{
+  "schema": "t5.nx2-nv6-blog-craft-evidence.v1",
+  "status": "TECHNICAL_COMPLETE_FINAL_HQ_PENDING",
+  "qualified": {
+    "exactTextOccurrence": true,
+    "headingBoldColorFontSize": true,
+    "spacingAndDivider": true,
+    "managedImageInput": true,
+    "captionReadback": true,
+    "previewActualPage": true,
+    "coordinateActions": 0,
+    "partialFailureTruth": true
+  },
+  "physicalQualification": "managed Browser DOM fixture PASS",
+  "newBrowserReality": 0,
+  "newStore": 0,
+  "finalHqOnly": ["one owner draft craft and visible Preview"]
+}

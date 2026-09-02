@@ -2199,6 +2199,7 @@ export function makeConsoleServer({
         const workspaceTool = await service.makeTool({
           attachments, sessionId, runId: run.runId,
           browserTool: connectedBrowserTool,
+          browserHost,
           authorizeEffect: (args) => effectPreflight({
             toolName: service.toolName ?? service.id, args, ownerId: sessionId,
           }),

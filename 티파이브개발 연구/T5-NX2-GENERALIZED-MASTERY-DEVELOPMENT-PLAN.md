@@ -1130,6 +1130,13 @@ source truth와 홍보 표현은 모델이 판단하며 Runtime은 의미 점수
 - heading·paragraph·image·caption·spacing·preview
 - 좌표가 아니라 role/DOM 우선
 
+종료 상태: `TECHNICAL_COMPLETE · FINAL_HQ_PENDING`. 같은 managed Browser target에서 exact text occurrence와 접근성 control로
+heading·bold·color·font size·spacing·divider를 적용하고 DOM/style을 재검사한다. image는 exact managed file input,
+caption은 exact field, Preview는 실제 새 화면/본문으로 확인한다. 좌표 action은 0이며 format·image·Preview partial을 전체
+성공으로 합치지 않는다.
+
+근거: `refoundation/evidence/nx2-nv6-blog-craft-2026-09-02.json`.
+
 #### NV-7 — Save·Schedule·Publish
 
 - draft save·schedule·publish 각각 effect 분리

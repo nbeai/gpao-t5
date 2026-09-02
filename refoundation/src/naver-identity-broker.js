@@ -1,4 +1,5 @@
 import { makeNaverBrowserTool } from './naver-browser-tool.js';
+import { makeNaverBlogCraftAdapter } from './naver-blog-craft-adapter.js';
 
 const WEB_STATES = new Set(['unknown', 'ready', 'login_required']);
 const PROTOCOL_STATES = new Set(['unknown', 'setup_required', 'ready', 'needs_reauth']);
@@ -34,6 +35,7 @@ function overall(state, previouslyAuthenticated = false) {
 export function makeNaverIdentityBroker({ profileHandle = 'default', now = () => new Date() } = {}) {
   let handle = profileHandle == null ? null : safeHandle(profileHandle);
   let browserLogin = null;
+  let blogCraft = null;
   let state = { profileHandle: handle, state: 'unknown', services: {
     mailWeb: 'unknown', blogWeb: 'unknown', mailProtocol: 'unknown',
   }, profileGeneration: 1, lastObservedAt: null, browserProcess: 'absent', currentHandoff: null };
@@ -106,9 +108,12 @@ export function makeNaverIdentityBroker({ profileHandle = 'default', now = () =>
           : '로그인은 확인했지만 메일과 블로그 중 일부를 다시 확인해야 해요.' };
     },
     async makeTool(context = {}) {
+      if (!blogCraft && typeof context.browserHost?.connection === 'function') {
+        blogCraft = makeNaverBlogCraftAdapter({ browserHost: context.browserHost });
+      }
       return (await this.inspect()).state === 'ready' && context.browserTool
         ? makeNaverBrowserTool({ browser: context.browserTool, authorizeEffect: context.authorizeEffect,
-          attachments: context.attachments, sessionId: context.sessionId }) : null;
+          attachments: context.attachments, sessionId: context.sessionId, blogCraft }) : null;
     },
     observeBrowserResult({ args = {}, result = {} } = {}) {
       if (result?.profile?.id) {
@@ -152,7 +157,7 @@ export function makeNaverIdentityBroker({ profileHandle = 'default', now = () =>
         services: { mailWeb: 'unknown', blogWeb: 'unknown', mailProtocol: state.services.mailProtocol } };
       return publicSnapshot(state);
     },
-    async close() {},
+    async close() { await blogCraft?.close?.(); blogCraft = null; },
   };
   return connection;
 }

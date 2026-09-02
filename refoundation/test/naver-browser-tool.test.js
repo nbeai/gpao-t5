@@ -175,7 +175,7 @@ test('Naver reply draft는 prior message handle의 exact thread에서만 답장�
 });
 
 test('Naver Blog draft는 exact source attachment와 title/body/category/tags를 editor readback에 결속한다', async () => {
-  const calls = []; const sourceBytes = Buffer.from('# 원고\n\n사용자의 목적을 실제 결과로 이어줍니다.');
+  const calls = []; const craftCalls = []; const sourceBytes = Buffer.from('# 원고\n\n사용자의 목적을 실제 결과로 이어줍니다.');
   const editor = (id, text = '블로그 편집기') => ({ ...observation(id, text, {
     category: { role: 'textbox', name: '카테고리' }, tags: { role: 'textbox', name: '태그' },
   }), refScope: { observationId: id, tabId: 'tab-blog', targetId: 'blog-target',
@@ -193,10 +193,18 @@ test('Naver Blog draft는 exact source attachment와 title/body/category/tags를
     if (args.action === 'fill') return { after: editor(`field-${args.ref}`) };
     throw new Error(`unexpected ${args.action}:${args.ref ?? ''}`);
   } };
-  const tool = makeNaverBrowserTool({ browser, sessionId: 'session-1', attachments: {
+  const tool = makeNaverBrowserTool({ browser, sessionId: 'session-1', blogCraft: {
+    async applyFormat(input) { craftCalls.push(['format', input]); return { state: 'verified', kind: input.kind }; },
+    async insertImages(input) { craftCalls.push(['images', input]); return { state: 'verified', files: input.files.length,
+      captionsApplied: input.captions.length }; },
+    async preview(input) { craftCalls.push(['preview', input]); return { state: 'observed', url: 'https://blog.naver.com/preview',
+      textChars: 120, textDigest: 'c'.repeat(64) }; },
+  }, attachments: {
     async readContent({ sessionId, attachmentId }) { assert.equal(sessionId, 'session-1');
       assert.equal(attachmentId, 'source-md'); return { record: { mimeType: 'text/markdown',
         sha256: 'b'.repeat(64) }, bytes: sourceBytes }; },
+    async prepareForUpload({ sessionId, attachmentId }) { assert.equal(sessionId, 'session-1');
+      return { path: `/managed/${attachmentId}.png`, attachmentId, sha256: 'd'.repeat(64) }; },
   } });
   const draft = await tool.execute({ action: 'blog_create_draft', query: null, messageHandle: null,
     attachmentHandle: null, draftHandle: null, blogDraftHandle: null, recipients: null,
@@ -211,4 +219,65 @@ test('Naver Blog draft는 exact source attachment와 title/body/category/tags를
     sourceAttachmentId: null, category: null, tags: null, limit: 1, effect: { kind: 'observe' } });
   assert.equal(observedDraft.title, 'T5가 일을 끝내는 방식'); assert.equal(observedDraft.source.sha256, 'b'.repeat(64));
   assert.deepEqual(calls.map((call) => call.action), ['navigate', 'click', 'fill_editable', 'fill_editable', 'fill', 'fill']);
+  const formatted = await tool.execute({ action: 'blog_apply_format', query: null, messageHandle: null,
+    attachmentHandle: null, draftHandle: null, blogDraftHandle: draft.blogDraftHandle, recipients: null,
+    subject: null, title: null, body: null, attachmentIds: null, sourceAttachmentId: null,
+    category: null, tags: null, targetText: '사용자의 목적', occurrence: 0, formatKind: 'bold',
+    formatValue: null, captions: null, limit: 1, effect: { kind: 'external_change' } });
+  assert.equal(formatted.state, 'format_verified');
+  assert.equal((await tool.preflight({ action: 'blog_insert_images', effect: { kind: 'external_change' } })).allowed, false);
+  const images = await tool.execute({ action: 'blog_insert_images', query: null, messageHandle: null,
+    attachmentHandle: null, draftHandle: null, blogDraftHandle: draft.blogDraftHandle, recipients: null,
+    subject: null, title: null, body: null, attachmentIds: ['image-1'], sourceAttachmentId: null,
+    category: null, tags: null, targetText: null, occurrence: null, formatKind: null,
+    formatValue: null, captions: ['설명'], limit: 1, effect: { kind: 'external_send' } });
+  assert.equal(images.state, 'images_verified');
+  const preview = await tool.execute({ action: 'blog_preview', query: null, messageHandle: null,
+    attachmentHandle: null, draftHandle: null, blogDraftHandle: draft.blogDraftHandle, recipients: null,
+    subject: null, title: null, body: null, attachmentIds: null, sourceAttachmentId: null,
+    category: null, tags: null, targetText: null, occurrence: null, formatKind: null,
+    formatValue: null, captions: null, limit: 1, effect: { kind: 'observe' } });
+  assert.equal(preview.state, 'preview_observed');
+  assert.deepEqual(craftCalls.map((item) => item[0]), ['format', 'images', 'preview']);
+});
+
+test('Naver Blog craft는 format·image·Preview 일부 실패를 전체 성공으로 합치지 않는다', async () => {
+  const browser = { async preflight() { return { allowed: true }; }, async execute(args) {
+    if (args.action === 'navigate') return { tab: { tabId: 'blog' }, observation: { ...observation('home',
+      '- link "글쓰기" [ref=write]', { write: { role: 'link', name: '글쓰기' } }),
+      refScope: { observationId: 'home', tabId: 'blog', targetId: 'target', url: 'https://blog.naver.com/' } } };
+    if (args.action === 'click') return { after: { ...observation('editor'), refScope: {
+      observationId: 'editor', tabId: 'blog', targetId: 'target', url: 'https://blog.naver.com/editor' },
+      editables: [{ editableId: 'title', kind: 'title' }, { editableId: 'body', kind: 'body' }] } };
+    if (args.action === 'fill_editable') return { after: { ...observation(`fill-${args.editableId}`), refScope: {
+      observationId: `fill-${args.editableId}`, tabId: 'blog', targetId: 'target', url: 'https://blog.naver.com/editor' },
+      editables: [{ editableId: 'title', kind: 'title' }, { editableId: 'body', kind: 'body' }] } };
+    throw new Error(`unexpected ${args.action}`);
+  } };
+  const tool = makeNaverBrowserTool({ browser, sessionId: 's', attachments: { async prepareForUpload() {
+    return { path: '/managed/image.png' }; } }, blogCraft: {
+    async applyFormat() { return { state: 'unverified' }; },
+    async insertImages() { return { state: 'partial', files: 1, imagesAfter: 0 }; },
+    async preview() { return { state: 'unknown', textChars: 0 }; },
+  } });
+  const draft = await tool.execute({ action: 'blog_create_draft', title: '제목', body: '본문',
+    sourceAttachmentId: null, category: null, tags: null, query: null, messageHandle: null,
+    attachmentHandle: null, draftHandle: null, blogDraftHandle: null, recipients: null, subject: null,
+    attachmentIds: null, targetText: null, occurrence: null, formatKind: null, formatValue: null,
+    captions: null, limit: 1, effect: { kind: 'external_change' } });
+  const common = { query: null, messageHandle: null, attachmentHandle: null, draftHandle: null,
+    blogDraftHandle: draft.blogDraftHandle, recipients: null, subject: null, title: null, body: null,
+    sourceAttachmentId: null, category: null, tags: null, limit: 1 };
+  const format = await tool.execute({ ...common, action: 'blog_apply_format', attachmentIds: null,
+    targetText: '본문', occurrence: 0, formatKind: 'bold', formatValue: null, captions: null,
+    effect: { kind: 'external_change' } });
+  assert.equal(format.state, 'format_unverified');
+  const images = await tool.execute({ ...common, action: 'blog_insert_images', attachmentIds: ['image'],
+    targetText: null, occurrence: null, formatKind: null, formatValue: null, captions: [],
+    effect: { kind: 'external_send' } });
+  assert.equal(images.state, 'images_partial');
+  const preview = await tool.execute({ ...common, action: 'blog_preview', attachmentIds: null,
+    targetText: null, occurrence: null, formatKind: null, formatValue: null, captions: null,
+    effect: { kind: 'observe' } });
+  assert.equal(preview.state, 'preview_unknown');
 });

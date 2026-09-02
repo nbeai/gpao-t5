@@ -3,6 +3,8 @@ import { EFFECT_SCHEMA } from './exec-tool.js';
 
 const ACTIONS = ['mail_list', 'mail_search', 'mail_open', 'mail_download_attachment',
   'mail_create_draft', 'mail_reply_draft', 'mail_send', 'blog_create_draft', 'blog_inspect_draft'];
+// Craft actions stay on the same draft handle and managed Browser target.
+ACTIONS.push('blog_apply_format', 'blog_insert_images', 'blog_preview');
 const nullArgs = { url: null, tabId: null, full: null, maxChars: null, fullPage: null,
   observationId: null, ref: null, editableId: null, modalIntent: null, text: null,
   textFilePath: null, textFileStartLine: null, filePath: null, attachmentId: null, effect: null };
@@ -67,7 +69,8 @@ function refBy(observation, role, names) {
     && names.some((name) => typeof name === 'string' ? fact.name === name : name.test(fact.name ?? '')));
 }
 
-export function makeNaverBrowserTool({ browser, authorizeEffect = null, attachments = null, sessionId = null } = {}) {
+export function makeNaverBrowserTool({ browser, authorizeEffect = null, attachments = null, sessionId = null,
+  blogCraft = null } = {}) {
   if (!browser?.execute) throw new TypeError('Naver Browser adapter requires the existing Browser Hand');
   const call = async (args) => {
     if (browser.preflight) { const gate = await browser.preflight(args, {});
@@ -101,9 +104,15 @@ export function makeNaverBrowserTool({ browser, authorizeEffect = null, attachme
       sourceAttachmentId: { type: ['string', 'null'], maxLength: 200 },
       category: { type: ['string', 'null'], maxLength: 200 },
       tags: { type: ['array', 'null'], items: { type: 'string', maxLength: 100 }, maxItems: 30 },
+      targetText: { type: ['string', 'null'], maxLength: 2000 },
+      occurrence: { type: ['integer', 'null'], minimum: 0, maximum: 100 },
+      formatKind: { type: ['string', 'null'], enum: ['bold', 'heading', 'color', 'font_size', 'spacing', 'divider', null] },
+      formatValue: { type: ['string', 'null'], maxLength: 100 },
+      captions: { type: ['array', 'null'], items: { type: 'string', maxLength: 500 }, maxItems: 20 },
       limit: { type: 'integer', minimum: 1, maximum: 50 }, effect: { anyOf: [EFFECT_SCHEMA, { type: 'null' }] },
     }, required: ['action', 'query', 'messageHandle', 'attachmentHandle', 'draftHandle', 'blogDraftHandle',
-      'recipients', 'subject', 'title', 'body', 'attachmentIds', 'sourceAttachmentId', 'category', 'tags', 'limit', 'effect'] },
+      'recipients', 'subject', 'title', 'body', 'attachmentIds', 'sourceAttachmentId', 'category', 'tags',
+      'targetText', 'occurrence', 'formatKind', 'formatValue', 'captions', 'limit', 'effect'] },
     async preflight(args = {}) {
       if (!ACTIONS.includes(args.action)) throw new TypeError('unsupported Naver action');
       if (['mail_list'].includes(args.action) && effectKind(args) !== 'observe') return { allowed: false,
@@ -123,14 +132,55 @@ export function makeNaverBrowserTool({ browser, authorizeEffect = null, attachme
         outcome: 'not_executed', result: { state: 'blog_draft_external_change_required' } };
       if (args.action === 'blog_inspect_draft' && effectKind(args) !== 'observe') return { allowed: false,
         outcome: 'not_executed', result: { state: 'observe_effect_required' } };
+      if (args.action === 'blog_apply_format' && effectKind(args) !== 'external_change') return { allowed: false,
+        outcome: 'not_executed', result: { state: 'blog_format_external_change_required' } };
+      if (args.action === 'blog_insert_images' && effectKind(args) !== 'external_send') return { allowed: false,
+        outcome: 'not_executed', result: { state: 'blog_image_transmission_effect_required' } };
+      if (args.action === 'blog_preview' && effectKind(args) !== 'observe') return { allowed: false,
+        outcome: 'not_executed', result: { state: 'observe_effect_required' } };
       if (['mail_search', 'mail_open', 'mail_download_attachment', 'mail_create_draft',
-        'mail_reply_draft', 'mail_send', 'blog_create_draft'].includes(args.action)
+        'mail_reply_draft', 'mail_send', 'blog_create_draft', 'blog_apply_format',
+        'blog_insert_images'].includes(args.action)
         && typeof authorizeEffect === 'function') {
         return authorizeEffect(args, {});
       }
       return { allowed: true };
     },
     async execute(args = {}) {
+      if (['blog_apply_format', 'blog_insert_images', 'blog_preview'].includes(args.action)) {
+        if (!blogCraft) throw new Error('Naver Blog craft adapter is unavailable');
+        const decodedDraft = decode(args.blogDraftHandle, 'naver_blog_draft');
+        const draft = blogDrafts.get(decodedDraft.digest);
+        if (!draft || draft.handle !== args.blogDraftHandle) throw new Error('Naver Blog draft is unavailable or stale');
+        const id = draft.observation.refScope?.targetId;
+        if (args.action === 'blog_apply_format') {
+          const result = await blogCraft.applyFormat({ targetId: id,
+            targetText: exactText(args.targetText, 'format target text', 2000),
+            occurrence: args.occurrence ?? 0, kind: args.formatKind, value: args.formatValue });
+          if (result.state !== 'verified') return { state: 'format_unverified', verification: result,
+            blogDraftHandle: draft.handle, effect: 'external_change' };
+          draft.craft ??= []; draft.craft.push({ kind: 'format', verification: result });
+          return { state: 'format_verified', verification: result, blogDraftHandle: draft.handle,
+            effect: 'external_change' };
+        }
+        if (args.action === 'blog_insert_images') {
+          if (!attachments?.prepareForUpload || !sessionId || !(args.attachmentIds ?? []).length) {
+            throw new Error('Naver Blog image attachments are unavailable');
+          }
+          const prepared = [];
+          for (const attachmentId of args.attachmentIds) prepared.push(await attachments.prepareForUpload({ sessionId, attachmentId }));
+          const result = await blogCraft.insertImages({ targetId: id, files: prepared.map((item) => item.path),
+            captions: args.captions ?? [] });
+          if (result.state !== 'verified') return { state: 'images_partial', verification: result,
+            blogDraftHandle: draft.handle, effect: 'external_send' };
+          draft.craft ??= []; draft.craft.push({ kind: 'images', attachmentIds: [...args.attachmentIds], verification: result });
+          return { state: 'images_verified', verification: result, blogDraftHandle: draft.handle,
+            attachmentCount: prepared.length, effect: 'external_send' };
+        }
+        const result = await blogCraft.preview({ targetId: id });
+        return { state: result.state === 'observed' ? 'preview_observed' : 'preview_unknown',
+          preview: result, blogDraftHandle: draft.handle, effect: 'none' };
+      }
       if (args.action === 'blog_inspect_draft') {
         const decodedDraft = decode(args.blogDraftHandle, 'naver_blog_draft');
         const draft = blogDrafts.get(decodedDraft.digest);
