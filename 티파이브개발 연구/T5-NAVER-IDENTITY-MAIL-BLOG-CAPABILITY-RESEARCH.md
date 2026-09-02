@@ -40,19 +40,19 @@ NX-2 귀속: `NX2-6 — Naver Identity·Mail·Blog Native Work`
 
 가능하다. 다만 메일과 블로그를 Selenium 한 덩어리로 자동화하면 과거 실패를 반복한다.
 
-정답 구조는 다음 세 경로의 분리다.
+오너 actual 뒤 채택한 제품 구조는 하나의 Browser reality다.
 
 ```text
 Naver Identity Broker
-├─ Naver Mail Protocol Hand     IMAP·SMTP
-├─ Naver Blog Browser Hand     현재 Naver UI
-└─ Naver Authenticated Read Broker   후속 crawler 확장
+└─ 기존 managed persistent Browser
+   ├─ Naver Mail physical adapter
+   └─ Naver Blog physical adapter
 ```
 
 - **Identity**: T5가 소유하는 전용 Browser profile과 사용자 visible login handoff.
-- **Mail**: 공식 IMAP·SMTP가 기본. Browser UI는 설정·복구·공식 프로토콜 미지원 기능에만 사용.
+- **Mail**: 실제 owner UX에서 IMAP/app-password 후보를 폐기하고 같은 Browser identity의 공식 UI를 사용.
 - **Blog**: 글쓰기 Open API가 종료됐으므로 T5 Browser Hand가 실제 UI를 관측·입력·재관측.
-- **Crawler**: raw cookie를 모델이나 외부 script에 넘기지 않고, 별도 qualified broker가 선 뒤에만 로그인된 대량 수집.
+- **Adapter**: 화면의 exact mailbox·message·attachment·editor·effect만 compact 구조화하며 업무 Router가 아니다.
 
 Selenium·webdriver-manager는 현재 Managed Playwright를 대체하는 정답이 아니다. Windows 물리 자격에서 Playwright가
 실제로 실패할 때만 같은 Browser Hand 아래의 provider 후보로 비교한다. 모델에는 언제나 `browser` 하나만 보인다.

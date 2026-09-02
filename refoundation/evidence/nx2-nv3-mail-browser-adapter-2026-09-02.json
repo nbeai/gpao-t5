@@ -1,0 +1,38 @@
+{
+  "schema": "t5.nx2-nv3-mail-browser-adapter-evidence.v1",
+  "status": "TECHNICAL_COMPLETE_FINAL_HQ_PENDING",
+  "actualOwnerConsole": {
+    "loginAndDualServiceReadback": "PASS",
+    "mailList": "PASS",
+    "mailConditionSearch": "PASS",
+    "bodyOpened": false,
+    "readStateMutation": false
+  },
+  "isolatedQualification": {
+    "mailList": "PASS",
+    "mailSearch": "PASS",
+    "mailOpen": "PASS",
+    "attachmentDownload": "PASS",
+    "exactMessageHandle": true,
+    "exactAttachmentHandle": true,
+    "readStateEffectSeparated": true,
+    "rawBrowserObservationReturnedToModel": false,
+    "focusedTests": "10/10 pass"
+  },
+  "architecture": {
+    "newBrowserReality": 0,
+    "newCanonicalStore": 0,
+    "businessRouter": 0,
+    "runtime": "existing managed persistent Browser Hand plus Naver physical adapter"
+  },
+  "rejected": [
+    "IMAP app-password default path",
+    "generic Browser ref compact candidate",
+    "repeated owner live checks between technical slices"
+  ],
+  "remainingForFinalHQ": [
+    "one already-read owner mail body open",
+    "one safe owner attachment delivery",
+    "actual Console visual delivery and no duplicate state"
+  ]
+}

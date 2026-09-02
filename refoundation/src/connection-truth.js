@@ -17,6 +17,10 @@ function safeCapabilities(value) {
     /^[a-z][a-z0-9_]{0,63}$/u.test(key) && typeof available === 'boolean'
   )).slice(0, 32));
 }
+function safeCapabilityTools(value) {
+  return Array.isArray(value) ? [...new Set(value.map(String)
+    .filter((name) => /^[a-z][a-z0-9_]{1,63}$/u.test(name)))].slice(0, 8) : [];
+}
 
 function safeRoutes(value) {
   if (!Array.isArray(value)) return [];
@@ -104,7 +108,8 @@ function safeResult(inspector, raw) {
   return {
     id: inspector.id, label: inspector.label, category: inspector.category,
     state, reason, userSafeSummary: summary,
-    capabilities: safeCapabilities(raw?.capabilities), routes: safeRoutes(raw?.routes),
+    capabilities: safeCapabilities(raw?.capabilities), capabilityTools: safeCapabilityTools(raw?.capabilityTools),
+    routes: safeRoutes(raw?.routes),
     actions: safeActions(raw?.actions),
     ...(safeCredentialRequest(raw?.credentialRequest)
       ? { credentialRequest: safeCredentialRequest(raw.credentialRequest) } : {}),

@@ -25,9 +25,11 @@ export function makeConnectionTool({ doctor, startConnection, performConnection,
     activateToolsFromResult(result) {
       const connections = result?.state === 'inspected' && result.connection
         ? [result.connection] : result?.state === 'listed' ? result.connections ?? [] : [];
-      return connections.some((connection) => (connection.routes ?? []).some((route) => (
+      const tools = connections.flatMap((connection) => connection.capabilityTools ?? []).map(String);
+      if (connections.some((connection) => (connection.routes ?? []).some((route) => (
         route.kind === 'browser' && ['ready', 'needs_connection', 'waiting_for_user'].includes(route.state)
-      ))) ? ['browser'] : [];
+      )))) tools.push('browser');
+      return [...new Set(tools)];
     },
     async execute({ action, id, actionId }) {
       const report = await doctor.inspect();

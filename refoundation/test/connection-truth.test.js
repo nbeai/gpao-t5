@@ -11,6 +11,7 @@ test('연결 닥터는 서로 다른 연결 방식을 같은 사용자 상태로
         return {
           state: 'connected', userSafeSummary: '연결되어 있어요.',
           capabilities: { search: true, read: true, update: false },
+          capabilityTools: ['naver', 'naver', 'INVALID TOOL', '../secret'],
           routes: [{ kind: 'official', label: '공식 연결', state: 'connected', canStart: false }],
           token: 'MUST-NOT-LEAK', raw: { authorization: 'Bearer SECRET' },
         };
@@ -25,6 +26,7 @@ test('연결 닥터는 서로 다른 연결 방식을 같은 사용자 상태로
   assert.deepEqual(report.connections.map((item) => item.id), ['workspace-a', 'workspace-b']);
   assert.equal(report.connections[0].state, 'connected');
   assert.deepEqual(report.connections[0].capabilities, { search: true, read: true, update: false });
+  assert.deepEqual(report.connections[0].capabilityTools, ['naver']);
   assert.equal(report.connections[1].state, 'needs_attention');
   assert.match(report.connections[1].userSafeSummary, /상태를 확인하지 못했어요/u);
   assert.doesNotMatch(JSON.stringify(report), /MUST-NOT-LEAK|SECRET-2|authorization|Bearer/u);

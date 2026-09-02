@@ -1,3 +1,5 @@
+import { makeNaverBrowserTool } from './naver-browser-tool.js';
+
 const WEB_STATES = new Set(['unknown', 'ready', 'login_required']);
 const PROTOCOL_STATES = new Set(['unknown', 'setup_required', 'ready', 'needs_reauth']);
 
@@ -65,6 +67,7 @@ export function makeNaverIdentityBroker({ profileHandle = 'default', now = () =>
         routes: [{ kind: 'browser', label: 'T5 네이버 브라우저',
           state: browserReady ? 'ready' : 'needs_connection', canStart: !browserReady,
         startUrl: 'https://nid.naver.com/nidlogin.login' }],
+        capabilityTools: browserReady ? ['naver'] : [],
         actions: browserReady ? [] : [{ id: snapshot.currentHandoff === 'active' ? 'check-login' : 'login',
           label: snapshot.currentHandoff === 'active' ? '로그인 완료 확인' : '네이버 로그인',
           kind: 'user_action', endpoint: '/connections/naver/action' }], naverIdentity: snapshot };
@@ -101,6 +104,10 @@ export function makeNaverIdentityBroker({ profileHandle = 'default', now = () =>
       return { performed: complete, connectionReady: complete, refreshConnections: true,
         userSafeSummary: complete ? '네이버 메일과 블로그 연결을 확인했어요.'
           : '로그인은 확인했지만 메일과 블로그 중 일부를 다시 확인해야 해요.' };
+    },
+    async makeTool(context = {}) {
+      return (await this.inspect()).state === 'ready' && context.browserTool
+        ? makeNaverBrowserTool({ browser: context.browserTool }) : null;
     },
     observeBrowserResult({ args = {}, result = {} } = {}) {
       if (result?.profile?.id) {

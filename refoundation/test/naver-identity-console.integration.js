@@ -111,3 +111,60 @@ test('설정의 네이버 로그인 버튼은 managed Browser handoff를 열고 
     await new Promise((done) => server.close(done)); await rm(room, { recursive: true, force: true });
   }
 });
+
+test('ready Naver connection은 compact Naver adapter를 개통해 Mail 목록을 한 호출로 모델에 준다', async () => {
+  const room = await mkdtemp(join(tmpdir(), 't5-naver-adapter-console-'));
+  const broker = makeNaverIdentityBroker({ profileHandle: 'managed-profile' });
+  const readyObservation = (url, text) => ({ state: 'observed', profile: { id: 'managed-profile' },
+    tab: { url }, observation: { text } });
+  broker.observeBrowserResult({ args: { action: 'navigate', url: 'https://mail.naver.com/' },
+    result: readyObservation('https://mail.naver.com/v2/folders/0/all', '받은메일함') });
+  broker.observeBrowserResult({ args: { action: 'navigate', url: 'https://blog.naver.com/' },
+    result: readyObservation('https://section.blog.naver.com/BlogHome.naver', '로그아웃 내 블로그 글쓰기') });
+  const mailText = [
+    '- checkbox "보낸 사람네이버오전 03:1923.0KB메일 제목새로운 기기에서 로그인 되었습니다." [ref=e20]',
+    '  - button "읽은 메일" [ref=e21]', '  - button "보낸 사람 네이버" [ref=e22]',
+    '  - link "메일 제목 새로운 기기에서 로그인 되었습니다." [ref=e23]',
+    '  - button "메일 본문 미리보기 열기" [ref=e24]',
+  ].join('\n');
+  const driver = {
+    profile: { id: 'managed-profile', kind: 'managed_persistent', selected: true },
+    userControlActive: () => false, available: async () => ({ available: true }),
+    async navigate(url) { return { tab: { tabId: 'mail', targetId: 'target', url },
+      snapshot: { text: mailText, refs: {}, totalChars: mailText.length, truncated: false } }; },
+    async editables() { return { editables: [] }; },
+    async pageSecretFacts() { return { secretFieldCount: 0, secretValuesObserved: false }; },
+    async close() {},
+  };
+  let turn = 0;
+  const server = makeConsoleServer({ stateDir: join(room, 'state'), workspace: room,
+    browserDriverFactory: () => driver, workspaceConnectionServices: [broker],
+    modelStatus: () => ({ connected: true, provider: 'fixture', modelId: 'fixture' }),
+    modelFactory: () => ({ async respond(input) {
+      turn += 1;
+      if (turn === 1) return { text: '', toolCalls: [{ id: 'connection', name: 'connection',
+        args: { action: 'inspect', id: 'naver', actionId: null } }] };
+      if (turn === 2) { assert.ok(input.tools.some((tool) => tool.name === 'naver'));
+        return { text: '', toolCalls: [{ id: 'mail-list', name: 'naver', args: {
+          action: 'mail_list', query: null, messageHandle: null, attachmentHandle: null,
+          limit: 3, effect: { kind: 'observe', targets: ['https://mail.naver.com/'],
+            confirmation: 'not_applicable', rollbackOfToolCallId: null },
+        } }] }; }
+      const receipt = JSON.parse(input.messages.findLast((message) => message.name === 'naver').content);
+      assert.equal(receipt.result.messages[0].sender, '네이버');
+      assert.equal('observation' in receipt.result, false);
+      return { text: '새로운 기기에서 로그인 되었습니다. — 네이버 — 오전 03:19', toolCalls: [] };
+    } }),
+  });
+  await new Promise((done, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', done); });
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const session = await fetch(`${base}/sessions`, { method: 'POST' }).then((response) => response.json());
+    const result = await fetch(`${base}/turn`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id, text: '최근 네이버 메일을 확인해줘' }) }).then((response) => response.json());
+    assert.match(String(result.reply ?? ''), /새로운 기기/u, JSON.stringify(result)); assert.equal(turn, 3);
+  } finally {
+    await server.closeBrowsers(); server.closeWakeStreams(); await server.closeMessengers();
+    await new Promise((done) => server.close(done)); await rm(room, { recursive: true, force: true });
+  }
+});

@@ -1012,16 +1012,18 @@ NX2-5 완료를 보편적인 dynamic/authenticated collection 성공으로 확�
 > 대한민국 자영업자는 T5에게 네이버 메일을 찾고 정리하고 답장을 준비하거나 보내고, 블로그 글을 자료에서 만들어
 > 실제 초안·예약·발행까지 맡길 수 있으며 로그인·비밀·전송 범위는 한 번의 신뢰 가능한 T5 신분 안에서 관리된다.
 
-### 12.1 하나의 Naver identity, 두 실행 경로
+### 12.1 하나의 Naver identity, 하나의 managed Browser reality
 
 ```text
 T5 Naver Identity Broker
-├─ Mail: 공식 IMAP/SMTP protocol
-└─ Blog: 기존 Browser Hand의 현재 공식 UI
+└─ 기존 managed persistent Browser
+   ├─ Mail physical adapter
+   └─ Blog physical adapter
 ```
 
 - 일반 비밀번호는 모델·Prompt·로그로 보내지 않는다.
-- 메일은 2FA/app password 등 공식 정책을 따른다.
+- 로그인은 사용자가 공식 Naver 화면에서 직접 수행하고 Runtime은 cookie·비밀번호·OTP를 관측하지 않는다.
+- Mail adapter는 mailbox·message·attachment·draft·send의 현재 control과 effect만 구조화하고 업무 의미를 판정하지 않는다.
 - 블로그 쓰기는 종료된 API를 가장하지 않는다.
 - Browser provider는 교체 가능하지만 identity·authority·receipt는 하나다.
 
@@ -1088,6 +1090,13 @@ Responses provider wire가 function output을 exact call 바로 뒤에 배치하
 입력을 요구하고 실제 owner 연결도 인증 단계에서 실패해 제품에서 제거한다. 기본 경로는 설정의 `네이버 로그인` 한 번으로
 managed persistent Browser를 열고, 완료 뒤 같은 profile의 Mail·Blog를 각각 read-only 재관측하는 흐름이다. Mail read
 자격은 이 Browser 경로의 folder/search/open/attachment와 unread effect 분리로 다시 닫는다.
+
+종료 상태: `TECHNICAL_COMPLETE · FINAL_HQ_OWNER_OPEN_ATTACHMENT_PENDING`. 실제 owner Console의 로그인·Mail/Blog
+readback·목록·조건 검색은 PASS다. 본문 open·attachment download·read-state effect는 격리 결정적 fixture에서 기존
+Browser Hand 위 Naver physical adapter로 닫았다. 새 Browser reality·Store·업무 Router는 0이다. owner 실제 본문·첨부는
+중간 Gate마다 반복하지 않고 마지막 NV-HQ에서 한 번만 확인한다.
+
+근거: `refoundation/evidence/nx2-nv3-mail-browser-adapter-2026-09-02.json`.
 
 #### NV-4 — Mail Draft & Send
 

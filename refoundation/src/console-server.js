@@ -1955,6 +1955,7 @@ export function makeConsoleServer({
       }));
       let browserReady = false;
       let browserRuntimeContext = '';
+      let connectedBrowserTool = null;
       const browserConfigured = typeof browserDriverFactory === 'function' || Boolean(browserHost);
       const currentBrowser = await browserDriver(sessionId);
       if (currentBrowser) {
@@ -2025,6 +2026,7 @@ export function makeConsoleServer({
               return { ...observed, artifactRegistration: { state: 'failed', reason: error?.message ?? String(error) } };
             }
           };
+          connectedBrowserTool = browserTool;
           offeredTools.unshift(browserTool);
         }
       }
@@ -2196,6 +2198,7 @@ export function makeConsoleServer({
         if (typeof service.makeTool !== 'function') continue;
         const workspaceTool = await service.makeTool({
           attachments, sessionId, runId: run.runId,
+          browserTool: connectedBrowserTool,
           authorizeEffect: (args) => effectPreflight({
             toolName: service.toolName ?? service.id, args, ownerId: sessionId,
           }),
