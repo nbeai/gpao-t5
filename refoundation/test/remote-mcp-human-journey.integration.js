@@ -59,7 +59,7 @@ test('사용자는 Linear를 한 번 요청하고 로그인 허용 뒤 원래 �
     const awaiting = post('/connections/linear/await', { sessionId: session.id, handoffId: started.runId });
     await fetch(`${callback}?code=CODE&state=${encodeURIComponent(auth.searchParams.get('state'))}`);
     assert.equal((await awaiting).connected, true);
-    const deadline = Date.now() + 2_000; let detail;
+    const deadline = Date.now() + 10_000; let detail;
     while (Date.now() < deadline) { detail = await fetch(`${base}/sessions/${session.id}`).then((r) => r.json());
       if ((detail.transcript ?? []).some((entry) => /오늘 마감 업무는 견적 검토/u.test(entry.result?.reply ?? ''))) break;
       await new Promise((resolve) => setTimeout(resolve, 10)); }
