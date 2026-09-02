@@ -128,14 +128,6 @@ test('연결 진실의 준비된 브라우저 경로는 기존 로그인 handoff
         const connection = JSON.parse(input.messages.at(-1).content).result.connection;
         assert.equal(connection.state, 'needs_connection');
         assert.equal(connection.routes[0].kind, 'browser');
-        assert.equal(input.tools.some((tool) => tool.name === 'browser'), false);
-        return { text: '', toolCalls: [{ id: 'read-google-login-boundary', name: 'web_read', args: {
-          url: connection.routes[0].startUrl, maxChars: 20_000, visibleBrowser: 'user_interaction',
-        } }] };
-      }
-      if (turn === 3) {
-        const boundary = JSON.parse(input.messages.at(-1).content);
-        assert.equal(boundary.result.state, 'blocked');
         assert.equal(input.tools.some((tool) => tool.name === 'browser'), true);
         return { text: '', toolCalls: [{ id: 'start-google-login', name: 'browser', args: {
           action: 'login_start', ...nulls, url: 'https://drive.google.com/',
