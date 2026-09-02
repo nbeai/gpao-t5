@@ -7,7 +7,7 @@ const indexPath = new URL('../../티파이브개발 연구/INDEX.md', import.met
 const nxPath = new URL('../../T5-NX.md', import.meta.url);
 const selectionPlanPath = new URL('../../티파이브개발 연구/T5-SELECTION-SIDE-EXPLORATION-RESEARCH.md', import.meta.url);
 
-test('NX-2 plan records NX-1 closeout, the current Context Diet slice, and excludes generic GUI work', async () => {
+test('NX-2 plan records the current NV-HQ slice and excludes generic GUI work', async () => {
   const plan = await readFile(planPath, 'utf8');
   assert.match(plan, /NX_1_COMPLETE/);
   assert.match(plan, /NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT/);
@@ -21,6 +21,9 @@ test('NX-2 plan records NX-1 closeout, the current Context Diet slice, and exclu
   assert.match(plan, /NX2_4_AU4_COMPLETE/);
   assert.match(plan, /NX2_4_AUDITORY_COMPLETE_MACOS/);
   assert.match(plan, /NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED/);
+  assert.match(plan, /NX2_6_NV3_TO_NV7_TECHNICAL_COMPLETE/);
+  assert.match(plan, /NX2_6_NV_HQ_CURRENT/);
+  assert.match(plan, /현재 제품 Gate: `NX2-6 NV-HQ — SINGLE OWNER ACTUAL CONSOLE WAVE`/);
   assert.match(plan, /NX2-SE — Selection-Scoped Side Exploration/);
   assert.match(plan, /범용 Computer Use·좌표 클릭·데스크톱 앱 조작/);
   assert.match(plan, /독립 미래 Gate 유지/);
@@ -54,17 +57,17 @@ test('NX-2 plan preserves T5 model/runtime boundaries and whole-human evidence',
   assert.match(plan, /업무별 schema·Router·Prompt fork 0/);
 });
 
-test('research index and NX canonical source link the active NX-2 plan and current slice', async () => {
+test('research index and NX canonical source link the active NX-2 plan and NV-HQ slice', async () => {
   const [index, nx] = await Promise.all([readFile(indexPath, 'utf8'), readFile(nxPath, 'utf8')]);
   const filename = 'T5-NX2-GENERALIZED-MASTERY-DEVELOPMENT-PLAN.md';
   assert.match(index, new RegExp(filename));
   assert.match(nx, new RegExp(filename));
-  assert.match(nx, /CURRENT · NX_1_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · CURRENT_SLICE_NX2_4_AUDITORY_INTELLIGENCE/);
+  assert.match(nx, /NX2_6_NV3_TO_NV7_TECHNICAL_COMPLETE · CURRENT_SLICE_NX2_6_NV_HQ/);
   assert.match(nx, /현재 개발 순서/);
   assert.match(nx, /NX-1 합격일 때만 NX-2 CURRENT로 이동/);
   assert.match(nx, /ABSORBED_AS_NX2_7 · NOT_SEPARATELY_OPEN/);
   assert.match(nx, /ABSORBED_AS_NX2_4 · NOT_SEPARATELY_OPEN/);
-  assert.match(nx, /NX-SE — Selection-Scoped Side Exploration — PLANNED_AFTER_NX2_3/);
+  assert.match(nx, /NX-SE — Selection-Scoped Side Exploration — COMPLETE/);
 });
 
 test('current NX-2A through NX-2D are bound inside NX2-1 and cannot bypass the remaining roadmap', async () => {

@@ -1,12 +1,12 @@
 # T5 NX-2 — Generalized Mastery 개발 정본
 
-상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED · NX2_5_WC0_TO_WC4_COMPLETE · NX2_5_WC_HQ_CLOSED_WITH_CROSS_HAND_ECONOMY_OBSERVATION · NX2_6_NV0_COMPLETE · NX2_6_NV1_COMPLETE · NX2_6_NV1R_COMPLETE · NX2_6_NV2_COMPLETE · NX2_6_NV3_CURRENT`
+상태: `OWNER_CURRENT_NX2_EXECUTION_SOURCE · NX_1_COMPLETE · NX2_0_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CONTEXT_DIET_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AU0_COMPLETE · NX2_4_AU1_SOURCE_COMPLETE · NX2_4_AU2_COMPLETE · NX2_4_AU3_COMPLETE · NX2_4_AU4_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED · NX2_5_WC0_TO_WC4_COMPLETE · NX2_5_WC_HQ_CLOSED_WITH_CROSS_HAND_ECONOMY_OBSERVATION · NX2_6_NV0_TO_NV2_COMPLETE · NX2_6_NV3_TO_NV7_TECHNICAL_COMPLETE · NX2_6_NV_HQ_CURRENT`
 
-제품 기준 HEAD: `129b1db4` — model-selected bounded batch observation 자격
+현재 기술 봉인 HEAD: `4e91335b` — Naver restart discovery·Browser upload surface 수리와 전체 CI
 
 NX-1 완료 HEAD: `ad3e685c`
 
-현재 제품 Gate: `NX2-6 NV-3 — Mail Read`
+현재 제품 Gate: `NX2-6 NV-HQ — SINGLE OWNER ACTUAL CONSOLE WAVE`
 
 ---
 
@@ -186,21 +186,21 @@ NX2-0  NX-1 귀환선·연구 inventory 봉인 — COMPLETE
   ↓
 NX2-1  Integral Mastery 업무·lane 일반화 — CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT
   ↓
-NX2-2  Context Diet & Interface Intelligence — CURRENT
+NX2-2  Context Diet & Interface Intelligence — CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION
   ↓
-NX2-3  Cognitive Flow·Practical Judgment 자격
+NX2-3  Cognitive Flow·Practical Judgment 자격 — CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT
   ↓
 NX2-SE Selection-Scoped Side Exploration — COMPLETE
   ↓
-NX2-4  Auditory Intelligence
+NX2-4  Auditory Intelligence — COMPLETE_MACOS · WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED
   ↓
-NX2-5  Web Intelligence Collector
+NX2-5  Web Intelligence Collector — CLOSED_WITH_CROSS_HAND_ECONOMY_OBSERVATION
   ↓
-NX2-6  Naver Identity·Mail·Blog
+NX2-6  Naver Identity·Mail·Blog — NV3_TO_NV7_TECHNICAL_COMPLETE · NV_HQ_CURRENT
   ↓
-NX2-7  Experience Promotion
+NX2-7  Experience Promotion — NOT_OPEN
   ↓
-NX2-HQ Competitive Whole Human Qualification
+NX2-HQ Competitive Whole Human Qualification — NOT_OPEN
   ↓
 NX2-PS T5 Presentation Studio — LAST PLANNED PRODUCT GATE
 ```
@@ -303,7 +303,7 @@ NX2-2 이후 기능으로 그 실패를 성공처럼 덮지 않는다. 현재 �
 
 근거: `refoundation/evidence/nx2-existing-path-common-observer-trace-2026-09-01.json`.
 
-### NX2-1C0 — First-Turn Reality Affordance Audit — CURRENT
+### NX2-1C0 — First-Turn Reality Affordance Audit — CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT
 
 제품 변경 0으로 일반·전문 표현의 첫 provider call을 비교한다.
 
@@ -332,7 +332,7 @@ strict scope가 실패했다. 첫 세 목적 Gate가 실패했으므로 추가 �
 근거: `refoundation/evidence/nx2-reality-affordance-contract-candidate-2026-09-01.json`.
 
 오너는 gpt-5.5 일반 표현 source admission 한계를 현재 제품 현실로 수용했다. 추가 selection model·Router·업무 규칙·
-Prompt patch 없이 NX2-1을 봉인하고, 미달은 NX2-3·NX2-HQ·향후 model qualification에 이월한다. 다음 현재 Gate는
+Prompt patch 없이 NX2-1을 봉인하고, 미달은 NX2-3·NX2-HQ·향후 model qualification에 이월한다. 당시 다음 Gate는
 NX2-2이며 `CX-0 Prompt Surface Inventory`부터 제품 변경 0으로 시작한다.
 
 근거: `refoundation/evidence/nx2-1-owner-acceptance-and-context-diet-open-2026-09-01.json`.
@@ -407,7 +407,7 @@ AND 업무별 schema·Router·Prompt fork 0
 
 ---
 
-## 8. NX2-2 — Context Diet & Interface Intelligence — CURRENT
+## 8. NX2-2 — Context Diet & Interface Intelligence — CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION
 
 상세 정본: `T5-CONTEXT-DIET-INTERFACE-INTELLIGENCE-RESEARCH.md`
 
@@ -733,7 +733,7 @@ digest, Node adapter까지 준비했다. Windows physical compile·track 관측�
 - partial/corrupt asset fail-closed
 - 제거·재설치·platform path
 
-현재 slice: `AU2A_MODEL_GENERATION_COMPLETE_AU2_REMAINS_OPEN`. 기존 Managed CLI/Capability package 경계는
+AU-2A 단계 기록: `AU2A_MODEL_GENERATION_COMPLETE`. 기존 Managed CLI/Capability package 경계는
 64MB 상한과 whole-buffer download라 574MB~1.62GB model에 재사용하지 않았다. Whisper model에만 한정된 store가
 immutable catalog, disk preflight, streaming·Range resume, exact bytes·SHA-256, inactive generation,
 fixture qualification, active generation reopen을 제공한다. full이 유일한 제품 기본이고 Q5는 실제 인간 corpus 전까지
@@ -1049,7 +1049,7 @@ login handoff, stale tab/dead Browser recovery, 범용 rich editor 관측·입�
 - clean restart 뒤 Mail·Blog read-only actual
 - cookie export·복사 없이 same managed profile
 
-현재 상태: `CONTRACT_COMPLETE · ACTUAL_OWNER_CONTROLLED_CONSOLE_PENDING`. 동일 managed profile에서 로그인 상태 유지
+계약 단계 기록: `CONTRACT_COMPLETE · ACTUAL_OWNER_CONTROLLED_CONSOLE_PENDING`. 동일 managed profile에서 로그인 상태 유지
 미선택/선택 두 회차, clean Browser shutdown, Runtime restart, Mail·Blog read-only 재관측을 하나의 qualification
 contract로 고정했다. profile이 다르거나 cookie·secret을 관측하거나 shutdown/restart receipt가 없으면 자격하지 않는다.
 실제 Naver 계정은 자동 시험하지 않았고 제품 변경은 0이다.
@@ -1086,7 +1086,7 @@ Responses provider wire가 function output을 exact call 바로 뒤에 배치하
 - sender·recipient·date·message identity
 - pagination·coverage·unread state의 실제 효과 분리
 
-현재 상태: `BROWSER_LOGIN_CURRENT · IMAP_CANDIDATE_REJECTED_BY_OWNER_UX`. IMAP 후보는 별도 계정 설정과 앱 비밀번호
+경로 판정: `BROWSER_LOGIN_CURRENT · IMAP_CANDIDATE_REJECTED_BY_OWNER_UX`. IMAP 후보는 별도 계정 설정과 앱 비밀번호
 입력을 요구하고 실제 owner 연결도 인증 단계에서 실패해 제품에서 제거한다. 기본 경로는 설정의 `네이버 로그인` 한 번으로
 managed persistent Browser를 열고, 완료 뒤 같은 profile의 Mail·Blog를 각각 read-only 재관측하는 흐름이다. Mail read
 자격은 이 Browser 경로의 folder/search/open/attachment와 unread effect 분리로 다시 닫는다.

@@ -987,7 +987,7 @@ AND current correction·Stop·restart·Artifact·Undo 무회귀
 
 상세 개발 정본: `티파이브개발 연구/T5-NX2-GENERALIZED-MASTERY-DEVELOPMENT-PLAN.md`
 
-상태: `CURRENT · NX_1_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · CURRENT_SLICE_NX2_4_AUDITORY_INTELLIGENCE`
+상태: `CURRENT · NX_1_COMPLETE · NX2_1_CLOSED_WITH_MODEL_PROVIDER_SELECTION_LIMIT · NX2_2_CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION · NX2_3_CLOSED_WITH_MODEL_PROVIDER_JUDGMENT_LIMIT · NX2_SE_COMPLETE · NX2_4_AUDITORY_COMPLETE_MACOS · NX2_4_WINDOWS_PHYSICAL_DEFERRED_NOT_WAIVED · NX2_5_WC_HQ_CLOSED_WITH_CROSS_HAND_ECONOMY_OBSERVATION · NX2_6_NV3_TO_NV7_TECHNICAL_COMPLETE · CURRENT_SLICE_NX2_6_NV_HQ`
 
 NX-2는 아래 네 업무만 늘리는 단계가 아니다. GUI와 NX-1에 이미 흡수된 Reality·Method·Evidence 구조를 다시 만들지
 않고, 남은 연구를 다음 한 실행선으로 일반화한다.
@@ -1254,11 +1254,11 @@ File Reality를 발견할 수 있는지 A/B한다. global Prompt·Router·metada
 
 근거: `refoundation/evidence/nx2-1-owner-acceptance-and-context-diet-open-2026-09-01.json`.
 
-### NX2-2 — Context Diet & Interface Intelligence — CURRENT
+### NX2-2 — Context Diet & Interface Intelligence — CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION
 
 상세 정본: `티파이브개발 연구/T5-CONTEXT-DIET-INTERFACE-INTELLIGENCE-RESEARCH.md`
 
-현재 slice는 제품 변경 0의 `CX-0 Prompt Surface Inventory`다. 첫 산출물은 삭제 diff가 아니라 system instruction·
+NX2-2 개통 당시 첫 slice는 제품 변경 0의 `CX-0 Prompt Surface Inventory`였다. 첫 산출물은 삭제 diff가 아니라 system instruction·
 Interaction Core·Tool·Skill·Memory/Conversation·runtimeContext·provider wire·Human Closure surface의 bytes·owner·incident·
 countertest를 재계산한 audit report다.
 
@@ -1367,7 +1367,7 @@ CX-HQ는 `CLOSED_WITH_WORK_SETTLEMENT_OBSERVATION`이며 다음 current Gate는 
 
 근거: `refoundation/evidence/nx2-cx-hq-human-context-qualification-2026-09-01.json`.
 
-### NX-2D — Five-Lane Proportionality — PENDING
+### NX-2D — Five-Lane Proportionality — NOT_OPEN · CARRIED_TO_NX2_HQ
 
 네 관계 목적을 통과한 뒤 Direct·Single Reality·Multi-source Work·Crafted Artifact·Program/Project 다섯 lane을 각각
 한 대표 목적에서 확인한다. 이미 통과한 6차 전체 HQ를 반복하지 않고 NX-2 변경 edge와 직접 연결된 실제 Console만 본다.
@@ -1384,7 +1384,7 @@ AND 질문·교정·model/Tool rounds·tokens·wall이 baseline보다 비례적�
 AND 새 Store·업무 Router·provider Prompt fork·Runtime 의미 판정 0
 ```
 
-## NX-SE — Selection-Scoped Side Exploration — PLANNED_AFTER_NX2_3
+## NX-SE — Selection-Scoped Side Exploration — COMPLETE
 
 상세 계획: `티파이브개발 연구/T5-SELECTION-SIDE-EXPLORATION-RESEARCH.md`
 
@@ -1400,8 +1400,11 @@ NX2-3 Cognitive Flow·Practical Judgment closeout
 → NX2-4 Auditory Intelligence
 ```
 
-현재는 `PRODUCT_IMPLEMENTATION_NOT_OPEN`이다. NX2-SE 전에는 Console panel·CSS·endpoint·side event를 만들지 않는다.
-첫 RED는 Markdown·Unicode exact selection anchor와 completed source Work→derived Work provenance다.
+2026-09-01 exact Markdown·Unicode anchor, same-T5 read-only side branch, 명시적 apply, current Work R+1 또는
+completed source Work의 derived Work provenance, reload 복원과 actual Console 인간 흐름까지 완료했다. side 미사용
+대화의 model·Tool·Work 변화는 0이다.
+
+근거: `refoundation/evidence/nx2-se5-selection-side-exploration-close-2026-09-01.json`.
 
 ## NX-3 — Experience Promotion
 
