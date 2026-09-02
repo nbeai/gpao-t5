@@ -2,7 +2,7 @@
 
 기록일: 2026-09-01
 조사 기준: T5 NX `9e2daf0c` 및 과거 Naver 실제 설치본 증거
-상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · NV0_COMPLETE · NV1_COMPLETE · NV1R_COMPLETE · NV2_COMPLETE · NV3_BROWSER_LOGIN_ACTUAL_PASS_MAIL_READ_CURRENT · IMAP_CANDIDATE_REJECTED_BY_OWNER_UX · PRODUCT_IMPLEMENTATION_GATE_OPEN`
+상태: `RESEARCH_COMPLETE · OWNER_GATE_OPEN · NV0_TO_NV2_COMPLETE · NV3_TO_NV7_TECHNICAL_COMPLETE · IMAP_CANDIDATE_REJECTED_BY_OWNER_UX · INTEGRATION_SEAL_CURRENT · FINAL_NV_HQ_PENDING`
 
 NV-1 현재 상태: `COMPLETE`. A 미선택은 restart 뒤 Mail·Blog login_required, B 선택은 같은 profile·restart 뒤
 둘 다 ready였다. 실제 여정에서 발견된 restart provider continuity P1도 NV-1R에서 수리·실제 재자격했다.
@@ -13,8 +13,7 @@ NV-1 현재 상태: `COMPLETE`. A 미선택은 restart 뒤 Mail·Blog login_requ
 > 메일 발송과 블로그 공개·예약 발행은 현재 대상과 내용을 다시 보여주고 사용자가 맡긴 범위에서 정확히 한 번만
 > 실행하며, 재시작·탭 종료·화면 변경 뒤에도 다른 브라우저 현실을 만들거나 성공을 꾸미지 않는다.
 
-이 문서는 현재 `T5-NX.md` Gate를 자동 변경하지 않는 연구 계획이다. 오너는 Naver Gate를 열었으며, 현재 정본의
-NV-2 한 단계만 제품 구현할 수 있다.
+이 문서는 현재 `T5-NX.md` Gate의 Naver 근거다. 제품 구현 순서와 현재 Gate는 `T5-NX.md`와 NX2 상세 정본을 따른다.
 
 ## NX-2 공통 승격 계약
 
@@ -22,7 +21,7 @@ NX-2 귀속: `NX2-6 — Naver Identity·Mail·Blog Native Work`
 
 로그인·메일·블로그 각각의 자동화가 동작했다는 사실만으로 완료하지 않는다. 제품 승격에는 다음이 모두 필요하다.
 
-- 하나의 T5 Naver identity와 authority 아래 Mail protocol·Blog Browser·후속 authenticated collection이 결속된다.
+- 하나의 T5 Naver identity와 authority 아래 Mail·Blog Browser adapter와 후속 authenticated collection이 결속된다.
 - 메일 검색·첨부·답장·전송과 블로그 초안·craft·예약·발행의 실제 사용자 목적이 end-to-end로 완료된다.
 - draft·send·save·schedule·publish·public reopen을 서로 다른 실제 effect로 보존한다.
 - 일반 비밀번호·cookie·app password가 모델·Prompt·로그·guest code에 노출되지 않는다.
@@ -74,7 +73,7 @@ Naver 공식 도움말은 로그인 화면에서 `로그인 상태 유지`를 �
 따라서 과거 T5의 clean restart 뒤 `login_required`는 Browser profile 결함으로 단정할 수 없다. 당시 사용자가
 `로그인 상태 유지`와 신뢰 Browser를 선택했는지 증거가 없으므로 opposing test가 필요하다.
 
-### 2.2 네이버 메일 공식 경로
+### 2.2 네이버 메일 공식 protocol과 제품 후보 폐기
 
 Naver는 IMAP·SMTP를 공식 제공한다.
 
@@ -89,7 +88,9 @@ Naver는 IMAP·SMTP를 공식 제공한다.
 - https://help.naver.com/service/30029/contents/21351
 - https://help.naver.com/notice/noticeView.help?noticeNo=22533&serviceNo=30021
 
-메일은 UI scraping보다 protocol connection이 정확성·속도·유지보수에서 우선한다.
+protocol 자체는 유효하지만 실제 owner UX에서 별도 2FA·IMAP 설정·앱 비밀번호 발급과 T5 재입력이 필요했고 연결도
+실패했다. 사용자가 이미 완료한 Browser 로그인을 다시 준비하게 만드는 기본 경로는 T5 제품 원리와 맞지 않아 제품 후보를
+폐기했다. 이 정보는 비교 근거이지 현재 제품 배선이 아니다.
 
 ### 2.3 네이버 블로그 공식 경계
 
@@ -149,7 +150,7 @@ Naver 블로그 글쓰기 Open API는 반복적 기계 발행과 정책 위반 �
 - Mail·Blog·Crawler가 서로 다른 profile을 만들지 않는다.
 - raw `agent-browser`, Selenium script, T5 Browser가 같은 계정을 각각 로그인하지 않는다.
 - 모델·Tool result·log에 cookie·localStorage·ID/PW·OTP를 노출하지 않는다.
-- 매 Run의 로그인 상태는 현재 페이지나 protocol probe로 다시 관측한다.
+- 매 Run의 로그인 상태는 현재 Mail·Blog 페이지의 read-only probe로 다시 관측한다.
 
 ### 3.2 하나의 Browser Hand, 교체 가능한 provider
 
@@ -175,20 +176,18 @@ Selenium 후보는 다음을 모두 이길 때만 채택한다.
 `webdriver-manager`의 장점은 Chrome/driver 호환 준비다. 정식 제품은 branch/latest download를 실행 중 임의 사용하지 않고,
 pinned provider version·digest 또는 설치본 Browser runtime으로 자격한다.
 
-### 3.3 API·protocol 우선, UI는 필요한 곳만
+### 3.3 하나의 Browser reality와 physical adapter
 
 ```text
-Mail read/search/send
-→ IMAP/SMTP
+Mail list/search/open/attachment/draft/send
+→ Naver physical adapter → existing Browser Hand
 
-Mail 설정·특수 UI
-→ Browser
-
-Blog 작성·서식·이미지·예약·발행
-→ Browser
+Blog draft/craft/preview/save/schedule/publish
+→ Naver physical adapter → existing Browser Hand + managed DOM provider
 ```
 
-UI 자동화가 가능하다는 이유로 메일 목록·본문을 Browser로 긁지 않는다.
+Adapter는 업무 의미를 판정하지 않고 exact mailbox·message·editor·control·effect를 compact 구조화한다. raw cookie·숨은
+endpoint·두 번째 Browser reality는 만들지 않는다.
 
 ---
 
@@ -250,42 +249,28 @@ B: 로그인 상태 유지 선택
 
 ---
 
-## 5. Naver Mail Protocol Hand
+## 5. Naver Mail Browser Adapter
 
 ### 5.1 연결
 
-사용자 준비:
-
-1. Naver Mail의 IMAP/SMTP를 `사용함`.
-2. Naver 2단계 인증 설정.
-3. Naver 애플리케이션 비밀번호 생성.
-4. T5 secret input surface에 앱 비밀번호 입력.
-
-T5는 일반 Naver 비밀번호를 요구하지 않는다.
-
-구현 후보:
-
-- Node `imapflow` pinned dependency
-- Node `nodemailer` pinned dependency
-- app password는 `platform-secret-store`
-- 설정 metadata와 credential은 분리
-- connection probe는 IMAP mailbox list와 SMTP authenticated no-send 또는 provider-supported verify
+설정의 `네이버 로그인`은 기존 managed persistent Browser의 공식 Naver 화면을 열고 사용자가 직접 입력한다. Runtime은
+ID·비밀번호·OTP·cookie를 관측하지 않는다. 완료 뒤 같은 profile에서 Mail·Blog를 각각 read-only 재관측하고 실제 redirect가
+있을 때만 login_required다.
 
 ### 5.2 action contract
 
 ```text
-mail.status
-mail.list_folders
-mail.search
-mail.read
-mail.download_attachment
-mail.create_draft
-mail.reply_draft
-mail.send
+mail_list
+mail_search
+mail_open
+mail_download_attachment
+mail_create_draft
+mail_reply_draft
+mail_send
 ```
 
-- list/search/read/download는 observe.
-- draft는 managed local artifact 또는 provider draft가 실제로 생성된 경우 external_change.
+- list는 observe, search query는 Naver 전송 사실, open은 unread effect 가능성을 별도 보존한다.
+- draft는 exact recipient·subject·body·attachment와 save readback이 있는 external_change다.
 - send는 external_send. 수신자·제목·본문·첨부 exact preview와 delivery result를 보존한다.
 - timeout/ACK unknown 뒤 blind resend 0.
 - 같은 messageId·recipient·content digest의 current Run 중복 send 0.
@@ -434,10 +419,8 @@ raw cookie export, Selenium profile 복제, 사용자의 평소 Chrome attach는
 | 파일 | 책임 |
 |---|---|
 | `refoundation/src/naver-identity-broker.js` | 하나의 profile identity·login handoff·current status·restart |
-| `refoundation/src/naver-mail-connection.js` | IMAP/SMTP metadata·secret readiness·probe |
-| `refoundation/src/naver-mail-tool.js` | search/read/attachment/draft/send action contract |
-| `refoundation/src/naver-blog-adapter.js` | editor observation·field/action mapping·readback |
-| `refoundation/src/naver-blog-tool.js` | draft·format·image·schedule·publish Hand |
+| `refoundation/src/naver-browser-tool.js` | Mail·Blog compact physical action contract |
+| `refoundation/src/naver-blog-craft-adapter.js` | exact DOM text·style·image·Preview readback |
 | `refoundation/src/naver-session-broker.js` | 후속 logged-in collection scoped broker |
 | `refoundation/config/naver-browser-incidents.json` | 과거 실제 실패와 UI counterexample |
 
@@ -447,8 +430,6 @@ raw cookie export, Selenium profile 복제, 사용자의 평소 Chrome attach는
 |---|---|
 | `agent-browser-driver.js` | Naver profile owner·restart current truth; provider 일반성 유지 |
 | `browser-observation-tool.js` | 새 Naver action을 직접 넣기보다 adapter가 existing primitives를 사용 |
-| `connection-state-store.js` | mail protocol readiness metadata |
-| `platform-secret-store.js` | app password secret owner |
 | `console-server.js` | deferred Naver capability discovery·tool composition |
 | `capability-reality.js` | mail/blog/browser readiness 분리 |
 | `work-completion-evaluator.js` | send/publish unknown·missing readback 기존 blocker 재사용 |
@@ -488,8 +469,8 @@ Browser core를 Naver selector로 오염시키지 않는다. Naver UI knowledge�
 
 ### NV-3 — Mail Read
 
-- IMAP/SMTP setup UX
-- app password secret input
+- managed profile login/readback
+- process unknown 뒤 profile probe 우선
 - folder/search/read/attachment
 - restart·needs_reauth
 
@@ -607,14 +588,14 @@ Naver Mail·Blog이 안정된 뒤 web-crawler의 logged-in Naver collection을 �
 
 ### Mail
 
-1. IMAP 설정 off.
-2. 일반 비밀번호 제출.
-3. 앱 비밀번호 revoked.
-4. 2FA needs setup.
-5. 검색 0건·부분 coverage.
-6. 큰 첨부·잘못된 mime.
-7. SMTP timeout before/after ACK.
-8. 같은 send retry.
+1. process restart 뒤 profile은 ready인데 Broker만 unknown.
+2. Mail ready·Blog Home redirect host ready의 부분 관측.
+3. 검색 0건·부분 coverage.
+4. message ref stale·다른 tab.
+5. open 전후 unread effect unknown.
+6. 큰 첨부·잘못된 mime·download ACK unknown.
+7. send submit 전/후 timeout.
+8. 같은 draft send retry.
 9. 보낸메일함 readback 지연.
 
 ### Blog
@@ -640,7 +621,7 @@ Naver Mail·Blog이 안정된 뒤 web-crawler의 logged-in Naver collection을 �
 
 현재 과거 positive control을 기준으로 한다.
 
-- 이미 로그인된 Mail search/read: model 2회 이내, 필요한 protocol call bounded, first useful 10초 이내 목표.
+- 이미 로그인된 Mail list/search: compact Naver adapter 1회, first useful 10초 이내 목표.
 - Blog editor ready: 15초 이내 목표.
 - title + 8,000자 body + readback: 과거 32초 positive control 이하.
 - category·tags·image·format을 포함한 draft Preview: 60초 이내 목표.
@@ -698,7 +679,7 @@ Naver Mail·Blog이 안정된 뒤 web-crawler의 logged-in Naver collection을 �
 
 ## 15. 중단선
 
-- Mail protocol이 가능한데 Mail UI scraping을 기본으로 만든다.
+- 폐기한 IMAP/app-password 후보를 기본 경로로 되살린다.
 - raw agent-browser·Selenium CLI가 T5 Browser와 다른 profile reality를 만든다.
 - cookie를 모델·Tool result·Python script·log에 노출한다.
 - Naver 일반 비밀번호를 chat이나 T5 Secret Store에 보관한다.
@@ -714,9 +695,9 @@ Naver Mail·Blog이 안정된 뒤 web-crawler의 logged-in Naver collection을 �
 
 ## 16. 커밋 순서
 
-1. `Freeze Naver identity and protocol baselines`
+1. `Freeze Naver identity and Browser baselines`
 2. `Qualify persistent Naver login identity`
-3. `Bind Naver Mail through IMAP and SMTP`
+3. `Bind Naver Mail through the managed Browser adapter`
 4. `Settle Naver Mail send exactly once`
 5. `Observe and fill Naver Blog drafts`
 6. `Verify Naver Blog craft and images`
@@ -733,7 +714,7 @@ Naver Mail·Blog이 안정된 뒤 web-crawler의 logged-in Naver collection을 �
 ```text
 하나의 Naver profile identity
 AND login 상태 유지 선택의 actual restart continuity
-AND Mail IMAP/SMTP exact connection
+AND Mail·Blog same managed Browser identity
 AND Mail search/read/attachment/draft/send truth
 AND Blog title/body/category/tag/image/style/schedule readback
 AND send/publish duplicate 0
@@ -747,6 +728,6 @@ AND clean second whole-flow pass
 
 완료 문장:
 
-> T5는 대한민국 사용자의 하나의 네이버 신분을 안전하게 유지하고, 메일은 공식 protocol로 빠르고 정확하게 처리하며,
-> 블로그는 실제 화면을 관측해 전문적인 원고·서식·이미지·예약·발행을 끝낸다. 사용자는 로그인과 최종 외부 효과만
+> T5는 대한민국 사용자의 하나의 네이버 신분을 안전하게 유지하고, 같은 managed Browser reality에서 메일 검색·첨부·
+> 답장·전송과 블로그 원고·서식·이미지·예약·발행을 실제 화면 관측으로 끝낸다. 사용자는 로그인과 최종 외부 효과만
 > 통제하고 Python·Selenium·쿠키·selector를 배우지 않는다.
