@@ -1144,6 +1144,13 @@ caption은 exact field, Preview는 실제 새 화면/본문으로 확인한다. 
 - ACK unknown에서 중복 publish 0
 - correction·unpublish 가능 범위
 
+종료 상태: `TECHNICAL_COMPLETE · FINAL_HQ_EFFECT_PENDING`. draft save·schedule·publish를 별도 effect로 처리하고 schedule은
+timezone 포함 시각, publish는 visibility와 current draft identity에 결속한다. terminal action은 exact once이며 ACK
+unknown이면 같은 draft를 재실행하지 않는다. confirmed public URL만 reopen한다. unpublish는 현재 미자격으로 명시하며
+지원한다고 꾸미지 않는다. 실제 external effect는 마지막 NV-HQ 한 번에서만 수행한다.
+
+근거: `refoundation/evidence/nx2-nv7-blog-publication-2026-09-02.json`.
+
 #### NV-8 — Authenticated Collection Broker
 
 - NX2-5 public collector가 정말 로그인 자료를 필요로 할 때만 개통

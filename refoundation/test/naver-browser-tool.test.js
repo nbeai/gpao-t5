@@ -281,3 +281,90 @@ test('Naver Blog craft는 format·image·Preview 일부 실패를 전체 성공�
     effect: { kind: 'observe' } });
   assert.equal(preview.state, 'preview_unknown');
 });
+
+test('Naver Blog save·publish·reopen은 effect를 분리하고 terminal publish를 exact once로 정산한다', async () => {
+  const calls = [];
+  const editor = (id, text = '블로그 편집기') => ({ ...observation(id, text, {
+    save: { role: 'button', name: '임시저장' }, publish: { role: 'button', name: '발행' },
+  }), refScope: { observationId: id, tabId: 'blog', targetId: 'target', url: 'https://blog.naver.com/editor' },
+  editables: [{ editableId: 'title', kind: 'title' }, { editableId: 'body', kind: 'body' }] });
+  const modal = (id) => ({ ...observation(id, '발행 설정', {
+    public: { role: 'radio', name: '전체 공개' }, final: { role: 'button', name: '발행' },
+  }), refScope: { observationId: id, tabId: 'blog', targetId: 'target', url: 'https://blog.naver.com/editor' } });
+  const browser = { async preflight() { return { allowed: true }; }, async execute(args) {
+    calls.push(args);
+    if (args.action === 'navigate' && /\/user\/123$/u.test(args.url)) return { tab: { url: args.url },
+      observation: { ...observation('post', 'T5 블로그 글 본문'), refScope: {
+        observationId: 'post', tabId: 'post', targetId: 'post-target', url: args.url } } };
+    if (args.action === 'navigate') return { tab: { tabId: 'blog' }, observation: { ...observation('home',
+      '- link "글쓰기" [ref=write]', { write: { role: 'link', name: '글쓰기' } }), refScope: {
+      observationId: 'home', tabId: 'blog', targetId: 'home', url: 'https://blog.naver.com/' } } };
+    if (args.action === 'click' && args.ref === 'write') return { after: editor('open') };
+    if (args.action === 'fill_editable') return { after: editor(`fill-${args.editableId}`) };
+    if (args.action === 'snapshot') return { observation: editor('snapshot') };
+    if (args.action === 'click' && args.ref === 'save') return { after: editor('saved', '임시저장 완료') };
+    if (args.action === 'click' && args.ref === 'publish') return { after: modal('modal') };
+    if (args.action === 'click' && args.ref === 'public') return { after: modal('public') };
+    if (args.action === 'submit' && args.ref === 'final') return { tab: { url: 'https://blog.naver.com/user/123' },
+      after: { ...observation('published', '발행 완료 게시물'), refScope: {
+        observationId: 'published', tabId: 'post', targetId: 'post-target', url: 'https://blog.naver.com/user/123' } } };
+    throw new Error(`unexpected ${args.action}:${args.ref ?? ''}`);
+  } };
+  const tool = makeNaverBrowserTool({ browser });
+  const common = { query: null, messageHandle: null, attachmentHandle: null, draftHandle: null,
+    publicationHandle: null, recipients: null, subject: null, attachmentIds: null, sourceAttachmentId: null,
+    category: null, tags: null, targetText: null, occurrence: null, formatKind: null, formatValue: null,
+    captions: null, visibility: null, scheduleAt: null, limit: 1 };
+  const draft = await tool.execute({ ...common, action: 'blog_create_draft', blogDraftHandle: null,
+    title: 'T5 블로그 글', body: '본문', effect: { kind: 'external_change' } });
+  const saved = await tool.execute({ ...common, action: 'blog_save_draft', blogDraftHandle: draft.blogDraftHandle,
+    title: null, body: null, effect: { kind: 'external_change' } });
+  assert.equal(saved.state, 'draft_saved');
+  const published = await tool.execute({ ...common, action: 'blog_publish', blogDraftHandle: draft.blogDraftHandle,
+    title: null, body: null, visibility: 'public', effect: { kind: 'external_send' } });
+  assert.equal(published.state, 'published'); assert.equal(published.retrySafe, false);
+  const repeated = await tool.execute({ ...common, action: 'blog_publish', blogDraftHandle: draft.blogDraftHandle,
+    title: null, body: null, visibility: 'public', effect: { kind: 'external_send' } });
+  assert.equal(repeated.state, 'already_settled');
+  const reopened = await tool.execute({ ...common, action: 'blog_reopen_post', blogDraftHandle: null,
+    publicationHandle: published.publicationHandle, title: null, body: null, effect: { kind: 'observe' } });
+  assert.equal(reopened.state, 'reopened'); assert.equal(reopened.titleMatched, true);
+  assert.equal(calls.filter((call) => call.action === 'submit').length, 1);
+});
+
+test('Naver Blog schedule ACK unknown은 같은 draft를 다시 예약하지 않는다', async () => {
+  const editor = (id) => ({ ...observation(id, '편집기', { publish: { role: 'button', name: '발행' } }),
+    refScope: { observationId: id, tabId: 'b', targetId: 't', url: 'https://blog.naver.com/editor' },
+    editables: [{ editableId: 'title', kind: 'title' }, { editableId: 'body', kind: 'body' }] });
+  let submits = 0;
+  const browser = { async preflight() { return { allowed: true }; }, async execute(args) {
+    if (args.action === 'navigate') return { tab: { tabId: 'b' }, observation: { ...observation('h',
+      '- link "글쓰기" [ref=w]', { w: { role: 'link', name: '글쓰기' } }), refScope: {
+      observationId: 'h', tabId: 'b', targetId: 'h', url: 'https://blog.naver.com/' } } };
+    if (args.action === 'click' && args.ref === 'w') return { after: editor('open') };
+    if (args.action === 'fill_editable') return { after: editor(`f-${args.editableId}`) };
+    if (args.action === 'snapshot') return { observation: editor('snap') };
+    if (args.action === 'click' && args.ref === 'publish') return { after: { ...observation('m', '예약 설정', {
+      schedule: { role: 'radio', name: '예약' } }), refScope: { observationId: 'm', tabId: 'b', targetId: 't', url: 'https://blog.naver.com/editor' } } };
+    if (args.action === 'click' && args.ref === 'schedule') return { after: { ...observation('s', '예약 시간', {
+      time: { role: 'textbox', name: '예약 시간' }, final: { role: 'button', name: '예약 발행' } }), refScope: {
+      observationId: 's', tabId: 'b', targetId: 't', url: 'https://blog.naver.com/editor' } } };
+    if (args.action === 'fill') return { after: { ...observation('time', '예약 시간 입력', {
+      final: { role: 'button', name: '예약 발행' } }), refScope: { observationId: 'time', tabId: 'b', targetId: 't', url: 'https://blog.naver.com/editor' } } };
+    if (args.action === 'submit') { submits += 1; return { after: { ...observation('unknown', '응답 대기'), refScope: {
+      observationId: 'unknown', tabId: 'b', targetId: 't', url: 'https://blog.naver.com/editor' } } }; }
+    throw new Error(`unexpected ${args.action}:${args.ref ?? ''}`);
+  } };
+  const tool = makeNaverBrowserTool({ browser }); const common = { query: null, messageHandle: null,
+    attachmentHandle: null, draftHandle: null, publicationHandle: null, recipients: null, subject: null,
+    attachmentIds: null, sourceAttachmentId: null, category: null, tags: null, targetText: null,
+    occurrence: null, formatKind: null, formatValue: null, captions: null, visibility: null, limit: 1 };
+  const draft = await tool.execute({ ...common, action: 'blog_create_draft', blogDraftHandle: null,
+    title: '예약 글', body: '본문', scheduleAt: null, effect: { kind: 'external_change' } });
+  const scheduled = await tool.execute({ ...common, action: 'blog_schedule', blogDraftHandle: draft.blogDraftHandle,
+    title: null, body: null, scheduleAt: '2026-09-03T09:00:00+09:00', effect: { kind: 'external_send' } });
+  assert.equal(scheduled.state, 'publication_unknown'); assert.equal(scheduled.retrySafe, false);
+  const repeated = await tool.execute({ ...common, action: 'blog_schedule', blogDraftHandle: draft.blogDraftHandle,
+    title: null, body: null, scheduleAt: '2026-09-03T09:00:00+09:00', effect: { kind: 'external_send' } });
+  assert.equal(repeated.state, 'already_settled'); assert.equal(submits, 1);
+});

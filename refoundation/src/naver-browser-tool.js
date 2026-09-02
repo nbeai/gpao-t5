@@ -5,6 +5,7 @@ const ACTIONS = ['mail_list', 'mail_search', 'mail_open', 'mail_download_attachm
   'mail_create_draft', 'mail_reply_draft', 'mail_send', 'blog_create_draft', 'blog_inspect_draft'];
 // Craft actions stay on the same draft handle and managed Browser target.
 ACTIONS.push('blog_apply_format', 'blog_insert_images', 'blog_preview');
+ACTIONS.push('blog_save_draft', 'blog_schedule', 'blog_publish', 'blog_reopen_post');
 const nullArgs = { url: null, tabId: null, full: null, maxChars: null, fullPage: null,
   observationId: null, ref: null, editableId: null, modalIntent: null, text: null,
   textFilePath: null, textFileStartLine: null, filePath: null, attachmentId: null, effect: null };
@@ -77,7 +78,8 @@ export function makeNaverBrowserTool({ browser, authorizeEffect = null, attachme
       if (gate?.allowed === false) return gate.result; }
     return browser.execute(args, {});
   };
-  const drafts = new Map(); const blogDrafts = new Map(); const terminalSends = new Set();
+  const drafts = new Map(); const blogDrafts = new Map(); const publications = new Map();
+  const terminalSends = new Set(); const terminalPublications = new Set();
   const observeList = async (limit) => {
     const opened = await call({ ...nullArgs, action: 'navigate', url: 'https://mail.naver.com/', maxChars: 12_000 });
     let observation = opened.observation; let messages = parseNaverMailObservation(observation, limit);
@@ -97,6 +99,7 @@ export function makeNaverBrowserTool({ browser, authorizeEffect = null, attachme
       attachmentHandle: { type: ['string', 'null'], maxLength: 4096 },
       draftHandle: { type: ['string', 'null'], maxLength: 4096 },
       blogDraftHandle: { type: ['string', 'null'], maxLength: 4096 },
+      publicationHandle: { type: ['string', 'null'], maxLength: 4096 },
       recipients: { type: ['array', 'null'], items: { type: 'string', maxLength: 320 }, maxItems: 20 },
       subject: { type: ['string', 'null'], maxLength: 2000 }, title: { type: ['string', 'null'], maxLength: 2000 },
       body: { type: ['string', 'null'], maxLength: 20_000 },
@@ -109,10 +112,12 @@ export function makeNaverBrowserTool({ browser, authorizeEffect = null, attachme
       formatKind: { type: ['string', 'null'], enum: ['bold', 'heading', 'color', 'font_size', 'spacing', 'divider', null] },
       formatValue: { type: ['string', 'null'], maxLength: 100 },
       captions: { type: ['array', 'null'], items: { type: 'string', maxLength: 500 }, maxItems: 20 },
+      visibility: { type: ['string', 'null'], enum: ['public', 'private', null] },
+      scheduleAt: { type: ['string', 'null'], maxLength: 40 },
       limit: { type: 'integer', minimum: 1, maximum: 50 }, effect: { anyOf: [EFFECT_SCHEMA, { type: 'null' }] },
-    }, required: ['action', 'query', 'messageHandle', 'attachmentHandle', 'draftHandle', 'blogDraftHandle',
+    }, required: ['action', 'query', 'messageHandle', 'attachmentHandle', 'draftHandle', 'blogDraftHandle', 'publicationHandle',
       'recipients', 'subject', 'title', 'body', 'attachmentIds', 'sourceAttachmentId', 'category', 'tags',
-      'targetText', 'occurrence', 'formatKind', 'formatValue', 'captions', 'limit', 'effect'] },
+      'targetText', 'occurrence', 'formatKind', 'formatValue', 'captions', 'visibility', 'scheduleAt', 'limit', 'effect'] },
     async preflight(args = {}) {
       if (!ACTIONS.includes(args.action)) throw new TypeError('unsupported Naver action');
       if (['mail_list'].includes(args.action) && effectKind(args) !== 'observe') return { allowed: false,
@@ -138,15 +143,93 @@ export function makeNaverBrowserTool({ browser, authorizeEffect = null, attachme
         outcome: 'not_executed', result: { state: 'blog_image_transmission_effect_required' } };
       if (args.action === 'blog_preview' && effectKind(args) !== 'observe') return { allowed: false,
         outcome: 'not_executed', result: { state: 'observe_effect_required' } };
+      if (args.action === 'blog_save_draft' && effectKind(args) !== 'external_change') return { allowed: false,
+        outcome: 'not_executed', result: { state: 'blog_save_external_change_required' } };
+      if (['blog_schedule', 'blog_publish'].includes(args.action) && effectKind(args) !== 'external_send') return {
+        allowed: false, outcome: 'not_executed', result: { state: 'blog_publication_external_send_required' } };
+      if (args.action === 'blog_reopen_post' && effectKind(args) !== 'observe') return { allowed: false,
+        outcome: 'not_executed', result: { state: 'observe_effect_required' } };
       if (['mail_search', 'mail_open', 'mail_download_attachment', 'mail_create_draft',
         'mail_reply_draft', 'mail_send', 'blog_create_draft', 'blog_apply_format',
-        'blog_insert_images'].includes(args.action)
+        'blog_insert_images', 'blog_save_draft', 'blog_schedule', 'blog_publish'].includes(args.action)
         && typeof authorizeEffect === 'function') {
         return authorizeEffect(args, {});
       }
       return { allowed: true };
     },
     async execute(args = {}) {
+      if (args.action === 'blog_reopen_post') {
+        const handle = decode(args.publicationHandle, 'naver_blog_publication');
+        const publication = publications.get(handle.digest);
+        if (!publication || publication.handle !== args.publicationHandle || !publication.url) {
+          throw new Error('Naver Blog publication is unavailable or has no confirmed URL');
+        }
+        const reopened = await call({ ...nullArgs, action: 'navigate', url: publication.url, maxChars: 50_000 });
+        const text = String(reopened.observation?.text ?? '');
+        return { state: text.includes(publication.title) ? 'reopened' : 'reopen_unverified',
+          publicationHandle: publication.handle, url: reopened.tab?.url,
+          titleMatched: text.includes(publication.title), bodyObservedChars: text.length, effect: 'none' };
+      }
+      if (['blog_save_draft', 'blog_schedule', 'blog_publish'].includes(args.action)) {
+        const decodedDraft = decode(args.blogDraftHandle, 'naver_blog_draft'); const draft = blogDrafts.get(decodedDraft.digest);
+        if (!draft || draft.handle !== args.blogDraftHandle) throw new Error('Naver Blog draft is unavailable or stale');
+        const terminalKey = `${args.action}:${decodedDraft.digest}`;
+        if (terminalPublications.has(terminalKey)) return { state: 'already_settled', retrySafe: false,
+          blogDraftHandle: draft.handle, effect: 'not_executed' };
+        const refreshed = await call({ ...nullArgs, action: 'snapshot', tabId: draft.observation.refScope.tabId,
+          full: true, maxChars: 64_000 }); let observation = refreshed.observation;
+        if (args.action === 'blog_save_draft') {
+          const save = refBy(observation, 'button', [/임시저장|저장/u]);
+          if (!save) throw new Error('Naver Blog draft save control is unavailable');
+          const saved = await call({ ...nullArgs, action: 'click', tabId: observation.refScope.tabId,
+            observationId: observation.observationId, ref: save[0], effect: args.effect });
+          observation = saved.after; const confirmed = /임시저장|저장.*완료|저장됨/u.test(String(observation?.text ?? ''));
+          if (confirmed) terminalPublications.add(terminalKey);
+          draft.observation = observation; return { state: confirmed ? 'draft_saved' : 'save_unknown',
+            blogDraftHandle: draft.handle, effectUnknown: !confirmed, retrySafe: !confirmed, effect: 'external_change' };
+        }
+        const open = refBy(observation, 'button', ['발행', /발행/u]);
+        if (!open) throw new Error('Naver Blog publish control is unavailable');
+        observation = (await call({ ...nullArgs, action: 'click', tabId: observation.refScope.tabId,
+          observationId: observation.observationId, ref: open[0], effect: args.effect })).after;
+        if (args.visibility) { const visibility = refBy(observation, 'radio', [args.visibility === 'public' ? /전체 공개|공개/u : /비공개/u])
+          ?? refBy(observation, 'button', [args.visibility === 'public' ? /전체 공개|공개/u : /비공개/u]);
+          if (!visibility) throw new Error('Naver Blog visibility control is unavailable');
+          observation = (await call({ ...nullArgs, action: 'click', tabId: observation.refScope.tabId,
+            observationId: observation.observationId, ref: visibility[0], effect: args.effect })).after; }
+        if (args.action === 'blog_schedule') {
+          const scheduleAt = exactText(args.scheduleAt, 'blog schedule time', 40);
+          if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:[+-]\d{2}:\d{2}|Z)$/u.test(scheduleAt)) {
+            throw new TypeError('blog schedule time must include timezone');
+          }
+          const schedule = refBy(observation, 'radio', [/예약/u]) ?? refBy(observation, 'button', [/예약/u]);
+          if (!schedule) throw new Error('Naver Blog schedule control is unavailable');
+          observation = (await call({ ...nullArgs, action: 'click', tabId: observation.refScope.tabId,
+            observationId: observation.observationId, ref: schedule[0], effect: args.effect })).after;
+          const time = refBy(observation, 'textbox', [/예약.*시간|날짜|시간/u]);
+          if (!time) throw new Error('Naver Blog schedule time control is unavailable');
+          observation = (await call({ ...nullArgs, action: 'fill', tabId: observation.refScope.tabId,
+            observationId: observation.observationId, ref: time[0], text: scheduleAt, effect: args.effect })).after;
+        }
+        const final = refBy(observation, 'button', [args.action === 'blog_schedule' ? /예약.*발행|예약/u : /^발행$/u]);
+        if (!final) throw new Error('Naver Blog terminal publish control is unavailable');
+        terminalPublications.add(terminalKey);
+        const terminal = await call({ ...nullArgs, action: 'submit', tabId: observation.refScope.tabId,
+          observationId: observation.observationId, ref: final[0], effect: args.effect });
+        const text = String(terminal.after?.text ?? ''); const confirmed = args.action === 'blog_schedule'
+          ? /예약.*(?:완료|되었습니다|발행)/u.test(text) : /발행.*(?:완료|되었습니다)|게시물/u.test(text);
+        let url = null; try { const candidate = new URL(String(terminal.tab?.url ?? terminal.after?.refScope?.url ?? ''));
+          if (candidate.hostname.endsWith('blog.naver.com') && !/PostWrite|editor/iu.test(candidate.pathname)) url = candidate.href; }
+        catch { /* unknown URL below */ }
+        const digestValue = hash(JSON.stringify({ draft: decodedDraft.digest, action: args.action,
+          visibility: args.visibility, scheduleAt: args.scheduleAt }));
+        const handle = encode({ v: 1, kind: 'naver_blog_publication', digest: digestValue });
+        publications.set(digestValue, { handle, draftHandle: draft.handle, title: draft.title, url,
+          state: confirmed ? (args.action === 'blog_schedule' ? 'scheduled' : 'published') : 'unknown' });
+        return { state: confirmed ? (args.action === 'blog_schedule' ? 'scheduled' : 'published') : 'publication_unknown',
+          publicationHandle: handle, url, effectUnknown: !confirmed, retrySafe: false,
+          recipientDelivery: 'not_applicable', unpublishQualified: false, effect: 'external_send' };
+      }
       if (['blog_apply_format', 'blog_insert_images', 'blog_preview'].includes(args.action)) {
         if (!blogCraft) throw new Error('Naver Blog craft adapter is unavailable');
         const decodedDraft = decode(args.blogDraftHandle, 'naver_blog_draft');

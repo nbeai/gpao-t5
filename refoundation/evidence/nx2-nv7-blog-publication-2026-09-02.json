@@ -1,0 +1,24 @@
+{
+  "schema": "t5.nx2-nv7-blog-publication-evidence.v1",
+  "status": "TECHNICAL_COMPLETE_FINAL_HQ_EFFECT_PENDING",
+  "qualified": {
+    "draftSaveSeparated": true,
+    "visibilityExactControl": true,
+    "scheduleTimezoneRequired": true,
+    "scheduleAndPublishSeparated": true,
+    "terminalActionExactOnce": true,
+    "unknownAckBlindRetry": false,
+    "publishedUrlReopen": true,
+    "recipientDeliveryNotApplicable": true
+  },
+  "recovery": "existing Work, Effect, Browser, Stop and interrupted-run invariants",
+  "unpublishQualified": false,
+  "newStore": 0,
+  "newBrowserReality": 0,
+  "focusedTests": "11/11 pass including actual managed Browser DOM craft fixture",
+  "finalHqOnly": [
+    "one owner-visible draft save",
+    "one owner-authorized schedule or publish",
+    "public post reopen and duplicate absence"
+  ]
+}
