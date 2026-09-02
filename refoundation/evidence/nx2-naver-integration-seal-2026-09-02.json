@@ -1,0 +1,34 @@
+{
+  "schema": "t5.nx2-naver-integration-seal-evidence.v1",
+  "status": "NV3_TO_NV7_TECHNICAL_COMPLETE_NV_HQ_CURRENT",
+  "headBeforeSeal": "135cd926",
+  "gates": {
+    "nv3": "technical_complete_actual_list_search_pass_final_open_attachment_hq_pending",
+    "nv4": "technical_complete_final_send_hq_pending",
+    "nv5": "technical_complete_final_owner_draft_hq_pending",
+    "nv6": "technical_complete_managed_dom_fixture_pass_final_preview_hq_pending",
+    "nv7": "technical_complete_final_external_effect_hq_pending"
+  },
+  "architecture": {
+    "identity": "one managed persistent Browser profile",
+    "modelSurface": "one Naver capability tool activated from Connection Truth",
+    "physicalAdapters": ["Naver Mail", "Naver Blog DOM craft"],
+    "newCanonicalStore": 0,
+    "newBrowserReality": 0,
+    "businessRouter": 0,
+    "rawCredentialOrCookieExposure": 0
+  },
+  "finalCi": {
+    "command": "npm run refoundation:ci",
+    "unitFailures": 0,
+    "integration": { "pass": 219, "fail": 0, "skip": 2 },
+    "mutation": ["completion blockers ignored KILLED", "input terminal without exact surface receipt KILLED"]
+  },
+  "rejected": [
+    "IMAP app-password default path",
+    "generic Browser ref compact performance candidate",
+    "owner live test after every technical slice"
+  ],
+  "remaining": "one owner-visible actual Console NV-HQ wave only",
+  "windowsPhysical": "DEFERRED_NOT_WAIVED"
+}

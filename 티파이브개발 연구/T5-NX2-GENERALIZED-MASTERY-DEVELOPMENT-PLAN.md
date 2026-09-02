@@ -1163,6 +1163,12 @@ unknown이면 같은 draft를 재실행하지 않는다. confirmed public URL만
 - 받은 자료→블로그 초안→Preview→예약→실제 공개 확인
 - login expiry·2FA·ACK unknown·재시작·중복 방지
 
+현재 상태: `OPEN · SINGLE_OWNER_ACTUAL_CONSOLE_WAVE`. NV-3~7 기술 개발·격리 fixture·관련 회귀·전체 unit·제품
+integration·mutation은 clean HEAD에서 봉인됐다. 중간 owner live 반복은 금지하며, 실제 계정과 외부 effect는 아래 단일
+Console wave에서만 확인한다.
+
+근거: `refoundation/evidence/nx2-naver-integration-seal-2026-09-02.json`.
+
 ### Windows provider 경계
 
 Managed Playwright가 공통 기본 후보다. Selenium·webdriver-manager는 Windows 실제 자격에서 명확한 호환성·운영 이익이
